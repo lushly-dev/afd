@@ -77,7 +77,8 @@ export const Overview: Story = {
 
         await expect(option.getAttribute("role")).toBe("option");
         await expect(option.getAttribute("aria-selected")).toBe("false");
-        await expect(option.getAttribute("aria-disabled")).toBe("false");
+        // An enabled option leaves aria-disabled unset, so its listbox's state reaches it.
+        await expect(option.hasAttribute("aria-disabled")).toBe(false);
         await expect(option.textContent).toContain("Direct sowing");
     },
 };

@@ -33,11 +33,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "431f94b19240029cd549e9665eb058533dec4ae77c874f178d153aec4ffe45f6",
+      "current_import_sha256": "a5a7b2b357d135731a7f33d04bcfbb1557e587ff0d61ea7f806c06a165b0b877",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
     },
     {
       "path": "foundations/fast-af/biome.json",
@@ -105,11 +105,11 @@
       "upstream_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
       "staged_path": "packages/element/packages/fast-element/CHANGELOG.md",
       "staged_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
-      "current_import_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
+      "current_import_sha256": "6e1f171b6f608da3b71083b53401d9e355336f3cb198d623024e6c29e219317c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/DESIGN.md",
@@ -705,11 +705,11 @@
       "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
-      "current_import_sha256": "b1053e4b0c770119c2e4fcd4c34d4acdb78a2335f2f1f875613b4152cab14ac7",
+      "current_import_sha256": "09eccc87cef84fde1a91f23a9c56d8f051777a29685b213b58e825ef23e19171",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -5649,11 +5649,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "65e37c55a5df136fab9e7c9500a2acc9dd003a139fa7fb19d964836c02878331",
+      "current_import_sha256": "e26026dc30e9a595c8a39de259f8eb1ae18d49d4a89957deeedc69baf572a4b5",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/specimen/preview.ts",
@@ -6057,11 +6057,11 @@
       "upstream_sha256": "c835a13c8c6bb42dae4e1818ff68ec8b783043decd05147e1e73322a651793bf",
       "staged_path": "packages/violet-elements/src/checkbox/violet-checkbox.ts",
       "staged_sha256": "c835a13c8c6bb42dae4e1818ff68ec8b783043decd05147e1e73322a651793bf",
-      "current_import_sha256": "dcb4bafeaae48f2545a3c33f98937fdb2f8bfba5ebd112a487540ad6c6b2da1a",
+      "current_import_sha256": "4e4745a85e464617f8aa67dde2b17be50a2f736a408ac2e7b166f4f58f05e41a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.spec.ts",
@@ -6153,11 +6153,11 @@
       "upstream_sha256": "3914322d5c63782876243342da7094af54e841f7b56aa5567d2facb55853985b",
       "staged_path": "packages/violet-elements/src/combobox/violet-combobox.spec.ts",
       "staged_sha256": "3914322d5c63782876243342da7094af54e841f7b56aa5567d2facb55853985b",
-      "current_import_sha256": "3914322d5c63782876243342da7094af54e841f7b56aa5567d2facb55853985b",
+      "current_import_sha256": "b591c7e683877b2e998398335b23dc3c812c921fd2d1e11af00e8543cc863248",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/combobox/violet-combobox.stories.ts",
@@ -8313,11 +8313,11 @@
       "upstream_sha256": "1b077b0486492154e8c675ef236eaa13be4d09ec8ac16ebe5b65ce4ec0c876d0",
       "staged_path": "packages/violet-elements/src/listbox/violet-listbox.spec.ts",
       "staged_sha256": "1b077b0486492154e8c675ef236eaa13be4d09ec8ac16ebe5b65ce4ec0c876d0",
-      "current_import_sha256": "1b077b0486492154e8c675ef236eaa13be4d09ec8ac16ebe5b65ce4ec0c876d0",
+      "current_import_sha256": "e9b38dff445021e40fee3940c962db8e7a140288b7c09ef883c3e2698b19a9e2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/listbox/violet-listbox.stories.ts",
@@ -8457,11 +8457,11 @@
       "upstream_sha256": "d6098ea3ac5eb3fa2cfc5fadbf1f10aebdadb3c11bfe7f525e51157c9dc182f2",
       "staged_path": "packages/violet-elements/src/option/violet-option.spec.ts",
       "staged_sha256": "d6098ea3ac5eb3fa2cfc5fadbf1f10aebdadb3c11bfe7f525e51157c9dc182f2",
-      "current_import_sha256": "d6098ea3ac5eb3fa2cfc5fadbf1f10aebdadb3c11bfe7f525e51157c9dc182f2",
+      "current_import_sha256": "612a7a42f284d2863a5ad4244fd1c7040efe226cb0599da6d74bc1e05aa207b8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option/violet-option.stories.ts",
@@ -8469,11 +8469,11 @@
       "upstream_sha256": "5b08de4dd65892763e6b0f70db6eda7f1923ca48bfb5535058a69b0d1d749566",
       "staged_path": "packages/violet-elements/src/option/violet-option.stories.ts",
       "staged_sha256": "5b08de4dd65892763e6b0f70db6eda7f1923ca48bfb5535058a69b0d1d749566",
-      "current_import_sha256": "cc2394c3b4aa646bd56ae487fbf384945e13ca7b44b76aa3b63eef9329c31b0f",
+      "current_import_sha256": "6881314f250ae4704ea9d9a11e729bc6673093197a94e04ef6f0225575e7e24e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option/violet-option.ts",
@@ -8481,11 +8481,11 @@
       "upstream_sha256": "c3684ac1f320c564775f19779bf148aa8b3697ca6306440da2a4afb5524467f2",
       "staged_path": "packages/violet-elements/src/option/violet-option.ts",
       "staged_sha256": "c3684ac1f320c564775f19779bf148aa8b3697ca6306440da2a4afb5524467f2",
-      "current_import_sha256": "a462e95896f72b589244787e86fcd875ffcb26f44a13de9db8859a11d6738ad6",
+      "current_import_sha256": "1f25b21a11420e5127d59f21d6db331c877ee59ae10f4e116d5d429701df487f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/pagination/violet-pagination.spec.ts",
@@ -8697,11 +8697,11 @@
       "upstream_sha256": "9c329c741ef59b45053bb97fb8d9da94769517c91180882827746542e9b199e2",
       "staged_path": "packages/violet-elements/src/radio/violet-radio.ts",
       "staged_sha256": "9c329c741ef59b45053bb97fb8d9da94769517c91180882827746542e9b199e2",
-      "current_import_sha256": "9a91533d9edbc21b4a05d91422d678139a9f7a9dfd7bab15a1b800b6a99532f4",
+      "current_import_sha256": "9bb03978341c2545bc7ebe3de2eedf62847be724638b3ccce1c9567483433208",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segment/violet-segment.spec.ts",
@@ -8985,11 +8985,11 @@
       "upstream_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.spec.ts",
       "staged_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
-      "current_import_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
+      "current_import_sha256": "a786868e249c4374a4b0b0ef85e78d3797fd139817a7c4a4ff320fd2146d0dd1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/switch/violet-switch.stories.ts",
@@ -9009,11 +9009,11 @@
       "upstream_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.ts",
       "staged_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
-      "current_import_sha256": "ed6c549c1d3148c532e9a258076dbb005d4961171809d95b622429d093e64cff",
+      "current_import_sha256": "335ac3ea0828db8bebfd26614ff1458b2482bf697626fdc057eac2903c834e4c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab-panel/violet-tab-panel.spec.ts",
@@ -9669,11 +9669,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d24d0d9af062393136f356759eb21300621c0f5d5670c410f0e69ef355b692af",
+      "current_import_sha256": "bc00b82acb3503558d11128dc04c0299441b6e30ef9b6a08d6c40d21aabd77e5",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",
-      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
     }
   ]
 }

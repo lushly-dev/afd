@@ -112,6 +112,24 @@ describe("violet-listbox", () => {
         expect(listbox.options.find(option => option.value === "legacy")?.isDisabled).toBe(true);
     });
 
+    it("leaves its options' disabled state to a disabled listbox", async () => {
+        const listbox = await renderListbox();
+        listbox.disabled = true;
+        await nextFrame();
+
+        const control = listbox.shadowRoot?.querySelector('[role="listbox"]');
+        expect(control?.getAttribute("aria-disabled")).toBe("true");
+        // An explicit "false" on an option would override the listbox's state for it.
+        const states = listbox.options.map(option => [option.value, option.getAttribute("aria-disabled")]);
+        expect(states).toEqual([
+            ["broadcast", null],
+            ["direct", null],
+            ["transplant", null],
+            ["hydro", "true"],
+        ]);
+        expect(listbox.value).toBe("direct");
+    });
+
     describe("native key handling", () => {
         it("returns true for unhandled keys and false for handled keys", async () => {
             const listbox = await renderListbox();

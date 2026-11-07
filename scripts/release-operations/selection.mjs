@@ -1,13 +1,15 @@
 import semver from 'semver';
-import { discoverDistributions, planRelease } from '../release/control.mjs';
+import { AUTOMATIC_ROUTES, discoverDistributions, planRelease } from '../release/control.mjs';
 
+/** Admitted units with release intent; with no route, those on every automatic route. */
 export function pendingUnits(inventory, fragments, route) {
+	const routes = route ? [route] : AUTOMATIC_ROUTES;
 	return inventory.units
 		.filter(
 			(unit) =>
 				unit.state === 'admitted' &&
 				unit.protocol === 'npm-changesets' &&
-				unit.routes.includes(route) &&
+				unit.routes.some((entry) => routes.includes(entry)) &&
 				fragments.some((fragment) => fragment.units.includes(unit.id))
 		)
 		.map((unit) => unit.id);

@@ -238,6 +238,9 @@ export async function createInProcessBench(
 								...(options.reuseBundle ? { reuseBundle: true } : {}),
 								...(options.accessibility ? { accessibility: true } : {}),
 								...(options.profile ? { profile: true } : {}),
+								...(entry.story && config.config.test?.settledAccessibility
+									? { settled: true }
+									: {}),
 							},
 							// The host bounds the render itself; this covers a host that stops answering.
 							request.timeoutMs + HOST_GRACE
@@ -254,7 +257,8 @@ export async function createInProcessBench(
 			const profile = rendered.profile ?? null;
 			if (!rendered.captured)
 				return { observation: null, outcome: rendered.outcome ?? null, accessibility, profile };
-			const axe = accessibility ?? rendered.outcome?.a11y;
+			// The capture is of the settled page, so it records the settled check when one ran.
+			const axe = accessibility ?? rendered.outcome?.settled ?? rendered.outcome?.a11y;
 			const [source, dependencies] =
 				identity ??
 				(await Promise.all([sourceState(config.root), dependencyIdentity(config.root)]));
@@ -485,14 +489,16 @@ export async function createInProcessBench(
 				},
 				{ capture: 'none', reuseBundle: true, accessibility: true }
 			);
-			const axe = accessibility ?? outcome?.a11y;
+			// A project that asks for the settled check is checked there; the earlier check stays in
+			// the story's run.
+			const axe = accessibility ?? outcome?.settled ?? outcome?.a11y;
 			if (!axe) throw new Error('The host returned no accessibility check');
 			return {
 				...axe,
 				id: entry.id,
 				checkpoint,
 				failures: (outcome?.failures ?? []).flatMap((failure) =>
-					failure.category === 'a11y'
+					failure.category === 'a11y' || failure.category === 'settled-a11y'
 						? []
 						: [{ category: failure.category, message: failure.message }]
 				),

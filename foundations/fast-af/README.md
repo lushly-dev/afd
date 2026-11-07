@@ -4,8 +4,8 @@ Maintained FAST-AF runtime and components, imported from [lushly-dev/fast-af](ht
 
 | Package | Path | Contract |
 | --- | --- | --- |
-| `@lushly-dev/fast-element` 3.0.1 | [`packages/element/packages/fast-element`](./packages/element/packages/fast-element/README.md) | Web component runtime, 38 export paths with types and production/development root conditions. Depends only on `@webcomponents/scoped-custom-element-registry`. |
-| `@lushly-dev/violet-elements` 0.1.0, `private: true` | [`packages/violet-elements`](./packages/violet-elements/README.md) | The FAST-AF component package despite its name: root barrel that registers its elements, per-element modules under `dist/*`, `custom-elements.json`, `tokens/*` and `package.json`. Peer of `@lushly-dev/fast-element` 3.0.1. It has local theme registries and no dependency on Violet's token engine. |
+| `@lushly-dev/fast-element` 3.0.1-preview | [`packages/element/packages/fast-element`](./packages/element/packages/fast-element/README.md) | Web component runtime, 38 export paths with types and production/development root conditions. Depends only on `@webcomponents/scoped-custom-element-registry`. |
+| `@lushly-dev/violet-elements` 0.1.0, `private: true` | [`packages/violet-elements`](./packages/violet-elements/README.md) | The FAST-AF component package despite its name: root barrel that registers its elements, per-element modules under `dist/*`, `custom-elements.json`, `tokens/*` and `package.json`. Peer of `@lushly-dev/fast-element` at its exact version. It has local theme registries and no dependency on Violet's token engine. |
 
 Neither package's published code depends on AFD, Specimen or Violet. `violet-elements` has a development dependency on Specimen, for its stories. [`LICENSE`](./LICENSE) and [`NOTICE.md`](./NOTICE.md) are the upstream files, unchanged. `NOTICE.md` also lists upstream components that were not imported (Fluent reference components, Creator). Each package directory carries a verbatim copy of its applicable license so the packed artifact includes it: Microsoft's for `fast-element`, the Lushly root license for `violet-elements`.
 
@@ -34,7 +34,7 @@ The fast-element build rewrites its API reports when the public API changes, as 
 
 ## Stories
 
-Every component has its stories in `src/`, and they run on [Specimen](../specimen/README.md), not Storybook. `pnpm test:stories` typechecks them, runs each one with its accessibility check, applies the story contract, and builds the review page within its budgets. [`specimen.yml`](../../.github/workflows/specimen.yml) runs the same check.
+Every component has its stories in `src/`, and they run on [Specimen](../specimen/README.md), not Storybook. `pnpm test:stories` typechecks them, runs each one with its accessibility check at Storybook's timing and again once it has settled (`test.settledAccessibility` in `specimen.config.json`), applies the story contract, and builds the review page within its budgets. [`specimen.yml`](../../.github/workflows/specimen.yml) runs the same check.
 
 Upstream's Storybook configuration and Fastbot stayed upstream. `specimen.config.json` and `specimen/preview.ts` hold what its preview gave every story, and `specimen contract` does what Fastbot's story rules did, on evidence from a run. So a story named `Disabled` has to render the component disabled.
 
@@ -49,4 +49,4 @@ python3 -m http.server --directory /tmp/violet-stories
 
 ## Publication
 
-Both units are quarantined in [`scripts/release/inventory.json`](../../scripts/release/inventory.json). The upstream repository remains authoritative: it versions with Changesets and has no publish workflow, tags or releases. The 45 changesets pending upstream at import were not imported; the three describing the reconciled violet-elements changes are in [`.changeset`](../../.changeset). No package may publish under a Microsoft or other upstream namespace.
+In [`scripts/release/inventory.json`](../../scripts/release/inventory.json), `fast-element` is admitted for the npm `preview` prerelease with Specimen, `3.0.1-preview.0` first, which AFD's `release.yml` publishes; the owner approved it on 2026-11-04, and its manifest's repository now names AFD. `violet-elements` stays quarantined, and the upstream repository stays authoritative for it: it versions with Changesets and has no publish workflow, tags or releases. The 45 changesets pending upstream at import were not imported; the three describing the reconciled violet-elements changes are in [`.changeset`](../../.changeset). No package may publish under a Microsoft or other upstream namespace.

@@ -1,6 +1,6 @@
 # Specimens
 
-**Preview.** Specimen works end to end on [AFD's FAST-AF stories](../fast-af/README.md#stories), which use it as their only runner. Its API can still change, it is not published, and Lushly has not moved to it yet.
+**Preview.** Specimen works end to end on [AFD's FAST-AF stories](../fast-af/README.md#stories), which use it as their only runner. Its API can still change, and Lushly has not moved to it yet. It is admitted for an npm prerelease under the `preview` tag, `2.2.0-preview.0` first, with its hosts, CLI, AFD bindings and FAST-AF plugin; until that release is out, it comes from a source build.
 
 A native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes its operations as `specimen-*` commands, through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
 
@@ -78,6 +78,8 @@ Discovery that fails makes `list()`, `render()` and `build()` throw. It fails on
 A run reports `passed`, `failed` (by `render`, `play` or `a11y`), `skipped` or `excluded`. `test: { include, exclude, skip }` in the configuration selects stories as the addon's `tags` option does. A story that relies on something the runtime does not reproduce fails rather than running without it. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
 
 A story runs in one chain, as under Storybook's runner: render, then play, then the accessibility check, with no frame between them, so a component that renders on its next frame is seen as Storybook's run sees it. A custom element a story leaves undefined does not hold it up; the capture records it.
+
+That timing can miss what a component draws on its next frame, such as a FAST component applying its args: Storybook's check runs before then. `test: { settledAccessibility: true }` adds a second check once the story has settled, with its elements defined, its fonts loaded and two frames drawn, under the same policy. The run reports it as `settled`, beside `a11y`, and a violation there fails the story as `settled-a11y`. With it on, `specimen-a11y` and a capture's `channels.a11y.axe` report the settled check. It is off by default, so runs agree with Storybook's. AFD's own FAST-AF stories turn it on.
 
 Two things consumers' stories rely on are available:
 
@@ -407,7 +409,7 @@ Rendering runs in `specimen-host`, a Rust binary in [`host/`](host). It bundles 
 
 The bundle follows Vite's import forms: `.css` imports inject a style element, `?inline` CSS and `?raw` files import as strings, `?url` imports resolve to the file's served path, and a stylesheet's relative `@import`s and `url()`s resolve against the stylesheet. `import.meta.glob` calls with literal arguments expand as Vite expands them: a pattern or an array of patterns (`!` excludes), relative to the file or, with a leading `/`, to the root, with the `eager`, `import` and `query` options. Any other glob argument, and other import queries, are rejected. A module that fails to bundle fails only the specimens that use it, and fixing it rebuilds the bench. Selector targets are CSS selectors; Playwright's own selector syntax (`text=`, `>>`, `:has-text()` and the like) is rejected.
 
-The host comes prebuilt, one package per platform, which `@lushly-dev/specimen` lists as optional dependencies so a package manager installs only the one that matches: `@lushly-dev/specimen-host-darwin-arm64`, `-darwin-x64`, `-linux-arm64-gnu` and `-linux-x64-gnu`. The Linux hosts link glibc, as Playwright's headless shell does, and are built against glibc 2.35, Playwright's oldest supported Ubuntu; musl and Windows are not supported yet. None is published yet, so for now the host comes from a source build.
+The host comes prebuilt, one package per platform, which `@lushly-dev/specimen` lists as optional dependencies so a package manager installs only the one that matches: `@lushly-dev/specimen-host-darwin-arm64`, `-darwin-x64`, `-linux-arm64-gnu` and `-linux-x64-gnu`. The Linux hosts link glibc, as Playwright's headless shell does, and are built against glibc 2.35, Playwright's oldest supported Ubuntu; musl and Windows are not supported yet. They release with the core, at its version, in the `preview` prerelease; until it is out, the host comes from a source build.
 
 The bench looks for the host in this order, then for Playwright's installed headless shell unless `executablePath` is given:
 
@@ -429,8 +431,8 @@ The [warm CPU investigation](../../docs/features/active/specimens/cpu-hotspot-va
 
 The opt-in [real consumer probes](experiments/README.md) exercise actual FAST-AF and Lushly source with recorded dependency limitations. They are separate from the self-contained package suite and do not establish retained-CSF parity.
 
-## Unreleased package split
+## Package split
 
-The selected feasibility source was never admitted for publication. The imported native package keeps version 2.2.0 while its AFD bindings and CLI move to separate distributions. This is a reviewed source transition, not permission to publish 2.2.0 or overwrite a released artifact. See [the split transition](../../docs/features/active/platform-monorepo/specimen-transition.md).
+The selected feasibility source was never published. The native package and its separate AFD bindings and CLI start their first release, a preview, at `2.2.0-preview`, which Changesets versions to `2.2.0-preview.0`; the owner approved it on 2026-11-04. No `2.2.0` exists to overwrite. See [the split transition](../../docs/features/active/platform-monorepo/specimen-transition.md).
 
 Install `@lushly-dev/specimen` for the native API. It requires no AFD, FAST-AF, or Violet runtime, peers, configuration, or install hooks. Native validation contracts are available from `@lushly-dev/specimen/schema`. Install the separate `@lushly-dev/specimen-cli` endpoint for the `specimen` command, or `@lushly-dev/specimen-afd` with compatible AFD core/server packages for commands/MCP composition. The endpoint may install those foundations for its own operation; inspected applications do not need them.

@@ -66,6 +66,7 @@ const configSchema = z
 				skip: z.array(z.string().min(1)).optional(),
 				workers: z.number().int().min(1).max(32).optional(),
 				timeoutMs: z.number().int().min(1).max(60_000).optional(),
+				settledAccessibility: z.boolean().optional(),
 			})
 			.optional(),
 		coverage: z
@@ -229,6 +230,8 @@ describe('bench validation matches the Zod schemas', () => {
 			{ stories: ['src'], test: { workers: 1.5 } },
 			{ stories: ['src'], test: { timeoutMs: 20_000 } },
 			{ stories: ['src'], test: { timeoutMs: 0 } },
+			{ stories: ['src'], test: { settledAccessibility: true } },
+			{ stories: ['src'], test: { settledAccessibility: 'yes' } },
 			{ specimens: [entry], test: {} },
 			{ specimens: [entry], plugins: ['./plugins.ts'], manifest: 'custom-elements.json' },
 			{ specimens: [entry], staticDirs: ['./public', { from: './site', to: '/site' }] },

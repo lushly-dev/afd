@@ -236,7 +236,12 @@ export class VioletOption extends FASTElement {
         }
 
         this.setAttribute("aria-selected", String(this.selected));
-        this.setAttribute("aria-disabled", String(this.isDisabled));
+        // An enabled option states nothing, so a disabled listbox's state reaches it.
+        if (this.isDisabled) {
+            this.setAttribute("aria-disabled", "true");
+        } else {
+            this.removeAttribute("aria-disabled");
+        }
     }
 }
 

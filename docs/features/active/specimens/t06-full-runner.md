@@ -66,7 +66,7 @@ The evidence of what it hides:
 - Specimen's earlier check, which ran after a frame, found 3 failures in 1,280 stories, all `color-contrast` on disabled text: FAST-AF's switch (3.17:1) and listbox (2.44:1 and 3.63:1), and Lushly's settings surface (3.03:1).
 - FAST-AF's Storybook, patched in a throwaway copy to wait one frame before its check and running axe-core 4.13.0, fails exactly its two and passes the other 405.
 
-These may be false positives. WCAG 1.4.3 exempts inactive controls, but axe recognises a disabled custom element only through `aria-disabled`. Whether to offer a settled check as a stricter option after cutover is open ([follow-up](STATUS.md)).
+These may be false positives. WCAG 1.4.3 exempts inactive controls, but axe recognises a disabled custom element only through `aria-disabled`. Whether to offer a settled check as a stricter option after cutover was left open here. The owner decided to add it, and [T08 adds it](t08-cutover.md#the-settled-accessibility-check): FAST-AF's two were real problems in the components, both now fixed.
 
 One difference remains. Storybook shares a page across a file's stories, so a file's first story fetches axe and can let a frame through, and its later stories do not. Specimen gives every story a fresh page with axe already loaded, so it always takes the no-frame path. The suites above agree regardless.
 

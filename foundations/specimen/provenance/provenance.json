@@ -22,29 +22,31 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "3e8fe806bb8265489ae63bff1498852a3d56dc97e275639cef02ccf37d6631cb"
+      "sha256": "a3c9b1e0b1a927c0f4022782850835c11c34ef9152bbbc35e514919bbfd176aa"
     }
   },
   "units": [
     {
       "name": "@lushly-dev/specimen",
       "layer": "foundation",
-      "path": "foundations/specimen"
+      "path": "foundations/specimen",
+      "publication_state": "preview"
     },
     {
       "name": "@lushly-dev/specimen-afd",
       "layer": "integration",
-      "path": "integrations/specimen-afd"
+      "path": "integrations/specimen-afd",
+      "publication_state": "preview"
     },
     {
       "name": "@lushly-dev/specimen-cli",
       "layer": "endpoint",
-      "path": "endpoints/specimen-cli"
+      "path": "endpoints/specimen-cli",
+      "publication_state": "preview"
     }
   ],
   "interpretation": "upstream-selected.json describes upstream bytes only. adaptations.json records upstream to staged and staged to imported transitions for every imported file. The staged candidate is context, not upstream identity.",
   "license": "MIT",
   "source_authority": "lushly-dev/afd branch codex/specimens-feasibility (unmerged)",
-  "publisher_authority": "none: never published; no publisher recorded or authorized",
-  "publication_state": "quarantined"
+  "publisher_authority": "lushly-dev/afd release.yml through npm trusted publishing, approved by the owner on 2026-11-04 for the preview prerelease"
 }

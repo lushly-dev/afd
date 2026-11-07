@@ -1,0 +1,4 @@
+{
+	"stories": ["*.stories.ts"],
+	"preview": ".storybook/preview.ts"
+}

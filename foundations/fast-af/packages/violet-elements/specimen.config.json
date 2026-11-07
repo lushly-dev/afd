@@ -1,5 +1,6 @@
 {
   "stories": ["src/**/*.stories.ts"],
   "preview": "specimen/preview.ts",
-  "manifest": "custom-elements.json"
+  "manifest": "custom-elements.json",
+  "test": { "settledAccessibility": true }
 }

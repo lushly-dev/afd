@@ -3,9 +3,11 @@ import { basename, dirname, join, resolve } from 'node:path';
 import semver from 'semver';
 import {
 	assertAdmission,
+	assertChannelVersions,
 	discoverDistributions,
 	loadInventory,
 	planRelease,
+	releaseChannel,
 } from '../release/control.mjs';
 import { intentFile, readIntent } from './intent.mjs';
 import { dependencyOrder, readPublished, verifyPublished } from './prerequisites.mjs';
@@ -150,8 +152,8 @@ export function createPublishPlan({
 	root,
 	selectedUnits,
 	registryEvidence,
-	route = 'npm-main',
-	distTag = 'latest',
+	route,
+	distTag,
 	artifactsDirectory,
 	exclude = [],
 	pack,
@@ -163,13 +165,19 @@ export function createPublishPlan({
 		JSON.stringify([...selectedUnits].sort()) !== JSON.stringify([...intent.selectedUnits].sort())
 	)
 		throw new Error('Selected units differ from reviewed release intent');
+	const inventory = loadInventory(root);
+	// The units' own route and tag, unless an operator names them; a prerelease keeps its tag.
+	const channel = releaseChannel(inventory, selectedUnits);
+	route ??= channel.route;
+	distTag ??= channel.distTag;
+	if (route === 'npm-prerelease' && distTag !== channel.distTag)
+		throw new Error(`This prerelease publishes under the ${channel.distTag} npm tag`);
 	if (!['npm-main', 'npm-prerelease', 'npm-manual'].includes(route))
 		throw new Error(`Unknown npm route: ${route}`);
 	if (!/^[a-zA-Z][a-zA-Z0-9._-]*$/.test(distTag) || semver.validRange(distTag))
 		throw new Error('Invalid npm distribution tag');
 	if (route === 'npm-prerelease' && distTag === 'latest')
 		throw new Error('Prerelease requires an explicit non-latest npm tag');
-	const inventory = loadInventory(root);
 	for (const unit of selectedUnits) assertAdmission({ root, inventory, unit, route });
 	registryNames(root, selectedUnits); // Reject unsupported evidence routes before packing.
 	const core = planRelease({
@@ -180,11 +188,7 @@ export function createPublishPlan({
 	});
 	if (core.distributions.some((distribution) => distribution.registry !== 'npm'))
 		throw new Error('npm plan contains a non-npm distribution');
-	if (
-		route === 'npm-main' &&
-		core.distributions.some((distribution) => semver.prerelease(distribution.version))
-	)
-		throw new Error('Prerelease requires an admitted prerelease route');
+	assertChannelVersions(core.distributions, { route, distTag });
 	const source = sourceDigest(root, exclude);
 	const artifacts = packSelected({ root, plan: core, outputDirectory: artifactsDirectory, pack });
 	if (run('git', ['rev-parse', 'HEAD'], root).trim() !== sourceRevision)

@@ -30,4 +30,4 @@ The bench installs plugins before any specimen or story module loads. Elements d
 
 `pnpm -F @lushly-dev/specimen-fast-af test` runs the browser-free schema tests. `test:browser` runs the plugin through Specimen's bench on a FAST element with an `@command`; it needs the native host and Chromium, as Specimen's own Chromium suite does.
 
-This unit is private and quarantined: it cannot publish. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
+It is admitted for the npm `preview` prerelease with Specimen, at `0.1.0-preview.0` first, and needs `@lushly-dev/fast-element` `^3.0.1-preview`, which releases in the same prerelease. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).

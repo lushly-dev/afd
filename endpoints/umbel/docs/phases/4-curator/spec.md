@@ -135,9 +135,10 @@
     surfaces for what `human:bo` learns of `human:ada`. The exit found no defect in the implementation, so no
     plugin, host, schema or SDK file changed. Its [amendments](#amendments-from-step-7) settle eleven details of
     section 13 and change no trust-model point.
-- **Not done:** nothing in section [15](#15-implementation-plan)'s plan. Open: the [follow-ups](#follow-ups), and
-  the one question for the owner in step 7's amendment 11 (a draft its proposer can no longer read is not reached
-  for redaction, the limit step 3b's amendment 12 stated).
+- **Not done:** nothing in section [15](#15-implementation-plan)'s plan. Open: the [follow-ups](#follow-ups). The
+  one question for the owner in step 7's amendment 11 (a draft its proposer can no longer read is not reached for
+  redaction, the limit step 3b's amendment 12 stated) was answered on 2026-11-04 by
+  [phase 5 decision 11](../5-auth-hosted/spec.md#17-for-the-owner) (D120, amending D101).
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -1957,7 +1958,8 @@ eleventh restates, for the owner, the one limit an earlier step stated and nobod
     admits, which are never wider than they were. Nothing in phases 3 or 4 decides whether that is accepted. It is
     listed for the owner in [STATUS.md](../../STATUS.md#phase-4-curator) and not changed here, since closing it
     (a redaction path outside the caller's filter, such as one the host or the knowledge instance runs on a
-    forget) changes who may act on a record.
+    forget) changes who may act on a record. **Answered 2026-11-04** by
+    [phase 5 decision 11](../5-auth-hosted/spec.md#17-for-the-owner) (D120).
 
 ## 16. For the owner
 
@@ -2043,7 +2045,7 @@ follows owner decisions 4 and 8.
 | 2026-11-03 | A doctor API for plugins, so `overdue` reaches `workspace-doctor` (7.3) | When a second plugin needs one |
 | 2026-11-03 | A host hook for plugin configuration checks that need the workspace: a knowledge drafter target's collection exists, is markdown and is one the instance may write. Today these fail closed per draft, with `PROPOSAL_DRAFTER_TARGET_INVALID` or `PROPOSAL_APPLY_UNAVAILABLE`, not at load (step 3c, amendment 14); a run now reports each such refusal by code in its report's `refused` (step 5, amendment 6). Pair it with the doctor API above. Not built in step 7, whose plan row and exit do not need it: it is a new host interface, and every case still fails closed | Before real use, with the doctor API |
 | 2026-11-03 | Any future surface that reads plugin records (an export, a records command) must filter by principal, not only by access set: a curator candidate of a shared source is admitted by every reader of its sources (step 7, amendment 10) | When such a surface is specified |
-| 2026-11-03 | A draft its proposer can no longer read is not redacted when its source is forgotten (step 3b, amendment 12; step 7, amendment 11) | Owner's decision |
+| 2026-11-03 | A draft its proposer can no longer read is not redacted when its source is forgotten (step 3b, amendment 12; step 7, amendment 11) | Answered 2026-11-04 by [phase 5 decision 11](../5-auth-hosted/spec.md#17-for-the-owner) (D120): a host-run, redaction-only sweep; phase 5 step 11 |
 | 2026-11-03 | A `MemoryMeta` projection with `contentHash` and `observations`, if `max_gets` proves too small (4.1) | When a deployer asks |
 | 2026-11-03 | A memory retrieval eval before ranking candidates beyond fixed rules | After phase 4 |
-| 2026-11-03 | Phase 3's follow-up on sharing writers closing others' records bears on 9.2's listed invalidations | Owner, before phase 5 |
+| 2026-11-03 | Phase 3's follow-up on sharing writers closing others' records bears on 9.2's listed invalidations | Answered 2026-11-04 by [phase 5 decision 10](../5-auth-hosted/spec.md#17-for-the-owner) (D119) |

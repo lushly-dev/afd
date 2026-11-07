@@ -35,6 +35,14 @@ const SKIP = new Set([
 	'.ruff_cache',
 	'out',
 ]);
+/**
+ * Routes the Release workflow selects on its own, in the order it tries them; a manual route
+ * waits for an operator. A prerelease goes first: it exists for quick feedback, while the main
+ * route's release pull request gathers changes over days.
+ */
+export const AUTOMATIC_ROUTES = ['npm-prerelease', 'npm-main'];
+// Also Changesets' prerelease identifier, so the version reads `1.2.0-<tag>.0`.
+const PRERELEASE_TAG = /^(?!latest$)[a-z][a-z0-9-]*$/;
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const fail = (message) => {
 	throw new Error(message);
@@ -134,6 +142,13 @@ export function loadInventory(root) {
 		const privateOnly = unit.distributions.every((distribution) => distribution.private === true);
 		if (unit.routes.length !== 1 && !(privateOnly && unit.routes.length === 0))
 			fail(`Only one enabled publication route is allowed: ${unit.id}`);
+		// A prerelease names the npm tag it publishes under, and only a prerelease names one.
+		const prerelease = unit.routes.includes('npm-prerelease');
+		if (
+			prerelease !== (unit.distTag !== undefined) ||
+			(prerelease && !PRERELEASE_TAG.test(unit.distTag))
+		)
+			fail(`A prerelease route requires its own npm tag, and no other route takes one: ${unit.id}`);
 		for (const distribution of unit.distributions) {
 			safePath(root, distribution.manifest);
 			const identity = `${distribution.registry}:${registryName(distribution.registry, distribution.name)}`;
@@ -310,6 +325,39 @@ export function assertAdmission({ root, inventory = loadInventory(root), unit, r
 	)
 		fail(`Release candidate is held: ${unit}`);
 	return distributions;
+}
+/** The one route and npm tag a set of units releases under; units on different ones cannot share a release. */
+export function releaseChannel(inventory, selectedUnits) {
+	const channels = new Set(
+		selectedUnits.map((id) => {
+			const unit = inventory.units.find((entry) => entry.id === id);
+			if (!unit) fail(`Release unit is not admitted: ${id}`);
+			return JSON.stringify([unit.routes[0], unit.distTag ?? 'latest']);
+		})
+	);
+	if (channels.size !== 1)
+		fail(
+			`Units on different routes or npm tags cannot share a release: ${selectedUnits.join(', ')}`
+		);
+	const [route, distTag] = JSON.parse([...channels][0]);
+	return { route, distTag };
+}
+/** A prerelease publishes only `x.y.z-<tag>.<n>`, and the main route only stable versions. */
+export function assertChannelVersions(distributions, { route, distTag }) {
+	for (const { name, version } of distributions) {
+		const identifiers = semver.prerelease(version);
+		if (route === 'npm-prerelease') {
+			if (
+				identifiers?.length !== 2 ||
+				identifiers[0] !== distTag ||
+				!Number.isInteger(identifiers[1])
+			)
+				fail(
+					`A ${distTag} prerelease publishes only x.y.z-${distTag}.N versions: ${name}@${version}`
+				);
+		} else if (route === 'npm-main' && identifiers)
+			fail(`Prerelease requires an admitted prerelease route: ${name}@${version}`);
+	}
 }
 export function candidateDigest(root, inventory, selectedUnits) {
 	let sourceRevision = null;

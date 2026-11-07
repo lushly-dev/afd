@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-cli",
-	"version": "2.2.0",
+	"version": "2.2.0-preview.0",
 	"type": "module",
 	"files": [
 		"dist",
@@ -35,8 +35,8 @@
 		}
 	},
 	"dependencies": {
-		"@lushly-dev/specimen": "workspace:^2.2.0",
-		"@lushly-dev/specimen-afd": "workspace:^2.2.0",
+		"@lushly-dev/specimen": "workspace:^",
+		"@lushly-dev/specimen-afd": "workspace:^",
 		"@lushly-dev/afd-core": "workspace:^2.2.0",
 		"@lushly-dev/afd-server": "workspace:^2.2.0",
 		"zod": "^4.6.6"

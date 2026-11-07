@@ -193,6 +193,51 @@ describe('retained stories end the same way in both runners', () => {
 	}, 300_000);
 });
 
+describe('the settled accessibility check', () => {
+	it('stays off unless asked, and then finds what a story changes on its next frame', async () => {
+		const stories = await agree('settled', {
+			Steady: 'passed',
+			'Late Contrast': 'passed',
+			'Late Disabled': 'passed',
+		});
+		for (const story of stories) expect(story.run.outcome.settled).toBeUndefined();
+		const bench = await createSpecimenBench({
+			root: join(compat, 'settled'),
+			configFile: join(compat, 'settled/settled.config.json'),
+		});
+		try {
+			const late = await bench.run({ id: 'fixtures-settled--late-contrast' });
+			expect(late.outcome).toMatchObject({
+				status: 'failed',
+				a11y: { status: 'passed' },
+				settled: {
+					status: 'failed',
+					policy: 'error',
+					violations: [{ id: 'color-contrast', targets: ['late-style'] }],
+				},
+				failures: [{ category: 'settled-a11y', message: expect.stringContaining('Once settled:') }],
+			});
+			expect(late.outcome.failures).toHaveLength(1);
+			// The capture is of the settled page, so it records the settled check.
+			expect(late.observation?.channels.a11y.axe).toMatchObject({ status: 'failed' });
+			for (const id of ['fixtures-settled--late-disabled', 'fixtures-settled--steady'])
+				expect((await bench.run({ id })).outcome).toMatchObject({
+					status: 'passed',
+					a11y: { status: 'passed' },
+					settled: { status: 'passed', violations: [] },
+				});
+			const { reports } = await bench.a11y({ id: 'fixtures-settled--late-contrast' });
+			expect(reports[0]).toMatchObject({
+				status: 'failed',
+				violations: [{ id: 'color-contrast' }],
+				failures: [],
+			});
+		} finally {
+			await bench.close();
+		}
+	}, 300_000);
+});
+
 describe('Specimen’s own helpers and types', () => {
 	it('mean the same in both runners, passing and failing', async () => {
 		await agree('native', {

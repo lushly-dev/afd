@@ -453,7 +453,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (!active) throw new Error('Mount a specimen before checking it.');
 			return runtime.checkNativeSpecimen(mountRoot, nativeAccessibility);
 		},
-		async mountAndRun(entry, context) {
+		async mountAndRun(entry, context, options = {}) {
 			// One chain with no frame between the render and the play and no import after the
 			// render, as Storybook's runner has it: a play and an accessibility check see a
 			// component that renders on its next frame as Storybook does. The frame comes after.
@@ -461,13 +461,16 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				throw new Error('A specimen is already mounted; dispose it before mounting another.');
 			active = true;
 			await observeEntry(entry);
-			const { runStory } = await storyRuntime();
+			const { runStory, checkSettledStory } = await storyRuntime();
 			await mountRetained(entry, context, { settle: false });
 			if (!story?.mounted) throw new Error('A retained story did not mount.');
 			await afterMicrotasks();
 			const outcome = await runStory(story.mounted);
 			await settle();
-			return outcome;
+			if (!options.settled) return outcome;
+			// `settle` draws one frame; a component that defers a write to its next frame draws then.
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+			return checkSettledStory(story.mounted, outcome);
 		},
 		async mount(entry, context) {
 			if (active)
