@@ -247,6 +247,11 @@ async fn catalog_cases_hold_on_every_lane() {
                 .await;
             let (code, data) = error_of(&response);
             assert_eq!(code, case["code"].as_i64().unwrap(), "{lane:?} {case}");
+            // S4: `rmcp` refuses a `skills/get` URI that is not a `SKILL.md` URI before the
+            // handler runs, with no `data`; every other error carries `data.uri`.
+            if case["dataOptional"] == true && data.is_null() {
+                continue;
+            }
             assert_eq!(data["uri"], case["uri"], "{lane:?} {case}");
         }
     }
@@ -434,6 +439,37 @@ async fn a_server_with_no_catalog_answers_skills_methods_with_method_not_found()
                 .await;
             assert_eq!(error_of(&response).0, -32601, "{lane:?} {method}");
         }
+    }
+}
+
+#[tokio::test]
+async fn malformed_skills_params_are_invalid_params_where_the_methods_are_served() {
+    // Params that do not parse as `rmcp`'s typed requests reach `on_custom_request`, which
+    // answers from the same catalog. (`skills/list` has optional params: `rmcp` reads a
+    // `cursor` that is not a string as no params, as it does for `resources/list`.)
+    let catalog = SkillCatalog::new(skills_of(&cases()["catalog"]["skills"]))
+        .unwrap()
+        .with_directory_read(true);
+    let plain = McpServer::new(empty_registry(), "plain", "1.0.0");
+    let malformed = [
+        ("skills/get", json!({})),
+        ("skills/get", json!({ "uri": 7 })),
+        ("resources/directory/read", json!({ "uri": null })),
+    ];
+    for lane in LANES {
+        let mut on = Client::connect(server_with(catalog.clone()), lane).await;
+        let mut off = Client::connect(case_server(), lane).await;
+        let mut none = Client::connect(plain.clone(), lane).await;
+        for (method, params) in &malformed {
+            let response = on.call(method, params.clone()).await;
+            assert_eq!(error_of(&response).0, -32602, "{lane:?} {method} {params}");
+            let response = none.call(method, params.clone()).await;
+            assert_eq!(error_of(&response).0, -32601, "{lane:?} {method} {params}");
+        }
+        let response = off
+            .call("resources/directory/read", json!({ "uri": 7 }))
+            .await;
+        assert_eq!(error_of(&response).0, -32601, "{lane:?}");
     }
 }
 

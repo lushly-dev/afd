@@ -185,6 +185,7 @@ re-reads them. It MUST refuse to start, with an error naming the skill and the r
 | Skill path | Its last segment equals `name`. Prefix segments, if any, follow the same character rule as `name`. Unique in the catalog |
 | Names | Unique in the catalog, even under different prefixes. The extension only asks that names SHOULD be unique; AFD requires it, so no host can confuse two of one server's skills |
 | File paths | Relative, `/`-separated, valid UTF-8; no empty, `.` or `..` segment; no two equal. A file read from disk is a regular file inside the skill's directory: a symbolic link that leaves it is refused |
+| Manifest boundary | Each file's URI, `skill://<skill path>/<file path>`, identifies a distinct file inside the skill's directory, as SEP-2640 requires of every manifest URI. Compare the URIs after RFC 3986 normalization (section 6.2.2), which decodes percent-encoded unreserved characters, so `%2e` is `.` and `%41` is `A`. In the path before any `?` or `#`, resolving `.` and `..` segments must not leave the skill's directory, the last segment is not empty, `.` or `..`, and no two files' URIs are equal. So `%2e%2e/x.md` and `refs/%2E` are refused, and so is `%41.md` beside `A.md` |
 | Limits | At most 512 files and 16 MiB (16,777,216 bytes) in total per skill, `SKILL.md` included: the extension's limits, which every conforming host accepts |
 
 The server never acts on a skill's content. It reads only the frontmatter, to check it and to serve
@@ -205,9 +206,14 @@ it; the body and every other file are served as bytes.
 
 ### S4. `skills/get`
 
-`params.uri` must equal an entry's `uri` exactly. Otherwise the answer is `-32602` with
-`data: { "uri": <the requested URI> }`, including for the URI of a skill file other than
-`SKILL.md`. The result is `{ "skill": <the entry> }`, identical to the entry `skills/list` returns.
+`params.uri` must equal an entry's `uri` exactly. Otherwise the answer is `-32602`, the code
+SEP-2640 requires, including for the URI of a skill file other than `SKILL.md`. When `params.uri`
+has the form of a `SKILL.md` URI (no `?` or `#`, and a last path segment `SKILL.md` after a
+non-empty one), the error carries `data: { "uri": <the requested URI> }`. For any other URI, `data`
+MAY be omitted. SEP-2640 does not specify the error's `data`, and an SDK may refuse such a URI
+before the server's handler sees it: the Rust SDK, `rmcp`, does so from 3.9 and sends no `data`.
+When a `data.uri` is present, it equals the requested URI. The result is `{ "skill": <the entry> }`,
+identical to the entry `skills/list` returns.
 The extension leaves open whether `skills/get` carries cache hints; an AFD modern-era result carries
 the same `ttlMs` and `cacheScope: "public"` as `resources/read`, which hosts may ignore.
 
@@ -356,7 +362,8 @@ The file's sections and what a loader checks:
   - each entry of `skillsGet` returns `{ "skill": ... }` equal to the `skillsList` entry at
     `skillsListIndex`;
   - each entry of `errors` answers JSON-RPC error `code` to `method` with `params.uri` set to `uri`,
-    with `data.uri` equal to it.
+    with `data.uri` equal to it. An entry with `"dataOptional": true` (S4, a URI that is not a
+    `SKILL.md` URI) MAY omit `data`; a `data.uri` it carries still equals `uri`.
 
   The files of a skill are given out of order on purpose: the manifest sorts them.
 - **`catalogFailures`:** each catalog must fail when the server is built, with an error message
@@ -380,5 +387,13 @@ schema. TypeScript serves them on `/mcp` and stdio, in both eras; its deprecated
 lane (MCP 2024-11-05, not an era this page governs) serves none of it and declares none of it. Python's SDK declares empty `resources` and
 `prompts` capabilities, which R1 forbids. The proposal's
 [current behavior](../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md#how-servers-behave-today)
-records what each does instead. Progress is recorded in the
+records what each does instead.
+
+Two rules depend on the SDK. Rust's `skills/get` omits `data` for a URI that is not a `SKILL.md` URI,
+because `rmcp` 3.9 refuses it before the server's handler runs (S4). TypeScript sends `data.uri`
+there too. Rust checks the manifest boundary of S2 when the catalog is built, with `rmcp`'s own
+check. TypeScript checks only the literal `.` and `..` segments so far, so it still accepts a
+percent-encoded dot segment such as `%2e%2e/x.md`. Its catalog check is
+[a follow-up](../docs/features/active/mcp-resources-skills/STATUS.md#follow-ups-not-yet-issues), and
+the cases join `catalogFailures` when TypeScript refuses them. Progress is recorded in the
 [status](../docs/features/active/mcp-resources-skills/STATUS.md).

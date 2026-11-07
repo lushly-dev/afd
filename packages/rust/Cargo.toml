@@ -65,8 +65,11 @@ tokio = { version = "1.0", default-features = false, features = ["time"], option
 # WASM-only
 web-time = { version = "1.1", optional = true }
 
-# `server` feature: the MCP Rust SDK (stateless Streamable HTTP, stdio).
-rmcp = { version = "3.7", default-features = false, features = [
+# `server` feature: the MCP Rust SDK (stateless Streamable HTTP, stdio). 3.9 is the floor: it routes
+# the Skills extension (SEP-2640) itself, through `ServerHandler::list_skills`, `get_skill` and
+# `read_resource_directory`, which the server implements; before 3.9 those methods reached
+# `on_custom_request`. Its minimum Rust is still 1.88.
+rmcp = { version = "3.9", default-features = false, features = [
     "server",
     "transport-streamable-http-server",
     "transport-io",

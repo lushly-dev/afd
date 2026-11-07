@@ -109,7 +109,12 @@ both eras, and digested under `_meta["dev.afd/digest"]`; the Skills over MCP ext
 input schema kept apart from the one the registry validates with. `command-metadata.md` gains the
 `toolMeta` field and the advertised schema. It is additive: no existing fixture, vector, error code or
 result changes, and Rust (Umbel phase 1 step 0b) and TypeScript implement it so far. Its cases are in `mcp-resources.json`, which joins
-`vectors/` once all four languages load it.
+`vectors/` once all four languages load it. Two amendments followed the Rust SDK `rmcp` 3.9.0,
+which routes the Skills extension itself. S4 now lets a `skills/get` error for a URI that is not a
+`SKILL.md` URI omit `data`, because `rmcp` refuses that URI before the server's handler runs and
+SEP-2640 specifies only the code; that case in `mcp-resources.json` gains `dataOptional`. S2 gains
+the manifest boundary: every file's URI identifies a distinct file inside the skill's directory under
+RFC 3986 normalization, as SEP-2640 requires. Rust enforces it, and TypeScript does not yet.
 
 [`vectors/journal-context-cap.json`](./vectors/journal-context-cap.json) pins the journal's 4096-byte
 cap on a declared context field's value for existing behavior (#578): 19 values just at, under and
