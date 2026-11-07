@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-07
+
+The first release published from lushly-dev/afd (`publish-botcore.yml`); 0.5.0 and earlier
+were published from lushly-dev/botcore. It carries every change made in either repository
+since 0.5.0.
+
 ### Added
 
 - **0.6.0 managed hosts:** explicit worktree/target contexts, host-owned identity,
