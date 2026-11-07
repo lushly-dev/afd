@@ -215,6 +215,7 @@ impl Call<'_> {
         let mut surface = self.server.tool_surface();
         surface.visible = self.visible.clone();
         context.tool_surface = Some(surface);
+        context.scope_check = authz::execution_check(self.server, context.credentials.as_ref());
         context
     }
 
@@ -512,14 +513,16 @@ impl Call<'_> {
                 },
             );
         }
-        if members.is_empty() {
-            return None;
-        }
+        // A group whose every action the caller may not see looks like a tool that does not
+        // exist (`spec/authorization.md`, M6, "Listing").
         let actions: Vec<String> = members
             .iter()
             .filter(|command| self.shows(command))
             .map(|command| command_action(command))
             .collect();
+        if actions.is_empty() {
+            return None;
+        }
         Some(refused(
             CommandError::new(
                 error_codes::INVALID_GROUPED_CALL,

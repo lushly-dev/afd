@@ -20,7 +20,7 @@ use tower_service::Service;
 
 use super::super::McpServer;
 use super::bearer::extract_bearer;
-use super::scopes::{call_missing, request_missing};
+use super::scopes::{call_decision, request_missing, RequestDecision};
 use super::{Authorization, RuleCode};
 
 /// The response body of a [`BearerService`]: the inner service's, or the layer's own JSON.
@@ -198,42 +198,56 @@ impl Shared {
         json_response(StatusCode::OK, &self.auth.metadata.document(), None)
     }
 
-    /// The missing scopes of one JSON-RPC message, in step order.
-    fn message_missing(&self, message: &Value, credentials: &crate::Credentials) -> Vec<String> {
+    /// The decision on a request body (M6): a JSON-RPC `tools/call` is decided over every call
+    /// it names, any other message needs the required scopes. `None` for a body the layer cannot
+    /// parse, decided again after routing.
+    fn body_decision(&self, body: &[u8], credentials: &crate::Credentials) -> Option<Decided> {
+        let message = serde_json::from_slice::<Value>(body).ok()?;
+        if message.is_array() {
+            return Some(Decided::Batch);
+        }
         let params = message.get("params");
         let name = params
             .and_then(|params| params.get("name"))
             .and_then(Value::as_str);
-        match (message.get("method").and_then(Value::as_str), name) {
-            (Some("tools/call"), Some(name)) => {
-                let args = params
-                    .and_then(|params| params.get("arguments"))
-                    .and_then(Value::as_object)
-                    .cloned()
-                    .unwrap_or_else(Map::new);
-                call_missing(&self.server, &self.auth, name, &args, credentials)
-            }
-            _ => request_missing(&self.auth, credentials),
-        }
-    }
-
-    /// The missing scopes of a whole body: one JSON-RPC message, or a batch of them (each
-    /// message's in order). `None` for a body the layer cannot parse, decided again after routing.
-    fn body_missing(&self, body: &[u8], credentials: &crate::Credentials) -> Option<Vec<String>> {
-        let messages = match serde_json::from_slice::<Value>(body).ok()? {
-            Value::Array(messages) => messages,
-            message => vec![message],
-        };
-        let mut missing: Vec<String> = Vec::new();
-        for message in &messages {
-            for scope in self.message_missing(message, credentials) {
-                if !missing.contains(&scope) {
-                    missing.push(scope);
+        Some(Decided::Scopes(
+            match (message.get("method").and_then(Value::as_str), name) {
+                (Some("tools/call"), Some(name)) => {
+                    let args = params
+                        .and_then(|params| params.get("arguments"))
+                        .and_then(Value::as_object)
+                        .cloned()
+                        .unwrap_or_else(Map::new);
+                    call_decision(&self.server, &self.auth, name, &args, credentials)
                 }
-            }
-        }
-        Some(missing)
+                _ => request_missing(&self.auth, credentials),
+            },
+        ))
     }
+}
+
+/// What the layer decided about a body.
+enum Decided {
+    /// A JSON-RPC batch: MCP has none since 2025-06-18, so the layer refuses it before deciding.
+    Batch,
+    /// The scope decision on the one message.
+    Scopes(RequestDecision),
+}
+
+/// The 400 for a JSON-RPC batch.
+fn batch_refused<E>() -> Response<BearerBody<E>> {
+    json_response(
+        StatusCode::BAD_REQUEST,
+        &serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": {
+                "code": -32600,
+                "message": "JSON-RPC batches are not supported: send one message per request",
+            },
+        }),
+        None,
+    )
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for BearerService<S>
@@ -313,15 +327,17 @@ where
             };
             // M6: the 403 before dispatch.
             if parts.method == Method::POST {
-                if let Some(missing) = shared.body_missing(&bytes, &credentials) {
-                    if !missing.is_empty() {
+                match shared.body_decision(&bytes, &credentials) {
+                    Some(Decided::Batch) => return Ok(batch_refused()),
+                    Some(Decided::Scopes(RequestDecision::Forbidden(missing))) => {
                         return Ok(shared.forbidden(&missing));
                     }
+                    Some(Decided::Scopes(RequestDecision::Proceed)) | None => {}
                 }
             }
             // M2: nothing behind the layer receives the token.
             parts.headers.remove(AUTHORIZATION);
-            parts.extensions.insert(credentials);
+            shared.auth.admit(&mut parts.extensions, credentials);
             let response = inner
                 .call(Request::from_parts(parts, Full::new(bytes)))
                 .await?;

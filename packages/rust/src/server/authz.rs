@@ -7,7 +7,7 @@ use rmcp::service::RequestContext;
 use rmcp::{ErrorData, RoleServer};
 use serde_json::{Map, Value};
 
-use crate::commands::Visibility;
+use crate::commands::{ScopeCheck, Visibility};
 use crate::{CommandError, Credentials};
 
 use super::McpServer;
@@ -30,7 +30,7 @@ pub(crate) fn call_credentials(
     let Some(auth) = &server.inner.auth else {
         return Ok(None);
     };
-    super::auth::request_credentials(context)
+    super::auth::request_credentials(auth, server.inner.trusted_transport, context)
         .map_err(|refused| Box::new(refused.command_error(auth)))
 }
 
@@ -52,7 +52,7 @@ pub(crate) fn check_request(
     let Some(auth) = &server.inner.auth else {
         return Ok(None);
     };
-    super::auth::check_request(auth, context)
+    super::auth::check_request(auth, server.inner.trusted_transport, context)
         .map_err(|refused| super::auth::error_data(auth, &refused))
 }
 
@@ -76,8 +76,12 @@ pub(crate) fn call_refusal(
     let (Some(auth), Some(credentials)) = (&server.inner.auth, credentials) else {
         return None;
     };
-    let missing = super::auth::scopes::call_missing(server, auth, tool, args, credentials);
-    (!missing.is_empty()).then(|| super::auth::insufficient_scope(auth, &missing))
+    match super::auth::scopes::call_decision(server, auth, tool, args, credentials) {
+        super::auth::scopes::RequestDecision::Proceed => None,
+        super::auth::scopes::RequestDecision::Forbidden(missing) => {
+            Some(super::auth::insufficient_scope(auth, &missing))
+        }
+    }
 }
 
 #[cfg(not(feature = "server-auth"))]
@@ -104,6 +108,25 @@ pub(crate) fn visibility(
     _server: &McpServer,
     _credentials: Option<&Arc<Credentials>>,
 ) -> Option<Visibility> {
+    None
+}
+
+/// The execute-time scope check (M6, "At execution") for a caller with credentials, when the
+/// server's authorization has a resolver.
+#[cfg(feature = "server-auth")]
+pub(crate) fn execution_check(
+    server: &McpServer,
+    credentials: Option<&Arc<Credentials>>,
+) -> Option<ScopeCheck> {
+    credentials?;
+    super::auth::execution_check(server.inner.auth.as_ref()?)
+}
+
+#[cfg(not(feature = "server-auth"))]
+pub(crate) fn execution_check(
+    _server: &McpServer,
+    _credentials: Option<&Arc<Credentials>>,
+) -> Option<ScopeCheck> {
     None
 }
 

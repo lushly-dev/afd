@@ -420,6 +420,23 @@ impl Visibility {
     }
 }
 
+/// The execute-time scope decision an authorized MCP server sets for a caller with credentials
+/// when a host resolver is installed (`spec/authorization.md`, M6, "At execution"): asked with
+/// the command, its validated input and the credentials; `Some` refuses the call before the
+/// middleware and the handler run.
+#[derive(Clone)]
+pub(crate) struct ScopeCheck(pub(crate) Arc<ScopeCheckFn>);
+
+/// What a [`ScopeCheck`] calls.
+pub(crate) type ScopeCheckFn =
+    dyn Fn(&str, &serde_json::Value, &Credentials) -> Option<CommandError> + Send + Sync;
+
+impl fmt::Debug for ScopeCheck {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ScopeCheck(..)")
+    }
+}
+
 impl fmt::Debug for Visibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Visibility(..)")
@@ -507,6 +524,10 @@ pub struct CommandContext {
     /// The effective output budget (B3, B4): set by [`CommandRegistry::execute`] for the
     /// middleware and the handler.
     pub(crate) output_budget: Option<u64>,
+    /// The execute-time scope decision (`spec/authorization.md`, M6, "At execution"). Only the
+    /// MCP server sets it, and every execution under this context (batch items, pipeline steps,
+    /// nested calls that pass the context on) is decided again on its validated input.
+    pub(crate) scope_check: Option<ScopeCheck>,
 }
 
 impl fmt::Debug for CommandContext {
@@ -515,7 +536,9 @@ impl fmt::Debug for CommandContext {
             .field("trace_id", &self.trace_id)
             .field("timeout_ms", &self.timeout_ms)
             .field("interface", &self.interface)
-            .field("actor", &self.actor)
+            // The actor's id and principal may come from the credentials (a client id and a
+            // subject), so they print redacted, as the credentials do.
+            .field("actor", &self.actor.as_ref().map(RedactedActor))
             .field("credentials", &self.credentials)
             // An approval token is a credential: never print it.
             .field("approval", &self.approval.as_ref().map(|_| "[redacted]"))
@@ -527,6 +550,25 @@ impl fmt::Debug for CommandContext {
             .field("tool_surface", &self.tool_surface)
             .field("output_budget_ask", &self.output_budget_ask)
             .field("output_budget", &self.output_budget)
+            .field("scope_check", &self.scope_check)
+            .finish()
+    }
+}
+
+/// An actor in debug output: its kind and label, with `[redacted]` for its id and principal.
+struct RedactedActor<'a>(&'a Actor);
+
+impl fmt::Debug for RedactedActor<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        const REDACTED: &str = "[redacted]";
+        f.debug_struct("Actor")
+            .field("kind", &self.0.kind)
+            .field("id", &self.0.id.as_ref().map(|_| REDACTED))
+            .field("label", &self.0.label)
+            .field(
+                "on_behalf_of",
+                &self.0.on_behalf_of.as_ref().map(|_| REDACTED),
+            )
             .finish()
     }
 }
@@ -1440,12 +1482,18 @@ impl CommandRegistry {
             .filter(|command| !context.remote || visible(command));
         let Some(command) = command else {
             // Suggest only names the caller could call: an interface caller must
-            // not learn the names of commands that are not exposed to it.
+            // not learn the names of commands that are not exposed to it, nor one an
+            // authorized server hides from it by scope (`spec/authorization.md`, M6).
+            let listed = context
+                .tool_surface
+                .as_ref()
+                .and_then(|surface| surface.visible.as_ref());
             let callable: Vec<String> = read_lock(&self.commands)
                 .ordered
                 .iter()
                 .filter(|candidate| visible(candidate))
                 .filter(|candidate| candidate.is_accessible_in_context(active_context.as_deref()))
+                .filter(|candidate| listed.is_none_or(|listed| listed.allows(candidate)))
                 .map(|candidate| candidate.name.clone())
                 .collect();
             return failure(
@@ -1514,6 +1562,13 @@ impl CommandRegistry {
         }
         if let Err(error) = crate::output_budget::apply_output_budget(&command, &mut context) {
             return failure(*error);
+        }
+        // The execute-time scope decision on the validated input, with defaults applied and any
+        // pipeline references resolved (`spec/authorization.md`, M6, "At execution").
+        if let (Some(check), Some(credentials)) = (&context.scope_check, &context.credentials) {
+            if let Some(error) = (check.0)(&command.name, &input, credentials) {
+                return failure(error);
+            }
         }
 
         let timeout_ms = context.timeout_ms;

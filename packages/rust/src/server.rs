@@ -132,8 +132,8 @@ pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
 pub use context_hook::ContextHookRequest;
 pub use resources::{
-    ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError, DIGEST_META_KEY,
-    MCP_APP_MIME_TYPE,
+    ResourceCaller, ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError,
+    DIGEST_META_KEY, MCP_APP_MIME_TYPE,
 };
 pub use skills::{Skill, SkillCatalog, MAX_SKILL_BYTES, MAX_SKILL_FILES};
 pub use strategy::{GroupBy, ToolStrategy, MAX_FIRST_CLASS_TOOLS};
@@ -185,6 +185,10 @@ struct Inner {
     legacy_back_channel: bool,
     /// Authorization over HTTP (`spec/authorization.md`; the `server-auth` feature).
     auth: authz::AuthConfig,
+    /// A transport without HTTP requests whose callers the host trusts (stdio, or
+    /// `with_trusted_transport`): an authorized server serves it without credentials.
+    #[cfg_attr(not(feature = "server-auth"), allow(dead_code))]
+    trusted_transport: bool,
 }
 
 /// An MCP server for the MCP-exposed commands of a [`CommandRegistry`].
@@ -229,6 +233,7 @@ impl McpServer {
                 skills: None,
                 legacy_back_channel: true,
                 auth: Default::default(),
+                trusted_transport: false,
             }),
             session: Some(ContextStack::new()),
         }
@@ -254,6 +259,7 @@ impl McpServer {
             skills: shared.skills.clone(),
             legacy_back_channel: shared.legacy_back_channel,
             auth: shared.auth.clone(),
+            trusted_transport: shared.trusted_transport,
         });
         change(&mut inner);
         Self {
@@ -798,10 +804,11 @@ impl McpServer {
     /// SDK error message when the connection cannot be established.
     pub async fn serve_stdio(self) -> Result<(), String> {
         self.validate()?;
-        // One connection, one context stack.
+        // One connection, one context stack. The process boundary is stdio's trust boundary, so
+        // an authorized server serves it without credentials (`spec/authorization.md`, M1).
         let server = Self {
             session: Some(ContextStack::new()),
-            ..self
+            ..self.with(|inner| inner.trusted_transport = true)
         };
         let service = server
             .serve(rmcp::transport::stdio())
@@ -947,8 +954,8 @@ impl ServerHandler for McpServer {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        authz::check_request(self, &context)?;
-        self.serve_list_resources(request, &context).await
+        let caller = ResourceCaller::new(authz::check_request(self, &context)?);
+        self.serve_list_resources(request, &context, &caller).await
     }
 
     async fn list_resource_templates(
@@ -965,8 +972,8 @@ impl ServerHandler for McpServer {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
-        authz::check_request(self, &context)?;
-        self.serve_read_resource(request, &context).await
+        let caller = ResourceCaller::new(authz::check_request(self, &context)?);
+        self.serve_read_resource(request, &context, &caller).await
     }
 
     async fn list_skills(

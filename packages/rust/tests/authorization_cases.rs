@@ -4,8 +4,8 @@
 
 use afd::server::auth::{
     audience_accepts, check_claims, check_jws_header, check_key_fit, extract_bearer,
-    forbidden_scopes, parse_scope_claim, static_decision, ProtectedResource, RuleCode,
-    ScopeDecision, TokenRules,
+    parse_scope_claim, request_decision, static_decision, ProtectedResource, RequestDecision,
+    RuleCode, ScopeDecision, TokenRules,
 };
 use afd::{credentials_binding, principal_binding, Actor, Credentials};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -325,17 +325,27 @@ fn batches() {
                 step => ScopeDecision::Missing(strings(&step["missing"])),
             })
             .collect();
-        let missing = forbidden_scopes(&decisions);
+        let decision = request_decision(&decisions);
         match &case["expected"] {
             Value::String(proceed) if proceed == "proceed" => {
-                assert!(missing.is_empty(), "{}", case["description"]);
+                assert_eq!(
+                    decision,
+                    RequestDecision::Proceed,
+                    "{}",
+                    case["description"]
+                );
             }
-            expected => assert_eq!(
-                missing.join(" "),
-                expected["forbidden"].as_str().unwrap(),
-                "{}",
-                case["description"]
-            ),
+            expected => {
+                let RequestDecision::Forbidden(missing) = decision else {
+                    panic!("{} proceeded", case["description"]);
+                };
+                assert_eq!(
+                    missing.join(" "),
+                    expected["forbidden"].as_str().unwrap(),
+                    "{}",
+                    case["description"]
+                );
+            }
         }
     }
 }

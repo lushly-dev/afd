@@ -370,7 +370,8 @@ pub fn check_claims(
     if iat > now + skew || nbf.is_some_and(|nbf| nbf > now + skew) {
         return Err(RuleCode::NotYetValid);
     }
-    if exp - iat > rules.max_token_lifetime_s as f64 {
+    // A token that expires before it was issued has no lifetime at all.
+    if exp < iat || exp - iat > rules.max_token_lifetime_s as f64 {
         return Err(RuleCode::Lifetime);
     }
     // 9. Scopes.

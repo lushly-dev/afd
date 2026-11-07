@@ -107,7 +107,13 @@ changing a case: the HTTP layer strips the `Authorization` header; a JOSE header
 a repeated member name is refused; the key's own `kid` must match and unusable key material is
 `key`; a `cnf` other than `x5t#S256` or `jkt` is `binding`; `requiredScopes` apply under a resolver
 and an unresolvable grouped call is decided under the group's name rather than deferred, with
-unexposed commands naming no scope; and `afd-docs` and `afd-schema` are filtered too.
+unexposed commands naming no scope; and `afd-docs` and `afd-schema` are filtered too. A security
+review of the step added more, also stricter and changing no case: credentials count only when the
+server's own HTTP layer admitted them, and a transport other than HTTP or stdio must be marked
+trusted (M1); `exp` before `iat` is `lifetime`; any `Missing` refuses, and a 403 with no valid
+scope to name leaves `scope=` out; a resolver is asked again at execution on the validated input;
+suggestions never name a hidden command; a JSON-RPC batch is 400; and a resource provider sees the
+caller's credentials.
 
 [`plugin-manifest.md`](./plugin-manifest.md) specifies the shared plugin manifest (Loam D58): core
 version 1, JSON Schema `$defs` with every object left open and reserved keys refused, and the contract

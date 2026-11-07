@@ -268,6 +268,45 @@ pub trait ResourceProvider: Send + Sync {
         let _ = uri;
         Err(ResourceReadError::NotFound)
     }
+
+    /// The entries `caller` may see. The server calls this for `resources/list` and to find an
+    /// entry on `resources/read`; override it to list per caller (for example by
+    /// [`ResourceCaller::credentials`] on a server with authorization). Default: [`Self::list`].
+    /// [`Self::list`] alone is what the server checks when it starts.
+    fn list_for(&self, caller: &ResourceCaller) -> Vec<ResourceEntry> {
+        let _ = caller;
+        self.list()
+    }
+
+    /// The content at `uri` for `caller`. The server calls this for every read it does not serve
+    /// from listed bytes; override it to gate reads per caller, answering
+    /// [`ResourceReadError::NotFound`] for a resource the caller may not read, so that it looks
+    /// absent. Default: [`Self::read`].
+    async fn read_for(
+        &self,
+        uri: &str,
+        caller: &ResourceCaller,
+    ) -> Result<ResourceContents, ResourceReadError> {
+        let _ = caller;
+        self.read(uri).await
+    }
+}
+
+/// Who is listing or reading resources: what a [`ResourceProvider`] may gate on. Fields can be
+/// added without breaking providers.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct ResourceCaller {
+    /// The verified credentials of the request, on a server configured with authorization (the
+    /// `server-auth` feature); `None` otherwise, and over stdio.
+    pub credentials: Option<std::sync::Arc<crate::Credentials>>,
+}
+
+impl ResourceCaller {
+    /// A caller with these credentials.
+    pub fn new(credentials: Option<std::sync::Arc<crate::Credentials>>) -> Self {
+        Self { credentials }
+    }
 }
 
 #[async_trait]
@@ -405,12 +444,12 @@ impl McpServer {
         }
     }
 
-    /// The provider's entries after the check, or `-32603`.
-    fn provider_entries(&self) -> Result<Vec<ResourceEntry>, ErrorData> {
+    /// The provider's entries for `caller` after the check, or `-32603`.
+    fn provider_entries(&self, caller: &ResourceCaller) -> Result<Vec<ResourceEntry>, ErrorData> {
         let Some(provider) = &self.inner.resources else {
             return Ok(Vec::new());
         };
-        let entries = provider.list();
+        let entries = provider.list_for(caller);
         check_entries(&entries).map_err(internal)?;
         Ok(entries)
     }
@@ -419,6 +458,7 @@ impl McpServer {
         &self,
         request: Option<PaginatedRequestParams>,
         context: &RequestContext<RoleServer>,
+        caller: &ResourceCaller,
     ) -> Result<ListResourcesResult, ErrorData> {
         if !self.serves_resources() {
             return Ok(ListResourcesResult::default());
@@ -426,7 +466,7 @@ impl McpServer {
         panic_guard::guard_request(async {
             refuse_cursor(request.as_ref().and_then(|request| request.cursor.as_ref()))?;
             let mut resources: Vec<Value> = self
-                .provider_entries()?
+                .provider_entries(caller)?
                 .iter()
                 .map(ResourceEntry::to_json)
                 .collect();
@@ -464,13 +504,14 @@ impl McpServer {
         &self,
         request: ReadResourceRequestParams,
         context: &RequestContext<RoleServer>,
+        caller: &ResourceCaller,
     ) -> Result<ReadResourceResponse, ErrorData> {
         if !self.serves_resources() {
             return Err(method_not_found("resources/read"));
         }
         panic_guard::guard_request(async {
             let uri = request.uri.as_str();
-            let item = self.read_item(uri).await?;
+            let item = self.read_item(uri, caller).await?;
             let result: ReadResourceResult = serde_json::from_value(with_hints(
                 json!({ "contents": [item] }),
                 confirmations::is_modern(context),
@@ -483,7 +524,7 @@ impl McpServer {
     }
 
     /// The one `contents` item for `uri`.
-    async fn read_item(&self, uri: &str) -> Result<Value, ErrorData> {
+    async fn read_item(&self, uri: &str, caller: &ResourceCaller) -> Result<Value, ErrorData> {
         if let Some(file) = self
             .inner
             .skills
@@ -498,7 +539,7 @@ impl McpServer {
         let Some(provider) = self.inner.resources.as_ref().filter(|_| !skill_scheme) else {
             return Err(not_found(uri));
         };
-        let entries = self.provider_entries()?;
+        let entries = self.provider_entries(caller)?;
         let entry = entries.iter().find(|entry| entry.uri == uri);
         if let Some(content) = entry.and_then(|entry| entry.content.as_ref()) {
             return Ok(content_item(
@@ -508,12 +549,15 @@ impl McpServer {
                 None,
             ));
         }
-        let contents = provider.read(uri).await.map_err(|error| match error {
-            ResourceReadError::NotFound => not_found(uri),
-            ResourceReadError::Failed(_) => {
-                ErrorData::internal_error("The resource could not be read", None)
-            }
-        })?;
+        let contents = provider
+            .read_for(uri, caller)
+            .await
+            .map_err(|error| match error {
+                ResourceReadError::NotFound => not_found(uri),
+                ResourceReadError::Failed(_) => {
+                    ErrorData::internal_error("The resource could not be read", None)
+                }
+            })?;
         for (key, value) in &contents.meta {
             check_meta_entry(key, value, true)
                 .map_err(|reason| internal(format!("resource \"{uri}\": {reason}")))?;

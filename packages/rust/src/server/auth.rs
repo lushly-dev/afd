@@ -5,8 +5,8 @@
 //! it with an [`Authorization`]: the [`ProtectedResource`] metadata, a [`TokenVerifier`] (AFD's
 //! [`JwtVerifier`], or the host's, for introspection), the server's required scopes, an optional
 //! [`ScopeResolver`] and whether listings are filtered by scope.
-//! [`McpServer::bearer_layer`](super::McpServer::bearer_layer) then gives the [`BearerLayer`] to put
-//! in front of [`McpServer::streamable_http_service`](super::McpServer::streamable_http_service):
+//! [`McpServer::authorized_http_service`](super::McpServer::authorized_http_service) then builds the
+//! Streamable HTTP service behind its [`BearerLayer`], both from the same server:
 //!
 //! ```no_run
 //! # fn run(keys: afd::server::auth::StaticKeys) -> Result<(), String> {
@@ -16,7 +16,6 @@
 //! };
 //! use afd::server::{HttpOptions, McpServer};
 //! use afd::CommandRegistry;
-//! use tower::Layer;
 //!
 //! let resource = "https://todo.example.com/mcp";
 //! let metadata = ProtectedResource::new(resource, ["https://auth.example.com"])?
@@ -31,9 +30,8 @@
 //! let authorization = Authorization::new(metadata, verifier)?.with_required_scopes(["todo:read"])?;
 //! let server = McpServer::new(Arc::new(CommandRegistry::new()), "todo", "1.0.0")
 //!     .with_authorization(authorization);
-//! let service = server
-//!     .bearer_layer()?
-//!     .layer(server.streamable_http_service(HttpOptions::default()));
+//! // Mount it where it receives both `/mcp` and the metadata paths.
+//! let service = server.authorized_http_service(HttpOptions::default())?;
 //! # let _ = service;
 //! # Ok(())
 //! # }
@@ -48,19 +46,28 @@
 //!   grouped actions, hybrid first-class tools): any missing scope is one 403 naming every
 //!   missing scope in step order (M6). It strips the `Authorization` header and passes the
 //!   verified [`Credentials`] on in the request's extensions.
-//! - **Fail closed** (M1). A server with authorization refuses an HTTP request that reaches it
-//!   without verified credentials (the layer left out) with `UNAUTHORIZED`, before any command,
-//!   hook or listing runs. stdio, the CLI, `DirectClient` and in-process registries are
-//!   unaffected: they carry no credentials and no scope is checked on them.
+//! - **Fail closed** (M1). A server with authorization accepts only credentials admitted for its
+//!   own configuration ([`Authorization::admit`], which its bearer layer calls). An HTTP request
+//!   without them (the layer left out, or a layer from another server) is refused with
+//!   `UNAUTHORIZED` before any command, hook or listing runs, and so is a request on any transport
+//!   other than HTTP unless it is stdio through `serve_stdio` or marked trusted with
+//!   [`McpServer::with_trusted_transport`](super::McpServer::with_trusted_transport). stdio, the
+//!   CLI, `DirectClient` and in-process registries carry no credentials and no scope is checked
+//!   on them.
 //! - **Credentials** (M4) are on every call's [`CommandContext::credentials`](crate::CommandContext::credentials).
 //!   Without a host mapping the actor is `{ kind: "agent", id: <clientId>, onBehalfOf: <subject> }`;
 //!   the context hook sees both and may map the actor, but cannot change the credentials.
 //! - **After routing** (M6), after the context hook and before the confirmation gate, every call
 //!   that carries credentials is decided again; a missing scope fails it with
 //!   `INSUFFICIENT_SCOPE` (`retryable: false`, `details.scopes`), a batch or pipeline as a whole.
+//! - **At execution** (M6), with a resolver, the registry asks it once more for every command it
+//!   runs with credentials, on the validated input (defaults applied, pipeline references
+//!   resolved); see [`ScopeResolver`]'s two phases.
+//! - **Any `Missing` refuses**, even one that names no valid scope ([`request_decision`]).
 //! - **Listing** (M6): with [`Authorization::with_filter_tools_by_scope`], `tools/list`,
 //!   `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema` and grouped actions show
-//!   only commands the caller may see, and `tools/list` carries `cacheScope: "private"`.
+//!   only commands the caller may see, no "did you mean" suggestion names another, and
+//!   `tools/list` carries `cacheScope: "private"`.
 //! - **Other methods** (`tools/list`, `server/discover`, `resources/*`, `initialize` and the rest)
 //!   need the server's required scopes.
 //!
@@ -71,7 +78,7 @@
 //! verifier applies exactly the same rules: [`check_introspection`] and [`check_claims`]
 //! (rules 5 to 10), [`check_jws_header`] (rule 2), [`check_key_fit`] (rule 3),
 //! [`parse_scope_claim`] (M3.2), [`audience_accepts`] (M3.1), [`extract_bearer`] (M2),
-//! [`static_decision`] and [`forbidden_scopes`] (M6).
+//! [`static_decision`] and [`request_decision`] (M6).
 
 use std::fmt;
 use std::sync::Arc;
@@ -99,7 +106,9 @@ pub use jwt::{
 };
 pub use layer::{BearerBody, BearerLayer, BearerService};
 pub use resource::{audience_accepts, ProtectedResource, PROTECTED_RESOURCE_WELL_KNOWN};
-pub use scopes::{forbidden_scopes, static_decision, ScopeDecision, ScopeResolver};
+pub use scopes::{
+    request_decision, static_decision, RequestDecision, ScopeDecision, ScopeResolver,
+};
 
 /// The default cap on a request body the bearer layer reads (1 MiB, as [`HttpOptions`]).
 ///
@@ -300,6 +309,9 @@ impl<T: TokenVerifier + ?Sized> TokenVerifier for Arc<T> {
 /// A server's authorization configuration (`spec/authorization.md`, "Options").
 #[derive(Clone)]
 pub struct Authorization {
+    /// Which configuration this is: [`Self::admit`] marks credentials with it, and only a server
+    /// holding this configuration (or a clone of it) accepts them.
+    id: u64,
     pub(crate) metadata: ProtectedResource,
     pub(crate) verifier: Arc<dyn TokenVerifier>,
     pub(crate) required_scopes: Vec<String>,
@@ -343,7 +355,9 @@ impl Authorization {
                 return Err("[AFD] the verifier and the metadata disagree on whether certificate-bound tokens are required".to_owned());
             }
         }
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         Ok(Self {
+            id: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             metadata,
             verifier: Arc::new(verifier),
             required_scopes: Vec::new(),
@@ -407,6 +421,21 @@ impl Authorization {
     pub fn required_scopes(&self) -> &[String] {
         &self.required_scopes
     }
+
+    /// Admit a request whose caller trusted host code has verified: put `credentials` in the
+    /// request's `extensions`, marked as verified for this authorization. The bearer layer does
+    /// this for every token it accepts; a host's own layer (a gateway that verified the caller
+    /// another way) calls it to hand the server credentials it established.
+    ///
+    /// **Trust-bearing.** The server believes whatever is admitted, so call it only after your
+    /// own verification, never from anything a caller sent. A server accepts only credentials
+    /// admitted for its own authorization (this value or a clone of it): credentials inserted
+    /// into the extensions without this mark, or admitted for another server's authorization,
+    /// are refused with `UNAUTHORIZED` (M1).
+    pub fn admit(&self, extensions: &mut http::Extensions, credentials: Credentials) {
+        extensions.insert(credentials);
+        extensions.insert(AdmittedBy(self.id));
+    }
 }
 
 // ─── Server integration ──────────────────────────────────────────────────────────────────────
@@ -415,14 +444,14 @@ use rmcp::service::RequestContext;
 use rmcp::RoleServer;
 use serde_json::{json, Map, Value};
 
-use crate::commands::Visibility;
+use crate::commands::{ScopeCheck, Visibility};
 use crate::{error_codes, CommandError};
 
 use super::McpServer;
 
 /// Why a request that reached the MCP service is refused before anything runs.
 pub(crate) enum Refused {
-    /// M1: an HTTP request without verified credentials.
+    /// M1: a request without credentials this server's bearer layer verified.
     Unauthenticated,
     /// The request's required scopes are missing (methods that name no command).
     MissingScopes(Vec<String>),
@@ -450,7 +479,8 @@ fn unauthenticated(auth: &Authorization) -> CommandError {
     .with_retryable(false)
 }
 
-/// The `INSUFFICIENT_SCOPE` failure for `missing` (`spec/authorization.md`, M6).
+/// The `INSUFFICIENT_SCOPE` failure for `missing` (`spec/authorization.md`, M6). `missing` may
+/// be empty when a resolver refused without naming a scope.
 pub(crate) fn insufficient_scope(auth: &Authorization, missing: &[String]) -> CommandError {
     CommandError::new(
         error_codes::INSUFFICIENT_SCOPE,
@@ -464,30 +494,54 @@ pub(crate) fn insufficient_scope(auth: &Authorization, missing: &[String]) -> Co
     .with_retryable(false)
 }
 
-/// The verified credentials of the request `context` belongs to: `Ok(None)` without
-/// authorization or off HTTP (stdio), `Err` for an HTTP request the bearer layer did not verify
-/// (M1: fail closed).
+/// The mark that a request's credentials were verified for one [`Authorization`]: put beside
+/// them in the request's extensions by [`Authorization::admit`], and required by the server
+/// that holds the same authorization.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct AdmittedBy(u64);
+
+/// The verified credentials of the request `context` belongs to (M1: fail closed).
+///
+/// - Over HTTP, the request must carry credentials admitted by this server's own
+///   authorization ([`Authorization::admit`], which the bearer layer calls): credentials
+///   admitted for another server's authorization, or none, are refused.
+/// - Without an HTTP request, only a transport marked trusted (stdio through
+///   [`McpServer::serve_stdio`], or [`McpServer::with_trusted_transport`]) proceeds, with no
+///   credentials; any other transport is refused.
 pub(crate) fn request_credentials(
+    auth: &Authorization,
+    trusted_transport: bool,
     context: &RequestContext<RoleServer>,
 ) -> Result<Option<Arc<Credentials>>, Refused> {
     let Some(parts) = context.extensions.get::<http::request::Parts>() else {
-        return Ok(None);
+        return if trusted_transport {
+            Ok(None)
+        } else {
+            Err(Refused::Unauthenticated)
+        };
     };
-    match parts.extensions.get::<Credentials>() {
-        Some(credentials) => Ok(Some(Arc::new(credentials.clone()))),
-        None => Err(Refused::Unauthenticated),
+    match (
+        parts.extensions.get::<AdmittedBy>(),
+        parts.extensions.get::<Credentials>(),
+    ) {
+        (Some(admitted), Some(credentials)) if *admitted == AdmittedBy(auth.id) => {
+            Ok(Some(Arc::new(credentials.clone())))
+        }
+        _ => Err(Refused::Unauthenticated),
     }
 }
 
 /// Fail closed, then check the required scopes of a request that names no command.
 pub(crate) fn check_request(
     auth: &Authorization,
+    trusted_transport: bool,
     context: &RequestContext<RoleServer>,
 ) -> Result<Option<Arc<Credentials>>, Refused> {
-    let credentials = request_credentials(context)?;
+    let credentials = request_credentials(auth, trusted_transport, context)?;
     if let Some(credentials) = &credentials {
-        let missing = scopes::request_missing(auth, credentials);
-        if !missing.is_empty() {
+        if let scopes::RequestDecision::Forbidden(missing) =
+            scopes::request_missing(auth, credentials)
+        {
             return Err(Refused::MissingScopes(missing));
         }
     }
@@ -524,17 +578,72 @@ pub(crate) fn visibility(
     })))
 }
 
+/// The decision at execute time (M6, "At execution"), when a resolver is installed: the
+/// registry asks it for every command it runs with credentials, on the validated input.
+pub(crate) fn execution_check(auth: &Arc<Authorization>) -> Option<ScopeCheck> {
+    auth.resolver.as_ref()?;
+    let auth = Arc::clone(auth);
+    Some(ScopeCheck(Arc::new(
+        move |command, input, credentials| match scopes::execution_decision(
+            &auth,
+            command,
+            input,
+            credentials,
+        ) {
+            scopes::RequestDecision::Proceed => None,
+            scopes::RequestDecision::Forbidden(missing) => {
+                Some(insufficient_scope(&auth, &missing))
+            }
+        },
+    )))
+}
+
+/// The Streamable HTTP service behind its bearer layer, as
+/// [`McpServer::authorized_http_service`] builds it.
+pub type AuthorizedHttpService = BearerService<
+    rmcp::transport::streamable_http_server::StreamableHttpService<
+        McpServer,
+        rmcp::transport::streamable_http_server::session::local::LocalSessionManager,
+    >,
+>;
+
 impl McpServer {
-    /// Authorize HTTP requests with `authorization` (`spec/authorization.md`; see [`self::auth`](crate::server::auth)).
-    /// The server then fails closed on any HTTP request that the [bearer layer](Self::bearer_layer)
-    /// did not verify, decides every call that carries credentials, and filters listings when
-    /// asked. stdio is unaffected. It replaces any authorization set before.
+    /// Authorize requests with `authorization` (`spec/authorization.md`; see
+    /// [`self::auth`](crate::server::auth)). The server then fails closed on any request whose
+    /// credentials its own [bearer layer](Self::authorized_http_service) did not admit, decides
+    /// every call that carries credentials, and filters listings when asked. stdio through
+    /// [`Self::serve_stdio`] is unaffected; another transport must be marked trusted
+    /// ([`Self::with_trusted_transport`]) to be served at all. It replaces any authorization set
+    /// before.
     pub fn with_authorization(self, authorization: Authorization) -> Self {
         let authorization = Arc::new(authorization);
         self.with(|inner| inner.auth = Some(authorization))
     }
 
-    /// The bearer layer to put in front of [`Self::streamable_http_service`].
+    /// The Streamable HTTP endpoint behind its bearer layer, both built from this server: the
+    /// way to serve an authorized server over HTTP. Mount the service where it receives both the
+    /// MCP path and the protected-resource metadata paths (`/.well-known/oauth-protected-resource`
+    /// and the same followed by the resource's path), for example as the router's fallback;
+    /// it answers the metadata itself. Build it after every other builder.
+    ///
+    /// [`Self::streamable_http_service`] alone serves no authorized request: without the layer,
+    /// no request carries admitted credentials, so every one is refused with `UNAUTHORIZED`.
+    ///
+    /// # Errors
+    /// The server has no [`Self::with_authorization`], or [`Self::validate`] fails.
+    pub fn authorized_http_service(
+        &self,
+        options: super::HttpOptions,
+    ) -> Result<AuthorizedHttpService, String> {
+        let layer = self.bearer_layer()?;
+        let service = self.try_streamable_http_service(options)?;
+        Ok(tower_layer::Layer::layer(&layer, service))
+    }
+
+    /// The bearer layer alone, for a host that composes its own HTTP stack: put it outermost
+    /// over a service built from this same server ([`Self::authorized_http_service`] does both).
+    /// The server accepts only credentials admitted by its own authorization, so a layer from
+    /// another server's authorization is refused like no layer at all.
     ///
     /// # Errors
     /// The server has no [`Self::with_authorization`].
@@ -543,5 +652,17 @@ impl McpServer {
             "[AFD] bearer_layer needs with_authorization: the server has no authorization configured",
         )?;
         Ok(BearerLayer::new(self.clone(), auth))
+    }
+
+    /// Serve this server over a transport that carries no HTTP request and whose callers the
+    /// host trusts as it trusts a stdio peer: an in-process pipe or a custom transport given to
+    /// `rmcp`'s `ServiceExt::serve`. On a server with authorization, requests on such a
+    /// transport carry no credentials and are checked against no scope (M1, "Unaffected"), so
+    /// the host must authenticate the peer itself, as the process boundary does for stdio.
+    /// Without this, an authorized server refuses every request that has no HTTP request with
+    /// `UNAUTHORIZED`. [`Self::serve_stdio`] marks its own connection trusted. HTTP requests are
+    /// never affected: they always need admitted credentials.
+    pub fn with_trusted_transport(self) -> Self {
+        self.with(|inner| inner.trusted_transport = true)
     }
 }

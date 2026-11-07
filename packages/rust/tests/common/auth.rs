@@ -20,7 +20,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use http_body_util::{BodyExt, Full};
 use serde_json::{json, Value};
-use tower::{Layer, ServiceExt};
+use tower::ServiceExt;
 
 pub const ISSUER: &str = "https://auth.example.com";
 pub const RESOURCE: &str = "https://todo.example.com/mcp";
@@ -228,9 +228,8 @@ impl Answer {
 /// Send one request through `server`'s bearer layer and Streamable HTTP service.
 pub async fn send(server: &McpServer, request: http::Request<Full<bytes::Bytes>>) -> Answer {
     let service = server
-        .bearer_layer()
-        .unwrap()
-        .layer(server.streamable_http_service(HttpOptions::default()));
+        .authorized_http_service(HttpOptions::default())
+        .unwrap();
     send_to(service, request).await
 }
 

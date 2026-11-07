@@ -293,8 +293,9 @@ async fn a_verified_call_carries_credentials_and_the_default_actor() {
 #[tokio::test]
 async fn the_hook_maps_the_actor_but_cannot_change_the_credentials() {
     let fixture = fixture();
+    let auth = authorization();
     let server = fixture
-        .server(ToolStrategy::Individual, authorization())
+        .server(ToolStrategy::Individual, auth.clone())
         .with_context_hook(|_request, mut context| async move {
             let broader = Credentials::new(ISSUER, "root", "root", RESOURCE, 0, i64::MAX)
                 .with_scopes(["todo:read", "todo:write", "todo:admin"]);
@@ -302,10 +303,10 @@ async fn the_hook_maps_the_actor_but_cannot_change_the_credentials() {
             Ok(context.with_actor(afd::Actor::new(afd::ActorKind::Human).with_id("idp/ada")))
         });
     // The token grants todo:read only, so a host layer that left the decision to after routing
-    // (here: trusted code inserting credentials) still refuses todo-create.
+    // (here: trusted code admitting credentials) still refuses todo-create.
     let credentials = Credentials::new(ISSUER, "user-1", "todo-agent", RESOURCE, NOW, NOW + 60)
         .with_scopes(["todo:read"]);
-    let service = with_credentials(&server, credentials);
+    let service = with_credentials(&server, &auth, credentials);
     let answer = send_to(
         service.clone(),
         post("tools/call", call("todo-create", json!({})), None),
@@ -376,9 +377,12 @@ async fn a_server_with_authorization_fails_closed_without_the_layer() {
 }
 
 #[tokio::test]
-async fn stdio_is_unaffected() {
+async fn a_trusted_transport_is_unaffected() {
     let fixture = fixture();
-    let server = fixture.server(ToolStrategy::Individual, required(authorization()));
+    // `serve_stdio` marks its connection trusted; a test pipe is marked explicitly.
+    let server = fixture
+        .server(ToolStrategy::Individual, required(authorization()))
+        .with_trusted_transport();
     let mut client = Stdio::connect(server).await;
     let response = client
         .request("tools/call", call("todo-purge", json!({})))
@@ -444,7 +448,7 @@ async fn a_batch_or_pipeline_is_one_403_naming_every_missing_scope() {
     );
     let answer = send(&server, post("tools/call", pipe, Some(&token))).await;
     assert_403(&answer, "todo:admin todo:write");
-    // A JSON-RPC batch body is decided as a whole, message by message.
+    // A JSON-RPC batch body is refused before any decision: MCP has no batches.
     let body = json!([
         { "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": call("todo-purge", json!({})) },
         { "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": call("todo-create", json!({})) },
@@ -455,7 +459,9 @@ async fn a_batch_or_pipeline_is_one_403_naming_every_missing_scope() {
         .header("authorization", format!("Bearer {token}"))
         .body(Full::new(Bytes::from(body.to_string())))
         .unwrap();
-    assert_403(&send(&server, request).await, "todo:admin todo:write");
+    let answer = send(&server, request).await;
+    assert_eq!(answer.status, 400, "{}", answer.text);
+    assert_eq!(answer.body["error"]["code"], -32600);
     assert_eq!(fixture.runs(), 0);
 }
 
@@ -598,10 +604,11 @@ async fn a_resolver_decides_each_call() {
 
 // ─── M6: after routing ───────────────────────────────────────────────────────────────────────
 
-/// The service with trusted host code inserting `credentials`, and no bearer layer: every call
-/// is decided after routing.
+/// The service with trusted host code admitting `credentials` for `authorization` (the one the
+/// server holds), and no bearer layer: every call is decided after routing.
 fn with_credentials(
     server: &McpServer,
+    authorization: &Authorization,
     credentials: Credentials,
 ) -> impl tower::Service<
     http::Request<Full<Bytes>>,
@@ -611,8 +618,9 @@ fn with_credentials(
     Error = std::convert::Infallible,
 > + Clone {
     let inner = server.streamable_http_service(HttpOptions::default());
+    let authorization = authorization.clone();
     tower::service_fn(move |mut request: http::Request<Full<Bytes>>| {
-        request.extensions_mut().insert(credentials.clone());
+        authorization.admit(request.extensions_mut(), credentials.clone());
         inner.clone().oneshot(request)
     })
 }
@@ -620,12 +628,13 @@ fn with_credentials(
 #[tokio::test]
 async fn after_routing_a_missing_scope_is_insufficient_scope() {
     let fixture = fixture();
+    let auth = required(authorization());
     let server = fixture
-        .server(ToolStrategy::Individual, required(authorization()))
+        .server(ToolStrategy::Individual, auth.clone())
         .with_confirmations(ConfirmationMode::RequireHuman);
     let credentials = Credentials::new(ISSUER, "user-1", "todo-agent", RESOURCE, NOW, NOW + 60)
         .with_scopes(["todo:read"]);
-    let service = with_credentials(&server, credentials);
+    let service = with_credentials(&server, &auth, credentials);
     let answer = send_to(
         service.clone(),
         post("tools/call", call("todo-create", json!({})), None),
@@ -682,7 +691,7 @@ async fn after_routing_a_missing_scope_is_insufficient_scope() {
     );
     // The required scopes apply to listings too.
     let credentials = Credentials::new(ISSUER, "user-1", "todo-agent", RESOURCE, NOW, NOW + 60);
-    let service = with_credentials(&server, credentials);
+    let service = with_credentials(&server, &auth, credentials);
     let answer = send_to(service, post("tools/list", json!({}), None)).await;
     assert_eq!(
         answer.body["error"]["data"]["code"], "INSUFFICIENT_SCOPE",

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use serde_json::{json, Map, Value};
 
-use crate::credentials::Credentials;
+use crate::credentials::{is_scope_token, Credentials};
 use crate::CommandDefinition;
 
 use super::super::strategy::{command_action, command_group, ToolStrategy};
@@ -27,10 +27,31 @@ pub enum ScopeDecision {
 /// [`Authorization::with_resolver`](super::Authorization::with_resolver). It decides every call
 /// instead of the static rule (a command's `scopes`); the server's required scopes still apply
 /// to every request.
+///
+/// # Two phases
+///
+/// `resolve` is asked twice for a call that runs a command (`spec/authorization.md`, M6):
+///
+/// 1. **Before dispatch**, on the arguments **as sent**: by the bearer layer for the 403, and
+///    again after the context hook. The input is not validated yet, defaults are not applied,
+///    and an `afd-pipe` step's `$prev` references are unresolved. This is the early answer that
+///    lets a client step up its token; it cannot see the values the command will run with.
+/// 2. **At execution**, by the registry, for every command it runs with credentials (each batch
+///    item, each pipeline step, nested calls that pass their context on), on the **validated**
+///    input, with defaults applied and pipeline references resolved. `Missing` there fails the
+///    command with `INSUFFICIENT_SCOPE` before the middleware and the handler run.
+///
+/// So a rule keyed on an argument holds even when the caller leaves the argument out (a default
+/// supplies it) or draws it from a previous step. Both phases must agree for the same input, so
+/// decide on the values, not on whether they were sent. `Missing` must name scope tokens: an
+/// empty list, or a name that is not one, still refuses the call (it is logged as the
+/// resolver's mistake and left out of the challenge).
 pub trait ScopeResolver: Send + Sync {
-    /// Decide a call of `command` with `input` (the arguments as sent, before validation). For a
-    /// tool that names no command (`afd-discover`, `afd-detail`, an unknown tool, a grouped call
-    /// that resolves to no command), `command` is the tool's own name and `input` its arguments.
+    /// Decide a call of `command` with `input`: the arguments as sent before dispatch, the
+    /// validated input at execution (see [the two phases](ScopeResolver#two-phases)). For a tool
+    /// that names no command (`afd-discover`, `afd-detail`, an unknown tool, a grouped call that
+    /// resolves to no command), `command` is the tool's own name and `input` its arguments; that
+    /// is decided before dispatch only.
     fn resolve(&self, command: &str, input: &Value, credentials: &Credentials) -> ScopeDecision;
 
     /// Whether the caller may see `command` on the listings (`tools/list`, `afd-discover`,
@@ -57,22 +78,48 @@ pub fn static_decision(required: &[String], scopes: &[String], held: &[String]) 
     }
 }
 
-/// The missing scopes of a whole request whose steps were decided `decisions`
-/// (`spec/authorization.md`, M6): every missing scope of every step, each once, in step order.
-/// Empty when no step is [`ScopeDecision::Missing`], so the request proceeds and any
-/// [`ScopeDecision::Defer`] step is answered by the registry.
-pub fn forbidden_scopes(decisions: &[ScopeDecision]) -> Vec<String> {
+/// What a whole request gets from the decisions on its steps (`spec/authorization.md`, M6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequestDecision {
+    /// No step is [`ScopeDecision::Missing`]: the request proceeds, and any
+    /// [`ScopeDecision::Defer`] step is answered by the registry.
+    Proceed,
+    /// At least one step is [`ScopeDecision::Missing`]: the whole request is refused, naming
+    /// every missing scope of every step, each once, in step order. The list holds only scope
+    /// tokens, so it is empty when a resolver answered `Missing` without naming one it could
+    /// name: the request is refused all the same.
+    Forbidden(Vec<String>),
+}
+
+/// The decision on a whole request whose steps were decided `decisions`
+/// (`spec/authorization.md`, M6). Any [`ScopeDecision::Missing`] refuses the request, even one
+/// that names no scope or a name that is not a scope token (a resolver's mistake, logged at
+/// `warn` without the call's input and left out of the list): it never proceeds.
+pub fn request_decision(decisions: &[ScopeDecision]) -> RequestDecision {
+    let mut refused = false;
     let mut missing: Vec<String> = Vec::new();
     for decision in decisions {
-        if let ScopeDecision::Missing(scopes) = decision {
-            for scope in scopes {
-                if !missing.contains(scope) {
-                    missing.push(scope.clone());
-                }
+        let ScopeDecision::Missing(scopes) = decision else {
+            continue;
+        };
+        refused = true;
+        if scopes.is_empty() || scopes.iter().any(|scope| !is_scope_token(scope)) {
+            tracing::warn!(
+                target: "afd::auth",
+                "a scope decision answered Missing without valid scope names; the call is refused"
+            );
+        }
+        for scope in scopes.iter().filter(|scope| is_scope_token(scope)) {
+            if !missing.contains(scope) {
+                missing.push(scope.clone());
             }
         }
     }
-    missing
+    if refused {
+        RequestDecision::Forbidden(missing)
+    } else {
+        RequestDecision::Proceed
+    }
 }
 
 /// One call a request names.
@@ -191,6 +238,44 @@ pub(crate) fn decide(
         None if command => static_decision(&[], &exposed_scopes(server, name), &credentials.scopes),
         None => ScopeDecision::Allowed,
     };
+    merge(required, decision)
+}
+
+/// The decision on a `tools/call` of `tool` with `args`, over every call it names.
+pub(crate) fn call_decision(
+    server: &McpServer,
+    auth: &Authorization,
+    tool: &str,
+    args: &Map<String, Value>,
+    credentials: &Credentials,
+) -> RequestDecision {
+    let decisions: Vec<ScopeDecision> = named_calls(server, tool, args)
+        .iter()
+        .map(|call| decide(server, auth, call, credentials))
+        .collect();
+    request_decision(&decisions)
+}
+
+/// The decision on one command about to run, at execute time: the validated input, with
+/// defaults applied and pipeline references resolved (`spec/authorization.md`, M6, "At
+/// execution"). Only a resolver can depend on the input, so only it is asked again, after the
+/// required scopes.
+pub(crate) fn execution_decision(
+    auth: &Authorization,
+    command: &str,
+    input: &Value,
+    credentials: &Credentials,
+) -> RequestDecision {
+    let Some(resolver) = &auth.resolver else {
+        return RequestDecision::Proceed;
+    };
+    let required = static_decision(&auth.required_scopes, &[], &credentials.scopes);
+    let decision = merge(required, resolver.resolve(command, input, credentials));
+    request_decision(&[decision])
+}
+
+/// The required scopes' decision, then a call's own.
+fn merge(required: ScopeDecision, decision: ScopeDecision) -> ScopeDecision {
     match (required, decision) {
         (ScopeDecision::Missing(mut missing), ScopeDecision::Missing(more)) => {
             for scope in more {
@@ -205,28 +290,14 @@ pub(crate) fn decide(
     }
 }
 
-/// The missing scopes of a `tools/call` of `tool` with `args`, in step order; empty to proceed.
-pub(crate) fn call_missing(
-    server: &McpServer,
-    auth: &Authorization,
-    tool: &str,
-    args: &Map<String, Value>,
-    credentials: &Credentials,
-) -> Vec<String> {
-    let decisions: Vec<ScopeDecision> = named_calls(server, tool, args)
-        .iter()
-        .map(|call| decide(server, auth, call, credentials))
-        .collect();
-    forbidden_scopes(&decisions)
-}
-
-/// The missing required scopes of a request that names no command (`tools/list`,
-/// `server/discover`, `resources/*`, `initialize` and every other method).
-pub(crate) fn request_missing(auth: &Authorization, credentials: &Credentials) -> Vec<String> {
-    match static_decision(&auth.required_scopes, &[], &credentials.scopes) {
-        ScopeDecision::Missing(missing) => missing,
-        _ => Vec::new(),
-    }
+/// The decision on a request that names no command (`tools/list`, `server/discover`,
+/// `resources/*`, `initialize` and every other method): the required scopes.
+pub(crate) fn request_missing(auth: &Authorization, credentials: &Credentials) -> RequestDecision {
+    request_decision(&[static_decision(
+        &auth.required_scopes,
+        &[],
+        &credentials.scopes,
+    )])
 }
 
 /// Whether the caller may see `command` on the listings: the server's required scopes are held,
@@ -237,7 +308,7 @@ pub(crate) fn visible(
     command: &CommandDefinition,
     credentials: &Credentials,
 ) -> bool {
-    if !request_missing(auth, credentials).is_empty() {
+    if request_missing(auth, credentials) != RequestDecision::Proceed {
         return false;
     }
     match &auth.resolver {

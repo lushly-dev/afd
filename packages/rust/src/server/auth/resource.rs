@@ -309,13 +309,21 @@ impl ProtectedResource {
 
     /// The 403's `WWW-Authenticate` value for the `missing` scopes, in order:
     /// `Bearer error="insufficient_scope", scope="<missing>", resource_metadata="<metadata>"`.
-    /// A name that is not a scope token is left out, so the value stays one quoted string.
+    /// A name that is not a scope token is left out, so the value stays one quoted string, and
+    /// with no scope left `scope` is left out rather than sent empty.
     pub fn forbidden_challenge(&self, missing: &[String]) -> String {
-        format!(
-            "Bearer error=\"insufficient_scope\", scope=\"{}\", resource_metadata=\"{}\"",
-            joined_tokens(missing),
-            self.metadata_url()
-        )
+        let scopes = joined_tokens(missing);
+        if scopes.is_empty() {
+            format!(
+                "Bearer error=\"insufficient_scope\", resource_metadata=\"{}\"",
+                self.metadata_url()
+            )
+        } else {
+            format!(
+                "Bearer error=\"insufficient_scope\", scope=\"{scopes}\", resource_metadata=\"{}\"",
+                self.metadata_url()
+            )
+        }
     }
 
     /// The 403's JSON body for the `missing` scopes.
@@ -328,11 +336,18 @@ impl ProtectedResource {
 
     /// The suggestion of a 403 body and of an `INSUFFICIENT_SCOPE` result.
     pub(crate) fn insufficient_scope_suggestion(&self, missing: &[String]) -> String {
-        format!(
-            "Obtain a token for {} that also grants {}, then retry.",
-            self.resource,
-            joined_tokens(missing)
-        )
+        let scopes = joined_tokens(missing);
+        if scopes.is_empty() {
+            format!(
+                "Obtain a token for {} that grants the scopes this call needs, then retry.",
+                self.resource
+            )
+        } else {
+            format!(
+                "Obtain a token for {} that also grants {scopes}, then retry.",
+                self.resource
+            )
+        }
     }
 }
 
