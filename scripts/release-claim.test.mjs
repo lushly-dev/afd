@@ -4,6 +4,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { loadInventory } from './release/control.mjs';
 import { releaseClaim } from './release-claim.mjs';
 import { hash } from './release-operations/shared.mjs';
 
@@ -337,6 +339,18 @@ test('inventory publisher authority and Actions identity must be exact', (t) => 
 	const count = f.state.calls.length;
 	assert.throws(() => f.invoke('inspect'), /publisher authority/);
 	assert.equal(f.state.calls.length, count);
+});
+
+test('every admitted npm unit names this repository as its authority, exactly as the claim and finalization read it', () => {
+	const repository = dirname(dirname(fileURLToPath(import.meta.url)));
+	const units = loadInventory(repository).units.filter(
+		(unit) => unit.state === 'admitted' && unit.protocol === 'npm-changesets'
+	);
+	assert.ok(units.length > 1);
+	for (const unit of units) {
+		assert.equal(unit.authority, 'github: lushly-dev/afd', unit.id);
+		assert.equal(unit.authority.match(/^github:\s*([^/]+\/[^/]+)$/)?.[1], 'lushly-dev/afd');
+	}
 });
 
 test('restoring identical intent preserves its earliest pending or succeeded claim anchor', (t) => {

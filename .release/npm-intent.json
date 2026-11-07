@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
 	"selectedUnits": ["fast-element", "specimen", "specimen-afd", "specimen-cli", "specimen-fast-af"],
-	"inventoryHash": "e16c684a7b7b64c6e9835060448cc536c22cf47394d45793fcf08b48602dbe60",
+	"inventoryHash": "1d3c41f2995cbbab535672efb0eb8f43bc9c58c1db278f3e6827005adce0c5e2",
 	"sourceDigest": "eb0a43ff0fbbc104ff8e84e30b0f38e45a9c4c1da1938270c737e0fb7e103a27",
 	"distributions": [
 		{
