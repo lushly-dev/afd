@@ -36,6 +36,9 @@ an unset field stays distinguishable from an explicit `false`.
 | `examples` | `{ title, input }[]` | None | `_meta`, afd-help (full). Each `input` must pass the input schema when the command is defined |
 | `contexts` | string[] | None: the command is visible in every context | `_meta`; calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
 | `toolMeta` | object: `_meta` key to JSON value | None | Merged into the command tool's `_meta`, a grouped action entry and afd-detail (`toolMeta`). Keys follow the [key rule](./mcp-resources.md#t2-the-key-rule): reverse-DNS prefixed keys outside `dev.afd/`, or the MCP Apps key `ui`; anything else is refused at registration ([T1](./mcp-resources.md#t1-extra-entries-on-a-commands-tool)) |
+| `scopes` | string[] of OAuth scope names | None: the command needs no scope of its own | `_meta`, afd-detail. Enforced only on authorized HTTP: the scopes a caller's token needs, beside the server's `requiredScopes`. A host `ScopeResolver` may decide each call instead ([Scopes](#scopes)) |
+| `confirmationMode` | `host-verified` | None: the server's `confirmations` option applies | `_meta`, afd-detail. Only the host's `HumanRelay` may confirm the command over MCP ([Host-verified confirmation](#host-verified-confirmation)) |
+| `task` | `never`, `optional` or `required` | `never` | `_meta`, afd-detail. Whether an MCP call may run as a task ([Tasks](#tasks)). Refused at registration beside `confirmPrompt`, an `approval` other than `not-required`, or `confirmationMode` |
 | `outputBudget` | `{ defaultBytes, maxBytes }`, positive integers, `defaultBytes ≤ maxBytes` | None: the result is not checked | `_meta["dev.afd/outputBudget"]`, afd-detail (`outputBudget`). Callers ask per call in `_meta["dev.afd/outputBudget"]`; an over-budget read becomes `OUTPUT_BUDGET_EXCEEDED`, a mutation keeps its result with a warning ([output budgets](./output-budgets.md)) |
 
 `destructive`, `confirmPrompt` and `undoable` are declarations for frontends and agents. AFD does
@@ -50,7 +53,7 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
   Consumers read an absent boolean as its default. An explicit `false` is reported as `false`.
 - **Two exceptions:** afd-detail always reports `mutation`, and afd-discover reports it when
   `includeMutation` is set. Both use `false` when it is unset.
-- **`_meta` omits empty arrays** (`requires`, `examples`, `contexts`).
+- **`_meta` omits empty arrays** (`requires`, `examples`, `contexts`, `scopes`).
 - **`_meta` carries planning signals, not display text.** It has `destructive` and `undoable` but
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
@@ -65,9 +68,9 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
 
 | Surface | Fields |
 | --- | --- |
-| tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts`, `dev.afd/outputBudget` ([B1](./output-budgets.md#b1-the-declaration)), and the command's `toolMeta` entries |
+| tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts`, `scopes`, `confirmationMode`, `task`, `dev.afd/outputBudget` ([B1](./output-budgets.md#b1-the-declaration)), and the command's `toolMeta` entries |
 | tools/list `title` | `title`, on a command's own tool (individual, and first-class under hybrid); the meta-tools carry fixed titles |
-| afd-detail | `name`, `title`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema` (the advertised schema), `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable`, `toolMeta`, `outputBudget` |
+| afd-detail | `name`, `title`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema` (the advertised schema), `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable`, `toolMeta`, `outputBudget`, `scopes`, `confirmationMode`, `task` |
 | afd-discover | `name`, `description`, `category`, and `mutation` with `includeMutation` |
 | afd-help | `name`, `description`, `requires`; the `full` format adds `title`, `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples`. On a hybrid server, `firstClass: true` for a first-class command, in both formats; next to `commands`, the server's `toolStrategy` and, on a hybrid server, `firstClassTools` ([H8](./tool-strategies.md#h8-what-afd-help-serverdiscover-and-afd-detail-report)) |
 | afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, `approval`, parameters |
@@ -85,7 +88,7 @@ When enforcement is on, a call to a command with `confirmPrompt` runs only with 
 1. **An accepted elicitation.** If the request declares the form elicitation capability, the server
    answers `input_required` with one form elicitation: `confirmPrompt` as the message and one
    boolean property. Its `requestState` is integrity-protected and binds the command name, a digest
-   of the validated input, the principal when there is one, and an expiry. When the retry carries an
+   of the validated input, the call's principal binding (below) and an expiry. When the retry carries an
    accepted response and a `requestState` that verifies and still matches the input, the command
    runs.
 2. **An acknowledgement** (`enforce` only). The call sets `confirm: true` in the tool arguments, or
@@ -121,8 +124,82 @@ input intact and reads `confirm: true` in it as the acknowledgement.
 MCP SDK seals and checks the state before the handler runs, rejects the request with JSON-RPC
 `-32602`.
 
+**The principal binding ([#532](https://github.com/lushly-dev/afd/issues/532)).** The state binds
+the actor and, when the call has [credentials](./authorization.md#m4-credentials), their `issuer`,
+`subject` and `clientId`: the [principal binding](./authorization.md#m8-the-principal-binding),
+sealed inside the state or as its associated data. A retry whose principal binding differs from the
+one the state was issued to (another actor, or another issuer, subject or client) is refused exactly
+as a tampered state is, in the same language. So a confirmation one caller answered cannot let
+another caller skip the question, even a different client of the same person. Without credentials
+the binding is the actor alone, which still separates the actors a context hook admits.
+
 A 2025-era request elicits only where its connection can carry a server-sent request (stdio, or
 stateful HTTP). Over stateless HTTP it gets the acknowledgement path.
+
+### Host-verified confirmation
+
+A command sets `confirmationMode: "host-verified"` when only the host can prove that a person
+decided, for example by a fresh login at the person's identity provider on a page the host serves
+(Umbel's person page). A form answer and an acknowledgement prove nothing of the kind: client code
+can produce either. For such a command, on every MCP surface and **whatever the server's
+`confirmations` option says, `off` included**:
+
+- The server never sends a form elicitation for it, never advertises or accepts an acknowledgement
+  for it (`confirm: true`, a `confirm` list, `_meta["dev.afd/confirm"]`, `Afd-Confirm`), and never
+  accepts a form answer for it. The form-mode approval relay ([Asking the human over MCP](#asking-the-human-over-mcp))
+  never asks for it either.
+- It is gated whether or not it declares `confirmPrompt`.
+- Only the server's `HumanRelay`, which the host installs, can confirm it. Without one, the call
+  fails with `CONFIRMATION_REQUIRED`, whose suggestion says the server cannot confirm this command
+  over MCP. DirectClient and in-process registries are unchanged: the host owns in-process calls.
+
+```text
+HumanRelay
+    begin(call) -> RelayPrompt { url, message, state } | CommandError
+    resume(state, call) -> Approved { decisionId } | Declined | Pending(RelayPrompt) | Invalid
+RelayCall { command, inputDigest, actor, credentials?, clientCapabilities }
+```
+
+A call goes through these steps:
+
+1. **One command, modern era.** Only a call that routes to the one command can be relayed: its own
+   tool, a hybrid first-class tool, a grouped tool or `afd-call`, on an MCP 2026-07-28 request. A
+   step of `afd-batch` or `afd-pipe`, a 2025-era request and the HTTP routes (`/rpc`, `/batch`,
+   `/stream`) fail with `CONFIRMATION_REQUIRED` before any step runs, the suggestion saying to call
+   the command on its own from a 2026-07-28 client.
+2. **Validation first.** The server validates the input against the command's schema, as the
+   registry will, before asking anyone. Invalid input fails with `VALIDATION_ERROR`. `inputDigest`
+   is the unpadded base64url SHA-256 of the canonical JSON ([Approvals](#approvals), rule 3) of the
+   validated input, so the person decides on exactly what will run.
+3. **Begin.** On a call that carries no relay answer, the server calls `begin`. A `CommandError` is
+   the call's result: a relay may refuse, for example for a client without URL-mode elicitation.
+   Otherwise the server answers `input_required` with one URL-mode elicitation under the input key
+   `relay`: `mode: "url"`, the relay's `message` and `url`, and an `elicitationId` that is the
+   unpadded base64url SHA-256 of the URL, so a pending decision keeps one id. The `requestState` is
+   the relay's `state`. The server never sends this to a request whose client capabilities do not
+   declare URL-mode elicitation: if `begin` returns a prompt for one, the call fails with
+   `CONFIRMATION_REQUIRED`.
+4. **The retry.** A retry carrying `inputResponses.relay` and a `requestState`:
+   - `decline` or `cancel` fails with `CONFIRMATION_DECLINED`, without asking the relay.
+   - `accept` means only that the user agreed to open the link (MCP: URL mode is out of band, and
+     the server "MUST NOT rely on" it to authorize users for themselves). It is never an answer by
+     itself. The server calls `resume` with the state and this call:
+     - `Approved`: the command runs. If it has an approval policy, the server sets
+       [relay evidence](#relay-evidence) first, so one decision covers both gates.
+     - `Declined`: `CONFIRMATION_DECLINED`, not retryable.
+     - `Pending(prompt)`: `input_required` again with that prompt, as in step 3.
+     - `Invalid`: the state is not an answer, so the server begins again (step 3), as it asks again
+       for a tampered confirmation state.
+
+What a relay guarantees:
+- **Its `state`** is integrity-protected, expires within 24 hours, and binds the decision, the
+  command, `inputDigest` and the call's principal binding (#532). `resume` returns `Invalid` for a
+  state that does not verify, has expired, or was issued to another command, input or principal.
+- **`Approved`** is returned at most once per decision, and only for a decision the person made
+  after `begin`.
+- **The URL** is an absolute `https` URL that holds no identity and is not pre-authenticated; the
+  host verifies who opens it and that it is the person the call is for (MCP 2026-07-28,
+  elicitation, URL mode).
 
 ## Approvals
 
@@ -156,7 +233,9 @@ context's approval evidence (TypeScript `context.approval`). A server may leave
 `details.approvalToken` out and deliver the token to the approver another way. When the call
 carried a token that was not accepted, `details.reason` says why: `malformed`,
 `invalid-signature`, `expired`, `command-mismatch`, `input-mismatch`, `actor-mismatch` or
-`already-used`, and the result carries a fresh token. A human's refusal relayed over MCP is
+`already-used`, and the result carries a fresh token. Refused [relay evidence](#relay-evidence)
+gives `command-mismatch`, `input-mismatch`, `actor-mismatch`, `credentials-mismatch` or
+`already-used`. A human's refusal relayed over MCP is
 `declined` (see "Asking the human over MCP").
 
 Rules:
@@ -245,7 +324,8 @@ MCP 2026-07-28, or a server-sent elicitation on a 2025-era stdio connection. The
 input key `approval` and one required boolean property `approve`. Its message is the summary
 followed by the command name and its validated input (canonical JSON, truncated), so the human sees
 what exactly would run. No approval token is issued. Its `requestState` is integrity-protected and
-bound to the method and to the authenticated client when there is one. It carries:
+bound to the method and to the call's principal binding (#532, as for a confirmation). It
+carries:
 
 - a digest of the command name, the canonical validated input and the actor, keyed with the
   approval secret;
@@ -292,6 +372,119 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Planned | Planned |
+| Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Planned (Umbel phase 5 step 0d) | N/A: no MCP server |
+
+### Relay evidence
+
+When a `HumanRelay` decision ([Host-verified confirmation](#host-verified-confirmation)) covers a
+command with an approval policy, the same decision is its approval. Approval tokens play no part,
+and a server that keeps them off on MCP (Rust `with_include_token(false)`, as Umbel runs) still
+issues none.
+
+The server sets **relay evidence** on the call's context once `resume` returns `Approved`:
+
+| Field | Value |
+| --- | --- |
+| `command` | The command's name |
+| `inputDigest` | The digest the relay was given: unpadded base64url SHA-256 of the canonical JSON of the validated input |
+| `actor` | The actor JSON approval tokens bind (`kind`, `id`, `onBehalfOf`), or `null` |
+| `credentialsBinding` | The canonical JSON of `{ issuer, subject, clientId }` from the call's credentials, or `null` ([authorization, M8](./authorization.md#m8-the-principal-binding)) |
+| `decisionId` | The relay's decision id |
+
+Rules:
+1. **Private.** Only the server sets it, after `resume` returned `Approved` for this call. It is
+   never read from tool arguments, `_meta`, a header or a `requestState`, never serialized, and no
+   public API sets it (Rust: a crate-private context field), as with the private in-process
+   exchange (#460).
+2. **The only evidence.** When relay evidence is present, the approval middleware considers it and
+   nothing else.
+3. **Bound to the call.** The middleware accepts it only when, checked in this order, its
+   `command` equals the call's (else `command-mismatch`), its `inputDigest` equals the digest of the
+   validated input the middleware holds (`input-mismatch`), its `actor` equals the call's actor JSON
+   (`actor-mismatch`), and its `credentialsBinding` equals the call's (`credentials-mismatch`).
+   With rule 4, a command the handler calls in process never runs on it.
+4. **Once.** The middleware then consumes `relay:<decisionId>` in its nonce store, kept for 24
+   hours, the longest a relay decision lives; a second use is `already-used`. Single use holds
+   whatever the middleware's `replay` setting. The prefix keeps it apart from a key the relay
+   itself spends for the same decision in a shared store.
+5. **Refused evidence** fails the call with `APPROVAL_REQUIRED` and that `details.reason`, with no
+   token unless the server includes tokens. Evidence on a command whose policy does not require
+   approval is ignored.
+
+## Tasks
+
+A command's `task` says whether an MCP `tools/call` to it may run as a task under the Tasks
+extension (`io.modelcontextprotocol/tasks`,
+[SEP-2663](https://modelcontextprotocol.io/seps/2663-tasks-extension), revision 2026-07-28):
+
+| `task` | A request that declares the extension in its client capabilities | One that does not |
+| --- | --- | --- |
+| `never` (default) | Inline | Inline |
+| `optional` | A task | Inline |
+| `required` | A task | JSON-RPC `-32021` (missing required client capability), naming the extension |
+
+**What may be a task.** Registration refuses `optional` and `required` on a command that declares
+`confirmPrompt`, an `approval` other than `not-required`, or `confirmationMode`: a task never asks
+a person, so no AFD task is ever `input_required`. Only a `tools/call` that routes to one command
+(its own tool, a hybrid first-class tool, a grouped tool or `afd-call`) can become a task.
+`afd-batch` and `afd-pipe` never do: an `optional` step runs inline, and a step naming a `required`
+command fails the whole request with `INVALID_BATCH_REQUEST` or `INVALID_PIPELINE_REQUEST` before
+any step runs. The HTTP routes, `DirectClient`, in-process registries and the CLI always run
+inline. The server never answers with a task to a request that did not declare the extension.
+
+**Creating one.** Everything an inline call meets before dispatch happens first: the HTTP layer's
+403 ([authorization, M6](./authorization.md#m6-scopes)), the context hook and the scope check.
+Then:
+- the task id holds at least 128 bits from a cryptographic random source, so it cannot be guessed;
+- the record is in the `TaskStore` before the server answers with `CreateTaskResult`; a store that
+  cannot record it fails the call, and nothing runs;
+- the record's **owner** is the call's [principal binding](./authorization.md#m8-the-principal-binding),
+  and it holds no token.
+
+**Running one.** The command runs through the normal executor (validation, middleware, handler)
+with a fresh context carrying the call's actor, credentials and trace. Its cancellation signal
+fires on `tasks/cancel`, when the task's `ttlMs` ends, and at `credentials.expiresAt`.
+- **Its result** is the `CallToolResult` an inline call would return, `structuredContent` included,
+  with status `completed`; a failed `CommandResult` is `completed` with `isError: true`, as the
+  extension says. `failed` is only for a JSON-RPC error. A task stopped by `tasks/cancel` is
+  `cancelled`.
+- **The token bounds it.** A task never outlives the token that started it: when
+  `credentials.expiresAt` passes while it is working, it is stopped and completes with the failure
+  `TASK_TOKEN_EXPIRED` ([error codes](./error-codes.md#specified-not-yet-in-the-catalog)),
+  retryable: start it again with a new token. A host may also end the task's `ttlMs` there.
+- **Progress** updates `statusMessage` and `lastUpdatedAt`; no progress or log notification is sent
+  for a task (the extension delivers none).
+
+**`tasks/get`, `tasks/update` and `tasks/cancel`.** Each request passes the same authorization as a
+`tools/call` ([M6, other methods](./authorization.md#other-methods)), and then the **owner
+check**: the store returns a task only when the caller's principal binding equals its owner. A task
+owned by anyone else, an expired task and an unknown id get the same answer, the extension's answer
+for an unknown task, so an id reveals nothing. `tasks/update` finds no task waiting for input, and
+answers as the extension says for that. `tasks/cancel` requests cooperative cancellation; a
+finished task is unchanged. `Mcp-Name` carries the task id on Streamable HTTP.
+
+**The store.**
+
+```text
+TaskStore
+    create(record)                      // durable before it returns
+    get(id, owner) -> record | none     // none when the owner differs
+    update(id, owner, change)
+    expire(now) -> count                // removes tasks past their ttl
+```
+
+The default store is in memory and serves one process. A host with several processes behind one
+URL supplies a shared store.
+
+## Scopes
+
+`scopes` names the OAuth scopes a caller's token needs to run the command over HTTP on a server
+configured with [authorization](./authorization.md). A call needs the server's `requiredScopes`
+and then the command's `scopes`, compared exactly. A host `ScopeResolver`, when installed, decides
+every call instead, from the command, its input and the credentials, and may answer `Defer` to let
+the registry answer. A missing scope is an HTTP 403 before dispatch wherever HTTP can carry it, and
+`INSUFFICIENT_SCOPE` otherwise, never a handler call ([M6](./authorization.md#m6-scopes)). stdio,
+the CLI, `DirectClient` and in-process registries ignore `scopes`.
 
 ## Decisions on the tool surface (#466)
 
@@ -389,4 +582,8 @@ follows `destructive`, `false` when it is unset.
 | `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
 | `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
+| `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Planned (Umbel phase 5 step 0b) | Planned (declaration only) |
+| Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Planned (Umbel phase 5 step 0c) | Planned (step 0c) | Planned (step 0c) | N/A: no confirmation gate |
+| `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Planned (step 0d) | N/A: no MCP server |
+| `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Planned | Planned | Planned (step 0e) | N/A: no MCP server |
 

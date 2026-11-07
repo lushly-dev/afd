@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-25. Ranked 4 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../../active/mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Recommended to wait; see "When to start". |
+| Status | Active. Proposed 2026-10-25; approved 2026-11-04 with the [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#122-tasks-for-long-jobs-d127) (decisions D106 and D127, under the owner's 2026-10-31 delegation): Umbel's `sources-sync`, `knowledge-index` and `knowledge-refresh` outlive a request, which answers T1. Phase 1, the spec, done 2026-11-07 as Umbel step 0a: [Tasks](../../../../spec/command-metadata.md#tasks) in `spec/command-metadata.md` (T2, T3 and T5, with confirmations inside tasks left out, below). The Rust pilot is next (Umbel step 0e); progress is in the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md). Ranked 4 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [SEP-2663: Tasks extension](https://modelcontextprotocol.io/seps/2663-tasks-extension) (Final, Extensions Track), [extensions overview](https://modelcontextprotocol.io/extensions/overview) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust` |
-| Related | [Command progress](../mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../../active/mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../../complete/handoff-pattern/) (AFD's command-level start-and-poll pattern) |
+| Related | [Command progress](../../proposed/mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../../complete/handoff-pattern/) (AFD's command-level start-and-poll pattern) |
 
 ## Why this is fourth
 
@@ -51,8 +51,8 @@ A `TaskStore` interface holds task records and results: `create`, `get`, `update
 ### Execution
 
 - The task runs the command through the normal executor with a fresh `CommandContext`. Its `signal` is aborted by `tasks/cancel` or by TTL expiry.
-- `context.progress` from the [progress proposal](../mcp-progress/mcp-progress.proposal.md) updates `statusMessage`, and `lastUpdatedAt`, instead of sending notifications.
-- A confirm-gated command (see [confirmations](../../active/mcp-confirmations/mcp-confirmations.proposal.md)) moves to `input_required`, and continues when `tasks/update` brings an accepted confirmation.
+- `context.progress` from the [progress proposal](../../proposed/mcp-progress/mcp-progress.proposal.md) updates `statusMessage`, and `lastUpdatedAt`, instead of sending notifications.
+- A confirm-gated command (see [confirmations](../mcp-confirmations/mcp-confirmations.proposal.md)) moves to `input_required`, and continues when `tasks/update` brings an accepted confirmation. *Not in the 2026-11-07 spec:* a command with `confirmPrompt`, an approval policy or the host-verified mode cannot declare `task`, so no task asks a person; a later revision may add this.
 - The result is the same `CallToolResult` that an inline call returns, including `structuredContent`.
 
 ### Per language
@@ -77,11 +77,11 @@ The AFD client gains task support: it declares the extension when asked, polls a
 
 | # | Question | Recommendation |
 |---|---|---|
-| T1 | Start now? | No. Wait for a real long-running command or a TypeScript SDK runtime, and run the Rust pilot first. |
+| T1 | Start now? | No. Wait for a real long-running command or a TypeScript SDK runtime, and run the Rust pilot first. *Answered 2026-11-04 (Umbel D127):* Umbel has the long-running commands; the spec and the Rust pilot start now. |
 | T2 | How does a command opt in? | `task: 'never' \| 'optional' \| 'required'`, default `'never'`. |
 | T3 | Where is task state kept? | A pluggable `TaskStore`. The in-memory default is single-instance only. |
 | T4 | How do progress updates appear? | As `statusMessage` updates. |
-| T5 | Do tasks need authorization? | On shared servers, yes: bind each task to its principal. A single-user server can rely on unguessable IDs alone. |
+| T5 | Do tasks need authorization? | On shared servers, yes: bind each task to its principal. A single-user server can rely on unguessable IDs alone. *Specified 2026-11-07:* every task's owner is the starting call's principal binding, checked on every `tasks/*` request on every server, and a task stops when the token that started it expires (`TASK_TOKEN_EXPIRED`). |
 
 ## Out of scope
 

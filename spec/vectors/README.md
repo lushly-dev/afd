@@ -33,6 +33,11 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   page it pins: [`tool-strategies.json`](../tool-strategies.json), for the hybrid tool strategy
   ([`tool-strategies.md`](../tool-strategies.md#conformance)), loaded by TypeScript, Python and Rust so far. [`output-budgets.json`](../output-budgets.json), for output budgets
   ([`output-budgets.md`](../output-budgets.md#conformance)), is loaded by Rust so far (`packages/rust/tests/output_budget.rs`).
+  [`authorization.json`](../authorization.json), for MCP authorization, the principal binding of
+  [#532](https://github.com/lushly-dev/afd/issues/532) and the relay input digest
+  ([`authorization.md`](../authorization.md#conformance)), is loaded by no language yet: Rust loads
+  it first (Umbel phase 5 steps 0b to 0d), and C++, which has no HTTP server, never will, so it
+  stays beside this directory.
 
 ### `pipeline-variables.json`
 

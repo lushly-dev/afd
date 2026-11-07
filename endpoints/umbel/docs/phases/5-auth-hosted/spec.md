@@ -18,7 +18,8 @@
   - The owner took the recommended option on every question and asked for two strengthenings: **user verification
     is mandatory** on every person login (decision 6), and **a configurable two-person rule** for `memory-erase`
     (decision 9). Both are written into the sections they govern.
-  - Implementation starts with step 0a. Nothing is implemented yet.
+  - Step 0a, the AFD spec, done 2026-11-07 (documents and cases only;
+    [Amendments from step 0a](#amendments-from-step-0a)). No code is implemented yet.
 - **Last verified:** 2026-11-03 against `main` at `e5b4e43c` (phase 4 done), and again for the review. Read in
   `endpoints/umbel`:
   - `src/principal.rs`:
@@ -92,9 +93,9 @@
   - `Cargo.toml:20-40`: features `native`, `wasm`, `journal-file`, `journal-file-shared`, `approval`, `server`
     and `frontmatter`, with `native`, `journal-file` and `approval` the defaults. No auth feature.
 - **Read in the repository:**
-  - The [MCP Authorization proposal](../../../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md),
+  - The [MCP Authorization proposal](../../../../../docs/features/active/mcp-authorization/mcp-authorization.proposal.md),
     A1 to A7. A4 says scopes are "not inferred from `mutation`", and A5 gives a 403 through `Mcp-Name`.
-  - The [MCP Tasks proposal](../../../../../docs/features/proposed/mcp-tasks/mcp-tasks.proposal.md).
+  - The [MCP Tasks proposal](../../../../../docs/features/active/mcp-tasks/mcp-tasks.proposal.md).
   - [`spec/command-metadata.md`](../../../../../spec/command-metadata.md) lines 234-294.
   - [`docs/language-parity.md`](../../../../../docs/language-parity.md) line 136.
 - **Read in the registry sources of the crates in the lock, or planned:**
@@ -110,7 +111,13 @@
 - **External sources:** checked on 2026-11-03 (see [Trajectory refresh](#trajectory-refresh)).
 - **No Rust was built** for this document. No cargo command was run except `cargo info`.
 - **Done:** this specification, its revision and its approval with the owner's answers (2026-11-04).
-- **Not done:** everything in section [16](#16-implementation-plan).
+  Step 0a (2026-11-07): [`spec/authorization.md`](../../../../../spec/authorization.md) with its cases in
+  [`spec/authorization.json`](../../../../../spec/authorization.json); `scopes`, `confirmationMode`,
+  `task`, #532's binding, the host-verified mode, relay evidence and Tasks in
+  [`spec/command-metadata.md`](../../../../../spec/command-metadata.md); `INSUFFICIENT_SCOPE` and
+  `TASK_TOKEN_EXPIRED` specified in [`spec/error-codes.md`](../../../../../spec/error-codes.md); the MCP
+  Authorization and Tasks proposals moved to `docs/features/active/`.
+- **Not done:** every step of section [16](#16-implementation-plan) after 0a.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -1505,7 +1512,7 @@ A step that finds a design decision stops and amends this document. Steps changi
 
 | Step | Pull request | Contents | Tests | Size |
 | --- | --- | --- | --- | --- |
-| 0a | AFD spec | `spec/command-metadata.md` (`scopes` with the resolver, `task`, `confirmationMode: "host-verified"`, relay evidence), `spec/error-codes.md`, a new `spec/authorization.md` (`credentials`, the HTTP behaviour, 403 through the resolver, test vectors), #532's binding; the MCP Authorization and Tasks proposals made active | Spec vectors | M |
+| 0a | AFD spec | `spec/command-metadata.md` (`scopes` with the resolver, `task`, `confirmationMode: "host-verified"`, relay evidence), `spec/error-codes.md`, a new `spec/authorization.md` (`credentials`, the HTTP behaviour, 403 through the resolver, test vectors), #532's binding; the MCP Authorization and Tasks proposals made active. **Done 2026-11-07**; the choices it made are in [Amendments from step 0a](#amendments-from-step-0a) | Spec vectors (`spec/authorization.json`) | M |
 | 0b | AFD Rust auth | `server-auth`: `TokenVerifier`, `JwtVerifier`, `KeySource`, `ScopeResolver`, `ProtectedResource`, `BearerLayer`, `credentials`, `scopes` | `server_auth.rs`, `auth_verifier.rs` | L |
 | 0c | AFD #532 | Actor and credentials in confirmation state in TypeScript, Python and Rust; **needs 0b** | Each language's confirmation suite | M |
 | 0d | AFD Rust relay | The host-verified mode in the gate; `HumanRelay`; relay evidence in the approval middleware; the form-mode relay; parity row | `server_confirmations.rs`, `server_human_relay.rs` | L |
@@ -1653,6 +1660,36 @@ These were decided with the specification's approval on 2026-11-04, under the ow
 - D127: tasks without content, bounded by the token.
 - D128: rate limits.
 
+## Amendments from step 0a
+
+Step 0a wrote [`spec/authorization.md`](../../../../../spec/authorization.md), its cases in
+[`spec/authorization.json`](../../../../../spec/authorization.json), and the `scopes`, `confirmationMode`,
+`task`, #532, host-verified, relay-evidence and Tasks sections of
+[`spec/command-metadata.md`](../../../../../spec/command-metadata.md). It kept every rule of sections 3.1
+to 3.3, 5.2 to 5.4, 7.3 and 12.2 and settled what they left open. These change what 0b to 0e build; the
+AFD spec is binding where it and this document differ. None changes the trust model.
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 3.1, 3.3: where the 403 applies | "Any non-streamed `tools/call`" | A request whose JSON-RPC answer is the body of its own HTTP response: `tools/call` on Streamable HTTP, and AFD's `/rpc`, `/batch` and `/stream`. Anything else (the deprecated `/message` lane, a body the layer cannot parse) is decided again after routing, after the context hook and before the confirmation gate, as `INSUFFICIENT_SCOPE` with `details.scopes` (M6) | Makes "non-streamed" exact; no lane reaches a handler or a person with a missing scope |
+| 3.3: which commands a request names | The command, and the commands `afd-call`, `afd-batch` and `afd-pipe` name | Also: a grouped action is resolved as the router would (unresolvable is `Defer`); a tool naming no command (`afd-discover`, `afd-detail`, `afd-help`, the context tools) is resolved under its own name; `input` is the arguments as sent, before validation | 5.2's "meta-tools need any Umbel scope" needs a name to resolve |
+| 3.1: host-verified and the server option | Unstated | The mode applies **whatever `confirmations` says, `off` included** | Under `off` a person-gated command would otherwise run with no person; 6.1's `auth.confirmations` already reads `mcp.confirmations` as governing ordinary commands only |
+| 3.1: what the relay can confirm | Unstated | Only a call routed to one command (its tool, first-class, grouped, `afd-call`) on an MCP 2026-07-28 request. A step of `afd-batch` or `afd-pipe`, a 2025-era request and the AFD HTTP routes get `CONFIRMATION_REQUIRED` | One decision binds one call, and `input_required` exists only on 2026-07-28; the same limit the form-mode approval relay has |
+| 3.1: the input the person decides on | "The canonical input digest" | The server validates the input before `begin`; `inputDigest` is the unpadded base64url SHA-256 of the canonical JSON of the **validated** input, for `RelayCall` and relay evidence alike | The gate runs before validation and binds input as sent, while the approval middleware holds validated input: with any default applied, the digests would differ and every relayed approval would be refused. A person is also never asked about input that fails |
+| 3.1, 7.3: the URL elicitation | `input_required` with the relay's prompt | Input key `relay`; `elicitationId` the unpadded base64url SHA-256 of the URL, so a pending decision keeps one id; the relay's `state` is the `requestState`. `decline` or `cancel` is `CONFIRMATION_DECLINED` without calling the relay; `accept` is never an answer, only a reason to call `resume`; `Invalid` begins again. Never sent to a client that did not declare URL mode: such a prompt becomes `CONFIRMATION_REQUIRED` | MCP requires `elicitationId` in URL mode (rmcp 3.8.0 `model.rs:3931-3937`) and forbids modes the client did not declare |
+| 3.1: relay evidence and the nonce store | "The decision id is consumed once in its nonce store" | The middleware consumes `relay:<decisionId>`, kept 24 hours; a relay decision lives at most 24 hours. When present, relay evidence is the only evidence. Checked in order: command, input, actor, then credentials, each refusal with its `details.reason` (new: `credentials-mismatch`) | 7.2 step 5 has the relay spend the decision once in the same shared store: consuming the same key twice would refuse every relayed approval |
+| 3.1: #532's binding | Actor and `credentials.issuer`, `.subject`, `.clientId` in the confirmation state | The same, defined once as the **principal binding** (canonical JSON of the actor's `kind`, `id`, `onBehalfOf` and the credentials' identity, M8), with cases; it also binds the form-mode approval relay's state, task owners and relay evidence | TypeScript carries confirmation and approval answers in one state; one definition keeps the four uses equal |
+| 3.2: rule details | Rules 1 to 12 | A closed list of rule codes (M5). `typ` compared ignoring ASCII case (a media type, RFC 7515 4.1.9). The JWK's `crv` must fit `alg` (`ES256` and `P-256`, `EdDSA` and `Ed25519` or `Ed448`). `nbf`, `auth_time` and `acr` type-checked when present. Time as `now < exp + skew`, `iat ≤ now + skew`, `nbf ≤ now + skew`. The `scope` claim parsed strictly (`scope-malformed`), with the 64 counted under an optional prefix. A key source or introspection endpoint that cannot answer is a 401 (`unavailable`): fail closed. Credentials hold whole seconds, rounded down | Each needed one exact answer for the cases |
+| 3.2, 3.3: challenge forms | The two header forms | Exact strings: the 401's `error="invalid_token"` comes last, the 403 keeps its order; `scope=` is left out of a 401 when nothing is published; no `error_description`. A 403 body `{"error":"INSUFFICIENT_SCOPE","suggestion":…}` beside the 401's | Byte-equal cases across languages |
+| 3.3: metadata | The document | `scopes_supported` left out when empty; a resource with an empty path has one URL | RFC 9728 3.1 |
+| 3.2: credentials | `Debug` prints `[redacted]` for the token | Credentials' own debug form prints `[redacted]` for every field but `issuer` and `expiresAt`; without a host mapping the server sets the actor `{ kind: "agent", id: clientId, onBehalfOf: subject }` (the proposal's default) | Subjects and client ids are identifiers that logs should not hold |
+| 12.2: Tasks in AFD | `task`, `TaskStore`, the handlers, a principal check | Registration refuses `task` beside `confirmPrompt`, an approval policy or `confirmationMode`, so no AFD task is ever `input_required`. Only single-command calls become tasks; an `afd-batch` or `afd-pipe` step naming a `required` command fails the whole request (`INVALID_BATCH_REQUEST`, `INVALID_PIPELINE_REQUEST`). The owner is the principal binding; a foreign, expired or unknown id gets one answer. A task stops at `credentials.expiresAt` with **`TASK_TOKEN_EXPIRED`, now an AFD code**. A failed `CommandResult` is `completed` with `isError`, as the extension says | Manifest version 5 already refuses these for Umbel (2.3); AFD now refuses them for every host. The token bound belongs wherever `credentials` exist, not in Umbel only |
+| 10.5: which codes are AFD's | One table | AFD specifies `INSUFFICIENT_SCOPE` and `TASK_TOKEN_EXPIRED` ([`spec/error-codes.md`](../../../../../spec/error-codes.md#specified-not-yet-in-the-catalog)), each joining the catalog with its four constants in the step that first emits it (0b, 0e). The rest stay Umbel's | The catalog's rule: a code joins when it is implemented |
+| 16, 0a: where the cases live | "Spec vectors" | `spec/authorization.json`, beside `spec/vectors/`, listed in its README | `alfred parity` fails on a file in `vectors/` that some language does not load, and C++ has no HTTP server |
+
+In Rust the server option's enum is already `ConfirmationMode` (`Off`, `Enforce`, `RequireHuman`); step 0d
+gives the per-command setting a name that does not collide with it.
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -1665,4 +1702,5 @@ These were decided with the specification's approval on 2026-11-04, under the ow
 | 2026-11-03 | Memory recall's ranking changed (9.2) with no memory retrieval eval | After phase 5 |
 | 2026-11-03 | Plugin `secrets` and `http` grants | The first plugin that needs them |
 | 2026-11-03 | OpenTelemetry export | After W12's first tagged release |
+| 2026-11-07 | 12.2 caps a task's `ttlMs` at its token's `exp`, and the extension lets a server discard a task when its TTL ends, so a task stopped with `TASK_TOKEN_EXPIRED` may be gone before anyone polls it. AFD stops the work at `exp` and leaves the TTL cap to the host (step 0a). Decide whether the record outlives `exp` by a short, content-free grace | Step 8 |
 | 2026-11-03 | Whether `rustls-pemfile` is archived was not re-checked; `rustls-pki-types` replaces it either way | None |

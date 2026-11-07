@@ -8,7 +8,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [Progress](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/progress), [cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/cancellation), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust`, `packages/cpp` |
-| Related | `spec/wire/stream-chunks.json`, [MCP tasks](../mcp-tasks/mcp-tasks.proposal.md) (tasks carry status messages instead of progress) |
+| Related | `spec/wire/stream-chunks.json`, [MCP tasks](../../active/mcp-tasks/mcp-tasks.proposal.md) (tasks carry status messages instead of progress) |
 
 ## Why this is third
 
@@ -97,7 +97,7 @@ A command that reports progress may declare `reportsProgress: true`. The field i
 
 ## Out of scope
 
-Log notifications (`notifications/message`), partial results before completion, and progress on Tasks. The Tasks extension does not carry progress, so the [Tasks proposal](../mcp-tasks/mcp-tasks.proposal.md) maps updates to the task's `statusMessage` instead.
+Log notifications (`notifications/message`), partial results before completion, and progress on Tasks. The Tasks extension does not carry progress, so the [Tasks proposal](../../active/mcp-tasks/mcp-tasks.proposal.md) maps updates to the task's `statusMessage` instead.
 
 ## Sources
 
