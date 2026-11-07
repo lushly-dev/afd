@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
 import {
 	createPublishPlan,
+	main,
 	readIntent,
 	saveIntent,
 	selectRelease,
@@ -236,4 +237,27 @@ test('a preview seed cannot be planned for publication', (t) => {
 		/publishes only x\.y\.z-preview\.N versions: @fixture\/d@2\.2\.0-preview/
 	);
 	assert.equal(existsSync(f.artifacts), false);
+});
+
+test('a plan refuses a package npm does not have, so the run stops before it claims the release', (t) => {
+	const f = fixture(t);
+	version(f, 'npm-prerelease');
+	const evidence = join(f.root, '..', 'evidence.json');
+	const plan = join(f.root, '..', 'plan.json');
+	const run = () =>
+		main(['plan', '--root', f.root, '--registry-evidence', evidence, '--plan', plan]);
+	write(f.root, '../evidence.json', f.evidence);
+	assert.throws(
+		run,
+		/npm has no package @fixture\/d, @fixture\/h, @fixture\/p; trusted publishing/
+	);
+	assert.equal(existsSync(plan), false);
+	// A placeholder makes the name exist; its version satisfies no range, so it changes nothing else.
+	write(
+		f.root,
+		'../evidence.json',
+		f.evidence.map((entry) => ({ ...entry, versions: ['0.0.0-stage', '0.0.0-bootstrap.0'] }))
+	);
+	run();
+	assert.equal(JSON.parse(readFileSync(plan, 'utf8')).distTag, 'preview');
 });

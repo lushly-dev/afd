@@ -14,8 +14,9 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, realpathSync, rmSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -136,7 +137,23 @@ async function install(
 	const log = `${result.stdout}${result.stderr}`;
 	await writeFile(join(root, 'install.log'), log);
 	assert.equal(result.status === 0, expected, `${name} install outcome:\n${log}`);
+	if (result.status === 0) installBrowser(root);
 	return { root, log };
+}
+/**
+ * A consumer resolves Specimen's Playwright range on its own, so it can get a newer Playwright than
+ * the workspace, with a newer browser. As a user would, install the headless shell that the
+ * consumer's own Playwright names, resolved the way the host resolves it.
+ */
+function installBrowser(root) {
+	const specimen = join(root, 'node_modules/@lushly-dev/specimen/package.json');
+	if (!existsSync(specimen)) return;
+	const playwright = createRequire(realpathSync(specimen)).resolve('playwright/package.json');
+	const core = dirname(createRequire(playwright).resolve('playwright-core/package.json'));
+	execFileSync(process.execPath, [join(core, 'cli.js'), 'install', '--only-shell', 'chromium'], {
+		cwd: root,
+		stdio: 'inherit',
+	});
 }
 function typecheck(cwd) {
 	execFileSync(

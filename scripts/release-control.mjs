@@ -34,6 +34,20 @@ export {
 	saveIntent,
 } from './release-operations/intent.mjs';
 
+/**
+ * Trusted publishing uploads only to a package npm already has, with its publisher linked. A name
+ * npm has never seen fails its upload after the run has claimed the intent, and that failed claim
+ * holds every later run; so planning refuses it, and the run stops before it claims anything.
+ */
+export function assertPublishersExist(plan, registryEvidence) {
+	const absent = plan.artifacts
+		.map((artifact) => artifact.name)
+		.filter((name) => !registryEvidence.find((entry) => entry.name === name)?.versions.length);
+	if (absent.length)
+		throw new Error(
+			`npm has no package ${absent.join(', ')}; trusted publishing cannot create one. Publish a placeholder for each and link its trusted publisher, then re-run`
+		);
+}
 function evidence(root, file, selectedUnits, route) {
 	if (!selectedUnits) {
 		const inventory = loadInventory(root);
@@ -161,10 +175,11 @@ export function main(args = process.argv.slice(2)) {
 		const intent = readIntent(root);
 		const units = selectedUnits ?? intent.selectedUnits;
 		const destination = resolve(opts.plan);
+		const registryEvidence = evidence(root, opts['registry-evidence'], units, route);
 		result = createPublishPlan({
 			root,
 			selectedUnits: units,
-			registryEvidence: evidence(root, opts['registry-evidence'], units, route),
+			registryEvidence,
 			route,
 			distTag: opts.tag,
 			artifactsDirectory: `${destination}.artifacts`,
@@ -174,6 +189,7 @@ export function main(args = process.argv.slice(2)) {
 				relative(root, `${destination}.receipt.json`),
 			],
 		});
+		assertPublishersExist(result, registryEvidence);
 		mkdirSync(dirname(destination), { recursive: true });
 		writeFileSync(destination, `${JSON.stringify(result, null, '\t')}\n`);
 	} else if (command === 'publish') {
