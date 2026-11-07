@@ -7,7 +7,7 @@ description: >
   lane on a server, command, agent or dependency change.
 metadata:
   source: botcore
-  version: 2.0.0
+  version: 2.1.0
   portable: true
 ---
 
@@ -32,7 +32,7 @@ High sensitivity means PII, credentials or audit logs; high impact means deploym
 
 ## Calibrate severity
 
-Severity runs from P0 (emergency) to P3 (low); in a review lane that uses BLOCKER and IMPROVEMENT, P0 and P1 are BLOCKERs. Start from the usual rating, then apply these rules:
+Severity runs from P0 (emergency) to P3 (low); in a review lane that uses BLOCKER and IMPROVEMENT, P0 and P1 are BLOCKERs unless the repository's lane defines blockers by impact (then follow it). Start from the usual rating, then apply these rules:
 - **Write-capable tool:** raise one level. Injection against it does operational damage without any memory-corruption primitive.
 - **Sensitive data at scale:** raise one level.
 - **No per-tool authorization enforced server-side on every call:** P0 or P1, whatever the CVSS says.
@@ -57,7 +57,7 @@ Metadata that nothing checks at call time is not a control.
 
 ## Code-execution tools
 
-Botcore's execute tools are unconfined by design (`docs/host-composition.md`):
+Botcore's execute tools are unconfined by design ([`host-composition.md`](https://github.com/lushly-dev/afd/blob/main/endpoints/botcore/docs/host-composition.md)):
 - **Legacy `create_mcp_server`.** Its `{name}-run` executes any Python, checked only for syntax and a 32,000-character limit.
 - **Managed hosts.** `create_host_mcp_server(host, raw_python=True)` requires the `trusted-local` profile. Command calls go through policy, but the code can still `import os`.
 

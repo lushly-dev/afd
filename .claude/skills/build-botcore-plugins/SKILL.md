@@ -7,7 +7,7 @@ description: >
   MCP or a CLI.
 metadata:
   source: botcore
-  version: 2.0.0
+  version: 2.1.0
   portable: true
 ---
 
@@ -15,7 +15,7 @@ metadata:
 
 # Botcore plugins
 
-Serve plugins through a managed host (`build_host`). It admits only the plugins you name and only commands that have an effect policy. The sources are `docs/host-composition.md`, `botcore/plugin.py` and `botcore/host.py`.
+Serve plugins through a managed host (`build_host`). It admits only the plugins you name and only commands that have an effect policy. The sources are [`host-composition.md`](https://github.com/lushly-dev/afd/blob/main/endpoints/botcore/docs/host-composition.md) and `botcore/plugin.py` and `botcore/host.py` in the installed package.
 
 ## Write the plugin
 

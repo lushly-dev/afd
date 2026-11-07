@@ -7,7 +7,7 @@ description: >
   changelog.
 metadata:
   source: botcore
-  version: 2.0.0
+  version: 2.1.0
   portable: true
 ---
 
@@ -20,7 +20,7 @@ Documentation is worth keeping only while it matches the code. Keep root files s
 ## Where things live
 
 - **Skills hold depth; AGENTS.md routes.** AGENTS.md carries what every session needs: commands, layout, hard rules and an index of skills. Every line there costs every session, so when a topic grows past a few lines, move it into a skill or the document that owns it and leave a one-line pointer.
-- **AGENTS.md is the only project instruction file.** Never generate, sync or restore a `CLAUDE.md`. By default Claude Code reads AGENTS.md only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above it, so a generated copy quietly replaces AGENTS.md with a stale one. If you find one, merge its unique lines into AGENTS.md, then delete it and any script that regenerated it. Claude-only rules go in `.claude/rules/`, which loads alongside AGENTS.md.
+- **AGENTS.md is the only project instruction file.** Never generate, sync or restore a `CLAUDE.md` with its own content; the one exception is a root `CLAUDE.md` whose only line is `@AGENTS.md`, Claude Code's documented fallback, which a repository may keep. By default Claude Code reads AGENTS.md only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above it, so a generated copy quietly replaces AGENTS.md with a stale one. If you find one, merge its unique lines into AGENTS.md, then delete it and any script that regenerated it. Claude-only rules go in `.claude/rules/`, which loads alongside AGENTS.md.
 - **Link, don't copy.** A fact written in two places drifts. README.md stays a self-contained quick start and links out for depth.
 
 ## Changelogs

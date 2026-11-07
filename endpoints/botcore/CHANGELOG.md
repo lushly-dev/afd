@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **skill-manager** no longer names AFD's `pnpm verify` as its example of a single source, so seeded
+- **Seeded skills** read correctly outside AFD. `security-auditor` defers to a repository lane
+  that defines blockers by impact; `docs-manager` allows a root `CLAUDE.md` whose only line is
+  `@AGENTS.md`; `plugin-builder`, `mcp-builder`, `security-auditor` and `botcore-config` link
+  `host-composition.md` on GitHub and name package modules rather than AFD repository paths.
+  Their versions are bumped so `skill-status` reports the drift and `skill-seed --update`
+  refreshes them.
+- **skill-manager** (4.1.1) no longer names AFD's `pnpm verify` as its example of a single source, so seeded
   copies don't cite a command a consuming repository lacks.
 
 ## [0.6.0] - 2026-11-07
