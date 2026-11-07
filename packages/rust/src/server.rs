@@ -392,7 +392,10 @@ impl McpServer {
 
     /// Enforce `confirm_prompt` (`spec/command-metadata.md`, "Confirmations"). Default:
     /// [`ConfirmationMode::Off`]. Under [`ConfirmationMode::Enforce`] a confirm-gated tool also
-    /// advertises an optional `confirm` argument.
+    /// advertises an optional `confirm` argument. The confirmation `requestState` is bound to the
+    /// call's [`principal_binding`](crate::principal_binding), the actor the context hook left and
+    /// the verified credentials' issuer, subject and client, so it confirms nothing for another
+    /// caller (see [`confirmations`]).
     ///
     /// # Panics
     /// When the OS random source that makes the per-process key is unavailable.

@@ -7,7 +7,8 @@ call, and the 401 and 403 answers. It is opt-in: a server without it behaves as 
 Specified 2026-11-07 as step 0a of [Umbel phase 5](../endpoints/umbel/docs/phases/5-auth-hosted/spec.md)
 (decision D106), from the [MCP Authorization proposal](../docs/features/active/mcp-authorization/mcp-authorization.proposal.md),
 whose decisions A4 and A5 it amends ([M6](#m6-scopes)). Rust implements it first (Umbel steps 0b
-and 0c); TypeScript and Python follow. C++ has no HTTP server, so none of this applies to it.
+and 0c); TypeScript and Python follow, and already bind the principal (M8) in confirmation state
+(step 0c). C++ has no HTTP server, so none of this applies to it.
 
 **Sources.** MCP 2026-07-28 [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 and its security considerations; RFC 6749 (OAuth 2.0) 3.3; RFC 6750 (bearer tokens) 2 and 3;
@@ -476,10 +477,30 @@ the test (RSA, EC P-256 and P-384, Ed25519), `tests/server_auth.rs` the layer en
 `tests/auth_canary.rs` the token canary over every log line. Rust serves the layer and the service
 together through `McpServer::authorized_http_service`.
 
+The principal binding (M8) is implemented in all three languages with a confirmation gate (Umbel
+phase 5 step 0c, [#532](https://github.com/lushly-dev/afd/issues/532)), and each loads the
+`principalBindings` cases: Rust in `tests/authorization_cases.rs`, TypeScript in
+`packages/server/src/principal-binding.test.ts`, Python in `python/tests/test_principal_binding.py`.
+Each binds it to confirmation state as integrity-protected input, never as readable identity:
+
+- **Rust:** HMAC associated data of the `requestState`, after the context hook, with the verified
+  credentials of an authorized server.
+- **TypeScript:** the HMAC bind tag of the round's `requestState` (confirmation and approval-relay
+  answers alike), with the actor the commands run with and the `credentials` that `createContext`
+  sets. TypeScript does not verify tokens yet; its MCP authorization step fills `credentials`.
+- **Python:** the SDK's sealed `requestState`, through `RequestStateSecurity(bind_principal=...)`,
+  with the server's `actor` and the access token the SDK verified (a component its verifier leaves
+  out is `null`, so a verifier without subjects binds at client level, as the SDK's own principal
+  does). The SDK refuses a mismatch with `-32602` before any handler runs, as it refuses a
+  tampered state.
+
+A retry whose binding differs is refused as a tampered state is, in each language: TypeScript and
+Rust ask again, Python answers `-32602`.
+
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Bearer token, verification, audience, credentials (M1 to M4) | Planned | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
 | 401 and 403, rule codes (M5) | Planned | Planned | Yes (step 0b) | N/A |
 | Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
 | Protected-resource metadata (M7) | Planned | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
-| The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Planned (step 0c) | Planned (step 0c) | Planned (step 0c) | N/A: no confirmation gate |
+| The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data) | N/A: no confirmation gate |

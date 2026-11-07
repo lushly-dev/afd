@@ -226,10 +226,15 @@ impl Call<'_> {
         how_to_acknowledge: &str,
     ) -> Decision {
         let registry = &self.server.inner.registry;
+        // #532: the state binds who is calling, as the hook (and the verified credentials) left
+        // the context, so a confirmation answered for one caller is never another's.
+        let principal =
+            crate::principal_binding(self.base.actor.as_ref(), self.base.credentials.as_deref());
         let channel = confirmations::Channel {
             request: self.request,
             context: self.context,
             legacy_back_channel: self.server.inner.legacy_back_channel,
+            principal: &principal,
         };
         confirmations::check(
             &self.server.inner.confirmations,

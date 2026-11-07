@@ -78,6 +78,11 @@ from afd.server.approval import (
     ApprovalSecret,
     create_approval_middleware,
 )
+from afd.server.principal import (
+    PrincipalCredentials,
+    credentials_binding,
+    principal_binding,
+)
 from afd.server.context_fields import (
     AFD_CONTEXT_FIELDS_META_KEY,
     ContextField,
@@ -158,6 +163,10 @@ __all__ = [
     "ApprovalRejection",
     "ApprovalRequest",
     "ApprovalSecret",
+    # The principal binding (spec/authorization.md, M8)
+    "PrincipalCredentials",
+    "credentials_binding",
+    "principal_binding",
     # Declared context fields
     "AFD_CONTEXT_FIELDS_META_KEY",
     "ContextField",

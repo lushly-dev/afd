@@ -201,3 +201,139 @@ async def test_in_process_execute_is_not_gated_but_call_tool_routes_like_mcp():
     routed = await server.call_tool("todo-clear", {})
     assert routed.error.code == "CONFIRMATION_REQUIRED"
     assert calls == ["clear:all"]
+
+
+# ── #532: the state is bound to the principal ─────────────────────────────────────────────
+
+KEY = b"k" * 32
+ACCEPT = {"confirm": types.ElicitResult(action="accept", content={"confirm": True})}
+
+
+async def _ask(server, arguments):
+    """The ``requestState`` the server mints for ``todo-clear``, for the caller of the block."""
+    async with Client(server._create_mcp_server(), elicitation_callback=_answer("accept", [])) as client:
+        asked = await client.session.call_tool("todo-clear", arguments, allow_input_required=True)
+    assert type(asked).__name__ == "InputRequiredResult"
+    return asked.request_state
+
+
+async def _retry(server, arguments, state, responses=ACCEPT):
+    """The retry's result, or the ``MCPError`` the SDK refused it with."""
+    from mcp import MCPError
+
+    async with Client(server._create_mcp_server(), elicitation_callback=_answer("accept", [])) as client:
+        try:
+            return await client.session.call_tool(
+                "todo-clear",
+                arguments,
+                input_responses=responses,
+                request_state=state,
+                allow_input_required=True,
+            )
+        except MCPError as refused:
+            return refused
+
+
+def _refusal(refused):
+    """What a client sees of a refused state: the code, the message and the data."""
+    from mcp import MCPError
+
+    assert isinstance(refused, MCPError), refused
+    return (refused.code, str(refused), refused.error.data)
+
+
+async def test_a_state_is_bound_to_the_actor_it_was_issued_to():
+    from afd.core.actor import Actor
+
+    calls = []
+    issued_to = Actor(kind="agent", id="agent-a", label="Agent A", on_behalf_of="user-1")
+    state = await _ask(_server(calls, confirmation_key=KEY, actor=issued_to), {"scope": "a"})
+
+    # A tampered state is the reference: a caller the state was not issued to gets exactly
+    # the same refusal, before any handler runs.
+    tampered = _refusal(
+        await _retry(_server(calls, confirmation_key=KEY, actor=issued_to), {"scope": "a"}, state[:-2] + "xx")
+    )
+    assert tampered[0] == -32602
+    others = [
+        Actor(kind="agent", id="agent-b", on_behalf_of="user-1"),
+        Actor(kind="agent", id="agent-a", on_behalf_of="user-2"),
+        Actor(kind="human", id="agent-a", on_behalf_of="user-1"),
+        None,  # the server's default actor
+    ]
+    for other in others:
+        refused = await _retry(_server(calls, confirmation_key=KEY, actor=other), {"scope": "a"}, state)
+        assert _refusal(refused) == tampered, other
+    # A decline in another caller's state is refused too, not taken as an answer.
+    declined = {"confirm": types.ElicitResult(action="decline")}
+    refused = await _retry(_server(calls, confirmation_key=KEY, actor=others[0]), {"scope": "a"}, state, declined)
+    assert _refusal(refused) == tampered
+    assert calls == []
+
+    # The label is not bound: the same principal confirms with it.
+    same = Actor(kind="agent", id="agent-a", label="Renamed", on_behalf_of="user-1")
+    result = await _retry(_server(calls, confirmation_key=KEY, actor=same), {"scope": "a"}, state)
+    assert body(result)["success"] is True
+    assert calls == ["clear:a"]
+
+
+async def test_a_state_is_bound_to_the_verified_token_issuer_subject_and_client():
+    from mcp.server.auth.middleware.auth_context import auth_context_var
+    from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+    from mcp.server.auth.provider import AccessToken
+
+    def as_token(issuer, subject, client_id, scopes=("todo:write",)):
+        token = AccessToken(
+            token="opaque",
+            client_id=client_id,
+            scopes=list(scopes),
+            subject=subject,
+            claims={"iss": issuer},
+        )
+        return auth_context_var.set(AuthenticatedUser(token))
+
+    calls = []
+    server = _server(calls, confirmation_key=KEY)
+    issued = ("https://auth.example.com", "user-1", "todo-agent")
+    reset = as_token(*issued)
+    try:
+        state = await _ask(server, {"scope": "a"})
+        tampered = _refusal(await _retry(server, {"scope": "a"}, state[:-2] + "xx"))
+    finally:
+        auth_context_var.reset(reset)
+    for other in [
+        ("https://other.example.com", "user-1", "todo-agent"),
+        ("https://auth.example.com", "user-2", "todo-agent"),
+        # The same person through another client is another principal.
+        ("https://auth.example.com", "user-1", "other-agent"),
+    ]:
+        reset = as_token(*other)
+        try:
+            assert _refusal(await _retry(server, {"scope": "a"}, state)) == tampered, other
+        finally:
+            auth_context_var.reset(reset)
+    # Without the token at all.
+    assert _refusal(await _retry(server, {"scope": "a"}, state)) == tampered
+    assert calls == []
+
+    # Scopes are not bound: the same principal confirms with another token of theirs.
+    reset = as_token(*issued, scopes=("todo:read",))
+    try:
+        result = await _retry(server, {"scope": "a"}, state)
+    finally:
+        auth_context_var.reset(reset)
+    assert body(result)["success"] is True
+    assert calls == ["clear:a"]
+
+
+async def test_a_state_from_before_the_principal_binding_does_not_verify():
+    """A state sealed with no principal (the SDK's default on a transport without a token,
+    before #532) is refused as tampered."""
+    calls = []
+    old = _server([], confirmation_key=KEY)
+    old._request_principal = lambda: None  # what bind_principal gave before #532
+    state = await _ask(old, {"scope": "a"})
+    server = _server(calls, confirmation_key=KEY)
+    tampered = _refusal(await _retry(server, {"scope": "a"}, state[:-2] + "xx"))
+    assert _refusal(await _retry(server, {"scope": "a"}, state)) == tampered
+    assert calls == []

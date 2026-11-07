@@ -14,6 +14,11 @@ handler runs. In-process calls (``server.execute``, DirectClient) are never gate
 
 The SDK request that is being served describes what it can carry with a
 :class:`ConfirmationChannel`, bound to a context variable for the duration of the call.
+
+The ``requestState`` of an MCP 2026-07-28 elicitation holds :func:`confirmation_binding`, which
+the SDK seals and binds to the request and to the call's principal binding
+(``afd.server.principal``, ``spec/authorization.md`` M8; #532). A state issued to another
+principal is refused by the SDK exactly as an altered one is, with JSON-RPC ``-32602``.
 """
 
 from __future__ import annotations

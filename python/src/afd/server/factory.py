@@ -6,6 +6,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -64,6 +65,7 @@ from afd.core.schema_validation import SchemaValidationError
 from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_ENVELOPE, to_wire
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
+from afd.server.principal import principal_binding, sdk_credentials
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.decorators import (
     CommandMetadata,
@@ -1286,10 +1288,19 @@ class MCPServer:
             version=self.config.version,
             cache_hints={"tools/list": hint, "server/discover": hint},
             middleware=[capture_request],
-            **(
-                {"request_state_security": RequestStateSecurity(keys=[self.config.confirmation_key])}
-                if self.config.confirmation_key is not None
-                else {}
+            # The requestState of confirmation elicitations is sealed (AES-256-GCM) and bound
+            # by the SDK to the request, the audience (the server name) and the call's principal
+            # binding (spec/authorization.md, M8; #532): this server's actor and the verified
+            # token's issuer, subject and client. A retry by another principal fails the SDK's
+            # check exactly as an altered state does (JSON-RPC -32602), before any handler runs.
+            # Without a configured key each process uses its own, as the SDK's default would.
+            request_state_security=RequestStateSecurity(
+                keys=[
+                    self.config.confirmation_key
+                    if self.config.confirmation_key is not None
+                    else os.urandom(32)
+                ],
+                bind_principal=lambda _ctx: self._request_principal(),
             ),
         )
         self._sync_mcp_tool_definitions()
@@ -1297,6 +1308,11 @@ class MCPServer:
         self._advertise_fixed_tools_list()
         self._advertise_context_fields()
         return self._mcp_server
+
+    def _request_principal(self) -> str:
+        """The principal binding of the MCP request being served: the actor its commands run
+        with and the identity of the access token the SDK verified, if any."""
+        return principal_binding(self.config.actor or Actor(kind="agent"), sdk_credentials())
 
     def streamable_http_app(self, **options: Any) -> Any:
         """The Streamable HTTP ASGI app, for mounting in a host application.
@@ -1410,7 +1426,8 @@ class _SdkConfirmationChannel:
     """What one SDK ``tools/call`` can carry for confirmations (``afd.server.confirmations``).
 
     A 2026-07-28 request elicits through ``input_required`` when it declares form
-    elicitation; the SDK seals the ``requestState`` and binds it to the request. A 2025
+    elicitation; the SDK seals the ``requestState`` and binds it to the request and to the
+    call's principal binding (``_request_principal``). A 2025
     request elicits with a server-sent request when its connection has a back channel
     (stdio, stateful HTTP), never over stateless HTTP.
     """
@@ -1576,7 +1593,10 @@ def create_server(
             context has none. Default: ``system_random``.
         actor: Actor for commands called over MCP when the context has none.
             Default: ``Actor(kind="agent")``. Direct ``server.execute()`` calls
-            get no default actor.
+            get no default actor. Confirmation state is bound to this actor and to
+            the SDK-verified token (#532), not to an actor middleware sets later:
+            a host that tells callers apart without SDK tokens cannot separate
+            their confirmations, since Python has no per-request context hook.
         confirmations: Enforce ``confirm_prompt`` on MCP calls
             (``spec/command-metadata.md``, "Confirmations"): ``"off"`` (the default),
             ``"enforce"`` (an accepted elicitation, or an acknowledgement:
@@ -1586,7 +1606,9 @@ def create_server(
             runs. ``server.execute()`` and DirectClient calls are never gated.
         confirmation_key: Key (32 bytes or more) that seals the ``requestState`` of
             confirmation elicitations, shared by every instance behind one URL.
-            Default: a random key per process.
+            Default: a random key per process. The state is bound to the call's
+            principal binding (``afd.server.principal``, #532): ``actor`` and the
+            issuer, subject and client of the access token the SDK verified.
     """
     if confirmations not in CONFIRMATION_MODES:
         raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")

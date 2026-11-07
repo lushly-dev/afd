@@ -37,7 +37,8 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   [#532](https://github.com/lushly-dev/afd/issues/532) and the relay input digest
   ([`authorization.md`](../authorization.md#conformance)), is loaded by Rust so far, every case
   (`packages/rust/tests/authorization_cases.rs`, Umbel phase 5 step 0b, with the `server-auth`
-  feature), and C++, which has no HTTP server, never will, so it stays beside this directory.
+  feature), and by TypeScript and Python for its `principalBindings` section only (step 0c); C++,
+  which has no HTTP server, never will, so it stays beside this directory.
 
 ### `pipeline-variables.json`
 

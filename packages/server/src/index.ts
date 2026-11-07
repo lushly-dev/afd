@@ -175,6 +175,12 @@ export {
 	type Sorting,
 	type SortingInput,
 } from './patterns.js';
+// The principal binding that confirmation and approval-relay state bind (spec/authorization.md, M8)
+export {
+	credentialsBinding,
+	type PrincipalCredentials,
+	principalBinding,
+} from './principal-binding.js';
 export {
 	MCP_APP_MIME_TYPE,
 	type ResourceContents,

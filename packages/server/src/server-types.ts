@@ -111,6 +111,15 @@ export interface McpServerOptions {
 	 * every remotely executed command. Use it to pass the authenticated user or the remote
 	 * address to middleware such as `createRateLimitMiddleware`. Not called for stdio.
 	 *
+	 * Its `actor`, and `credentials` (`{ issuer, subject, clientId }` of a token the host
+	 * verified), are the call's principal: the `requestState` of a confirmation or approval
+	 * elicitation is bound to them (`principalBinding`, #532), so an answer one caller gave never
+	 * counts for another. Set them only from what the host verified, never from a header a caller
+	 * can send. `credentials` without a non-empty `issuer`, `subject` and `clientId` fail such a
+	 * call with an internal error. The SDK's own `authInfo` contributes only its `clientId`: a
+	 * host that authenticates people through the SDK must copy their identity into `credentials`
+	 * (or the `actor`), or every user of one client shares a binding.
+	 *
 	 * @example
 	 * ```typescript
 	 * createContext: (req) => ({ clientId: req.socket.remoteAddress ?? 'unknown' }),
@@ -201,7 +210,8 @@ export interface McpServerOptions {
 	confirmations?: 'off' | 'enforce' | 'require-human';
 
 	/**
-	 * HMAC key (at least 32 bytes) that signs the `requestState` of confirmation elicitations. Every
+	 * HMAC key (at least 32 bytes) that signs the `requestState` of confirmation and approval
+	 * elicitations, bound to the call's principal (see `createContext`). Every
 	 * instance that may receive a retry needs the same key. Without it, each process uses a random
 	 * key, which works only when one process serves every request.
 	 */

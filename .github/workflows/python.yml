@@ -11,6 +11,8 @@ on:
       - 'spec/vectors/**'
       # tests/test_contract_version.py checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
+      # tests/test_principal_binding.py loads its principalBindings cases.
+      - 'spec/authorization.json'
       - '.github/workflows/python.yml'
       - '.github/workflows/publish-python.yml'
       - 'scripts/python-wheel-smoke.py'
@@ -21,6 +23,7 @@ on:
       - 'spec/wire/**'
       - 'spec/vectors/**'
       - 'spec/VERSION'
+      - 'spec/authorization.json'
       - '.github/workflows/python.yml'
       - '.github/workflows/publish-python.yml'
       - 'scripts/python-wheel-smoke.py'

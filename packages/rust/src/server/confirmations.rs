@@ -5,8 +5,8 @@
 //! for a command with `confirm_prompt` then runs only with a confirmation:
 //!
 //! - an accepted MCP elicitation: an `input_required` result on MCP 2026-07-28, whose
-//!   `requestState` is HMAC-signed and bound to the command and its input, or a server-sent
-//!   elicitation on a 2025 stdio connection; or
+//!   `requestState` is HMAC-signed and bound to the command, its input and the call's principal
+//!   binding, or a server-sent elicitation on a 2025 stdio connection; or
 //! - under [`ConfirmationMode::Enforce`], an acknowledgement: `confirm: true` in the arguments of
 //!   a command's tool, a grouped tool or `afd-call`; `confirm: [names]` in the arguments of
 //!   `afd-batch` or `afd-pipe`; or `_meta["dev.afd/confirm"]: true`.
@@ -14,6 +14,17 @@
 //! Otherwise the call fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` before any
 //! handler runs. A batch or pipeline is checked as a whole, before its first command: one
 //! elicitation covers every gated command in it. A 2025 request over Streamable HTTP has no back channel, so it never elicits.
+//!
+//! # The principal binding (#532)
+//!
+//! The state is bound to the call's [principal binding](crate::principal_binding)
+//! (`spec/authorization.md`, M8): the actor's `kind`, `id` and `onBehalfOf` after the context
+//! hook, and the verified credentials' `issuer`, `subject` and `clientId` when the call has
+//! them. The binding is HMAC associated data, never part of the state, so the state carries no
+//! identity. A retry whose binding differs (another actor, or another issuer, subject or client)
+//! fails to verify exactly as an altered state does, and the server asks again: a confirmation
+//! one caller answered never lets another caller skip the question. A state minted before the
+//! binding existed does not verify either.
 
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -88,18 +99,25 @@ fn canonical(value: &Value) -> String {
     }
 }
 
-/// The associated data of a confirmation for one command: the command and its input, canonically.
-pub fn confirmation_binding(command: &str, input: &Value) -> Vec<u8> {
-    steps_binding(&[Step::new(command, input.clone())])
+/// Labels the associated data's layout, so a state minted under an earlier layout (the command
+/// and input alone, before #532) never verifies.
+const BINDING_VERSION: &str = "afd.confirm.v2";
+
+/// The associated data of a confirmation for one command: the command, its input and the call's
+/// principal binding ([`principal_binding`](crate::principal_binding)), canonically.
+pub fn confirmation_binding(command: &str, input: &Value, principal: &str) -> Vec<u8> {
+    steps_binding(&[Step::new(command, input.clone())], principal)
 }
 
-/// The associated data of a confirmation: the gated commands and their input, canonically.
-fn steps_binding(steps: &[Step]) -> Vec<u8> {
+/// The associated data of a confirmation: the layout's version, the call's principal binding
+/// (as a JSON string, so it can never be read as part of the steps) and the gated commands with
+/// their input, canonically.
+fn steps_binding(steps: &[Step], principal: &str) -> Vec<u8> {
     let steps: Vec<Value> = steps
         .iter()
         .map(|step| json!([step.command, step.input]))
         .collect();
-    canonical(&Value::Array(steps)).into_bytes()
+    canonical(&json!([BINDING_VERSION, principal, steps])).into_bytes()
 }
 
 /// Whether a tool's own input schema declares a `confirm` property.
@@ -234,6 +252,9 @@ pub(crate) struct Channel<'a> {
     pub(crate) context: &'a RequestContext<RoleServer>,
     /// Whether a 2025 connection can receive a server-sent elicitation.
     pub(crate) legacy_back_channel: bool,
+    /// The call's principal binding (`spec/authorization.md`, M8), from its context after the
+    /// hook: the `requestState`'s associated data includes it.
+    pub(crate) principal: &'a str,
 }
 
 /// Decide a tool call that runs `steps`. `prompt` returns a command's `confirm_prompt`;
@@ -265,10 +286,12 @@ pub(crate) async fn check(
         }
     }
     let gated_steps: Vec<Step> = gated.iter().map(|(step, _)| step.clone()).collect();
-    let binding = steps_binding(&gated_steps);
+    let binding = steps_binding(&gated_steps, channel.principal);
     let modern = is_modern(context);
 
-    // The retry of an earlier elicitation, if its state verifies for these commands and input.
+    // The retry of an earlier elicitation, if its state verifies for these commands, this input
+    // and this principal. A state that does not (altered, expired, or issued for other input or
+    // to another principal) is no answer, and the call is asked again below.
     if modern {
         if let (Some(responses), Some(state)) = (&request.input_responses, &request.request_state) {
             let responses = serde_json::to_value(responses).unwrap_or(Value::Null);
