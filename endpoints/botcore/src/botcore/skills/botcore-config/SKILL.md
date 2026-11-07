@@ -7,13 +7,13 @@ description: >
   seems to be ignored.
 metadata:
   source: botcore
-  version: 2.1.0
+  version: 2.2.0
   portable: true
 ---
 
 # Configuring botcore
 
-`load_config()` in `src/botcore/config.py` is the source of truth; read it when this page and the code disagree.
+`load_config()` in `botcore/config.py` (in the installed package) is the source of truth; read it when this page and the code disagree.
 
 ## Which file is read
 
@@ -86,4 +86,4 @@ Defined but not used, so setting them changes nothing:
 | `agent_skills` | `false` | Also copy seeded and updated skills to `.agent/skills/` |
 | `listing_budget` | `8000` | Positive integer. skill-lint warns (SK019) when the skills' descriptions plus `when_to_use` exceed it; skills with `disable-model-invocation: true` don't count |
 
-Retired skills: on every run, not only with `--update`, skill-seed removes a retired skill's botcore-managed copy (frontmatter `metadata.source: botcore`, or a top-level `source: botcore` in older copies). It does so only when no `include` list is set and `skip` doesn't name the skill (`seed_manages_retired` in `src/botcore/commands/skill/renames.py`). Otherwise it leaves the copy and reports it under `retired_locally_owned`.
+Retired skills: on every run, not only with `--update`, skill-seed removes a retired skill's botcore-managed copy (frontmatter `metadata.source: botcore`, or a top-level `source: botcore` in older copies). It does so only when no `include` list is set and `skip` doesn't name the skill (`seed_manages_retired` in `botcore/commands/skill/renames.py`). Otherwise it leaves the copy and reports it under `retired_locally_owned`.

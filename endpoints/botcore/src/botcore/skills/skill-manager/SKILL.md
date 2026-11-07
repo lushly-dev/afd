@@ -6,7 +6,7 @@ description: >
   skill, or deciding whether guidance belongs in a skill at all.
 metadata:
   source: botcore
-  version: 4.1.0
+  version: 4.1.1
   portable: true
 ---
 

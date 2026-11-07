@@ -7,7 +7,7 @@ description: >
   JSON, hangs or won't start.
 metadata:
   source: botcore
-  version: 2.0.0
+  version: 2.1.0
   portable: true
 ---
 
@@ -59,7 +59,7 @@ Use `asyncio.create_subprocess_exec` with `stdin=asyncio.subprocess.DEVNULL` and
 
 A single `code: str` tool lets a model chain calls in one round trip, and sidesteps clients that once failed to build arguments for complex schemas (nested objects, enums, `dict[str, Any]`). Add one for that reason only after reproducing the failure on the client and model you target; keep the structured tools and re-test on model updates.
 
-An execute tool runs arbitrary code. Botcore offers one only in a trusted-local host (`docs/host-composition.md`):
+An execute tool runs arbitrary code. Botcore offers one only in a trusted-local host ([`host-composition.md`](https://github.com/lushly-dev/afd/blob/main/endpoints/botcore/docs/host-composition.md)):
 
 ```python
 from pathlib import Path
