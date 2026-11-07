@@ -94,7 +94,7 @@ them each time it lists them and answers `-32603` for a list that breaks a rule.
   effect of other requests, or by `_meta["dev.afd/context"]`: AFD contexts scope commands, not
   resources. MCP lets a list vary by the authorization on the request; this version gives the
   provider no request input, so an AFD list never does. Per-caller resources wait for the
-  [MCP authorization proposal](../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md).
+  [MCP authorization proposal](../docs/features/active/mcp-authorization/mcp-authorization.proposal.md).
 - **Cache hints.** In MCP 2026-07-28, `ttlMs` and `cacheScope` are fields of the **result**, not of
   each resource. A modern-era result carries `ttlMs` equal to the server's `tools/list` TTL option
   (`toolsListTtlMs`, `tools_list_ttl_ms`, `with_tools_list_ttl_ms`), 300,000 by default, and

@@ -1,0 +1,2553 @@
+{
+	"description": "MCP authorization (spec/authorization.md, M1 to M8): the Authorization header and query rules, the 401 and 403 challenges and bodies, the protected-resource metadata URLs and document, the audience comparison, the scope claim, the JWT header and key rules on decoded JSON, the claim rules after the signature, static scope decisions, the batch aggregation of decisions, the principal binding (#532) and the relay input digest (spec/command-metadata.md, \"Host-verified confirmation\"). Written from the spec, with every expected value computed by Node from the rules as the spec states them; digests are the SHA-256 of the canonical JSON, unpadded base64url. No reference implementation exists yet, so no generator is committed. Signatures, key fetching and introspection are left to each language's suite.",
+	"resource": "https://todo.example.com/mcp",
+	"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+	"issuer": "https://auth.example.com",
+	"now": 1793016000,
+	"config": {
+		"issuer": "https://auth.example.com",
+		"resource": "https://todo.example.com/mcp",
+		"clockSkewS": 60,
+		"maxTokenLifetimeS": 3600,
+		"scopeLimit": 64,
+		"scopePrefix": null,
+		"requireBoundTokens": false
+	},
+	"bearer": [
+		{
+			"description": "a well-formed header",
+			"authorization": ["Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0.c2ln"],
+			"expected": {
+				"token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxIn0.c2ln"
+			}
+		},
+		{
+			"description": "the scheme in lower case",
+			"authorization": ["bearer abc"],
+			"expected": {
+				"token": "abc"
+			}
+		},
+		{
+			"description": "the scheme in upper case",
+			"authorization": ["BEARER abc"],
+			"expected": {
+				"token": "abc"
+			}
+		},
+		{
+			"description": "several spaces after the scheme",
+			"authorization": ["Bearer   abc"],
+			"expected": {
+				"token": "abc"
+			}
+		},
+		{
+			"description": "every b64token character",
+			"authorization": ["Bearer aZ09-._~+/b"],
+			"expected": {
+				"token": "aZ09-._~+/b"
+			}
+		},
+		{
+			"description": "trailing padding",
+			"authorization": ["Bearer abc=="],
+			"expected": {
+				"token": "abc=="
+			}
+		},
+		{
+			"description": "no header and no other token",
+			"authorization": [],
+			"expected": {
+				"refused": "no-token"
+			}
+		},
+		{
+			"description": "the scheme alone",
+			"authorization": ["Bearer"],
+			"expected": {
+				"refused": "token-malformed"
+			}
+		},
+		{
+			"description": "a tab after the scheme",
+			"authorization": ["Bearer\tabc"],
+			"expected": {
+				"refused": "token-malformed"
+			}
+		},
+		{
+			"description": "another scheme",
+			"authorization": ["Basic dXNlcjpwYXNz"],
+			"expected": {
+				"refused": "token-malformed"
+			}
+		},
+		{
+			"description": "two tokens",
+			"authorization": ["Bearer abc def"],
+			"expected": {
+				"refused": "token-malformed"
+			}
+		},
+		{
+			"description": "a comma in the token",
+			"authorization": ["Bearer a,b"],
+			"expected": {
+				"refused": "token-malformed"
+			}
+		},
+		{
+			"description": "padding inside the token",
+			"authorization": ["Bearer ab=c"],
+			"expected": {
+				"refused": "token-malformed"
+			}
+		},
+		{
+			"description": "two Authorization headers",
+			"authorization": ["Bearer abc", "Bearer abc"],
+			"expected": {
+				"refused": "token-location"
+			}
+		},
+		{
+			"description": "a token in the query beside a valid header",
+			"authorization": ["Bearer abc"],
+			"query": "access_token=abc",
+			"expected": {
+				"refused": "token-location"
+			}
+		},
+		{
+			"description": "a token in the query alone",
+			"authorization": [],
+			"query": "access_token=abc",
+			"expected": {
+				"refused": "token-location"
+			}
+		},
+		{
+			"description": "a token in the query after another parameter",
+			"authorization": ["Bearer abc"],
+			"query": "page=2&access_token=abc",
+			"expected": {
+				"refused": "token-location"
+			}
+		},
+		{
+			"description": "a query parameter that is not access_token",
+			"authorization": ["Bearer abc"],
+			"query": "access_token_hint=1",
+			"expected": {
+				"token": "abc"
+			}
+		},
+		{
+			"description": "a token in a form-encoded body",
+			"authorization": ["Bearer abc"],
+			"formBody": "access_token=abc",
+			"expected": {
+				"refused": "token-location"
+			}
+		}
+	],
+	"challenges": [
+		{
+			"description": "401, no token",
+			"resource": "https://todo.example.com/mcp",
+			"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+			"status": 401,
+			"tokenSent": false,
+			"scopesSupported": ["todo:read"],
+			"header": "Bearer resource_metadata=\"https://todo.example.com/.well-known/oauth-protected-resource/mcp\", scope=\"todo:read\"",
+			"body": {
+				"error": "UNAUTHORIZED",
+				"suggestion": "Obtain a token for https://todo.example.com/mcp from an authorization server named in https://todo.example.com/.well-known/oauth-protected-resource/mcp."
+			}
+		},
+		{
+			"description": "401, a token was sent and refused",
+			"resource": "https://todo.example.com/mcp",
+			"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+			"status": 401,
+			"tokenSent": true,
+			"scopesSupported": ["todo:read"],
+			"header": "Bearer resource_metadata=\"https://todo.example.com/.well-known/oauth-protected-resource/mcp\", scope=\"todo:read\", error=\"invalid_token\"",
+			"body": {
+				"error": "UNAUTHORIZED",
+				"suggestion": "Obtain a token for https://todo.example.com/mcp from an authorization server named in https://todo.example.com/.well-known/oauth-protected-resource/mcp."
+			}
+		},
+		{
+			"description": "401, no token, two published scopes",
+			"resource": "https://todo.example.com/mcp",
+			"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+			"status": 401,
+			"tokenSent": false,
+			"scopesSupported": ["todo:read", "todo:list"],
+			"header": "Bearer resource_metadata=\"https://todo.example.com/.well-known/oauth-protected-resource/mcp\", scope=\"todo:read todo:list\"",
+			"body": {
+				"error": "UNAUTHORIZED",
+				"suggestion": "Obtain a token for https://todo.example.com/mcp from an authorization server named in https://todo.example.com/.well-known/oauth-protected-resource/mcp."
+			}
+		},
+		{
+			"description": "401, no scopes published",
+			"resource": "https://todo.example.com/mcp",
+			"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+			"status": 401,
+			"tokenSent": false,
+			"scopesSupported": [],
+			"header": "Bearer resource_metadata=\"https://todo.example.com/.well-known/oauth-protected-resource/mcp\"",
+			"body": {
+				"error": "UNAUTHORIZED",
+				"suggestion": "Obtain a token for https://todo.example.com/mcp from an authorization server named in https://todo.example.com/.well-known/oauth-protected-resource/mcp."
+			}
+		},
+		{
+			"description": "403, two missing scopes",
+			"resource": "https://todo.example.com/mcp",
+			"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+			"status": 403,
+			"missing": ["todo:write", "todo:admin"],
+			"header": "Bearer error=\"insufficient_scope\", scope=\"todo:write todo:admin\", resource_metadata=\"https://todo.example.com/.well-known/oauth-protected-resource/mcp\"",
+			"body": {
+				"error": "INSUFFICIENT_SCOPE",
+				"suggestion": "Obtain a token for https://todo.example.com/mcp that also grants todo:write todo:admin, then retry."
+			}
+		}
+	],
+	"metadataUrls": [
+		{
+			"resource": "https://todo.example.com/mcp",
+			"urls": [
+				"https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+				"https://todo.example.com/.well-known/oauth-protected-resource"
+			]
+		},
+		{
+			"resource": "https://todo.example.com:8443/api/mcp",
+			"urls": [
+				"https://todo.example.com:8443/.well-known/oauth-protected-resource/api/mcp",
+				"https://todo.example.com:8443/.well-known/oauth-protected-resource"
+			]
+		},
+		{
+			"resource": "https://todo.example.com/",
+			"urls": ["https://todo.example.com/.well-known/oauth-protected-resource"]
+		},
+		{
+			"resource": "https://todo.example.com",
+			"urls": ["https://todo.example.com/.well-known/oauth-protected-resource"]
+		}
+	],
+	"metadataDocuments": [
+		{
+			"description": "every field",
+			"options": {
+				"resource": "https://todo.example.com/mcp",
+				"authorizationServers": ["https://auth.example.com"],
+				"scopesSupported": ["todo:read"],
+				"resourceName": "Todo (example)",
+				"requireBoundTokens": false
+			},
+			"expected": {
+				"resource": "https://todo.example.com/mcp",
+				"authorization_servers": ["https://auth.example.com"],
+				"scopes_supported": ["todo:read"],
+				"bearer_methods_supported": ["header"],
+				"resource_name": "Todo (example)",
+				"tls_client_certificate_bound_access_tokens": false
+			}
+		},
+		{
+			"description": "two authorization servers in configuration order, bound tokens required, no name",
+			"options": {
+				"resource": "https://todo.example.com/mcp",
+				"authorizationServers": ["https://idp.example.com", "https://as.example.com"],
+				"scopesSupported": ["todo:read"],
+				"requireBoundTokens": true
+			},
+			"expected": {
+				"resource": "https://todo.example.com/mcp",
+				"authorization_servers": ["https://idp.example.com", "https://as.example.com"],
+				"scopes_supported": ["todo:read"],
+				"bearer_methods_supported": ["header"],
+				"tls_client_certificate_bound_access_tokens": true
+			}
+		},
+		{
+			"description": "no published scopes",
+			"options": {
+				"resource": "https://todo.example.com/mcp",
+				"authorizationServers": ["https://auth.example.com"],
+				"scopesSupported": [],
+				"requireBoundTokens": false
+			},
+			"expected": {
+				"resource": "https://todo.example.com/mcp",
+				"authorization_servers": ["https://auth.example.com"],
+				"bearer_methods_supported": ["header"],
+				"tls_client_certificate_bound_access_tokens": false
+			}
+		}
+	],
+	"audience": [
+		{
+			"description": "the resource exactly",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com/mcp",
+			"accepted": true
+		},
+		{
+			"description": "an array of exactly the resource",
+			"resource": "https://todo.example.com/mcp",
+			"aud": ["https://todo.example.com/mcp"],
+			"accepted": true
+		},
+		{
+			"description": "scheme and host in another case",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "HTTPS://TODO.Example.COM/mcp",
+			"accepted": true
+		},
+		{
+			"description": "the path in another case",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com/MCP",
+			"accepted": false
+		},
+		{
+			"description": "a trailing slash",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com/mcp/",
+			"accepted": false
+		},
+		{
+			"description": "the default port written out",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com:443/mcp",
+			"accepted": false
+		},
+		{
+			"description": "a percent-encoded path",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com/%6Dcp",
+			"accepted": false
+		},
+		{
+			"description": "two audiences, one matching",
+			"resource": "https://todo.example.com/mcp",
+			"aud": ["https://todo.example.com/mcp", "https://other.example.com/mcp"],
+			"accepted": false
+		},
+		{
+			"description": "an empty array",
+			"resource": "https://todo.example.com/mcp",
+			"aud": [],
+			"accepted": false
+		},
+		{
+			"description": "a nested array",
+			"resource": "https://todo.example.com/mcp",
+			"aud": [["https://todo.example.com/mcp"]],
+			"accepted": false
+		},
+		{
+			"description": "a number",
+			"resource": "https://todo.example.com/mcp",
+			"aud": 42,
+			"accepted": false
+		},
+		{
+			"description": "user information",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://user@todo.example.com/mcp",
+			"accepted": false
+		},
+		{
+			"description": "a query",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com/mcp?tenant=1",
+			"accepted": false
+		},
+		{
+			"description": "a fragment",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com/mcp#x",
+			"accepted": false
+		},
+		{
+			"description": "plain http",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "http://todo.example.com/mcp",
+			"accepted": false
+		},
+		{
+			"description": "a longer host",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com.example.net/mcp",
+			"accepted": false
+		},
+		{
+			"description": "another path",
+			"resource": "https://todo.example.com/mcp",
+			"aud": "https://todo.example.com/mcp2",
+			"accepted": false
+		},
+		{
+			"description": "a resource with a port, host in another case",
+			"resource": "https://todo.example.com:8443/mcp",
+			"aud": "https://TODO.example.com:8443/mcp",
+			"accepted": true
+		},
+		{
+			"description": "a resource with a port, port left out",
+			"resource": "https://todo.example.com:8443/mcp",
+			"aud": "https://todo.example.com/mcp",
+			"accepted": false
+		},
+		{
+			"description": "no aud claim",
+			"resource": "https://todo.example.com/mcp",
+			"accepted": false
+		}
+	],
+	"scopeClaims": [
+		{
+			"description": "no scope claim",
+			"limit": 64,
+			"prefix": null,
+			"scopes": []
+		},
+		{
+			"description": "an empty string",
+			"scope": "",
+			"limit": 64,
+			"prefix": null,
+			"scopes": []
+		},
+		{
+			"description": "one scope",
+			"scope": "todo:read",
+			"limit": 64,
+			"prefix": null,
+			"scopes": ["todo:read"]
+		},
+		{
+			"description": "two scopes",
+			"scope": "todo:read todo:write",
+			"limit": 64,
+			"prefix": null,
+			"scopes": ["todo:read", "todo:write"]
+		},
+		{
+			"description": "a repeat counts once and keeps its first place",
+			"scope": "todo:write todo:read todo:write",
+			"limit": 64,
+			"prefix": null,
+			"scopes": ["todo:write", "todo:read"]
+		},
+		{
+			"description": "case is kept",
+			"scope": "Todo:Read",
+			"limit": 64,
+			"prefix": null,
+			"scopes": ["Todo:Read"]
+		},
+		{
+			"description": "the edge characters of the grammar",
+			"scope": "a!b#c[d]e~",
+			"limit": 64,
+			"prefix": null,
+			"scopes": ["a!b#c[d]e~"]
+		},
+		{
+			"description": "two spaces",
+			"scope": "todo:read  todo:write",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "a leading space",
+			"scope": " todo:read",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "a trailing space",
+			"scope": "todo:read ",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "a tab",
+			"scope": "todo:read\ttodo:write",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "a double quote",
+			"scope": "todo:\"read\"",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "a backslash",
+			"scope": "todo:read\\x",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "a character beyond ASCII",
+			"scope": "todo:réad",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "an array",
+			"scope": ["todo:read"],
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "a number",
+			"scope": 42,
+			"limit": 64,
+			"prefix": null,
+			"refused": "scope-malformed"
+		},
+		{
+			"description": "64 scopes at a limit of 64",
+			"scope": "s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 s60 s61 s62 s63 s64",
+			"limit": 64,
+			"prefix": null,
+			"scopes": [
+				"s1",
+				"s2",
+				"s3",
+				"s4",
+				"s5",
+				"s6",
+				"s7",
+				"s8",
+				"s9",
+				"s10",
+				"s11",
+				"s12",
+				"s13",
+				"s14",
+				"s15",
+				"s16",
+				"s17",
+				"s18",
+				"s19",
+				"s20",
+				"s21",
+				"s22",
+				"s23",
+				"s24",
+				"s25",
+				"s26",
+				"s27",
+				"s28",
+				"s29",
+				"s30",
+				"s31",
+				"s32",
+				"s33",
+				"s34",
+				"s35",
+				"s36",
+				"s37",
+				"s38",
+				"s39",
+				"s40",
+				"s41",
+				"s42",
+				"s43",
+				"s44",
+				"s45",
+				"s46",
+				"s47",
+				"s48",
+				"s49",
+				"s50",
+				"s51",
+				"s52",
+				"s53",
+				"s54",
+				"s55",
+				"s56",
+				"s57",
+				"s58",
+				"s59",
+				"s60",
+				"s61",
+				"s62",
+				"s63",
+				"s64"
+			]
+		},
+		{
+			"description": "65 scopes at a limit of 64",
+			"scope": "s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 s60 s61 s62 s63 s64 s65",
+			"limit": 64,
+			"prefix": null,
+			"refused": "scopes-too-many"
+		},
+		{
+			"description": "65 written, 64 distinct",
+			"scope": "s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33 s34 s35 s36 s37 s38 s39 s40 s41 s42 s43 s44 s45 s46 s47 s48 s49 s50 s51 s52 s53 s54 s55 s56 s57 s58 s59 s60 s61 s62 s63 s64 s1",
+			"limit": 64,
+			"prefix": null,
+			"scopes": [
+				"s1",
+				"s2",
+				"s3",
+				"s4",
+				"s5",
+				"s6",
+				"s7",
+				"s8",
+				"s9",
+				"s10",
+				"s11",
+				"s12",
+				"s13",
+				"s14",
+				"s15",
+				"s16",
+				"s17",
+				"s18",
+				"s19",
+				"s20",
+				"s21",
+				"s22",
+				"s23",
+				"s24",
+				"s25",
+				"s26",
+				"s27",
+				"s28",
+				"s29",
+				"s30",
+				"s31",
+				"s32",
+				"s33",
+				"s34",
+				"s35",
+				"s36",
+				"s37",
+				"s38",
+				"s39",
+				"s40",
+				"s41",
+				"s42",
+				"s43",
+				"s44",
+				"s45",
+				"s46",
+				"s47",
+				"s48",
+				"s49",
+				"s50",
+				"s51",
+				"s52",
+				"s53",
+				"s54",
+				"s55",
+				"s56",
+				"s57",
+				"s58",
+				"s59",
+				"s60",
+				"s61",
+				"s62",
+				"s63",
+				"s64"
+			]
+		},
+		{
+			"description": "with prefix todo, 64 counted and 10 others",
+			"scope": "todo:s1 todo:s2 todo:s3 todo:s4 todo:s5 todo:s6 todo:s7 todo:s8 todo:s9 todo:s10 todo:s11 todo:s12 todo:s13 todo:s14 todo:s15 todo:s16 todo:s17 todo:s18 todo:s19 todo:s20 todo:s21 todo:s22 todo:s23 todo:s24 todo:s25 todo:s26 todo:s27 todo:s28 todo:s29 todo:s30 todo:s31 todo:s32 todo:s33 todo:s34 todo:s35 todo:s36 todo:s37 todo:s38 todo:s39 todo:s40 todo:s41 todo:s42 todo:s43 todo:s44 todo:s45 todo:s46 todo:s47 todo:s48 todo:s49 todo:s50 todo:s51 todo:s52 todo:s53 todo:s54 todo:s55 todo:s56 todo:s57 todo:s58 todo:s59 todo:s60 todo:s61 todo:s62 todo:s63 todo:s64 other:s1 other:s2 other:s3 other:s4 other:s5 other:s6 other:s7 other:s8 other:s9 other:s10",
+			"limit": 64,
+			"prefix": "todo",
+			"scopes": [
+				"todo:s1",
+				"todo:s2",
+				"todo:s3",
+				"todo:s4",
+				"todo:s5",
+				"todo:s6",
+				"todo:s7",
+				"todo:s8",
+				"todo:s9",
+				"todo:s10",
+				"todo:s11",
+				"todo:s12",
+				"todo:s13",
+				"todo:s14",
+				"todo:s15",
+				"todo:s16",
+				"todo:s17",
+				"todo:s18",
+				"todo:s19",
+				"todo:s20",
+				"todo:s21",
+				"todo:s22",
+				"todo:s23",
+				"todo:s24",
+				"todo:s25",
+				"todo:s26",
+				"todo:s27",
+				"todo:s28",
+				"todo:s29",
+				"todo:s30",
+				"todo:s31",
+				"todo:s32",
+				"todo:s33",
+				"todo:s34",
+				"todo:s35",
+				"todo:s36",
+				"todo:s37",
+				"todo:s38",
+				"todo:s39",
+				"todo:s40",
+				"todo:s41",
+				"todo:s42",
+				"todo:s43",
+				"todo:s44",
+				"todo:s45",
+				"todo:s46",
+				"todo:s47",
+				"todo:s48",
+				"todo:s49",
+				"todo:s50",
+				"todo:s51",
+				"todo:s52",
+				"todo:s53",
+				"todo:s54",
+				"todo:s55",
+				"todo:s56",
+				"todo:s57",
+				"todo:s58",
+				"todo:s59",
+				"todo:s60",
+				"todo:s61",
+				"todo:s62",
+				"todo:s63",
+				"todo:s64",
+				"other:s1",
+				"other:s2",
+				"other:s3",
+				"other:s4",
+				"other:s5",
+				"other:s6",
+				"other:s7",
+				"other:s8",
+				"other:s9",
+				"other:s10"
+			]
+		},
+		{
+			"description": "with prefix todo, 65 counted",
+			"scope": "todo:s1 todo:s2 todo:s3 todo:s4 todo:s5 todo:s6 todo:s7 todo:s8 todo:s9 todo:s10 todo:s11 todo:s12 todo:s13 todo:s14 todo:s15 todo:s16 todo:s17 todo:s18 todo:s19 todo:s20 todo:s21 todo:s22 todo:s23 todo:s24 todo:s25 todo:s26 todo:s27 todo:s28 todo:s29 todo:s30 todo:s31 todo:s32 todo:s33 todo:s34 todo:s35 todo:s36 todo:s37 todo:s38 todo:s39 todo:s40 todo:s41 todo:s42 todo:s43 todo:s44 todo:s45 todo:s46 todo:s47 todo:s48 todo:s49 todo:s50 todo:s51 todo:s52 todo:s53 todo:s54 todo:s55 todo:s56 todo:s57 todo:s58 todo:s59 todo:s60 todo:s61 todo:s62 todo:s63 todo:s64 todo:s65",
+			"limit": 64,
+			"prefix": "todo",
+			"refused": "scopes-too-many"
+		},
+		{
+			"description": "with prefix todo, a scope named todo alone does not count",
+			"scope": "todo todo:s1 todo:s2 todo:s3 todo:s4 todo:s5 todo:s6 todo:s7 todo:s8 todo:s9 todo:s10 todo:s11 todo:s12 todo:s13 todo:s14 todo:s15 todo:s16 todo:s17 todo:s18 todo:s19 todo:s20 todo:s21 todo:s22 todo:s23 todo:s24 todo:s25 todo:s26 todo:s27 todo:s28 todo:s29 todo:s30 todo:s31 todo:s32 todo:s33 todo:s34 todo:s35 todo:s36 todo:s37 todo:s38 todo:s39 todo:s40 todo:s41 todo:s42 todo:s43 todo:s44 todo:s45 todo:s46 todo:s47 todo:s48 todo:s49 todo:s50 todo:s51 todo:s52 todo:s53 todo:s54 todo:s55 todo:s56 todo:s57 todo:s58 todo:s59 todo:s60 todo:s61 todo:s62 todo:s63 todo:s64",
+			"limit": 64,
+			"prefix": "todo",
+			"scopes": [
+				"todo",
+				"todo:s1",
+				"todo:s2",
+				"todo:s3",
+				"todo:s4",
+				"todo:s5",
+				"todo:s6",
+				"todo:s7",
+				"todo:s8",
+				"todo:s9",
+				"todo:s10",
+				"todo:s11",
+				"todo:s12",
+				"todo:s13",
+				"todo:s14",
+				"todo:s15",
+				"todo:s16",
+				"todo:s17",
+				"todo:s18",
+				"todo:s19",
+				"todo:s20",
+				"todo:s21",
+				"todo:s22",
+				"todo:s23",
+				"todo:s24",
+				"todo:s25",
+				"todo:s26",
+				"todo:s27",
+				"todo:s28",
+				"todo:s29",
+				"todo:s30",
+				"todo:s31",
+				"todo:s32",
+				"todo:s33",
+				"todo:s34",
+				"todo:s35",
+				"todo:s36",
+				"todo:s37",
+				"todo:s38",
+				"todo:s39",
+				"todo:s40",
+				"todo:s41",
+				"todo:s42",
+				"todo:s43",
+				"todo:s44",
+				"todo:s45",
+				"todo:s46",
+				"todo:s47",
+				"todo:s48",
+				"todo:s49",
+				"todo:s50",
+				"todo:s51",
+				"todo:s52",
+				"todo:s53",
+				"todo:s54",
+				"todo:s55",
+				"todo:s56",
+				"todo:s57",
+				"todo:s58",
+				"todo:s59",
+				"todo:s60",
+				"todo:s61",
+				"todo:s62",
+				"todo:s63",
+				"todo:s64"
+			]
+		}
+	],
+	"jwtHeaders": [
+		{
+			"description": "a valid header",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": "accepted"
+		},
+		{
+			"description": "typ application/at+jwt",
+			"header": {
+				"alg": "RS256",
+				"typ": "application/at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": "accepted"
+		},
+		{
+			"description": "typ in upper case",
+			"header": {
+				"alg": "RS256",
+				"typ": "AT+JWT",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": "accepted"
+		},
+		{
+			"description": "typ media type in mixed case",
+			"header": {
+				"alg": "RS256",
+				"typ": "Application/At+Jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": "accepted"
+		},
+		{
+			"description": "typ JWT",
+			"header": {
+				"alg": "RS256",
+				"typ": "JWT",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "typ"
+			}
+		},
+		{
+			"description": "no typ",
+			"header": {
+				"alg": "RS256",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "typ"
+			}
+		},
+		{
+			"description": "typ with a trailing space",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt ",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "typ"
+			}
+		},
+		{
+			"description": "alg ES256",
+			"header": {
+				"alg": "ES256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": "accepted"
+		},
+		{
+			"description": "alg EdDSA",
+			"header": {
+				"alg": "EdDSA",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": "accepted"
+		},
+		{
+			"description": "alg none",
+			"header": {
+				"alg": "none",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "alg"
+			}
+		},
+		{
+			"description": "alg HS256, refused even when listed",
+			"header": {
+				"alg": "HS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA", "HS256"],
+			"expected": {
+				"refused": "alg"
+			}
+		},
+		{
+			"description": "alg not in the list",
+			"header": {
+				"alg": "RS512",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "alg"
+			}
+		},
+		{
+			"description": "no alg",
+			"header": {
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "alg"
+			}
+		},
+		{
+			"description": "no kid",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "kid"
+			}
+		},
+		{
+			"description": "an empty kid",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": ""
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "kid"
+			}
+		},
+		{
+			"description": "a numeric kid",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": 7
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "kid"
+			}
+		},
+		{
+			"description": "crit",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1",
+				"crit": ["b64"],
+				"b64": false
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "crit"
+			}
+		},
+		{
+			"description": "jku",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1",
+				"jku": "https://attacker.example/jwks.json"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "key-reference"
+			}
+		},
+		{
+			"description": "x5u",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1",
+				"x5u": "https://attacker.example/cert.pem"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "key-reference"
+			}
+		},
+		{
+			"description": "x5c",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1",
+				"x5c": ["MIIB"]
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "key-reference"
+			}
+		},
+		{
+			"description": "an embedded jwk",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1",
+				"jwk": {
+					"kty": "RSA",
+					"n": "AQAB",
+					"e": "AQAB"
+				}
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "key-reference"
+			}
+		},
+		{
+			"description": "typ and alg both wrong: typ first",
+			"header": {
+				"alg": "none",
+				"typ": "JWT",
+				"kid": "k1"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "typ"
+			}
+		},
+		{
+			"description": "alg and kid both wrong: alg first",
+			"header": {
+				"typ": "at+jwt",
+				"alg": "none"
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "alg"
+			}
+		},
+		{
+			"description": "kid missing and crit: kid first",
+			"header": {
+				"typ": "at+jwt",
+				"alg": "RS256",
+				"crit": ["b64"]
+			},
+			"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+			"expected": {
+				"refused": "kid"
+			}
+		}
+	],
+	"keys": [
+		{
+			"description": "RS256 with an RSA key",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB"
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "PS256 with an RSA key",
+			"header": {
+				"alg": "PS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB"
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "RS256 with an EC key",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "EC",
+				"kid": "k1",
+				"crv": "P-256",
+				"x": "f83O",
+				"y": "x_FE"
+			},
+			"expected": {
+				"refused": "key"
+			}
+		},
+		{
+			"description": "ES256 with P-256",
+			"header": {
+				"alg": "ES256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "EC",
+				"kid": "k1",
+				"crv": "P-256",
+				"x": "f83O",
+				"y": "x_FE"
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "ES256 with P-384",
+			"header": {
+				"alg": "ES256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "EC",
+				"kid": "k1",
+				"crv": "P-384",
+				"x": "f83O",
+				"y": "x_FE"
+			},
+			"expected": {
+				"refused": "key"
+			}
+		},
+		{
+			"description": "ES384 with P-384",
+			"header": {
+				"alg": "ES384",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "EC",
+				"kid": "k1",
+				"crv": "P-384",
+				"x": "f83O",
+				"y": "x_FE"
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "ES256 with no crv",
+			"header": {
+				"alg": "ES256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "EC",
+				"kid": "k1",
+				"x": "f83O",
+				"y": "x_FE"
+			},
+			"expected": {
+				"refused": "key"
+			}
+		},
+		{
+			"description": "EdDSA with Ed25519",
+			"header": {
+				"alg": "EdDSA",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "OKP",
+				"kid": "k1",
+				"crv": "Ed25519",
+				"x": "11qY"
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "EdDSA with X25519",
+			"header": {
+				"alg": "EdDSA",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "OKP",
+				"kid": "k1",
+				"crv": "X25519",
+				"x": "11qY"
+			},
+			"expected": {
+				"refused": "key"
+			}
+		},
+		{
+			"description": "the key names the same alg",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB",
+				"alg": "RS256"
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "the key names another alg",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB",
+				"alg": "PS256"
+			},
+			"expected": {
+				"refused": "key"
+			}
+		},
+		{
+			"description": "use sig",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB",
+				"use": "sig"
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "use enc",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB",
+				"use": "enc"
+			},
+			"expected": {
+				"refused": "key"
+			}
+		},
+		{
+			"description": "key_ops verify",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB",
+				"key_ops": ["verify"]
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "key_ops sign and verify",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB",
+				"key_ops": ["sign", "verify"]
+			},
+			"expected": "accepted"
+		},
+		{
+			"description": "key_ops sign only",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": {
+				"kty": "RSA",
+				"kid": "k1",
+				"n": "sXch",
+				"e": "AQAB",
+				"key_ops": ["sign"]
+			},
+			"expected": {
+				"refused": "key"
+			}
+		},
+		{
+			"description": "no key with that kid",
+			"header": {
+				"alg": "RS256",
+				"typ": "at+jwt",
+				"kid": "k1"
+			},
+			"key": null,
+			"expected": {
+				"refused": "key"
+			}
+		}
+	],
+	"claims": [
+		{
+			"description": "valid",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940
+				}
+			}
+		},
+		{
+			"description": "valid with auth_time and acr",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"auth_time": 1793015880,
+				"acr": "phr"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940,
+					"authTime": 1793015880,
+					"acr": "phr"
+				}
+			}
+		},
+		{
+			"description": "valid with nbf",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"nbf": 1793015940
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940
+				}
+			}
+		},
+		{
+			"description": "valid with no scope claim",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": [],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940
+				}
+			}
+		},
+		{
+			"description": "an issuer with a trailing slash",
+			"claims": {
+				"iss": "https://auth.example.com/",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "issuer"
+			}
+		},
+		{
+			"description": "another audience",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://other.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "audience"
+			}
+		},
+		{
+			"description": "no aud",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "audience"
+			}
+		},
+		{
+			"description": "no exp",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "no iat",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "no jti",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "no sub",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "no client_id",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "an empty sub",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "a sub of 255 characters",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940
+				}
+			}
+		},
+		{
+			"description": "a sub of 256 characters",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "a sub of 255 two-byte characters",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940
+				}
+			}
+		},
+		{
+			"description": "a sub with a C0 control character",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user\u00071",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "a sub with a C1 control character",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "a numeric sub",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": 1,
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "a null client_id",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": null,
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "a numeric jti",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": 7,
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "exp as a string",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": "1793019540",
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "auth_time as a string",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"auth_time": "yesterday"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "acr of 256 characters",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"acr": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "exp at now minus the skew",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793012340,
+				"exp": 1793015940,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "expired"
+			}
+		},
+		{
+			"description": "exp one second inside the skew",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793012341,
+				"exp": 1793015941,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793015941,
+					"issuedAt": 1793012341
+				}
+			}
+		},
+		{
+			"description": "iat at now plus the skew",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793016060,
+				"exp": 1793019660,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019660,
+					"issuedAt": 1793016060
+				}
+			}
+		},
+		{
+			"description": "iat one second past the skew",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793016061,
+				"exp": 1793019661,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "not-yet-valid"
+			}
+		},
+		{
+			"description": "nbf at now plus the skew",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"nbf": 1793016060
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940
+				}
+			}
+		},
+		{
+			"description": "nbf one second past the skew",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"nbf": 1793016061
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "not-yet-valid"
+			}
+		},
+		{
+			"description": "a lifetime of exactly the maximum",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015900,
+				"exp": 1793019500,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019500,
+					"issuedAt": 1793015900
+				}
+			}
+		},
+		{
+			"description": "a lifetime one second over the maximum",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015900,
+				"exp": 1793019501,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "lifetime"
+			}
+		},
+		{
+			"description": "fractional times are rounded down",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940.5,
+				"exp": 1793019540.4,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940
+				}
+			}
+		},
+		{
+			"description": "a malformed scope",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read  todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "scope-malformed"
+			}
+		},
+		{
+			"description": "a DPoP-bound token",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"cnf": {
+					"jkt": "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I"
+				}
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "dpop-unsupported"
+			}
+		},
+		{
+			"description": "a certificate-bound token with its certificate",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"cnf": {
+					"x5t#S256": "bwcK0esc3ACC3DB2Y5_lESsXE8o9ltc05O89jdN-dg2"
+				}
+			},
+			"certificate": "bwcK0esc3ACC3DB2Y5_lESsXE8o9ltc05O89jdN-dg2",
+			"expected": {
+				"credentials": {
+					"issuer": "https://auth.example.com",
+					"subject": "user-1",
+					"clientId": "todo-agent",
+					"scopes": ["todo:read", "todo:write"],
+					"resource": "https://todo.example.com/mcp",
+					"expiresAt": 1793019540,
+					"issuedAt": 1793015940,
+					"cnf": {
+						"x5t#S256": "bwcK0esc3ACC3DB2Y5_lESsXE8o9ltc05O89jdN-dg2"
+					}
+				}
+			}
+		},
+		{
+			"description": "a certificate-bound token with another certificate",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"cnf": {
+					"x5t#S256": "bwcK0esc3ACC3DB2Y5_lESsXE8o9ltc05O89jdN-dg2"
+				}
+			},
+			"certificate": "A4DtL2JmUMhAsvJj5tKyn64SqzmuXbMrJa0n761y5v0",
+			"expected": {
+				"refused": "binding"
+			}
+		},
+		{
+			"description": "a certificate-bound token with no certificate",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"cnf": {
+					"x5t#S256": "bwcK0esc3ACC3DB2Y5_lESsXE8o9ltc05O89jdN-dg2"
+				}
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "binding"
+			}
+		},
+		{
+			"description": "an unbound token where bound tokens are required",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"config": {
+				"requireBoundTokens": true
+			},
+			"expected": {
+				"refused": "binding"
+			}
+		},
+		{
+			"description": "a DPoP-bound token where bound tokens are required",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793015940,
+				"exp": 1793019540,
+				"scope": "todo:read todo:write",
+				"cnf": {
+					"jkt": "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I"
+				}
+			},
+			"certificate": null,
+			"config": {
+				"requireBoundTokens": true
+			},
+			"expected": {
+				"refused": "dpop-unsupported"
+			}
+		},
+		{
+			"description": "order: another audience and expired gives audience",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://other.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793008800,
+				"exp": 1793012400,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "audience"
+			}
+		},
+		{
+			"description": "order: no jti and expired gives claims",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"iat": 1793008800,
+				"exp": 1793012400,
+				"scope": "todo:read todo:write"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "claims"
+			}
+		},
+		{
+			"description": "order: expired and a malformed scope gives expired",
+			"claims": {
+				"iss": "https://auth.example.com",
+				"aud": "https://todo.example.com/mcp",
+				"sub": "user-1",
+				"client_id": "todo-agent",
+				"jti": "j-1",
+				"iat": 1793008800,
+				"exp": 1793012400,
+				"scope": " x"
+			},
+			"certificate": null,
+			"expected": {
+				"refused": "expired"
+			}
+		}
+	],
+	"staticScopes": [
+		{
+			"description": "every scope held",
+			"requiredScopes": ["todo:read"],
+			"scopes": ["todo:write"],
+			"held": ["todo:read", "todo:write"],
+			"expected": "allowed"
+		},
+		{
+			"description": "the command scope missing",
+			"requiredScopes": ["todo:read"],
+			"scopes": ["todo:write"],
+			"held": ["todo:read"],
+			"expected": {
+				"missing": ["todo:write"]
+			}
+		},
+		{
+			"description": "nothing held: required first, then the command",
+			"requiredScopes": ["todo:read"],
+			"scopes": ["todo:write"],
+			"held": [],
+			"expected": {
+				"missing": ["todo:read", "todo:write"]
+			}
+		},
+		{
+			"description": "a command without scopes",
+			"requiredScopes": ["todo:read"],
+			"scopes": [],
+			"held": ["todo:read"],
+			"expected": "allowed"
+		},
+		{
+			"description": "nothing required at all",
+			"requiredScopes": [],
+			"scopes": [],
+			"held": [],
+			"expected": "allowed"
+		},
+		{
+			"description": "a scope both required and declared counts once",
+			"requiredScopes": ["todo:read"],
+			"scopes": ["todo:write", "todo:read"],
+			"held": [],
+			"expected": {
+				"missing": ["todo:read", "todo:write"]
+			}
+		},
+		{
+			"description": "no hierarchy: a narrower scope does not satisfy",
+			"requiredScopes": [],
+			"scopes": ["todo:write"],
+			"held": ["todo:write:list-1"],
+			"expected": {
+				"missing": ["todo:write"]
+			}
+		},
+		{
+			"description": "exact case",
+			"requiredScopes": [],
+			"scopes": ["todo:write"],
+			"held": ["TODO:WRITE"],
+			"expected": {
+				"missing": ["todo:write"]
+			}
+		}
+	],
+	"batches": [
+		{
+			"description": "one step allowed, one missing",
+			"steps": [
+				"allowed",
+				{
+					"missing": ["todo:write"]
+				}
+			],
+			"expected": {
+				"forbidden": "todo:write"
+			}
+		},
+		{
+			"description": "two missing steps overlap: each scope once, in step order",
+			"steps": [
+				{
+					"missing": ["todo:write", "todo:admin"]
+				},
+				{
+					"missing": ["todo:admin", "todo:export"]
+				}
+			],
+			"expected": {
+				"forbidden": "todo:write todo:admin todo:export"
+			}
+		},
+		{
+			"description": "defer and allowed proceed",
+			"steps": ["defer", "allowed"],
+			"expected": "proceed"
+		},
+		{
+			"description": "defer beside a missing step is still one 403",
+			"steps": [
+				"defer",
+				{
+					"missing": ["todo:write"]
+				}
+			],
+			"expected": {
+				"forbidden": "todo:write"
+			}
+		},
+		{
+			"description": "every step deferred",
+			"steps": ["defer", "defer"],
+			"expected": "proceed"
+		},
+		{
+			"description": "a single allowed call",
+			"steps": ["allowed"],
+			"expected": "proceed"
+		},
+		{
+			"description": "a single missing call",
+			"steps": [
+				{
+					"missing": ["todo:write"]
+				}
+			],
+			"expected": {
+				"forbidden": "todo:write"
+			}
+		}
+	],
+	"principalBindings": [
+		{
+			"description": "an agent acting for a person, with credentials",
+			"actor": {
+				"kind": "agent",
+				"id": "todo-agent",
+				"label": "Todo agent",
+				"onBehalfOf": "user-1"
+			},
+			"credentials": {
+				"issuer": "https://auth.example.com",
+				"subject": "user-1",
+				"clientId": "todo-agent",
+				"scopes": ["todo:read"],
+				"resource": "https://todo.example.com/mcp",
+				"expiresAt": 1793019540,
+				"issuedAt": 1793015940
+			},
+			"binding": "{\"actor\":{\"id\":\"todo-agent\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"},\"credentials\":{\"clientId\":\"todo-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}}",
+			"credentialsBinding": "{\"clientId\":\"todo-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}"
+		},
+		{
+			"description": "the same person through another client",
+			"actor": {
+				"kind": "agent",
+				"id": "other-agent",
+				"onBehalfOf": "user-1"
+			},
+			"credentials": {
+				"issuer": "https://auth.example.com",
+				"subject": "user-1",
+				"clientId": "other-agent",
+				"scopes": ["todo:read"],
+				"resource": "https://todo.example.com/mcp",
+				"expiresAt": 1793019540,
+				"issuedAt": 1793015940
+			},
+			"binding": "{\"actor\":{\"id\":\"other-agent\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"},\"credentials\":{\"clientId\":\"other-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}}",
+			"credentialsBinding": "{\"clientId\":\"other-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}"
+		},
+		{
+			"description": "the label is never bound",
+			"actor": {
+				"kind": "agent",
+				"id": "todo-agent",
+				"label": "Another label",
+				"onBehalfOf": "user-1"
+			},
+			"credentials": {
+				"issuer": "https://auth.example.com",
+				"subject": "user-1",
+				"clientId": "todo-agent",
+				"scopes": ["todo:read"],
+				"resource": "https://todo.example.com/mcp",
+				"expiresAt": 1793019540,
+				"issuedAt": 1793015940
+			},
+			"binding": "{\"actor\":{\"id\":\"todo-agent\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"},\"credentials\":{\"clientId\":\"todo-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}}",
+			"credentialsBinding": "{\"clientId\":\"todo-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}"
+		},
+		{
+			"description": "scopes, times and resource are never bound",
+			"actor": {
+				"kind": "agent",
+				"id": "todo-agent",
+				"onBehalfOf": "user-1"
+			},
+			"credentials": {
+				"issuer": "https://auth.example.com",
+				"subject": "user-1",
+				"clientId": "todo-agent",
+				"scopes": ["todo:write"],
+				"resource": "https://todo.example.com/mcp",
+				"expiresAt": 1793016060,
+				"issuedAt": 1793015940,
+				"acr": "phr"
+			},
+			"binding": "{\"actor\":{\"id\":\"todo-agent\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"},\"credentials\":{\"clientId\":\"todo-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}}",
+			"credentialsBinding": "{\"clientId\":\"todo-agent\",\"issuer\":\"https://auth.example.com\",\"subject\":\"user-1\"}"
+		},
+		{
+			"description": "no credentials (stdio, or a server without authorization)",
+			"actor": {
+				"kind": "agent",
+				"id": "loopback"
+			},
+			"credentials": null,
+			"binding": "{\"actor\":{\"id\":\"loopback\",\"kind\":\"agent\"},\"credentials\":null}",
+			"credentialsBinding": "null"
+		},
+		{
+			"description": "an actor with a kind only",
+			"actor": {
+				"kind": "human"
+			},
+			"credentials": null,
+			"binding": "{\"actor\":{\"kind\":\"human\"},\"credentials\":null}",
+			"credentialsBinding": "null"
+		},
+		{
+			"description": "no actor and no credentials",
+			"actor": null,
+			"credentials": null,
+			"binding": "{\"actor\":null,\"credentials\":null}",
+			"credentialsBinding": "null"
+		}
+	],
+	"inputDigests": [
+		{
+			"description": "one string",
+			"input": {
+				"id": "42"
+			},
+			"canonical": "{\"id\":\"42\"}",
+			"inputDigest": "iqW2dR1ovXKQHOqWu73cqGJO-jh9VEKmMZfV_tsraT0"
+		},
+		{
+			"description": "keys sorted at every depth",
+			"input": {
+				"b": 1,
+				"a": [
+					true,
+					null,
+					"x",
+					{
+						"d": 1,
+						"c": 2
+					}
+				]
+			},
+			"canonical": "{\"a\":[true,null,\"x\",{\"c\":2,\"d\":1}],\"b\":1}",
+			"inputDigest": "cjNIfN8er2TUWvBYab2nM8-6B_1NtH34ozOF0_vB_j0"
+		},
+		{
+			"description": "an empty object",
+			"input": {},
+			"canonical": "{}",
+			"inputDigest": "RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o"
+		},
+		{
+			"description": "multibyte characters",
+			"input": {
+				"text": "é€😀"
+			},
+			"canonical": "{\"text\":\"é€😀\"}",
+			"inputDigest": "cGTVGkzF2DJQyVlHMm96N6pOeR8IKvCY6Lq5kft65uo"
+		},
+		{
+			"description": "number spelling",
+			"input": {
+				"n": 1.5e21,
+				"m": 1,
+				"k": 0
+			},
+			"canonical": "{\"k\":0,\"m\":1,\"n\":1.5e+21}",
+			"inputDigest": "3rXlV59Nloq4hH64gHEzJxK78ozlPnyfg3kHLoy13Dc"
+		}
+	]
+}

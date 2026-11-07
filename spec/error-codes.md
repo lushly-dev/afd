@@ -239,8 +239,24 @@ Emitted by the engine's check after the handler; see
 Engine codes a `spec/` page defines before any language emits them. Each joins
 [the shared catalog](#the-shared-catalog), with its constant in all four languages and its entry in
 [`vectors/error-codes.json`](./vectors/error-codes.json), in the first pull request that implements
-it ([Changing this page](#changing-this-page)). None is waiting today: `OUTPUT_BUDGET_EXCEEDED`
-joined the catalog in Umbel phase 2 step 0b, and the catalog stands at 46 codes.
+it ([Changing this page](#changing-this-page)). `OUTPUT_BUDGET_EXCEEDED` joined the catalog this way
+in Umbel phase 2 step 0b, and the catalog stands at 46 codes. Two are waiting, both specified in
+Umbel phase 5 step 0a:
+
+| Code | Meaning | Retryable | Layers | Joins the catalog in |
+| --- | --- | --- | --- | --- |
+| `INSUFFICIENT_SCOPE` | The caller's token lacks a scope the call needs, found after routing: a call the HTTP layer could not answer with a 403 before dispatch, such as one on the deprecated `/message` lane. `details.scopes` lists every missing scope; the suggestion says to obtain a token that grants them. A batch or pipeline fails as a whole before its first step. See [authorization, M6](./authorization.md#m6-scopes). Where HTTP can answer, the same case is an HTTP 403 with `error="insufficient_scope"` instead, never a tool result | No (a new token) | Server engine, router, HTTP layer | Umbel phase 5 step 0b (Rust) |
+| `TASK_TOKEN_EXPIRED` | A task was still working when the token that started it expired, so it was stopped; it completes with this failure. Start it again with a new token. See [Tasks](./command-metadata.md#tasks) | Yes | Server engine (the task runner) | Umbel phase 5 step 0e (Rust) |
+
+A refused token is not an error code: it is an HTTP 401 whose body names the existing
+`UNAUTHORIZED`, with a rule code (`audience`, `expired`, `scopes-too-many` and so on) that is logged
+and never sent ([authorization, M5](./authorization.md#m5-401-and-403)). `UNAUTHORIZED` is also the
+server's answer when a request on an authorized server reaches the MCP service without verified
+credentials (M1). Codes a host defines on top, such as Umbel's `SPACE_NOT_READABLE`, `TASK_LOST` or
+`PERSON_VERIFICATION_INSUFFICIENT`, stay in the host's own catalog. The host-verified confirmation
+mode and relay evidence add no code: they answer with `CONFIRMATION_REQUIRED`,
+`CONFIRMATION_DECLINED`, `VALIDATION_ERROR` and `APPROVAL_REQUIRED` (with the new `details.reason`
+`credentials-mismatch`), and a relay may answer with its own error.
 
 ## Transport-specific codes
 

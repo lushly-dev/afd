@@ -50,7 +50,7 @@ to implement the entire engine in every language.
 
 Before expanding the shared contracts, check the existing command metadata,
 journal, handoff and language-parity work, plus the proposed
-[MCP Tasks](../mcp-tasks/mcp-tasks.proposal.md) and
+[MCP Tasks](../../active/mcp-tasks/mcp-tasks.proposal.md) and
 [Plugin Discovery](../plugin-discovery/plugin-discovery.proposal.md) surfaces.
 
 ## First proof

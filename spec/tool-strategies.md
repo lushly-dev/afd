@@ -131,7 +131,7 @@ A command cannot take a name the server provides itself.
 | Field | `individual`, `grouped`, `lazy` | `hybrid` |
 | --- | --- | --- |
 | `ttlMs` on `tools/list` and `server/discover` | `toolsListTtlMs` when set; otherwise 300,000, or 0 when contexts are configured, because the list can vary by `_meta["dev.afd/context"]`, which clients leave out of their cache key | `toolsListTtlMs` when set; otherwise 300,000 whether or not contexts are configured ([H6](#h6-cache-hints-and-listchanged)) |
-| `cacheScope` | `public` | `public` |
+| `cacheScope` | `public`; `private` on `tools/list` when the server filters tools by scope ([authorization, M6](./authorization.md#listing)) | The same |
 | `capabilities.tools.listChanged` | `false` | `false` ([H6](#h6-cache-hints-and-listchanged)) |
 
 The `ttlMs` default under contexts applies to the lazy strategy too, although TypeScript's and
@@ -274,7 +274,7 @@ the cap later is a minor contract change.
 | Field | Rule |
 | --- | --- |
 | `ttlMs` | `toolsListTtlMs` when set; otherwise 300,000, whether or not contexts are configured, because the list does not vary by context ([H4](#h4-contexts-a-fixed-list-scoped-calls)) |
-| `cacheScope` | `public` |
+| `cacheScope` | `public`; `private` on `tools/list` when the server filters tools by scope, the one way a hybrid list varies ([authorization, M6](./authorization.md#listing)) |
 | `server/discover` | The same hints as `tools/list` |
 | `capabilities.tools.listChanged` | `false`. A hybrid server MUST NOT send `notifications/tools/list_changed`: its list cannot change while it runs ([H2](#h2-validation-at-construction)) |
 

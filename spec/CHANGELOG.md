@@ -72,6 +72,35 @@ In the same pull request:
 
 ## 1.0-rc
 
+[`authorization.md`](./authorization.md) specifies MCP authorization for AFD servers on HTTP (Umbel
+phase 5 step 0a, decision D106): one bearer token in one `Authorization` header, verified by explicit
+rules (RFC 9068 JWT access tokens with exactly one audience, the resource; `typ`, the algorithm
+list, `kid`, key fit and no `crit` or key references; required claims, skew and a lifetime cap; the
+scope claim; certificate binding, with DPoP refused), or by one introspection issuer;
+`CommandContext.credentials` (`issuer`, `subject`, `clientId`, `scopes`, `resource`, `expiresAt`,
+`issuedAt`, `authTime`, `acr`, `cnf`), never the raw token and redacted in debug output; exact 401
+and 403 `WWW-Authenticate` forms and bodies, with rule codes that are logged, never sent; RFC 9728
+protected-resource metadata at both well-known URLs; static scopes, a host `ScopeResolver` that
+answers `Allowed`, `Missing` or `Defer` per call, a 403 before dispatch that names every missing
+scope of a whole batch, and list filtering with `cacheScope: "private"`; and the principal binding.
+stdio, the CLI and in-process calls are unchanged. `command-metadata.md` gains `scopes`, `task` and
+`confirmationMode: "host-verified"`; binds confirmation and approval-relay `requestState` to the actor
+and the credentials' issuer, subject and client ([#532](https://github.com/lushly-dev/afd/issues/532));
+specifies the host-verified mode, under which the server gate never sends a form or accepts an
+acknowledgement and defers to a `HumanRelay` through URL-mode elicitation; relay evidence, which the
+approval middleware accepts once in place of a token (new `details.reason` `credentials-mismatch`);
+and MCP Tasks (`io.modelcontextprotocol/tasks`) with a `TaskStore`, an owner check on every
+`tasks/*` request and a task that never outlives its token. `error-codes.md` lists
+`INSUFFICIENT_SCOPE` and `TASK_TOKEN_EXPIRED` as specified, each joining the catalog with its four
+constants in the first pull request that emits it (Rust steps 0b and 0e), so
+`vectors/error-codes.json` is unchanged. `tool-strategies.md` notes the private `cacheScope` under
+scope filtering. The MCP Authorization and MCP Tasks proposals move to `docs/features/active/`. It is
+additive and `VERSION` does not change: no existing fixture, vector or wire field changes, and
+nothing changes for a server that does not opt in, except that #532 refuses a confirmation state
+presented by another principal, which was a defect. Its cases are in `authorization.json`, which stays beside
+`vectors/` because no language loads it yet and C++ has no HTTP server. No language implements any of
+it yet.
+
 [`plugin-manifest.md`](./plugin-manifest.md) specifies the shared plugin manifest (Loam D58): core
 version 1, JSON Schema `$defs` with every object left open and reserved keys refused, and the contract
 for one closed profile per host. It also holds the rules beyond the schema, the shared grant names,

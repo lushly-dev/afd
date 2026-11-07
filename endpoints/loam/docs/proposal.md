@@ -774,7 +774,7 @@ workspace without a publish.
   Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.proposal.md):
   the manifest fields; Loam loads declared apps rather than scanning.
 - [MCP
-  Authorization](../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md):
+  Authorization](../../../docs/features/active/mcp-authorization/mcp-authorization.proposal.md):
   the hosted server's TypeScript token-verification layer, per-command
   scopes and `credentials`.
 - [Agent Engine](../../../docs/features/proposed/agent-engine/proposal.md):
