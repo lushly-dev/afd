@@ -3,7 +3,10 @@
 //!
 //! A [`SkillCatalog`] is fixed when it is built: [`SkillCatalog::new`] reads each skill's bytes
 //! once, checks every rule of S2 and computes the digests, so a catalog that exists is one the
-//! server can serve. The server serves skills as data: it reads only the frontmatter, never
+//! server can serve. Each skill's entry is `rmcp`'s own [`rmcp::model::Skill`], checked with
+//! [`rmcp::model::Skill::validate`] when the catalog is built, so `rmcp`, which checks every
+//! `skills/list` and `skills/get` result again before it sends one, never refuses an entry the
+//! catalog accepted. The server serves skills as data: it reads only the frontmatter, never
 //! follows instructions in a skill and never widens anything for one.
 //!
 //! ```
@@ -26,6 +29,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use rmcp::model::{
+    Skill as SkillEntry, SkillFrontmatter, SkillResource, SkillResources, DIRECTORY_MIME_TYPE,
+};
 use serde_json::{json, Value};
 
 use super::encoding::sha256_digest;
@@ -35,9 +41,6 @@ pub const MAX_SKILL_FILES: usize = 512;
 
 /// The most bytes one skill may have in total, `SKILL.md` included: 16 MiB.
 pub const MAX_SKILL_BYTES: usize = 16 * 1024 * 1024;
-
-/// The MIME type of a directory in a `resources/directory/read` result.
-const DIRECTORY_MIME_TYPE: &str = "inode/directory";
 
 /// One skill as the host gives it: a skill path and its files' bytes.
 ///
@@ -160,7 +163,9 @@ pub(crate) struct CatalogFile {
 struct CatalogSkill {
     path: String,
     /// The `skills/list` entry (S3), also the `skills/get` answer.
-    entry: Value,
+    entry: SkillEntry,
+    /// The same entry as JSON, for [`SkillCatalog::entries`].
+    entry_json: Value,
     /// In manifest order: `SKILL.md`, then ascending by the path's UTF-8 bytes.
     files: Vec<CatalogFile>,
 }
@@ -197,9 +202,7 @@ impl SkillCatalog {
                     checked.path
                 ));
             }
-            let name = checked.entry["frontmatter"]["name"]
-                .as_str()
-                .unwrap_or_default();
+            let name = checked.entry.name();
             if !names.insert(name.to_owned()) {
                 return Err(format!(
                     "skill \"{}\": the name \"{name}\" is used by another skill (names are unique in a catalog, even under different prefixes)",
@@ -280,16 +283,24 @@ impl SkillCatalog {
     pub fn entries(&self) -> Vec<Value> {
         self.skills
             .iter()
+            .map(|skill| skill.entry_json.clone())
+            .collect()
+    }
+
+    /// Every `skills/list` entry, in catalog order.
+    pub(crate) fn skill_entries(&self) -> Vec<SkillEntry> {
+        self.skills
+            .iter()
             .map(|skill| skill.entry.clone())
             .collect()
     }
 
     /// The `skills/get` answer for `uri`: the entry whose `uri` it equals exactly.
-    pub(crate) fn entry(&self, uri: &str) -> Option<&Value> {
+    pub(crate) fn entry(&self, uri: &str) -> Option<&SkillEntry> {
         self.skills
             .iter()
             .map(|skill| &skill.entry)
-            .find(|entry| entry["uri"] == uri)
+            .find(|entry| entry.uri == uri)
     }
 
     /// The skill files as `resources/list` entries: skill by skill in catalog order, each in its
@@ -435,6 +446,12 @@ fn check_skill(skill: Skill) -> Result<CatalogSkill, String> {
     }
     let description = description.unwrap_or_default().to_owned();
     let name = name.to_owned();
+    // Every field the author wrote, `name` and `description` included, in the typed entry.
+    let mut extra = frontmatter;
+    extra.remove("name");
+    extra.remove("description");
+    let mut frontmatter = SkillFrontmatter::new(name.clone(), description.clone());
+    frontmatter.extra = extra;
 
     let mut files: Vec<(String, Vec<u8>)> = files;
     files.sort_by(|(left, _), (right, _)| left.as_bytes().cmp(right.as_bytes()));
@@ -469,16 +486,27 @@ fn check_skill(skill: Skill) -> Result<CatalogSkill, String> {
             }
         })
         .collect();
-    let manifest: Vec<Value> = files
+    let manifest: Vec<SkillResource> = files
         .iter()
-        .map(|file| json!({ "uri": file.uri, "digest": file.digest, "size": file.bytes.len() }))
+        .map(|file| SkillResource::new(&file.uri, &file.digest, file.bytes.len() as u64))
         .collect();
-    let entry = json!({
-        "uri": format!("{prefix}SKILL.md"),
-        "frontmatter": Value::Object(frontmatter),
-        "resources": manifest,
-    });
-    Ok(CatalogSkill { path, entry, files })
+    let entry = SkillEntry::new(
+        format!("{prefix}SKILL.md"),
+        frontmatter,
+        SkillResources::Files(manifest),
+    );
+    // The extension's manifest boundary, as `rmcp` checks it on every result: each file's URI
+    // identifies a distinct file inside the skill's directory once RFC 3986 normalization decodes
+    // percent-encoded unreserved characters, so `%2e%2e/x.md` (`../x.md`) and `%41.md` beside
+    // `A.md` are refused here, not with `-32603` on every `skills/list`.
+    entry.validate().map_err(|error| fail(&error.to_string()))?;
+    let entry_json = serde_json::to_value(&entry).map_err(|error| fail(&error.to_string()))?;
+    Ok(CatalogSkill {
+        path,
+        entry,
+        entry_json,
+        files,
+    })
 }
 
 /// The MIME type of a skill file by its suffix, compared case-insensitively (S5).
@@ -582,6 +610,43 @@ mod tests {
             .with_file("x", "1")
             .with_file("x/y", "2");
         assert!(catalog(vec![file_and_directory]).is_err());
+    }
+
+    #[test]
+    fn refuses_file_uris_outside_the_manifest_boundary() {
+        let md = skill_md("a");
+        let with = |files: &[&str]| {
+            let skill = files.iter().fold(
+                Skill::new("a").with_file("SKILL.md", md.clone()),
+                |skill, file| skill.with_file(*file, "x"),
+            );
+            catalog(vec![skill])
+        };
+        // A dot segment once percent-encoded unreserved characters are decoded (RFC 3986,
+        // 6.2.2), so the URI names a directory or a file outside the skill.
+        for bad in ["%2e%2e/x.md", "refs/%2E", "refs/.%2e", "x/..?y"] {
+            let error = with(&[bad]).unwrap_err();
+            assert!(
+                error.contains("skill \"a\"") && error.contains(&format!("skill://a/{bad}")),
+                "{bad}: {error}"
+            );
+        }
+        // Two spellings of one file, `SKILL.md` among them.
+        for pair in [["A.md", "%41.md"], ["b.md", "%62.md"]] {
+            let error = with(&pair).unwrap_err();
+            assert!(error.contains("twice"), "{pair:?}: {error}");
+        }
+        assert!(with(&["%53KILL.md"]).unwrap_err().contains("twice"));
+        // Percent signs that decode to nothing unreserved, and dot segments that stay inside the
+        // skill, are files of the skill.
+        for good in [
+            "50%-off.md",
+            "refs%2fguide.md",
+            "refs/%2e%2e/x.md",
+            "a%20b.md",
+        ] {
+            assert!(with(&[good]).is_ok(), "{good}");
+        }
     }
 
     #[test]

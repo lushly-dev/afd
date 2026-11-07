@@ -7,6 +7,16 @@
 //! `subscribe` or `listChanged`: AFD servers push nothing), and one given a catalog also declares
 //! `io.modelcontextprotocol/skills`.
 //!
+//! `rmcp` routes the Skills extension's methods itself (SEP-2640): `skills/list`, `skills/get`
+//! and `resources/directory/read` reach [`ServerHandler::list_skills`](rmcp::ServerHandler::list_skills),
+//! [`get_skill`](rmcp::ServerHandler::get_skill) and
+//! [`read_resource_directory`](rmcp::ServerHandler::read_resource_directory) only when the
+//! server declares the extension (and `directoryRead` for the last), and answer `-32601`
+//! otherwise. Before `get_skill`, `rmcp` refuses a URI that is not a `SKILL.md` URI with
+//! `-32602` and no `data`. A request whose params do not parse as the method's reaches
+//! [`ServerHandler::on_custom_request`](rmcp::ServerHandler::on_custom_request), which answers
+//! from the same catalog.
+//!
 //! A read runs no command, middleware, confirmation, approval or journal entry, and the context
 //! hook does not run for it; failures are JSON-RPC errors, never `CommandResult`s. An unknown URI
 //! is `-32602` with `data.uri` on both MCP eras.
@@ -15,15 +25,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use rmcp::model::{
-    CustomRequest, CustomResult, ListResourceTemplatesResult, ListResourcesResult,
-    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
+    CacheScope, CustomRequest, CustomResult, GetSkillResult, ListResourceTemplatesResult,
+    ListResourcesResult, ListSkillsResult, PaginatedRequestParams, ReadResourceDirectoryResult,
+    ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData, RoleServer};
 use serde_json::{json, Map, Value};
 
 use super::encoding::{base64, sha256_digest};
-use super::{confirmations, internal, panic_guard, McpServer};
+use super::{confirmations, internal, panic_guard, McpServer, SkillCatalog};
 use crate::meta_keys::check_meta_entry;
 
 /// The `_meta` key a resource's digest goes under, set by the server (R6).
@@ -526,19 +537,89 @@ impl McpServer {
         ))
     }
 
-    /// `skills/list`, `skills/get` and `resources/directory/read`: the methods `rmcp` hands to
-    /// [`ServerHandler::on_custom_request`](rmcp::ServerHandler::on_custom_request).
+    /// The catalog, or `-32601` for `method` on a server without one.
+    fn catalog(&self, method: &str) -> Result<&SkillCatalog, ErrorData> {
+        self.inner
+            .skills
+            .as_ref()
+            .ok_or_else(|| method_not_found(method))
+    }
+
+    /// The catalog when it serves directory reads, or `-32601`.
+    fn directory_catalog(&self) -> Result<&SkillCatalog, ErrorData> {
+        match self.inner.skills.as_ref() {
+            Some(skills) if skills.directory_read() => Ok(skills),
+            _ => Err(method_not_found(DIRECTORY_READ)),
+        }
+    }
+
+    /// `skills/list` (S3): every entry in catalog order, one page.
+    pub(super) fn serve_list_skills(
+        &self,
+        cursor: Option<&String>,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ListSkillsResult, ErrorData> {
+        let skills = self.catalog(SKILLS_LIST)?;
+        refuse_cursor(cursor)?;
+        let mut result = ListSkillsResult::with_all_items(skills.skill_entries());
+        if confirmations::is_modern(context) {
+            result.ttl_ms = Some(self.resources_ttl_ms());
+            result.cache_scope = Some(CacheScope::Public);
+        } else {
+            result.result_type = None;
+        }
+        Ok(result)
+    }
+
+    /// `skills/get` (S4): the entry whose `uri` is `uri` exactly, or `-32602` with `data.uri`.
+    pub(super) fn serve_get_skill(
+        &self,
+        uri: &str,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<GetSkillResult, ErrorData> {
+        let skills = self.catalog(SKILLS_GET)?;
+        let entry = skills.entry(uri).ok_or_else(|| not_found(uri))?;
+        let mut result = GetSkillResult::new(entry.clone());
+        if confirmations::is_modern(context) {
+            result = result
+                .with_ttl_ms(self.resources_ttl_ms())
+                .with_cache_scope(CacheScope::Public);
+        } else {
+            result.result_type = None;
+        }
+        Ok(result)
+    }
+
+    /// `resources/directory/read` (S6): the direct children of a skill directory, or `-32602`
+    /// with `data.uri`; `-32601` while directory reads are off.
+    pub(super) fn serve_read_directory(
+        &self,
+        uri: &str,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<ReadResourceDirectoryResult, ErrorData> {
+        let children = self
+            .directory_catalog()?
+            .directory(uri)
+            .ok_or_else(|| not_found(uri))?;
+        serde_json::from_value(with_hints(
+            json!({ "resources": children }),
+            confirmations::is_modern(context),
+            self.resources_ttl_ms(),
+        ))
+        .map_err(internal)
+    }
+
+    /// The Skills extension's methods when their params do not parse as `rmcp`'s typed request
+    /// (a missing `uri` or one that is not a string), and any other custom method.
+    /// `rmcp` hands these to
+    /// [`ServerHandler::on_custom_request`](rmcp::ServerHandler::on_custom_request); they get the
+    /// answers the typed methods give.
     pub(super) async fn serve_custom_request(
         &self,
         request: CustomRequest,
         context: &RequestContext<RoleServer>,
     ) -> Result<CustomResult, ErrorData> {
         let method = request.method.as_str();
-        let Some(skills) = self.inner.skills.as_ref() else {
-            return Err(method_not_found(method));
-        };
-        let modern = confirmations::is_modern(context);
-        let ttl_ms = self.resources_ttl_ms();
         let params = request.params.as_ref();
         let uri = || -> Result<&str, ErrorData> {
             params
@@ -548,27 +629,22 @@ impl McpServer {
         };
         let result = match method {
             SKILLS_LIST => {
-                refuse_cursor(
-                    params
-                        .and_then(|params| params.get("cursor"))
-                        .map(|cursor| cursor.as_str().unwrap_or_default().to_owned())
-                        .as_ref(),
-                )?;
-                json!({ "skills": skills.entries() })
+                let cursor = params
+                    .and_then(|params| params.get("cursor"))
+                    .map(|cursor| cursor.as_str().unwrap_or_default().to_owned());
+                serde_json::to_value(self.serve_list_skills(cursor.as_ref(), context)?)
             }
             SKILLS_GET => {
-                let uri = uri()?;
-                let entry = skills.entry(uri).ok_or_else(|| not_found(uri))?;
-                json!({ "skill": entry })
+                self.catalog(method)?;
+                serde_json::to_value(self.serve_get_skill(uri()?, context)?)
             }
-            DIRECTORY_READ if skills.directory_read() => {
-                let uri = uri()?;
-                let children = skills.directory(uri).ok_or_else(|| not_found(uri))?;
-                json!({ "resources": children })
+            DIRECTORY_READ => {
+                self.directory_catalog()?;
+                serde_json::to_value(self.serve_read_directory(uri()?, context)?)
             }
             _ => return Err(method_not_found(method)),
         };
-        Ok(CustomResult::new(with_hints(result, modern, ttl_ms)))
+        Ok(CustomResult::new(result.map_err(internal)?))
     }
 }
 

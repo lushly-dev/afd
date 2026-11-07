@@ -187,7 +187,8 @@
 			{
 				"method": "skills/get",
 				"uri": "skill://hello-greeting/references/STYLE.md",
-				"code": -32602
+				"code": -32602,
+				"dataOptional": true
 			},
 			{ "method": "skills/get", "uri": "skill://lint-rules/SKILL.md", "code": -32602 },
 			{ "method": "skills/get", "uri": "skill://nobody/SKILL.md", "code": -32602 }

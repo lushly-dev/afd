@@ -82,9 +82,11 @@ use std::sync::Arc;
 
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CustomRequest, CustomResult,
-    DiscoverResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, MetaObject,
-    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse, ResourcesCapability,
-    ServerCapabilities, ServerConfig, Tool, ToolsCapability,
+    DiscoverResult, GetSkillRequestParams, GetSkillResult, ListResourceTemplatesResult,
+    ListResourcesResult, ListSkillsResult, ListToolsResult, MetaObject, PaginatedRequestParams,
+    ReadResourceDirectoryRequestParams, ReadResourceDirectoryResult, ReadResourceRequestParams,
+    ReadResourceResponse, ResourcesCapability, ServerCapabilities, ServerConfig, Tool,
+    ToolsCapability,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::{
@@ -105,7 +107,7 @@ use crate::{
 pub const MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
 
 /// The Skills extension's identifier (SEP-2640), declared in `capabilities.extensions`.
-pub const SKILLS_EXTENSION_ID: &str = "io.modelcontextprotocol/skills";
+pub const SKILLS_EXTENSION_ID: &str = rmcp::model::SKILLS_EXTENSION_ID;
 
 /// Default freshness hint of `tools/list` results (5 minutes).
 pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
@@ -824,7 +826,17 @@ fn internal(error: impl std::fmt::Display) -> ErrorData {
 
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder().enable_tools().build();
+        let mut capabilities = ServerCapabilities::builder().enable_tools();
+        // The Skills extension (S1): `{}`, or `{ "directoryRead": true }`. `rmcp` reads this
+        // declaration to route `skills/list`, `skills/get` and `resources/directory/read`.
+        if let Some(catalog) = &self.inner.skills {
+            capabilities = if catalog.directory_read() {
+                capabilities.enable_skills_with_directory_read()
+            } else {
+                capabilities.enable_skills()
+            };
+        }
+        let mut capabilities = capabilities.build();
         // No strategy sends `notifications/tools/list_changed`.
         capabilities.tools = Some({
             let mut tools = ToolsCapability::default();
@@ -834,16 +846,6 @@ impl ServerHandler for McpServer {
         if self.serves_resources() {
             // No subscriptions and no list-changed notifications: AFD servers push nothing.
             capabilities.resources = Some(ResourcesCapability::default());
-        }
-        if let Some(catalog) = &self.inner.skills {
-            let mut settings = serde_json::Map::new();
-            if catalog.directory_read() {
-                settings.insert("directoryRead".to_owned(), Value::Bool(true));
-            }
-            capabilities
-                .extensions
-                .get_or_insert_with(Default::default)
-                .insert(SKILLS_EXTENSION_ID.to_owned(), settings);
         }
         let mut info = ServerConfig::new(capabilities);
         info.server_info.name = self.inner.name.clone();
@@ -929,6 +931,31 @@ impl ServerHandler for McpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
         self.serve_read_resource(request, &context).await
+    }
+
+    async fn list_skills(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListSkillsResult, ErrorData> {
+        let cursor = request.as_ref().and_then(|request| request.cursor.as_ref());
+        self.serve_list_skills(cursor, &context)
+    }
+
+    async fn get_skill(
+        &self,
+        request: GetSkillRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetSkillResult, ErrorData> {
+        self.serve_get_skill(&request.uri, &context)
+    }
+
+    async fn read_resource_directory(
+        &self,
+        request: ReadResourceDirectoryRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceDirectoryResult, ErrorData> {
+        self.serve_read_directory(&request.uri, &context)
     }
 
     async fn on_custom_request(
