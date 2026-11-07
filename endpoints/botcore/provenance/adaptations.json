@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "d88ebba0e9c177ef498824d6416eba76e8db381270c80616eda09a93a377262d",
+      "current_import_sha256": "459166c51c47e2d637e06a65ac195a7c54ef0e49c92e9c654662baa08b019588",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
