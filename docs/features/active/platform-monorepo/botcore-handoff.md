@@ -2,7 +2,7 @@
 
 The Phase 5 publisher handoff for one distribution, under the rule in [spec.md](./spec.md): freeze, drain and reconcile, disable the old route, enable the new one, verify, and never two publishers at once. The fields are the ones `scripts/release/handoff.mjs` requires of a handoff record. The other five Botcore distributions (`botcore-connectors`, `botcore-llm`, `botcore-agents`, `botcore-memory`, `botcore-teams`) are not part of this handoff: none has been published, and they stay quarantined with no route.
 
-Recorded 2026-11-04; cutover checked 2026-11-07. State: **release pending**. The old upload route is disabled and AFD is the sole trusted publisher for `lushly-botcore`. Version 0.6.0 is not yet on PyPI.
+Recorded 2026-11-04; cutover and release verified 2026-11-07. State: **release verified; archive pending**. The old upload route is disabled, AFD is the sole trusted publisher for `lushly-botcore`, and PyPI serves 0.6.0 from AFD.
 
 ## Record
 
@@ -17,9 +17,9 @@ Recorded 2026-11-04; cutover checked 2026-11-07. State: **release pending**. The
 | Frozen revision | `7d5c54cae8aae90e145374467456af619cf54e41`, the import revision (#473). The source repository's later commits change only `AGENTS.md` and `README.md`, or remove its publish workflow: `cf2dada1` (#44), `ee12751a` (#47) and `85e18ed5` (#48). Moved code has been frozen there since the owner's 2026-10-30 decision |
 | Queued release work | None. The source repository has no release PR. Dependabot PRs #45 (`actions/checkout` 6 to 7) and #46 (`actions/setup-python` 6 to 7), which touched the old publish workflow, were closed unmerged |
 | In-flight release work | None: no queued, in-progress, waiting, pending or requested workflow run in `lushly-dev/botcore` (rechecked 2026-11-07). Its last publish run, for `v0.5.0`, completed successfully on 2026-07-29 |
-| Registry outcome so far | `none` for the candidate. The signed-in PyPI release list still served 0.1.0 to 0.5.0 on 2026-11-07; 0.6.0 was absent before AFD's publisher was added. The five other distribution names returned 404 at the earlier inventory check |
-| Artifact hashes | Last old-route release, 0.5.0 (tag `v0.5.0` at `75bf72ac`): `lushly_botcore-0.5.0-py3-none-any.whl` `38ce6ef7942826d3277481030d77a9f4ca516a99f8adbc41cbbd7ac085d4b4ed`, `lushly_botcore-0.5.0.tar.gz` `dafbd8631bc327da7f6d3039edce845e49f767c4ffa22608b08811fff24c2a56` (PyPI JSON). The 0.6.0 hashes are the ones in the `native-botcore-receipt` of the release run; a local build of this branch is trace evidence only, since the release commit differs |
-| Approval | The owner asked for the cutover on 2026-11-04. Publishing 0.6.0 is approved by the owner pushing the `botcore-v0.6.0` tag; an agent does not push it |
+| Registry outcome | PyPI served 0.1.0 to 0.5.0 before AFD's publisher was added. It now serves 0.6.0 from AFD, with the two files and hashes recorded below. The five other distribution names returned 404 at the earlier inventory check |
+| Artifact hashes | Last old-route release, 0.5.0 (tag `v0.5.0` at `75bf72ac`): `lushly_botcore-0.5.0-py3-none-any.whl` `38ce6ef7942826d3277481030d77a9f4ca516a99f8adbc41cbbd7ac085d4b4ed`, `lushly_botcore-0.5.0.tar.gz` `dafbd8631bc327da7f6d3039edce845e49f767c4ffa22608b08811fff24c2a56` (PyPI JSON). First AFD release, 0.6.0: wheel `98761a49ce131a12b1023a37810050c1c7063341189f2820cb2bd471f1913804`, sdist `38eddb7533e566ada021edb3982682dfd3f16ab683964ded1bf5cf89962be12d` (run receipt and PyPI JSON) |
+| Approval | The owner approved the cutover and explicitly asked the agent to push `botcore-v0.6.0` on 2026-11-07. The `pypi-botcore` deployment was reviewed and approved as `Falkicon` before upload |
 
 ## What this change does
 
@@ -48,7 +48,7 @@ Recorded 2026-11-04; cutover checked 2026-11-07. State: **release pending**. The
 3. **Add the PyPI trusted publisher for AFD.**
    - First re-read PyPI (0.6.0 still absent) and the old repository's workflow runs (none queued or running since step 1). `enable-new` requires that state, and `skip-existing` would otherwise hide a version the old route published.
    - Then, at <https://pypi.org/manage/project/lushly-botcore/settings/publishing/>, add: owner `lushly-dev`, repository `afd`, workflow `publish-botcore.yml`, environment `pypi-botcore`.
-4. **Release 0.6.0 from AFD.** A release PR dates the `0.6.0` section of `endpoints/botcore/CHANGELOG.md` and re-hashes its provenance rows (see the `do-release` skill's Botcore track). After it merges and `botcore.yml` passes, the owner tags the merge commit `botcore-v0.6.0` (annotated) and pushes it. An agent does not push the tag.
+4. **Release 0.6.0 from AFD.** [PR #786](https://github.com/lushly-dev/afd/pull/786) dated the `0.6.0` section of `endpoints/botcore/CHANGELOG.md` and re-hashed its provenance rows. Its checks and post-merge `botcore.yml` passed. The owner then explicitly asked the agent to push annotated tag `botcore-v0.6.0` on merge commit `88f58272bcca535efb86b43259df52cdf2247dff`.
 5. **Read back the registry and check an isolated install** (the evidence below).
 6. **Mark the old repository deprecated.** Its README and AGENTS.md say it is deprecated and frozen, point people and agents at `endpoints/botcore` in AFD, and drop the instructions for working there. Done early, in [lushly-dev/botcore#48](https://github.com/lushly-dev/botcore/pull/48): the notice says only that 0.5.0 was the last release from there, so it holds before and after 0.6.0.
 7. **Archive `lushly-dev/botcore`** once the evidence is recorded here.
@@ -59,15 +59,18 @@ Recorded 2026-11-04; cutover checked 2026-11-07. State: **release pending**. The
 - Old publisher: PyPI listed no `lushly-dev/botcore` publisher, but did list `lushly-dev/libraries` / `publish-py.yml` with any environment. That workflow builds `libbot` (which depends on `lushly-botcore`). With the owner's approval, the `libraries` publisher was removed; PyPI then listed no trusted publishers for this project.
 - New route: AFD's `pypi-botcore` environment requires owner `Falkicon` review and allows only `botcore-v*` tags. Active tag ruleset `26766436` governs creation, update and deletion of those tags. After confirming 0.6.0 absent and no old run in flight, the owner approved adding the PyPI publisher. PyPI confirmed exactly one publisher: `lushly-dev/afd`, `publish-botcore.yml`, environment `pypi-botcore`.
 
-## Verification evidence still to come
+## Release verification (2026-11-07)
 
-- Release run: the `publish-botcore.yml` run for `botcore-v0.6.0`, with its version, test, build and publish jobs, and the receipt's wheel and sdist SHA-256.
-- Registry readback: <https://pypi.org/pypi/lushly-botcore/0.6.0/json> lists `lushly_botcore-0.6.0-py3-none-any.whl` and `lushly_botcore-0.6.0.tar.gz` with the receipt's SHA-256, and each file's provenance names `lushly-dev/afd` and `publish-botcore.yml` as its trusted publisher.
-- Isolated install: `pip install lushly-botcore==0.6.0` into fresh Python 3.11 and 3.12 environments outside the workspace; `import botcore` reports `__version__ == "0.6.0"` and `botcore --help` runs.
-- Deprecation notice: lushly-dev/botcore#48, merged as `85e18ed5` (recorded 2026-11-04).
-- Archive: `lushly-dev/botcore` shows as archived.
+- Release: [Publish Botcore Package run 42406695548](https://github.com/lushly-dev/afd/actions/runs/42406695548) succeeded on annotated `botcore-v0.6.0` (tag object `883b8ae78dc8cbd9676f03b5b386e352969cb393`, peeled source `88f58272bcca535efb86b43259df52cdf2247dff`). Version validation, Python 3.11 and 3.12 Botcore suites, build/inspection, and PyPI upload all passed. GitHub records `Falkicon` approving the `pypi-botcore` deployment. The run's `native-botcore-receipt` names version 0.6.0 and exactly two artifacts; the downloaded run artifacts matched its hashes.
+- Registry readback: [PyPI's 0.6.0 JSON](https://pypi.org/pypi/lushly-botcore/0.6.0/json) lists `lushly_botcore-0.6.0-py3-none-any.whl` at SHA-256 `98761a49ce131a12b1023a37810050c1c7063341189f2820cb2bd471f1913804` and `lushly_botcore-0.6.0.tar.gz` at SHA-256 `38eddb7533e566ada021edb3982682dfd3f16ab683964ded1bf5cf89962be12d`, exactly matching the receipt. PyPI's Integrity API for the [wheel](https://pypi.org/integrity/lushly-botcore/0.6.0/lushly_botcore-0.6.0-py3-none-any.whl/provenance) and [sdist](https://pypi.org/integrity/lushly-botcore/0.6.0/lushly_botcore-0.6.0.tar.gz/provenance) each returns one GitHub publisher: repository `lushly-dev/afd`, workflow `publish-botcore.yml`, environment `pypi-botcore`.
+- Isolated install: fresh virtual environments outside the workspace used Python 3.11.16 and 3.12.14. `uv --no-cache pip install --index-url https://pypi.org/simple 'lushly-botcore==0.6.0'` succeeded in both. `botcore.__version__` and installed distribution metadata each reported `0.6.0`, and `botcore --help` exited successfully in both.
+- Deprecation notice: [lushly-dev/botcore#48](https://github.com/lushly-dev/botcore/pull/48), merged as `85e18ed5` on 2026-11-04.
 
-Until these are recorded, Phase 5 for `lushly-botcore` stays in progress in [STATUS.md](./STATUS.md).
+## Remaining owner step
+
+- Archive `lushly-dev/botcore`. GitHub reported `archived: false` after release verification. Keep this step with the owner, as agreed.
+
+Until the archive is confirmed, Phase 5 for `lushly-botcore` stays in progress in [STATUS.md](./STATUS.md).
 
 ## Failure and restoration
 
