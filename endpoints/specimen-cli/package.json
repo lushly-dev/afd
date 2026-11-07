@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-cli",
-	"version": "2.2.0-preview",
+	"version": "2.2.0-preview.0",
 	"type": "module",
 	"files": [
 		"dist",
