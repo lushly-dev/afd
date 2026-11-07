@@ -337,3 +337,59 @@ async def test_a_state_from_before_the_principal_binding_does_not_verify():
     tampered = _refusal(await _retry(server, {"scope": "a"}, state[:-2] + "xx"))
     assert _refusal(await _retry(server, {"scope": "a"}, state)) == tampered
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        {"issuer": None},
+        {"issuer": ""},
+        {"subject": None},
+        {"subject": ""},
+        {"client_id": ""},
+    ],
+    ids=["no-issuer", "empty-issuer", "no-subject", "empty-subject", "empty-client"],
+)
+async def test_an_incomplete_token_identity_never_mints_or_takes_a_state(missing):
+    """A verified token without an issuer, subject or client id is never bound: the call is
+    refused with an internal error that names no one, whether it would mint a state or carries
+    one, even one issued to a complete caller."""
+    from mcp.server.auth.middleware.auth_context import auth_context_var
+    from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+    from mcp.server.auth.provider import AccessToken
+    from mcp_types import INTERNAL_ERROR
+
+    def as_token(issuer, subject, client_id):
+        token = AccessToken(
+            token="opaque",
+            client_id=client_id,
+            scopes=["todo:write"],
+            subject=subject,
+            claims={} if issuer is None else {"iss": issuer},
+        )
+        return auth_context_var.set(AuthenticatedUser(token))
+
+    calls = []
+    server = _server(calls, confirmation_key=KEY)
+    complete = {"issuer": "https://auth.example.com", "subject": "user-1", "client_id": "todo-agent"}
+    reset = as_token(**complete)
+    try:
+        state = await _ask(server, {"scope": "a"})
+    finally:
+        auth_context_var.reset(reset)
+
+    reset = as_token(**{**complete, **missing})
+    try:
+        async with Client(server._create_mcp_server(), elicitation_callback=_answer("accept", [])) as client:
+            from mcp import MCPError
+
+            with pytest.raises(MCPError) as minted:
+                await client.session.call_tool("todo-clear", {"scope": "a"}, allow_input_required=True)
+        retried = await _retry(server, {"scope": "a"}, state)
+    finally:
+        auth_context_var.reset(reset)
+    for refused in (minted.value, retried):
+        code, message, data = _refusal(refused)
+        assert (code, message) == (INTERNAL_ERROR, "Internal error"), refused
+        assert "user-1" not in repr((message, data)) and "todo-agent" not in repr((message, data))
+    assert calls == []

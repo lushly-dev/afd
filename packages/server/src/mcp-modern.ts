@@ -291,6 +291,9 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				const none: RoundAnswers = { accepted: [], declined: [] };
 				const state = ctx.mcpReq.requestState();
 				if (typeof state !== 'string') return none;
+				// Credentials that cannot be bound fail the call here, before any state is
+				// verified: a retry is refused with an internal error, as a mint is.
+				principal();
 				let payload: unknown;
 				try {
 					payload = await stateCodec.verify(state, ctx);

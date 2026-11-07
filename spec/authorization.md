@@ -399,6 +399,11 @@ A call's principal binding is the canonical JSON (the approval tokens' canonical
   it, or `null` without an actor.
 - `<identity>` is `{ "issuer", "subject", "clientId" }` from the credentials, or `null` without
   credentials.
+- Credentials whose `issuer`, `subject` or `clientId` is missing or empty are never bound, since
+  such a binding could not tell their holders apart, and are never taken as no credentials either.
+  A call carrying them gets no confirmation or approval-relay state, and a retry carrying a state
+  is refused, in each language as an internal error whose message names no one. Only a call with
+  no credentials at all binds `null`.
 
 Canonical JSON sorts the keys, so `{"actor":{"id":"a","kind":"agent"},"credentials":null}`.
 Confirmation and approval-relay `requestState`
@@ -489,10 +494,15 @@ Each binds it to confirmation state as integrity-protected input, never as reada
   answers alike), with the actor the commands run with and the `credentials` that `createContext`
   sets. TypeScript does not verify tokens yet; its MCP authorization step fills `credentials`.
 - **Python:** the SDK's sealed `requestState`, through `RequestStateSecurity(bind_principal=...)`,
-  with the server's `actor` and the access token the SDK verified (a component its verifier leaves
-  out is `null`, so a verifier without subjects binds at client level, as the SDK's own principal
-  does). The SDK refuses a mismatch with `-32602` before any handler runs, as it refuses a
-  tampered state.
+  with the server's `actor` (Python has no per-request hook,
+  [#800](https://github.com/lushly-dev/afd/issues/800)) and the access token the SDK verified. The
+  SDK refuses a mismatch with `-32602` before any handler runs, as it refuses a tampered state.
+
+Credentials with a missing or empty `issuer`, `subject` or `clientId` (a host's own credentials in
+Rust and TypeScript, a token verifier's incomplete answer in Python) fail closed in all three: no
+state is minted (`afd::IncompleteCredentials`; a `TypeError` in TypeScript;
+`afd.server.IncompleteCredentials` in Python), and a retry carrying a state is refused with the
+same internal error, before any state is verified.
 
 A retry whose binding differs is refused as a tampered state is, in each language: TypeScript and
 Rust ask again, Python answers `-32602`.

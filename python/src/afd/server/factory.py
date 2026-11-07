@@ -65,7 +65,7 @@ from afd.core.schema_validation import SchemaValidationError
 from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_ENVELOPE, to_wire
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
-from afd.server.principal import principal_binding, sdk_credentials
+from afd.server.principal import IncompleteCredentials, principal_binding, sdk_credentials
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.decorators import (
     CommandMetadata,
@@ -1303,15 +1303,63 @@ class MCPServer:
                 bind_principal=lambda _ctx: self._request_principal(),
             ),
         )
+        self._install_unbindable_state_refusal()
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
         self._advertise_fixed_tools_list()
         self._advertise_context_fields()
         return self._mcp_server
 
+    def _install_unbindable_state_refusal(self) -> None:
+        """Refuse a retry that carries a ``requestState`` when the call's credentials cannot be
+        bound (``IncompleteCredentials``), with the internal error the SDK gives when it cannot
+        seal one, before the SDK's boundary would answer ``-32602``.
+
+        The SDK runs user middleware inside its request-state boundary, so this one is placed
+        just before the boundary. Without the boundary where it is expected, the server refuses
+        to start rather than accept such a retry.
+        """
+        from mcp import MCPError
+        from mcp.server.request_state import RequestStateBoundary
+        from mcp_types import INTERNAL_ERROR
+        from mcp_types.methods import INPUT_REQUIRED_METHODS
+
+        server = self
+
+        async def refuse_unbindable_state(ctx: Any, call_next: Any) -> Any:
+            params = getattr(ctx, "params", None)
+            if (
+                getattr(ctx, "method", None) in INPUT_REQUIRED_METHODS
+                and isinstance(params, Mapping)
+                and params.get("requestState") is not None
+            ):
+                try:
+                    server._request_principal()
+                except IncompleteCredentials:
+                    # The reason only, never who: the credentials name the caller.
+                    logger.warning("refusing requestState on %s: incomplete credentials", ctx.method)
+                    raise MCPError(code=INTERNAL_ERROR, message="Internal error") from None
+            return await call_next(ctx)
+
+        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        chain = getattr(lowlevel, "middleware", None)
+        boundary = next(
+            (index for index, item in enumerate(chain or ()) if isinstance(item, RequestStateBoundary)),
+            None,
+        )
+        if boundary is None:
+            raise RuntimeError("the MCP SDK's request-state boundary was not found")
+        chain.insert(boundary, refuse_unbindable_state)
+
     def _request_principal(self) -> str:
         """The principal binding of the MCP request being served: the actor its commands run
-        with and the identity of the access token the SDK verified, if any."""
+        with and the identity of the access token the SDK verified, if any.
+
+        Raises:
+            IncompleteCredentials: A verified token lacks an issuer, subject or client id. The
+                SDK then refuses to seal a state with an internal error, and
+                ``_install_unbindable_state_refusal`` refuses a retry the same way.
+        """
         return principal_binding(self.config.actor or Actor(kind="agent"), sdk_credentials())
 
     def streamable_http_app(self, **options: Any) -> Any:

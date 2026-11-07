@@ -131,7 +131,9 @@ sealed inside the state or as its associated data. A retry whose principal bindi
 one the state was issued to (another actor, or another issuer, subject or client) is refused exactly
 as a tampered state is, in the same language. So a confirmation one caller answered cannot let
 another caller skip the question, even a different client of the same person. Without credentials
-the binding is the actor alone, which still separates the actors a context hook admits.
+the binding is the actor alone, which still separates the actors a context hook admits. Credentials
+missing an issuer, subject or client id are never bound: such a call gets no state, and its retry
+is refused with an internal error (M8).
 
 A 2025-era request elicits only where its connection can carry a server-sent request (stdio, or
 stateful HTTP). Over stateless HTTP it gets the acknowledgement path.

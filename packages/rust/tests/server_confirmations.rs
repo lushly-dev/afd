@@ -467,8 +467,8 @@ async fn a_state_from_before_the_principal_binding_does_not_verify() {
 fn the_binding_includes_the_principal() {
     use afd::server::confirmations::confirmation_binding;
     let input = json!({ "all": true });
-    let a = afd::principal_binding(Some(&Actor::new(ActorKind::Agent).with_id("a")), None);
-    let b = afd::principal_binding(Some(&Actor::new(ActorKind::Agent).with_id("b")), None);
+    let a = afd::principal_binding(Some(&Actor::new(ActorKind::Agent).with_id("a")), None).unwrap();
+    let b = afd::principal_binding(Some(&Actor::new(ActorKind::Agent).with_id("b")), None).unwrap();
     assert_ne!(
         confirmation_binding("todo-clear", &input, &a),
         confirmation_binding("todo-clear", &input, &b)
@@ -490,7 +490,8 @@ mod with_credentials {
     const RESOURCE: &str = "https://todo.example.com/mcp";
 
     /// Admits a token `<issuer host>.<subject>.<clientId>` (bearer token characters only) as the
-    /// credentials of `https://<issuer host>.example.com`.
+    /// credentials of `https://<issuer host>.example.com`, or of an empty issuer for `-`. A
+    /// real verifier never admits empty fields; this one stands for host code that builds them.
     struct ByToken;
 
     #[async_trait]
@@ -503,7 +504,11 @@ mod with_credentials {
             let mut parts = token.split('.');
             match (parts.next(), parts.next(), parts.next()) {
                 (Some(issuer), Some(subject), Some(client)) => Ok(Credentials::new(
-                    format!("https://{issuer}.example.com"),
+                    if issuer == "-" {
+                        String::new()
+                    } else {
+                        format!("https://{issuer}.example.com")
+                    },
                     subject,
                     client,
                     RESOURCE,
@@ -586,5 +591,73 @@ mod with_credentials {
         let ran = post_with(&server, retry(6, &state), issued).await;
         assert_eq!(body(&ran)["success"], true, "{ran}");
         assert_eq!(runs.load(Ordering::SeqCst), 1);
+    }
+
+    fn authorized(mode: ConfirmationMode) -> (McpServer, std::sync::Arc<AtomicUsize>) {
+        let (server, runs) = server(mode);
+        let authorization = Authorization::new(
+            ProtectedResource::new(RESOURCE, ["https://auth.example.com"]).unwrap(),
+            ByToken,
+        )
+        .unwrap();
+        let server =
+            server
+                .with_authorization(authorization)
+                .with_context_hook(|_, context| async move {
+                    Ok(context.with_actor(Actor::new(ActorKind::Agent).with_id("shared")))
+                });
+        (server, runs)
+    }
+
+    #[tokio::test]
+    async fn incomplete_credentials_never_mint_or_take_a_state() {
+        let (server, runs) = authorized(ConfirmationMode::Enforce);
+        let input = json!({ "all": true });
+        let asked = post_with(
+            &server,
+            call(1, input.clone(), true, json!({})),
+            "auth.user-1.todo-agent",
+        )
+        .await;
+        let state = asked["result"]["requestState"].as_str().unwrap().to_owned();
+        let accept: Value = serde_json::from_str(ACCEPT).unwrap();
+        for (id, token) in [
+            (2, "-.user-1.todo-agent"),
+            (3, "auth..todo-agent"),
+            (4, "auth.user-1."),
+        ] {
+            // No state is minted for them...
+            let first = post_with(&server, call(id, input.clone(), true, json!({})), token).await;
+            assert_eq!(first["error"]["code"], -32603, "{token}: {first}");
+            assert_eq!(first["error"]["message"], "Internal error", "{token}");
+            // ...and none is taken from them, not even one issued to a complete caller.
+            let retry = post_with(
+                &server,
+                call(
+                    id + 10,
+                    input.clone(),
+                    true,
+                    json!({ "inputResponses": accept.clone(), "requestState": state }),
+                ),
+                token,
+            )
+            .await;
+            assert_eq!(retry["error"]["code"], -32603, "{token}: {retry}");
+            assert_eq!(retry["error"]["message"], "Internal error", "{token}");
+            let text = retry.to_string();
+            assert!(
+                !text.contains("user-1") && !text.contains("todo-agent"),
+                "{text}"
+            );
+        }
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+        // The acknowledgement holds no state, so it is unaffected.
+        let acknowledged = post_with(
+            &server,
+            call(30, json!({ "confirm": true }), false, json!({})),
+            "auth..todo-agent",
+        )
+        .await;
+        assert_eq!(body(&acknowledged)["success"], true, "{acknowledged}");
     }
 }

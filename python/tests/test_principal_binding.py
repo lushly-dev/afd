@@ -7,7 +7,12 @@ from pathlib import Path
 import pytest
 
 from afd.core.actor import Actor
-from afd.server import PrincipalCredentials, credentials_binding, principal_binding
+from afd.server import (
+    IncompleteCredentials,
+    PrincipalCredentials,
+    credentials_binding,
+    principal_binding,
+)
 
 CASES = json.loads(
     (Path(__file__).resolve().parents[2] / "spec" / "authorization.json").read_text(encoding="utf-8")
@@ -56,14 +61,20 @@ def test_refuses_credentials_it_could_not_bind():
             principal_binding(actor, credentials)
         with pytest.raises(TypeError):
             credentials_binding(credentials)
-    with pytest.raises(TypeError):
-        PrincipalCredentials(issuer=1, subject="s", client_id="c")
-    with pytest.raises(TypeError):
-        PrincipalCredentials(issuer="i", subject="", client_id="c")
+    for issuer, subject, client_id in (
+        (1, "s", "c"),
+        ("i", "", "c"),
+        (None, "s", "c"),
+        ("i", None, "c"),
+        ("i", "s", ""),
+    ):
+        with pytest.raises(IncompleteCredentials, match="^credentials lack an issuer, subject or client id$"):
+            PrincipalCredentials(issuer=issuer, subject=subject, client_id=client_id)
     with pytest.raises(TypeError):
         principal_binding({"kind": "agent"})
 
 
-def test_a_component_the_sdk_token_lacks_is_null():
-    credentials = PrincipalCredentials(issuer=None, subject=None, client_id="todo-agent")
-    assert credentials_binding(credentials) == '{"clientId":"todo-agent","issuer":null,"subject":null}'
+def test_no_credentials_bind_the_actor_alone():
+    assert principal_binding(Actor(kind="agent", id="a"), None) == (
+        '{"actor":{"id":"a","kind":"agent"},"credentials":null}'
+    )

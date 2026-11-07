@@ -542,28 +542,76 @@ describe('confirmations over MCP', () => {
 	});
 
 	it('fails closed when the context carries credentials it cannot bind', async () => {
+		const complete = {
+			issuer: 'https://auth.example.com',
+			subject: 'user-1',
+			clientId: 'todo-agent',
+		};
+		// Test-only header: a real createContext reads identity something verified.
 		const { url, calls } = await serve({
-			createContext: () => ({ credentials: { issuer: 'https://auth.example.com' } }),
+			createContext: (req) => {
+				const credentials = req.headers['x-test-credentials'];
+				return typeof credentials === 'string' ? { credentials: JSON.parse(credentials) } : {};
+			},
 		});
-		const response = await post(
-			url,
-			{
-				jsonrpc: '2.0',
-				id: 1,
-				method: 'tools/call',
-				params: {
-					name: 'todo-clear',
-					arguments: {},
-					_meta: {
-						'io.modelcontextprotocol/protocolVersion': MODERN,
-						'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
-						'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+		const call = (id: number, credentials: object, extra: object = {}) =>
+			post(
+				url,
+				{
+					jsonrpc: '2.0',
+					id,
+					method: 'tools/call',
+					params: {
+						name: 'todo-clear',
+						arguments: { scope: 'a' },
+						_meta: {
+							'io.modelcontextprotocol/protocolVersion': MODERN,
+							'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
+							'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+						},
+						...extra,
 					},
 				},
-			},
-			{ 'MCP-Protocol-Version': MODERN, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'todo-clear' }
-		);
-		expect(response.json.error).toMatchObject({ message: 'Internal error' });
+				{
+					'MCP-Protocol-Version': MODERN,
+					'Mcp-Method': 'tools/call',
+					'Mcp-Name': 'todo-clear',
+					'X-Test-Credentials': JSON.stringify(credentials),
+				}
+			);
+		const issued = await call(1, complete);
+		const state = (issued.json.result as { requestState: string }).requestState;
+		const retry = {
+			inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+			requestState: state,
+		};
+		let id = 2;
+		for (const field of ['issuer', 'subject', 'clientId'] as const) {
+			const { [field]: _left, ...missing } = complete;
+			for (const incomplete of [missing, { ...complete, [field]: '' }]) {
+				// No state is minted for them, and none is taken from them, not even one issued
+				// to a complete caller: an internal error that names no one.
+				// A retry from a client that cannot elicit reads the state but never mints one.
+				const cannotElicit = {
+					...retry,
+					_meta: {
+						'io.modelcontextprotocol/protocolVersion': MODERN,
+						'io.modelcontextprotocol/clientCapabilities': {},
+						'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+					},
+				};
+				for (const response of [
+					await call(id++, incomplete),
+					await call(id++, incomplete, retry),
+					await call(id++, incomplete, cannotElicit),
+				]) {
+					expect(response.json.error).toMatchObject({ message: 'Internal error' });
+					const text = JSON.stringify(response.json);
+					expect(text).not.toContain('user-1');
+					expect(text).not.toContain('todo-agent');
+				}
+			}
+		}
 		expect(calls).toEqual([]);
 	});
 

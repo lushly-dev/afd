@@ -79,6 +79,7 @@ from afd.server.approval import (
     create_approval_middleware,
 )
 from afd.server.principal import (
+    IncompleteCredentials,
     PrincipalCredentials,
     credentials_binding,
     principal_binding,
@@ -164,6 +165,7 @@ __all__ = [
     "ApprovalRequest",
     "ApprovalSecret",
     # The principal binding (spec/authorization.md, M8)
+    "IncompleteCredentials",
     "PrincipalCredentials",
     "credentials_binding",
     "principal_binding",

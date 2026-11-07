@@ -23,39 +23,42 @@ class PrincipalCredentials:
     """The identity of a call's verified credentials (``spec/authorization.md``, M4).
 
     A principal binding holds these three and nothing else of the credentials (never scopes,
-    times or the resource). Python does not verify tokens itself: the server takes them from the
-    MCP SDK's verified access token, whose verifier may leave ``issuer`` or ``subject`` out;
-    a component it leaves out is ``None`` (JSON ``null``), as the SDK's own principal does.
+    times or the resource). Each must be a non-empty string: a binding that could not tell two
+    callers apart is never made. Python does not verify tokens itself: the server takes them from
+    the MCP SDK's verified access token (:func:`sdk_credentials`).
     """
 
-    issuer: str | None
-    subject: str | None
-    client_id: str | None
+    issuer: str
+    subject: str
+    client_id: str
 
     def __post_init__(self) -> None:
         for name in ("issuer", "subject", "client_id"):
             value = getattr(self, name)
-            if value is not None and (not isinstance(value, str) or not value):
-                raise TypeError(f"credentials {name} must be a non-empty string")
+            if not isinstance(value, str) or not value:
+                raise IncompleteCredentials()
+
+
+class IncompleteCredentials(TypeError):
+    """Credentials without a non-empty issuer, subject and client id: no principal binding is
+    made of them, so no confirmation state is minted or accepted for the call. The message
+    names no one."""
+
+    def __init__(self) -> None:
+        super().__init__("credentials lack an issuer, subject or client id")
 
 
 def _identity(credentials: PrincipalCredentials | Mapping[str, Any] | None) -> dict[str, Any] | None:
     if credentials is None:
         return None
     if isinstance(credentials, Mapping):
-        if not all(
-            isinstance(credentials.get(key), str) and credentials.get(key)
-            for key in ("issuer", "subject", "clientId")
-        ):
-            # A binding that could not tell two callers apart must not be issued.
-            raise TypeError("credentials must carry a non-empty issuer, subject and clientId")
         credentials = PrincipalCredentials(
-            issuer=credentials["issuer"],
-            subject=credentials["subject"],
-            client_id=credentials["clientId"],
+            issuer=credentials.get("issuer"),
+            subject=credentials.get("subject"),
+            client_id=credentials.get("clientId"),
         )
     if not isinstance(credentials, PrincipalCredentials):
-        raise TypeError("credentials must be PrincipalCredentials or a mapping")
+        raise IncompleteCredentials()
     return {
         "issuer": credentials.issuer,
         "subject": credentials.subject,
@@ -84,8 +87,9 @@ def principal_binding(
     when their actor and their token's issuer, subject and client are the same.
 
     Raises:
-        TypeError: For an actor that is not an :class:`Actor`, or credentials without a
-            non-empty string ``issuer``, ``subject`` and ``clientId``.
+        TypeError: For an actor that is not an :class:`Actor`.
+        IncompleteCredentials: For credentials without a non-empty string ``issuer``,
+            ``subject`` and ``clientId`` (a ``TypeError``).
     """
     return _canonical_json({"actor": _actor_identity(actor), "credentials": _identity(credentials)})
 
@@ -99,7 +103,12 @@ def credentials_binding(credentials: PrincipalCredentials | Mapping[str, Any] | 
 
 def sdk_credentials() -> PrincipalCredentials | None:
     """The identity of the access token the MCP SDK verified for the request being served, or
-    ``None`` on a transport without one (stdio, or a server without SDK authorization)."""
+    ``None`` on a transport without one (stdio, or a server without SDK authorization).
+
+    Raises:
+        IncompleteCredentials: A token is present but its issuer (``iss``), subject or client
+            id is missing or empty, so the call cannot be bound.
+    """
     try:
         from mcp.server.auth.middleware.auth_context import get_access_token
     except ImportError:  # pragma: no cover - optional dependency
@@ -108,15 +117,13 @@ def sdk_credentials() -> PrincipalCredentials | None:
     if token is None:
         return None
     issuer = (token.claims or {}).get("iss")
-    # An empty component counts as one the verifier left out.
-    return PrincipalCredentials(
-        issuer=str(issuer) or None if issuer is not None else None,
-        subject=token.subject or None,
-        client_id=token.client_id or None,
-    )
+    if not isinstance(issuer, str):
+        raise IncompleteCredentials()
+    return PrincipalCredentials(issuer=issuer, subject=token.subject, client_id=token.client_id)
 
 
 __all__ = [
+    "IncompleteCredentials",
     "PrincipalCredentials",
     "credentials_binding",
     "principal_binding",

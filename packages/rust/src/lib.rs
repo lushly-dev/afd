@@ -172,7 +172,9 @@ pub use commands::{
     JsonSchemaType, McpInputSchema, McpTool, MiddlewareNext,
 };
 
-pub use credentials::{credentials_binding, is_scope_token, principal_binding, Credentials};
+pub use credentials::{
+    credentials_binding, is_scope_token, principal_binding, Credentials, IncompleteCredentials,
+};
 pub use meta_keys::{check_meta_entry, MCP_APPS_META_KEY};
 pub use output_budget::{OutputBudget, AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES};
 

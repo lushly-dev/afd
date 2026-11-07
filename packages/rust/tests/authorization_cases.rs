@@ -374,13 +374,13 @@ fn principal_bindings() {
         let actor: Option<Actor> = serde_json::from_value(case["actor"].clone()).unwrap();
         let credentials = credentials_from(&case["credentials"]);
         assert_eq!(
-            principal_binding(actor.as_ref(), credentials.as_ref()),
+            principal_binding(actor.as_ref(), credentials.as_ref()).unwrap(),
             case["binding"],
             "{}",
             case["description"]
         );
         assert_eq!(
-            credentials_binding(credentials.as_ref()),
+            credentials_binding(credentials.as_ref()).unwrap(),
             case["credentialsBinding"],
             "{}",
             case["description"]

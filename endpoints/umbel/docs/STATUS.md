@@ -2146,8 +2146,12 @@ on another local branch and push to that remote name.
   `PrincipalCredentials`. TypeScript and Python load the `principalBindings` cases of `spec/authorization.json`.
   Each language's suite proves a state issued to one actor (and, where credentials exist, one issuer, subject and
   client) is refused for another with the tampered answer, that the same caller still succeeds, and that a state
-  minted before the change fails closed; each fails with the binding removed. Rust and Python have no approval
-  relay yet (step 0d builds Rust's). Choices are in the specification's
+  minted before the change fails closed; each fails with the binding removed. Credentials with a missing or empty
+  issuer, subject or client id are never bound in any language: no state is minted and a retry is refused, both
+  as an internal error naming no one (the coordinator's decision on this step's first question). Rust and Python
+  have no approval relay yet (step 0d builds Rust's). Python has no per-request context hook, so its
+  confirmations bind the server's fixed actor: a parity follow-up,
+  [#800](https://github.com/lushly-dev/afd/issues/800). Choices are in the specification's
   [Amendments from step 0c](phases/5-auth-hosted/spec.md#amendments-from-step-0c).
 - **Not done:** every step of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan) after 0c, 0d to 12.
 - **Next:** steps 0d and 0e (AFD Rust relay and tasks) and 1b may run now; 1 needs only 0a. Heavy steps follow the
@@ -2169,6 +2173,7 @@ on another local branch and push to that remote name.
 | 2026-10-30 | End-to-end review | Reconcile vocabulary and the proposal record with the Agent Engine proposal, whose modules are Umbel's plugins and whose loop overlaps the curator | Open |
 | 2026-10-30 | End-to-end review | Over MCP, the Rust approval middleware includes approval tokens by default; Umbel must turn that off on the MCP path. Re-checked 2026-10-31: [#518](https://github.com/lushly-dev/afd/pull/518) closed #460 with the private in-process exchange, and the default on the MCP path is unchanged | Open |
 | 2026-10-31 | Owner review | Confirmation `requestState` is bound to the command and input, not the actor; with the context hook admitting several actors, one could replay another's confirmation | Done 2026-11-07: phase 5 step 0c binds the principal in TypeScript, Python and Rust; the step 0c pull request closes issue [#532](https://github.com/lushly-dev/afd/issues/532) |
+| 2026-11-07 | Phase 5 step 0c | AFD Python: no per-request context hook, so MCP calls run with, and confirmations bind, the server's fixed `actor`; a host that tells callers apart without SDK tokens cannot separate their confirmations | Open: [#800](https://github.com/lushly-dev/afd/issues/800), a parity gap; not needed by Umbel |
 | 2026-10-31 | Owner review | A panicking command handler hangs the Rust MCP request | Done: fixed in [#539](https://github.com/lushly-dev/afd/pull/539) |
 | 2026-10-31 | Phase 0 specification | AFD: let `DirectClient` take the CLI interface, so the Umbel CLI stops checking `expose.cli` itself (D34) | Superseded 2026-10-31: now step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request) |
 | 2026-10-31 | Phase 0 specification | AFD: the Rust telemetry middleware, which replaces Umbel's interim one (D33); in the prerequisites table for phase 2 | Superseded 2026-10-31: D33 dropped, no interim middleware; the prerequisite row stays for phase 2 |
