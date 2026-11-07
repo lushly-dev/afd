@@ -591,6 +591,10 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
     // Every command afd-detail can see is MCP-exposed, so callable.
     optional("callable", Some(json!(true)));
     optional(
+        "scopes",
+        command.scopes.as_ref().map(|scopes| json!(scopes)),
+    );
+    optional(
         "toolMeta",
         command
             .tool_meta

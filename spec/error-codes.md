@@ -105,9 +105,9 @@ construction ([H2](./tool-strategies.md#h2-validation-at-construction)), so
 
 ## The shared catalog
 
-46 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
-engines emitted without a constant; then the 2 confirmation codes, the approval code and the output
-budget code.
+47 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
+engines emitted without a constant; then the 2 confirmation codes, the approval code, the output
+budget code and the authorization code.
 
 ### Validation
 
@@ -234,18 +234,26 @@ Emitted by the engine's check after the handler; see
 | --- | --- | --- | --- |
 | `OUTPUT_BUDGET_EXCEEDED` | A command's successful result was larger than the call's output budget. For a read, the result is replaced by this failure, with `details.limitBytes`, `actualBytes` and `maxBytes`; the suggestion says to narrow the request or ask for up to `maxBytes`. For a mutation, the result is kept and this is a warning's code instead, because the change was made | No | Server engine (the check after the handler), core executors (batch items, pipeline steps), DirectClient |
 
+### Authorization
+
+Emitted by a server configured with [authorization](./authorization.md) for a call that carries
+verified credentials; see [M6](./authorization.md#m6-scopes). No handler ran.
+
+| Code | Meaning | Retryable | Layers |
+| --- | --- | --- | --- |
+| `INSUFFICIENT_SCOPE` | The caller's token lacks a scope the call needs, found after routing: a call the HTTP layer could not answer with a 403 before dispatch, such as one on the deprecated `/message` lane. `details.scopes` lists every missing scope; the suggestion says to obtain a token that grants them. A batch or pipeline fails as a whole before its first step. Where HTTP can answer, the same case is an HTTP 403 with `error="insufficient_scope"` instead, never a tool result | No (a new token) | Server engine, router, HTTP layer |
+
 ## Specified, not yet in the catalog
 
 Engine codes a `spec/` page defines before any language emits them. Each joins
 [the shared catalog](#the-shared-catalog), with its constant in all four languages and its entry in
 [`vectors/error-codes.json`](./vectors/error-codes.json), in the first pull request that implements
 it ([Changing this page](#changing-this-page)). `OUTPUT_BUDGET_EXCEEDED` joined the catalog this way
-in Umbel phase 2 step 0b, and the catalog stands at 46 codes. Two are waiting, both specified in
-Umbel phase 5 step 0a:
+in Umbel phase 2 step 0b and `INSUFFICIENT_SCOPE` in Umbel phase 5 step 0b, and the catalog stands at
+47 codes. One is waiting, specified in Umbel phase 5 step 0a:
 
 | Code | Meaning | Retryable | Layers | Joins the catalog in |
 | --- | --- | --- | --- | --- |
-| `INSUFFICIENT_SCOPE` | The caller's token lacks a scope the call needs, found after routing: a call the HTTP layer could not answer with a 403 before dispatch, such as one on the deprecated `/message` lane. `details.scopes` lists every missing scope; the suggestion says to obtain a token that grants them. A batch or pipeline fails as a whole before its first step. See [authorization, M6](./authorization.md#m6-scopes). Where HTTP can answer, the same case is an HTTP 403 with `error="insufficient_scope"` instead, never a tool result | No (a new token) | Server engine, router, HTTP layer | Umbel phase 5 step 0b (Rust) |
 | `TASK_TOKEN_EXPIRED` | A task was still working when the token that started it expired, so it was stopped; it completes with this failure. Start it again with a new token. See [Tasks](./command-metadata.md#tasks) | Yes | Server engine (the task runner) | Umbel phase 5 step 0e (Rust) |
 
 A refused token is not an error code: it is an HTTP 401 whose body names the existing

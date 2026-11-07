@@ -19,7 +19,9 @@
     is mandatory** on every person login (decision 6), and **a configurable two-person rule** for `memory-erase`
     (decision 9). Both are written into the sections they govern.
   - Step 0a, the AFD spec, done 2026-11-07 (documents and cases only;
-    [Amendments from step 0a](#amendments-from-step-0a)). No code is implemented yet.
+    [Amendments from step 0a](#amendments-from-step-0a)).
+  - Step 0b, AFD's Rust `server-auth` feature, done 2026-11-07
+    ([Amendments from step 0b](#amendments-from-step-0b)). No Umbel code is implemented yet.
 - **Last verified:** 2026-11-03 against `main` at `e5b4e43c` (phase 4 done), and again for the review. Read in
   `endpoints/umbel`:
   - `src/principal.rs`:
@@ -117,7 +119,13 @@
   [`spec/command-metadata.md`](../../../../../spec/command-metadata.md); `INSUFFICIENT_SCOPE` and
   `TASK_TOKEN_EXPIRED` specified in [`spec/error-codes.md`](../../../../../spec/error-codes.md); the MCP
   Authorization and Tasks proposals moved to `docs/features/active/`.
-- **Not done:** every step of section [16](#16-implementation-plan) after 0a.
+  Step 0b (2026-11-07): `afd::server::auth` behind `server-auth` in `packages/rust` (`TokenVerifier`,
+  `JwtVerifier`, `KeySource`, `ScopeResolver`, `ProtectedResource`, `BearerLayer`, `Authorization`),
+  `afd::Credentials` on `CommandContext::credentials`, `CommandDefinition::with_scopes`, and
+  `INSUFFICIENT_SCOPE` in the shared catalog (47 codes, all four languages); `tests/authorization_cases.rs`
+  loads all 184 cases of `spec/authorization.json`, `tests/auth_verifier.rs` holds one test per M3 rule,
+  `tests/server_auth.rs` the layer end to end and `tests/auth_canary.rs` the token canary.
+- **Not done:** every step of section [16](#16-implementation-plan) after 0b.
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -1513,7 +1521,7 @@ A step that finds a design decision stops and amends this document. Steps changi
 | Step | Pull request | Contents | Tests | Size |
 | --- | --- | --- | --- | --- |
 | 0a | AFD spec | `spec/command-metadata.md` (`scopes` with the resolver, `task`, `confirmationMode: "host-verified"`, relay evidence), `spec/error-codes.md`, a new `spec/authorization.md` (`credentials`, the HTTP behaviour, 403 through the resolver, test vectors), #532's binding; the MCP Authorization and Tasks proposals made active. **Done 2026-11-07**; the choices it made are in [Amendments from step 0a](#amendments-from-step-0a) | Spec vectors (`spec/authorization.json`) | M |
-| 0b | AFD Rust auth | `server-auth`: `TokenVerifier`, `JwtVerifier`, `KeySource`, `ScopeResolver`, `ProtectedResource`, `BearerLayer`, `credentials`, `scopes` | `server_auth.rs`, `auth_verifier.rs` | L |
+| 0b | AFD Rust auth | `server-auth`: `TokenVerifier`, `JwtVerifier`, `KeySource`, `ScopeResolver`, `ProtectedResource`, `BearerLayer`, `credentials`, `scopes`. **Done 2026-11-07**; the choices it made are in [Amendments from step 0b](#amendments-from-step-0b) | `server_auth.rs`, `auth_verifier.rs` (and `authorization_cases.rs`, `auth_canary.rs`, `command_scopes.rs`) | L |
 | 0c | AFD #532 | Actor and credentials in confirmation state in TypeScript, Python and Rust; **needs 0b** | Each language's confirmation suite | M |
 | 0d | AFD Rust relay | The host-verified mode in the gate; `HumanRelay`; relay evidence in the approval middleware; the form-mode relay; parity row | `server_confirmations.rs`, `server_human_relay.rs` | L |
 | 0e | AFD Rust tasks | `TaskStore`, the `tasks/*` handlers, `task` | `server_tasks.rs` | L |
@@ -1690,6 +1698,36 @@ AFD spec is binding where it and this document differ. None changes the trust mo
 In Rust the server option's enum is already `ConfirmationMode` (`Off`, `Enforce`, `RequireHuman`); step 0d
 gives the per-command setting a name that does not collide with it.
 
+## Amendments from step 0b
+
+Step 0b implemented `spec/authorization.md` M1 to M7 in `packages/rust` (`server-auth`). It kept every
+rule of sections 3.1 to 3.3 and of the AFD spec, took the stricter reading where they left a choice,
+and wrote the cross-language ones back into `spec/authorization.md` (none changes a case of
+`authorization.json`). None changes the trust model; each makes a refusal more likely, never less.
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 3.2: how `jsonwebtoken` is used | "`JwtVerifier` sets `validate_nbf = true`, `leeway = clock_skew_s` and an algorithm list per key" | `jsonwebtoken` 11.1 checks the **signature only**, through its `aws-lc-rs` provider called directly (`crypto::aws_lc::DEFAULT_PROVIDER`, not the process default). AFD never calls `decode` and never builds a `Validation`, so no setting or default of the library applies; routing, the header, the key and every claim rule are AFD's own code | M3: "no library default is relied on". `Validation` reads times as integers (the `fractional times` case would fail), and the process-wide provider can be replaced by any crate in the process |
+| 3.2, 3.3: algorithms | An issuer's `algorithms` | `SigningAlgorithm`: `RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`, `ES256`, `ES384`, `EdDSA` (Ed25519), the set the backend verifies. `ES512` cannot be configured, so it is refused as `alg`; an Ed448 key fits rule 3 but is refused as `key` (unusable material) | Configuration cannot name an algorithm that would always fail at the signature |
+| 3.2 rules 2 and 3: parsing | Unstated | A JWS whose payload is not one JSON object with unique member names is `unknown-issuer` (rule 1 cannot route it); such a header is `typ`. The key's own `kid` must equal the header's; key material that is not strict base64url or has a coordinate of the wrong length is `key` | RFC 7515 4 and 7519 4 let a reader refuse repeated names; reading the last one is a parser differential between verifiers |
+| 3.2 rule 11: `cnf` | `x5t#S256` checked, `jkt` refused | Also: a `cnf` that is not an object, or holds any other confirmation method (`jwk`, `jku`, ...), is `binding`; an empty `cnf` is unbound | A proof-of-possession token AFD cannot check must not be accepted as a bearer token |
+| 3.2 rule 11: the certificate | "The TLS client certificate's SHA-256" | The host's TLS layer inserts `ClientCertificate::from_der(der)` into the request's extensions; AFD computes the unpadded base64url SHA-256 itself | The host never hands AFD a thumbprint it encoded |
+| 3.2 rule 12: introspection | Rules 6 to 11 apply | AFD's `check_introspection` applies M3's rules 5 to 10, so `jti` is required in an introspection answer too; an answer that is not an object is `inactive`. `JwtVerifier::with_introspection` sends every non-JWS token to the host's introspection verifier and never a JWS | "Rules 5 to 10 then apply to the response", read literally. Umbel step 2c's verifier calls `check_introspection` |
+| 3.2: the log | "The issuer alias and a rule code" | Each `JwtIssuer` has a required alias (1 to 64 visible ASCII). The rule code is logged at `warn`, target `afd::auth`, as `rule` and `issuer` (`-` before an issuer is known, such as `no-token`); never the `iss` as sent | The `iss` is a claim value and attacker-chosen before routing |
+| 3.2: the token | "The raw token is dropped at the layer" | The bearer layer also removes the `Authorization` header before the MCP service, so the context hook cannot read it; `ContextHookRequest::header("authorization")` is `None` | M2: "the token never goes further than the verifier" |
+| 3.3: the configuration | `BearerLayer { verifier, metadata, resolver, filter_tools_by_scope }` | `Authorization::new(ProtectedResource, impl TokenVerifier)` with `with_required_scopes`, `with_resolver`, `with_filter_tools_by_scope` and `with_max_body_bytes` (1 MiB) goes on `McpServer::with_authorization`; `McpServer::bearer_layer()` builds the `BearerLayer` from it, since the layer must resolve grouped calls as the server's router does. `Authorization::new` refuses a `JwtVerifier` whose resource or bound-token rule differs from the metadata's. The resource and every authorization server must be absolute `https` URLs without user information, query or fragment | One configuration for the layer and the checks after routing; mismatched metadata would point clients at a token the server refuses |
+| 3.3: `KeySource` | `key(issuer, kid) -> Result<Jwk, KeyError>` | As given, with `KeyError::{Unknown, Unavailable}` (`key` and `unavailable`) and `Jwk` as the key's JSON object, so rule 3 reads the members as published. `StaticKeys` serves a fixed JWKS | The `kid` is unverified: Umbel's `KeySource` keeps its once-a-minute refetch limit (3.3) |
+| 3.3, M6: the resolver and `requiredScopes` | The resolver decides "instead of the static rule" | `requiredScopes` apply to every call under a resolver too: missing required scopes come first in `Missing`, and `Defer` never lifts one; `visible` needs them as well | `requiredScopes` are "needed for any request" (the Options table); a resolver that defers must not open the server to callers without them |
+| 3.3, M6: an unresolvable grouped call | `Defer` | Decided as a tool that names no command, under the grouped tool's name (static: `requiredScopes`; resolver: asked with that name), then answered by the router | Deferring would let a caller without the required scopes probe group and action names and read `INVALID_GROUPED_CALL`'s action list |
+| M6: unexposed commands | Unstated | A named command that is unknown or not exposed to MCP has no `scopes` of its own | A 403 must never name a scope of a command the caller cannot see (D4) |
+| M6: listing | `tools/list`, `afd-discover`, `afd-detail`, `afd-help`, grouped actions | Also `afd-docs`, `afd-schema`, and the action list of `INVALID_GROUPED_CALL` and the not-found suggestions | Each describes commands; leaving one out would list what `tools/list` hides |
+| M1, M6: answers off `tools/call` | Unstated | Without verified credentials, `tools/call` is an `UNAUTHORIZED` tool result; `initialize`, `tools/list`, `server/discover`, `resources/*`, the Skills methods and custom requests are JSON-RPC `-32600` with `data.code` `UNAUTHORIZED` (or `INSUFFICIENT_SCOPE` with `data.scopes` for missing required scopes) | A failed list has no `CommandResult` to carry the code |
+| M4: the hook and the actor | "A host maps credentials to actor" | The hook sees the credentials and the default actor; the server restores the verified credentials after it, and the credentials' actor also replaces an actor the hook removes and `McpServer::with_actor` on calls that carry credentials | Only the server sets credentials |
+| M6: the routes | `tools/call`, `/rpc`, `/batch`, `/stream` before dispatch | Rust has no `/sse`, `/message`, `/rpc`, `/batch` or `/stream`: the layer decides a `tools/call` body (and each message of a JSON-RPC batch, one 403 for the whole body); everything else, and any request a host's own layer gives credentials (gateway mode), is decided after routing | Only Streamable HTTP reaches the Rust server |
+| M2: the body | "It already caps the body" | The layer reads at most `max_body_bytes` (413 beyond); a form-encoded body is read before the token to apply M2, any other body only after the token is verified | An unauthenticated caller cannot make the layer buffer a JSON body |
+| M7: other methods | `GET` | Another method on a metadata path is 405 with `Allow: GET` | |
+| Follow-ups: OAuth 2.1 | "Re-read the resource-server sections at step 0b" | Re-read draft 17 (2026-10-31) section 5 on 2026-11-07: clients must not send a token in the query, form bodies are allowed only under conditions and never with `GET`, the resource server must check expiry, audience and scope, and `invalid_request` is suggested as 400. M2's refusals of the query and form body, and its single 401 shape, stay as written: stricter, and decided in step 0a | Closes the follow-up |
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -1697,7 +1735,7 @@ gives the per-command setting a name that does not collide with it.
 | 2026-11-03 | URL-mode elicitation "may change"; re-check at each refresh while the relay depends on it | Phase 5 owning agent |
 | 2026-11-03 | Client support for URL-mode elicitation is not in the extension client matrix | Re-check at step 6 |
 | 2026-11-03 | DPoP (SEP-1932), workload identity (SEP-1933) | W5 |
-| 2026-11-03 | MCP cites OAuth 2.1 draft 13, while draft 17 is current; re-read the resource-server sections at step 0b | Step 0b |
+| 2026-11-03 | MCP cites OAuth 2.1 draft 13, while draft 17 is current; re-read the resource-server sections at step 0b | Closed 2026-11-07 by step 0b ([Amendments from step 0b](#amendments-from-step-0b)) |
 | 2026-11-03 | Several machines behind one URL | Phase 6 |
 | 2026-11-03 | Memory recall's ranking changed (9.2) with no memory retrieval eval | After phase 5 |
 | 2026-11-03 | Plugin `secrets` and `http` grants | The first plugin that needs them |

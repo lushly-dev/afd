@@ -131,9 +131,16 @@ impl RegistryRef {
             None => registry.list(),
         };
         let active = context.active_context();
+        // On a server that filters listings by scope, a command the caller may not see looks
+        // unknown here, as on `tools/list` (`spec/authorization.md`, M6).
+        let visible = context
+            .tool_surface
+            .as_ref()
+            .and_then(|surface| surface.visible.as_ref());
         Ok(commands
             .into_iter()
             .filter(|command| command.is_accessible_in_context(active.as_deref()))
+            .filter(|command| visible.is_none_or(|visible| visible.allows(command)))
             .collect())
     }
 }

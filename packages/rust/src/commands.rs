@@ -23,6 +23,7 @@ use crate::batch::{
 };
 use crate::clock::{Clock, RandomSource, SYSTEM_CLOCK, SYSTEM_RANDOM};
 use crate::context_fields::{apply_context_fields, check_context_fields, ContextField};
+use crate::credentials::Credentials;
 use crate::errors::{error_codes, CommandError};
 use crate::handoff::HandoffCommandLike;
 use crate::journal::{JournalContextState, JournalRecorder};
@@ -404,6 +405,25 @@ pub(crate) struct ToolSurface {
     pub(crate) strategy: &'static str,
     /// The first-class tool names in list order, on a hybrid server.
     pub(crate) first_class_tools: Option<Arc<Vec<String>>>,
+    /// Which commands the caller may see on the describing surfaces (`afd-help`, `afd-docs`,
+    /// `afd-schema`), when the server filters listings by scope (`spec/authorization.md`, M6).
+    pub(crate) visible: Option<Visibility>,
+}
+
+/// A listing filter the MCP server sets for one request: whether the caller may see a command.
+#[derive(Clone)]
+pub(crate) struct Visibility(pub(crate) Arc<dyn Fn(&CommandDefinition) -> bool + Send + Sync>);
+
+impl Visibility {
+    pub(crate) fn allows(&self, command: &CommandDefinition) -> bool {
+        (self.0)(command)
+    }
+}
+
+impl fmt::Debug for Visibility {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Visibility(..)")
+    }
 }
 
 /// Context provided to command handlers.
@@ -436,6 +456,14 @@ pub struct CommandContext {
     /// set, [`CommandRegistry::execute`] reports its kind as `metadata.actorKind` on the
     /// handler's result (never the id).
     pub actor: Option<Actor>,
+
+    /// The verified claims of the request's access token, on a server configured with
+    /// authorization (`spec/authorization.md`, M4; the `server-auth` feature). Only the server
+    /// sets it, from a verified request, never from tool arguments, `_meta` or a header; the
+    /// context hook sees it and cannot change it. In process it is absent unless trusted host
+    /// code sets it ([`CommandContext::with_credentials`]). It never holds the raw token, is not
+    /// journaled, and prints redacted.
+    pub credentials: Option<Arc<Credentials>>,
 
     /// Approval evidence for a command whose approval policy requires it: the
     /// `details.approvalToken` of an `APPROVAL_REQUIRED` result, set by the surface once a human
@@ -488,6 +516,7 @@ impl fmt::Debug for CommandContext {
             .field("timeout_ms", &self.timeout_ms)
             .field("interface", &self.interface)
             .field("actor", &self.actor)
+            .field("credentials", &self.credentials)
             // An approval token is a credential: never print it.
             .field("approval", &self.approval.as_ref().map(|_| "[redacted]"))
             .field("clock", &self.clock.as_ref().map(|_| ".."))
@@ -529,6 +558,13 @@ impl CommandContext {
     /// Set the calling actor.
     pub fn with_actor(mut self, actor: impl Into<Actor>) -> Self {
         self.actor = Some(actor.into());
+        self
+    }
+
+    /// Set the verified credentials of the caller's token. Trusted host code only: commands,
+    /// middleware and scope checks believe them.
+    pub fn with_credentials(mut self, credentials: impl Into<Arc<Credentials>>) -> Self {
+        self.credentials = Some(credentials.into());
         self
     }
 
@@ -781,6 +817,16 @@ pub struct CommandDefinition {
     /// The declared output budget (`spec/output-budgets.md`, B1), `None` for no budget. Checked
     /// when the command is registered.
     pub output_budget: Option<crate::output_budget::OutputBudget>,
+
+    /// The OAuth scopes a caller's token needs to run the command over HTTP on a server
+    /// configured with authorization (`spec/command-metadata.md`, "Scopes";
+    /// `spec/authorization.md`, M6), beside the server's required scopes. Metadata: reported as
+    /// `_meta.scopes` and by `afd-detail`, and enforced only by an authorized HTTP server (the
+    /// `server-auth` feature), unless a host `ScopeResolver` decides instead. stdio, the CLI,
+    /// `DirectClient` and in-process registries ignore it. Each must be a scope token
+    /// ([`is_scope_token`](crate::is_scope_token)); the registry refuses anything else when the
+    /// command is registered. `None` or empty is no scope of its own.
+    pub scopes: Option<Vec<String>>,
 }
 
 impl CommandDefinition {
@@ -816,7 +862,21 @@ impl CommandDefinition {
             approval: None,
             tool_meta: None,
             output_budget: None,
+            scopes: None,
         }
+    }
+
+    /// Declare the OAuth scopes a caller's token needs to run the command on an authorized HTTP
+    /// server (see [`CommandDefinition::scopes`]), compared exactly. Each must be a scope token
+    /// (RFC 6749 3.3); [`CommandRegistry::register`] refuses the command otherwise, naming it and
+    /// the scope.
+    pub fn with_scopes<I, S>(mut self, scopes: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.scopes = Some(scopes.into_iter().map(Into::into).collect());
+        self
     }
 
     /// Declare an output budget (`spec/output-budgets.md`, B1): a result may use `default_bytes`
@@ -1052,12 +1112,14 @@ impl CommandRegistry {
     ///
     /// # Errors
     /// Returns an error if the name is not `domain-action` kebab-case, a
-    /// command with the same name already exists, or an extra `_meta` key of
-    /// [`CommandDefinition::with_tool_meta`] breaks the key rule.
+    /// command with the same name already exists, an extra `_meta` key of
+    /// [`CommandDefinition::with_tool_meta`] breaks the key rule, or a scope of
+    /// [`CommandDefinition::with_scopes`] is not a scope token.
     pub fn register(&self, command: CommandDefinition) -> Result<(), String> {
         validate_command_name(&command.name)?;
         validate_tool_meta(&command)?;
         validate_output_budget(&command)?;
+        validate_scopes(&command)?;
         for parameter in &command.parameters {
             if let Some(schema) = &parameter.schema {
                 crate::validation::validate_schema_definition(
@@ -1099,6 +1161,7 @@ impl CommandRegistry {
         validate_command_name(&command.name)?;
         validate_tool_meta(&command)?;
         validate_output_budget(&command)?;
+        validate_scopes(&command)?;
         let mut commands = write_lock(&self.commands);
         if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
@@ -1147,7 +1210,8 @@ impl CommandRegistry {
     ///
     /// The tool carries the command's `title` only when it sets one, and its `_meta` the approval
     /// mode, the output budget declaration (`dev.afd/outputBudget`: `{ defaultBytes,
-    /// maxBytes }`) and the extra tool `_meta` entries, each only when set.
+    /// maxBytes }`), the `scopes` (when not empty) and the extra tool `_meta` entries, each only
+    /// when set.
     ///
     /// A command with `mutation: true` also carries MCP `annotations`
     /// (`readOnlyHint: false`, `destructiveHint` from `destructive`; `spec/command-metadata.md`). `mutation`
@@ -1179,6 +1243,14 @@ impl CommandRegistry {
             }
             tool["_meta"][crate::output_budget::AFD_OUTPUT_BUDGET_META_KEY] =
                 serde_json::json!(budget);
+        }
+        // The scopes the command needs (`spec/command-metadata.md`, "Scopes"); `_meta` omits an
+        // empty array.
+        if let Some(scopes) = command.scopes.as_ref().filter(|scopes| !scopes.is_empty()) {
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            tool["_meta"]["scopes"] = serde_json::json!(scopes);
         }
         // The key rule keeps these from replacing any entry the server sets.
         if let Some(extra) = command.tool_meta.as_ref().filter(|extra| !extra.is_empty()) {
@@ -1943,6 +2015,20 @@ fn validate_output_budget(command: &CommandDefinition) -> Result<(), String> {
             .map_err(|reason| format!("Command '{}': {reason}", command.name)),
         None => Ok(()),
     }
+}
+
+/// Refuse a command whose `scopes` hold something that is not a scope token, naming the command
+/// and the scope (`spec/command-metadata.md`, "Scopes").
+fn validate_scopes(command: &CommandDefinition) -> Result<(), String> {
+    for scope in command.scopes.iter().flatten() {
+        if !crate::credentials::is_scope_token(scope) {
+            return Err(format!(
+                "Command '{}': scope {scope:?} is not an OAuth scope token (one or more visible ASCII characters other than '\"' and '\\', RFC 6749 3.3)",
+                command.name
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Refuse a command whose extra tool `_meta` breaks the key rule, naming the command and the key.

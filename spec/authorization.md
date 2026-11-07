@@ -61,7 +61,8 @@ metadata.
 
 The token never goes further than the verifier. No command, middleware, journal entry, log line,
 task record, telemetry event or error message receives it, and debug output prints `[redacted]`
-for it.
+for it. The HTTP layer removes the `Authorization` header before the request reaches the MCP
+service, so not even a host's context hook can read it.
 
 ## M3. Token verification
 
@@ -74,8 +75,11 @@ library whose defaults are weaker (for example, `jsonwebtoken` 11.1 does not che
    `iss` must name a configured JWT issuer exactly, else `unknown-issuer`. Any other token goes to
    the one introspection issuer, if one is configured, else `unknown-issuer`. A token is never sent
    to an issuer that did not issue it, so an opaque token never transits elsewhere (MCP: servers
-   "MUST NOT accept or transit any other tokens").
-2. **Header** (RFC 9068 2.1, RFC 7515 4.1, RFC 8725 3.11), in this order:
+   "MUST NOT accept or transit any other tokens"). A JWS whose payload is not one JSON object with
+   unique member names names no issuer: `unknown-issuer` (RFC 7519 4: a repeated claim is refused,
+   never read as its last value).
+2. **Header** (RFC 9068 2.1, RFC 7515 4.1, RFC 8725 3.11), in this order (a header that is not one
+   JSON object with unique member names fails the first):
    - `typ` is `at+jwt` or `application/at+jwt`, compared ignoring ASCII case: else `typ`.
    - `alg` is in the issuer's algorithm list. `none` and every `HS*` algorithm are always refused,
      whatever the list says: else `alg`.
@@ -83,12 +87,14 @@ library whose defaults are weaker (for example, `jsonwebtoken` 11.1 does not che
    - No `crit` member, since no extension is understood (RFC 7515 4.1.11): else `crit`.
    - No `jku`, `x5u`, `x5c` or `jwk` member: else `key-reference`. Keys come only from the
      configured issuer.
-3. **Key.** The issuer's key set holds a key with that `kid`, and it fits the header: its `kty`
+3. **Key.** The issuer's key set holds a key with that `kid` (the key's own `kid` equal to the
+   header's), and it fits the header: its `kty`
    is the `alg`'s family (`RSA` for `RS*` and `PS*`; `EC` for `ES*`, with `crv` `P-256`, `P-384`
    or `P-521` for `ES256`, `ES384` or `ES512`, RFC 7518 3.4; `OKP` with `crv` `Ed25519` or `Ed448`
    for `EdDSA`, RFC 8037 3.1); its `alg`, when present, equals the header's; its `use`, when
    present, is `sig`; its `key_ops`, when present, contain `verify` (RFC 7517 4.2 to 4.4). Else
-   `key`. The host fetches keys (`KeySource`); AFD opens no socket. A key source that cannot answer
+   `key`, as for key material the verifier cannot use (a coordinate of the wrong length, a curve it
+   does not implement). The host fetches keys (`KeySource`); AFD opens no socket. A key source that cannot answer
    refuses with `unavailable`.
 4. **Signature** under that key: else `signature`.
 5. **Issuer.** `iss` equals the issuer's configured string exactly: else `issuer`.
@@ -108,6 +114,8 @@ library whose defaults are weaker (for example, `jsonwebtoken` 11.1 does not che
       bearer token.
     - With `cnf["x5t#S256"]` (RFC 8705 3.1), the TLS client certificate's SHA-256 thumbprint must
       equal it: else `binding`.
+    - A `cnf` that is not an object, or that holds a confirmation method other than `x5t#S256`
+      (and `jkt`, refused above), is refused with `binding`: the server could prove no other.
     - Without one, a server configured to require bound tokens refuses the token with `binding`.
 
 **Introspection** (RFC 7662), for the one issuer configured for it, replaces rules 2 to 4. The
@@ -245,6 +253,9 @@ ScopeResolver
     visible(command, credentials) -> bool          // tools/list, afd-discover and the other listings
 ```
 
+- `requiredScopes` still apply to every call: a call missing one is `Missing` with the required
+  scopes not held first, then the resolver's, whatever the resolver answers, so `Defer` never lifts
+  a missing required scope. `visible` likewise holds only with `requiredScopes`.
 - `Missing(scopes)` names the scopes the call lacks, in the resolver's order.
 - `Defer` lets the call through, so the registry answers it. A host uses it when naming a scope
   would reveal something, for example a space the caller may not read (Umbel phase 5, section
@@ -254,8 +265,13 @@ ScopeResolver
 ### Which commands a request names
 
 - A command's own tool, a hybrid first-class tool, and a grouped tool's action: that command. A
-  grouped action is resolved as the router would; one it cannot resolve is `Defer` (the router
-  answers `COMMAND_NOT_FOUND`).
+  grouped action is resolved as the router would; a grouped call it cannot resolve (no action, or
+  an unknown or ambiguous one) is decided as a tool that names no command, under the grouped tool's
+  name, so it still needs `requiredScopes`; the router then answers it (`COMMAND_NOT_FOUND`,
+  `AMBIGUOUS_ACTION` or `INVALID_GROUPED_CALL`).
+- A command the request names that is unknown, or not exposed to MCP, has no `scopes` of its own,
+  so a scope never reveals a command the caller cannot see
+  ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)).
 - `afd-call`: the command it names, with its `input`.
 - `afd-batch` and `afd-pipe`: every step's command, with its input. A pipeline step's input is
   resolved with its references unresolved, as sent.
@@ -280,7 +296,7 @@ routing.
 
 After the context hook and before the confirmation gate, the server repeats the decision for every
 call that carries credentials. `Missing` fails the call with `INSUFFICIENT_SCOPE`
-([error codes](./error-codes.md#specified-not-yet-in-the-catalog)), `retryable: false`,
+([error codes](./error-codes.md#authorization)), `retryable: false`,
 `details.scopes` holding the missing scopes, and a suggestion to obtain a token that grants them.
 A batch or pipeline fails as a whole before its first step, as a confirmation does. `Defer`
 proceeds. So a missing scope never reaches a handler, whichever lane carried the call, and no
@@ -288,8 +304,8 @@ person is asked to confirm a call that cannot run.
 
 ### Listing
 
-With `filterToolsByScope` (default off, A6), `tools/list`, `afd-discover`, `afd-detail`, `afd-help`
-and a grouped tool's actions show only commands for which `visible` holds (under the static rule:
+With `filterToolsByScope` (default off, A6), `tools/list`, `afd-discover`, `afd-detail`, `afd-help`,
+`afd-docs`, `afd-schema` and a grouped tool's actions show only commands for which `visible` holds (under the static rule:
 the credentials hold every scope the command needs). A grouped tool with no visible action is left
 out. The meta-tools stay listed. A hidden command looks unknown on these surfaces, as an unexposed
 one does ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)). Calls are still decided only
@@ -421,10 +437,17 @@ The file's sections and what a loader checks:
 
 ## Implementation status
 
+Rust serves MCP on Streamable HTTP and stdio only: it has no `/sse`, `/message`, `/rpc`, `/batch` or
+`/stream` route, so its bearer layer decides `tools/call` bodies before dispatch and the server
+decides every other call after routing. `tests/authorization_cases.rs` loads every case of
+`authorization.json`; `tests/auth_verifier.rs` holds one test per rule of M3 with keys generated in
+the test (RSA, EC P-256 and P-384, Ed25519), `tests/server_auth.rs` the layer end to end, and
+`tests/auth_canary.rs` the token canary over every log line.
+
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Bearer token, verification, audience, credentials (M1 to M4) | Planned | Planned | Planned (Umbel phase 5 step 0b) | N/A: no HTTP server |
-| 401 and 403, rule codes (M5) | Planned | Planned | Planned (step 0b) | N/A |
-| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Planned (step 0b) | N/A |
-| Protected-resource metadata (M7) | Planned | Planned | Planned (step 0b) | N/A |
+| Bearer token, verification, audience, credentials (M1 to M4) | Planned | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
+| 401 and 403, rule codes (M5) | Planned | Planned | Yes (step 0b) | N/A |
+| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
+| Protected-resource metadata (M7) | Planned | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Planned (step 0c) | Planned (step 0c) | Planned (step 0c) | N/A: no confirmation gate |

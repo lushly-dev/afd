@@ -98,8 +98,16 @@ scope filtering. The MCP Authorization and MCP Tasks proposals move to `docs/fea
 additive and `VERSION` does not change: no existing fixture, vector or wire field changes, and
 nothing changes for a server that does not opt in, except that #532 refuses a confirmation state
 presented by another principal, which was a defect. Its cases are in `authorization.json`, which stays beside
-`vectors/` because no language loads it yet and C++ has no HTTP server. No language implements any of
-it yet.
+`vectors/` because only Rust loads it and C++ has no HTTP server. Rust implements M1 to M7 (Umbel
+phase 5 step 0b, the `server-auth` feature) and loads every case, and that pull request adds
+`INSUFFICIENT_SCOPE` to the shared catalog, `vectors/error-codes.json` (now 47 codes) and the
+constants in all four languages, a minor contract change; TypeScript and Python implement nothing
+else yet. Step 0b also settles six readings in `authorization.md`, each the stricter one and none
+changing a case: the HTTP layer strips the `Authorization` header; a JOSE header or claims set with
+a repeated member name is refused; the key's own `kid` must match and unusable key material is
+`key`; a `cnf` other than `x5t#S256` or `jkt` is `binding`; `requiredScopes` apply under a resolver
+and an unresolvable grouped call is decided under the group's name rather than deferred, with
+unexposed commands naming no scope; and `afd-docs` and `afd-schema` are filtered too.
 
 [`plugin-manifest.md`](./plugin-manifest.md) specifies the shared plugin manifest (Loam D58): core
 version 1, JSON Schema `$defs` with every object left open and reserved keys refused, and the contract

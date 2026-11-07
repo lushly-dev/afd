@@ -327,6 +327,10 @@ pub mod error_codes {
     /// (`spec/output-budgets.md`, B5): a read fails with it, a mutation keeps its result and
     /// carries it as a warning's code.
     pub const OUTPUT_BUDGET_EXCEEDED: &str = "OUTPUT_BUDGET_EXCEEDED";
+    /// The caller's token lacks a scope the call needs, found after routing
+    /// (`spec/authorization.md`, M6): `details.scopes` lists every missing scope. Over HTTP the
+    /// same case is usually an HTTP 403 before dispatch instead.
+    pub const INSUFFICIENT_SCOPE: &str = "INSUFFICIENT_SCOPE";
 }
 
 /// Standard error code alias for parity with other AFD implementations.

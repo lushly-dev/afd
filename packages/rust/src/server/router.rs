@@ -27,12 +27,14 @@ use rmcp::{ErrorData, RoleServer};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
+use crate::commands::Visibility;
 use crate::contexts::{not_in_context_error, ContextScope};
 use crate::{
     error_codes, execute_pipeline, failure, BatchRequest, CommandContext, CommandDefinition,
     CommandError, CommandExecutor, CommandResult, PipelineRequest,
 };
 
+use super::authz;
 use super::confirmations::{self, Acknowledgement, Decision, Step};
 use super::context_hook;
 use super::meta_argument;
@@ -158,6 +160,8 @@ pub(crate) struct Call<'a> {
     scope: Option<ContextScope>,
     /// The hook's context, with the server's invariants (see the module docs).
     base: CommandContext,
+    /// The listing filter of an authorized caller (`spec/authorization.md`, M6, "Listing").
+    visible: Option<Visibility>,
 }
 
 impl Call<'_> {
@@ -165,14 +169,22 @@ impl Call<'_> {
         self.scope.as_ref().and_then(ContextScope::active)
     }
 
-    /// MCP-exposed commands in the active context.
+    /// MCP-exposed commands in the active context that the caller may see.
     fn callable(&self) -> Vec<Arc<CommandDefinition>> {
         let active = self.active();
         self.server
             .exposed_commands()
             .into_iter()
             .filter(|command| command.is_accessible_in_context(active.as_deref()))
+            .filter(|command| self.shows(command))
             .collect()
+    }
+
+    /// Whether a listing shows `command` to this caller.
+    fn shows(&self, command: &CommandDefinition) -> bool {
+        self.visible
+            .as_ref()
+            .is_none_or(|visible| visible.allows(command))
     }
 
     /// The MCP-exposed command named `name`.
@@ -200,7 +212,9 @@ impl Call<'_> {
     fn execution_context(&self) -> CommandContext {
         let mut context = self.base.clone();
         context.context_scope = self.scope.clone();
-        context.tool_surface = Some(self.server.tool_surface());
+        let mut surface = self.server.tool_surface();
+        surface.visible = self.visible.clone();
+        context.tool_surface = Some(surface);
         context
     }
 
@@ -503,6 +517,7 @@ impl Call<'_> {
         }
         let actions: Vec<String> = members
             .iter()
+            .filter(|command| self.shows(command))
             .map(|command| command_action(command))
             .collect();
         Some(refused(
@@ -581,6 +596,12 @@ pub(crate) async fn route(
     context: &RequestContext<RoleServer>,
 ) -> Result<CallToolResponse, ErrorData> {
     let name = request.name.as_ref();
+    // M1: on a server with authorization, an HTTP request the bearer layer did not verify is
+    // refused before anything else runs.
+    let credentials = match authz::call_credentials(server, context) {
+        Ok(credentials) => credentials,
+        Err(error) => return refused(*error),
+    };
     // A meta-tool's `meta` argument counts as `_meta` from here on, for the hook, the active
     // context and the declared context fields alike (TypeScript lifts it first too).
     let keys = meta_argument::meta_argument_keys(&server.inner.registry.context_fields());
@@ -608,12 +629,21 @@ pub(crate) async fn route(
     };
     // The hook runs before anything else but that, so a refused caller reaches neither a confirmation
     // prompt nor the unknown-tool answer.
-    let base = server
+    let mut base = server
         .base_context()
         .with_trace_id(trace_id(trace_prefix(server, name)));
+    // Verified credentials (`spec/authorization.md`, M4): the hook sees them and the actor they
+    // map to by default, `{ kind: "agent", id: <clientId>, onBehalfOf: <subject> }`, which also
+    // replaces an actor the hook removes.
+    let mut defaults = server.inner.context_defaults.clone();
+    if let Some(credentials) = &credentials {
+        base.credentials = Some(Arc::clone(credentials));
+        base.actor = Some(credentials.default_actor());
+        defaults.actor = Some(credentials.default_actor());
+    }
     let mut base = match context_hook::build_context(
         server.inner.context_hook.as_ref(),
-        &server.inner.context_defaults,
+        &defaults,
         name,
         context,
         base,
@@ -623,6 +653,19 @@ pub(crate) async fn route(
         Ok(base) => base,
         Err(error) => return refused(*error),
     };
+    // Only the server sets credentials, from the verified request: the hook cannot add, change
+    // or drop them.
+    base.credentials = credentials;
+    // M6 after routing: every call that carries credentials is decided again, after the hook and
+    // before the confirmation gate, so a missing scope reaches neither a handler nor a person.
+    let args = request.arguments.clone().unwrap_or_default();
+    if let Some(error) = authz::call_refusal(server, name, &args, base.credentials.as_deref()) {
+        return match name {
+            "afd-batch" => batch_failure(error),
+            "afd-pipe" => tool_result(&pipeline_failure(&error), true),
+            _ => refused(error),
+        };
+    }
     // The declared context fields from `_meta`, after the hook so a name it set wins. `rmcp`
     // moves `params._meta` into the request context on both eras and both transports.
     context_hook::add_declared_fields(
@@ -631,14 +674,15 @@ pub(crate) async fn route(
         &mut base,
     );
     let scope = server.request_scope(context)?;
+    let visible = authz::visibility(server, base.credentials.as_ref());
     let call = Call {
         server,
         request,
         context,
         scope,
         base,
+        visible,
     };
-    let args = request.arguments.clone().unwrap_or_default();
     match name {
         "afd-call" => call.afd_call(&args).await,
         "afd-discover" => call.afd_discover(&args),

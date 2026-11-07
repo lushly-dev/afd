@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `ErrorCodes.INSUFFICIENT_SCOPE`, the shared catalog's 47th code (`spec/error-codes.md`, `spec/vectors/error-codes.json`), specified by `spec/authorization.md` (M6) and emitted by the Rust server first (Umbel phase 5 step 0b). Python does not implement MCP authorization yet; the parity matrix tracks it.
 - `ErrorCodes.OUTPUT_BUDGET_EXCEEDED`, the shared catalog's 46th code (`spec/error-codes.md`, `spec/vectors/error-codes.json`), specified by `spec/output-budgets.md` and emitted by the Rust engine first. Python does not implement output budgets yet; the parity matrix tracks it.
 
 - **Command `title`** (`spec/command-metadata.md`, "Tool titles", #466): an optional display label on `CommandDefinition`, `@server.command(title=...)` and the decorators. A command's own MCP tool (individual, and first-class under hybrid) carries it as the tool `title`, afd-detail reports it, and afd-help reports it in the `full` format; nothing is derived from the name, and it never appears in `_meta`. The five meta-tools carry the fixed titles of `spec/meta-tools.json`.

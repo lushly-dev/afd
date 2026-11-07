@@ -105,6 +105,8 @@ inline constexpr char CONFIRMATION_DECLINED[] = "CONFIRMATION_DECLINED";
 inline constexpr char APPROVAL_REQUIRED[] = "APPROVAL_REQUIRED";
 // Output budgets
 inline constexpr char OUTPUT_BUDGET_EXCEEDED[] = "OUTPUT_BUDGET_EXCEEDED";
+// Authorization
+inline constexpr char INSUFFICIENT_SCOPE[] = "INSUFFICIENT_SCOPE";
 } // namespace error_codes
 
 /// `{code, message}` plus any of `options`.
