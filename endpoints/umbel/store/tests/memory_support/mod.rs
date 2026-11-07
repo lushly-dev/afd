@@ -9,7 +9,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use umbel_store::memory::{
     BackupReceipt, ClassCounts, Confirm, EntryReceipt, EntryState, ForgetReceipt, HOUR_MS,
@@ -41,7 +42,9 @@ pub(crate) enum MemoryFault {
     ForgetKeepsText,
     /// `forget` deletes the rows and keeps the key.
     ForgetKeepsKey,
-    /// The quota is checked, the lock released, and the write made under a second lock.
+    /// The quota is checked, the lock released, and the write made under a second lock. Between
+    /// the two, a writer waits for another to check too (see `Gap`), so two writers always both
+    /// pass the check before either writes and the race is lost every time, not by luck.
     QuotaOutsideTransaction,
     /// A `+` term is treated as a plain one.
     RequiredIsOptional,
@@ -310,6 +313,50 @@ fn past_purge(rec: &Rec, retention: Retention, now: Millis) -> bool {
 pub(crate) struct FakeMemory {
     fault: MemoryFault,
     state: Mutex<State>,
+    gap: Mutex<Gap>,
+    met: Condvar,
+}
+
+/// How long a checked writer waits for a partner while it has never seen one.
+const ALONE: Duration = Duration::from_millis(50);
+/// How long it waits once two writers have been inside `write` at the same time.
+const PAIRED: Duration = Duration::from_secs(5);
+
+/// Where `QuotaOutsideTransaction`'s writers meet between the check and the write. A writer that
+/// has passed the check waits until another writer passes it too, then both write: every round
+/// checks the same state twice, so two writers at the limit both get in. A lone writer waits
+/// only `ALONE`, so the single-writer cases stay quick.
+#[derive(Default)]
+struct Gap {
+    /// Writers inside the faulty write.
+    inside: usize,
+    /// Two writers have been inside at once.
+    paired: bool,
+    /// A checked writer is waiting for a partner.
+    waiting: bool,
+    /// Bumped when a partner arrives, which releases the waiting writer.
+    round: u64,
+}
+
+/// Counts a writer inside the faulty write until it returns.
+struct Inside<'a>(&'a FakeMemory);
+
+impl<'a> Inside<'a> {
+    fn enter(fake: &'a FakeMemory) -> Self {
+        let mut gap = locked(&fake.gap);
+        gap.inside += 1;
+        if gap.inside > 1 && !gap.paired {
+            gap.paired = true;
+            fake.met.notify_all();
+        }
+        Self(fake)
+    }
+}
+
+impl Drop for Inside<'_> {
+    fn drop(&mut self) {
+        locked(&self.0.gap).inside -= 1;
+    }
 }
 
 static REGISTRY: Mutex<BTreeMap<PathBuf, Arc<FakeMemory>>> = Mutex::new(BTreeMap::new());
@@ -330,6 +377,8 @@ pub(crate) fn memory_factory(
                 Arc::new(FakeMemory {
                     fault,
                     state: Mutex::new(State::default()),
+                    gap: Mutex::new(Gap::default()),
+                    met: Condvar::new(),
                 })
             })
             .clone();
@@ -357,6 +406,31 @@ pub(crate) fn memory_restore(dir: &Path, _space: &str, backup: &Path) -> Result<
 impl FakeMemory {
     fn lock(&self) -> MutexGuard<'_, State> {
         locked(&self.state)
+    }
+
+    /// Wait, between the check and the write, for another writer to pass the check (`Gap`).
+    fn meet(&self) {
+        let mut gap = locked(&self.gap);
+        if gap.waiting {
+            gap.waiting = false;
+            gap.round += 1;
+            self.met.notify_all();
+            return;
+        }
+        gap.waiting = true;
+        let (round, start) = (gap.round, Instant::now());
+        while gap.round == round {
+            let limit = if gap.paired { PAIRED } else { ALONE };
+            let Some(left) = limit.checked_sub(start.elapsed()).filter(|d| !d.is_zero()) else {
+                gap.waiting = false;
+                return;
+            };
+            gap = self
+                .met
+                .wait_timeout(gap, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
     }
 
     /// The state, provisioned, or `NotProvisioned`.
@@ -686,6 +760,7 @@ impl MemoryStore for FakeMemory {
             state.purge(batch.at, batch.retention, PURGE_BEFORE_WRITE);
         }
         if self.fault == MemoryFault::QuotaOutsideTransaction {
+            let _inside = Inside::enter(self);
             {
                 let state = self.lock();
                 let mut staged = state.clone();
@@ -694,7 +769,7 @@ impl MemoryStore for FakeMemory {
                     return Err(e);
                 }
             }
-            std::thread::sleep(std::time::Duration::from_millis(2));
+            self.meet();
             let mut state = self.lock();
             let mut staged = state.clone();
             let receipt = self.apply(&mut staged, &batch, &owner, authority, &hashes)?;

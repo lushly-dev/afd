@@ -705,11 +705,11 @@
       "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
-      "current_import_sha256": "09eccc87cef84fde1a91f23a9c56d8f051777a29685b213b58e825ef23e19171",
+      "current_import_sha256": "d52907ed894df8dcdac14a3ff18f594ef29dbccd12cfd0d4cf0862a1125e0740",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af)"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; scripts call each other with pnpm run instead of npm run, and start vite and playwright from their bins instead of npx, so a run under pnpm does not print npm's unknown-config warnings (npm's next major version rejects that config); test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -717,11 +717,11 @@
       "upstream_sha256": "6444c8435ef3362361fe6b930fc400bf3a596567e2ea928aaf55c585ce2c6b8b",
       "staged_path": "packages/element/packages/fast-element/playwright.config.ts",
       "staged_sha256": "6444c8435ef3362361fe6b930fc400bf3a596567e2ea928aaf55c585ce2c6b8b",
-      "current_import_sha256": "6444c8435ef3362361fe6b930fc400bf3a596567e2ea928aaf55c585ce2c6b8b",
+      "current_import_sha256": "fbf84b08082a2d65edf17c891b922e4cc28bfe663d6cac62603a693a1379be28",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "The Playwright web server starts with pnpm run instead of npm run, so a run under pnpm does not print npm's unknown-config warnings; otherwise imported exact staged bytes"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.declarative.config.ts",
@@ -729,11 +729,11 @@
       "upstream_sha256": "4af26a7d0c1e5650be756de0c2123c3e89b3345d056ea2f13c130d5e3f0edd79",
       "staged_path": "packages/element/packages/fast-element/playwright.declarative.config.ts",
       "staged_sha256": "4af26a7d0c1e5650be756de0c2123c3e89b3345d056ea2f13c130d5e3f0edd79",
-      "current_import_sha256": "4af26a7d0c1e5650be756de0c2123c3e89b3345d056ea2f13c130d5e3f0edd79",
+      "current_import_sha256": "fd734007867e78dd1c34a5e0017db6814f731b35d5f12b6da51c7236767c61b1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "The Playwright web server starts with pnpm run instead of npm run, so a run under pnpm does not print npm's unknown-config warnings; otherwise imported exact staged bytes"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.declarative.webui.config.ts",
@@ -741,11 +741,11 @@
       "upstream_sha256": "a403eb1323af4f8f62d678e6fb038ab229d882b8a2805d968d75e1a20be15a8b",
       "staged_path": "packages/element/packages/fast-element/playwright.declarative.webui.config.ts",
       "staged_sha256": "a403eb1323af4f8f62d678e6fb038ab229d882b8a2805d968d75e1a20be15a8b",
-      "current_import_sha256": "a403eb1323af4f8f62d678e6fb038ab229d882b8a2805d968d75e1a20be15a8b",
+      "current_import_sha256": "d70a186091e8fd4aaf5e284264fe7c1b004b654c7f5ea0a31c7c74434a3d1204",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "The Playwright web server starts with pnpm run instead of npm run, so a run under pnpm does not print npm's unknown-config warnings; otherwise imported exact staged bytes"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/rollup.config.js",

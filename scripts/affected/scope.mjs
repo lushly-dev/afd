@@ -5,7 +5,8 @@
  * A changed file affects:
  *   - every package whose directory contains it;
  *   - every package under the same unit root when it lies outside any package (for example
- *     foundations/violet/tsconfig.json affects both Violet packages);
+ *     foundations/violet/tsconfig.json affects both Violet packages), except under the unit's
+ *     docs/ directory (endpoints/loam/docs/STATUS.md affects none), which no package reads;
  *   - the packages listed in EXTRA_INPUTS for shared inputs read from outside a package;
  *   - via pnpm-lock.yaml, the importers whose resolved dependency closure changed.
  * Dependents of affected packages are affected too; builds also include their dependencies.
@@ -80,6 +81,8 @@ function readLockfile(git, root, base) {
 
 /** The unit root of a path: its first two segments (packages/core, foundations/violet, ...). */
 const unitRoot = (path) => path.split('/').slice(0, 2).join('/');
+/** A unit's own documentation (endpoints/loam/docs/...): prose no package build or test reads. */
+const unitDocs = (path) => path.split('/')[2] === 'docs';
 
 const inside = (path, dir) => path === dir || path.startsWith(`${dir}/`);
 
@@ -144,7 +147,8 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		let owners = packages.filter((pkg) => inside(file, pkg.dir));
 		if (owners.length === 0) {
 			const unit = unitRoot(file);
-			if (unit !== file) owners = packages.filter((pkg) => inside(pkg.dir, unit));
+			if (unit !== file && !unitDocs(file))
+				owners = packages.filter((pkg) => inside(pkg.dir, unit));
 		}
 		for (const pkg of owners) mark(pkg.name, file);
 		for (const input of EXTRA_INPUTS.filter((extra) => file.startsWith(extra.prefix)))

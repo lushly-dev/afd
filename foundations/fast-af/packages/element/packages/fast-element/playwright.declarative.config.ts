@@ -19,7 +19,7 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: "npm run test-server:declarative",
+        command: "pnpm run test-server:declarative",
         port: 5174,
         reuseExistingServer: true,
     },
