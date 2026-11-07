@@ -61,7 +61,7 @@ The description is how agents choose a skill, and every description in a reposit
 - Dated version, model or price tables.
 
 **Sources and helpers**
-- For facts that change, point at their single source (a command such as `pnpm verify`, a spec, a generated file) rather than copying them.
+- For facts that change, point at their single source (the command that checks them, a spec, a generated file) rather than copying them.
 - Put deterministic work (parsing, counting, validation) in scripts. Print results to stdout and recovery advice to stderr.
 
 ## Check that it earns its place

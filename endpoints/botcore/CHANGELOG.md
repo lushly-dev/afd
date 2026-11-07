@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **skill-manager** no longer names AFD's `pnpm verify` as its example of a single source, so seeded
+  copies don't cite a command a consuming repository lacks.
+
 ## [0.6.0] - 2026-11-07
 
 The first release published from lushly-dev/afd (`publish-botcore.yml`); 0.5.0 and earlier
