@@ -380,6 +380,99 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		expect(heard.length).toBe(count);
 	});
 
+	it("P2-D5: a server's document-open into an empty area main shows activates its tab, and the URL follows it", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { kernel } = workspace;
+		await kernel.call('section-open', { section: 'documents' });
+		const note = (
+			await kernel.call<{ id: string }>('document-create', { type: 'probe', title: 'Only' })
+		).data?.id as string;
+		const heard: KernelEventV2[] = [];
+		kernel.subscribe((event) => heard.push(event));
+		const client = await connect(await serve(workspace), mode);
+		await client.call(
+			'document-open',
+			{ document: note },
+			{ 'dev.loam/scope': { workspace: 'personal' } }
+		);
+		expect(heard.at(-1)).toMatchObject({ command: 'document-open', mainChanged: 'replace' });
+		expect((await kernel.call('section-get')).data).toMatchObject({
+			section: 'documents',
+			path: note,
+		});
+	});
+
+	it("P2-D5: a server's trash or move of a document with an unsaved tab is refused, and so is its marking that tab saved", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { kernel } = workspace;
+		const note = (
+			await kernel.call<{ id: string }>('document-create', { type: 'probe', title: 'Drafted' })
+		).data?.id as string;
+		await kernel.call('document-open', { document: note });
+		await kernel.call('editor-dirty-set', { tab: 't1', dirty: true });
+		const client = await connect(await serve(workspace), mode);
+		const at = { 'dev.loam/scope': { workspace: 'personal' } };
+		for (const [name, input] of [
+			['document-trash', { document: note }],
+			['document-move', { document: note, project: 'atlas' }],
+			['editor-dirty-set', { tab: 't1', dirty: false }],
+		] as const) {
+			const refused = await client.call(name, input, at);
+			expect(refused.error?.code, name).toBe('EDITOR_TAB_DIRTY');
+			expect(refused.error?.suggestion, name).toContain('probe-content-set');
+		}
+		expect((await kernel.call('document-get', { document: note })).data).toMatchObject({
+			status: 'active',
+			scope: { workspace: 'personal' },
+		});
+		const editor = await kernel.call<{ groups: Array<{ tabs: Array<{ dirty: boolean }> }> }>(
+			'editor-get'
+		);
+		expect(editor.data?.groups[0]?.tabs[0]?.dirty).toBe(true);
+	});
+
+	it("emits nothing to the page of a server's mutation in a project the page's actor may not enter", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { kernel } = workspace;
+		// Signed out, the page's actor is `local`, as a server's is: a project only `local` may enter.
+		const hidden = await kernel.call<{ id: string }>('project-create', {
+			name: 'Local only',
+			access: { mode: 'restricted', members: ['local'] },
+		});
+		expect(hidden.success, JSON.stringify(hidden.error)).toBe(true);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		const heard: KernelEventV2[] = [];
+		kernel.subscribe((event) => heard.push(event));
+		const client = await connect(await serve(workspace), mode);
+		const made = await client.call<{ id: string }>(
+			'document-create',
+			{ type: 'probe', title: 'Unseen' },
+			{ 'dev.loam/scope': { workspace: 'personal', project: hidden.data?.id } }
+		);
+		expect(made.success, JSON.stringify(made)).toBe(true);
+		expect(heard).toEqual([]);
+		// One in the workspace, which the person may enter, is heard.
+		await client.call(
+			'document-create',
+			{ type: 'probe', title: 'Seen' },
+			{ 'dev.loam/scope': { workspace: 'personal' } }
+		);
+		expect(heard.map((event) => event.command)).toEqual(['document-create']);
+	});
+
 	it("never moves a person's active scope: a server's call has no active scope", async () => {
 		const workspace = await createScopedWorkspace();
 		const { kernel } = workspace;

@@ -560,6 +560,54 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	});
 
+	it("P2-D5: an agent's trash or move of an open note with unsaved text is refused, the text kept, and once the person saves, the trash runs", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const note = await createNote(page, 'Kept');
+		await open(page, note);
+		// Within autosave's 2,000 ms, so the text is held by the editor alone.
+		await typeInto(page, 't1', 'Not to be lost');
+		for (const [name, input] of [
+			['document-trash', { document: note }],
+			['document-move', { document: note, project: 'atlas' }],
+			['editor-dirty-set', { tab: 't1', dirty: false }],
+		] as const) {
+			const refused = (await agentCall(page, name, input)) as { error?: { code: string } };
+			expect(refused.error?.code, name).toBe('EDITOR_TAB_DIRTY');
+		}
+		expect((await editorView(page))?.[0]?.editors.find((each) => !each.hidden)?.text).toBe(
+			'Not to be lost'
+		);
+		// The person saves, and then the trash runs; restored, the note holds the text.
+		await page.keyboard.press('ControlOrMeta+s');
+		await expect.poll(() => stored(page, note)).toBe('Not to be lost');
+		await expect.poll(() => tabName(page)).toBe('Kept');
+		expect(
+			((await agentCall(page, 'document-trash', { document: note })) as { success: boolean })
+				.success
+		).toBe(true);
+		await kernelCall(page, 'document-restore', { document: note });
+		expect(await stored(page, note)).toBe('Not to be lost');
+		// An agent's close with discard: true keeps the mark: the editor saves, its save clears the mark from the
+		// person's page, and only then does a trash run.
+		await open(page, note);
+		await textOf(page, 't2').click();
+		await page.keyboard.press('ControlOrMeta+End');
+		await page.keyboard.type(', twice');
+		await agentCall(page, 'editor-close', { tab: 't2', discard: true });
+		await expect.poll(() => stored(page, note), { timeout: 1500 }).toBe('Not to be lost, twice');
+		await expect
+			.poll(
+				async () =>
+					((await agentCall(page, 'document-trash', { document: note })) as { success: boolean })
+						.success
+			)
+			.toBe(true);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
 	it('P2-D5: a tab’s type icon is blank until the app surfaces register the icons, then drawn', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;

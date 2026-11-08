@@ -424,9 +424,14 @@ export interface Editors {
 	peek(project: string | undefined): EditorStateV1 | undefined;
 	/** Write a registered record. A state the validator refuses is a bug here, so it throws. */
 	put(project: string | undefined, state: EditorStateV1): void;
-	/** `DirtyTabsV1`: whether a tab holds an unsaved change, by its record and id. */
+	/**
+	 * `DirtyTabsV1`: whether a tab holds an unsaved change, by its record and id. A mark outlives a tab
+	 * another's call closed, until the chrome's save of its editor clears it (Status deviation 16).
+	 */
 	dirty(project: string | undefined, tab: string): boolean;
 	setDirty(project: string | undefined, tab: string, dirty: boolean): void;
+	/** A tab of `document` holding an unsaved change, in any scope's record, or undefined. */
+	unsaved(document: string): string | undefined;
 	/** The selection an editor reported, for the inspector; null when none. */
 	selection(project: string | undefined, tab: string): unknown;
 	setSelection(project: string | undefined, tab: string, selection: unknown): void;
@@ -437,7 +442,8 @@ export interface Editors {
 export function createEditors(viewState: ViewStateRegistry): Editors {
 	const records = new Map<string, EditorStateV1>();
 	const reads = new Map<string, Promise<void>>();
-	const dirty = new Set<string>();
+	/** By record and tab, the document each unsaved tab shows. */
+	const dirty = new Map<string, string>();
 	const selections = new Map<string, unknown>();
 	const key = (project: string | undefined, tab: string) => `${editorStateId(project)} ${tab}`;
 
@@ -476,8 +482,12 @@ export function createEditors(viewState: ViewStateRegistry): Editors {
 		},
 		dirty: (project, tab) => dirty.has(key(project, tab)),
 		setDirty(project, tab, value) {
-			if (value) dirty.add(key(project, tab));
-			else dirty.delete(key(project, tab));
+			const found = value && findTab(records.get(editorStateId(project)) as EditorStateV1, tab);
+			if (found) dirty.set(key(project, tab), found.group.tabs[found.index]?.document as string);
+			else if (!value) dirty.delete(key(project, tab));
+		},
+		unsaved(document) {
+			for (const [held, shows] of dirty) if (shows === document) return held.split(' ')[1];
 		},
 		selection: (project, tab) => selections.get(key(project, tab)) ?? null,
 		setSelection(project, tab, selection) {

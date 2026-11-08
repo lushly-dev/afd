@@ -67,7 +67,12 @@ export interface EditorParts {
 	 * up its overlays, as an app switch does (5.4, phase 1's section 8).
 	 */
 	settle(name: string, call: CommandContext): Promise<void>;
-	/** Close every tab of a trashed or moved document in its scope's record, with no save (4.1). */
+	/**
+	 * `EDITOR_TAB_DIRTY` while a tab of `record` holds an unsaved change, in any scope's record, so a trash
+	 * or a move waits for its save (Status deviation 16); undefined otherwise.
+	 */
+	unsaved(record: DocumentRecordV1): CommandResult<never> | undefined;
+	/** Close every tab of a trashed or moved document in its scope's record, none of them unsaved (4.1). */
 	closeDocument(document: string, at: ScopeV1, context: CommandContext): Promise<void>;
 	/** `section-get`, with a document's id as the documents section's path: the active tab's (5.1). */
 	sectionGet(boot: ZodCommandDefinition): ZodCommandDefinition;
@@ -173,6 +178,22 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			: (undefined as never);
 	const here = (context: CommandContext) => callScope(context);
 	const caller = (context: CommandContext) => (context as KernelFieldContext).caller;
+
+	/** `EDITOR_TAB_DIRTY` for `tab`, its suggestion naming its type's save (5.4). */
+	const unsavedTab = (tab: string, type: string | undefined): CommandResult<never> => {
+		const save = check
+			.types()
+			.types.get(type as string)
+			?.instanceCommands.find((name) => deps.isMutation(name));
+		return kernelFailure(
+			'EDITOR_TAB_DIRTY',
+			`Tab ${tab} has unsaved changes`,
+			`${save ? `Save it with ${save}, or close` : 'Close'} it with editor-close { tab: "${tab}", discard: true }, which saves first; then retry`
+		);
+	};
+	/** The person's own page, the chrome's calls among it: never an agent's or a server's call. */
+	const person = (context: CommandContext) =>
+		marked(context) && (context as { interface?: string }).interface === 'palette';
 
 	/** By record, the documents already found in its scope, so each is read once. */
 	const trusted = new Map<string, Set<string>>();
@@ -356,7 +377,10 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			);
 			if ('code' in change) return refusal(change);
 			editors.put(to.project, change.state);
-			if (screen) scope.note(context.traceId, { mainChanged: 'push' });
+			// A server's tab activated in an empty area main shows moves the URL with it (6.3).
+			if (screen || (showing(to) && activeTab(before)?.id !== activeTab(change.state)?.id)) {
+				scope.note(context.traceId, { mainChanged: screen ? 'push' : 'replace' });
+			}
 			const { tab, group, existed, previous } = change.value;
 			// Opening a tab already open activated it: its undo activates what was active, and closes nothing
 			// the person had (5.4, as amended by step 10's deviation 15).
@@ -435,20 +459,13 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			const before = await read(context);
 			const project = here(context).project;
 			if (editors.dirty(project, input.tab) && input.discard !== true) {
-				const record = await recordOf(before, input.tab, here(context));
-				const save = check
-					.types()
-					.types.get(record?.type as string)
-					?.instanceCommands.find((name) => deps.isMutation(name));
-				return kernelFailure(
-					'EDITOR_TAB_DIRTY',
-					'This tab has unsaved changes',
-					`${save ? `Save it with ${save}, or close` : 'Close'} it with editor-close { tab: "${input.tab}", discard: true }; the chrome saves an open editor first`
-				);
+				return unsavedTab(input.tab, (await recordOf(before, input.tab, here(context)))?.type);
 			}
 			const done = apply(context, before, closeTab(before, input.tab), 'replace');
 			if (isRefusal(done)) return done;
-			editors.setDirty(project, input.tab, false);
+			// The person's close has saved or discarded; another's keeps the mark until the chrome's save of the
+			// open editor clears it, so a trash or a move waits for that save (Status deviation 16).
+			if (person(context)) editors.setDirty(project, input.tab, false);
 			editors.setSelection(project, input.tab, null);
 			const { document, group, pinned, preview } = done.previous;
 			return success(
@@ -519,7 +536,15 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		async handler(input, context) {
 			const before = await read(context);
 			const project = here(context).project;
-			if (!findTab(before, input.tab)) return refusal(unknownTab(input.tab));
+			// A tab another's call closed keeps its mark, which the chrome's save clears.
+			if (!findTab(before, input.tab) && (input.dirty || !editors.dirty(project, input.tab))) {
+				return refusal(unknownTab(input.tab));
+			}
+			// THE OWNER'S DECISION (Status deviation 16): only the person's page marks an unsaved tab saved, as its
+			// editor reports. To let an agent or a server do it too, delete this check; nothing else depends on it.
+			if (!input.dirty && editors.dirty(project, input.tab) && !person(context)) {
+				return unsavedTab(input.tab, (await recordOf(before, input.tab, here(context)))?.type);
+			}
 			editors.setDirty(project, input.tab, input.dirty);
 			// A first edit promotes a preview tab (5.3).
 			if (input.dirty) editors.put(project, promoteTab(before, input.tab));
@@ -565,6 +590,10 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			select,
 		] as unknown as ZodCommandDefinition[],
 		ensure,
+		unsaved(record) {
+			const tab = editors.unsaved(record.id);
+			return tab === undefined ? undefined : unsavedTab(tab, record.type);
+		},
 		reset: () => editors.reset(),
 		owner,
 		async settle(name, call) {

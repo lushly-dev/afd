@@ -274,7 +274,6 @@ describe('P2-D5: the editor commands', () => {
 		await kernel.call('document-open', { document: a });
 		await kernel.call('document-open', { document: a, group: 'beside' });
 		await kernel.call('document-open', { document: b });
-		await kernel.call('editor-dirty-set', { tab: 't1', dirty: true });
 		await kernel.call('document-trash', { document: a });
 		expect(documentsOf(await editor(workspace))).toEqual([[b]]);
 		await kernel.call('document-restore', { document: a });
@@ -284,6 +283,54 @@ describe('P2-D5: the editor commands', () => {
 		expect(events.at(-1)).toMatchObject({ command: 'document-move', mainChanged: 'replace' });
 		expect(documentsOf(await editor(workspace))).toEqual([[]]);
 		expect(documentsOf(await editor(workspace, scopes.atlas))).toEqual([[]]);
+	});
+
+	it('P2-D5: a trash or a move waits while a tab of the document is unsaved, an agent cannot mark it saved, and once the person’s page has, it runs', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		await kernel.call('document-open', { document: a });
+		await kernel.call('editor-dirty-set', { tab: 't1', dirty: true });
+		const content = async () =>
+			(await kernel.call('probe-content-get', { document: a })).data as unknown;
+		const kept = await content();
+		// An agent's trash and move are refused, naming the type's save and an editor-close that saves first.
+		const trashed = await kernel.agent.call('document-trash', { document: a });
+		expect(trashed.error?.code).toBe('EDITOR_TAB_DIRTY');
+		expect(trashed.error?.suggestion).toContain('probe-content-set');
+		expect(trashed.error?.suggestion).toContain('editor-close { tab: "t1", discard: true }');
+		const moved = await kernel.agent.call('document-move', { document: a, project: 'atlas' });
+		expect(moved.error?.code).toBe('EDITOR_TAB_DIRTY');
+		// Nor may it mark the tab saved, which would let them through: only the person's page does.
+		const marked = await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: false });
+		expect(marked.error?.code).toBe('EDITOR_TAB_DIRTY');
+		expect(marked.error?.suggestion).toContain('probe-content-set');
+		expect((await editor(workspace)).groups[0]?.tabs[0]?.dirty).toBe(true);
+		expect((await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: true })).success).toBe(
+			true
+		);
+		expect(
+			(await kernel.call<{ status: string }>('document-get', { document: a })).data
+		).toMatchObject({ status: 'active', scope: { workspace: 'personal' } });
+		expect(await content()).toEqual(kept);
+		// An agent's close with discard: true closes the tab and keeps the mark, which the chrome's save of the
+		// open editor clears from the person's page; until then a trash waits for it.
+		expect((await kernel.agent.call('editor-close', { tab: 't1', discard: true })).success).toBe(
+			true
+		);
+		expect(documentsOf(await editor(workspace))).toEqual([[]]);
+		expect((await kernel.agent.call('document-trash', { document: a })).error?.code).toBe(
+			'EDITOR_TAB_DIRTY'
+		);
+		expect(
+			(await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: false })).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: false })).success).toBe(true);
+		// A closed tab takes no new mark.
+		expect((await kernel.call('editor-dirty-set', { tab: 't1', dirty: true })).error?.code).toBe(
+			'EDITOR_TAB_UNKNOWN'
+		);
+		expect((await kernel.agent.call('document-trash', { document: a })).success).toBe(true);
 	});
 
 	it("P2-D5: holds a selection in the binding's shape, unjournaled, and refuses another shape", async () => {

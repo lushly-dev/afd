@@ -10,7 +10,7 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
-import type { LateScope } from '../scope/middleware.js';
+import { type LateScope, sessionActor } from '../scope/middleware.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type { AppSummaryV2, KernelEventV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
@@ -104,9 +104,9 @@ export interface LateParts {
 	/**
 	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
 	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
-	 * and `scope` alone. Outside that chain, each of a server's mutations that succeeds reaches `listeners`
-	 * as the kernel's event, with what the call noted, so a page renders what a server changed (documents
-	 * specification, 5.4).
+	 * and `scope` alone. Outside that chain, each of a server's mutations that succeeds, in a scope the page's
+	 * actor may enter, reaches `listeners` as the kernel's event, with what the call noted, so a page renders
+	 * what a server changed (documents specification, 5.4).
 	 */
 	mcpOptions(
 		current: {
@@ -219,7 +219,12 @@ export async function createLateParts(
 					const result = await next();
 					const seen = deps.scope.seen.get(trace);
 					deps.scope.seen.delete(trace);
-					if (result.success && deps.isMutation(command)) {
+					// Only of a scope the page's actor may enter: of any other, the page has nothing to render.
+					if (
+						result.success &&
+						deps.isMutation(command) &&
+						(!seen?.scope || deps.scope.allows(sessionActor(deps.auth), seen.scope))
+					) {
 						const event = {
 							command,
 							interface: 'agent',

@@ -92,6 +92,9 @@ function define(): Promise<unknown> {
 	return defined;
 }
 
+/** A document's scope, as a call's option takes it. */
+type ScopeOf = DocumentRecordV1['scope'];
+
 /** A tab's record, or why `document-get` gave none. */
 type RecordRead = DocumentRecordV1 | { code: string; message: string; suggestion?: string };
 
@@ -298,8 +301,9 @@ export class EditorController implements FrameListener {
 			if (live.has(tab)) continue;
 			this.#frames.delete(tab);
 			this.#stopTimer(tab);
-			// Closed by a call not the person's own close: an editor still unsaved saves first (5.5).
-			this.#retire(frame, false);
+			// Closed by a call not the person's own close: an editor still unsaved saves first, and its save
+			// clears the mark the kernel keeps for it, which holds a trash or a move until then (5.5).
+			this.#retire(frame);
 		}
 		state.groups.forEach((group, index) => {
 			let element = this.#groups.get(group.id);
@@ -330,7 +334,11 @@ export class EditorController implements FrameListener {
 				if (frame && frame.parentElement !== element) element.append(frame);
 				// An editor that still says unsaved is, whoever marked its tab saved (5.5).
 				if (frame?.dirty && !tab.dirty)
-					void this.#kernel.call('editor-dirty-set', { tab: tab.id, dirty: true });
+					void this.#kernel.call(
+						'editor-dirty-set',
+						{ tab: tab.id, dirty: true },
+						{ scope: frame.record?.scope as ScopeOf }
+					);
 			}
 			const active = group.tabs.find((tab) => tab.id === group.active);
 			for (const tab of group.tabs) this.#frames.get(tab.id)?.show(tab.id === active?.id);
@@ -657,11 +665,11 @@ export class EditorController implements FrameListener {
 	}
 
 	/**
-	 * A frame leaving: a dirty one saves first, a rejection a toast, then it goes (5.5). With `clear`, its tab
-	 * stays, and a save clears its dirty flag in its document's scope, whatever scope is active by then, unless
-	 * that scope's tab holds a newer unsaved edit, as after a return there (7.6).
+	 * A frame leaving: a dirty one saves first, a rejection a toast, then it goes (5.5). A save clears its tab's
+	 * dirty mark in its document's scope, whatever scope is active by then, unless that scope's tab holds a
+	 * newer unsaved edit, as after a return there (7.6).
 	 */
-	#retire(frame: LoamEditorFrame, clear = true): void {
+	#retire(frame: LoamEditorFrame): void {
 		if (!frame.dirty) {
 			void frame.dispose();
 			return;
@@ -670,7 +678,7 @@ export class EditorController implements FrameListener {
 		void this.#save(frame)
 			.then((saved) => {
 				const now = this.#frames.get(frame.tab);
-				if (saved && clear && scope && !(now?.dirty && now.record?.scope.project === scope.project))
+				if (saved && scope && !(now?.dirty && now.record?.scope.project === scope.project))
 					return this.#kernel.call('editor-dirty-set', { tab: frame.tab, dirty: false }, { scope });
 			})
 			.catch(reportError)

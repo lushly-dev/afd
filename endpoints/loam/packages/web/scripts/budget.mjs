@@ -78,7 +78,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * fixes raised `lateEditorMinified` by 221, to 14,644, and `editorMinified` by 573, to 27,765, approved by the
  * coordinator, 2026-11-07, each part measured as the chunk with it less without it (2.4 has them); after it,
  * first paint 285,503 and 88,055, the kernel alone 111,521, `late` 57,956 with a server's events,
- * `late-editor` 14,610 and `editor` 27,755.
+ * `late-editor` 14,610 and `editor` 27,755. The narrow re-check's raised them again by their measured
+ * cost, `lateEditorMinified` by 406 to 15,050 and `editorMinified` by 13 to 27,778, approved by the
+ * coordinator, 2026-11-07; after it, first paint 285,503 and 88,055, `late` 58,015, `late-documents`
+ * 12,169, `late-editor` 15,016 and `editor` 27,768.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -87,7 +90,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 14_644,
+	lateEditorMinified: 15_050,
 	urlMinified: 5_091,
 	appsMinified: 384_253,
 	surfacesMinified: 85_000,
@@ -98,7 +101,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 27_765,
+	editorMinified: 27_778,
 });
 
 /** Group a module id by the package it belongs to. */
