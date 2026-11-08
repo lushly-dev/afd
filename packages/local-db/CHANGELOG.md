@@ -1,5 +1,17 @@
 # @lushly-dev/local-db
 
+## 2.3.0
+
+### Minor Changes
+
+- [#629](https://github.com/lushly-dev/afd/pull/629) [`dc3e085`](https://github.com/lushly-dev/afd/commit/dc3e085a51e2a8a2e1b8b693f1ed1de69d949d65) Thanks [@Falkicon](https://github.com/Falkicon)! - Add browser stores over IndexedDB, each at its own subpath so the root entries are unchanged.
+
+  `@lushly-dev/local-db/indexeddb` exports `IndexedDbAdapter` (and `createIndexedDbAdapter`), a `DataAdapter` that owns one database: an object store `records` keyed by `[table, id]` with an index on `table`, so any table name works. Each call is one transaction, so `batch()` is atomic. It takes an optional `indexedDB` factory (for `fake-indexeddb` in Node.js), has `close()` and `destroy()`, closes itself when another connection upgrades or deletes the database, and rejects with `STORAGE_UNAVAILABLE` or `STORAGE_ERROR` when IndexedDB is missing or fails.
+
+  `@lushly-dev/local-db/testing` exports the adapter contract suite as `runDataAdapterContract(name, create)`, which every built-in adapter passes. It imports its test functions from `vitest` (a new optional peer dependency) and no Node.js builtin, so it runs in Node.js and in Vitest's browser mode.
+
+  `@lushly-dev/afd-core/journal-indexeddb` exports `IndexedDbJournalSink`, a `JournalSink` with an object store `entries` keyed by `seq`, and `IndexedDbJournalError`. Before its first `append` (or on `lock()`) the sink takes the Web Lock `<name>:writer` and holds it until `close()`; while another context holds it, `append` and `lock()` reject with `JOURNAL_LOCKED` and a suggestion, as `FileJournalSink` allows one process per file. An append still waiting for the lock when `close()` is called rejects with `JOURNAL_CLOSED`, and a database name may not start with `-` (Web Lock names cannot).
+
 ## 2.2.1
 
 ## 2.2.0

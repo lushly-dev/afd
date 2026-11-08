@@ -1,5 +1,11 @@
 # @lushly-dev/afd-adapters
 
+## 2.3.0
+
+### Minor Changes
+
+- [#680](https://github.com/lushly-dev/afd/pull/680) [`e0d4cb6`](https://github.com/lushly-dev/afd/commit/e0d4cb683ae41c056ac2a39194b0483a88a0feb3) Thanks [@Falkicon](https://github.com/Falkicon)! - Add `RenderOptions.styling`, `'inline'` by default, so existing callers render exactly as before. With `styling: 'classes'` the adapters write `class="afd-status-<type>"` and `afd-bold` instead of a `style` attribute, which a Content-Security-Policy of `style-src 'self'` refuses, and `css/afd-theme.css` defines those classes. Every `WebAdapter` render method now takes `RenderOptions`, and `styledSpan` takes the value as a fourth argument. A render method passed directly as an array callback, such as `messages.map(WebAdapter.renderError)`, still renders the same but no longer type-checks, since the index is not `RenderOptions`: write `messages.map((m) => WebAdapter.renderError(m))`.
+
 ## 2.2.1
 
 ## 2.2.0
