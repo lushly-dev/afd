@@ -75,6 +75,9 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
 		on([`color.state.${state}.text`], [`color.state.${state}.background`, PAGE, CARD], 'text')
 	),
 	...on(['color.control.selected.foreground'], ['color.control.selected.background'], 'text'),
+	// The editor area's selected tab: its block-end bar on the page, beside a tab strip on the subtle
+	// surface (documents specification, 5.8; step 10).
+	...on(['color.control.selected.foreground'], [PAGE, SUBTLE], 'non-text'),
 	// The chrome's quiet buttons: text on their hover and pressed colors (design.md, states), and
 	// the palette's failure message on the floating surface (step 7).
 	...on(

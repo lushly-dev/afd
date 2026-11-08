@@ -123,3 +123,50 @@ export const [EditorAreaEmpty, EditorAreaEmptyCompact] = both(
 	(wrapper) => area(wrapper, '', []),
 	BOX
 );
+
+const GROUP_TABS = (): EditorTabView[] => [
+	tab('t1', 'Plan', { pinned: true }),
+	tab('t2', 'Ideas', { preview: true }),
+	tab('t3', 'Roadmap', { dirty: true, active: true }),
+];
+
+/** A group alone: its strip, its tab panel and an opening frame. */
+export const [EditorGroup, EditorGroupCompact] = both(
+	(wrapper) => {
+		wrapper.append(group('g1', 'Documents', GROUP_TABS(), frame('t3', 'Roadmap')));
+	},
+	{ inline: '640px', block: '320px' }
+);
+
+/** The group's tab menu, open on its active tab, as Shift+F10 opens it. */
+export const [EditorMenu, EditorMenuCompact] = both(
+	async (wrapper) => {
+		const element = group('g1', 'Documents', GROUP_TABS(), frame('t3', 'Roadmap'));
+		wrapper.append(element);
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		const active = element.tabs.find((each) => each.active) as EditorTabView;
+		element.openMenu(active, new KeyboardEvent('keydown', { key: 'F10', shiftKey: true }));
+	},
+	{ inline: '640px', block: '360px' }
+);
+
+/** A frame on its own: opening, and failed with its notice and Close. */
+export const [EditorFrameLoading, EditorFrameLoadingCompact] = both(
+	(wrapper) => {
+		wrapper.append(frame('t1', 'Roadmap'));
+	},
+	{ inline: '480px', block: '200px' }
+);
+
+export const [EditorFrameFailed, EditorFrameFailedCompact] = both(
+	(wrapper) => {
+		wrapper.append(
+			frame('t1', 'Ledger', {
+				code: 'DOCUMENT_CONTENT_VERSION_NEWER',
+				message:
+					"This document was written by a newer version of 'ledger', so it is not opened here",
+			})
+		);
+	},
+	{ inline: '480px', block: '320px' }
+);

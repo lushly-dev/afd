@@ -208,6 +208,10 @@ fit a closable tab) and one tab panel.
 - The area's region is named "Documents"; its visually hidden `h1` is the
   active document's title, so an editor needs no `h1`, and an editor's mount
   is no landmark of its own (`landmark-unique`).
+- Reordering the strip keeps focus: `insertBefore` blurs a focused node, so
+  remove gone items first, `moveBefore` where it exists, and refocus.
+- A busy hold needs a test that it clears; a template-bound property must be
+  `observable`.
 - A lazy chunk imports nothing first paint holds but FAST's `css`, `html`,
   `observable`, `attr` and `Updates`: `ref` and `repeat` part a shared chunk,
   which `budget` catches. Build lists with the DOM API, by id.

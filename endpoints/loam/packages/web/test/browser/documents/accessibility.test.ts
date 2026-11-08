@@ -7,7 +7,6 @@
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-	axe,
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
@@ -16,7 +15,7 @@ import {
 	packApp,
 	serveDeployment,
 } from '../harness';
-import { createNote, editorIdle, editorView } from './support';
+import { createNote, editorIdle, editorView, settledAxe } from './support';
 
 let browser: Browser;
 let site: DeploymentSite;
@@ -62,26 +61,54 @@ describe('P2-D10: the editor area under axe', () => {
 		const { page } = opened;
 		await kernelCall(page, 'section-open', { section: 'documents' });
 		await editorIdle(page);
-		expect(await axe(page), 'the empty area').toEqual([]);
+		expect(await settledAxe(page), 'the empty area').toEqual([]);
 		await twoGroups(page);
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
 			for (const density of ['comfortable', 'compact'] as const) {
 				await kernelCall(page, 'appearance-set', { theme, density });
 				await editorIdle(page);
-				expect(await axe(page), `${theme} ${density}`).toEqual([]);
+				expect(await settledAxe(page), `${theme} ${density}`).toEqual([]);
 			}
 		}
 		await kernelCall(page, 'appearance-set', { theme: 'light', density: 'comfortable' });
 		await page.locator('loam-editor-group [role="tab"][aria-selected="true"]').first().focus();
 		await page.keyboard.press('Shift+F10');
-		expect(await axe(page), 'the tab menu open').toEqual([]);
+		expect(await settledAxe(page), 'the tab menu open').toEqual([]);
 		await page.keyboard.press('Escape');
 		await page.emulateMedia({ forcedColors: 'active' });
-		expect(await axe(page), 'forced colors').toEqual([]);
+		expect(await settledAxe(page), 'forced colors').toEqual([]);
 		await page.emulateMedia({ forcedColors: 'none' });
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	}, 90_000);
+
+	it('P2-D10: a restore held busy has its heading, and no violation', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await twoGroups(page);
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { flush(): Promise<void> };
+			};
+			await shell.kernel.flush();
+		});
+		site.hold(/\/assets\/editor-/);
+		await page.reload();
+		await page.waitForFunction(() => {
+			const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
+			return main?.getAttribute('aria-busy') === 'true';
+		});
+		expect(
+			await page.evaluate(
+				() =>
+					document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main h1.announce')
+						?.textContent
+			)
+		).toBe('Opening');
+		expect(await settledAxe(page), 'busy').toEqual([]);
+		site.release();
+		await opened.context.close();
+	}, 60_000);
 
 	it('P2-D10: in the compact class, only the active group shows, the menu has no Open beside, and nothing is violated', async () => {
 		const opened = await openShell(browser, site.root, { viewport: { width: 390, height: 844 } });
@@ -96,7 +123,7 @@ describe('P2-D10: the editor area under axe', () => {
 			].map((group) => !(group as HTMLElement).hidden)
 		);
 		expect(shown).toEqual([false, true]);
-		expect(await axe(page), 'compact').toEqual([]);
+		expect(await settledAxe(page), 'compact').toEqual([]);
 		await page
 			.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
 			.focus();

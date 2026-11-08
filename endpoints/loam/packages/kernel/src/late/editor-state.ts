@@ -80,8 +80,11 @@ export function validateEditorState(value: unknown): EditorValidation {
 	if (!Array.isArray(groups) || groups.length < 1 || groups.length > EDITOR_MAX_GROUPS) {
 		return bad('There are 1 to 3 groups');
 	}
-	if (!Number.isInteger(nextTab) || !Number.isInteger(nextGroup)) {
-		return bad('nextTab and nextGroup are integers');
+	// Counters start at 1 and 2: the first group, `g1`, exists in every state, and no tab id is `t0`.
+	if (!Number.isInteger(nextTab) || (nextTab as number) < 1)
+		return bad('nextTab is an integer from 1');
+	if (!Number.isInteger(nextGroup) || (nextGroup as number) < 2) {
+		return bad('nextGroup is an integer from 2');
 	}
 	const seen = new Set<string>();
 	const kept: EditorGroupV1[] = [];
@@ -204,6 +207,29 @@ function remove(state: EditorStateV1, tab: string): EditorGroupV1 | undefined {
 	return group;
 }
 
+/**
+ * Room for one more tab in `group`: none needed below 50; otherwise its first unpinned tab that is neither
+ * dirty nor active goes, or the refusal, `EDITOR_TAB_LIMIT`, when none can (5.2).
+ */
+function makeRoom(
+	group: EditorGroupV1,
+	dirty: (tab: string) => boolean
+): EditorChange<never> | undefined {
+	if (group.tabs.length < EDITOR_MAX_TABS) return undefined;
+	const dropped = group.tabs.find(
+		(held) => !held.pinned && held.id !== group.active && !dirty(held.id)
+	);
+	if (dropped) {
+		group.tabs.splice(group.tabs.indexOf(dropped), 1);
+		return undefined;
+	}
+	return {
+		code: 'EDITOR_TAB_LIMIT',
+		message: 'This group has 50 tabs, each pinned, unsaved or active',
+		suggestion: 'Close a tab with editor-close, or open it beside',
+	};
+}
+
 /** The outcome of an operation: the new state, or the code and message of a refusal. */
 export type EditorChange<T> =
 	| { state: EditorStateV1; value: T }
@@ -227,36 +253,27 @@ export function openDocument(
 	document: string,
 	options: { group?: 'active' | 'beside'; preview?: boolean },
 	dirty: (tab: string) => boolean
-): EditorChange<{ tab: string; group: string }> {
+): EditorChange<{ tab: string; group: string; existed: boolean; previous: string | null }> {
 	const state = clone(current);
+	const previous = activeTab(state)?.id ?? null;
 	const active = state.groups.find((group) => group.id === state.activeGroup) as EditorGroupV1;
 	const group = options.group === 'beside' ? groupAfter(state, active) : active;
 	const preview = options.preview === true;
 	let tab = group.tabs.find((held) => held.document === document);
+	const existed = tab !== undefined;
 	if (tab) {
 		if (!preview) tab.preview = false;
 	} else {
 		const replaced = preview ? group.tabs.find((held) => held.preview) : undefined;
-		if (!replaced && group.tabs.length >= EDITOR_MAX_TABS) {
-			const dropped = group.tabs.find(
-				(held) => !held.pinned && held.id !== group.active && !dirty(held.id)
-			);
-			if (!dropped) {
-				return {
-					code: 'EDITOR_TAB_LIMIT',
-					message: 'This group has 50 tabs, each pinned, unsaved or active',
-					suggestion: 'Close a tab with editor-close, or open it beside',
-				};
-			}
-			group.tabs.splice(group.tabs.indexOf(dropped), 1);
-		}
+		const full = replaced ? undefined : makeRoom(group, dirty);
+		if (full) return full;
 		tab = { id: `t${state.nextTab++}`, document, pinned: false, preview };
 		if (replaced) group.tabs.splice(group.tabs.indexOf(replaced), 1, tab);
 		else insert(group, tab);
 	}
 	group.active = tab.id;
 	state.activeGroup = group.id;
-	return { state, value: { tab: tab.id, group: group.id } };
+	return { state, value: { tab: tab.id, group: group.id, existed, previous } };
 }
 
 /** `editor-activate`: the tab and its group become active. `previous` is the active tab before. */
@@ -310,7 +327,8 @@ export function pinTab(
 export function moveTab(
 	current: EditorStateV1,
 	tab: string,
-	to: string
+	to: string,
+	dirty: (tab: string) => boolean = () => false
 ): EditorChange<{ tab: string; group: string; from: string }> {
 	const state = clone(current);
 	const found = findTab(state, tab);
@@ -328,8 +346,18 @@ export function moveTab(
 	// A new group goes after the last; a full area moves it to the last.
 	const target = named ?? groupAfter(state, state.groups.at(-1) as EditorGroupV1);
 	if (target === from) return { state, value: { tab, group: from.id, from: from.id } };
-	remove(state, tab);
 	const twin = target.tabs.find((each) => each.document === held.document);
+	if (!twin) {
+		// A moved preview replaces the target's, as a preview opened there would (5.3); otherwise a full
+		// group makes room, or refuses (5.2).
+		const prior = held.preview ? target.tabs.find((each) => each.preview) : undefined;
+		if (prior) target.tabs.splice(target.tabs.indexOf(prior), 1);
+		else {
+			const full = makeRoom(target, dirty);
+			if (full) return full;
+		}
+	}
+	remove(state, tab);
 	if (twin) target.active = twin.id;
 	else {
 		insert(target, held);
@@ -345,6 +373,23 @@ export function promoteTab(current: EditorStateV1, tab: string): EditorStateV1 {
 	const held = findTab(state, tab);
 	const each = held?.group.tabs[held.index];
 	if (each) each.preview = false;
+	return state;
+}
+
+/**
+ * Keep only the tabs whose document `keep` accepts: a restored record's, so a tampered one names nothing
+ * outside its own scope. Undefined when every tab stays.
+ */
+export function keepTabs(
+	current: EditorStateV1,
+	keep: (document: string) => boolean
+): EditorStateV1 | undefined {
+	const state = clone(current);
+	const gone = state.groups.flatMap((group) =>
+		group.tabs.filter((tab) => !keep(tab.document)).map((tab) => tab.id)
+	);
+	if (gone.length === 0) return undefined;
+	for (const tab of gone) remove(state, tab);
 	return state;
 }
 

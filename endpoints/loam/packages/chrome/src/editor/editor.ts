@@ -145,6 +145,8 @@ export class EditorController implements FrameListener {
 	readonly #shown = new Map<string, string[]>();
 	readonly #records = new Map<string, RecordRead>();
 	readonly #timers = new Map<string, ReturnType<typeof setTimeout>>();
+	/** Tabs a person is closing, whose frames a render between the save and the close must not make again. */
+	readonly #closing = new Set<string>();
 	readonly #modals = new Map<string, (result: 'confirm' | 'cancel') => void>();
 	#queue: Promise<void> = Promise.resolve();
 	#scopeKey: string | null = null;
@@ -255,7 +257,9 @@ export class EditorController implements FrameListener {
 	async #render(state: EditorReadV1): Promise<void> {
 		const tabs = state.groups.flatMap((group) => group.tabs);
 		this.#area.empty = tabs.length === 0;
-		if (tabs.some((tab) => !this.#frames.has(tab.id))) await this.#readTypes();
+		if (this.#types.size === 0 || tabs.some((tab) => !this.#frames.has(tab.id))) {
+			await this.#readTypes();
+		}
 		const records = new Map(
 			await Promise.all(
 				tabs.map(async (tab) => [tab.document, await this.#record(tab.document)] as const)
@@ -264,6 +268,10 @@ export class EditorController implements FrameListener {
 		const titleOf = (document: string) => {
 			const held = records.get(document);
 			return held && 'title' in held ? held.title : 'Unavailable document';
+		};
+		const iconOf = (document: string) => {
+			const held = records.get(document);
+			return (held && 'type' in held && this.#types.get(held.type)?.icon) || 'system/document';
 		};
 		const compact = this.#shell.dataset.layoutClass === 'compact';
 		// Groups in order, as columns; a group the state no longer has goes with its frames.
@@ -288,6 +296,7 @@ export class EditorController implements FrameListener {
 					editorGroupDefinition.name
 				) as LoamEditorGroup;
 				element.group = group.id;
+				element.mac = this.#shell.mac;
 				this.#groups.set(group.id, element);
 			}
 			element.label = state.groups.length > 1 ? `Documents, group ${index + 1}` : 'Documents';
@@ -298,6 +307,7 @@ export class EditorController implements FrameListener {
 				(tab): EditorTabView => ({
 					...tab,
 					title: titleOf(tab.document),
+					icon: iconOf(tab.document),
 					active: tab.id === group.active,
 				})
 			);
@@ -309,7 +319,10 @@ export class EditorController implements FrameListener {
 			}
 			const active = group.tabs.find((tab) => tab.id === group.active);
 			for (const tab of group.tabs) this.#frames.get(tab.id)?.show(tab.id === active?.id);
-			if (active) this.#showFrame(element, group.id, active, records.get(active.document));
+			const ids = new Set(group.tabs.map((tab) => tab.id));
+			if (active && !this.#closing.has(active.id)) {
+				this.#showFrame(element, group.id, active, records.get(active.document), ids);
+			}
 		});
 		const activeGroup = state.groups.find((group) => group.id === state.activeGroup);
 		const activeTab = activeGroup?.tabs.find((tab) => tab.id === activeGroup.active);
@@ -331,7 +344,8 @@ export class EditorController implements FrameListener {
 		group: LoamEditorGroup,
 		groupId: string,
 		tab: EditorReadV1['groups'][number]['tabs'][number],
-		record: RecordRead | undefined
+		record: RecordRead | undefined,
+		ids: ReadonlySet<string>
 	): void {
 		let frame = this.#frames.get(tab.id);
 		if (!frame) {
@@ -349,22 +363,17 @@ export class EditorController implements FrameListener {
 		}
 		if (record && 'title' in record) frame.title = record.title;
 		frame.show(true);
+		// This group's tabs only: a tab moved away is the other group's to park.
 		const order = (this.#shown.get(groupId) ?? []).filter(
-			(id) => id !== tab.id && this.#frames.has(id)
+			(id) => id !== tab.id && this.#frames.has(id) && ids.has(id)
 		);
 		order.push(tab.id);
 		while (order.length > PARKED_PER_GROUP) {
 			const oldest = order.shift() as string;
 			const parked = this.#frames.get(oldest);
 			this.#frames.delete(oldest);
-			if (parked && !parked.dirty) void parked.dispose();
-			else if (parked) {
-				// A dirty one saves first, as on a change of scope; its draft is otherwise the type's to lose.
-				void parked
-					.save()
-					.catch(reportError)
-					.finally(() => parked.dispose());
-			}
+			this.#stopTimer(oldest);
+			if (parked) this.#retire(parked);
 		}
 		this.#shown.set(groupId, order);
 	}
@@ -481,6 +490,7 @@ export class EditorController implements FrameListener {
 				return;
 			case 'pin':
 			case 'unpin':
+				this.#keepFocus(action.group, tab);
 				await kernel.call('editor-pin', { tab, pinned: action.action === 'pin' });
 				return;
 			case 'close-others': {
@@ -496,9 +506,17 @@ export class EditorController implements FrameListener {
 				return;
 			}
 			case 'new-group':
+				// Focus follows the tab into its new group, from wherever the menu was opened in the strip.
+				this.#keepFocus(action.group, tab);
 				await kernel.call('editor-move', { tab, group: 'new' });
 				return;
 		}
+	}
+
+	/** When focus is on the tab, it stays on it once the strip renders, in whichever group then holds it. */
+	#keepFocus(group: string, tab: string): void {
+		const active = this.#groups.get(group)?.shadowRoot?.activeElement as HTMLElement | null;
+		if (active?.dataset.tab === tab) this.#focus = { tab, editor: false };
 	}
 
 	#tabOf(tab: string) {
@@ -517,6 +535,15 @@ export class EditorController implements FrameListener {
 	 * active, or main. False when the person kept editing.
 	 */
 	async close(tab: string): Promise<boolean> {
+		this.#closing.add(tab);
+		try {
+			return await this.#close(tab);
+		} finally {
+			this.#closing.delete(tab);
+		}
+	}
+
+	async #close(tab: string): Promise<boolean> {
 		const frame = this.#frames.get(tab);
 		const dirty = frame?.dirty === true || this.#tabOf(tab)?.dirty === true;
 		if (dirty) {
@@ -537,12 +564,17 @@ export class EditorController implements FrameListener {
 			this.#stopTimer(tab);
 			await frame.dispose();
 		}
-		const closed = await this.#kernel.call('editor-close', { tab, discard: true });
+		const closed = await this.#kernel.call<{ previous: { group: string } }>('editor-close', {
+			tab,
+			discard: true,
+		});
 		if (!closed.success) return false;
-		// Focus goes to the next tab, or main (5.8).
+		// Focus goes to the next tab of the same group, which APG's tabs keep it in, or the active group's when
+		// that one went with its last tab, or main (5.8).
 		await this.idle;
 		const state = this.#state;
-		const group = state?.groups.find((each) => each.id === state.activeGroup);
+		const own = state?.groups.find((each) => each.id === closed.data?.previous.group);
+		const group = own ?? state?.groups.find((each) => each.id === state.activeGroup);
 		if (hadFocus) {
 			const next = group?.active ? this.#groups.get(group.id)?.tabButton(group.active) : null;
 			const main = this.#main();
@@ -572,13 +604,15 @@ export class EditorController implements FrameListener {
 	// ─── Saving (5.5) ──────────────────────────────────────────────────────────────
 
 	dirty(frame: LoamEditorFrame, dirty: boolean): void {
-		if (!this.#frames.has(frame.tab)) return;
+		if (!this.#live(frame)) return;
 		// Every edit restarts the timer; the kernel hears a change only.
 		this.#stopTimer(frame.tab);
 		if (dirty && frame.autosaveMs !== undefined) {
 			this.#timers.set(
 				frame.tab,
-				setTimeout(() => void this.#save(frame), frame.autosaveMs)
+				setTimeout(() => {
+					if (this.#live(frame)) void this.#save(frame);
+				}, frame.autosaveMs)
 			);
 		}
 		if (frame.dirty === dirty) return;
@@ -587,8 +621,36 @@ export class EditorController implements FrameListener {
 	}
 
 	selection(frame: LoamEditorFrame, selection: unknown): void {
-		if (!this.#frames.has(frame.tab)) return;
+		if (!this.#live(frame)) return;
 		void this.#kernel.call('editor-selection-set', { tab: frame.tab, selection });
+	}
+
+	/** Whether `frame` is the one now held for its tab: tab ids repeat across scopes, and a retired frame is gone. */
+	#live(frame: LoamEditorFrame): boolean {
+		return this.#frames.get(frame.tab) === frame;
+	}
+
+	/**
+	 * A frame leaving: a dirty one saves first, and its save's own result clears its tab's dirty flag, in its
+	 * document's scope, whatever scope is active by then; then it goes (5.5, 7.6).
+	 */
+	#retire(frame: LoamEditorFrame): void {
+		if (!frame.dirty) {
+			void frame.dispose();
+			return;
+		}
+		const scope = frame.record?.scope;
+		void frame
+			.save()
+			.then(() =>
+				this.#kernel.call(
+					'editor-dirty-set',
+					{ tab: frame.tab, dirty: false },
+					scope ? { scope } : {}
+				)
+			)
+			.catch(reportError)
+			.finally(() => frame.dispose());
 	}
 
 	/** A frame's Close, after a failure: no editor holds a draft there. */
@@ -602,10 +664,11 @@ export class EditorController implements FrameListener {
 	}
 
 	/** An editor's `save()`; a rejection keeps the tab dirty and is a `danger` toast with its code (5.5). */
-	async #save(frame: LoamEditorFrame): Promise<void> {
+	async #save(frame: LoamEditorFrame): Promise<boolean> {
 		this.#stopTimer(frame.tab);
 		try {
 			await frame.save();
+			return true;
 		} catch (cause) {
 			const { code, suggestion } = (cause ?? {}) as { code?: string; suggestion?: string };
 			const message = cause instanceof Error ? cause.message : String(cause);
@@ -618,6 +681,7 @@ export class EditorController implements FrameListener {
 				tone: 'danger',
 				durationMs: 30_000,
 			});
+			return false;
 		}
 	}
 
@@ -640,13 +704,20 @@ export class EditorController implements FrameListener {
 		if (frame?.state !== 'ready' || !this.#frames.has(frame.tab)) return;
 		// Only with an editor the active owner: the browser keeps Mod+S everywhere else (5.5).
 		event.preventDefault();
-		if (!event.repeat) void this.#save(frame);
+		if (event.repeat) return;
+		// A person who asked to save hears that it did, politely, through the shell's live region.
+		void this.#save(frame).then((saved) => {
+			if (!saved) return;
+			this.#shell.announcement = '';
+			requestAnimationFrame(() => {
+				this.#shell.announcement = `${frame.title} saved`;
+			});
+		});
 	}
 
 	/** A change of scope: each dirty editor is asked to save, and every one goes (7.6). */
 	async #dropAll(): Promise<void> {
-		this.#saveAll();
-		for (const tab of this.#timers.keys()) this.#stopTimer(tab);
+		for (const tab of [...this.#timers.keys()]) this.#stopTimer(tab);
 		const frames = [...this.#frames.values()];
 		this.#frames.clear();
 		this.#shown.clear();
@@ -654,6 +725,7 @@ export class EditorController implements FrameListener {
 		for (const group of this.#groups.values()) group.remove();
 		this.#groups.clear();
 		this.#state = null;
-		await Promise.all(frames.map((frame) => frame.dispose()));
+		// Each dirty one saves, clearing its own scope's dirty flag, and goes; a clean one goes now.
+		for (const frame of frames) this.#retire(frame);
 	}
 }

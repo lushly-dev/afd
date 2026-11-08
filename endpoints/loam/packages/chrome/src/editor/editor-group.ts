@@ -24,6 +24,8 @@ export interface EditorTabView {
 	pinned: boolean;
 	preview: boolean;
 	active: boolean;
+	/** The type's icon, from `ICONS_V1` (5.8); `system/document` when the type is unavailable. */
+	icon?: string;
 }
 
 /** What a press asks for: the editor area runs it. */
@@ -36,12 +38,22 @@ export interface EditorGroupAction {
 
 export const EDITOR_GROUP_EVENT = 'loam-editor-group-action';
 
+/** The deepest focused element, through shadow roots, or null on the page itself. */
+function deepFocus(document: Document): HTMLElement | null {
+	let active = document.activeElement;
+	while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+	return active === document.body ? null : (active as HTMLElement | null);
+}
+
 /** A tab's accessible name: its title, then what its look says (5.3, 5.8). */
 export const tabName = (tab: EditorTabView): string =>
 	`${tab.title}${tab.preview ? ' (preview)' : ''}${tab.pinned ? ', pinned' : ''}${tab.dirty ? ', unsaved' : ''}`;
 
 const template = html<LoamEditorGroup>`
-	<span id="keys" class="hint">Delete closes the tab. Shift+F10 opens its menu.</span>
+	<span id="keys" hidden
+		>${(x) => (x.mac ? 'Delete or Backspace closes the tab.' : 'Delete closes the tab.')} Shift+F10 opens its
+		menu.</span
+	>
 	<div class="strip">
 		<div class="tabs" role="tablist" aria-label="${(x) => x.label}"></div>
 	</div>
@@ -91,15 +103,6 @@ const styles = css`
 	:host([hidden]),
 	[hidden] {
 		display: none;
-	}
-	/* The tabs' description, read by assistive technology: how a keyboard reaches close and the menu. */
-	.hint {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
 	}
 	.strip {
 		flex: none;
@@ -152,6 +155,9 @@ const styles = css`
 		max-inline-size: calc(var(--shell-size-sidebar-default) * 0.8);
 		padding-inline: var(--space-inline-md) var(--size-space-xs);
 		color: var(--color-text-primary);
+	}
+	.icon {
+		flex: none;
 	}
 	.title {
 		overflow: hidden;
@@ -238,7 +244,11 @@ export class LoamEditorGroup extends FASTElement {
 	declare menuTab: EditorTabView | null;
 	/** The group's id in the editor state. */
 	group = '';
+	/** Command is `Mod` here, and the key labelled delete sends Backspace, which closes a tab too. */
+	declare mac: boolean;
 	#menuFor: string | null = null;
+	/** Where focus goes when the menu closes: the element that had it when a pointer opened it, or the tab. */
+	#returnTo: HTMLElement | null = null;
 
 	constructor() {
 		super();
@@ -246,6 +256,7 @@ export class LoamEditorGroup extends FASTElement {
 		this.label = 'Documents';
 		this.compact = false;
 		this.menuTab = null;
+		this.mac = false;
 	}
 
 	/** The tab menu, by query: the `ref` directive would part a chunk of first paint (2.4). */
@@ -276,12 +287,18 @@ export class LoamEditorGroup extends FASTElement {
 		else this.#menuFor = null;
 	};
 
-	/** Close the menu, and focus goes back to the tab it opened from (5.8). */
+	/**
+	 * Close the menu, and focus goes back where it was: to the element that had it when a pointer opened the
+	 * menu, or to the tab the keyboard opened it from (5.8).
+	 */
 	#closeMenu(): void {
 		const tab = this.#menuFor;
+		const back = this.#returnTo;
 		this.#menuFor = null;
+		this.#returnTo = null;
 		if (this.menu.matches(':popover-open')) this.menu.hidePopover();
-		if (tab !== null) this.tabButton(tab)?.focus();
+		if (back?.isConnected) back.focus();
+		else if (tab !== null) this.tabButton(tab)?.focus();
 	}
 
 	/** Each tab's item, made once by id and updated in place, in the state's order. */
@@ -302,8 +319,20 @@ export class LoamEditorGroup extends FASTElement {
 			made.textContent = text;
 			return made;
 		};
+		// Gone items first, so none sits between a kept one and its place; then a kept item moved keeps focus, which
+		// `insertBefore` would drop to the page (`moveBefore` keeps it where the browser has it).
+		const live = new Set(this.tabs.map((tab) => tab.id));
+		for (const [id, item] of kept) {
+			if (live.has(id)) continue;
+			item.remove();
+			kept.delete(id);
+		}
+		const focused = this.shadowRoot?.activeElement as HTMLElement | null;
+		const move = (list as Element & { moveBefore?: (node: Node, child: Node | null) => void })
+			.moveBefore;
 		this.tabs.forEach((tab, index) => {
 			let item = kept.get(tab.id);
+			const existing = item !== undefined;
 			kept.delete(tab.id);
 			if (!item) {
 				item = doc.createElement('span');
@@ -313,13 +342,15 @@ export class LoamEditorGroup extends FASTElement {
 				main.id = `tab-${tab.id}`;
 				main.dataset.tab = tab.id;
 				main.setAttribute('role', 'tab');
-				main.setAttribute('aria-keyshortcuts', 'Delete Shift+F10');
+				const icon = doc.createElement('violet-icon');
+				icon.className = 'icon';
+				icon.setAttribute('decorative', '');
 				const title = doc.createElement('span');
 				title.className = 'title';
 				const dirty = doc.createElement('span');
 				dirty.className = 'dirty';
 				dirty.textContent = '●';
-				main.append(title, dirty);
+				main.append(icon, title, dirty);
 				main.setAttribute('aria-describedby', 'keys');
 				const close = button('close', '×');
 				const more = button('more', '⋯');
@@ -342,6 +373,11 @@ export class LoamEditorGroup extends FASTElement {
 				item.append(main, close, more);
 			}
 			const [main, close, more] = item.children as unknown as HTMLElement[];
+			main?.setAttribute(
+				'aria-keyshortcuts',
+				this.mac ? 'Delete Backspace Shift+F10' : 'Delete Shift+F10'
+			);
+			main?.querySelector('.icon')?.setAttribute('icon', tab.icon ?? 'system/document');
 			const title = main?.querySelector('.title') as HTMLElement;
 			const dirty = main?.querySelector('.dirty') as HTMLElement;
 			title.textContent = tab.title;
@@ -354,9 +390,14 @@ export class LoamEditorGroup extends FASTElement {
 			if (main) main.tabIndex = tab.active ? 0 : -1;
 			close?.setAttribute('title', `Close ${tab.title}`);
 			more?.setAttribute('title', `More for ${tab.title}`);
-			if (list.children[index] !== item) list.insertBefore(item, list.children[index] ?? null);
+			const at = list.children[index] ?? null;
+			if (at === item) return;
+			if (existing && move) move.call(list, item, at);
+			else list.insertBefore(item, at);
 		});
-		for (const gone of kept.values()) gone.remove();
+		if (focused?.isConnected && this.shadowRoot?.activeElement !== focused) {
+			focused.focus({ preventScroll: true });
+		}
 	}
 
 	get activeTab(): EditorTabView | undefined {
@@ -405,6 +446,10 @@ export class LoamEditorGroup extends FASTElement {
 			case ' ':
 				this.press({ action: 'activate', tab: tab.id, focus: true });
 				return false;
+			case 'Backspace':
+				if (!this.mac) return true;
+				this.press({ action: 'close', tab: tab.id });
+				return false;
 			case 'Delete':
 				this.press({ action: 'close', tab: tab.id });
 				return false;
@@ -436,6 +481,13 @@ export class LoamEditorGroup extends FASTElement {
 		this.menu.style.setProperty('position-anchor', '--loam-editor-tab');
 		this.menuTab = tab;
 		this.#menuFor = tab.id;
+		// Named before focus enters it, so a screen reader hears whose actions they are.
+		this.menu.setAttribute('aria-label', `Actions for ${tab.title}`);
+		// A pointer's menu gives focus back to what had it; the keyboard's, to the tab (APG Menu Button).
+		this.#returnTo =
+			event instanceof KeyboardEvent
+				? null
+				: ((this.shadowRoot?.activeElement as HTMLElement | null) ?? deepFocus(this.ownerDocument));
 		this.menu.showPopover();
 		this.#items()[0]?.focus();
 		return false;
@@ -457,10 +509,16 @@ export class LoamEditorGroup extends FASTElement {
 		else if (event.key === 'End') move(items.length - 1);
 		else if (event.key === 'Escape') this.#closeMenu();
 		else if (event.key === 'Tab') {
-			// Focus goes where Tab takes it.
+			// Tab moves on, as APG's menu has it: to the next stop after the tab, its editor; Shift+Tab to the tab.
+			const tab = this.#menuFor;
 			this.#menuFor = null;
+			this.#returnTo = null;
 			this.menu.hidePopover();
-			return true;
+			const frame = [...this.children].find(
+				(child) => child.localName === 'loam-editor-frame' && !(child as HTMLElement).hidden
+			) as (HTMLElement & { focusEditor(): void }) | undefined;
+			if (!event.shiftKey && frame) frame.focusEditor();
+			else if (tab !== null) this.tabButton(tab)?.focus();
 		} else return true;
 		return false;
 	}
@@ -476,5 +534,6 @@ observable(LoamEditorGroup.prototype, 'tabs');
 attr(LoamEditorGroup.prototype, 'label');
 attr({ mode: 'boolean' })(LoamEditorGroup.prototype, 'compact');
 observable(LoamEditorGroup.prototype, 'menuTab');
+observable(LoamEditorGroup.prototype, 'mac');
 
 export const editorGroupDefinition = { name: 'loam-editor-group', template, styles } as const;

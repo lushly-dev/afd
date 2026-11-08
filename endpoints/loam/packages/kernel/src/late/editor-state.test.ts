@@ -14,6 +14,7 @@ import {
 	editorStateId,
 	emptyEditorState,
 	isEditorStateId,
+	keepTabs,
 	moveTab,
 	openDocument,
 	pinTab,
@@ -154,6 +155,26 @@ describe('P2-D5: validateEditorState', () => {
 				nextTab: 60,
 			}),
 			'A group has at most 50 tabs',
+		],
+		[
+			'nextTab 0',
+			(s) => ({
+				...s,
+				groups: [{ id: 'g1', tabs: [], active: null }],
+				activeGroup: 'g1',
+				nextTab: 0,
+			}),
+			'nextTab is an integer from 1',
+		],
+		[
+			'nextGroup 1',
+			(s) => ({
+				...s,
+				groups: [{ id: 'g1', tabs: [], active: null }],
+				activeGroup: 'g1',
+				nextGroup: 1,
+			}),
+			'nextGroup is an integer from 2',
 		],
 		[
 			'a tab id at its counter',
@@ -297,6 +318,41 @@ describe('P2-D5: the operations on the state', () => {
 		expect(openDocument(state, 'extra', {}, () => true)).toMatchObject({
 			code: 'EDITOR_TAB_LIMIT',
 		});
+	});
+
+	it("P2-D5: a moved preview replaces the target's preview, as a preview opened there does", () => {
+		let state = emptyEditorState();
+		state = held(openDocument(state, 'a', { preview: true }, clean)).state;
+		state = held(openDocument(state, 'b', { group: 'beside', preview: true }, clean)).state;
+		const moved = held(moveTab(state, 't1', 'g2'));
+		expect(
+			moved.state.groups.map((group) => group.tabs.map((each) => [each.document, each.preview]))
+		).toEqual([[['a', true]]]);
+		expect(validateEditorState(moved.state).valid).toBe(true);
+	});
+
+	it('P2-D5: a move into a full group drops its first clean, unpinned, inactive tab, or refuses with EDITOR_TAB_LIMIT', () => {
+		let state = emptyEditorState();
+		for (let index = 0; index < EDITOR_MAX_TABS; index++) {
+			state = held(openDocument(state, `d${index}`, {}, clean)).state;
+		}
+		state = held(openDocument(state, 'extra', { group: 'beside' }, clean)).state;
+		const extra = state.groups[1]?.tabs[0]?.id as string;
+		const moved = held(moveTab(state, extra, 'g1', (tab) => tab === 't1'));
+		expect(moved.state.groups.map((group) => group.tabs.length)).toEqual([EDITOR_MAX_TABS]);
+		expect(moved.state.groups[0]?.tabs.map((each) => each.id)).not.toContain('t2');
+		expect(validateEditorState(moved.state).valid).toBe(true);
+		expect(moveTab(state, extra, 'g1', () => true)).toMatchObject({ code: 'EDITOR_TAB_LIMIT' });
+	});
+
+	it('P2-D5: keeps only the tabs a restore may trust, and nothing changes when all may stay', () => {
+		let state = emptyEditorState();
+		state = held(openDocument(state, 'mine', {}, clean)).state;
+		state = held(openDocument(state, 'elsewhere', { group: 'beside' }, clean)).state;
+		const kept = keepTabs(state, (document) => document !== 'elsewhere') as EditorStateV1;
+		expect(kept.groups.map((group) => group.tabs.map((each) => each.document))).toEqual([['mine']]);
+		expect(validateEditorState(kept).valid).toBe(true);
+		expect(keepTabs(state, () => true)).toBeUndefined();
 	});
 
 	it('P2-D5: closes every tab of a trashed or moved document, and nothing when it has none', () => {

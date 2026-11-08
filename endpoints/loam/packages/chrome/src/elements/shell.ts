@@ -144,7 +144,8 @@ const template = html<LoamShell>`
 				shortcut="${(x) => x.shortcut}"
 				home="${(x) => x.home}"
 				?inert="${(x) => x.presentation.panel === 'maximized'}"
-			></loam-main>
+				>${when((x) => x.mainBusy, html`<h1 class=announce>Opening</h1>`)}</loam-main
+			>
 			<loam-inspector
 				data-part="inspector"
 				heading="Inspector"
@@ -243,7 +244,10 @@ export class LoamShell extends FASTElement {
 
 	/** Main's landing heading: the empty shell's until the app surfaces say otherwise. */
 	declare landing: string;
-	/** Main hides its landing while a persisted active app's surface is on its way (2.2). */
+	/**
+	 * Main hides its landing while a persisted owner, an app or the documents section, is on its way (2.2;
+	 * documents specification, 6); a visually hidden `h1`, "Opening", heads the page meanwhile.
+	 */
 	declare mainBusy: boolean;
 	/** The status bar's left items: the workspace's name, and the active project's, or empty (7.4). */
 	declare workspaceName: string;
@@ -453,7 +457,7 @@ export class LoamShell extends FASTElement {
 					? list?.active
 					: null;
 		// A persisted documents section too: its editors restore in stage B (documents specification, 6).
-		if (found && (owner != null || state.section === 'documents')) this.#holdMain();
+		if (found && (owner ?? state.section === 'documents')) this.#holdMain();
 		else if (this.appCount > 0) this.landing = 'Choose an app';
 		this.booted = true;
 		this.#present();
@@ -926,6 +930,8 @@ observable(LoamShell.prototype, 'panelMax');
 observable(LoamShell.prototype, 'failure');
 observable(LoamShell.prototype, 'booted');
 observable(LoamShell.prototype, 'landing');
+// Bound to main's `busy`, so a release clears `aria-busy` (documents specification, 6).
+observable(LoamShell.prototype, 'mainBusy');
 observable(LoamShell.prototype, 'workspaceName');
 observable(LoamShell.prototype, 'projectName');
 observable(LoamShell.prototype, 'announcement');

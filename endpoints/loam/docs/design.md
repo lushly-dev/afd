@@ -455,6 +455,14 @@ A kit or chrome component merges only when its pull request shows each item
 7. It has a line in this document's [component list](#component-list).
 8. It follows `prefers-reduced-motion`: no motion beyond opacity.
 
+Two lessons of phase 2's step 10, checked under items 2 and 3:
+
+- **Moving a focused node blurs it.** `insertBefore` of an element that holds focus drops focus to the
+  page; remove what goes first, move with `moveBefore` where the browser has it, and put focus back
+  otherwise, with a test that reorders under focus.
+- **A busy hold needs a test that it clears,** and a property a template binds must be `observable`, or
+  the binding never sees it change (`mainBusy`, whose `aria-busy` outlived a restore).
+
 How a pull request shows each item:
 
 | Item | Evidence |

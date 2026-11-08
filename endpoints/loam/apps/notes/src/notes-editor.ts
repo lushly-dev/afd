@@ -138,6 +138,8 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 	#selection = '';
 	/** The text a save in flight is writing: its own event's re-read may land before the save returns. */
 	#saving: string | null = null;
+	/** The save in flight: one at a time, so two never overlap and a re-read never meets a half-written draft. */
+	#writing: Promise<void> = Promise.resolve();
 	#reading: Promise<void> | null = null;
 
 	constructor() {
@@ -188,6 +190,13 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 		if (first) {
 			this.#saved = text;
 			this.#replace(text);
+			return;
+		}
+		// The store holds the draft itself, as after this editor's own save: clean, with no conflict.
+		if (text === this.draft) {
+			this.#saved = text;
+			this.conflict = false;
+			this.#report();
 			return;
 		}
 		if (text === this.#saved || text === this.#saving) return;
@@ -247,7 +256,14 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 	}
 
 	/** Write the draft through `notes-content-set`; rejecting keeps the tab dirty (5.5). */
-	async save(): Promise<void> {
+	save(): Promise<void> {
+		const next = this.#writing.then(() => this.#write());
+		// The chain continues past a rejection; the caller sees it.
+		this.#writing = next.catch(() => {});
+		return next;
+	}
+
+	async #write(): Promise<void> {
 		await this.#reading;
 		const id = this.document?.id;
 		if (!id || !this.context || !this.dirty) return;

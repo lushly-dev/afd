@@ -146,6 +146,18 @@ describe('P2-D1: two notes side by side, restored after a reload', () => {
 			'Beta',
 		]);
 		expect(page.url()).toBe(url);
+		// Main is busy no more once the area owns it: `aria-busy` and the busy heading are gone (6).
+		await expect
+			.poll(() =>
+				page.evaluate(() => {
+					const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
+					return [
+						main?.getAttribute('aria-busy') ?? null,
+						main?.querySelectorAll('h1.announce').length,
+					];
+				})
+			)
+			.toEqual([null, 0]);
 		await expect
 			.poll(async () => (await editorView(page))?.[0]?.editors.find((each) => !each.hidden)?.text)
 			.toBe('Alpha text');
@@ -223,29 +235,121 @@ describe('P2-D5: the editor area, native half', () => {
 		);
 		expect(buttons).toHaveLength(6);
 		expect(new Set(buttons.map((pair) => pair.join()))).toEqual(new Set(['-1,true']));
+		const mac = await page.evaluate(
+			() => (document.querySelector('loam-shell') as unknown as { mac: boolean }).mac
+		);
 		const described = await tabOf(page, 'Three').evaluate((tab) => {
 			const root = tab.getRootNode() as ShadowRoot;
 			return [
 				tab.getAttribute('aria-keyshortcuts'),
-				root.getElementById(tab.getAttribute('aria-describedby') ?? '')?.textContent,
+				root
+					.getElementById(tab.getAttribute('aria-describedby') ?? '')
+					?.textContent?.replace(/\s+/g, ' ')
+					.trim(),
 			];
 		});
-		expect(described).toEqual([
-			'Delete Shift+F10',
-			'Delete closes the tab. Shift+F10 opens its menu.',
-		]);
+		expect(described).toEqual(
+			mac
+				? [
+						'Delete Backspace Shift+F10',
+						'Delete or Backspace closes the tab. Shift+F10 opens its menu.',
+					]
+				: ['Delete Shift+F10', 'Delete closes the tab. Shift+F10 opens its menu.']
+		);
 		await tabOf(page, 'Three').focus();
 		await page.keyboard.press('Tab');
 		expect((await focusedOn(page)).tag).toBe('textarea');
+		// A pointer's menu gives focus back to what had it, the editor; the keyboard's, to the tab (APG).
 		await page.locator('loam-editor-group .item[data-tab="t3"] .more').click();
 		expect((await focusedOn(page)).role).toBe('menuitem');
 		await page.keyboard.press('Escape');
-		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Three' });
+		expect((await focusedOn(page)).tag).toBe('textarea');
 		await tabOf(page, 'Three').focus();
-		await page.keyboard.press('Delete');
+		await page.keyboard.press('Shift+F10');
+		expect(await page.locator('loam-editor-group [role="menu"]').getAttribute('aria-label')).toBe(
+			'Actions for Three'
+		);
+		await page.keyboard.press('Escape');
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Three' });
+		// Tab from the menu moves on, to the editor, as APG's menu has it.
+		await page.keyboard.press('Shift+F10');
+		await page.keyboard.press('Tab');
+		expect((await focusedOn(page)).tag).toBe('textarea');
+
+		// The strip reordering keeps focus on its tab: pinning it, which moves it first.
+		await tabOf(page, 'Three').focus();
+		await page.keyboard.press('Shift+F10');
+		await page.keyboard.press('Enter');
 		await editorIdle(page);
-		expect((await editorView(page))?.[0]?.tabs.map((tab) => tab.title)).toEqual(['One', 'Two']);
+		expect((await editorView(page))?.[0]?.tabs.map((tab) => tab.title)).toEqual([
+			'Three',
+			'One',
+			'Two',
+		]);
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Three, pinned' });
+		// An agent closing another tab, before it in the strip, leaves focus where it is.
+		await tabOf(page, 'Two').focus();
+		await agentCall(page, 'editor-close', { tab: 't1' });
+		await editorIdle(page);
 		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Two' });
+		// Moved to a new group, focus follows the tab there.
+		await page.keyboard.press('Shift+F10');
+		await page
+			.locator('loam-editor-group [role="menuitem"]', { hasText: 'Move to a new group' })
+			.click();
+		await editorIdle(page);
+		expect((await editorView(page))?.map((group) => group.tabs.map((tab) => tab.title))).toEqual([
+			['Three'],
+			['Two'],
+		]);
+		const there = await page.evaluate(() => {
+			const groups = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main')
+				?.querySelectorAll('loam-editor-group');
+			return [...(groups ?? [])].map(
+				(group) => group.shadowRoot?.activeElement?.getAttribute('aria-label') ?? null
+			);
+		});
+		expect(there).toEqual([null, 'Two']);
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Two' });
+
+		// Delete in the group that is not active keeps focus in that group (APG Tabs): the first group gets a
+		// second note, then the second group is made active again.
+		await agentCall(page, 'editor-activate', { tab: 't3' });
+		await open(page, await createNote(page, 'Four'));
+		await agentCall(page, 'editor-activate', { tab: 't2' });
+		await editorIdle(page);
+		await page.evaluate(() => {
+			const group = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main')
+				?.querySelectorAll('loam-editor-group')[0];
+			(
+				group?.shadowRoot?.querySelector('button.tab[aria-selected="true"]') as HTMLElement | null
+			)?.focus();
+		});
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Four' });
+		const before = (await editorView(page))?.[0]?.tabs.map((tab) => tab.title);
+		await page.keyboard.press(mac ? 'Backspace' : 'Delete');
+		await editorIdle(page);
+		expect((await editorView(page))?.[0]?.tabs.length).toBe((before?.length ?? 0) - 1);
+		const inGroup = await page.evaluate(() => {
+			const group = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main')
+				?.querySelectorAll('loam-editor-group')[0];
+			return group?.shadowRoot?.activeElement?.getAttribute('role') ?? null;
+		});
+		expect(inGroup).toBe('tab');
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Three, pinned' });
+		if (!mac) {
+			// Elsewhere, Backspace is no close key.
+			const count = (await editorView(page))?.[0]?.tabs.length;
+			await page.keyboard.press('Backspace');
+			await editorIdle(page);
+			expect((await editorView(page))?.[0]?.tabs.length).toBe(count);
+		}
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	});
@@ -386,10 +490,28 @@ describe('P2-D5: the editor area, native half', () => {
 		await kernelCall(page, 'scope-set', { project: 'atlas' });
 		await kernelCall(page, 'section-open', { section: 'documents' });
 		await editorIdle(page);
-		const deep = await page.evaluate(
-			() => document.querySelector('loam-shell')?.shadowRoot?.innerHTML ?? ''
-		);
-		expect(deep).not.toContain('notes-editor');
+		// Every shadow root under main, walked: no frame, no mount, none of the workspace's titles or text.
+		const deep = await page.evaluate(() => {
+			const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
+			const names: string[] = [];
+			let text = '';
+			const walk = (root: Element | ShadowRoot) => {
+				for (const element of root.querySelectorAll('*')) {
+					names.push(element.localName);
+					if (element.shadowRoot) walk(element.shadowRoot);
+					if (element instanceof HTMLTextAreaElement) text += element.value;
+				}
+				text += root.textContent ?? '';
+			};
+			if (main) walk(main);
+			if (main?.shadowRoot) walk(main.shadowRoot);
+			return { names, text };
+		});
+		expect(deep.names).not.toContain('loam-editor-frame');
+		expect(deep.names).not.toContain('loam-mount');
+		expect(deep.names).not.toContain('notes-editor');
+		for (const leaked of ['Long', 'Short', 'Line 0']) expect(deep.text).not.toContain(leaked);
+		expect((await editorView(page))?.flatMap((group) => group.editors)).toEqual([]);
 		expect((await editorView(page))?.flatMap((group) => group.tabs)).toEqual([]);
 		await kernelCall(page, 'scope-set', { project: null });
 		await editorIdle(page);
@@ -397,6 +519,73 @@ describe('P2-D5: the editor area, native half', () => {
 			.poll(async () => (await editorView(page))?.[0]?.tabs.map((tab) => tab.title))
 			.toEqual(['Long', 'Short']);
 		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('P2-D5: saves on Mod+S at once, within autosave_ms, and says so politely', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Quick');
+		await open(page, note);
+		await typeInto(page, 't1', 'Saved by the chord');
+		await page.keyboard.press('ControlOrMeta+s');
+		await expect.poll(() => stored(page, note), { timeout: 1500 }).toBe('Saved by the chord');
+		await expect
+			.poll(() => page.locator('loam-shell .announce[role="status"]').textContent())
+			.toBe('Quick saved');
+		await opened.context.close();
+	});
+
+	it('P2-D5: a change of scope during an unsaved edit saves it, and the tab is clean on return', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Drafted');
+		await open(page, note);
+		await typeInto(page, 't1', 'Before the switch');
+		await expect
+			.poll(() => editorView(page).then((view) => view?.[0]?.tabs[0]?.name))
+			.toBe('Drafted, unsaved');
+		await kernelCall(page, 'project-create', { name: 'Elsewhere' });
+		await kernelCall(page, 'scope-set', { project: 'elsewhere' });
+		// Read at the workspace, the note's own scope, from inside the other project.
+		await expect
+			.poll(() =>
+				page.evaluate(async (document) => {
+					const shell = window.document.querySelector('loam-shell') as unknown as {
+						kernel: {
+							agent: {
+								call(
+									name: string,
+									input: unknown,
+									options: unknown
+								): Promise<{ data?: { text: string } }>;
+							};
+						};
+					};
+					return (
+						await shell.kernel.agent.call('notes-content-get', { document }, { scope: 'workspace' })
+					).data?.text;
+				}, note)
+			)
+			.toBe('Before the switch');
+		await kernelCall(page, 'scope-set', { project: null });
+		await editorIdle(page);
+		const back = (await agentCall(page, 'editor-get')) as {
+			data: { groups: Array<{ tabs: Array<{ dirty: boolean }> }> };
+		};
+		await expect
+			.poll(
+				async () =>
+					((await agentCall(page, 'editor-get')) as typeof back).data.groups[0]?.tabs[0]?.dirty
+			)
+			.toBe(false);
+		await expect
+			.poll(() => editorView(page).then((view) => view?.[0]?.tabs[0]?.name))
+			.toBe('Drafted');
+		// An agent's close is not refused as unsaved.
+		expect(
+			((await agentCall(page, 'editor-close', { tab: 't1' })) as { success: boolean }).success
+		).toBe(true);
 		await opened.context.close();
 	});
 

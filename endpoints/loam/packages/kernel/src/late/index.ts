@@ -141,8 +141,6 @@ export async function createLateParts(
 	boot: readonly ZodCommandDefinition[],
 	deps: LateCommandDeps
 ): Promise<LateParts> {
-	// The port reads its list from here, so `apps` does not hold it (2.4); `late` loads before any app.
-	deps.scope.callable = appCallable;
 	const documents = createDocumentCheck(deps);
 	// Both chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
 	// either failing fails the late load whole (documents specification, Status, deviations 9 and 14).
@@ -150,6 +148,9 @@ export async function createLateParts(
 		import('./documents.js'),
 		import('./editor-commands.js'),
 	]);
+	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
+	// before any app, so a late load that fails sets nothing.
+	deps.scope.callable = appCallable;
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
 	// the scope it needs.
 	let editor: EditorParts | undefined;

@@ -102,8 +102,14 @@ export const handlers = {
 				suggestion: 'Import what notes-export answered, as document-import passes it',
 			});
 		}
+		// It writes over what the note held, as `document-import`'s `data.next` asks for a new one; called on
+		// any other note, it replaces that note's content, which its undo restores.
+		const previous = await read(store, input.document);
 		const note: NoteV1 = { ...content, ...(context.now ? { savedAt: context.now() } : {}) };
 		await store.put(documentContentKey(input.document), note);
-		return success(shown(note));
+		return success(shown(note), {
+			undoCommand: 'notes-content-set',
+			undoArgs: { document: input.document, text: previous.text, embeds: previous.embeds ?? [] },
+		});
 	},
 };

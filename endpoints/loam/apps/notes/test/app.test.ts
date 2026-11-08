@@ -66,6 +66,17 @@ describe('notes', () => {
 		expect(
 			(await kernel.call('notes-content-get', { document: imported.data?.id })).data
 		).toMatchObject({ text: 'Exported text' });
+		// Called on a note that has content, it replaces it, and its undo brings it back.
+		const replaced = await kernel.call('notes-import', {
+			document,
+			content: { text: 'Imported over' },
+		});
+		expect(replaced.undoCommand).toBe('notes-content-set');
+		expect(replaced.undoArgs).toEqual({ document, text: 'Exported text', embeds: [] });
+		await kernel.call(replaced.undoCommand as string, replaced.undoArgs);
+		expect((await kernel.call('notes-content-get', { document })).data).toMatchObject({
+			text: 'Exported text',
+		});
 		const refused = await kernel.call('notes-import', {
 			document: imported.data?.id,
 			content: { text: 7 },

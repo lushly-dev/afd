@@ -332,6 +332,11 @@ describe('P2-D6: the call scope on every command', () => {
 				const told = JSON.stringify([answers, entries, seen]);
 				for (const secret of SECRETS)
 					expect(told, `${command.name} ${secret}`).not.toContain(secret);
+				// Nor the member's document's id, which the normalising above leaves equal in both twins: no
+				// answer may name it, though an entry journals the input that named it.
+				expect(JSON.stringify(answers), `${command.name} document id`).not.toContain(
+					restricted.document
+				);
 				called += 1;
 			}
 			expect(called).toBe(commands.length - Object.keys(NOT_CALLED).length);

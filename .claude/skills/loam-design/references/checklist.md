@@ -21,6 +21,14 @@ its pull request shows each item.
 - [ ] **8. Reduced motion.** It follows `prefers-reduced-motion`: no motion
       beyond opacity.
 
+Under items 2 and 3, from phase 2's step 10:
+
+- [ ] A focused node moved by `insertBefore` is blurred: remove what goes
+      first, use `moveBefore` where it exists, refocus otherwise, and test a
+      reorder under focus.
+- [ ] A busy hold has a test that busy clears, and every property a template
+      binds is `observable`.
+
 ## Evidence in the pull request
 
 | Item | Evidence |

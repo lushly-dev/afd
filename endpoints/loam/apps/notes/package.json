@@ -24,6 +24,8 @@
 		"@lushly-dev/loam-cli": "workspace:*",
 		"@lushly-dev/loam-testing": "workspace:*",
 		"@lushly-dev/loam-theme": "workspace:*",
+		"@lushly-dev/specimen": "workspace:*",
+		"@lushly-dev/violet-elements": "workspace:*",
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^4.1.12",
 		"rimraf": "^6.1.3",

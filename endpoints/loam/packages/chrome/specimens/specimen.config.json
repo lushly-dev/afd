@@ -521,6 +521,54 @@
 			"title": "Loam/Editor/AreaEmptyCompact",
 			"module": "./editor.specimens.ts",
 			"exportName": "EditorAreaEmptyCompact"
+		},
+		{
+			"id": "editor-group",
+			"title": "Loam/Editor/Group",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorGroup"
+		},
+		{
+			"id": "editor-group-compact",
+			"title": "Loam/Editor/GroupCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorGroupCompact"
+		},
+		{
+			"id": "editor-menu",
+			"title": "Loam/Editor/Menu",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorMenu"
+		},
+		{
+			"id": "editor-menu-compact",
+			"title": "Loam/Editor/MenuCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorMenuCompact"
+		},
+		{
+			"id": "editor-frame-loading",
+			"title": "Loam/Editor/FrameLoading",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorFrameLoading"
+		},
+		{
+			"id": "editor-frame-loading-compact",
+			"title": "Loam/Editor/FrameLoadingCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorFrameLoadingCompact"
+		},
+		{
+			"id": "editor-frame-failed",
+			"title": "Loam/Editor/FrameFailed",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorFrameFailed"
+		},
+		{
+			"id": "editor-frame-failed-compact",
+			"title": "Loam/Editor/FrameFailedCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorFrameFailedCompact"
 		}
 	]
 }

@@ -12,7 +12,15 @@ import {
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
 import type { Page } from 'playwright';
-import { APPS, type DeploymentSite, kernelCall, packApp, settle } from '../harness';
+import {
+	APPS,
+	type AxeViolation,
+	axe,
+	type DeploymentSite,
+	kernelCall,
+	packApp,
+	settle,
+} from '../harness';
 
 /** What one group of the editor area shows. */
 export interface GroupView {
@@ -114,4 +122,34 @@ export async function replayDifferences(site: DeploymentSite, entries: JournalEn
 		ports: await replayPorts(),
 	});
 	return report.entries.filter(({ status }) => status !== 'same');
+}
+
+/**
+ * Axe once every animation and transition in the page and its shadow roots has finished, so no color is
+ * sampled half way through a change, as forced colors switching starts one. Never a retry.
+ */
+export async function settledAxe(page: Page): Promise<AxeViolation[]> {
+	await page.evaluate(async () => {
+		const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+		for (let round = 0; round < 20; round++) {
+			await frame();
+			await frame();
+			const roots: Array<Document | ShadowRoot> = [document];
+			const walk = (root: Document | ShadowRoot) => {
+				for (const element of root.querySelectorAll('*')) {
+					if (element.shadowRoot) {
+						roots.push(element.shadowRoot);
+						walk(element.shadowRoot);
+					}
+				}
+			};
+			walk(document);
+			const running = roots
+				.flatMap((root) => root.getAnimations())
+				.filter((animation) => animation.playState === 'running' || animation.pending);
+			if (running.length === 0) return;
+			await Promise.all(running.map((animation) => animation.finished.catch(() => undefined)));
+		}
+	});
+	return axe(page);
 }

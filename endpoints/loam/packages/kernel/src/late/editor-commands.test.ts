@@ -324,6 +324,122 @@ describe('P2-D5: the editor commands', () => {
 		expect(refused.error?.suggestion).toContain('editor-*');
 	});
 
+	it('P2-D5: opening a document already open activates it, and its undo activates what was active, closing nothing', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		const b = await probe(workspace, 'Beta');
+		await kernel.call('document-open', { document: a });
+		await kernel.call('document-open', { document: b });
+		const again = await kernel.call('document-open', { document: a });
+		expect(again.data).toEqual({ tab: 't1', group: 'g1' });
+		expect(again.undoCommand).toBe('editor-activate');
+		expect(again.undoArgs).toEqual({ tab: 't2' });
+		await kernel.call(again.undoCommand as string, again.undoArgs);
+		const after = await editor(workspace);
+		expect(documentsOf(after)).toEqual([[a, b]]);
+		expect(after.groups[0]?.active).toBe('t2');
+		// Opening the active one changes nothing, so it has nothing to undo.
+		expect((await kernel.call('document-open', { document: b })).undoCommand).toBeUndefined();
+	});
+
+	it('P2-D5: decides a switch from the active scope, whatever scope the call names, and reports only a switch that ran', async () => {
+		const workspace = await documents();
+		const { kernel, scopes } = workspace;
+		const atlasNote = await probe(workspace, 'Atlas note', scopes.atlas);
+		const beaconNote = await probe(workspace, 'Beacon note', scopes.beacon);
+		// Named Atlas, its own document's scope, while the workspace is active: the screen moves to Atlas.
+		const own = await kernel.call(
+			'document-open',
+			{ document: atlasNote },
+			{ scope: scopes.atlas }
+		);
+		expect(own.data).toMatchObject({
+			scope: { from: { workspace: 'personal' }, to: scopes.atlas },
+		});
+		expect((await kernel.call<{ scope: unknown }>('scope-get')).data?.scope).toEqual(scopes.atlas);
+		// Named Atlas, active, for a document in a third scope, Beacon: from Atlas to Beacon.
+		const third = await kernel.call(
+			'document-open',
+			{ document: beaconNote },
+			{ scope: scopes.atlas }
+		);
+		expect(third.data).toMatchObject({ scope: { from: scopes.atlas, to: scopes.beacon } });
+		// Named Atlas, not active, for Beacon's document, already active: no switch, and none reported.
+		const none = await kernel.call(
+			'document-open',
+			{ document: beaconNote },
+			{ scope: scopes.atlas }
+		);
+		expect(none.success).toBe(true);
+		expect((none.data as { scope?: unknown }).scope).toBeUndefined();
+		expect(documentsOf(await editor(workspace, scopes.beacon))).toEqual([[beaconNote]]);
+	});
+
+	it('P2-D5: an editor owner that is disabled owns nothing, so it cannot raise a modal or open a document', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const here = { workspace: 'personal' };
+		const port = kernel.appPort('probe').surface({ scope: here });
+		const a = await probe(workspace, 'Alpha');
+		const b = await probe(workspace, 'Beta');
+		await kernel.call('document-open', { document: a });
+		expect((await port.call('modal-open', { title: 'Sure?', body: 'Really.' })).success).toBe(true);
+		await kernel
+			.call<{ overlays: Array<{ overlayId: string }> }>('overlay-list')
+			.then((listed) =>
+				Promise.all(
+					(listed.data?.overlays ?? []).map((overlay) =>
+						kernel.call('overlay-dismiss', { overlayId: overlay.overlayId, result: 'cancel' })
+					)
+				)
+			);
+		await kernel.call('workspace-app-set', { instance: 'probe', enabled: false });
+		expect((await port.call('modal-open', { title: 'Sure?', body: 'Really.' })).error?.code).toBe(
+			'OVERLAY_OWNER_INACTIVE'
+		);
+		expect((await port.call('document-open', { document: b })).error?.code).toBe(
+			'DOCUMENT_OPEN_NOT_ACTIVE'
+		);
+		await kernel.call('workspace-app-set', { instance: 'probe', enabled: true });
+		await kernel.call('scope-set', { project: 'atlas' });
+		await kernel.call('scope-set', { project: null });
+		await kernel.call('section-open', { section: 'documents' });
+		// Enabled again, the owner is back: its own document-open works, as it did.
+		expect((await port.call('document-open', { document: b })).success).toBe(true);
+	});
+
+	it("P2-D5: a restore drops a persisted tab whose document is in another scope, so nothing of it reaches the editor's answers", async () => {
+		const store = new MemoryAdapter();
+		const first = await documents({ store });
+		const atlasNote = await probe(first, 'Atlas note', first.scopes.atlas);
+		const mine = await probe(first, 'Mine');
+		await first.kernel.call('document-open', { document: mine });
+		await first.kernel.flush();
+		// The workspace's record, edited outside the shell, names Atlas's document beside the person's own.
+		const record = (await store.get<{
+			value: { groups: Array<{ tabs: unknown[] }>; nextTab: number };
+		}>('settings', 'loam.editor')) as {
+			value: { groups: Array<{ tabs: unknown[] }>; nextTab: number };
+		};
+		record.value.groups[0]?.tabs.push({
+			id: 't9',
+			document: atlasNote,
+			pinned: false,
+			preview: false,
+		});
+		record.value.nextTab = 10;
+		await store.update('settings', 'loam.editor', record);
+		await first.kernel.dispose();
+		const second = await documents({ store });
+		const read = await editor(second);
+		expect(documentsOf(read)).toEqual([[mine]]);
+		expect(JSON.stringify(read)).not.toContain(atlasNote);
+		expect(
+			(await second.kernel.call('editor-selection-set', { tab: 't9', selection: null })).error?.code
+		).toBe('EDITOR_TAB_UNKNOWN');
+	});
+
 	it('P2-D5: the late-editor chunk imports types alone, but its own state module, which imports types alone', () => {
 		// A runtime import of what first paint or `late` holds would part their chunks (scope and projects
 		// specification, 2.4): `late` hands the chunk what it runs with, in `DOCUMENT_KIT`.

@@ -1,0 +1,28 @@
+{
+	"specimens": [
+		{
+			"id": "notes-editor",
+			"title": "Loam/Notes/Editor",
+			"module": "./notes.specimens.ts",
+			"exportName": "Editor"
+		},
+		{
+			"id": "notes-editor-compact",
+			"title": "Loam/Notes/EditorCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorCompact"
+		},
+		{
+			"id": "notes-editor-conflict",
+			"title": "Loam/Notes/EditorConflict",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorConflict"
+		},
+		{
+			"id": "notes-editor-conflict-compact",
+			"title": "Loam/Notes/EditorConflictCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorConflictCompact"
+		}
+	]
+}

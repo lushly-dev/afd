@@ -275,6 +275,59 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		expect(entry?.context).toEqual({ scope: { workspace: 'personal' } });
 	});
 
+	it("P2-D5: section-get gives a server's caller no document id, and document-open writes the record alone, moving nothing on the person's screen", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { kernel, scopes } = workspace;
+		// The member opens their Citadel document, on their own screen, and stays there, signed in: a server's
+		// caller, whose actor is `local`, may not enter Citadel.
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'someone@example.com',
+			password: 'x',
+		});
+		await kernel.call('scope-set', { project: scopes.citadel.project });
+		const vault = (
+			await kernel.call<{ id: string }>('document-create', { type: 'probe', title: 'Vault' })
+		).data?.id as string;
+		await kernel.call('document-open', { document: vault });
+		expect((await kernel.call('section-get')).data).toMatchObject({ path: vault });
+		const client = await connect(await serve(workspace), mode);
+		const section = await client.call<{ path: string }>('section-get');
+		expect(section.data?.path).toBe('');
+		expect(JSON.stringify(section)).not.toContain(vault);
+
+		// A server opening an Atlas document while the person has `dual` open at the workspace.
+		await kernel.call('scope-set', { project: null });
+		await kernel.call('app-open', { instance: 'dual' });
+		const atlasNote = (
+			await kernel.call<{ id: string }>('document-create', { type: 'probe', project: 'atlas' })
+		).data?.id as string;
+		const opened = await client.call<{ tab: string; scope?: unknown }>(
+			'document-open',
+			{ document: atlasNote },
+			{ 'dev.loam/scope': scopes.atlas }
+		);
+		expect(opened.success).toBe(true);
+		expect(opened.data?.scope).toBeUndefined();
+		expect((await kernel.call('section-get')).data).toMatchObject({
+			active: 'dual',
+			section: null,
+		});
+		expect((await kernel.call<{ scope: unknown }>('scope-get')).data?.scope).toEqual({
+			workspace: 'personal',
+		});
+		// The document's own record holds the tab.
+		const atlasEditor = await kernel.call<{ groups: Array<{ tabs: Array<{ document: string }> }> }>(
+			'editor-get',
+			{},
+			{ scope: scopes.atlas }
+		);
+		expect(atlasEditor.data?.groups[0]?.tabs.map((tab) => tab.document)).toEqual([atlasNote]);
+	});
+
 	it("never moves a person's active scope: a server's call has no active scope", async () => {
 		const workspace = await createScopedWorkspace();
 		const { kernel } = workspace;

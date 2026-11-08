@@ -34,6 +34,7 @@ import {
 	type EditorChange,
 	type EditorStateV1,
 	findTab,
+	keepTabs,
 	moveTab,
 	openDocument,
 	pinTab,
@@ -107,7 +108,15 @@ function selectionFits(selection: unknown, shape: string): boolean {
 
 export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): EditorParts {
 	const { scope, state, store, check } = deps;
-	const { kernelFailure, success, sameScope, setMain, table: DOCUMENT_TABLE } = kit;
+	const {
+		kernelFailure,
+		success,
+		sameScope,
+		setMain,
+		marked,
+		actorKey,
+		table: DOCUMENT_TABLE,
+	} = kit;
 	const {
 		strictObject,
 		string,
@@ -165,10 +174,54 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 	const here = (context: CommandContext) => callScope(context);
 	const caller = (context: CommandContext) => (context as KernelFieldContext).caller;
 
+	/** By record, the documents already found in its scope, so each is read once. */
+	const trusted = new Map<string, Set<string>>();
+
+	/**
+	 * `project`'s record, or the workspace's, registered and read before anything writes it. Whatever a read of
+	 * the store put there, a persisted record as stage B or a later hydration reads it, a tab whose document is
+	 * in another scope or workspace, or in the trash, is dropped, so a record tampered with names nothing
+	 * outside its own scope (6). A missing document's tab stays, and its frame says so. The actor may read
+	 * every document left, since the call reached this scope by `decideAccess`.
+	 */
+	async function ensure(project: string | undefined): Promise<void> {
+		await editors.ensure(project);
+		const key = project ?? '';
+		const known = trusted.get(key) ?? new Set<string>();
+		trusted.set(key, known);
+		const at: ScopeV1 =
+			project === undefined
+				? { workspace: scope.workspace.id }
+				: { workspace: scope.workspace.id, project };
+		const unread = new Set(
+			(editors.peek(project) as EditorStateV1).groups
+				.flatMap((group) => group.tabs.map((tab) => tab.document))
+				.filter((document) => !known.has(document))
+		);
+		const foreign = new Set<string>();
+		for (const document of unread) {
+			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, document);
+			if (!record) continue;
+			if (
+				record.workspace === at.workspace &&
+				sameScope(record.scope, at) &&
+				record.status !== 'trashed'
+			) {
+				known.add(document);
+			} else foreign.add(document);
+		}
+		if (foreign.size === 0) return;
+		const kept = keepTabs(
+			editors.peek(project) as EditorStateV1,
+			(document) => !foreign.has(document)
+		);
+		if (kept) editors.put(project, kept);
+	}
+
 	/** The call's scope's record, registered and read before anything writes it. */
 	async function read(context: CommandContext): Promise<EditorStateV1> {
 		const project = here(context).project;
-		await editors.ensure(project);
+		await ensure(project);
 		return editors.peek(project) as EditorStateV1;
 	}
 
@@ -197,27 +250,44 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		return change.value;
 	}
 
+	/**
+	 * The editor owner: the instance whose type the active tab's document is, only while that document is in
+	 * the active scope and its type is registered and opens there, so a disabled, failed or absent instance
+	 * owns nothing (5.4, 2.2).
+	 */
 	async function owner(): Promise<string | null> {
 		const active = scope.active();
 		const held = showing(active) ? editors.peek(active.project) : undefined;
 		const tab = held && activeTab(held);
-		if (!tab) return null;
-		return (await store.get<DocumentRecordV1>(DOCUMENT_TABLE, tab.document))?.instance ?? null;
+		const record = tab && (await store.get<DocumentRecordV1>(DOCUMENT_TABLE, tab.document));
+		const type = record ? check.types().types.get(record.type) : undefined;
+		return record &&
+			type &&
+			record.workspace === active.workspace &&
+			sameScope(record.scope, active) &&
+			!check.opens(type, active)
+			? type.instance
+			: null;
 	}
 
 	/** The editor owner after the last call that could move it; undefined until first read. */
 	let lastOwner: string | null | undefined;
 
-	/** A tab's record, read by the shell: its scope's record holds only its own scope's documents. */
+	/** A tab's record, read by the shell, and only when it is in `at`, the scope whose record holds the tab. */
 	async function recordOf(
 		before: EditorStateV1,
-		tab: string
-	): Promise<DocumentRecordV1 | null | undefined> {
+		tab: string,
+		at: ScopeV1
+	): Promise<DocumentRecordV1 | undefined> {
 		const found = findTab(before, tab);
 		const document = found?.group.tabs[found.index]?.document;
-		return document === undefined
-			? undefined
-			: await store.get<DocumentRecordV1>(DOCUMENT_TABLE, document);
+		const record =
+			document === undefined
+				? undefined
+				: await store.get<DocumentRecordV1>(DOCUMENT_TABLE, document);
+		return record && record.workspace === at.workspace && sameScope(record.scope, at)
+			? record
+			: undefined;
 	}
 
 	const open = defineCommandWithSchema<
@@ -260,27 +330,46 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 				);
 			}
 			const to = record.scope;
-			const switched = !sameScope(from, to);
-			if (switched) {
-				// The switch's rules (4.3 of the first specification): a left app lands, a shell modal refuses it.
-				const refused = deps.lateScope.applyScopeChange(to, 'document-open', context);
-				if (refused) return refused;
+			// Only a person's or an agent's call in this page has a screen to move: a server's holds no active
+			// scope, so it writes the document's record alone (scope and projects specification, 3.3).
+			const screen = marked(context);
+			if (screen) {
+				// From the active scope, as the switch computes it, whatever scope the call named (4.3).
+				if (!sameScope(scope.active(), to)) {
+					const refused = deps.lateScope.applyScopeChange(to, 'document-open', context);
+					if (refused) return refused;
+				}
+				// As `section-open`: the active app closes, and main shows the documents section (5.1).
+				const closed = deps.apps().close();
+				if (!closed.success) return closed as CommandResult<never>;
+				setMain(deps.viewState, { active: null, section: 'documents', path: '' });
 			}
-			// As `section-open`: the active app closes, and main shows the documents section (5.1).
-			const closed = deps.apps().close();
-			if (!closed.success) return closed as CommandResult<never>;
-			setMain(deps.viewState, { active: null, section: 'documents', path: '' });
-			await editors.ensure(to.project);
+			const moved = scope.seen.get(context.traceId as string)?.scopeChanged;
+			await ensure(to.project);
 			const before = editors.peek(to.project) as EditorStateV1;
 			const change = openDocument(before, record.id, input, (tab) =>
 				editors.dirty(to.project, tab)
 			);
 			if ('code' in change) return refusal(change);
 			editors.put(to.project, change.state);
-			scope.note(context.traceId, { mainChanged: 'push' });
+			if (screen) scope.note(context.traceId, { mainChanged: 'push' });
+			const { tab, group, existed, previous } = change.value;
+			// Opening a tab already open activated it: its undo activates what was active, and closes nothing
+			// the person had (5.4, as amended by step 10's deviation 15).
+			const undo = !existed
+				? { undoCommand: 'editor-close', undoArgs: { tab } }
+				: previous !== null && previous !== tab
+					? { undoCommand: 'editor-activate', undoArgs: { tab: previous } }
+					: {};
 			return success(
-				{ ...change.value, ...(switched ? { scope: { from, to } } : {}) },
-				{ undoCommand: 'editor-close', undoArgs: { tab: change.value.tab } }
+				{
+					tab,
+					group,
+					...(moved?.reason === 'document-open'
+						? { scope: { from: moved.from, to: moved.to } }
+						: {}),
+				},
+				undo
 			);
 		},
 	});
@@ -342,7 +431,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			const before = await read(context);
 			const project = here(context).project;
 			if (editors.dirty(project, input.tab) && input.discard !== true) {
-				const record = await recordOf(before, input.tab);
+				const record = await recordOf(before, input.tab, here(context));
 				const save = check
 					.types()
 					.types.get(record?.type as string)
@@ -398,7 +487,12 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		},
 		async handler(input, context) {
 			const before = await read(context);
-			const done = apply(context, before, moveTab(before, input.tab, input.group), 'push');
+			const done = apply(
+				context,
+				before,
+				moveTab(before, input.tab, input.group, (tab) => editors.dirty(here(context).project, tab)),
+				'push'
+			);
 			if (isRefusal(done)) return done;
 			const after = editors.peek(here(context).project) as EditorStateV1;
 			// Back to the group it left, or a new one when that group went with it.
@@ -414,8 +508,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 
 	const dirty = defineCommandWithSchema<typeof dirtyInput, { tab: string; dirty: boolean }>({
 		name: 'editor-dirty-set',
-		description:
-			"The chrome's, from an editor's dirty event: mark a tab as holding unsaved changes or not",
+		description: 'Mark a tab unsaved or saved, as its editor reports',
 		input: dirtyInput,
 		jsonSchema: tabWith('dirty', { type: 'boolean' }, true),
 		async handler(input, context) {
@@ -431,14 +524,13 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 
 	const select = defineCommandWithSchema<typeof selectionInput, { tab: string }>({
 		name: 'editor-selection-set',
-		description:
-			"The chrome's, from an editor's selection event: hold the selection, in the binding's shape, for the inspector",
+		description: "Hold a tab's selection, in its binding's shape, as its editor reports",
 		mutation: false,
 		input: selectionInput,
 		jsonSchema: tabWith('selection', {} as JsonSchema, true),
 		async handler(input, context) {
 			const before = await read(context);
-			const record = await recordOf(before, input.tab);
+			const record = await recordOf(before, input.tab, here(context));
 			if (!record) return refusal(unknownTab(input.tab));
 			if (!selectionFits(input.selection, record.binding.selection)) {
 				return kernelFailure(
@@ -467,7 +559,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			dirty,
 			select,
 		] as unknown as ZodCommandDefinition[],
-		ensure: (project) => editors.ensure(project),
+		ensure,
 		reset: () => editors.reset(),
 		owner,
 		async settle(name, call) {
@@ -481,7 +573,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			lastOwner = now;
 		},
 		async closeDocument(document, at, context) {
-			await editors.ensure(at.project);
+			await ensure(at.project);
 			const before = editors.peek(at.project) as EditorStateV1;
 			const after = closeDocument(before, document);
 			if (!after) return;
@@ -504,10 +596,14 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 					const result = await boot.handler(input, context);
 					const data = result.data as { section: string | null; active: string | null };
 					if (data?.section !== 'documents' || data.active !== null) return result;
-					// The documents section's path is the active tab's document, or none with no tab (5.1).
-					const project = scope.active().project;
-					await editors.ensure(project);
-					const tab = activeTab(editors.peek(project) as EditorStateV1);
+					// The documents section's path is the active tab's document, or none with no tab (5.1); only for a
+					// call in this page whose actor may enter the active scope, so a server's caller learns no id.
+					const active = scope.active();
+					if (!marked(context) || !scope.allows(actorKey(context), active)) {
+						return success({ ...data, path: '' });
+					}
+					await ensure(active.project);
+					const tab = activeTab(editors.peek(active.project) as EditorStateV1);
 					return success({ ...data, path: tab?.document ?? '' });
 				},
 			} as ZodCommandDefinition;

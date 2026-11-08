@@ -26,6 +26,7 @@ import {
 import { kernelFailure } from '../errors.js';
 import { actorKey } from '../scope/access.js';
 import { projectNotFound } from '../scope/middleware.js';
+import { CALL_MARK } from '../scope/runtime.js';
 import { scopeKeyOf, storeRecordId } from '../scope/store-id.js';
 import {
 	callNow,
@@ -45,6 +46,9 @@ export const DOCUMENT_KIT = Object.freeze({
 	projectNotFound,
 	archivedRefusal,
 	setMain,
+	/** Whether a call is a person's or an agent's in this page, which has an active scope; a server's is not (3.3). */
+	marked: (context: object): boolean =>
+		(context as { [CALL_MARK]?: string })[CALL_MARK] !== undefined,
 	documentContentKey,
 	scopeKeyOf,
 	storeRecordId,

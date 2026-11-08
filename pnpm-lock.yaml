@@ -159,6 +159,12 @@ importers:
       '@lushly-dev/loam-theme':
         specifier: workspace:*
         version: link:../../packages/theme
+      '@lushly-dev/specimen':
+        specifier: workspace:*
+        version: link:../../../../foundations/specimen
+      '@lushly-dev/violet-elements':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/violet-elements
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6

@@ -1,7 +1,7 @@
 /**
  * @fileoverview The `document-*` commands (documents specification, section 4; D79), in a chunk of their
  * own, `late-documents`, which `loadLate` imports before stage B's last `setAppCommands` (scope and projects
- * specification, 2.4). `document-open` is the editor area's, in `late` with `editor-*` (step 10), and
+ * specification, 2.4). `document-open` is the editor area's, in `late-editor` with `editor-*` (step 10), and
  * `document-link-*` step 12's. Each command that names
  * a document runs 4.2's check first, and each `project` it names `decideAccess`, answering
  * `PROJECT_NOT_FOUND` for missing and refused alike. The shell never reads a document's content: it writes

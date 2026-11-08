@@ -67,13 +67,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Step 10 adds `editorMinified`, the editor area's chunk, loaded on the first document opened, restored
  * or routed to, charged after the surfaces as `sections` is: first measured at 24,720 against the documents
  * specification's first estimate of 40,000 (12), at 62%, so lowered by phase 0's rule to its measurement
- * plus 10%, 27,192; 25,531 at the step's head. It records `notes`' bundle, as `tasks`' is. The editor's state
- * and commands are a chunk of their own, `late-editor`, loaded inside `loadLate` beside `late-documents`,
- * with a row of its own, `lateEditorMinified`, 13,111, so 14,423, its measurement plus 10% (an amendment to
- * 2.4 the coordinator decided, 2026-11-07): `late`'s closure leaves both out. First paint 285,444 and 88,024
- * gzip, within step 10's allowance of 150 and 100; the kernel alone 111,543; `late` 57,632, +772 over step
- * 9's; `late-documents` 12,105; `url-sync` 4,806; `apps` 384,077, as the port's callable list moved to
- * `late`; `surfaces` 83,946, with `host()`.
+ * plus 10%, 27,192; 27,182 after the step's reviews, with the tabs' icons. It records `notes`' bundle, as
+ * `tasks`' is. The editor's state and commands are a chunk of their own, `late-editor`, loaded inside
+ * `loadLate` beside `late-documents`, with a row of its own, `lateEditorMinified`, first 13,111, so 14,423,
+ * its measurement plus 10% (an amendment to 2.4 the coordinator decided, 2026-11-07), and 14,389 after the
+ * reviews: `late`'s closure leaves both out. After the reviews, first paint 285,523 and 88,061 gzip, the bytes
+ * 25 over step 10's allowance of 150 (the busy heading and an observable `mainBusy`), for the coordinator;
+ * the kernel alone 111,543; `late` 57,661; `late-documents` 12,105; `url-sync` 4,806; `apps` 384,077, as the
+ * port's callable list moved to `late`; `surfaces` 83,946, with `host()`.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
