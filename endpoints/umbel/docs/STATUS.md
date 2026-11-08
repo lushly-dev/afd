@@ -2298,7 +2298,8 @@ on another local branch and push to that remote name.
     introspection issuer with Umbel's client credentials and a 60-second cache of accepted answers by the token's
     SHA-256, bounded to 32 requests in flight and tokens of 4096 bytes. A fetch runs on a task of its own, so a client
     that hangs up cannot spend the minute's one fetch. A shipped build still refuses to serve `oauth` until the
-    disclosure controls of steps 2c, 3 and 7 exist; the `testkit` seam `with_unfinished_oauth` serves it for tests.
+    disclosure controls of steps 2c, 3 and 7 exist; the `testkit` seam `with_unfinished_oauth` serves it for tests. Settled 2026-11-08 as the
+    strictest reading: a shipped build serves `oauth` only once 2c, 3 and 7 have all landed.
   - **The caller** (`mapping.rs`, `caller.rs`, `src/principal.rs`): section 4.1's mapping (namespaces, subject
     claims, services three ways, the `~` form), `act` from an `act` issuer, claim groups, into principal version 1,
     which every surface now writes (`humanPresent` stays `null` until step 5). The hook trusts the mapped caller only
