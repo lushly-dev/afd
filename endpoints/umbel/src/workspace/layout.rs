@@ -71,6 +71,12 @@ impl Layout {
         self.keys_dir().join("http.token")
     }
 
+    /// `state/keys/limits.key`: the key of the rate limits' counter names (phase 5 step 3), so
+    /// that `limits.sqlite3` holds no identifier a dictionary could recover.
+    pub fn limits_key(&self) -> PathBuf {
+        self.keys_dir().join("limits.key")
+    }
+
     /// `state/shared/`: the stores every process behind one URL shares (phase 5 section 10.2).
     pub fn shared_dir(&self) -> PathBuf {
         self.state_dir().join("shared")
@@ -79,6 +85,12 @@ impl Layout {
     /// `state/shared/limits.sqlite3`: the rate limits' counters (phase 5 sections 10.2 and 11).
     pub fn limits_store(&self) -> PathBuf {
         self.shared_dir().join("limits.sqlite3")
+    }
+
+    /// `state/shared/nonces.sqlite3`: single-use values every process spends once (phase 5
+    /// section 10.2): approval nonces, relay evidence, gateway `jti`s, spent person decisions.
+    pub fn nonces_store(&self) -> PathBuf {
+        self.shared_dir().join("nonces.sqlite3")
     }
 
     /// `state/spaces/`.

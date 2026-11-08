@@ -10,6 +10,10 @@
 //!
 //! The check and the insert are one `BEGIN IMMEDIATE` transaction, so two processes cannot both
 //! admit the last request of a window.
+//!
+//! **Byte counters** (schema version 2, phase 5 step 3) hold `read_bytes_per_minute`: one row per
+//! call with the bytes of its result, checked before the next call of the key on the bytes already
+//! counted in the window, so a call's own result is never withheld after it ran.
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -23,7 +27,7 @@ use crate::workspace::WorkspaceError;
 /// The store's name in errors and logs (`details.store`).
 const STORE: &str = "limits";
 /// The schema version this host writes (`PRAGMA user_version`).
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 /// The most expired rows one write purges.
 const PURGE_BATCH: i64 = 64;
 
@@ -57,6 +61,31 @@ pub(crate) trait LimitStore: Send + Sync {
         window_ms: i64,
         now_ms: i64,
     ) -> Result<Admission, SharedError>;
+
+    /// Whether `key` may make another call at `now_ms`: refused once the bytes counted for it in
+    /// the `window_ms` before reach `limit`, until enough of them leave the window. Counts nothing.
+    ///
+    /// # Errors
+    /// As [`Self::hit`].
+    fn bytes_admit(
+        &self,
+        key: &str,
+        limit: u64,
+        window_ms: i64,
+        now_ms: i64,
+    ) -> Result<Admission, SharedError>;
+
+    /// Count `bytes` against `key` at `now_ms`, for `window_ms`.
+    ///
+    /// # Errors
+    /// As [`Self::hit`].
+    fn bytes_add(
+        &self,
+        key: &str,
+        bytes: u64,
+        window_ms: i64,
+        now_ms: i64,
+    ) -> Result<(), SharedError>;
 }
 
 /// The SQLite limit store: `state/shared/limits.sqlite3`, WAL, mode 0600.
@@ -107,6 +136,14 @@ impl SqliteLimits {
                  );
                  CREATE INDEX IF NOT EXISTS hits_key_at ON hits (key, at_ms);
                  CREATE INDEX IF NOT EXISTS hits_expires ON hits (expires_ms);
+                 CREATE TABLE IF NOT EXISTS bytes (
+                     key TEXT NOT NULL,
+                     at_ms INTEGER NOT NULL,
+                     amount INTEGER NOT NULL,
+                     expires_ms INTEGER NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS bytes_key_at ON bytes (key, at_ms);
+                 CREATE INDEX IF NOT EXISTS bytes_expires ON bytes (expires_ms);
                  COMMIT;",
             )
             .map_err(|error| unwritable(&error))?;
@@ -114,7 +151,8 @@ impl SqliteLimits {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .map_err(|error| unwritable(&error))?;
         match version {
-            0 => connection
+            // Version 1 had the request counters only; the byte counters were just created.
+            0 | 1 => connection
                 .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
                 .map_err(|error| unwritable(&error))?,
             SCHEMA_VERSION => {}
@@ -133,6 +171,9 @@ impl SqliteLimits {
             });
         connection
             .execute("DELETE FROM hits WHERE expires_ms <= ?1", params![now])
+            .map_err(|error| unwritable(&error))?;
+        connection
+            .execute("DELETE FROM bytes WHERE expires_ms <= ?1", params![now])
             .map_err(|error| unwritable(&error))?;
         Ok(Self {
             connection: Mutex::new(connection),
@@ -211,6 +252,85 @@ impl LimitStore for SqliteLimits {
             .map_err(|error| shared_error(&error))?;
         transaction.commit().map_err(|error| shared_error(&error))?;
         Ok(Admission::Allowed)
+    }
+
+    fn bytes_admit(
+        &self,
+        key: &str,
+        limit: u64,
+        window_ms: i64,
+        now_ms: i64,
+    ) -> Result<Admission, SharedError> {
+        let connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let since = now_ms.saturating_sub(window_ms);
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        let mut statement = connection
+            .prepare_cached(
+                "SELECT at_ms, amount FROM bytes WHERE key = ?1 AND at_ms > ?2 ORDER BY at_ms",
+            )
+            .map_err(|error| shared_error(&error))?;
+        let rows: Vec<(i64, i64)> = statement
+            .query_map(params![key, since], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|error| shared_error(&error))?
+            .collect::<Result<_, _>>()
+            .map_err(|error| shared_error(&error))?;
+        let mut total: i64 = rows
+            .iter()
+            .fold(0, |sum, (_, amount)| sum.saturating_add(*amount));
+        if total < limit {
+            return Ok(Admission::Allowed);
+        }
+        // The window admits again once enough of the oldest rows have left it that the rest
+        // count fewer than `limit` bytes.
+        let mut leaves = now_ms.saturating_add(window_ms);
+        for (at, amount) in &rows {
+            total = total.saturating_sub(*amount);
+            if total < limit {
+                leaves = at.saturating_add(window_ms);
+                break;
+            }
+        }
+        Ok(Admission::Refused {
+            retry_after_ms: leaves.saturating_sub(now_ms).max(1),
+        })
+    }
+
+    fn bytes_add(
+        &self,
+        key: &str,
+        bytes: u64,
+        window_ms: i64,
+        now_ms: i64,
+    ) -> Result<(), SharedError> {
+        let mut connection = self
+            .connection
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| shared_error(&error))?;
+        transaction
+            .execute(
+                "INSERT INTO bytes (key, at_ms, amount, expires_ms) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    key,
+                    now_ms,
+                    i64::try_from(bytes).unwrap_or(i64::MAX),
+                    now_ms.saturating_add(window_ms)
+                ],
+            )
+            .map_err(|error| shared_error(&error))?;
+        transaction
+            .execute(
+                "DELETE FROM bytes WHERE rowid IN
+                     (SELECT rowid FROM bytes WHERE expires_ms <= ?1 LIMIT ?2)",
+                params![now_ms, PURGE_BATCH],
+            )
+            .map_err(|error| shared_error(&error))?;
+        transaction.commit().map_err(|error| shared_error(&error))
     }
 }
 
@@ -379,6 +499,67 @@ mod tests {
         );
         holder.execute_batch("ROLLBACK").unwrap();
         assert_eq!(quick.hit("a", 1, MINUTE, 0).unwrap(), Admission::Allowed);
+    }
+
+    #[test]
+    fn byte_counters_refuse_once_the_window_holds_the_limit_and_admit_as_bytes_leave() {
+        let dir = tempfile::tempdir().unwrap();
+        let limits = store(dir.path());
+        assert_eq!(
+            limits.bytes_admit("p", 100, MINUTE, 0).unwrap(),
+            Admission::Allowed
+        );
+        limits.bytes_add("p", 60, MINUTE, 0).unwrap();
+        assert_eq!(
+            limits.bytes_admit("p", 100, MINUTE, 1).unwrap(),
+            Admission::Allowed
+        );
+        // The call that crosses the limit is not withheld: it was admitted before it ran.
+        limits.bytes_add("p", 70, MINUTE, 10_000).unwrap();
+        // 130 counted: the 60 must leave before fewer than 100 remain.
+        assert_eq!(
+            limits.bytes_admit("p", 100, MINUTE, 20_000).unwrap(),
+            Admission::Refused {
+                retry_after_ms: MINUTE - 20_000
+            }
+        );
+        assert_eq!(
+            limits.bytes_admit("q", 100, MINUTE, 20_000).unwrap(),
+            Admission::Allowed
+        );
+        assert_eq!(
+            limits.bytes_admit("p", 100, MINUTE, MINUTE).unwrap(),
+            Admission::Allowed
+        );
+        // A second handle (another process) sees the same bytes.
+        let other = store(dir.path());
+        other.bytes_add("p", 200, MINUTE, MINUTE).unwrap();
+        assert!(matches!(
+            limits.bytes_admit("p", 100, MINUTE, MINUTE + 1).unwrap(),
+            Admission::Refused { .. }
+        ));
+    }
+
+    #[test]
+    fn a_version_1_store_is_upgraded_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shared").join("limits.sqlite3");
+        drop(SqliteLimits::open(&path, 50).unwrap());
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch("DROP TABLE bytes; PRAGMA user_version = 1")
+                .unwrap();
+        }
+        let limits = SqliteLimits::open(&path, 50).unwrap();
+        limits.bytes_add("p", 1, MINUTE, 0).unwrap();
+        let version: i64 = limits
+            .connection
+            .lock()
+            .unwrap()
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
     }
 
     #[test]

@@ -13,13 +13,15 @@
 //! 3. the per-IP limit (`limits.ip_requests_per_minute`, [`layers::limit_ip`]), before any
 //!    verification work;
 //! 4. the public routes: `/health` and the protected-resource metadata at both well-known paths;
-//! 5. AFD's bearer layer, built with the MCP service from one server
-//!    ([`McpServer::authorized_http_service`]), with the host's token verifier
+//! 5. AFD's bearer layer ([`McpServer::bearer_layer`]), with the host's token verifier
 //!    ([`crate::auth::verifier`]) built from `[auth.issuers]`, which maps each verified token to a
-//!    caller (section 4.1) in the request's caller slot, and the interim scope rule
-//!    ([`crate::auth::interim`]) until step 3;
-//! 6. the per-token limit, phase 5 step 3's;
-//! 7. AFD's host and origin checks, then the MCP service, where the context hook runs.
+//!    caller (section 4.1) in the request's caller slot, and Umbel's scope resolver
+//!    ([`crate::auth::scopes`]), whose 403 comes before dispatch;
+//! 6. the token gate ([`layers::TokenGate`]): a token with no Umbel scope is refused (403) on every
+//!    request, then the per-token limit (`limits.calls_per_minute`, keyed on the verified issuer,
+//!    subject and client);
+//! 7. AFD's host and origin checks, then the MCP service built from the same server, where the
+//!    context hook runs.
 //!
 //! **Mode `gateway`** is phase 5 step 4's, and refuses to start until then.
 
@@ -87,6 +89,8 @@ pub struct HttpServer {
     router: Router,
     #[cfg(feature = "auth")]
     tls: Option<tokio_rustls::TlsAcceptor>,
+    /// `http.trusted_proxies`: the peers whose connections open with a PROXY protocol header.
+    proxies: Arc<[IpAddr]>,
 }
 
 impl std::fmt::Debug for HttpServer {
@@ -125,7 +129,7 @@ impl HttpServer {
         let tls = self.tls;
         #[cfg(not(feature = "auth"))]
         let tls = None;
-        listener::serve(listener, self.router, tls, shutdown).await;
+        listener::serve(listener, self.router, tls, self.proxies, shutdown).await;
         Ok(())
     }
 }
@@ -148,7 +152,7 @@ impl HttpServer {
 pub(crate) fn server(
     server: &McpServer,
     workspace: &Workspace,
-    #[cfg(feature = "auth")] registry: &Arc<afd::CommandRegistry>,
+    #[cfg(feature = "auth")] policy: &Arc<crate::auth::scopes::ScopePolicy>,
     #[cfg(feature = "auth")] verifier: Option<Arc<dyn TokenVerifier>>,
     #[cfg(feature = "auth")] environment: &crate::auth::fetch::AuthEnvironment,
 ) -> Result<HttpServer, HostError> {
@@ -157,6 +161,7 @@ pub(crate) fn server(
         refuse_without_auth(workspace)?;
         Ok(HttpServer {
             router: router(server, workspace)?,
+            proxies: Arc::from(Vec::new()),
         })
     }
     #[cfg(feature = "auth")]
@@ -177,13 +182,13 @@ pub(crate) fn server(
                         if !environment.serve_oauth {
                             return Err(not_served(
                                 "auth.mode",
-                                "is \"oauth\", which this build verifies and maps (phase 5 step 2b) but does not serve yet: until section 5.4's one answer, the space listings of section 9.4 and the plugin listings that name spaces (step 3) and the exact filtering of sections 9.1 to 9.3 (step 7) exist, a verified caller could learn which spaces exist and what they hold",
+                                "is \"oauth\", which this build verifies, maps and authorises (phase 5 steps 2b to 3) but does not serve yet: until the exact filtering of sections 9.1 to 9.3 exists (step 7), a verified caller could learn from hidden counts and positions what spaces it reads hold beyond its view",
                             ));
                         }
                         Arc::new(verifier)
                     }
                 };
-                oauth_router(server, workspace, registry, verifier)?
+                oauth_router(server, workspace, policy, verifier)?
             }
             AuthMode::Gateway => {
                 return Err(not_served(
@@ -198,7 +203,11 @@ pub(crate) fn server(
             .as_ref()
             .map(|tls| tls::acceptor(workspace.root(), tls))
             .transpose()?;
-        Ok(HttpServer { router, tls })
+        Ok(HttpServer {
+            router,
+            tls,
+            proxies: Arc::from(config.http.trusted_proxies.clone()),
+        })
     }
 }
 
@@ -377,13 +386,13 @@ pub(crate) fn base_authorization(
         })
 }
 
-/// Mode `oauth`: layers 2 to 5 and 7 of section 6.3 around the MCP service, which the bearer
-/// layer and the service share through one authorized server.
+/// Mode `oauth`: layers 2 to 7 of section 6.3 around the MCP service, which the bearer layer and
+/// the service share through one authorized server.
 #[cfg(feature = "auth")]
 fn oauth_router(
     server: &McpServer,
     workspace: &Workspace,
-    registry: &Arc<afd::CommandRegistry>,
+    policy: &Arc<crate::auth::scopes::ScopePolicy>,
     verifier: Arc<dyn TokenVerifier>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
@@ -391,7 +400,9 @@ fn oauth_router(
     // The bearer layer serves these itself, without authentication (M7), before any token work.
     let mut routed = metadata.metadata_paths();
     routed.push(config.http.path.clone());
-    let authorization = Authorization::new(metadata, verifier)
+    // The requests in flight, each with the caller its token was mapped to, for the resolver.
+    let book = crate::auth::caller::CallerBook::default();
+    let authorization = Authorization::new(metadata.clone(), verifier)
         .map_err(|message| {
             HostError::from(WorkspaceError::config_invalid(
                 "http.public_url",
@@ -399,19 +410,10 @@ fn oauth_router(
             ))
         })?
         .with_filter_tools_by_scope(config.auth.filter_tools_by_scope)
-        .with_resolver(crate::auth::interim::InterimScopes::new(
-            &config.auth.scope_prefix,
-            Arc::clone(registry),
+        .with_resolver(crate::auth::scopes::UmbelScopes::new(
+            Arc::clone(policy),
+            book.clone(),
         ))
-        // Until step 3, every request (listings, resources and the Skills methods included, which
-        // no resolver sees) needs `<prefix>:read` itself.
-        .with_required_scopes([format!("{}:read", config.auth.scope_prefix)])
-        .map_err(|message| {
-            HostError::from(WorkspaceError::config_invalid(
-                "auth.scope_prefix",
-                format!("cannot be required: {message}"),
-            ))
-        })?
         .with_max_body_bytes(max_body_bytes(workspace));
     // The hosted surface admits only the configured public names: no loopback name is implied,
     // so a request must name the host `http.public_url` and `allowed_hosts` publish. An empty
@@ -428,37 +430,57 @@ fn oauth_router(
         allowed_origins: config.http.allowed_origins.clone(),
         max_body_bytes: max_body_bytes(workspace),
     };
-    let service = server
-        .clone()
-        .with_authorization(authorization)
-        .authorized_http_service(options)
+    let authorized = server.clone().with_authorization(authorization);
+    let bearer = authorized
+        .bearer_layer()
+        .map_err(|message| invalid_surface(message.to_owned()))?;
+    let service = authorized
+        .try_streamable_http_service(options)
         .map_err(invalid_surface)?;
+    let limits: Arc<dyn crate::shared::limits::LimitStore> =
+        Arc::new(crate::shared::limits::SqliteLimits::open(
+            &workspace.layout().limits_store(),
+            config.store.lock_timeout_ms,
+        )?);
+    let lock_timeout = std::time::Duration::from_millis(config.store.lock_timeout_ms);
+    // Layer 6, between the bearer layer and the service.
+    let gated = layers::TokenGate::new(
+        service,
+        layers::SlidingLimit::new(
+            Arc::clone(&limits),
+            config.limits.calls_per_minute,
+            lock_timeout,
+        ),
+        workspace.limits_key()?,
+        metadata,
+        &config.auth.scope_prefix,
+    );
+    let service = tower::Layer::layer(&bearer, gated);
     let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
         let at_path = routed.iter().any(|path| path == request.uri().path());
         // A fresh slot for the caller the verifier maps, replacing anything already there; the
-        // context hook trusts it only beside the credentials AFD admits for the same request.
-        request
-            .extensions_mut()
-            .insert(crate::auth::caller::CallerSlot::default());
+        // context hook trusts it only beside the credentials AFD admits for the same request, and
+        // the resolver finds it in the book while the request is in flight.
+        let slot = crate::auth::caller::CallerSlot::default();
+        request.extensions_mut().insert(slot.clone());
+        let entry = book.enter(slot);
         async move {
             if !at_path {
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());
             }
-            match service.oneshot(request).await {
+            let response = match service.oneshot(request).await {
                 Ok(response) => Ok(response.map(Body::new)),
                 Err(never) => match never {},
-            }
+            };
+            drop(entry);
+            response
         }
     });
-    let limits = crate::shared::limits::SqliteLimits::open(
-        &workspace.layout().limits_store(),
-        config.store.lock_timeout_ms,
-    )?;
     let ip = Arc::new(layers::IpLimit::new(
-        Arc::new(limits),
+        limits,
         config.limits.ip_requests_per_minute,
-        std::time::Duration::from_millis(config.store.lock_timeout_ms),
+        lock_timeout,
     ));
     tracing::info!(
         target: "umbel::http",

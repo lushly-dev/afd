@@ -40,6 +40,7 @@ pub(super) const HTTP_KEYS_V5: &[&str] = &[
     "max_body_bytes",
     "public_url",
     "tls",
+    "trusted_proxies",
 ];
 /// `[principal]`'s keys from version 5.
 pub(super) const PRINCIPAL_KEYS_V5: &[&str] =
@@ -1537,6 +1538,58 @@ pub(super) fn check_bind(
             "must be a loopback address (127.0.0.0/8 or ::1), not `{value}` (from {source}); a non-loopback bind needs config_version = 5 with auth.mode = \"oauth\" or \"gateway\" and [http.tls]"
         ),
     ))
+}
+
+/// The most `http.trusted_proxies` entries.
+pub(crate) const MAX_TRUSTED_PROXIES: usize = 64;
+
+/// `http.trusted_proxies` (amendment from phase 5 step 3): exact peer addresses whose connections
+/// must open with a PROXY protocol version 2 header supplying the client address for the per-IP
+/// limit. Each entry is one IPv4 or IPv6 address, written as an address alone (no port, no
+/// prefix length, no zone), once; an IPv4-mapped IPv6 address is read as its IPv4 address. Never
+/// the unspecified, a multicast or the IPv4 broadcast address, at most
+/// [`MAX_TRUSTED_PROXIES`]; only in a hosted mode, the only one with a per-IP limit to key.
+pub(crate) fn check_trusted_proxies(
+    entries: &[String],
+    hosted: bool,
+) -> Result<Vec<std::net::IpAddr>, String> {
+    if entries.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !hosted {
+        return Err(
+            "applies only when auth.mode is not \"none\": only the hosted modes' per-IP limit reads a client address".to_owned(),
+        );
+    }
+    if entries.len() > MAX_TRUSTED_PROXIES {
+        return Err(format!(
+            "names {} addresses; at most {MAX_TRUSTED_PROXIES}",
+            entries.len()
+        ));
+    }
+    let mut addresses: Vec<std::net::IpAddr> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let address: std::net::IpAddr = entry.parse().map_err(|_| {
+            format!(
+                "holds `{}`, which is not one IP address (no port, prefix length or name)",
+                entry.chars().take(64).collect::<String>()
+            )
+        })?;
+        let address = address.to_canonical();
+        let unusable = address.is_unspecified()
+            || address.is_multicast()
+            || address == std::net::IpAddr::V4(std::net::Ipv4Addr::BROADCAST);
+        if unusable {
+            return Err(format!(
+                "holds `{entry}`, which no proxy's connection can come from"
+            ));
+        }
+        if addresses.contains(&address) {
+            return Err(format!("names `{address}` more than once"));
+        }
+        addresses.push(address);
+    }
+    Ok(addresses)
 }
 
 /// `http.public_url` (2.2): `https`, lowercase, no user information, query or fragment, a host

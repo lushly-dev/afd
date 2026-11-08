@@ -60,7 +60,12 @@ pub struct HostBuilder {
     token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
     #[cfg(feature = "auth")]
     auth_environment: crate::auth::fetch::AuthEnvironment,
+    /// A test's view of every held approval (`testkit` only); always `None` in a shipped build.
+    approval_observer: Option<ApprovalObserver>,
 }
+
+/// What a test sees of a held approval: AFD's request, its token included.
+pub(crate) type ApprovalObserver = Arc<dyn Fn(afd::ApprovalRequest) + Send + Sync>;
 
 impl HostBuilder {
     /// Open the workspace at `path` (see [`Workspace::open`]).
@@ -84,6 +89,7 @@ impl HostBuilder {
             token_verifier: None,
             #[cfg(feature = "auth")]
             auth_environment: crate::auth::fetch::AuthEnvironment::default(),
+            approval_observer: None,
         }
     }
 
@@ -189,6 +195,20 @@ impl HostBuilder {
         self
     }
 
+    /// Hand every approval the middleware holds, with its token, to `observer` as well as
+    /// holding it. **Test seam** (`testkit` only): a shipped build never lets an approval token
+    /// leave the process it was minted in (approval tokens stay off every surface); the tests of
+    /// the shared nonce store (phase 5 section 10.2) need one to present it to a second host.
+    #[cfg(feature = "testkit")]
+    #[must_use]
+    pub fn with_approval_observer(
+        mut self,
+        observer: impl Fn(afd::ApprovalRequest) + Send + Sync + 'static,
+    ) -> Self {
+        self.approval_observer = Some(Arc::new(observer));
+        self
+    }
+
     /// Add a command. A registration problem (a reserved CLI verb, a name already taken) is
     /// reported by [`seal`](Self::seal), which is where every command is checked together.
     #[must_use]
@@ -235,9 +255,9 @@ impl HostBuilder {
                 Arc::clone(&loaded_cell),
             ),
             commands::auth_show(),
-            commands::plugin_list(Arc::clone(&loaded_cell)),
-            commands::plugin_show(Arc::clone(&loaded_cell)),
-            commands::skill_list(Arc::clone(&loaded_cell)),
+            commands::plugin_list(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
+            commands::plugin_show(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
+            commands::skill_list(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
             commands::skill_export(Arc::clone(&loaded_cell)),
             commands::plugin_new(),
             commands::plugin_check(self.compiled.clone()),
@@ -274,6 +294,10 @@ impl HostBuilder {
             ));
             builtins
         };
+        let builtin_names: HashSet<String> = builtins
+            .iter()
+            .map(|builtin| builtin.definition.name.clone())
+            .collect();
         for Builtin { definition, schema } in builtins {
             register(&registry, Pending::Schema(definition, schema))?;
         }
@@ -327,7 +351,14 @@ impl HostBuilder {
             self.clock.as_ref(),
         )?;
         let server = serve_skills(server, &loaded)?;
-        install_middleware(&registry, &workspace, &loaded, &ledger)?;
+        let scope_policy = install_middleware(
+            &registry,
+            &workspace,
+            &loaded,
+            &ledger,
+            &builtin_names,
+            self.approval_observer,
+        )?;
         install_journal(&registry, &workspace, &projector, digest_commands(&loaded));
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
@@ -347,6 +378,7 @@ impl HostBuilder {
             server,
             clock: self.clock,
             loaded,
+            scope_policy,
             #[cfg(feature = "auth")]
             token_verifier: self.token_verifier,
             #[cfg(feature = "auth")]
@@ -400,8 +432,10 @@ fn has_property(registry: &CommandRegistry, name: &str, property: &str) -> bool 
         .is_some()
 }
 
-/// Install the middleware, outermost first: the event stamp, the space check, the plugin gate,
-/// approvals.
+/// Install the middleware, outermost first: the event stamp, the hidden-instance check, the space
+/// check, the access check, the scope gate, the read limit (hosted modes), the plugin gate, the
+/// shared store's spend reporting (hosted modes), approvals (phase 5 section 6.3, layer 7). Returns section 5.2's rules over the sealed commands, which the scope gate and
+/// the HTTP surface's resolver share.
 ///
 /// The set of space commands is the host's own knowledge: a built-in by its `space` property, a
 /// plugin command by what its instance's load decided (a mounted tool's own `space` argument is
@@ -411,7 +445,9 @@ fn install_middleware(
     workspace: &Arc<Workspace>,
     loaded: &LoadedPlugins,
     ledger: &Arc<plugins::Ledger>,
-) -> Result<(), HostError> {
+    builtins: &HashSet<String>,
+    observer: Option<ApprovalObserver>,
+) -> Result<Arc<crate::auth::scopes::ScopePolicy>, HostError> {
     let commands = registry.list();
     let with_space: Arc<HashSet<String>> = Arc::new(
         commands
@@ -449,11 +485,20 @@ fn install_middleware(
         .map(|command| command.name.clone())
         .collect();
 
+    let policy = Arc::new(crate::auth::scopes::ScopePolicy::new(
+        Arc::clone(workspace),
+        registry,
+        &loaded.gate,
+        builtins,
+        &with_space,
+        &with_spaces,
+    ));
     registry.add_middleware(middleware::event_stamp(
         mutations,
         Arc::clone(&with_space),
         workspace.default_space().to_string(),
     ));
+    registry.add_middleware(crate::auth::scope_gate::hidden_check(Arc::clone(&policy)));
     let resolve: middleware::ResolveSpace = {
         let resolver = Arc::clone(workspace);
         Arc::new(move |input, context| {
@@ -470,12 +515,78 @@ fn install_middleware(
                 .map(|spaces| spaces.into_iter().map(|space| space.to_string()).collect())
         })
     };
+    // The commands that run in spaces the access check reads: a plugin command (from its input
+    // when it has a space input, else the default space), and any other command with a `space` or
+    // `spaces` input.
+    let spaced: BTreeMap<String, bool> = commands
+        .iter()
+        .filter_map(|command| {
+            let name = command.name.clone();
+            match loaded.gate.get(&name) {
+                Some(entry) => Some((name, entry.space_command || entry.spaces_command)),
+                None if with_space.contains(&name) || with_spaces.contains(&name) => {
+                    Some((name, true))
+                }
+                None => None,
+            }
+        })
+        .collect();
+    // The space members a command does not declare, refused before anything reads them (phase 5
+    // step 3's review): a member the scope rules never looked at must not name the spaces a
+    // plugin's host services reach.
+    let stray: BTreeMap<String, Vec<&'static str>> = commands
+        .iter()
+        .filter_map(|command| {
+            let name = &command.name;
+            let space = with_space.contains(name);
+            let spaces = with_spaces.contains(name);
+            let members: Vec<&'static str> = match loaded.gate.get(name) {
+                Some(entry) if entry.kind == plugins::PluginKind::Mounted => {
+                    if space && !spaces {
+                        vec!["spaces"]
+                    } else {
+                        Vec::new()
+                    }
+                }
+                Some(_) | None if space && !spaces => vec!["spaces"],
+                Some(_) | None if spaces && !space => vec!["space"],
+                // A pipeline's steps run through the registry, each checked on its own input,
+                // so its own input may carry a space for them; a compiled or component
+                // command's host services would read one.
+                Some(entry) if !space && !spaces && !entry.pipeline => vec!["space", "spaces"],
+                _ => Vec::new(),
+            };
+            (!members.is_empty()).then(|| (name.clone(), members))
+        })
+        .collect();
     registry.add_middleware(middleware::space_check(
+        Arc::clone(workspace),
         with_space,
         with_spaces,
+        Arc::new(stray),
         Arc::clone(&resolve),
         Arc::clone(&resolve_many),
     ));
+    registry.add_middleware(middleware::access_check(
+        Arc::clone(workspace),
+        Arc::new(spaced),
+        Arc::clone(&resolve_many),
+    ));
+    registry.add_middleware(crate::auth::scope_gate::scope_gate(Arc::clone(&policy)));
+    // The read limit's store opens on the first limited call, so the operator, never limited,
+    // never depends on `state/shared/`.
+    #[cfg(feature = "auth")]
+    if workspace.config().auth.mode.is_hosted() {
+        let config = workspace.config();
+        registry.add_middleware(crate::shared::read_limit::read_limit(
+            Arc::clone(workspace),
+            Arc::new(crate::shared::read_limit::LazyLimits::new(Arc::clone(
+                workspace,
+            ))),
+            config.limits.read_bytes_per_minute,
+            std::time::Duration::from_millis(config.store.lock_timeout_ms),
+        ));
+    }
     let entries: BTreeMap<_, _> = loaded.gate.clone();
     registry.add_middleware(middleware::plugin_gate(
         Arc::new(entries),
@@ -488,11 +599,34 @@ fn install_middleware(
     ));
 
     let key = workspace.approval_key()?;
-    let approval = create_approval_middleware(
+    let options =
         ApprovalMiddlewareOptions::new(key, commands.iter().map(|command| command.as_ref()))
-            .with_include_token(false),
-    )
-    .map_err(|message| {
+            .with_include_token(false);
+    // In a hosted mode, approval nonces and relay evidence (`relay:<decisionId>`) are spent once
+    // across every process behind one URL (phase 5 section 10.2), not once per process; a failed
+    // spend is reported as the shared store's, not as a spent token. Mode `none` keeps AFD's store
+    // in memory, as phases 2 to 4 did.
+    #[cfg(feature = "auth")]
+    let hosted_nonces = workspace.config().auth.mode.is_hosted();
+    #[cfg(feature = "auth")]
+    let options = if hosted_nonces {
+        options.with_nonce_store(crate::shared::nonces::SharedApprovalNonces::new(Arc::new(
+            crate::shared::nonces::SqliteNonces::new(
+                &workspace.layout().nonces_store(),
+                workspace.config().store.lock_timeout_ms,
+            ),
+        )))
+    } else {
+        options
+    };
+    let options = match observer {
+        Some(observer) => options.with_on_approval_required(move |request| {
+            observer(request);
+            Box::pin(async {})
+        }),
+        None => options,
+    };
+    let approval = create_approval_middleware(options).map_err(|message| {
         HostError::new(
             codes::WORKSPACE_KEY_INVALID,
             format!(
@@ -505,8 +639,12 @@ fn install_middleware(
             ),
         )
     })?;
+    #[cfg(feature = "auth")]
+    if hosted_nonces {
+        registry.add_middleware(crate::shared::nonces::spend_failures());
+    }
     registry.add_middleware(approval);
-    Ok(())
+    Ok(policy)
 }
 
 /// The terminal prompts and pipeline steps of the loaded plugins (phase 3 section 3.3).
@@ -561,6 +699,9 @@ pub struct Host {
     server: McpServer,
     clock: Option<Arc<dyn Clock>>,
     loaded: Arc<LoadedPlugins>,
+    /// Section 5.2's rules over the sealed commands, for the resolver and the scope gate.
+    #[cfg_attr(not(feature = "auth"), allow(dead_code))]
+    scope_policy: Arc<crate::auth::scopes::ScopePolicy>,
     #[cfg(feature = "auth")]
     token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
     #[cfg(feature = "auth")]
@@ -685,7 +826,7 @@ impl Host {
             &self.server,
             &self.workspace,
             #[cfg(feature = "auth")]
-            &self.registry,
+            &self.scope_policy,
             #[cfg(feature = "auth")]
             self.token_verifier.clone(),
             #[cfg(feature = "auth")]

@@ -88,14 +88,32 @@ impl fmt::Debug for VerifiedCaller {
 /// The per-request place the token verifier leaves the caller it mapped. The HTTP surface
 /// inserts an empty one into every request before AFD's bearer layer; the verifier fills it once.
 #[derive(Clone, Default)]
-pub(crate) struct CallerSlot(Arc<OnceLock<Arc<VerifiedCaller>>>);
+pub(crate) struct CallerSlot(
+    Arc<OnceLock<Arc<VerifiedCaller>>>,
+    /// Where the slot was entered in a [`CallerBook`], so that filling it indexes its caller.
+    Arc<OnceLock<(std::sync::Weak<std::sync::Mutex<Book>>, u64)>>,
+);
 
 impl CallerSlot {
     /// Fill the slot. `false` when it was already filled (a second verification of one request,
     /// which never happens and is refused).
     #[cfg_attr(not(feature = "auth"), allow(dead_code))]
     pub(crate) fn fill(&self, caller: VerifiedCaller) -> bool {
-        self.0.set(Arc::new(caller)).is_ok()
+        let identity = identity(&caller.credentials);
+        if self.0.set(Arc::new(caller)).is_err() {
+            return false;
+        }
+        if let Some((book, id)) = self.1.get()
+            && let Some(book) = book.upgrade()
+        {
+            let mut book = book
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if book.slots.contains_key(id) {
+                book.index.entry(identity).or_default().insert(*id);
+            }
+        }
+        true
     }
 
     /// The caller the verifier mapped, if it ran.
@@ -107,6 +125,128 @@ impl CallerSlot {
 impl fmt::Debug for CallerSlot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("CallerSlot")
+    }
+}
+
+/// The requests in flight on the hosted surface, each with its [`CallerSlot`] (phase 5 step 3).
+///
+/// AFD asks Umbel's scope resolver about credentials alone, while 5.4's "readability before
+/// scope" needs the caller those credentials were mapped to: its effective principal and claim
+/// groups. The HTTP surface enters every request's slot here before AFD's bearer layer runs and
+/// leaves it when the request is answered, so the resolver finds the mapped caller of the
+/// credentials it is asked about among the requests in flight. It holds nothing past a request,
+/// and is bounded by the connections the listener serves.
+#[derive(Clone, Default)]
+pub(crate) struct CallerBook(Arc<std::sync::Mutex<Book>>);
+
+/// A verified token's issuer, subject and client: the book's index.
+type Identity = (String, String, String);
+
+fn identity(credentials: &Credentials) -> Identity {
+    (
+        credentials.issuer.clone(),
+        credentials.subject.clone(),
+        credentials.client_id.clone(),
+    )
+}
+
+#[derive(Default)]
+pub(crate) struct Book {
+    next: u64,
+    slots: std::collections::HashMap<u64, CallerSlot>,
+    /// The filled slots by their caller's identity, so a lookup reads only the requests in
+    /// flight for that issuer, subject and client.
+    index: std::collections::HashMap<Identity, std::collections::BTreeSet<u64>>,
+}
+
+/// A request's place in the [`CallerBook`], left when dropped.
+pub(crate) struct BookEntry {
+    book: CallerBook,
+    id: u64,
+}
+
+impl Drop for BookEntry {
+    fn drop(&mut self) {
+        let mut book = self.book.lock();
+        if let Some(caller) = book
+            .slots
+            .remove(&self.id)
+            .and_then(|slot| slot.caller().cloned())
+        {
+            let identity = identity(&caller.credentials);
+            if let Some(ids) = book.index.get_mut(&identity) {
+                ids.remove(&self.id);
+                if ids.is_empty() {
+                    book.index.remove(&identity);
+                }
+            }
+        }
+    }
+}
+
+impl CallerBook {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Book> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Enter a request's slot until the returned entry drops.
+    #[cfg_attr(not(feature = "auth"), allow(dead_code))]
+    pub(crate) fn enter(&self, slot: CallerSlot) -> BookEntry {
+        let mut book = self.lock();
+        let id = book.next;
+        book.next = book.next.wrapping_add(1);
+        let _ = slot.1.set((Arc::downgrade(&self.0), id));
+        // A slot filled before it was entered is indexed now; one filled later indexes itself.
+        if let Some(caller) = slot.caller() {
+            let identity = identity(&caller.credentials);
+            book.index.entry(identity).or_default().insert(id);
+        }
+        book.slots.insert(id, slot);
+        BookEntry {
+            book: self.clone(),
+            id,
+        }
+    }
+
+    /// The caller mapped for exactly `credentials` by a request in flight. `None` when no
+    /// request in flight holds them, or when two hold equal credentials mapped to callers that
+    /// differ (which only the issuer could cause), so that no guess is ever made.
+    #[cfg_attr(not(feature = "auth"), allow(dead_code))]
+    pub(crate) fn caller_for(&self, credentials: &Credentials) -> Option<Arc<VerifiedCaller>> {
+        let book = self.lock();
+        let mut found: Option<Arc<VerifiedCaller>> = None;
+        let ids = book.index.get(&identity(credentials));
+        let callers = ids
+            .into_iter()
+            .flatten()
+            .filter_map(|id| book.slots.get(id))
+            .filter_map(CallerSlot::caller);
+        for caller in callers {
+            if caller.credentials != *credentials {
+                continue;
+            }
+            match &found {
+                None => found = Some(Arc::clone(caller)),
+                Some(seen) if **seen == **caller => {}
+                Some(_) => return None,
+            }
+        }
+        found
+    }
+
+    /// How many requests are in flight, and how many identities the index holds.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> (usize, usize) {
+        let book = self.lock();
+        (book.slots.len(), book.index.len())
+    }
+}
+
+impl fmt::Debug for CallerBook {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CallerBook")
     }
 }
 
@@ -154,6 +294,51 @@ fn base32(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use crate::auth::{HASHED_ID_BASE32_CHARS, is_mapped_id};
+
+    fn caller_with(credentials: &Credentials, groups: &[&str]) -> VerifiedCaller {
+        VerifiedCaller {
+            credentials: credentials.clone(),
+            namespace: "corp".into(),
+            issuer: "as".into(),
+            actor: Actor::new(ActorKind::Agent)
+                .with_id("corp/app")
+                .with_on_behalf_of("corp/ada"),
+            chain: Vec::new(),
+            binding: TokenBinding::Bearer,
+            scopes: Vec::new(),
+            claim_groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn the_book_finds_a_caller_only_while_its_request_is_in_flight_and_never_guesses() {
+        let mine = Credentials::new("https://as", "ada", "app", "https://r/mcp", 1, 2);
+        let other = Credentials::new("https://as", "bo", "app", "https://r/mcp", 1, 2);
+        let book = CallerBook::default();
+        assert!(book.caller_for(&mine).is_none());
+        let slot = CallerSlot::default();
+        let entry = book.enter(slot.clone());
+        // Entered but not yet filled by the verifier.
+        assert!(book.caller_for(&mine).is_none());
+        assert!(slot.fill(caller_with(&mine, &["eng"])));
+        assert_eq!(book.caller_for(&mine).unwrap().claim_groups, ["eng"]);
+        assert!(book.caller_for(&other).is_none());
+        // A second request with the same credentials and the same caller: still found.
+        let same = CallerSlot::default();
+        assert!(same.fill(caller_with(&mine, &["eng"])));
+        let second = book.enter(same);
+        assert!(book.caller_for(&mine).is_some());
+        // One whose mapping differs makes the answer ambiguous: none.
+        let differing = CallerSlot::default();
+        assert!(differing.fill(caller_with(&mine, &["ops"])));
+        let third = book.enter(differing);
+        assert!(book.caller_for(&mine).is_none());
+        drop(third);
+        assert!(book.caller_for(&mine).is_some());
+        drop((entry, second));
+        assert_eq!(book.len(), (0, 0));
+        assert!(book.caller_for(&mine).is_none());
+    }
 
     #[test]
     fn base32_follows_rfc_4648() {

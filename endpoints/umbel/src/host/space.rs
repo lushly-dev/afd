@@ -4,7 +4,9 @@ use crate::workspace::{SpaceId, Workspace};
 use afd::{CommandContext, CommandError};
 use serde_json::Value;
 
-/// `SPACE_NOT_FOUND`: the space is not declared in this workspace.
+/// `SPACE_NOT_FOUND`: the space is not declared in this workspace. Only the operator, and every
+/// caller in mode `none`, receive it: the space check gives every other hosted caller section
+/// 5.4's one answer instead (`access::space_unavailable`).
 pub const SPACE_NOT_FOUND: &str = "SPACE_NOT_FOUND";
 
 impl Workspace {
@@ -62,19 +64,27 @@ impl Workspace {
         if listed.is_empty() {
             return Err(invalid("spaces must name at least one space"));
         }
-        let mut resolved: Vec<SpaceId> = Vec::new();
+        // The list's shape is checked before any entry's existence, so that what the answer
+        // says about a malformed list never depends on which spaces are declared (phase 5
+        // section 5.4: an undeclared space and an unreadable one answer alike).
+        let mut names: Vec<&str> = Vec::with_capacity(listed.len());
         for entry in listed {
             let name = entry.as_str().unwrap_or_default();
-            if !self.has_space(name) {
-                return Err(space_not_found(name));
-            }
-            let id = SpaceId::parse(name).map_err(|_| space_not_found(name))?;
-            if resolved.contains(&id) {
+            if names.contains(&name) {
                 return Err(invalid("spaces must not repeat a space"));
             }
-            resolved.push(id);
+            names.push(name);
         }
-        Ok(resolved)
+        names
+            .into_iter()
+            .map(|name| {
+                if self.has_space(name) {
+                    SpaceId::parse(name).map_err(|_| space_not_found(name))
+                } else {
+                    Err(space_not_found(name))
+                }
+            })
+            .collect()
     }
 }
 

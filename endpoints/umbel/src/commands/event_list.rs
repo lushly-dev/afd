@@ -4,9 +4,8 @@ use super::{
     Builtin, blocking, caller, consumer_arg, consumer_property, expose_everywhere_but_the_palette,
     returns_object, validation_error,
 };
-use crate::access::reader_filter;
+use crate::access::{Caller, reader_filter};
 use crate::events::{Cursor, EventsError, Projector, invalid_cursor, read_after, read_cursor};
-use crate::provenance::effective_principal;
 use crate::workspace::{SpaceId, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandError, CommandHandler, CommandResult};
 use afd::{failure, success};
@@ -28,8 +27,9 @@ struct Request {
     limit: usize,
     after: Option<String>,
     caller: Option<(afd::Actor, String)>,
-    /// The groups the caller's token makes it a member of (phase 5 section 4.5).
-    claim_groups: Vec<String>,
+    /// Who reads (phase 5 section 5.4): the effective principal, its equivalents and claim
+    /// groups, and what its token narrows it to.
+    reader: Caller,
 }
 
 fn limit_arg(input: &Value) -> Result<usize, CommandError> {
@@ -69,20 +69,12 @@ fn list(
             limit,
             after,
             caller,
-            claim_groups,
+            reader,
         } = request;
         let events_error = |error: EventsError| error.to_command_error();
         // Who may read the space, and which of its events (phase 2 specification, section 2.2):
         // `SPACE_NOT_READABLE` before anything is read.
-        let reader = reader_filter(
-            workspace.config(),
-            space.as_str(),
-            caller
-                .as_ref()
-                .and_then(|(actor, _)| effective_principal(actor))
-                .as_deref(),
-            &claim_groups,
-        )?;
+        let reader = reader_filter(workspace.config(), space.as_str(), &reader)?;
         projector.catch_up_if_pending().map_err(events_error)?;
         let head = projector.tail(&space).map_err(events_error)?.seq;
 
@@ -149,7 +141,7 @@ pub(crate) fn read_events(
     after: Option<String>,
     limit: usize,
     caller: Option<(afd::Actor, String)>,
-    claim_groups: Vec<String>,
+    reader: Caller,
 ) -> Result<Value, CommandError> {
     list(
         workspace,
@@ -160,7 +152,7 @@ pub(crate) fn read_events(
             limit,
             after,
             caller,
-            claim_groups,
+            reader,
         },
     )
 }
@@ -178,7 +170,7 @@ impl CommandHandler for Handler {
                     .and_then(Value::as_str)
                     .map(str::to_owned),
                 caller: caller(&context),
-                claim_groups: crate::access::claim_groups_of(&context),
+                reader: Caller::of(self.workspace.config(), &context),
             })
         })();
         let request = match request {

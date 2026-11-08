@@ -2,7 +2,7 @@
 //! 2b), end to end over HTTP with `umbel-testkit-idp`'s tokens: the version 1 projection,
 //! namespaces and subject claims, services three ways, the `~` form of long and unusual ids,
 //! `act` kept only from an `act` issuer, groups from claims, equivalents one way, the operator's
-//! join, and the interim scope rule until step 3.
+//! join. Step 3's scope rules are `scope_gate.rs`'s.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -11,7 +11,7 @@ use std::path::Path;
 
 use jsonschema::Validator;
 use serde_json::{Value, json};
-use support::oauth::{Running, Setup, modern};
+use support::oauth::{Running, Setup};
 
 fn principal_schema() -> Validator {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas/principal.v1.json");
@@ -312,87 +312,6 @@ async fn equivalents_give_the_namespaced_person_their_legacy_records_one_way() {
             .unwrap()
     );
     assert_eq!(operator, hosted);
-}
-
-#[tokio::test]
-async fn until_step_3_only_unqualified_scopes_authorise_a_call() {
-    let running = Running::start(Setup {
-        rest: "[spaces.alpha]",
-        ..Setup::default()
-    })
-    .await;
-    let forbidden = |reply: &support::hosted::Reply| -> String {
-        assert_eq!(reply.status, 403, "{}", reply.text);
-        reply
-            .headers
-            .get("www-authenticate")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_owned()
-    };
-    // Space-qualified scopes alone: 403 naming the unqualified scope, never a space.
-    let qualified = running
-        .token()
-        .scopes(["umbel:read:main", "umbel:write:alpha"])
-        .sign();
-    let challenge = forbidden(
-        &running
-            .call(Some(&qualified), "fixture-whoami", json!({}))
-            .await,
-    );
-    assert!(
-        challenge.contains("error=\"insufficient_scope\""),
-        "{challenge}"
-    );
-    assert!(challenge.contains("scope=\"umbel:read\""), "{challenge}");
-    assert!(
-        !challenge.contains("alpha") && !challenge.contains("main"),
-        "{challenge}"
-    );
-    // Read alone: reads run, a mutation is 403 naming `umbel:write`.
-    let read = running.token().scopes(["umbel:read"]).sign();
-    running.whoami(&read).await;
-    let challenge = forbidden(&running.call(Some(&read), "fixture-touch", json!({})).await);
-    assert!(challenge.contains("scope=\"umbel:write\""), "{challenge}");
-    // Read and write: both run.
-    let write = running.token().scopes(["umbel:read", "umbel:write"]).sign();
-    running.whoami(&write).await;
-    assert_eq!(
-        running.result(&write, "fixture-touch", json!({})).await["data"],
-        json!(true)
-    );
-    // Until step 3 every request needs `umbel:read` itself, so write alone is refused, stricter
-    // than 5.1's implication.
-    let write_only = running.token().scopes(["umbel:write"]).sign();
-    let challenge = forbidden(
-        &running
-            .call(Some(&write_only), "fixture-touch", json!({}))
-            .await,
-    );
-    assert!(challenge.contains("scope=\"umbel:read\""), "{challenge}");
-    // No Umbel scope: every request is refused, the listings, resources and skills included.
-    let none = running.token().scopes(["openid"]).sign();
-    forbidden(&running.call(Some(&none), "fixture-whoami", json!({})).await);
-    for method in ["tools/list", "resources/list", "server/discover"] {
-        forbidden(&modern(&running.client, method, json!({}), Some(&none)).await);
-    }
-    // The listing shows only what the token could call.
-    let listed = |token: String| {
-        let running = &running;
-        async move {
-            let reply = modern(&running.client, "tools/list", json!({}), Some(&token)).await;
-            assert_eq!(reply.status, 200, "{}", reply.text);
-            reply.text
-        }
-    };
-    let text = listed(read).await;
-    assert!(
-        text.contains("fixture-whoami") && !text.contains("fixture-touch"),
-        "{text}"
-    );
-    let text = listed(write).await;
-    assert!(text.contains("fixture-touch"), "{text}");
 }
 
 /// A compiled plugin whose command reports `CallContext.equivalents`.

@@ -250,7 +250,8 @@ async fn a_hosted_workspace_reports_every_auth_check_in_order_after_http_config(
     let report = doctor(dir.path(), &kit).await;
     let ids = report.ids();
     let at = ids.iter().position(|id| id == "http.config").unwrap();
-    assert_eq!(&ids[at + 1..at + 13], umbel::doctor::AUTH_CHECKS, "{ids:?}");
+    let end = at + 1 + umbel::doctor::AUTH_CHECKS.len();
+    assert_eq!(&ids[at + 1..end], umbel::doctor::AUTH_CHECKS, "{ids:?}");
     // A shipped build verifies oauth but does not serve it yet: a warning, not a failure.
     let mode = report.expect("auth.mode", "warn");
     assert!(mode.contains("does not serve oauth"), "{mode}");

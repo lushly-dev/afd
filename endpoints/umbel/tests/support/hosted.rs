@@ -444,6 +444,54 @@ impl Client {
     }
 }
 
+/// Open a plain connection to `address`, write `prefix` (a PROXY protocol header, say), then send
+/// `request` on it. `Err` when the connection or the exchange fails, as when the server closes a
+/// connection it refused.
+pub async fn send_after(
+    address: SocketAddr,
+    prefix: &[u8],
+    request: Request<Full<Bytes>>,
+) -> Result<Reply, String> {
+    let mut stream = TcpStream::connect(address)
+        .await
+        .map_err(|error| error.to_string())?;
+    stream
+        .write_all(prefix)
+        .await
+        .map_err(|error| error.to_string())?;
+    exchange(stream, request).await
+}
+
+/// A PROXY protocol version 2 header for a TCP connection from `client` to `server`.
+pub fn proxy_v2(client: SocketAddr, server: SocketAddr) -> Vec<u8> {
+    let mut bytes = vec![
+        0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A, 0x21,
+    ];
+    match (client, server) {
+        (SocketAddr::V4(client), SocketAddr::V4(server)) => {
+            bytes.push(0x11);
+            bytes.extend_from_slice(&12u16.to_be_bytes());
+            bytes.extend_from_slice(&client.ip().octets());
+            bytes.extend_from_slice(&server.ip().octets());
+            bytes.extend_from_slice(&client.port().to_be_bytes());
+            bytes.extend_from_slice(&server.port().to_be_bytes());
+        }
+        (client, server) => {
+            let six = |address: SocketAddr| match address.ip() {
+                std::net::IpAddr::V4(ip) => ip.to_ipv6_mapped().octets(),
+                std::net::IpAddr::V6(ip) => ip.octets(),
+            };
+            bytes.push(0x21);
+            bytes.extend_from_slice(&36u16.to_be_bytes());
+            bytes.extend_from_slice(&six(client));
+            bytes.extend_from_slice(&six(server));
+            bytes.extend_from_slice(&client.port().to_be_bytes());
+            bytes.extend_from_slice(&server.port().to_be_bytes());
+        }
+    }
+    bytes
+}
+
 enum Stream {
     Plain(TcpStream),
     Tls(Box<tokio_rustls::client::TlsStream<TcpStream>>),

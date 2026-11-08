@@ -190,12 +190,13 @@ pub const MEMORY_CHECKS: [&str; 7] = [
 ];
 
 /// The hosted profile's checks (phase 5 specification, section 6.1, with `auth.ca_files` from
-/// step 2c), in the order the report holds them. They apply whenever `auth.mode` is not `none`;
+/// step 2c and `auth.trusted_proxies` from step 3), in the order the report holds them. They apply whenever `auth.mode` is not `none`;
 /// in mode `none`, `auth.tls` alone runs, and only when `[http.tls]` is set.
-pub const AUTH_CHECKS: [&str; 12] = [
+pub const AUTH_CHECKS: [&str; 13] = [
     "auth.mode",
     "auth.public_url",
     "auth.tls",
+    "auth.trusted_proxies",
     "auth.ca_files",
     "auth.issuers",
     "auth.subjects",
