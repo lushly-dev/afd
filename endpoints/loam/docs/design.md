@@ -474,7 +474,8 @@ One line per component of Loam's kit and chrome: its element, what it is,
 and the pull request that merged it under the checklist. Phase 0's kit is
 only what the empty shell uses (spec section 7); step 7 built them. Each has
 a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps add, in
-`packages/chrome/specimens/apps.specimens.ts`, in both densities.
+`packages/chrome/specimens/apps.specimens.ts`, or for the editor area, in
+`packages/chrome/specimens/editor.specimens.ts`, in both densities.
 
 | Element | What | Merged |
 | --- | --- | --- |
@@ -506,6 +507,9 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
 | `loam-toast-region` | `role="status"`, "Notifications", in the top layer with `popover="manual"` at the inline-end block-end corner, open while empty so it is a live region before its text arrives | Phase 1 step 4 |
 | `loam-toast` | One toast: its tone as an icon and a word (visible for warning and danger) as well as `color.state.*` over `color.surface.floating`, `shadow.floating`, a dismiss button; `role="alert"` when `danger`; its timer stops while hovered, focused or behind a modal; opacity only for motion | Phase 1 step 4 |
 | `loam-console` | Every new app's first UI and the mounted kind's renderer, in main's mount: its `h1` with the trust line, notices, a mounted instance's state and Refresh, a filter over a `violet-listbox` of commands marked "Changes data" or "Destructive", a form of `violet-*` fields from the input schema with an inline `Error:` message per field, Run with `violet-spinner`, and the `Result` region with `status` text. A result through the adapters with classes, mapped to `color.state.*` and `weight.semibold`. Its chunk loads when one renders | Phase 1 step 6 |
+| `loam-editor-area` | Main's `region` "Documents" while the documents section shows with no app, in the `editor` chunk, loaded on the first document opened, restored or routed to: the groups as columns of equal width (`grid-auto-columns: minmax(0, 1fr)`), split by a `1px` `color.border.subtle` line, inside main's one F6 stop; the page's `h1` is the active document's title, visually hidden, so an editor holds none; with no tab, "No documents are open" and how to open one, until step 11's list takes that place. In the compact class only the active group shows. While it shows, main's landing is hidden. It does not animate | Phase 2 step 10 |
+| `loam-editor-group` | One group: a hand-written `role="tablist"` on `color.surface.subtle`, named `Documents` or `Documents, group <n>`, and one `role="tabpanel"` holding the active tab's frame. Each tab is a `button` with `role="tab"`, `aria-selected`, a roving `tabindex`, its title, `●` when unsaved, and a name that says `(preview)`, `, pinned` and `, unsaved` (a preview's title is italic too); the selected tab is on `color.surface.page` with a `size.space.xs` bar of `color.control.selected.foreground` on its block-end edge, `Highlight` under forced colors. Its close and menu buttons are siblings, `tabindex="-1"` and `aria-hidden`, for the pointer: inside the `tablist` a named button fails axe's `aria-required-children`, inside the tab its `nested-interactive`. The keyboard has both on the tab: Delete closes, Shift+F10 or the context-menu key opens the menu, as `aria-keyshortcuts` says; arrows, Home and End move and activate, focus staying in the strip; Enter or Space activates and moves focus to the editor. The menu, `role="menu"` in `popover="auto"`, placed by CSS anchor positioning set through CSSOM, holds Pin or Unpin, Close, Close others, Open beside (not in the compact class) and Move to a new group, by arrows, Home and End, with focus back on the tab when it closes. Hover `color.action.secondary.hover`, pressed `.pressed`; targets `size.target.natural` high and at least `size.target.compact` wide; color fades on `duration.fast`, none under reduced motion | Phase 2 step 10 |
+| `loam-editor-frame` | One tab's editor: a type's element in a `loam-mount` with its plugin's registry and a surface port fixed to the document's scope, through the app surfaces' `host()`; "Opening <title>…" in a `role="status"` line while it loads, or a failure as an embedded `loam-notice` with its code (`DOCUMENT_NOT_FOUND`, `DOCUMENT_TYPE_UNAVAILABLE`, `DOCUMENT_CONTENT_VERSION_NEWER`, `APP_ACTIVATION_FAILED`) and a Close button in the secondary action's colors. A parked frame is hidden with its element kept, and its scroll put back when shown. The close button's color fades on `duration.fast`, none under reduced motion | Phase 2 step 10 |
 | `loam-modal` | An overlay's modal: a native `<dialog>` from `showModal()`, title in `h2`, a body and two buttons as text; focus on cancel when `danger`, otherwise confirm; Escape cancels, Tab wraps, focus returns to the invoker | Phase 1 step 4 |
 
 ## Open questions
@@ -665,3 +669,18 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
     not rest on color. It goes when the person changes the field.
   - `violet-select`'s list opens under its trigger with `position: absolute`, because its `position: fixed`
     from viewport coordinates lands in the wrong place inside the mount's `contain: content`.
+- **2026-11-07. The editor area (phase 2 step 10).** `loam-editor-area`, `loam-editor-group` and
+  `loam-editor-frame` join the chrome in the `editor` chunk, under the checklist, with their fixtures in
+  `editor.specimens.ts`, and no new token. Decided:
+  - The tab strip is hand-written, since `violet-tabs` pairs a fixed trigger with its panel and a tab here
+    closes. A tab's close and menu buttons are for the pointer, `aria-hidden` and out of the Tab order: axe
+    refuses a named button inside a `tablist` (`aria-required-children`), measured before building it, so
+    the keyboard reaches both actions on the tab itself, Delete and Shift+F10, which `aria-keyshortcuts`
+    names.
+  - The selected tab is marked by its page-colored background and a block-end bar, and `aria-selected`; a
+    preview by italics and `(preview)` in its name; unsaved by `●` and `, unsaved` in its name. None rests on
+    color.
+  - The area's region is named "Documents", not by its heading: the heading is the document's title, which
+    an editor may show too, and two landmarks of one name fail `landmark-unique`. An editor's mount is no
+    landmark of its own: its tab panel names it.
+

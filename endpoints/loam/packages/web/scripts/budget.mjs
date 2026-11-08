@@ -65,8 +65,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * approximate, since the minifier's renaming interacts with what is removed; the total is exact. First
  * paint 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,860, `apps` 384,233.
  * Step 10 adds `editorMinified`, the editor area's chunk, loaded on the first document opened, restored or
- * routed to, charged after the surfaces as `sections` is, against the documents specification's first
- * estimate of 40,000 (12); and records `notes`' bundle, as `tasks`' is.
+ * routed to, charged after the surfaces as `sections` is: 24,720 against the documents specification's
+ * first estimate of 40,000 (12), at 62%, so lowered by phase 0's rule to its measurement plus 10%, 27,192.
+ * It records `notes`' bundle, as `tasks`' is. First paint 285,444 and 88,024 gzip, within step 10's
+ * allowance of 150 and 100; the kernel alone 111,543; `late` 70,916, with the editor's state and commands;
+ * `late-documents` 12,105; `url-sync` 4,802; `apps` 384,077, as the port's callable list moved to `late`;
+ * `surfaces` 83,946, with `host()`.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -85,7 +89,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 40_000,
+	editorMinified: 27_192,
 });
 
 /** Group a module id by the package it belongs to. */

@@ -38,6 +38,8 @@ export interface UrlHostV1 {
 	readState(): Promise<MainStateV1>;
 	/** Main's "Nothing here", or what it shows. */
 	route: 'home' | 'not-found';
+	/** Main shows what it shows, held busy no more; with `failed`, it says it could not load (2.2). */
+	releaseMain?(failed?: boolean): void;
 }
 
 interface NavigationLike {
@@ -260,14 +262,14 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 				(cause) => {
 					editor = false;
 					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
-					(host as unknown as LoamShell).releaseMain(true);
+					host.releaseMain?.(true);
 					reportError(cause);
 				}
 			);
 		}
 		// Main held busy for a persisted documents section that the route then left shows what it shows (6).
 		if (state.active === null && state.section !== 'documents') {
-			(host as unknown as LoamShell).releaseMain();
+			host.releaseMain?.();
 		}
 		const wanted = routeOf(state);
 		const here = view.location.origin + view.location.pathname;

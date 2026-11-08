@@ -190,6 +190,28 @@ closes that tooltip itself, since focus inside the element's own shadow root
 never reaches the rail's. Hover, keyboard focus and Escape behave as WCAG
 1.4.13 asks.
 
+## The editor area
+
+Main shows `loam-editor-area` while the documents section is open with no
+app: groups as equal columns, each a `loam-editor-group` with a hand-written
+`role="tablist"` (not `violet-tabs`, whose trigger and panel pairing does not
+fit a closable tab) and one tab panel.
+
+- A tab is a `button` with `role="tab"`, a roving `tabindex`, and a name that
+  says `(preview)`, `, pinned` and `, unsaved`. Selected: the page background,
+  a `size.space.xs` block-end bar of `color.control.selected.foreground`, and
+  `aria-selected`; preview: italics and its name; unsaved: `●` and its name.
+- Its close and menu buttons are siblings, `aria-hidden` and `tabindex="-1"`,
+  for the pointer only: a named button inside a `tablist` fails axe's
+  `aria-required-children`. Delete closes and Shift+F10 opens the menu, on
+  the tab, as `aria-keyshortcuts` says.
+- The area's region is named "Documents"; its visually hidden `h1` is the
+  active document's title, so an editor needs no `h1`, and an editor's mount
+  is no landmark of its own (`landmark-unique`).
+- A lazy chunk imports nothing first paint holds but FAST's `css`, `html`,
+  `observable`, `attr` and `Updates`: `ref` and `repeat` part a shared chunk,
+  which `budget` catches. Build lists with the DOM API, by id.
+
 ## Icons
 
 `violet-icon` by deep import. Always set `icon` (`system/<name>`; 16 system

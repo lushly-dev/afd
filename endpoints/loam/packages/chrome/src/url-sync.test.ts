@@ -185,6 +185,26 @@ describe('P2-E8: a route runs journaled commands, only where the state differs',
 		expect(moves).toEqual([['replace', `${BASE}acme/p/atlas/hello/a%20b/c`]]);
 	});
 
+	it("P2-D1: a document's deep link runs document-open, and a path deeper than a document's id names nothing", async () => {
+		const { commands, host, sync } = await fixture();
+		await sync.navigated({
+			kind: 'section',
+			workspace: 'acme',
+			section: 'documents',
+			rest: ['doc_b'],
+		});
+		expect(commands()).toEqual([['document-open', { document: 'doc_b' }]]);
+		expect(host.route).toBe('home');
+		await sync.navigated({
+			kind: 'section',
+			workspace: 'acme',
+			section: 'documents',
+			rest: ['doc_b', 'more'],
+		});
+		expect(commands()).toEqual([['document-open', { document: 'doc_b' }]]);
+		expect(host.route).toBe('not-found');
+	});
+
 	it('P2-E8: runs nothing for what already holds, and opens a project home as the projects section', async () => {
 		const { commands, sync } = await fixture('acme/hello/x', { active: 'hello', path: 'x' });
 		await sync.navigated({ kind: 'app', workspace: 'acme', instance: 'hello', rest: ['x'] });
