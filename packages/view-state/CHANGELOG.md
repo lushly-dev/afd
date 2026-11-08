@@ -1,5 +1,25 @@
 # @lushly-dev/afd-view-state
 
+## 2.3.0
+
+### Minor Changes
+
+- [#727](https://github.com/lushly-dev/afd/pull/727) [`2f3624e`](https://github.com/lushly-dev/afd/commit/2f3624e06dde5c0a34e41afc535087c487214a6e) Thanks [@Falkicon](https://github.com/Falkicon)! - Define the auth and view-state commands on Zod Mini through `defineCommandWithSchema`, each schema beside its JSON Schema as a literal, so a browser host that uses them bundles neither classic Zod nor `toJSONSchema`. What a command advertises does not change: its input and output JSON Schemas are the same as before, and a test in each package holds them equal to the schemas.
+
+  `@lushly-dev/afd-auth/commands` adds `createAuthSessionGetCommand(adapter)` and `createAuthMutationCommands(adapter, options)`, in modules of their own, so a host can load `auth-session-get` before first paint and the sign-in commands later. `createAuthCommands` returns both, in the same order.
+
+  Two things a caller can see:
+
+  - `inputSchema` and `outputSchema` of these commands are now Zod Mini schemas, though `ZodCommandDefinition` still types `inputSchema` as classic. `safeParse` and `parse` still work; classic's methods such as `.optional()`, `.extend()` or `.shape.id.describe()` do not.
+  - With no Zod locale loaded, as on Zod Mini alone, a bad email at `auth-sign-in` says `Invalid email` rather than `Invalid email address`, and an in-process `NaN` or `Infinity` is described as `nan` or `number`, which JSON cannot carry. With classic Zod loaded anywhere in the process nothing changes.
+
+- [#725](https://github.com/lushly-dev/afd/pull/725) [`a5830b4`](https://github.com/lushly-dev/afd/commit/a5830b4d7a360af0406c473fcafff87ee2eef8cb) Thanks [@Falkicon](https://github.com/Falkicon)! - Add `ViewStateRegistry.hydrateOne(id)`: the same read as `hydrate()` for one registered ID, through `adapter.get(table, id)`, so a handler registered after boot gets its persisted state without `hydrate()` writing over what the other handlers hold in memory. An unregistered ID reads nothing. A missing record, or one in another category, leaves the handler as it is, and an adapter error is logged as `hydrate()` logs it. Await it before any `set` or `replace` on that ID: a change made first is lost in memory while its scheduled write still reaches the adapter.
+
+### Patch Changes
+
+- Updated dependencies [[`8e2e46f`](https://github.com/lushly-dev/afd/commit/8e2e46f4283d7c9fb3cafbfd0006efbe09495c42), [`8f8f94b`](https://github.com/lushly-dev/afd/commit/8f8f94b412f4304e61d0a15d7e65ffcbab4c95b9), [`5f11192`](https://github.com/lushly-dev/afd/commit/5f111922eee6240e116cbb267bc4d410ba2f2743), [`560c603`](https://github.com/lushly-dev/afd/commit/560c6033cc32d1b2b6f18e3329c057466175b4c7), [`2ab549a`](https://github.com/lushly-dev/afd/commit/2ab549a40614f998c9004fe8a103c62e8a8597c2), [`43c6fc7`](https://github.com/lushly-dev/afd/commit/43c6fc79e71c17eae2ed3286b1756f6543b4694d), [`0d9720a`](https://github.com/lushly-dev/afd/commit/0d9720a152313e5fdee4a19fde78da70f4d05d6f), [`c80a9b4`](https://github.com/lushly-dev/afd/commit/c80a9b4dc9078f408876ab0250d8d82c40653dc2), [`550bf0c`](https://github.com/lushly-dev/afd/commit/550bf0ce016c00ad8b67ad62799444ec4e79fe78), [`0e8fbcf`](https://github.com/lushly-dev/afd/commit/0e8fbcffc9838e7f90817fdf65bf57562e201b31), [`c329e9d`](https://github.com/lushly-dev/afd/commit/c329e9d15c60b14bc874ad6e08b6d4fe5ec2d4e2), [`280f65f`](https://github.com/lushly-dev/afd/commit/280f65f4a488139eb7f80d2e5347d3a16f9b9957)]:
+  - @lushly-dev/afd-server@2.3.0
+
 ## 2.2.1
 
 ### Patch Changes

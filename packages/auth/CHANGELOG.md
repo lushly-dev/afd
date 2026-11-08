@@ -1,5 +1,24 @@
 # @lushly-dev/afd-auth
 
+## 2.3.0
+
+### Minor Changes
+
+- [#727](https://github.com/lushly-dev/afd/pull/727) [`2f3624e`](https://github.com/lushly-dev/afd/commit/2f3624e06dde5c0a34e41afc535087c487214a6e) Thanks [@Falkicon](https://github.com/Falkicon)! - Define the auth and view-state commands on Zod Mini through `defineCommandWithSchema`, each schema beside its JSON Schema as a literal, so a browser host that uses them bundles neither classic Zod nor `toJSONSchema`. What a command advertises does not change: its input and output JSON Schemas are the same as before, and a test in each package holds them equal to the schemas.
+
+  `@lushly-dev/afd-auth/commands` adds `createAuthSessionGetCommand(adapter)` and `createAuthMutationCommands(adapter, options)`, in modules of their own, so a host can load `auth-session-get` before first paint and the sign-in commands later. `createAuthCommands` returns both, in the same order.
+
+  Two things a caller can see:
+
+  - `inputSchema` and `outputSchema` of these commands are now Zod Mini schemas, though `ZodCommandDefinition` still types `inputSchema` as classic. `safeParse` and `parse` still work; classic's methods such as `.optional()`, `.extend()` or `.shape.id.describe()` do not.
+  - With no Zod locale loaded, as on Zod Mini alone, a bad email at `auth-sign-in` says `Invalid email` rather than `Invalid email address`, and an in-process `NaN` or `Infinity` is described as `nan` or `number`, which JSON cannot carry. With classic Zod loaded anywhere in the process nothing changes.
+
+### Patch Changes
+
+- [#725](https://github.com/lushly-dev/afd/pull/725) [`a5830b4`](https://github.com/lushly-dev/afd/commit/a5830b4d7a360af0406c473fcafff87ee2eef8cb) Thanks [@Falkicon](https://github.com/Falkicon)! - `MockAuthAdapter.signIn` derives the user id from the email, `mock-user-<email>`, in place of `mock-user-<Date.now()>`, so the same person keeps one id across sign-ins, adapters and replays. Session ids stay time-based, and `_setUser` is unchanged. A test that needs two different users must sign in with two different emails.
+- Updated dependencies [[`dc3e085`](https://github.com/lushly-dev/afd/commit/dc3e085a51e2a8a2e1b8b693f1ed1de69d949d65), [`8e2e46f`](https://github.com/lushly-dev/afd/commit/8e2e46f4283d7c9fb3cafbfd0006efbe09495c42), [`5f11192`](https://github.com/lushly-dev/afd/commit/5f111922eee6240e116cbb267bc4d410ba2f2743), [`2ab549a`](https://github.com/lushly-dev/afd/commit/2ab549a40614f998c9004fe8a103c62e8a8597c2), [`0c9192f`](https://github.com/lushly-dev/afd/commit/0c9192feaa7db53cb57f9be72041e784eed09007), [`c80a9b4`](https://github.com/lushly-dev/afd/commit/c80a9b4dc9078f408876ab0250d8d82c40653dc2), [`13c2a8f`](https://github.com/lushly-dev/afd/commit/13c2a8f4294518e4f9b2587206f82a88700a2303), [`7ae2bc2`](https://github.com/lushly-dev/afd/commit/7ae2bc2c08932c3fe074dd3620b53b34326cb291)]:
+  - @lushly-dev/afd-core@2.3.0
+
 ## 2.2.1
 
 ### Patch Changes
