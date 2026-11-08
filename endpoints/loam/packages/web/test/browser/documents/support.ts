@@ -63,7 +63,7 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
 }
 
 /**
- * The editor area's eleven invariants (documents specification, Status, deviation 16), as its controller holds
+ * The editor area's twelve invariants (documents specification, Status, deviation 16), as its controller holds
  * them, checked after every `editorIdle`:
  * 1. every frame in `frames` or `parking` is of this visit of the scope rendered, in its place for that map,
  *    under its own tab;
@@ -79,7 +79,10 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 10. a tab of the active scope whose leaving frame of that scope, still saving its document unsaved, is
  *     marked unsaved, whatever a newer editor of the tab says;
  * 11. a marked tab whose editor of this visit is ready and clean has an older leaving editor of the same tab,
- *     document and scope whose save is under way.
+ *     document and scope whose save is under way, or the person's own close of it saving or asking;
+ * 12. for the active scope, each tab's mark is `wantsMark`: its editor, shown or parked, says unsaved, a leave of
+ *     that tab, document and scope still holds its draft, or the person's close of it saves or asks. 5, 9, 10
+ *     and 11 follow from it, and stay as diagnostics.
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -91,7 +94,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 			state?: string;
 			record?: { scope: { workspace: string; project?: string } } | null;
 		};
-		type Life = { visit: number; place: string; busy?: boolean };
+		type Life = { visit: number; place: string; busy?: boolean; draft?: boolean };
 		type State = {
 			groups: Array<{ id: string; active: string | null; tabs: Array<{ id: string }> }>;
 		};
@@ -111,12 +114,13 @@ export function frameViolations(page: Page): Promise<string[]> {
 					WeakMap<Frame, Life>,
 					Set<string>,
 					State | null,
+					Set<string>,
 				];
 			};
 		};
 		const lifecycle = shell.editor?.lifecycle;
 		if (!lifecycle) return [];
-		const [visit, frames, parking, leaving, lives, closing, rendered] = lifecycle;
+		const [visit, frames, parking, leaving, lives, closing, rendered, asking] = lifecycle;
 		const broken: string[] = [];
 		const parked = new Set(parking.values());
 		const main = shell.shadowRoot?.querySelector('loam-main');
@@ -190,6 +194,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 			data?: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean; document: string }> }> };
 		};
 		const listed = read.data?.groups.flatMap((group) => group.tabs) ?? [];
+		const key = `${active?.workspace} ${active?.project ?? ''}`;
 		const marked = new Map(listed.map((tab) => [tab.id, tab.dirty]));
 		for (const frame of leaving) {
 			const own = lives.get(frame);
@@ -211,7 +216,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 		}
 		for (const [tab, frame] of frames) {
 			if (lives.get(frame)?.visit !== visit || frame.state !== 'ready' || frame.dirty) continue;
-			if (marked.get(tab) !== true) continue;
+			if (marked.get(tab) !== true || asking.has(`${key} ${tab}`)) continue;
 			const older = [...leaving].some(
 				(each) =>
 					each !== frame &&
@@ -225,6 +230,21 @@ export function frameViolations(page: Page): Promise<string[]> {
 				broken.push(
 					`11: ${tab} is marked, its editor ready and clean, with no older save under way`
 				);
+		}
+		for (const tab of listed) {
+			const frame = frames.get(tab.id) ?? parking.get(tab.id);
+			const wants =
+				!!frame?.dirty ||
+				asking.has(`${key} ${tab.id}`) ||
+				[...leaving].some(
+					(each) =>
+						each.tab === tab.id &&
+						each.document === tab.document &&
+						!!lives.get(each)?.draft &&
+						`${each.record?.scope.workspace} ${each.record?.scope.project ?? ''}` === key
+				);
+			if (wants !== tab.dirty)
+				broken.push(`12: ${tab.id} is marked ${tab.dirty}, wantsMark ${wants}`);
 		}
 		if (showing) {
 			for (const [tab, frame] of frames) {

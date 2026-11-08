@@ -13,7 +13,7 @@
 
 import { type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
-import type { DocumentRecordV1, DocumentRefV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
+import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
 import { editorAreaDefinition, type LoamEditorArea } from './editor-area.js';
 import {
@@ -31,18 +31,23 @@ import {
 } from './editor-group.js';
 import {
 	defineEditorElements,
+	discardModal,
 	type EditorReadV1,
 	focusMain,
 	type How,
 	isSave,
+	keyOf,
 	type Life,
 	MODAL_RESULT_EVENT,
 	mainWithEditor,
+	notSaved,
+	openFrame,
 	PARKED_PER_GROUP,
 	type Place,
 	type RecordRead,
 	type ScopeOf,
 	SURFACES_WAIT_MS,
+	same,
 } from './editor-parts.js';
 
 export { defineEditorElements, type EditorReadV1, PARKED_PER_GROUP } from './editor-parts.js';
@@ -84,6 +89,12 @@ export class EditorController implements FrameListener {
 	 * not make again.
 	 */
 	readonly #closing = new Set<string>();
+	/** Tabs whose person's close is saving or asking, as `<scope> <tab>`: their marks hold meanwhile. */
+	readonly #asking = new Set<string>();
+	/** By `<scope> <tab>`, the tabs a leave may still owe a mark to, a closed one's among them, which no read lists. */
+	readonly #owed = new Map<string, [ScopeOf, string]>();
+	/** The pass of `#marks` queued and not yet begun, which any later change shares. */
+	#marking: Promise<void> | undefined;
 	readonly #modals = new Map<string, (result: 'confirm' | 'cancel') => void>();
 	#queue: Promise<void> = Promise.resolve();
 	#scopeKey: string | null = null;
@@ -137,7 +148,8 @@ export class EditorController implements FrameListener {
 
 	/**
 	 * What a test reads, and its check of the frames' invariants, in this order: the visit rendered, `#frames`,
-	 * `#parking`, the leaving frames, each frame's life, the tabs the person is closing, and the state rendered.
+	 * `#parking`, the leaving frames, each frame's life, the tabs the person is closing, the state rendered, and
+	 * the tabs whose close is saving or asking.
 	 */
 	get lifecycle() {
 		return [
@@ -148,6 +160,7 @@ export class EditorController implements FrameListener {
 			this.#lives,
 			this.#closing,
 			this.#state,
+			this.#asking,
 		] as const;
 	}
 
@@ -171,9 +184,8 @@ export class EditorController implements FrameListener {
 			: { workspace: state.workspace.id };
 		const shows = state.section === 'documents' && state.active === null;
 		if (!shows) {
-			// No render while an app shows, yet a mark an agent sets with no editor behind it still goes.
-			const read = await this.#kernel.call<EditorReadV1>('editor-get');
-			await Promise.all(this.#unmark(read.data?.groups.flatMap((group) => group.tabs) ?? []));
+			// No render while an app shows, yet the marks still follow the editors.
+			void this.#reconcile();
 			if (this.#area.isConnected) {
 				const hadFocus = this.#area.matches(':focus-within');
 				this.#area.remove();
@@ -272,7 +284,6 @@ export class EditorController implements FrameListener {
 			(this.#lives.get(frame) as Life).queued = undefined;
 			this.#move(frame, 'leaving');
 		}
-		const marks: Promise<unknown>[] = [];
 		state.groups.forEach((group, index) => {
 			let element = this.#groups.get(group.id);
 			if (!element) {
@@ -300,15 +311,6 @@ export class EditorController implements FrameListener {
 			for (const tab of group.tabs) {
 				const frame = this.#frames.get(tab.id);
 				if (frame && frame.parentElement !== element) element.append(frame);
-				// An editor that still says unsaved is, whoever marked its tab saved (5.5): only one of this scope.
-				if (frame?.dirty && !tab.dirty && this.#here(frame))
-					marks.push(
-						this.#kernel.call(
-							'editor-dirty-set',
-							{ tab: tab.id, dirty: true },
-							{ scope: frame.record?.scope as ScopeOf }
-						)
-					);
 			}
 			const active = group.tabs.find((tab) => tab.id === group.active);
 			for (const tab of group.tabs) this.#frames.get(tab.id)?.show(tab.id === active?.id);
@@ -317,7 +319,7 @@ export class EditorController implements FrameListener {
 				this.#showFrame(element, group.id, active, records.get(active.document), ids);
 			}
 		});
-		await Promise.all([...marks, ...this.#unmark(tabs)]);
+		void this.#reconcile();
 		const activeGroup = state.groups.find((group) => group.id === state.activeGroup);
 		const activeTab = activeGroup?.tabs.find((tab) => tab.id === activeGroup.active);
 		this.#area.heading = activeTab ? titleOf(activeTab.document) : '';
@@ -344,45 +346,85 @@ export class EditorController implements FrameListener {
 	}
 
 	/**
-	 * The chrome's editors are the truth about unsaved work (5.4): a tab marked unsaved with no editor, no leave
-	 * and no close of the person's behind it holds nothing, and its mark goes, from the person's page.
+	 * `wantsMark`, the one rule for a tab's mark (5.4, Status deviation 16): `tab` of `scope` holds unsaved work
+	 * when its editor, shown or parked, says so; when a leave of that tab, document and scope, of any visit,
+	 * still holds its draft; or while the person's own close of it saves or asks.
 	 */
-	#unmark(tabs: EditorReadV1['groups'][number]['tabs']): Promise<unknown>[] {
-		return tabs
-			.filter((tab) => {
-				if (!tab.dirty || this.#closing.has(`${this.#visit} ${tab.id}`)) return false;
-				if (this.#held(tab.id, tab.document)) return false;
-				// An editor ready, clean and of this visit says there is nothing unsaved, whoever marked it.
-				const frame = this.#frames.get(tab.id);
-				if (frame) return frame.state === 'ready' && !frame.dirty && this.#here(frame);
-				return !this.#parking.has(tab.id);
-			})
-			.map((tab) =>
-				this.#kernel.call('editor-dirty-set', { tab: tab.id, dirty: false }, { scope: this.#at })
-			);
+	#wants(scope: ScopeOf, tab: string, document?: string): boolean {
+		const frame = same(scope, this.#at)
+			? (this.#frames.get(tab) ?? this.#parking.get(tab))
+			: undefined;
+		return (
+			!!frame?.dirty ||
+			this.#asking.has(`${keyOf(scope)} ${tab}`) ||
+			[...this.#leaving].some(
+				(each) =>
+					each.tab === tab &&
+					(document ?? each.document) === each.document &&
+					same(each.record?.scope, scope) &&
+					!!this.#lives.get(each)?.draft
+			)
+		);
 	}
 
 	/**
-	 * Whether a frame of `tab` and scope `at` (the scope rendered unless named), of any visit, but `but`, still
-	 * leaves or parks with `document`'s draft, its save or reopen under way: the tab keeps its mark until that
-	 * leave's own end clears it, whatever a newer editor, or a newer leave, of the tab says. Every clear asks it.
+	 * Bring the kernel's marks to `#wants`, one pass at a time in the queue, so a burst of changes sends each
+	 * tab's last value once. Nothing in the queue awaits it: it would wait on itself.
 	 */
-	#held(
-		tab: string,
-		document: string,
-		but?: LoamEditorFrame,
-		at: ScopeOf | undefined = this.#at
-	): boolean {
-		return [...this.#leaving].some(
-			(each) =>
-				each !== but &&
-				each.tab === tab &&
-				each.document === document &&
-				!!this.#lives.get(each)?.busy &&
-				((at === this.#at && this.#here(each)) ||
-					(each.record?.scope.workspace === at?.workspace &&
-						each.record?.scope.project === at?.project))
-		);
+	#reconcile(): Promise<void> {
+		// A tab the last read left unmarked that `#wants` marks is marked at once, before any read: a set never
+		// loses work, and an agent's trash then meets it. The queue waits for it, so `idle` does.
+		for (const tab of this.#state?.groups.flatMap((group) => group.tabs) ?? []) {
+			if (tab.dirty || !this.#wants(this.#at as ScopeOf, tab.id, tab.document)) continue;
+			tab.dirty = true;
+			const sent = this.#kernel.call(
+				'editor-dirty-set',
+				{ tab: tab.id, dirty: true },
+				{ scope: this.#at }
+			);
+			this.#queue = Promise.all([this.#queue, sent]).then(() => undefined, reportError);
+		}
+		this.#marking ??= this.#queue = this.#queue
+			.then(() => {
+				this.#marking = undefined;
+				return this.#marks();
+			})
+			.catch(reportError);
+		return this.#marking;
+	}
+
+	/**
+	 * The one place the chrome sets or clears a mark, always in the tab's own scope: every tab of the scope
+	 * rendered, and each tab a leave may still owe, in its scope. Every mark is set before any goes, so a trash
+	 * or a move meets one throughout, and a clear is asked again just before it is sent.
+	 */
+	async #marks(): Promise<void> {
+		const at = this.#at;
+		if (!at) return;
+		const scopes = new Map([[keyOf(at), at]]);
+		for (const [scope] of this.#owed.values()) scopes.set(keyOf(scope), scope);
+		const sets: [ScopeOf, string][] = [];
+		const clears: [ScopeOf, string, string?][] = [];
+		for (const [key, scope] of scopes) {
+			const read = await this.#kernel.call<EditorReadV1>('editor-get', {}, { scope });
+			if (!read.success) continue;
+			const tabs = read.data?.groups.flatMap((group) => group.tabs) ?? [];
+			for (const tab of tabs) {
+				if (key !== keyOf(at) && !this.#owed.has(`${key} ${tab.id}`)) continue;
+				const wants = this.#wants(scope, tab.id, tab.document);
+				if (wants !== tab.dirty) (wants ? sets : clears).push([scope, tab.id, tab.document]);
+			}
+			// A closed tab a leave owed: no read lists its mark, which goes once nothing holds it.
+			for (const [own, tab] of this.#owed.values())
+				if (keyOf(own) === key && !tabs.some((each) => each.id === tab)) clears.push([own, tab]);
+		}
+		const set = (scope: ScopeOf, tab: string, dirty: boolean) =>
+			this.#kernel.call('editor-dirty-set', { tab, dirty }, { scope });
+		for (const [scope, tab] of sets) await set(scope, tab, true);
+		for (const [scope, tab, document] of clears)
+			if (!this.#wants(scope, tab, document)) await set(scope, tab, false);
+		for (const [key, [scope, tab]] of this.#owed)
+			if (!this.#wants(scope, tab)) this.#owed.delete(key);
 	}
 
 	/** The active tab's frame, made and opened once, and the group's oldest parked ones over ten dropped. */
@@ -399,8 +441,8 @@ export class EditorController implements FrameListener {
 		const parking = this.#parking.get(tab.id);
 		const adopted = this.#adopt.get(tab.document);
 		if (!frame && parking) frame = this.#take(parking, tab.id, group);
-		// Not one the person discarded meanwhile: its leave lets it go.
-		else if (!frame && adopted && !this.#lives.get(adopted)?.discarded) {
+		// Never a draft the person discarded: the tab its reopen opened draws its own editor, and closes.
+		else if (!frame && adopted && !this.#discarded(adopted)) {
 			this.#adopt.delete(tab.document);
 			frame = this.#take(adopted, tab.id, group);
 		}
@@ -416,7 +458,7 @@ export class EditorController implements FrameListener {
 			this.#lives.set(frame, { visit: this.#visit, place: 'leaving', edits: 0 });
 			group.append(frame);
 			this.#move(frame, 'shown');
-			void this.#open(frame, record);
+			void openFrame(frame, record, this.#types, this.#kernel, () => this.#host());
 		}
 		if (record && 'title' in record) frame.title = record.title;
 		frame.show(true);
@@ -434,72 +476,6 @@ export class EditorController implements FrameListener {
 			}
 		}
 		this.#shown.set(groupId, order);
-	}
-
-	async #open(frame: LoamEditorFrame, record: RecordRead | undefined): Promise<void> {
-		if (!record || !('title' in record)) {
-			frame.title = 'This document';
-			frame.fail(
-				record ?? {
-					code: 'DOCUMENT_NOT_FOUND',
-					message: 'No document with that id is available to you',
-				}
-			);
-			return;
-		}
-		frame.record = record;
-		frame.title = record.title;
-		const type = this.#types.get(record.type);
-		if (!type) {
-			frame.fail({
-				code: 'DOCUMENT_TYPE_UNAVAILABLE',
-				message: `No app this workspace runs provides the document type '${record.type}'`,
-				suggestion:
-					'List the apps with app-list, or redeploy the app that provides it; the document is kept.',
-			});
-			return;
-		}
-		if (record.contentVersion > type.contentVersion) {
-			frame.fail({
-				code: 'DOCUMENT_CONTENT_VERSION_NEWER',
-				message: `This document was written by a newer version of '${type.app}', so it is not opened here`,
-				suggestion: 'Update the app; nothing is overwritten.',
-			});
-			return;
-		}
-		const declared = this.#kernel
-			.appPort(type.instance)
-			.manifest.ui?.documents?.find((each) => each.id === type.id);
-		const element =
-			declared?.editor && 'element' in declared.editor ? declared.editor.element : undefined;
-		if (type.editorKind !== 'native' || element === undefined) {
-			frame.fail({
-				code: 'DOCUMENT_TYPE_UNAVAILABLE',
-				message: "This document's editor is a view, which this shell does not open yet",
-				suggestion: 'Its commands still work from the command palette.',
-			});
-			return;
-		}
-		frame.autosaveMs = declared?.autosave_ms;
-		const host = await this.#host();
-		if (!host) {
-			frame.fail({
-				code: 'APP_RUNTIME_UNAVAILABLE',
-				message: 'The app surfaces did not load',
-				suggestion: 'Reload; check that the deployment serves its assets.',
-			});
-			return;
-		}
-		const reference: DocumentRefV1 = {
-			id: record.id,
-			type: record.type,
-			title: record.title,
-			scope: record.scope,
-			contentVersion: record.contentVersion,
-			binding: record.binding,
-			readOnly: false,
-		};
-		await frame.open(host, type.instance, element, reference);
 	}
 
 	/** The app surfaces' way in, once they have loaded beside stage B. */
@@ -610,29 +586,41 @@ export class EditorController implements FrameListener {
 	async #close(tab: string, visit: number, at: ScopeOf | undefined): Promise<boolean> {
 		// Its editor, shown or parked while it saves: the person's Discard is the one way its draft goes.
 		const frame = this.#frames.get(tab) ?? this.#parking.get(tab);
-		const dirty = frame?.dirty === true || this.#tabOf(tab)?.dirty === true;
-		if (dirty) {
-			let saved = false;
-			if (frame?.autosaveMs !== undefined) {
-				try {
-					await frame.save();
-					saved = true;
-				} catch {
-					saved = false;
+		const life = frame && (this.#lives.get(frame) as Life);
+		if (frame?.dirty === true || this.#tabOf(tab)?.dirty === true) {
+			const asking = `${keyOf(at)} ${tab}`;
+			this.#asking.add(asking);
+			try {
+				let saved = false;
+				if (frame?.autosaveMs !== undefined) {
+					try {
+						await frame.save();
+						saved = true;
+					} catch {
+						saved = false;
+					}
 				}
+				if (!saved) {
+					// The Discard is of the draft as the modal found it, wherever it is by then; typed into after, kept.
+					const edits = life?.edits;
+					if (!(await this.#confirmDiscard(frame?.title ?? 'this document'))) return false;
+					if (life) life.discard = edits;
+				}
+			} finally {
+				this.#asking.delete(asking);
+				void this.#reconcile();
 			}
-			if (!saved && !(await this.#confirmDiscard(frame?.title ?? 'this document'))) return false;
 		}
 		const hadFocus = this.#area.matches(':focus-within');
-		// Only while the frame is still this tab's: a reopen meanwhile may have given it, with its draft, to
-		// another tab, whose editor it is now.
-		if (frame && frame.tab === tab && (this.#frames.get(tab) ?? this.#parking.get(tab)) === frame) {
+		// Its own editor goes; so does one a reopen gave the discarded draft to, with the tab it opened for it.
+		const mine = !!frame && (this.#frames.get(tab) ?? this.#parking.get(tab)) === frame;
+		if (frame && (mine || (this.#live(frame) && this.#discarded(frame)))) {
+			const other = frame.tab;
 			this.#stopTimer(frame);
 			await this.#move(frame, 'disposed');
-		} else if (frame?.tab === tab && this.#leaving.has(frame) && this.#here(frame)) {
-			// Still leaving under this tab, another's close having taken it: the person's Discard holds, so a save
-			// that rejects brings nothing back. One already under way may still write; it began before.
-			(this.#lives.get(frame) as Life).discarded = true;
+			if (!mine && other === life?.opened) {
+				await this.#kernel.call('editor-close', { tab: other, discard: true }, { scope: at });
+			}
 		}
 		const closed = await this.#kernel.call<{ previous: { group: string } }>(
 			'editor-close',
@@ -657,13 +645,10 @@ export class EditorController implements FrameListener {
 
 	/** The phase 1 modal: `Close without saving?`, Discard as `danger`, or Keep editing (5.5). */
 	async #confirmDiscard(title: string): Promise<boolean> {
-		const opened = await this.#kernel.call<{ overlayId: string }>('modal-open', {
-			title: 'Close without saving?',
-			body: `Your changes to ${title.slice(0, 200)} are not saved. Closing loses them.`,
-			confirmLabel: 'Discard',
-			cancelLabel: 'Keep editing',
-			danger: true,
-		});
+		const opened = await this.#kernel.call<{ overlayId: string }>(
+			'modal-open',
+			discardModal(title)
+		);
 		const overlayId = opened.data?.overlayId;
 		if (!opened.success || overlayId === undefined) return false;
 		const result = await new Promise<'confirm' | 'cancel'>((resolve) =>
@@ -689,9 +674,7 @@ export class EditorController implements FrameListener {
 		}
 		if (frame.dirty === dirty) return;
 		frame.dirty = dirty;
-		// A newer editor's clean report leaves the mark to an earlier one still saving the tab's draft.
-		if (!dirty && this.#held(frame.tab, frame.document, frame)) return;
-		void this.#kernel.call('editor-dirty-set', { tab: frame.tab, dirty });
+		void this.#reconcile();
 	}
 
 	selection(frame: LoamEditorFrame, selection: unknown): void {
@@ -722,7 +705,14 @@ export class EditorController implements FrameListener {
 		if (this.#parking.get(frame.tab) === frame) this.#parking.delete(frame.tab);
 		life.place = to;
 		map?.set(frame.tab, frame);
+		void this.#reconcile();
 		return to === 'disposed' ? frame.dispose() : undefined;
+	}
+
+	/** Whether the person discarded `frame`'s draft, with no edit since. */
+	#discarded(frame: LoamEditorFrame): boolean {
+		const life = this.#lives.get(frame);
+		return !!life && life.discard === life.edits;
 	}
 
 	/** Whether `frame` was made in this visit of the scope rendered: never after a change of scope, even back. */
@@ -753,7 +743,7 @@ export class EditorController implements FrameListener {
 			.catch(reportError)
 			.finally(() => {
 				this.#leaving.delete(frame);
-				life.busy = false;
+				life.busy = life.draft = false;
 				const again = life.queued;
 				life.queued = undefined;
 				if (life.place === 'shown') return;
@@ -765,45 +755,33 @@ export class EditorController implements FrameListener {
 	/**
 	 * A leave's work: a dirty frame saves first, a rejection a toast (5.5). When its save rejects while main
 	 * shows its scope's area, its draft is kept for the person (Status deviation 16): a `closed` one takes a tab
-	 * of its document again, and a `parked` one goes back into its tab, which its group then holds beyond ten. A
-	 * save clears its tab's mark in its document's scope, unless its editor reported an edit since the save
-	 * began, or that scope's tab holds a newer unsaved edit (7.6); so does a draft that could not be kept; a
-	 * `closed` frame clears its closed tab's mark in any case, since that call may have left one.
+	 * of its document again, and a `parked` one goes back into its tab, which its group then holds beyond ten.
+	 * While it holds its draft, its tab's mark holds; `#marks` then gives each tab what `#wants` says.
 	 */
 	async #leave(frame: LoamEditorFrame, how: How, shown: boolean): Promise<void> {
 		const life = this.#lives.get(frame) as Life;
 		const { tab, dirty } = frame;
 		const scope = frame.record?.scope;
-		const edits = life.edits;
 		life.busy = true;
+		life.draft = dirty;
+		if (scope) this.#owed.set(`${keyOf(scope)} ${tab}`, [scope, tab]);
 		const saved = !dirty || (await this.#save(frame));
+		if (saved) life.draft = false;
 		// A parked frame whose tab another's call closed meanwhile ends as a close's.
 		const closed = how === 'closed' || (how === 'parked' && !this.#tabOf(tab));
 		const away = life.place === 'parked' || life.place === 'leaving';
-		if (!saved && away && !life.discarded && this.#here(frame) && this.#area.isConnected) {
+		if (!saved && away && !this.#discarded(frame) && this.#here(frame) && this.#area.isConnected) {
 			if (closed) await this.#reopen(frame, shown);
 			else if (how === 'parked' && !this.#frames.has(tab)) this.#move(frame, 'shown');
 		}
-		life.busy = false;
-		// Neither kept nor leaving again: off the page before its mark goes. A draft that could not be kept is
-		// gone, after its toast, and its mark with it. A frame its tab took back keeps the tab's mark: its editor
-		// reports for itself.
+		// Kept, or gone after its toast, a draft that could not be kept taking its mark with it.
+		life.busy = life.draft = false;
 		if (life.place !== 'shown' && !life.queued) await this.#move(frame, 'disposed');
-		const lost = !saved && life.place === 'disposed';
-		const now = this.#frames.get(tab);
-		if (
-			scope &&
-			(closed || lost || (dirty && saved && life.edits === edits && !this.#live(frame))) &&
-			!(now?.dirty && now.record?.scope.project === scope.project) &&
-			!this.#held(tab, frame.document, frame, scope)
-		)
-			await this.#kernel.call('editor-dirty-set', { tab, dirty: false }, { scope });
+		await this.#reconcile();
 	}
 
 	/** `frame` held by `tab` of `group`, as its own. */
 	#take(frame: LoamEditorFrame, tab: string, group: LoamEditorGroup): LoamEditorFrame {
-		// A Discard holds for the leave it was given in, and no longer than that.
-		(this.#lives.get(frame) as Life).discarded = false;
 		this.#move(frame, 'leaving');
 		frame.tab = tab;
 		frame.dataset.tab = tab;
@@ -827,7 +805,7 @@ export class EditorController implements FrameListener {
 	async #reopen(frame: LoamEditorFrame, shown: boolean): Promise<boolean> {
 		const { document } = frame;
 		const at = { scope: frame.record?.scope as ScopeOf };
-		const mark = (tab: string) => this.#kernel.call('editor-dirty-set', { tab, dirty: true }, at);
+		const life = this.#lives.get(frame) as Life;
 		const state = this.#state;
 		const groups = state
 			? [
@@ -850,7 +828,7 @@ export class EditorController implements FrameListener {
 			// A clean one goes: a parked one once its leave settles, a shown one now.
 			if (other) void this.#move(other, parked ? 'leaving' : 'disposed');
 			this.#take(frame, held.id, group);
-			await mark(held.id);
+			await this.#reconcile();
 			if (shown) await this.#kernel.call('editor-activate', { tab: held.id }, at);
 			return true;
 		}
@@ -860,13 +838,20 @@ export class EditorController implements FrameListener {
 		const beside = { group: 'beside', stay: 'active' };
 		let opened = await open(unsaved ? beside : { stay: shown ? 'active' : 'background' });
 		if (opened.error?.code === 'EDITOR_TAB_LIMIT') opened = await open(beside);
+		const tab = opened.data?.tab as string;
+		if (opened.undoCommand === 'editor-close') life.opened = tab;
 		await this.idle;
 		if (this.#adopt.get(document) === frame) this.#adopt.delete(document);
-		const tab = opened.data?.tab as string;
 		if (!opened.success || !this.#here(frame)) return false;
-		// The person discarded it while the tab opened: the tab it would take, new, closes, and nothing reopens.
-		if (this.#lives.get(frame)?.discarded) {
-			if (opened.undoCommand === 'editor-close') {
+		if (this.#discarded(frame)) {
+			// Discarded while its tab opened: nothing takes it, and the tab it opened closes, while its own editor
+			// holds nothing typed since.
+			const other = this.#frames.get(tab);
+			if (
+				life.opened === tab &&
+				!other?.dirty &&
+				!this.#lives.get(other as LoamEditorFrame)?.edits
+			) {
 				await this.#kernel.call('editor-close', { tab, discard: true }, at);
 			}
 			return false;
@@ -877,7 +862,7 @@ export class EditorController implements FrameListener {
 			if (!into) return false;
 			this.#take(frame, tab, into);
 		}
-		await mark(tab);
+		await this.#reconcile();
 		return true;
 	}
 
@@ -898,17 +883,7 @@ export class EditorController implements FrameListener {
 			await frame.save();
 			return true;
 		} catch (cause) {
-			const { code, suggestion } = (cause ?? {}) as { code?: string; suggestion?: string };
-			const message = cause instanceof Error ? cause.message : String(cause);
-			await this.#kernel.call('toast-show', {
-				message:
-					`${frame.title} was not saved: ${message}${code ? ` (${code})` : ''}${suggestion ? `. ${suggestion}` : ''}`.slice(
-						0,
-						200
-					),
-				tone: 'danger',
-				durationMs: 30_000,
-			});
+			await this.#kernel.call('toast-show', notSaved(frame.title, cause));
 			return false;
 		}
 	}

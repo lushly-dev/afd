@@ -195,7 +195,16 @@ const tabOf = (page: Page, title: string, group = 0) =>
 	page.locator('loam-editor-group').nth(group).locator('[role="tab"]', { hasText: title });
 
 /** What the seeded walk leaves on the page: each save held until a step resolves or rejects it. */
-type Walk = Window & { pending?: Array<{ resolve: () => void; reject: () => void }> };
+type Walk = Window & {
+	pending?: Array<{ resolve: () => void; reject: () => void }>;
+	reopens?: number;
+	reopenOpens?: number;
+	gate?: boolean;
+	gates?: Array<() => void>;
+};
+
+/** The fewest reopens a walk's seed may reach, so its coverage cannot drop unseen. */
+const REOPEN_FLOOR = 1;
 
 /** What `trashOnClear` leaves on the page: what the agent's trash answered. */
 type Trapped = Window & { trapped?: { success: boolean; error?: { code: string } } };
@@ -366,6 +375,26 @@ async function longDraft(page: Page, tab: string): Promise<void> {
 		area.value = 'x'.repeat(200_001);
 		area.dispatchEvent(new CustomEvent('input', { detail: { value: area.value } }));
 	}, tab);
+}
+
+/** Give a tab's `notes-editor` the draft `text`, as typing does, with no focus or keys: a modal may be open. */
+async function editDraft(page: Page, tab: string, text: string): Promise<void> {
+	await page.evaluate(
+		({ tab, text }) => {
+			const editor = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main')
+				?.querySelector(`loam-editor-frame[data-tab="${tab}"] loam-mount`)
+				?.shadowRoot?.querySelector('notes-editor');
+			const area = editor?.shadowRoot?.querySelector('violet-text-area') as HTMLElement & {
+				value: string;
+			};
+			area.value = text;
+			area.dispatchEvent(new CustomEvent('input', { detail: { value: text } }));
+		},
+		{ tab, text }
+	);
+	await expect.poll(() => draftOf(page, tab)).toBe(text);
 }
 
 /** A tab's frame's `notes-editor` draft, by the controller's frames, mounted or parked. */
@@ -1583,37 +1612,56 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	}, 120_000);
 
-	it('P2-D5: the person’s Discard never disposes a frame a reopen has meanwhile given to another tab', async () => {
-		const opened = await openShell(browser, site.root);
-		const { page } = opened;
-		const alpha = await createNote(page, 'Alpha');
-		await open(page, alpha);
-		await failSaves(page, ['t1']);
-		await typeInto(page, 't1', 'Draft');
-		// The person closes t1, its save held; an agent closes it too, its save held as well.
-		await tabOf(page, 'Alpha').focus();
-		await page.keyboard.press('Delete');
-		await expect
-			.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
-			.toBeGreaterThan(0);
-		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
-		await framesGone(page, ['t1']);
-		// Both reject: the person's modal opens, and the reopen gives the draft to t2, marked.
-		await settleSaves(page, 't1', 'fail');
-		await expect.poll(() => draftOf(page, 't2')).toBe('Draft');
-		await page.locator('loam-modal button', { hasText: 'Discard' }).click();
-		await editorIdle(page);
-		// t2 keeps its editor, with the draft, and its mark.
-		expect(await draftOf(page, 't2')).toBe('Draft');
-		expect(
-			(
-				(await agentCall(page, 'document-trash', { document: alpha })) as {
-					error?: { code: string };
+	it.each<[string, string]>([
+		['untouched', 'goes, with the tab the reopen opened'],
+		['typed into after the modal opened', 'is kept, in that tab'],
+	])(
+		'P2-D5: the person’s Discard of a draft a reopen has meanwhile given to a new tab, %s, %s',
+		async (how) => {
+			const opened = await openShell(browser, site.root);
+			const { page } = opened;
+			const alpha = await createNote(page, 'Alpha');
+			await open(page, alpha);
+			await failSaves(page, ['t1']);
+			await typeInto(page, 't1', 'Draft');
+			// The person closes t1, its save held; an agent closes it too, its save held as well.
+			await tabOf(page, 'Alpha').focus();
+			await page.keyboard.press('Delete');
+			await expect
+				.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+				.toBeGreaterThan(0);
+			await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+			await framesGone(page, ['t1']);
+			// Both reject: the person's modal opens, and the reopen gives the draft to t2, marked, before they choose.
+			await settleSaves(page, 't1', 'fail');
+			await expect.poll(() => draftOf(page, 't2')).toBe('Draft');
+			const typed = how !== 'untouched';
+			if (typed) await editDraft(page, 't2', 'Draft More');
+			await page.locator('loam-modal button', { hasText: 'Discard' }).click();
+			await editorIdle(page);
+			const tabs = (
+				(await agentCall(page, 'editor-get')) as {
+					data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
 				}
-			).error?.code
-		).toBe('EDITOR_TAB_DIRTY');
-		await opened.context.close();
-	}, 120_000);
+			).data.groups.flatMap((group) => group.tabs);
+			const trash = (await agentCall(page, 'document-trash', { document: alpha })) as {
+				success: boolean;
+				error?: { code: string };
+			};
+			if (typed) {
+				// Typed after the modal opened: not the draft the person discarded, so t2 keeps it, marked.
+				expect(await draftOf(page, 't2')).toBe('Draft More');
+				expect(tabs).toMatchObject([{ id: 't2', dirty: true }]);
+				expect(trash.error?.code).toBe('EDITOR_TAB_DIRTY');
+			} else {
+				// The same outcome as a Discard before the reopen's open: nothing of the draft is left.
+				expect(tabs).toEqual([]);
+				expect(trash.success).toBe(true);
+			}
+			await opened.context.close();
+		},
+		120_000
+	);
 
 	it('P2-D5: a scope round trip keeps the mark of a tab whose editor’s save is still held', async () => {
 		const opened = await openShell(browser, site.root);
@@ -1844,7 +1892,7 @@ describe('P2-D5: the editor area, native half', () => {
 	);
 
 	it.each([0x5eed10, 9, 12, 20, 100, 1, 2, 0xdeadbeef, 42])(
-		'P2-D5: a seeded walk of 200 steps, seed %i, keeps the eleven invariants after each',
+		'P2-D5: a seeded walk of 200 steps, seed %i, keeps the twelve invariants after each and reaches reopens',
 		async (start) => {
 			const opened = await openShell(browser, site.root);
 			const { page } = opened;
@@ -1876,9 +1924,55 @@ describe('P2-D5: the editor area, native half', () => {
 							});
 					});
 				});
+			// Counts the reopens reached, a draft taken by another tab or a reopen's own open, and holds the next of
+			// those opens at a gate when asked.
+			const instrument = () =>
+				page.evaluate(() => {
+					const held = window as Walk;
+					held.reopens = 0;
+					held.reopenOpens = 0;
+					held.gates = [];
+					const shell = document.querySelector('loam-shell') as unknown as {
+						kernel: { call(name: string, input?: unknown, ...rest: unknown[]): Promise<unknown> };
+						shadowRoot: ShadowRoot;
+					};
+					const call = shell.kernel.call.bind(shell.kernel);
+					shell.kernel.call = async (name: string, input?: unknown, ...rest: unknown[]) => {
+						if (name === 'document-open' && (input as { stay?: string } | undefined)?.stay) {
+							held.reopenOpens = (held.reopenOpens ?? 0) + 1;
+							if (held.gate) {
+								held.gate = false;
+								await new Promise<void>((resolve) => held.gates?.push(resolve));
+							}
+						}
+						return call(name, input, ...rest);
+					};
+					new MutationObserver((records) => {
+						for (const record of records) {
+							const now = (record.target as HTMLElement).dataset.tab;
+							if (record.oldValue && record.oldValue !== now)
+								held.reopens = (held.reopens ?? 0) + 1;
+						}
+					}).observe(shell.shadowRoot, {
+						subtree: true,
+						attributeFilter: ['data-tab'],
+						attributeOldValue: true,
+					});
+				});
+			let reopens = 0;
+			let reopenOpens = 0;
+			const counted = async () => {
+				const [taken, opens] = await page.evaluate(() => [
+					(window as Walk).reopens ?? 0,
+					(window as Walk).reopenOpens ?? 0,
+				]);
+				reopens += taken;
+				reopenOpens += opens;
+			};
 			await kernelCall(page, 'project-create', { name: 'Atlas' });
 			for (const title of ['One', 'Two', 'Three']) await open(page, await createNote(page, title));
 			await holdSaves();
+			await instrument();
 			const kinds = [
 				'park',
 				'park',
@@ -1915,6 +2009,16 @@ describe('P2-D5: the editor area, native half', () => {
 				'close-close',
 				'save-key',
 				'person-close-held',
+				'gate',
+				'release',
+				'race',
+				'person-open',
+				'content-set',
+				'type-close',
+				'type-close',
+				'type-close-reject',
+				'type-close-reject',
+				'modal',
 			] as const;
 			let project: string | undefined;
 			let app = false;
@@ -1943,7 +2047,14 @@ describe('P2-D5: the editor area, native half', () => {
 						await page.keyboard.type('x');
 					}
 				} else if (kind === 'resolve' || kind === 'reject') {
-					await page.evaluate((kind) => (window as Walk).pending?.shift()?.[kind](), kind);
+					// Any held save, not only the oldest.
+					await page.evaluate(
+						({ kind, at }) => {
+							const pending = (window as Walk).pending ?? [];
+							pending.splice(Math.floor(at * pending.length), 1)[0]?.[kind]();
+						},
+						{ kind, at: random() }
+					);
 				} else if (kind === 'switch') {
 					project = project ? undefined : 'atlas';
 					await kernelCall(page, 'scope-set', { project: project ?? null });
@@ -1999,10 +2110,12 @@ describe('P2-D5: the editor area, native half', () => {
 						};
 					});
 				} else if (kind === 'reload') {
+					await counted();
 					await page.reload();
 					await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
 					await page.waitForTimeout(300);
 					await holdSaves();
+					await instrument();
 					app = false;
 				} else if (kind === 'app') {
 					app = !app;
@@ -2066,6 +2179,56 @@ describe('P2-D5: the editor area, native half', () => {
 							await page.keyboard.press('Delete');
 						}
 					}
+				} else if (kind === 'gate') {
+					await page.evaluate(() => {
+						(window as Walk).gate = true;
+					});
+				} else if (kind === 'release') {
+					await page.evaluate(() => {
+						for (const release of (window as Walk).gates?.splice(0) ?? []) release();
+					});
+				} else if (kind === 'race') {
+					// Typing, the person's close and an agent's close of the same tab, none waited for.
+					const tab = page
+						.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
+						.first();
+					const area = page
+						.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+						.first();
+					const id = (await tab.count()) > 0 ? await tab.getAttribute('data-tab') : null;
+					if (id && (await area.count()) > 0) {
+						await area.click({ timeout: 500 }).catch(() => undefined);
+						await page.keyboard.type('r');
+						await tab.focus().catch(() => undefined);
+						await page.keyboard.press('Delete');
+						await agentCall(page, 'editor-close', { tab: id, discard: true });
+					}
+				} else if (kind === 'type-close' || kind === 'type-close-reject') {
+					// A draft an agent's close takes, its save held: what a reopen brings back when that save rejects.
+					const tab = page
+						.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
+						.first();
+					const area = page
+						.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+						.first();
+					const id = (await tab.count()) > 0 ? await tab.getAttribute('data-tab') : null;
+					if (id && (await area.count()) > 0) {
+						await area.click({ timeout: 500 }).catch(() => undefined);
+						await page.keyboard.type('c');
+						await agentCall(page, 'editor-close', { tab: id, discard: random() < 0.5 });
+						// Its leave's save, the newest held, rejects at once: the reopen runs while the area shows.
+						if (kind === 'type-close-reject') {
+							await page.waitForTimeout(50);
+							await page.evaluate(() => (window as Walk).pending?.pop()?.reject());
+						}
+					}
+				} else if (kind === 'person-open' && tabs.length > 0) {
+					await kernelCall(page, 'document-open', { document: some().document });
+				} else if (kind === 'content-set' && tabs.length > 0) {
+					await agentCall(page, 'notes-content-set', {
+						document: some().document,
+						text: `Agent ${step}`,
+					});
 				} else if (kind === 'move-held' && tabs.length > 0) {
 					// A tab moved while a save is held, of its editor or another's.
 					if (await page.evaluate(() => ((window as Walk).pending?.length ?? 0) > 0)) {
@@ -2081,10 +2244,17 @@ describe('P2-D5: the editor area, native half', () => {
 				}
 			}
 			await page.evaluate(() => {
+				for (const release of (window as Walk).gates?.splice(0) ?? []) release();
 				for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
 			});
 			await editorIdle(page);
 			expect(await frameViolations(page)).toEqual([]);
+			await counted();
+			// Straight to the output, so every seed's count shows, passing or not.
+			process.stdout.write(
+				`Seed ${start}: ${reopens} drafts taken by another tab, ${reopenOpens} reopen opens\n`
+			);
+			expect(reopens + reopenOpens).toBeGreaterThanOrEqual(REOPEN_FLOOR);
 			await opened.context.close();
 		},
 		600_000

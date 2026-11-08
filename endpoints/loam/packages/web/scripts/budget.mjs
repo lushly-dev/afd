@@ -111,7 +111,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * person's Discard of an editor still leaving recorded on its life (83). The third raised it by 244, to 31,703,
  * approved by the coordinator, 2026-11-08: a newer leave of a tab keeping the mark an older leave still holds
  * (61), and the person's Discard during a reopen's open closing the new tab (127), never adopted, and reset when
- * a tab takes the frame back (56).
+ * a tab takes the frame back (56). The fourth raised it by 718, to 32,421, approved by the coordinator,
+ * 2026-11-08: one rule and one reconciler for every mark in place of six sites, with the closed tabs a leave
+ * still owes, the person's close asking, the Discard by count of edits and the moves to `editor-parts.ts`, net
+ * of what they replaced (273); a mark the rule wants set at once, before any read (256); a Discard of a draft
+ * a reopen has given to another tab (122); and the reopen's check of the tab it opened (67 over its 127).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -131,7 +135,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 31_703,
+	editorMinified: 32_421,
 });
 
 /** Group a module id by the package it belongs to. */
