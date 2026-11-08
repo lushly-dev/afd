@@ -363,17 +363,23 @@ export class EditorController implements FrameListener {
 	}
 
 	/**
-	 * Whether another frame of `tab` and the scope rendered, of any visit, still leaves or parks with `document`'s
-	 * draft: its tab keeps its mark until that leave's own end clears it, whatever a newer editor of the tab says.
+	 * Whether a frame of `tab` and scope `at` (the scope rendered unless named), of any visit, but `but`, still
+	 * leaves or parks with `document`'s draft, its save or reopen under way: the tab keeps its mark until that
+	 * leave's own end clears it, whatever a newer editor, or a newer leave, of the tab says. Every clear asks it.
 	 */
-	#held(tab: string, document: string, but?: LoamEditorFrame): boolean {
-		const at = this.#at;
+	#held(
+		tab: string,
+		document: string,
+		but?: LoamEditorFrame,
+		at: ScopeOf | undefined = this.#at
+	): boolean {
 		return [...this.#leaving].some(
 			(each) =>
 				each !== but &&
 				each.tab === tab &&
 				each.document === document &&
-				(this.#here(each) ||
+				!!this.#lives.get(each)?.busy &&
+				((at === this.#at && this.#here(each)) ||
 					(each.record?.scope.workspace === at?.workspace &&
 						each.record?.scope.project === at?.project))
 		);
@@ -393,7 +399,8 @@ export class EditorController implements FrameListener {
 		const parking = this.#parking.get(tab.id);
 		const adopted = this.#adopt.get(tab.document);
 		if (!frame && parking) frame = this.#take(parking, tab.id, group);
-		else if (!frame && adopted) {
+		// Not one the person discarded meanwhile: its leave lets it go.
+		else if (!frame && adopted && !this.#lives.get(adopted)?.discarded) {
 			this.#adopt.delete(tab.document);
 			frame = this.#take(adopted, tab.id, group);
 		}
@@ -787,13 +794,16 @@ export class EditorController implements FrameListener {
 		if (
 			scope &&
 			(closed || lost || (dirty && saved && life.edits === edits && !this.#live(frame))) &&
-			!(now?.dirty && now.record?.scope.project === scope.project)
+			!(now?.dirty && now.record?.scope.project === scope.project) &&
+			!this.#held(tab, frame.document, frame, scope)
 		)
 			await this.#kernel.call('editor-dirty-set', { tab, dirty: false }, { scope });
 	}
 
 	/** `frame` held by `tab` of `group`, as its own. */
 	#take(frame: LoamEditorFrame, tab: string, group: LoamEditorGroup): LoamEditorFrame {
+		// A Discard holds for the leave it was given in, and no longer than that.
+		(this.#lives.get(frame) as Life).discarded = false;
 		this.#move(frame, 'leaving');
 		frame.tab = tab;
 		frame.dataset.tab = tab;
@@ -854,6 +864,13 @@ export class EditorController implements FrameListener {
 		if (this.#adopt.get(document) === frame) this.#adopt.delete(document);
 		const tab = opened.data?.tab as string;
 		if (!opened.success || !this.#here(frame)) return false;
+		// The person discarded it while the tab opened: the tab it would take, new, closes, and nothing reopens.
+		if (this.#lives.get(frame)?.discarded) {
+			if (opened.undoCommand === 'editor-close') {
+				await this.#kernel.call('editor-close', { tab, discard: true }, at);
+			}
+			return false;
+		}
 		if (this.#frames.get(tab) !== frame) {
 			// In the background its tab draws no frame, so it takes the tab where it is.
 			const into = !this.#frames.has(tab) && this.#groupOf(tab);

@@ -63,7 +63,7 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
 }
 
 /**
- * The editor area's nine invariants (documents specification, Status, deviation 16), as its controller holds
+ * The editor area's eleven invariants (documents specification, Status, deviation 16), as its controller holds
  * them, checked after every `editorIdle`:
  * 1. every frame in `frames` or `parking` is of this visit of the scope rendered, in its place for that map,
  *    under its own tab;
@@ -77,7 +77,9 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 8. every group's active tab has a frame in `frames`, unless its close or leave is under way;
  * 9. a frame in `frames` whose editor says unsaved has its tab marked unsaved;
  * 10. a tab of the active scope whose leaving frame of that scope, still saving its document unsaved, is
- *     marked unsaved, whatever a newer editor of the tab says.
+ *     marked unsaved, whatever a newer editor of the tab says;
+ * 11. a marked tab whose editor of this visit is ready and clean has an older leaving editor of the same tab,
+ *     document and scope whose save is under way.
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -86,6 +88,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 			tab: string;
 			document: string;
 			dirty: boolean;
+			state?: string;
 			record?: { scope: { workspace: string; project?: string } } | null;
 		};
 		type Life = { visit: number; place: string; busy?: boolean };
@@ -205,6 +208,23 @@ export function frameViolations(page: Page): Promise<string[]> {
 			if (!frames.has(tab) && !parking.has(tab) && !leavingHere(tab)) {
 				broken.push(`5: ${tab} is unsaved with no frame and no leave`);
 			}
+		}
+		for (const [tab, frame] of frames) {
+			if (lives.get(frame)?.visit !== visit || frame.state !== 'ready' || frame.dirty) continue;
+			if (marked.get(tab) !== true) continue;
+			const older = [...leaving].some(
+				(each) =>
+					each !== frame &&
+					each.tab === tab &&
+					each.document === frame.document &&
+					!!lives.get(each)?.busy &&
+					each.record?.scope.workspace === active?.workspace &&
+					each.record?.scope.project === active?.project
+			);
+			if (!older)
+				broken.push(
+					`11: ${tab} is marked, its editor ready and clean, with no older save under way`
+				);
 		}
 		if (showing) {
 			for (const [tab, frame] of frames) {

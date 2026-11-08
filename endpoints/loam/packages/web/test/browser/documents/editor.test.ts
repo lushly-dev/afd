@@ -291,6 +291,37 @@ const settleSaves = (page: Page, tab: string, how: 'pass' | 'fail') =>
 		{ tab, how }
 	);
 
+/** What the reopen's gate leaves on the page: whether its open was asked, and how to let it run. */
+type Gated = Window & { openGate?: () => void; openAsked?: boolean };
+
+/** Hold every frame's saves, autosave's too, in the walk's list, until a test settles them. */
+const holdEverySave = (page: Page) =>
+	page.evaluate(() => {
+		const held = window as Walk;
+		held.pending = [];
+		const frame = customElements.get('loam-editor-frame')?.prototype as { save(): Promise<void> };
+		frame.save = () =>
+			new Promise<void>((resolve, reject) => {
+				held.pending?.push({
+					resolve,
+					reject: () => reject(Object.assign(new Error('Held, then refused'), { code: 'TEST' })),
+				});
+			});
+	});
+
+/** Settle only the newest save held for `tab`. */
+const settleNewest = (page: Page, tab: string, how: 'pass' | 'fail') =>
+	page.evaluate(
+		({ tab, how }) => {
+			const all = (window as FailedSaves).heldSaves ?? [];
+			let index = all.length - 1;
+			while (index >= 0 && all[index]?.tab !== tab) index--;
+			const [newest] = index < 0 ? [] : all.splice(index, 1);
+			newest?.[how]();
+		},
+		{ tab, how }
+	);
+
 /** Settle only the oldest save held for `tab`. */
 const settleOldest = (page: Page, tab: string, how: 'pass' | 'fail') =>
 	page.evaluate(
@@ -1698,8 +1729,122 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	}, 120_000);
 
-	it.each([0x5eed10, 9, 12, 100, 1, 2, 0xdeadbeef, 42])(
-		'P2-D5: a seeded walk of 200 steps, seed %i, keeps the nine invariants after each',
+	it('P2-D5: a newer leave of a tab settling first keeps the mark an older leave of it still holds', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		await holdEverySave(page);
+		const roundTrip = async () => {
+			await kernelCall(page, 'scope-set', { project: 'atlas' });
+			await kernelCall(page, 'section-open', { section: 'documents' });
+			await editorIdle(page);
+			await kernelCall(page, 'scope-set', { project: null });
+			await kernelCall(page, 'section-open', { section: 'documents' });
+			await editorIdle(page);
+		};
+		await typeInto(page, 't1', 'Older');
+		await roundTrip();
+		await typeInto(page, 't1', 'Newer');
+		await roundTrip();
+		const trash = async () =>
+			(await agentCall(page, 'document-trash', { document: alpha })) as {
+				success: boolean;
+				error?: { code: string };
+			};
+		// The newer leave's save settles first: the older one still saves "Older", so the tab stays marked.
+		await page.evaluate(() => (window as Walk).pending?.pop()?.resolve());
+		await editorIdle(page);
+		expect((await trash()).error?.code).toBe('EDITOR_TAB_DIRTY');
+		// Then the older: its leave's end clears the mark, and the trash runs.
+		await page.evaluate(() => {
+			for (const each of (window as Walk).pending?.splice(0) ?? []) each.resolve();
+		});
+		await editorIdle(page);
+		expect((await trash()).success).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+
+	it.each<[string, string]>([
+		['Discard', 'nothing reopens'],
+		['Keep editing', 'the draft comes back'],
+	])(
+		'P2-D5: the person’s %s during a reopen’s open: %s',
+		async (choice) => {
+			const opened = await openShell(browser, site.root);
+			const { page } = opened;
+			const alpha = await createNote(page, 'Alpha');
+			await open(page, alpha);
+			await failSaves(page, ['t1']);
+			await typeInto(page, 't1', 'Draft');
+			await tabOf(page, 'Alpha').focus();
+			await page.keyboard.press('Delete');
+			await expect
+				.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+				.toBeGreaterThan(0);
+			await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+			await framesGone(page, ['t1']);
+			// The next document-open, the reopen's, waits on a gate before it runs.
+			await page.evaluate(() => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel: { call(name: string, ...rest: unknown[]): Promise<unknown> };
+				};
+				const call = shell.kernel.call.bind(shell.kernel);
+				const gate = new Promise<void>((resolve) => {
+					(window as Gated).openGate = resolve;
+				});
+				let once = true;
+				shell.kernel.call = async (name: string, ...rest: unknown[]) => {
+					if (name === 'document-open' && once) {
+						once = false;
+						(window as Gated).openAsked = true;
+						await gate;
+					}
+					return call(name, ...rest);
+				};
+			});
+			// The leave's save rejects, and its reopen waits at the gate; then the person's rejects, and they choose.
+			await settleNewest(page, 't1', 'fail');
+			await page.waitForFunction(() => (window as Gated).openAsked === true);
+			await settleSaves(page, 't1', 'fail');
+			await page.locator('loam-modal button', { hasText: choice }).click();
+			await page.evaluate(() => (window as Gated).openGate?.());
+			await editorIdle(page);
+			const tabsOf = async () =>
+				(
+					(await agentCall(page, 'editor-get')) as {
+						data: { groups: Array<{ tabs: Array<{ id: string }> }> };
+					}
+				).data.groups.flatMap((group) => group.tabs.map((tab) => tab.id));
+			if (choice === 'Discard') {
+				expect(await tabsOf()).toEqual([]);
+				expect(
+					((await agentCall(page, 'document-trash', { document: alpha })) as { success: boolean })
+						.success
+				).toBe(true);
+			} else {
+				// Kept: the draft is in t2; edited there and closed by an agent, its save rejecting, it is back in t3.
+				await expect.poll(() => draftOf(page, 't2')).toBe('Draft');
+				await textOf(page, 't2').click();
+				await page.keyboard.press('ControlOrMeta+End');
+				await page.keyboard.type(' More');
+				await agentCall(page, 'editor-close', { tab: 't2', discard: true });
+				await framesGone(page, ['t2']);
+				await page.evaluate(() => {
+					const held = window as FailedSaves;
+					for (const each of held.heldSaves?.splice(0) ?? []) each.fail();
+				});
+				await expect.poll(() => draftOf(page, 't3')).toBe('Draft More');
+				await editorIdle(page);
+			}
+			await opened.context.close();
+		},
+		120_000
+	);
+
+	it.each([0x5eed10, 9, 12, 20, 100, 1, 2, 0xdeadbeef, 42])(
+		'P2-D5: a seeded walk of 200 steps, seed %i, keeps the eleven invariants after each',
 		async (start) => {
 			const opened = await openShell(browser, site.root);
 			const { page } = opened;

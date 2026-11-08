@@ -108,7 +108,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * rendered keeping its tab's mark across a round trip (about 97), and the person's close disposing only a
  * frame still its tab's (37). The next raised it by 178, to 31,459, approved by the coordinator, 2026-11-08: a tab
  * whose earlier editor still saves its draft keeping its mark, whatever a newer one says (about 95), and the
- * person's Discard of an editor still leaving recorded on its life (83).
+ * person's Discard of an editor still leaving recorded on its life (83). The third raised it by 244, to 31,703,
+ * approved by the coordinator, 2026-11-08: a newer leave of a tab keeping the mark an older leave still holds
+ * (61), and the person's Discard during a reopen's open closing the new tab (127), never adopted, and reset when
+ * a tab takes the frame back (56).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -128,7 +131,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 31_459,
+	editorMinified: 31_703,
 });
 
 /** Group a module id by the package it belongs to. */
