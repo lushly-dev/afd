@@ -150,9 +150,11 @@ function installBrowser(root) {
 	if (!existsSync(specimen)) return;
 	const playwright = createRequire(realpathSync(specimen)).resolve('playwright/package.json');
 	const core = dirname(createRequire(playwright).resolve('playwright-core/package.json'));
+	// Installing collects every browser Playwright thinks unused; keep the workspace's own.
 	execFileSync(process.execPath, [join(core, 'cli.js'), 'install', '--only-shell', 'chromium'], {
 		cwd: root,
 		stdio: 'inherit',
+		env: { ...process.env, PLAYWRIGHT_SKIP_BROWSER_GC: '1' },
 	});
 }
 function typecheck(cwd) {
