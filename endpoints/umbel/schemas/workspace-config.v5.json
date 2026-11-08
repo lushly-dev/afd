@@ -1039,6 +1039,10 @@
 						}
 					}
 				},
+				"ca_file": {
+					"description": "The PEM file of the root certificates trusted for this issuer's metadata, key set and introspection fetches (amendment from step 2c). When set, only these roots are trusted for this issuer, never the platform's; no other issuer is affected. Each must be within its validity.",
+					"$ref": "#/$defs/filePath"
+				},
 				"access_tokens": {
 					"description": "Whether its access tokens are accepted and the protected-resource metadata names it. Required on an issuer that serves a person login (checked at open), false in mode gateway, true by default otherwise; false for an issuer that only serves a person login.",
 					"type": "boolean"

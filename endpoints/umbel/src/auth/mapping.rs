@@ -202,6 +202,7 @@ mod tests {
             services,
             introspection: None,
             access_tokens: true,
+            ca_file: None,
         }
     }
 

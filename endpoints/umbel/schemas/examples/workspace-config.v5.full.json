@@ -82,6 +82,7 @@
 				"namespace": "partners",
 				"subject_claim": "oid",
 				"verify": "introspection",
+				"ca_file": "/etc/umbel/tls/partner-roots.pem",
 				"introspection": {
 					"client_id": "umbel-resource",
 					"client_secret_env": "UMBEL_INTROSPECTION_SECRET"

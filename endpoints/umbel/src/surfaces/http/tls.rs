@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use rustls_pki_types::pem::{self, PemObject};
+use rustls_pki_types::pem::PemObject;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, UnixTime};
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::client::danger::HandshakeSignatureValid;
@@ -33,7 +33,7 @@ use tokio_rustls::rustls::{
 };
 
 use crate::host::HostError;
-use crate::workspace::{ClientAuth, TlsConfig, Workspace, WorkspaceError};
+use crate::workspace::{ClientAuth, TlsConfig, WorkspaceError};
 
 /// The TLS acceptor `[http.tls]` configures. The files are read now, so a missing or invalid one
 /// stops the server before it binds; the key is never logged or echoed.
@@ -42,11 +42,11 @@ use crate::workspace::{ClientAuth, TlsConfig, Workspace, WorkspaceError};
 /// `WORKSPACE_CONFIG_INVALID` naming `http.tls.cert`, `http.tls.key` or `http.tls.client_ca`: a
 /// file that cannot be read, holds no PEM item of its kind, or a key that does not match the
 /// certificate.
-pub(crate) fn acceptor(workspace: &Workspace, tls: &TlsConfig) -> Result<TlsAcceptor, HostError> {
+pub(crate) fn acceptor(root: &Path, tls: &TlsConfig) -> Result<TlsAcceptor, HostError> {
     let provider = Arc::new(aws_lc_rs::default_provider());
-    let cert_path = resolve(workspace, &tls.cert);
+    let cert_path = resolve(root, &tls.cert);
     let chain = certificates(&cert_path, "http.tls.cert")?;
-    let key = private_key(&resolve(workspace, &tls.key))?;
+    let key = private_key(&resolve(root, &tls.key))?;
     let builder = ServerConfig::builder_with_provider(Arc::clone(&provider))
         .with_protocol_versions(&[&rustls::version::TLS13, &rustls::version::TLS12])
         .map_err(|error| invalid("http.tls", format!("cannot be used: {error}")))?;
@@ -60,7 +60,7 @@ pub(crate) fn acceptor(workspace: &Workspace, tls: &TlsConfig) -> Result<TlsAcce
                 ));
             };
             let mut roots = RootCertStore::empty();
-            for certificate in certificates(&resolve(workspace, client_ca), "http.tls.client_ca")? {
+            for certificate in certificates(&resolve(root, client_ca), "http.tls.client_ca")? {
                 roots.add(certificate).map_err(|error| {
                     invalid(
                         "http.tls.client_ca",
@@ -97,29 +97,29 @@ pub(crate) fn acceptor(workspace: &Workspace, tls: &TlsConfig) -> Result<TlsAcce
 }
 
 /// A configured path: absolute, or relative to the workspace (section 2.2's rule, from step 1).
-fn resolve(workspace: &Workspace, path: &str) -> PathBuf {
-    workspace.root().join(path)
+pub(crate) fn resolve(root: &Path, path: &str) -> PathBuf {
+    root.join(path)
 }
 
 fn invalid(key: &str, problem: impl std::fmt::Display) -> HostError {
     WorkspaceError::config_invalid(key, problem).into()
 }
 
-/// Every certificate of the PEM file at `path`, at least one.
+/// Every certificate of the PEM file at `path`, at least one, read as a regular file of at most
+/// 1 MiB (`crate::auth::files::read_limited`).
 fn certificates(path: &Path, key: &str) -> Result<Vec<CertificateDer<'static>>, HostError> {
-    let unreadable = |error: pem::Error| {
-        invalid(
-            key,
-            format!(
-                "({}) is not a readable PEM certificate file: {error}",
-                path.display()
-            ),
-        )
-    };
-    let chain = CertificateDer::pem_file_iter(path)
-        .map_err(unreadable)?
+    let bytes = crate::auth::files::read_limited(path).map_err(|problem| invalid(key, problem))?;
+    let chain = CertificateDer::pem_slice_iter(&bytes)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(unreadable)?;
+        .map_err(|_| {
+            invalid(
+                key,
+                format!(
+                    "({}) is not a readable PEM certificate file",
+                    path.display()
+                ),
+            )
+        })?;
     if chain.is_empty() {
         return Err(invalid(
             key,
@@ -129,20 +129,10 @@ fn certificates(path: &Path, key: &str) -> Result<Vec<CertificateDer<'static>>, 
     Ok(chain)
 }
 
-/// The private key in the PEM file at `path`. The parser's own message is left out unless the
-/// file could not be read at all, so no line of a key file ever reaches a log or an answer.
+/// The private key in the PEM file at `path`. The parser's own account is never given, so no
+/// line of a key file ever reaches a log or an answer.
 fn private_key(path: &Path) -> Result<PrivateKeyDer<'static>, HostError> {
-    PrivateKeyDer::from_pem_file(path).map_err(|error| {
-        let problem = match error {
-            pem::Error::Io(error) => format!("({}) cannot be read: {error}", path.display()),
-            pem::Error::NoItemsFound => format!(
-                "({}) holds no PEM private key (PKCS #8, PKCS #1 or SEC1)",
-                path.display()
-            ),
-            _ => format!("({}) is not a valid PEM private key", path.display()),
-        };
-        invalid("http.tls.key", problem)
-    })
+    crate::auth::files::private_key(path).map_err(|problem| invalid("http.tls.key", problem))
 }
 
 /// `client_auth = "any"`: a client certificate is asked for and not required. One that is sent

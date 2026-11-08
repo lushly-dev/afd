@@ -3,6 +3,7 @@
 //! Every name follows D22, every input schema is closed, every command declares `returns`, and
 //! every `expose` flag is set explicitly.
 
+mod auth_show;
 mod event_ack;
 mod event_list;
 mod event_rebuild;
@@ -31,6 +32,7 @@ mod workspace_show;
 use afd::{CommandDefinition, ExposeOptions, JsonSchema, JsonSchemaType};
 use serde_json::{Value, json};
 
+pub(crate) use auth_show::auth_show;
 pub(crate) use event_ack::event_ack;
 pub(crate) use event_list::{event_list, read_events};
 pub(crate) use event_rebuild::event_rebuild;

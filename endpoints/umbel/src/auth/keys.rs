@@ -122,7 +122,9 @@ pub(crate) fn cache_ms(max_age_s: Option<u64>) -> i64 {
 
 /// The usable keys of a JWKS document: each key with a non-empty string `kid`, which no other
 /// key repeats.
-fn key_set(document: &serde_json::Map<String, Value>) -> Result<Vec<Jwk>, DiscoveryError> {
+pub(crate) fn key_set(
+    document: &serde_json::Map<String, Value>,
+) -> Result<Vec<Jwk>, DiscoveryError> {
     let keys = document
         .get("keys")
         .and_then(Value::as_array)

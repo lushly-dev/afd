@@ -159,9 +159,9 @@ impl HostBuilder {
     }
 
     /// Serve mode `oauth` with the host's own verifier although the disclosure controls it needs
-    /// (section 5.4's one answer, section 9's listings and exact filtering, `workspace-show`'s
-    /// hosted answer) do not exist yet. **Test seam** (`testkit` only): a shipped build refuses to
-    /// serve `oauth` until the steps that build them (amendment from phase 5 step 2b).
+    /// (section 5.4's one answer, section 9's listings and exact filtering) do not exist yet.
+    /// **Test seam** (`testkit` only): a shipped build refuses to serve `oauth` until the steps
+    /// that build them (amendment from phase 5 step 2b).
     #[cfg(all(feature = "auth", feature = "testkit"))]
     #[must_use]
     pub fn with_unfinished_oauth(mut self) -> Self {
@@ -234,6 +234,7 @@ impl HostBuilder {
                 Arc::clone(&first_class_cell),
                 Arc::clone(&loaded_cell),
             ),
+            commands::auth_show(),
             commands::plugin_list(Arc::clone(&loaded_cell)),
             commands::plugin_show(Arc::clone(&loaded_cell)),
             commands::skill_list(Arc::clone(&loaded_cell)),
@@ -251,6 +252,8 @@ impl HostBuilder {
                 Arc::clone(&loaded_cell),
                 Arc::clone(&compiled_catalog),
                 Arc::clone(&stores),
+                #[cfg(feature = "auth")]
+                self.auth_environment.clone(),
             ),
             commands::event_rebuild(Arc::clone(&workspace), Arc::clone(&projector)),
         ];
@@ -668,8 +671,8 @@ impl Host {
     /// the body limit, the per-IP limit, `/health` and the protected-resource metadata in public,
     /// and AFD's bearer layer around the MCP service, verifying tokens with the verifier it
     /// builds from `[auth.issuers]` (phase 5 step 2b); a shipped build still refuses to serve it
-    /// until the disclosure controls of phase 5 steps 2c, 3 and 7 exist. Mode `gateway` refuses
-    /// to start until phase 5 step 4.
+    /// until the disclosure controls of phase 5 steps 3 and 7 exist (step 2c's are in). Mode
+    /// `gateway` refuses to start until phase 5 step 4.
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, the

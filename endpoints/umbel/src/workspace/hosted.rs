@@ -8,7 +8,7 @@
 //! each a `WORKSPACE_CONFIG_INVALID` naming the key. The listener (step 2a) and the verifier and
 //! mapping (step 2b, `crate::auth`) act on them; the gateway, the person page, the remaining
 //! limits and usage arrive in steps 3 to 9. The doctor's `auth.*` checks, which need the network,
-//! the files or the environment, are step 2c's.
+//! the files or the environment, are step 2c's (`crate::auth::doctor`).
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
@@ -78,6 +78,7 @@ const ISSUER_KEYS: &[&str] = &[
     "services",
     "introspection",
     "access_tokens",
+    "ca_file",
 ];
 const SERVICES_KEYS: &[&str] = &["clients", "claim"];
 const CLAIM_MATCH_KEYS: &[&str] = &["name", "value"];
@@ -315,6 +316,10 @@ pub struct IssuerConfig {
     /// that only serves a person login (3.3, amendment from step 1). Required on an issuer that
     /// serves a person login, `false` in mode `gateway`, and true by default elsewhere.
     pub access_tokens: bool,
+    /// The PEM file of the roots trusted for this issuer's metadata, key set and introspection
+    /// fetches (amendment from step 2c). When set, only these roots are trusted for it, never the
+    /// platform's; `None` trusts the platform's roots.
+    pub ca_file: Option<String>,
 }
 
 /// A namespace's `person`: the person login (7.2).
@@ -1160,6 +1165,14 @@ fn issuer(
         }
         (TokenCheck::Jwt, None) => None,
     };
+    let ca_file = match reader.string("ca_file")? {
+        Some(path) => {
+            check_file_path(&path)
+                .map_err(|p| WorkspaceError::config_invalid(&at("ca_file"), p))?;
+            Some(path)
+        }
+        None => None,
+    };
     if !access_tokens && verify == TokenCheck::Introspection {
         return Err(WorkspaceError::config_invalid(
             &at("access_tokens"),
@@ -1177,6 +1190,7 @@ fn issuer(
         services,
         introspection,
         access_tokens,
+        ca_file,
     })
 }
 
@@ -1527,7 +1541,7 @@ pub(super) fn check_bind(
 
 /// `http.public_url` (2.2): `https`, lowercase, no user information, query or fragment, a host
 /// one of `allowed_hosts` admits, and the path `http.path`.
-pub(super) fn check_public_url(
+pub(crate) fn check_public_url(
     url: &str,
     path: &str,
     allowed_hosts: &[String],

@@ -441,7 +441,11 @@ caller is `agent:loopback`, and the CLI is always `human:<principal.local_id>`. 
 surfaces access is a policy, not a boundary, and it protects nothing a local process could not
 read from the files. To make one person's CLI and that person's agents line up, set
 `principal.local_id` and `principal.on_behalf_of` to the same id. `workspace-show` reports this as
-`access: { principals: "unverified", exact: ["library"] }` until phase 5 changes it. Hidden
+`access: { principals: "unverified", exact: ["library"] }` until phase 5 changes it. In a hosted
+`auth.mode` (configuration version 5, not served over HTTP yet) it says `principals: "verified"`, and
+any caller but the operator at the CLI sees no workspace name or path and only the spaces it reads;
+`auth-show` tells any caller who it is to the host, and `umbel workspace doctor` adds the hosted
+profile's `auth.*` checks and answers the operator alone. Hidden
 content and ids are never returned, but hidden counts are not fully hidden: scores, revision and
 `seq` gaps, `store-show`'s head and the totals of index-building commands can reveal how many
 hidden things exist (an accepted limit, listed in the specification's section 6).

@@ -135,7 +135,7 @@ impl HttpServer {
 /// test filled the slot with `verifier`.
 ///
 /// Mode `oauth` with the host's verifier is served only when the `testkit` seam asks for it,
-/// until the disclosure controls of steps 2c, 3 and 7 exist (amendment from step 2b). Mode
+/// until the disclosure controls of steps 3 and 7 exist (amendments from steps 2b and 2c). Mode
 /// `gateway` refuses until step 4.
 ///
 /// # Errors
@@ -169,12 +169,15 @@ pub(crate) fn server(
                     Some(verifier) => verifier,
                     None => {
                         // Built first, so that a configuration it cannot serve is named.
-                        let verifier =
-                            crate::auth::verifier::HostVerifier::from_config(config, environment)?;
+                        let verifier = crate::auth::verifier::HostVerifier::from_config(
+                            config,
+                            workspace.root(),
+                            environment,
+                        )?;
                         if !environment.serve_oauth {
                             return Err(not_served(
                                 "auth.mode",
-                                "is \"oauth\", which this build verifies and maps (phase 5 step 2b) but does not serve yet: until section 5.4's one answer and the space listings of section 9.4 (step 3), the exact filtering of sections 9.1 to 9.3 (step 7) and workspace-show's hosted answer (step 2c) exist, a verified caller could learn which spaces exist and what they hold",
+                                "is \"oauth\", which this build verifies and maps (phase 5 step 2b) but does not serve yet: until section 5.4's one answer, the space listings of section 9.4 and the plugin listings that name spaces (step 3) and the exact filtering of sections 9.1 to 9.3 (step 7) exist, a verified caller could learn which spaces exist and what they hold",
                             ));
                         }
                         Arc::new(verifier)
@@ -193,7 +196,7 @@ pub(crate) fn server(
             .http
             .tls
             .as_ref()
-            .map(|tls| tls::acceptor(workspace, tls))
+            .map(|tls| tls::acceptor(workspace.root(), tls))
             .transpose()?;
         Ok(HttpServer { router, tls })
     }

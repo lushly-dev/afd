@@ -40,6 +40,8 @@ pub use plugins_config::{
 };
 pub use space::SpaceId;
 
+#[cfg(feature = "auth")]
+pub(crate) use hosted::check_public_url;
 pub(crate) use keys::{read_key, read_token};
 
 /// An opened workspace: a validated configuration over a directory whose `state/` and keys exist.

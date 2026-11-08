@@ -237,3 +237,154 @@ async fn a_caller_that_hangs_up_does_not_spend_the_minutes_fetch() {
     assert!(accepted(&running, &token(&running)).await);
     assert_eq!(server.hits(Endpoint::Jwks), 1);
 }
+
+// ─── An issuer's own roots (`ca_file`, amendment from step 2c) ──────────────────────────────
+
+/// A served workspace whose identity provider `idp` also issues access tokens, and whose
+/// authorization server `as` names `ca_file = "trust/as.pem"` holding `as_roots`. The kit's CA
+/// stands among the platform's roots only when `kit_ca_is_a_platform_root`.
+async fn with_ca_file(as_roots: Option<&str>, kit_ca_is_a_platform_root: bool) -> Running {
+    let kit = umbel_testkit_idp::TestIdp::start().await.unwrap();
+    let setup = Setup {
+        issuer: "algorithms = [\"ES256\", \"RS256\"]\nca_file = \"trust/as.pem\"",
+        ..Setup::default()
+    };
+    let text = support::oauth::config(&kit, &setup).replace(
+        "access_tokens = false",
+        "access_tokens = true\nalgorithms = [\"ES256\", \"RS256\"]",
+    );
+    let dir = support::workspace(&text);
+    std::fs::create_dir_all(dir.path().join("trust")).unwrap();
+    let roots = as_roots.map_or_else(|| kit.ca().certificate_pem().to_owned(), str::to_owned);
+    std::fs::write(dir.path().join("trust/as.pem"), roots).unwrap();
+    let clock = afd::fixed_clock(support::oauth::now_ms());
+    let mut builder = umbel::HostBuilder::open(dir.path())
+        .unwrap()
+        .with_unfinished_oauth()
+        .with_auth_clock(clock.clone())
+        .register(support::oauth::whoami())
+        .register(support::oauth::touch());
+    if kit_ca_is_a_platform_root {
+        builder =
+            builder.with_auth_root_certificate(kit.ca().certificate_pem().as_bytes().to_vec());
+    }
+    let host = builder.seal().unwrap();
+    let served = support::hosted::Served::start(&host).await;
+    let client = support::hosted::Client::plain(served.address);
+    Running {
+        kit,
+        dir,
+        host,
+        served,
+        client,
+        clock,
+    }
+}
+
+/// A fresh token of the identity provider, which `with_ca_file` makes a token issuer too.
+fn idp_token(running: &Running) -> String {
+    running
+        .kit
+        .identity_provider()
+        .access_token(support::hosted::PUBLIC_URL)
+        .issued_at(running.now_s())
+        .lifetime(300)
+        .subject("ada")
+        .scopes(["umbel:read", "umbel:write"])
+        .sign()
+}
+
+#[tokio::test]
+async fn a_private_ca_vouches_for_its_issuer_alone() {
+    // The kit's CA is `as`'s ca_file and no platform root: `as` is reached through it, while
+    // `idp`, which names no ca_file, is reached through the platform's roots alone, which do not
+    // hold the kit's CA. The private root extends no trust to another issuer.
+    let running = with_ca_file(None, false).await;
+    assert!(accepted(&running, &token(&running)).await);
+    assert!(!accepted(&running, &idp_token(&running)).await);
+    assert_eq!(running.kit.identity_provider().hits(Endpoint::Jwks), 0);
+}
+
+#[tokio::test]
+async fn a_ca_file_replaces_the_platforms_roots_for_its_issuer_and_no_other() {
+    // The kit's CA is a platform root, and `as`'s ca_file holds another CA: `as` is refused
+    // although the platform's roots would have reached it, and `idp` is unaffected.
+    let other = umbel_testkit_idp::TestCa::new().unwrap();
+    let running = with_ca_file(Some(other.certificate_pem()), true).await;
+    assert!(!accepted(&running, &token(&running)).await);
+    assert_eq!(running.kit.authorization_server().hits(Endpoint::Jwks), 0);
+    assert!(accepted(&running, &idp_token(&running)).await);
+}
+
+#[tokio::test]
+async fn a_ca_file_that_cannot_be_trusted_stops_the_server_before_it_starts() {
+    let now = support::oauth::now_ms().div_euclid(1000);
+    let expired = umbel_testkit_idp::TestCa::valid_between(now - 30 * 86_400, now - 86_400)
+        .unwrap()
+        .certificate_pem()
+        .to_owned();
+    let future = umbel_testkit_idp::TestCa::valid_between(now + 86_400, now + 30 * 86_400)
+        .unwrap()
+        .certificate_pem()
+        .to_owned();
+    for (roots, why) in [
+        (Some(expired.as_str()), "expired"),
+        (Some(future.as_str()), "not valid yet"),
+        (Some("not a certificate\n"), "holds no PEM certificate"),
+    ] {
+        let kit = umbel_testkit_idp::TestIdp::start().await.unwrap();
+        let setup = Setup {
+            issuer: "algorithms = [\"ES256\", \"RS256\"]\nca_file = \"trust/as.pem\"",
+            ..Setup::default()
+        };
+        let dir = support::workspace(&support::oauth::config(&kit, &setup));
+        std::fs::create_dir_all(dir.path().join("trust")).unwrap();
+        if let Some(roots) = roots {
+            std::fs::write(dir.path().join("trust/as.pem"), roots).unwrap();
+        }
+        let host = umbel::HostBuilder::open(dir.path())
+            .unwrap()
+            .with_unfinished_oauth()
+            .register(support::oauth::whoami())
+            .register(support::oauth::touch())
+            .seal()
+            .unwrap();
+        let Err(error) = host.http_server() else {
+            panic!("refused");
+        };
+        assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID", "{why}");
+        assert!(error.message().contains(why), "{why}: {}", error.message());
+        assert_eq!(
+            error
+                .into_result::<serde_json::Value>()
+                .error
+                .unwrap()
+                .details
+                .unwrap()["key"],
+            json!("auth.issuers.as.ca_file"),
+            "{why}"
+        );
+    }
+    // A missing file too, without echoing anything but its path.
+    let kit = umbel_testkit_idp::TestIdp::start().await.unwrap();
+    let setup = Setup {
+        issuer: "ca_file = \"trust/missing.pem\"",
+        ..Setup::default()
+    };
+    let dir = support::workspace(&support::oauth::config(&kit, &setup));
+    let host = umbel::HostBuilder::open(dir.path())
+        .unwrap()
+        .with_unfinished_oauth()
+        .register(support::oauth::whoami())
+        .register(support::oauth::touch())
+        .seal()
+        .unwrap();
+    let Err(error) = host.http_server() else {
+        panic!("refused");
+    };
+    assert!(
+        error.message().contains("cannot be read"),
+        "{}",
+        error.message()
+    );
+}
