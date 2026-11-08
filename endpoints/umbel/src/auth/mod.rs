@@ -2,11 +2,28 @@
 //! the constants section 2's shapes and rules name, the scope grammar and its order, and the
 //! form of a namespaced principal id.
 //!
-//! Step 1 of the phase 5 plan adds these, and configuration version 5 parses with them. Nothing
-//! here verifies a token, maps a caller or decides a call: the listener, the verifier, the
-//! resolver and the scope gate arrive in steps 2a to 4 and consume what is here.
+//! Step 1 of the phase 5 plan adds these, and configuration version 5 parses with them. Step 2b
+//! adds token verification (`verifier`, with `keys`, `introspection` and `fetch`), the mapping of
+//! a verified token to a caller (`mapping`, `caller`) and the interim scope rule (`interim`); the
+//! resolver and the scope gate of section 5 arrive in step 3.
 
 use crate::workspace::SpaceId;
+
+pub(crate) mod caller;
+#[cfg(feature = "auth")]
+pub(crate) mod fetch;
+#[cfg(feature = "auth")]
+pub(crate) mod interim;
+#[cfg(feature = "auth")]
+pub(crate) mod introspection;
+#[cfg(feature = "auth")]
+pub(crate) mod keys;
+#[cfg(feature = "auth")]
+pub(crate) mod mapping;
+#[cfg(feature = "auth")]
+pub(crate) mod verifier;
+
+pub use caller::{ChainEntry, TokenBinding, mapped_id};
 
 /// The scope verbs, in the order 5.1 lists them.
 pub const SCOPE_VERBS: &[&str] = &["read", "write", "approve", "erase"];

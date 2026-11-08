@@ -11,13 +11,13 @@
 //! 4. **Public routes**: `/health` and the metadata at both well-known paths, with no token.
 //! 5. **AFD's bearer layer**: every other request of the MCP path needs a verified token, with
 //!    the specified 401; it answers before AFD's host check (layer 7).
-//! 7. **The context hook**, version 1's skeleton: it refuses every verified caller until step 2b
-//!    maps credentials to a principal, and every request a missing layer let through.
+//! 7. **The context hook**, version 1: it refuses every caller the host's own verifier did not
+//!    map (here the tests' recording verifier, a missing layer), so nothing runs for them; step
+//!    2b's `auth_tokens.rs` and `principal_v1.rs` cover the callers it maps.
 //!
 //! Also: the TLS client certificate's thumbprint reaches the verifier from the handshake only,
 //! never from a header; removing an authenticating layer fails closed; stdio and the CLI are
-//! unaffected; what step 2a does not serve (a shipped `oauth` without its verifier, `gateway`)
-//! refuses to start.
+//! unaffected; what the build does not serve (`gateway`, until step 4) refuses to start.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -267,6 +267,7 @@ async fn a_certificate_thumbprint_comes_from_the_handshake_and_never_from_a_head
         .authorization_server()
         .access_token(PUBLIC_URL)
         .subject("ada")
+        .scopes(["umbel:read"])
         .certificate(&holder)
         .sign();
     let call = |client: Client, headers: Vec<(String, String)>| {
@@ -445,7 +446,7 @@ async fn every_other_request_needs_a_verified_token_and_gets_the_specified_401()
 }
 
 #[tokio::test]
-async fn the_bearer_layer_answers_before_the_host_check_and_the_hook_refuses_until_step_2b() {
+async fn the_bearer_layer_answers_before_the_host_check_and_the_hook_refuses_an_unmapped_caller() {
     let hosted = Hosted::start("none", "", "", false).await;
     let token = hosted.token();
     // A Host the surface does not publish: without a token the bearer layer (5) answers first;
@@ -470,8 +471,8 @@ async fn the_bearer_layer_answers_before_the_host_check_and_the_hook_refuses_unt
         403
     );
 
-    // A verified caller reaches the context hook, which refuses every call until step 2b maps
-    // credentials to a version 1 principal: nothing runs.
+    // A caller verified by a verifier other than the host's reaches the context hook, which
+    // refuses it: no caller was mapped for its credentials, so nothing runs.
     let client = hosted.client(None);
     let reply = modern(
         &client,
@@ -781,8 +782,8 @@ async fn removing_an_authenticating_layer_fails_closed() {
 #[tokio::test]
 async fn the_hooks_own_check_refuses_admitted_callers_in_both_hosted_modes() {
     // Credentials admitted by some layer reach the context hook, which refuses them: in mode
-    // oauth until step 2b maps them to a principal, in mode gateway until step 4. Without the
-    // hook's check the command would run as the loopback agent.
+    // oauth because the host's verifier mapped no caller for them, in mode gateway until step
+    // 4. Without the hook's check the command would run as the credentials' default actor.
     let kit = TestIdp::start().await.unwrap();
     let oauth = support::workspace(&oauth_config(&kit, "", "", ""));
     let gateway = support::workspace(&gateway_config(&kit));
@@ -906,18 +907,20 @@ async fn stdio_and_the_cli_are_unaffected_in_mode_oauth() {
     assert_eq!(run.json()["success"], json!(true), "{}", run.stdout);
 }
 
-// ─── What step 2a does not serve refuses to start ───────────────────────────────────────────
+// ─── What this build does not serve refuses to start ───────────────────────────────────────────
 
 #[tokio::test]
 async fn what_this_build_does_not_serve_refuses_to_start() {
     let kit = TestIdp::start().await.unwrap();
-    // Mode oauth without a verifier in the slot: a shipped build, until step 2b.
+    // Mode oauth in a shipped build, with no test seam: since step 2b the host builds its own
+    // verifier from [auth.issuers], and still refuses to serve until the disclosure controls of
+    // steps 2c, 3 and 7 exist (amendment from step 2b).
     let dir = support::workspace(&oauth_config(&kit, "", "", ""));
     let host = support::host(dir.path());
     let error = host.http_server().unwrap_err();
     assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID");
     assert!(error.message().contains("auth.mode"), "{}", error.message());
-    assert!(error.message().contains("step 2b"), "{}", error.message());
+    assert!(error.message().contains("step 3"), "{}", error.message());
     assert_eq!(
         error
             .clone()

@@ -10,7 +10,7 @@
 //! `seal`) the approval middleware. The event stamp is outermost so that it runs last on the way out and can
 //! put the default space on a mutation of a command that has no `space` input.
 
-use crate::access::{effective_principal_of, reader_filter};
+use crate::access::{claim_groups_of, effective_principal_of, reader_filter};
 use crate::events::CHANGES_KEY;
 use crate::plugins::{GateEntry, Ledger, PluginError, PluginKind};
 use crate::provenance::{AUTHORITY_KEY, PROVENANCE_KEY, supplied_fields};
@@ -252,10 +252,14 @@ pub(crate) fn plugin_gate(
                     }
                 }
                 let principal = effective_principal_of(&context);
+                let claim_groups = claim_groups_of(&context);
                 for space in &spaces {
-                    if let Err(error) =
-                        reader_filter(gate.workspace.config(), space, principal.as_deref())
-                    {
+                    if let Err(error) = reader_filter(
+                        gate.workspace.config(),
+                        space,
+                        principal.as_deref(),
+                        &claim_groups,
+                    ) {
                         return failure(error);
                     }
                 }

@@ -28,6 +28,8 @@ struct Request {
     limit: usize,
     after: Option<String>,
     caller: Option<(afd::Actor, String)>,
+    /// The groups the caller's token makes it a member of (phase 5 section 4.5).
+    claim_groups: Vec<String>,
 }
 
 fn limit_arg(input: &Value) -> Result<usize, CommandError> {
@@ -67,6 +69,7 @@ fn list(
             limit,
             after,
             caller,
+            claim_groups,
         } = request;
         let events_error = |error: EventsError| error.to_command_error();
         // Who may read the space, and which of its events (phase 2 specification, section 2.2):
@@ -78,6 +81,7 @@ fn list(
                 .as_ref()
                 .and_then(|(actor, _)| effective_principal(actor))
                 .as_deref(),
+            &claim_groups,
         )?;
         projector.catch_up_if_pending().map_err(events_error)?;
         let head = projector.tail(&space).map_err(events_error)?.seq;
@@ -145,6 +149,7 @@ pub(crate) fn read_events(
     after: Option<String>,
     limit: usize,
     caller: Option<(afd::Actor, String)>,
+    claim_groups: Vec<String>,
 ) -> Result<Value, CommandError> {
     list(
         workspace,
@@ -155,6 +160,7 @@ pub(crate) fn read_events(
             limit,
             after,
             caller,
+            claim_groups,
         },
     )
 }
@@ -172,6 +178,7 @@ impl CommandHandler for Handler {
                     .and_then(Value::as_str)
                     .map(str::to_owned),
                 caller: caller(&context),
+                claim_groups: crate::access::claim_groups_of(&context),
             })
         })();
         let request = match request {

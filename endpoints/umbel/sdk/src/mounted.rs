@@ -305,6 +305,7 @@ impl<P: Plugin> CommandHandler for Handler<P> {
             // A mounted server is outside the host, which attests nothing to it.
             pipeline: None,
             person: false,
+            equivalents: Vec::new(),
         };
         let services = Services {
             shared: Arc::clone(&self.shared),
