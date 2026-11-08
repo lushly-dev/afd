@@ -96,6 +96,8 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	let applying = 0;
 	/** Whether the projects section has been shown, so its chunk follows every later state. */
 	let sections = false;
+	/** Whether the documents section has been shown, so the editor area's chunk follows every later state. */
+	let editor = false;
 	const queued = (task: () => Promise<void>): Promise<void> => {
 		queue = queue.then(task).catch(reportError);
 		return queue;
@@ -150,10 +152,16 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		}
 		const section = route.kind === 'project' ? 'projects' : route.section;
 		const rest = route.kind === 'project' ? '' : route.rest.join('/');
-		return (
-			(state.active === null && state.section === section && state.path === rest) ||
-			(await kernel.call('section-open', { section, path: rest })).success
-		);
+		const here = state.active === null && state.section === section && state.path === rest;
+		// A document's deep link runs `document-open` (documents specification, 5.1): the documents section's
+		// path is its active tab's document, so one already open there runs nothing, as after a reload (6).
+		if (section === 'documents' && rest !== '') {
+			return (
+				here ||
+				(!rest.includes('/') && (await kernel.call('document-open', { document: rest })).success)
+			);
+		}
+		return here || (await kernel.call('section-open', { section, path: rest })).success;
 	}
 
 	/**
@@ -241,6 +249,25 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 					reportError(cause);
 				}
 			);
+		}
+		// The editor area the same way, from its own chunk, loaded on the first document opened, restored or
+		// routed to (documents specification, 1 and 5.1). Awaited, so stage B's boot holds main busy until the
+		// area owns it, and a restored session shows no landing on the way (6).
+		if (editor || (state.section === 'documents' && state.active === null)) {
+			editor = true;
+			await import('./editor/editor.js').then(
+				({ syncEditor }) => syncEditor(host as unknown as LoamShell),
+				(cause) => {
+					editor = false;
+					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
+					(host as unknown as LoamShell).releaseMain(true);
+					reportError(cause);
+				}
+			);
+		}
+		// Main held busy for a persisted documents section that the route then left shows what it shows (6).
+		if (state.active === null && state.section !== 'documents') {
+			(host as unknown as LoamShell).releaseMain();
 		}
 		const wanted = routeOf(state);
 		const here = view.location.origin + view.location.pathname;

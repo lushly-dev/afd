@@ -1,0 +1,117 @@
+/**
+ * What the documents suites share (documents specification, 14): a deployment with `notes`, reads of the
+ * editor area through its shadow roots, and a replay of the page's journal with notes' real handlers.
+ */
+
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { JournalEntry } from '@lushly-dev/afd-core';
+import {
+	createFixedEnvironment,
+	createFixturePorts,
+	replayKernel,
+} from '@lushly-dev/loam-kernel/testing';
+import type { Page } from 'playwright';
+import { APPS, type DeploymentSite, kernelCall, packApp, settle } from '../harness';
+
+/** What one group of the editor area shows. */
+export interface GroupView {
+	label: string;
+	tabs: Array<{ name: string; selected: boolean; title: string }>;
+	/** The text of each frame's `notes-editor`, by tab, for the frames mounted. */
+	editors: Array<{ tab: string; hidden: boolean; text: string | null }>;
+}
+
+/** The editor area as it renders: each group's strip and frames, or null when main does not show it. */
+export function editorView(page: Page): Promise<GroupView[] | null> {
+	return page.evaluate(() => {
+		const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
+		const area = main?.querySelector('loam-editor-area');
+		if (!area) return null;
+		return [...area.querySelectorAll('loam-editor-group')].map((group) => {
+			const list = group.shadowRoot?.querySelector('[role="tablist"]');
+			return {
+				label: list?.getAttribute('aria-label') ?? '',
+				tabs: [...(list?.querySelectorAll('[role="tab"]') ?? [])].map((tab) => ({
+					name: tab.getAttribute('aria-label') ?? '',
+					selected: tab.getAttribute('aria-selected') === 'true',
+					title: tab.querySelector('.title')?.textContent ?? '',
+				})),
+				editors: [...group.querySelectorAll('loam-editor-frame')].map((frame) => {
+					const editor = frame
+						.querySelector('loam-mount')
+						?.shadowRoot?.querySelector('notes-editor') as
+						| (HTMLElement & { draft?: string })
+						| null;
+					return {
+						tab: (frame as unknown as { tab: string }).tab,
+						hidden: (frame as HTMLElement).hidden,
+						text: editor ? (editor.draft ?? null) : null,
+					};
+				}),
+			};
+		});
+	});
+}
+
+/** Wait until the area's editors are idle: its controller's queue, then the journal. */
+export async function editorIdle(page: Page): Promise<void> {
+	await page.evaluate(async () => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			apps: { idle: Promise<void> } | null;
+			editor?: { idle: Promise<void> };
+		};
+		await shell.apps?.idle;
+		await shell.editor?.idle;
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+	});
+	await settle(page);
+}
+
+/** Type into the `notes-editor` of a tab, as a person does: its text area takes focus, then keys. */
+export async function typeInto(page: Page, tab: string, text: string): Promise<void> {
+	await page.locator(`loam-editor-frame[data-tab="${tab}"] textarea`).click();
+	await page.keyboard.type(text);
+}
+
+/** A note, created through the person's interface, with its id. */
+export async function createNote(page: Page, title: string, project?: string): Promise<string> {
+	const created = (await kernelCall(page, 'document-create', {
+		type: 'notes',
+		title,
+		...(project !== undefined ? { project } : {}),
+	})) as { data?: { id: string } };
+	return created.data?.id as string;
+}
+
+/** The page's journal, whole. */
+export function entriesOf(page: Page): Promise<JournalEntry[]> {
+	return page.evaluate(async () => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			journal: { read(): Promise<JournalEntry[]> };
+		};
+		return shell.journal.read();
+	}) as Promise<JournalEntry[]>;
+}
+
+/** The ports a replay imports notes' real handlers through. */
+async function replayPorts() {
+	const packages: Record<string, { manifest: unknown; definition: unknown }> = {};
+	for (const app of ['hello', 'notes'] as const) {
+		packages[`apps/${app}/`] = {
+			manifest: JSON.parse(await readFile(join(await packApp(app), 'app-manifest.json'), 'utf8')),
+			definition: (await import(/* @vite-ignore */ join(APPS, app, 'dist/native.js'))).default,
+		};
+	}
+	return createFixturePorts(packages as never);
+}
+
+/** Replay the page's journal, and the entries that did not replay the same. */
+export async function replayDifferences(site: DeploymentSite, entries: JournalEntry[]) {
+	const { report } = await replayKernel(entries, {
+		environment: createFixedEnvironment(),
+		deployment: site.projection,
+		ports: await replayPorts(),
+	});
+	return report.entries.filter(({ status }) => status !== 'same');
+}

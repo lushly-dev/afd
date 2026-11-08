@@ -42,6 +42,8 @@ export interface LateScopeDeps {
 	isMutation(name: string): boolean;
 	/** The documents specification's check, for a type's instance commands (4.2 and 4.4). */
 	documents?: DocumentCheck;
+	/** After every call: the editor owner it may have moved gives up its overlays (documents specification, 5.4). */
+	settle?(name: string, call: CommandContext): Promise<void> | undefined;
 	/**
 	 * What only a replay sets (10): its recorded actor by trace ID, undefined when the journal has no such
 	 * entry, and `replaying`.
@@ -299,6 +301,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			}
 			const result = await next();
 			if (owner !== undefined) await deps.documents?.after(name, call, result.success);
+			await deps.settle?.(name, call);
 			if (
 				result.success &&
 				name.startsWith('auth-') &&

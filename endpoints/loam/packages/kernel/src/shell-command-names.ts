@@ -61,4 +61,12 @@ export const SHELL_COMMAND_NAMES = [
 	'document-restore',
 	'document-export',
 	'document-import',
+	'document-open',
+	'editor-get',
+	'editor-activate',
+	'editor-close',
+	'editor-pin',
+	'editor-move',
+	'editor-dirty-set',
+	'editor-selection-set',
 ] as const;

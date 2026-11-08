@@ -141,6 +141,43 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  endpoints/loam/apps/notes:
+    dependencies:
+      '@lushly-dev/fast-element':
+        specifier: workspace:*
+        version: link:../../../../foundations/fast-af/packages/element/packages/fast-element
+      '@lushly-dev/loam-sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@lushly-dev/loam-cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@lushly-dev/loam-testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      '@lushly-dev/loam-theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^4.1.12
+        version: 4.1.12(@vitest/browser@4.1.12)(vitest@4.1.12)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@26.6.6)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@15.11.7)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   endpoints/loam/apps/tally:
     dependencies:
       '@lushly-dev/fast-element':
@@ -532,6 +569,9 @@ importers:
       '@lushly-dev/loam-app-hello':
         specifier: workspace:*
         version: link:../../apps/hello
+      '@lushly-dev/loam-app-notes':
+        specifier: workspace:*
+        version: link:../../apps/notes
       '@lushly-dev/loam-app-tally':
         specifier: workspace:*
         version: link:../../apps/tally

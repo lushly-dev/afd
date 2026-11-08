@@ -1,7 +1,8 @@
 /**
  * @fileoverview The `document-*` commands (documents specification, section 4; D79), in a chunk of their
  * own, `late-documents`, which `loadLate` imports before stage B's last `setAppCommands` (scope and projects
- * specification, 2.4). `document-open` is step 10's, and `document-link-*` step 12's. Each command that names
+ * specification, 2.4). `document-open` is the editor area's, in `late` with `editor-*` (step 10), and
+ * `document-link-*` step 12's. Each command that names
  * a document runs 4.2's check first, and each `project` it names `decideAccess`, answering
  * `PROJECT_NOT_FOUND` for missing and refused alike. The shell never reads a document's content: it writes
  * a template's, and moves the row whole (3).
@@ -23,6 +24,8 @@ export interface DocumentCommandDeps {
 	scope: ScopeRuntime;
 	store: DataAdapter;
 	check: DocumentCheck;
+	/** The editor area's, so a trashed or moved document's tabs close (4.1, 5.7). */
+	editor?: { closeDocument(document: string, at: ScopeV1, context: CommandContext): Promise<void> };
 	/** The kernel's `run`, for `document-export`'s nested query (11.1). */
 	run<T>(
 		iface: 'palette' | 'agent',
@@ -509,6 +512,8 @@ export function createDocumentCommands(
 			const from = record.scope;
 			const back = { document: record.id, project: from.project ?? null };
 			if (sameScope(from, to)) return success(record);
+			// Its tabs in the scope it leaves close, with no save (4.1).
+			await deps.editor?.closeDocument(record.id, from, context);
 			const next: DocumentRecordV1 = {
 				...record,
 				scope: to,
@@ -556,6 +561,8 @@ export function createDocumentCommands(
 			if (isRefusal(record)) return record;
 			// Already in the trash: nothing changes, so nothing is there to undo.
 			if (record.status === 'trashed') return success(record);
+			// Its tabs close, as `app-switch` closes a surface, with no save (4.1).
+			await deps.editor?.closeDocument(record.id, record.scope, context);
 			// The status it had, so a restore brings an archived document back archived.
 			return change(
 				record,

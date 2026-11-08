@@ -21,6 +21,7 @@ import type {
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
 import type { AppContextV1 } from '@lushly-dev/loam-sdk';
+import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { APP_OPEN_EVENT } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
 import { LIST_SELECT_EVENT, type LoamList } from '../elements/list.js';
@@ -179,6 +180,34 @@ export class AppSurfaces implements ShellApps {
 	/** A toggle or chord for a part the active app did not declare does nothing (4.5). */
 	undeclared(part: Part): boolean {
 		return this.#declared !== null && !this.#declared.has(part);
+	}
+
+	/**
+	 * The editor frame's way in (scope and projects specification, 2.2; documents specification, 5.6): an
+	 * app's `activate`, run once with no rail entry too, and a mount of one of its elements with a surface
+	 * port fixed to the document's scope.
+	 */
+	host(): SurfaceHostV1 {
+		return {
+			ensureActivated: async (instance) => {
+				const failure = await this.#activate(this.#hold(instance));
+				if (failure !== undefined) throw new Error(failure);
+			},
+			createMount: (instance, element, { scope, document }) => {
+				const held = this.#hold(instance);
+				const mount = this.#create<LoamMount>('loam-mount');
+				const surface = held.port.surface({ scope });
+				mount.configure({
+					registry: held.registry as CustomElementRegistry,
+					element,
+					context: { ...(held.context as AppContextV1), ...surfaceCalls(held.port, surface.call) },
+					selection: null,
+					scope,
+					document,
+				});
+				return mount;
+			},
+		};
 	}
 
 	/** Run a command for a person, with no input; what it answers shows as a toast when it fails. */

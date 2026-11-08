@@ -119,6 +119,7 @@ describe('SHELL_KEYBINDINGS_V0', () => {
 			['Mod+J', 'layout-set'],
 			['F6', null],
 			['Shift+F6', null],
+			['Mod+S', null],
 		]);
 		expect(Object.isFrozen(SHELL_KEYBINDINGS_V0)).toBe(true);
 	});

@@ -56,6 +56,8 @@ const ownerOf = (context: CommandContext): string =>
 export interface OverlayCommandDeps {
 	overlays: OverlayStore;
 	activeApp(): string | null;
+	/** The active tab's owning plugin, which the overlay rules treat as active (documents specification, 5.4). */
+	editorOwner?(): Promise<string | null>;
 }
 
 /** `toast-show`, `modal-open`, `overlay-dismiss` and `overlay-list`. */
@@ -112,7 +114,11 @@ export function createOverlayCommands(deps: OverlayCommandDeps): ZodCommandDefin
 		},
 		async handler(input, context) {
 			const owner = ownerOf(context);
-			if (owner !== SHELL_OWNER && owner !== deps.activeApp()) {
+			if (
+				owner !== SHELL_OWNER &&
+				owner !== deps.activeApp() &&
+				owner !== (await deps.editorOwner?.())
+			) {
 				return kernelFailure(
 					'OVERLAY_OWNER_INACTIVE',
 					`The app '${owner}' is not active, so it cannot open a modal`,

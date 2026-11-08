@@ -1,0 +1,24 @@
+{
+	"type": "object",
+	"properties": {
+		"document": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"description": "The note's id, as document-list gives it"
+		},
+		"text": {
+			"type": "string",
+			"maxLength": 200000,
+			"description": "The note's whole new text"
+		},
+		"embeds": {
+			"type": "array",
+			"maxItems": 20,
+			"items": { "type": "string", "minLength": 1, "maxLength": 128 },
+			"description": "The ids of the documents embedded under the text; absent keeps them"
+		}
+	},
+	"required": ["document", "text"],
+	"additionalProperties": false
+}

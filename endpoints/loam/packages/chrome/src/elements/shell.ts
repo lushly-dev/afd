@@ -20,6 +20,7 @@ import {
 	type LayoutStateV0,
 	type LoamKernelV2,
 } from '@lushly-dev/loam-kernel';
+import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
 import {
 	isMacPlatform,
@@ -68,6 +69,8 @@ export interface ShellApps {
 	run(command: string): void;
 	start(): Promise<void>;
 	dispose(): void;
+	/** The editor frame's way in (documents specification, 5.6). */
+	host(): SurfaceHostV1;
 }
 
 interface SessionState {
@@ -449,7 +452,8 @@ export class LoamShell extends FASTElement {
 				: route.kind === 'root' || route.kind === 'workspace'
 					? list?.active
 					: null;
-		if (found && owner != null) this.#holdMain();
+		// A persisted documents section too: its editors restore in stage B (documents specification, 6).
+		if (found && (owner != null || state.section === 'documents')) this.#holdMain();
 		else if (this.appCount > 0) this.landing = 'Choose an app';
 		this.booted = true;
 		this.#present();
@@ -852,7 +856,8 @@ export class LoamShell extends FASTElement {
 		const paletteOpen =
 			(customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true) ||
 			this.apps?.modalOpen === true;
-		if (binding) {
+		// Mod+S is the editor area's, which answers it first while an editor is the active owner (5.5).
+		if (binding && !binding.save) {
 			event.preventDefault();
 			if (binding.focus) {
 				// A modal keeps focus; F6 would otherwise leave it for the browser's toolbar.

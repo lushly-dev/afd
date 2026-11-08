@@ -1,0 +1,13 @@
+{
+	"type": "object",
+	"properties": {
+		"document": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"description": "The note's id, as document-list gives it"
+		}
+	},
+	"required": ["document"],
+	"additionalProperties": false
+}

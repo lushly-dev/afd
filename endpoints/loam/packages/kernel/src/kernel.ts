@@ -83,12 +83,14 @@ export const NEEDS_STAGE_B: readonly string[] = [
 /**
  * Commands the one journal middleware leaves out: `palette-search` runs per keystroke, and `scope-get` and
  * `section-get` at every re-read of the rail, reading memory and writing nothing, so an empty shell's boot
- * journals no more than it did (phase 2 specification, 4.3).
+ * journals no more than it did (phase 2 specification, 4.3). `editor-selection-set` runs per selection
+ * change, holds what a replay need not reproduce, and is a query (documents specification, 5.4).
  */
 export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	'palette-search',
 	'scope-get',
 	'section-get',
+	'editor-selection-set',
 ]);
 
 /**

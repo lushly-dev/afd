@@ -102,6 +102,15 @@ const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 		type: 'probe',
 		envelope: { loam_document: 1, type: 'probe', content_version: 1, content: { text: 'x' } },
 	},
+	'document-open': { document: DOCUMENT },
+	// `t1` is the member's tab of their document, in the restricted project's editor record.
+	'editor-get': {},
+	'editor-activate': { tab: 't1' },
+	'editor-close': { tab: 't1', discard: true },
+	'editor-pin': { tab: 't1', pinned: true },
+	'editor-move': { tab: 't1', group: 'new' },
+	'editor-dirty-set': { tab: 't1', dirty: true },
+	'editor-selection-set': { tab: 't1', selection: { kind: 'text-range', start: 0, end: 1 } },
 };
 
 /**
@@ -171,6 +180,9 @@ async function twin(): Promise<ScopedWorkspace & { events: KernelEventV2[]; docu
 	);
 	const document = created.data?.id as string;
 	await kernel.call('probe-content-set', { document, text: 'secret-content' }, at);
+	// Open, with a tab in Citadel's editor record, unsaved and selected (documents specification, 5.2).
+	await kernel.call('document-open', { document }, at);
+	await kernel.call('editor-dirty-set', { tab: 't1', dirty: true }, at);
 	await kernel.call('app-selection-set', { instance: 'dual', id: 'secret-selection' }, at);
 	await kernel
 		.appPort('dual')

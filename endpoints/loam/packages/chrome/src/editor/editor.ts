@@ -1,0 +1,652 @@
+/**
+ * @fileoverview The `editor` chunk (documents specification, 5 and 6; D80): the editor area in main when the
+ * documents section shows, loaded by the URL's chunk on the first document opened, restored or routed to,
+ * as the `sections` chunk is, so first paint holds none of it. `syncEditor` follows the state; the area
+ * then hears the kernel itself. It renders `editor-get` of the active scope, each group a
+ * `loam-editor-group` and each active tab a `loam-editor-frame`, parking up to ten native editors a group.
+ * It turns every person's action into a command, and owns saving: `autosave_ms`, Mod+S, a dirty tab's
+ * close, and `pagehide`. A change of scope drops every editor, after asking each dirty one to save, so
+ * nothing of one scope stays under another; switching to an app keeps them, off screen, with their drafts.
+ * It imports nothing first paint holds but FAST, so it splits no chunk of first paint (scope and projects
+ * specification, 2.4).
+ */
+
+import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
+import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { DocumentRecordV1, DocumentRefV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
+import type { LoamShell } from '../elements/shell.js';
+import { editorAreaDefinition, LoamEditorArea } from './editor-area.js';
+import {
+	editorFrameDefinition,
+	type FrameListener,
+	LoamEditorFrame,
+	type SurfaceHostV1,
+} from './editor-frame.js';
+import {
+	EDITOR_GROUP_EVENT,
+	type EditorGroupAction,
+	type EditorTabView,
+	editorGroupDefinition,
+	LoamEditorGroup,
+} from './editor-group.js';
+
+/** `editor-get`'s answer (5.4): the call's scope's state, with `dirty` per tab. */
+export interface EditorReadV1 {
+	version: 1;
+	groups: Array<{
+		id: string;
+		active: string | null;
+		tabs: Array<{
+			id: string;
+			document: string;
+			pinned: boolean;
+			preview: boolean;
+			dirty: boolean;
+		}>;
+	}>;
+	activeGroup: string;
+}
+
+/** How many native editors a group keeps parked, its oldest dropped through `dispose` (5.6). */
+export const PARKED_PER_GROUP = 10;
+
+/** The phase 1 modal's `MODAL_RESULT_EVENT`, named here so this chunk imports no element of `surfaces`. */
+const MODAL_RESULT_EVENT = 'loam-modal-result';
+
+/** How long the area waits for the app surfaces, which load beside stage B, before a frame fails. */
+const SURFACES_WAIT_MS = 15_000;
+
+/** Added to `loam-main` from this chunk, so the empty shell's styles do not grow. */
+const mainWithEditor = css`
+	:host([data-section='documents']) {
+		display: flex;
+		flex-direction: column;
+		padding: 0;
+		overflow: hidden;
+	}
+	:host([data-section]) .landing {
+		display: none;
+	}
+	:host([data-section][route='not-found']) .landing {
+		display: grid;
+	}
+	:host([route='not-found']) ::slotted(loam-editor-area) {
+		display: none;
+	}
+`;
+
+let defined: Promise<unknown> | undefined;
+/** Define the chunk's elements once; FAST's `define` settles later, so it is awaited before any is made. */
+function define(): Promise<unknown> {
+	defined ??= Promise.all(
+		[
+			[LoamEditorArea, editorAreaDefinition],
+			[LoamEditorGroup, editorGroupDefinition],
+			[LoamEditorFrame, editorFrameDefinition],
+		].map(([type, definition]) =>
+			customElements.get((definition as { name: string }).name)
+				? undefined
+				: (type as typeof FASTElement).define(definition as never)
+		)
+	);
+	return defined;
+}
+
+/** A tab's record, or why `document-get` gave none. */
+type RecordRead = DocumentRecordV1 | { code: string; message: string; suggestion?: string };
+
+/** Main, or the panel when a maximized panel has made main inert, as the `sections` chunk does. */
+function focusMain(shell: LoamShell, main: HTMLElement): void {
+	const target = main.inert ? shell.shadowRoot?.querySelector<HTMLElement>('loam-panel') : main;
+	if (!target) return;
+	target.setAttribute('tabindex', '-1');
+	target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true });
+	target.focus();
+}
+
+const controllers = new WeakMap<LoamShell, EditorController>();
+
+/** Follow the state: show, update or hide the editor area. One at a time per shell, so a later state wins. */
+export async function syncEditor(shell: LoamShell): Promise<void> {
+	await define();
+	let controller = controllers.get(shell);
+	if (!controller) {
+		controller = new EditorController(shell);
+		controllers.set(shell, controller);
+		// Where a test, or the console, finds what the area has rendered.
+		(shell as LoamShell & { editor?: EditorController }).editor = controller;
+	}
+	return controller.sync();
+}
+
+/** The area's controller, for a test reading what it rendered. */
+export function editorOf(shell: LoamShell): EditorController | undefined {
+	return controllers.get(shell);
+}
+
+/** Whether a key event is Mod+S: Command on macOS, Control elsewhere, by physical key. */
+const isSave = (event: KeyboardEvent, mac: boolean): boolean =>
+	(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) &&
+	!event.altKey &&
+	!event.shiftKey &&
+	event.code === 'KeyS';
+
+export class EditorController implements FrameListener {
+	readonly #shell: LoamShell;
+	readonly #kernel: LoamKernelV2;
+	readonly #area: LoamEditorArea;
+	readonly #groups = new Map<string, LoamEditorGroup>();
+	/** Each tab's frame, by tab id, in the scope that is rendered. */
+	readonly #frames = new Map<string, LoamEditorFrame>();
+	/** The order frames were last shown in, per group, so the oldest parked one is dropped first. */
+	readonly #shown = new Map<string, string[]>();
+	readonly #records = new Map<string, RecordRead>();
+	readonly #timers = new Map<string, ReturnType<typeof setTimeout>>();
+	readonly #modals = new Map<string, (result: 'confirm' | 'cancel') => void>();
+	#queue: Promise<void> = Promise.resolve();
+	#scopeKey: string | null = null;
+	#state: EditorReadV1 | null = null;
+	#types = new Map<string, DocumentTypeV1>();
+	/** The tab to focus once the strip renders, and whether focus then goes into its editor. */
+	#focus: { tab: string; editor: boolean } | null = null;
+
+	constructor(shell: LoamShell) {
+		this.#shell = shell;
+		this.#kernel = shell.kernel as LoamKernelV2;
+		this.#area = shell.ownerDocument.createElement(editorAreaDefinition.name) as LoamEditorArea;
+		this.#area.shortcut = shell.shortcut;
+		const view = shell.ownerDocument.defaultView ?? window;
+		this.#kernel.subscribe((event) => this.#onEvent(event));
+		// Before the shell's own listener, which leaves Mod+S to this one (5.5).
+		view.addEventListener('keydown', (event) => this.#onKeydown(event), { capture: true });
+		view.addEventListener('pagehide', () => this.#saveAll());
+		shell.addEventListener(
+			EDITOR_GROUP_EVENT,
+			(event) =>
+				void this.#onAction((event as CustomEvent<EditorGroupAction & { group: string }>).detail)
+		);
+		shell.addEventListener(MODAL_RESULT_EVENT, (event) => {
+			const { overlayId, result } = (
+				event as CustomEvent<{ overlayId: string; result: 'confirm' | 'cancel' }>
+			).detail;
+			this.#modals.get(overlayId)?.(result);
+			this.#modals.delete(overlayId);
+		});
+	}
+
+	/** One read at a time, so a later answer never renders under an earlier one. */
+	sync(): Promise<void> {
+		this.#queue = this.#queue.then(() => this.#sync()).catch(reportError);
+		return this.#queue;
+	}
+
+	/** What a test reads: the frames by tab, and the area. */
+	get frames(): ReadonlyMap<string, LoamEditorFrame> {
+		return this.#frames;
+	}
+
+	get idle(): Promise<void> {
+		return this.#queue;
+	}
+
+	#main(): (HTMLElement & FASTElement) | null {
+		return this.#shell.shadowRoot?.querySelector<HTMLElement & FASTElement>('loam-main') ?? null;
+	}
+
+	async #sync(): Promise<void> {
+		const main = this.#main();
+		if (!main) return;
+		const state = await this.#shell.readState();
+		const key = `${state.workspace.id} ${state.scope.project ?? ''}`;
+		if (this.#scopeKey !== null && key !== this.#scopeKey) await this.#dropAll();
+		this.#scopeKey = key;
+		const shows = state.section === 'documents' && state.active === null;
+		if (!shows) {
+			if (this.#area.isConnected) {
+				const hadFocus = this.#area.matches(':focus-within');
+				this.#area.remove();
+				if (main.dataset.section === 'documents') delete main.dataset.section;
+				if (hadFocus) focusMain(this.#shell, main);
+			}
+			return;
+		}
+		if (!main.dataset.editorReady) {
+			main.dataset.editorReady = '';
+			main.$fastController.addStyles(mainWithEditor);
+		}
+		main.dataset.section = 'documents';
+		if (!this.#area.isConnected) main.append(this.#area);
+		const read = await this.#kernel.call<EditorReadV1>('editor-get');
+		if (!read.success || !read.data) return;
+		this.#state = read.data;
+		await this.#render(read.data);
+		// The first frame held main busy for a persisted documents section (6): it shows what it shows now.
+		this.#shell.releaseMain();
+	}
+
+	/** The registry's types, for each tab's editor: what the frame mounts, and its `autosave_ms`. */
+	async #readTypes(): Promise<void> {
+		const result = await this.#kernel.call<{ types: DocumentTypeV1[] }>('document-type-list', {
+			all: true,
+		});
+		this.#types = new Map((result.data?.types ?? []).map((type) => [type.id, type]));
+	}
+
+	async #record(document: string): Promise<RecordRead> {
+		let held = this.#records.get(document);
+		if (!held) {
+			const result = await this.#kernel.call<DocumentRecordV1>('document-get', { document });
+			held =
+				result.success && result.data
+					? result.data
+					: {
+							code: result.error?.code ?? 'DOCUMENT_NOT_FOUND',
+							message: result.error?.message ?? 'This document is not available',
+							suggestion: result.error?.suggestion,
+						};
+			this.#records.set(document, held);
+		}
+		return held;
+	}
+
+	async #render(state: EditorReadV1): Promise<void> {
+		const tabs = state.groups.flatMap((group) => group.tabs);
+		this.#area.empty = tabs.length === 0;
+		if (tabs.some((tab) => !this.#frames.has(tab.id))) await this.#readTypes();
+		const records = new Map(
+			await Promise.all(
+				tabs.map(async (tab) => [tab.document, await this.#record(tab.document)] as const)
+			)
+		);
+		const titleOf = (document: string) => {
+			const held = records.get(document);
+			return held && 'title' in held ? held.title : 'Unavailable document';
+		};
+		const compact = this.#shell.dataset.layoutClass === 'compact';
+		// Groups in order, as columns; a group the state no longer has goes with its frames.
+		const kept = new Set(state.groups.map((group) => group.id));
+		for (const [id, element] of this.#groups) {
+			if (kept.has(id)) continue;
+			element.remove();
+			this.#groups.delete(id);
+			this.#shown.delete(id);
+		}
+		const live = new Set(tabs.map((tab) => tab.id));
+		for (const [tab, frame] of this.#frames) {
+			if (live.has(tab)) continue;
+			this.#frames.delete(tab);
+			this.#stopTimer(tab);
+			void frame.dispose();
+		}
+		state.groups.forEach((group, index) => {
+			let element = this.#groups.get(group.id);
+			if (!element) {
+				element = this.#shell.ownerDocument.createElement(
+					editorGroupDefinition.name
+				) as LoamEditorGroup;
+				element.group = group.id;
+				this.#groups.set(group.id, element);
+			}
+			element.label = state.groups.length > 1 ? `Documents, group ${index + 1}` : 'Documents';
+			element.compact = compact;
+			// The compact class shows only the active group (5.2).
+			element.hidden = compact && group.id !== state.activeGroup;
+			element.tabs = group.tabs.map(
+				(tab): EditorTabView => ({
+					...tab,
+					title: titleOf(tab.document),
+					active: tab.id === group.active,
+				})
+			);
+			if (this.#area.children[index] !== element)
+				this.#area.insertBefore(element, this.#area.children[index] ?? null);
+			for (const tab of group.tabs) {
+				const frame = this.#frames.get(tab.id);
+				if (frame && frame.parentElement !== element) element.append(frame);
+			}
+			const active = group.tabs.find((tab) => tab.id === group.active);
+			for (const tab of group.tabs) this.#frames.get(tab.id)?.show(tab.id === active?.id);
+			if (active) this.#showFrame(element, group.id, active, records.get(active.document));
+		});
+		const activeGroup = state.groups.find((group) => group.id === state.activeGroup);
+		const activeTab = activeGroup?.tabs.find((tab) => tab.id === activeGroup.active);
+		this.#area.heading = activeTab ? titleOf(activeTab.document) : '';
+		await Updates.next();
+		const focus = this.#focus;
+		this.#focus = null;
+		if (focus) {
+			const group = [...this.#groups.values()].find((each) =>
+				each.tabs.some((tab) => tab.id === focus.tab)
+			);
+			if (focus.editor) this.#frames.get(focus.tab)?.focusEditor();
+			else group?.tabButton(focus.tab)?.focus();
+		}
+	}
+
+	/** The active tab's frame, made and opened once, and the group's oldest parked ones over ten dropped. */
+	#showFrame(
+		group: LoamEditorGroup,
+		groupId: string,
+		tab: EditorReadV1['groups'][number]['tabs'][number],
+		record: RecordRead | undefined
+	): void {
+		let frame = this.#frames.get(tab.id);
+		if (!frame) {
+			frame = this.#shell.ownerDocument.createElement(
+				editorFrameDefinition.name
+			) as LoamEditorFrame;
+			frame.tab = tab.id;
+			frame.dataset.tab = tab.id;
+			frame.document = tab.document;
+			frame.listener = this;
+			frame.dirty = tab.dirty;
+			this.#frames.set(tab.id, frame);
+			group.append(frame);
+			void this.#open(frame, record);
+		}
+		if (record && 'title' in record) frame.title = record.title;
+		frame.show(true);
+		const order = (this.#shown.get(groupId) ?? []).filter(
+			(id) => id !== tab.id && this.#frames.has(id)
+		);
+		order.push(tab.id);
+		while (order.length > PARKED_PER_GROUP) {
+			const oldest = order.shift() as string;
+			const parked = this.#frames.get(oldest);
+			this.#frames.delete(oldest);
+			if (parked && !parked.dirty) void parked.dispose();
+			else if (parked) {
+				// A dirty one saves first, as on a change of scope; its draft is otherwise the type's to lose.
+				void parked
+					.save()
+					.catch(reportError)
+					.finally(() => parked.dispose());
+			}
+		}
+		this.#shown.set(groupId, order);
+	}
+
+	async #open(frame: LoamEditorFrame, record: RecordRead | undefined): Promise<void> {
+		if (!record || !('title' in record)) {
+			frame.title = 'This document';
+			frame.fail(
+				record ?? {
+					code: 'DOCUMENT_NOT_FOUND',
+					message: 'No document with that id is available to you',
+				}
+			);
+			return;
+		}
+		frame.record = record;
+		frame.title = record.title;
+		const type = this.#types.get(record.type);
+		if (!type) {
+			frame.fail({
+				code: 'DOCUMENT_TYPE_UNAVAILABLE',
+				message: `No app this workspace runs provides the document type '${record.type}'`,
+				suggestion:
+					'List the apps with app-list, or redeploy the app that provides it; the document is kept.',
+			});
+			return;
+		}
+		if (record.contentVersion > type.contentVersion) {
+			frame.fail({
+				code: 'DOCUMENT_CONTENT_VERSION_NEWER',
+				message: `This document was written by a newer version of '${type.app}', so it is not opened here`,
+				suggestion: 'Update the app; nothing is overwritten.',
+			});
+			return;
+		}
+		const declared = this.#kernel
+			.appPort(type.instance)
+			.manifest.ui?.documents?.find((each) => each.id === type.id);
+		const element =
+			declared?.editor && 'element' in declared.editor ? declared.editor.element : undefined;
+		if (type.editorKind !== 'native' || element === undefined) {
+			frame.fail({
+				code: 'DOCUMENT_TYPE_UNAVAILABLE',
+				message: "This document's editor is a view, which this shell does not open yet",
+				suggestion: 'Its commands still work from the command palette.',
+			});
+			return;
+		}
+		frame.autosaveMs = declared?.autosave_ms;
+		const host = await this.#host();
+		if (!host) {
+			frame.fail({
+				code: 'APP_RUNTIME_UNAVAILABLE',
+				message: 'The app surfaces did not load',
+				suggestion: 'Reload; check that the deployment serves its assets.',
+			});
+			return;
+		}
+		const reference: DocumentRefV1 = {
+			id: record.id,
+			type: record.type,
+			title: record.title,
+			scope: record.scope,
+			contentVersion: record.contentVersion,
+			binding: record.binding,
+			readOnly: false,
+		};
+		await frame.open(host, type.instance, element, reference);
+	}
+
+	/** The app surfaces' way in, once they have loaded beside stage B. */
+	async #host(): Promise<SurfaceHostV1 | undefined> {
+		const until = Date.now() + SURFACES_WAIT_MS;
+		while (!this.#shell.apps && Date.now() < until)
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		return (this.#shell.apps as { host?(): SurfaceHostV1 } | null)?.host?.();
+	}
+
+	// ─── What the kernel says ──────────────────────────────────────────────────────
+
+	#onEvent(event: KernelEventV2): void {
+		// Another call changed a document: every open editor of it re-reads, its own calls included (5.7).
+		if (event.document !== undefined && event.success) {
+			for (const frame of this.#frames.values()) {
+				if (frame.document !== event.document) continue;
+				frame.changed({
+					document: event.document,
+					command: event.command,
+					...(event.seq !== undefined ? { seq: event.seq } : {}),
+				});
+			}
+		}
+		if (!event.scopeChanged && !(event.success && event.mutation)) return;
+		// A record's title, status or scope may have changed: each is read again.
+		if (event.command.startsWith('document-')) this.#records.clear();
+		if (/^(editor-|document-)/.test(event.command) || event.scopeChanged || event.mainChanged) {
+			void this.sync();
+		}
+	}
+
+	// ─── A person's actions ────────────────────────────────────────────────────────
+
+	async #onAction(action: EditorGroupAction & { group: string }): Promise<void> {
+		const kernel = this.#kernel;
+		const { tab } = action;
+		switch (action.action) {
+			case 'activate':
+				this.#focus = { tab, editor: action.focus === true };
+				if (this.#isActive(tab)) await this.sync();
+				else await kernel.call('editor-activate', { tab });
+				return;
+			case 'close':
+				await this.close(tab);
+				return;
+			case 'pin':
+			case 'unpin':
+				await kernel.call('editor-pin', { tab, pinned: action.action === 'pin' });
+				return;
+			case 'close-others': {
+				const group = this.#state?.groups.find((each) => each.id === action.group);
+				for (const other of group?.tabs ?? []) {
+					if (other.id !== tab && !other.pinned && !(await this.close(other.id))) return;
+				}
+				return;
+			}
+			case 'beside': {
+				const document = this.#frames.get(tab)?.document ?? this.#tabOf(tab)?.document;
+				if (document) await kernel.call('document-open', { document, group: 'beside' });
+				return;
+			}
+			case 'new-group':
+				await kernel.call('editor-move', { tab, group: 'new' });
+				return;
+		}
+	}
+
+	#tabOf(tab: string) {
+		return this.#state?.groups.flatMap((group) => group.tabs).find((each) => each.id === tab);
+	}
+
+	#isActive(tab: string): boolean {
+		const state = this.#state;
+		const group = state?.groups.find((each) => each.id === state.activeGroup);
+		return group?.active === tab;
+	}
+
+	/**
+	 * Close a tab as a person asks (5.5): a dirty one saves first when its type autosaves; otherwise, or when
+	 * the save rejects, the phase 1 modal asks, Discard or Keep editing. Focus goes to the tab that becomes
+	 * active, or main. False when the person kept editing.
+	 */
+	async close(tab: string): Promise<boolean> {
+		const frame = this.#frames.get(tab);
+		const dirty = frame?.dirty === true || this.#tabOf(tab)?.dirty === true;
+		if (dirty) {
+			let saved = false;
+			if (frame?.autosaveMs !== undefined) {
+				try {
+					await frame.save();
+					saved = true;
+				} catch {
+					saved = false;
+				}
+			}
+			if (!saved && !(await this.#confirmDiscard(frame?.title ?? 'this document'))) return false;
+		}
+		const hadFocus = this.#area.matches(':focus-within');
+		if (frame) {
+			this.#frames.delete(tab);
+			this.#stopTimer(tab);
+			await frame.dispose();
+		}
+		const closed = await this.#kernel.call('editor-close', { tab, discard: true });
+		if (!closed.success) return false;
+		// Focus goes to the next tab, or main (5.8).
+		await this.idle;
+		const state = this.#state;
+		const group = state?.groups.find((each) => each.id === state.activeGroup);
+		if (hadFocus) {
+			const next = group?.active ? this.#groups.get(group.id)?.tabButton(group.active) : null;
+			const main = this.#main();
+			if (next) next.focus();
+			else if (main) focusMain(this.#shell, main);
+		}
+		return true;
+	}
+
+	/** The phase 1 modal: `Close without saving?`, Discard as `danger`, or Keep editing (5.5). */
+	async #confirmDiscard(title: string): Promise<boolean> {
+		const opened = await this.#kernel.call<{ overlayId: string }>('modal-open', {
+			title: 'Close without saving?',
+			body: `Your changes to ${title.slice(0, 200)} are not saved. Closing loses them.`,
+			confirmLabel: 'Discard',
+			cancelLabel: 'Keep editing',
+			danger: true,
+		});
+		const overlayId = opened.data?.overlayId;
+		if (!opened.success || overlayId === undefined) return false;
+		const result = await new Promise<'confirm' | 'cancel'>((resolve) =>
+			this.#modals.set(overlayId, resolve)
+		);
+		return result === 'confirm';
+	}
+
+	// ─── Saving (5.5) ──────────────────────────────────────────────────────────────
+
+	dirty(frame: LoamEditorFrame, dirty: boolean): void {
+		if (!this.#frames.has(frame.tab)) return;
+		// Every edit restarts the timer; the kernel hears a change only.
+		this.#stopTimer(frame.tab);
+		if (dirty && frame.autosaveMs !== undefined) {
+			this.#timers.set(
+				frame.tab,
+				setTimeout(() => void this.#save(frame), frame.autosaveMs)
+			);
+		}
+		if (frame.dirty === dirty) return;
+		frame.dirty = dirty;
+		void this.#kernel.call('editor-dirty-set', { tab: frame.tab, dirty });
+	}
+
+	selection(frame: LoamEditorFrame, selection: unknown): void {
+		if (!this.#frames.has(frame.tab)) return;
+		void this.#kernel.call('editor-selection-set', { tab: frame.tab, selection });
+	}
+
+	/** A frame's Close, after a failure: no editor holds a draft there. */
+	closeFrame(frame: LoamEditorFrame): void {
+		void this.close(frame.tab);
+	}
+
+	#stopTimer(tab: string): void {
+		clearTimeout(this.#timers.get(tab));
+		this.#timers.delete(tab);
+	}
+
+	/** An editor's `save()`; a rejection keeps the tab dirty and is a `danger` toast with its code (5.5). */
+	async #save(frame: LoamEditorFrame): Promise<void> {
+		this.#stopTimer(frame.tab);
+		try {
+			await frame.save();
+		} catch (cause) {
+			const { code, suggestion } = (cause ?? {}) as { code?: string; suggestion?: string };
+			const message = cause instanceof Error ? cause.message : String(cause);
+			await this.#kernel.call('toast-show', {
+				message:
+					`${frame.title} was not saved: ${message}${code ? ` (${code})` : ''}${suggestion ? `. ${suggestion}` : ''}`.slice(
+						0,
+						200
+					),
+				tone: 'danger',
+				durationMs: 30_000,
+			});
+		}
+	}
+
+	/** Every dirty editor's `save()`, not waited for, as on `pagehide` (5.5). */
+	#saveAll(): void {
+		for (const frame of this.#frames.values())
+			if (frame.dirty) void frame.save().catch(reportError);
+	}
+
+	#onKeydown(event: KeyboardEvent): void {
+		if (event.defaultPrevented || !isSave(event, this.#shell.mac) || !this.#area.isConnected)
+			return;
+		const state = this.#state;
+		const group = state?.groups.find((each) => each.id === state.activeGroup);
+		const frame = group?.active ? this.#frames.get(group.active) : undefined;
+		if (frame?.state !== 'ready') return;
+		// Only with an editor the active owner: the browser keeps Mod+S everywhere else (5.5).
+		event.preventDefault();
+		if (!event.repeat) void this.#save(frame);
+	}
+
+	/** A change of scope: each dirty editor is asked to save, and every one goes (7.6). */
+	async #dropAll(): Promise<void> {
+		this.#saveAll();
+		for (const tab of this.#timers.keys()) this.#stopTimer(tab);
+		const frames = [...this.#frames.values()];
+		this.#frames.clear();
+		this.#shown.clear();
+		this.#records.clear();
+		for (const group of this.#groups.values()) group.remove();
+		this.#groups.clear();
+		this.#state = null;
+		await Promise.all(frames.map((frame) => frame.dispose()));
+	}
+}

@@ -16,7 +16,10 @@ import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
+import { createEditorParts, type EditorParts } from './editor-commands.js';
+import { createEditors } from './editor-state.js';
 import { createOverlayCommands } from './overlay-commands.js';
+import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
 import { createLateScope, type LateScopeDeps } from './scope-change.js';
@@ -139,9 +142,23 @@ export async function createLateParts(
 	boot: readonly ZodCommandDefinition[],
 	deps: LateCommandDeps
 ): Promise<LateParts> {
+	// The port reads its list from here, so `apps` does not hold it (2.4); `late` loads before any app.
+	deps.scope.callable = appCallable;
 	const documents = createDocumentCheck(deps);
-	const lateScope = createLateScope({ ...deps, documents });
+	const editors = createEditors(deps.viewState);
+	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
+	// the scope it needs.
+	let editor: EditorParts | undefined;
+	const lateScope = createLateScope({
+		...deps,
+		documents,
+		settle: (name, call) => editor?.settle(name, call),
+	});
+	editor = createEditorParts({ ...deps, lateScope, check: documents, editors });
 	const { createDocumentCommands, trashBefore } = await import('./documents.js');
+	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
+	// stage A's `hydrate` drops a record with no handler.
+	await editors.ensure(deps.scope.active().project);
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);
@@ -163,12 +180,16 @@ export async function createLateParts(
 			...createOverlayCommands({
 				overlays: deps.overlays,
 				activeApp: () => deps.state.activeApp(),
+				editorOwner: editor.owner,
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
-			...createDocumentCommands({ ...deps, check: documents }, DOCUMENT_KIT),
+			...createDocumentCommands({ ...deps, check: documents, editor }, DOCUMENT_KIT),
+			...editor.commands,
 		].map((command) => [command.name, command])
 	);
+	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
+	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
 		internal: createPortRefusals(),
@@ -229,6 +250,8 @@ export async function createLateParts(
 			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.
 			await deps.auth.signOut();
 			lateScope.forgetActor();
+			// Dirty tabs and selections are memory alone, lost as an unsaved change is (5.2).
+			editors.reset();
 		},
 	};
 	return parts;

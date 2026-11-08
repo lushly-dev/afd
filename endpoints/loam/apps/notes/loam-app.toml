@@ -1,0 +1,85 @@
+manifest_version = 2
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "notes"
+title = "Notes"
+version = "0.1.0"
+description = "Notes: text a person writes in the editor area, at workspace level or in a project."
+kind = "native"
+domains = ["notes"]
+license = "MIT"
+
+[native]
+entry = "dist/native.js"
+
+# A document type, with no rail, sidebar or main: its documents open in the editor area (D82).
+[app]
+scope_levels = ["workspace", "project"]
+
+[[grants]]
+name = "store"
+reason = "Keeps each note's text."
+
+[[grants]]
+name = "clock"
+reason = "Stamps when each note was last saved."
+
+[[commands]]
+name = "notes-content-get"
+title = "Read a note"
+description = "Read a note's text and embeds, and when it was last saved."
+category = "notes"
+effects = ["inspect"]
+input_schema = "schemas/notes-document.input.json"
+
+[[commands]]
+name = "notes-content-set"
+title = "Save a note"
+description = "Replace a note's whole text, and its embeds when given. Links are separate: document-link-add."
+category = "notes"
+effects = ["store-write"]
+input_schema = "schemas/notes-content-set.input.json"
+undoable = true
+
+[[commands]]
+name = "notes-export"
+title = "Export a note"
+description = "Answer a note's content as { content }, for document-export."
+category = "notes"
+effects = ["inspect"]
+input_schema = "schemas/notes-document.input.json"
+
+[[commands]]
+name = "notes-import"
+title = "Import a note"
+description = "Write exported content into a new note, as document-import's data.next asks."
+category = "notes"
+effects = ["store-write"]
+input_schema = "schemas/notes-import.input.json"
+
+[[ui.documents]]
+id = "notes"
+title = "Note"
+icon = "system/document"
+content_schema = "schemas/note.content.json"
+content_version = 1
+autosave_ms = 2000
+instance_commands = ["notes-content-get", "notes-content-set", "notes-export", "notes-import"]
+export_command = "notes-export"
+import_command = "notes-import"
+
+[ui.documents.editor]
+element = "notes-editor"
+
+[ui.documents.binding]
+model = "command"
+selection = "text-range"
+locator = "text-range"
+conflict = "last-writer-wins"
+
+[[ui.documents.templates]]
+id = "blank"
+title = "Blank note"
+content = { text = "" }

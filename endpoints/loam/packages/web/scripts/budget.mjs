@@ -64,6 +64,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `documents` row (58), each measured as the closure with it less without it, with no slack. The parts are
  * approximate, since the minifier's renaming interacts with what is removed; the total is exact. First
  * paint 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,860, `apps` 384,233.
+ * Step 10 adds `editorMinified`, the editor area's chunk, loaded on the first document opened, restored or
+ * routed to, charged after the surfaces as `sections` is, against the documents specification's first
+ * estimate of 40,000 (12); and records `notes`' bundle, as `tasks`' is.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -82,6 +85,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
+	editorMinified: 40_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -150,7 +154,7 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows)-/.test(
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows|editor)-/.test(
 			name
 		)
 	);
@@ -271,6 +275,11 @@ async function measurePage() {
 	if (closure(/^assets\/sections-/, afterSurfaces).size === 0) {
 		throw new Error('budget: the build has no `sections` chunk to measure');
 	}
+	// The editor area (documents specification, 5 and 12), loaded by the URL's chunk on the first document
+	// opened, restored or routed to: in "the rest" of 2.4's order, after the surfaces, which hold the app
+	// surfaces' `host()` its frames mount through.
+	const editor = closure(/^assets\/editor-/, afterSurfaces);
+	if (editor.size === 0) throw new Error('budget: the build has no `editor` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -300,6 +309,7 @@ async function measurePage() {
 		switcherColdMinified: sizeOf(switcherCold),
 		tooltipMinified: sizeOf(tooltip),
 		sectionsMinified: sizeOf(sections),
+		editorMinified: sizeOf(editor),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -373,6 +383,7 @@ const ROWS = [
 	['switcherColdMinified', 'The `switcher` chunk on an empty shell, with the listbox, minified'],
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
 	['sectionsMinified', "The `sections` chunk, with the kernel's summary rows, minified"],
+	['editorMinified', "The chrome's `editor` chunk and its imports, minified"],
 ];
 
 export async function measure() {
@@ -386,7 +397,12 @@ export async function measure() {
 		ceiling: CEILINGS[key],
 		over: values[key] > CEILINGS[key],
 	}));
-	return { rows, page, kernel, apps: ['hello', 'tally', 'tasks'].map(appBundle).filter(Boolean) };
+	return {
+		rows,
+		page,
+		kernel,
+		apps: ['hello', 'tally', 'tasks', 'notes'].map(appBundle).filter(Boolean),
+	};
 }
 
 async function main() {

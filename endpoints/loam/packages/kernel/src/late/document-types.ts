@@ -257,7 +257,10 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 					`Restore it with document-restore { document: "${record.id}" }`
 				);
 			}
-			if (project?.status === 'archived') return archivedRefusal(project);
+			// Opening one changes the editor, not the document: an archived project's documents may be read.
+			if (project?.status === 'archived' && name !== 'document-open') {
+				return archivedRefusal(project);
+			}
 		}
 		if (type !== undefined && record.type !== type) {
 			return kernelFailure(

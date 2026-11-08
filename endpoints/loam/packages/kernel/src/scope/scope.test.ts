@@ -892,9 +892,11 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 			active: null,
 		});
 		await kernel.call('section-open', closed.undoArgs);
+		// The documents section's path is the active tab's document, and no tab is open (documents
+		// specification, 5.1): a path given to section-open is not what the URL shows there.
 		expect((await kernel.call('section-get')).data).toMatchObject({
 			section: 'documents',
-			path: 'doc_1',
+			path: '',
 		});
 		expect((await replayOf(await entries(workspace))).report.diverged).toBe(false);
 	});

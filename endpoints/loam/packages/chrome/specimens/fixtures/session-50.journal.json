@@ -1,7 +1,7 @@
 [
 	{
 		"seq": 1,
-		"timestamp": "2026-01-01T00:00:00.001Z",
+		"timestamp": "2026-01-01T00:00:00.002Z",
 		"traceId": "loam-mjuohs00-1",
 		"command": "shell-info-get",
 		"input": {},
@@ -36,13 +36,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600002, 1767225600003],
+			"clock": [1767225600003, 1767225600004],
 			"random": []
 		}
 	},
 	{
 		"seq": 2,
-		"timestamp": "2026-01-01T00:00:00.005Z",
+		"timestamp": "2026-01-01T00:00:00.006Z",
 		"traceId": "loam-mjuohs00-2",
 		"command": "layout-get",
 		"input": {},
@@ -84,13 +84,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600006, 1767225600007],
+			"clock": [1767225600007, 1767225600008],
 			"random": []
 		}
 	},
 	{
 		"seq": 3,
-		"timestamp": "2026-01-01T00:00:00.009Z",
+		"timestamp": "2026-01-01T00:00:00.010Z",
 		"traceId": "loam-mjuohs00-3",
 		"command": "appearance-get",
 		"input": {},
@@ -117,13 +117,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600010, 1767225600011],
+			"clock": [1767225600011, 1767225600012],
 			"random": []
 		}
 	},
 	{
 		"seq": 4,
-		"timestamp": "2026-01-01T00:00:00.013Z",
+		"timestamp": "2026-01-01T00:00:00.014Z",
 		"traceId": "loam-mjuohs00-4",
 		"command": "auth-session-get",
 		"input": {},
@@ -151,13 +151,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600014, 1767225600015],
+			"clock": [1767225600015, 1767225600016],
 			"random": []
 		}
 	},
 	{
 		"seq": 5,
-		"timestamp": "2026-01-01T00:00:00.017Z",
+		"timestamp": "2026-01-01T00:00:00.018Z",
 		"traceId": "loam-mjuohs00-5",
 		"command": "auth-sign-in",
 		"input": {
@@ -178,8 +178,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1793754995722",
-					"expiresAt": "2026-11-04T02:16:35.722Z"
+					"id": "mock-session-1794103867394",
+					"expiresAt": "2026-11-08T03:11:07.394Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -195,13 +195,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600018, 1767225600019],
+			"clock": [1767225600019, 1767225600020],
 			"random": []
 		}
 	},
 	{
 		"seq": 6,
-		"timestamp": "2026-01-01T00:00:00.021Z",
+		"timestamp": "2026-01-01T00:00:00.022Z",
 		"traceId": "loam-mjuohs00-6",
 		"command": "layout-set",
 		"input": {
@@ -259,13 +259,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600022, 1767225600023],
+			"clock": [1767225600023, 1767225600024],
 			"random": []
 		}
 	},
 	{
 		"seq": 7,
-		"timestamp": "2026-01-01T00:00:00.025Z",
+		"timestamp": "2026-01-01T00:00:00.026Z",
 		"traceId": "loam-mjuohs00-7",
 		"command": "layout-set",
 		"input": {
@@ -323,13 +323,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600026, 1767225600027],
+			"clock": [1767225600027, 1767225600028],
 			"random": []
 		}
 	},
 	{
 		"seq": 8,
-		"timestamp": "2026-01-01T00:00:00.029Z",
+		"timestamp": "2026-01-01T00:00:00.030Z",
 		"traceId": "loam-mjuohs00-8",
 		"command": "layout-set",
 		"input": {
@@ -387,13 +387,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600030, 1767225600031],
+			"clock": [1767225600031, 1767225600032],
 			"random": []
 		}
 	},
 	{
 		"seq": 9,
-		"timestamp": "2026-01-01T00:00:00.033Z",
+		"timestamp": "2026-01-01T00:00:00.034Z",
 		"traceId": "loam-mjuohs00-9",
 		"command": "layout-set",
 		"input": {
@@ -451,13 +451,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600034, 1767225600035],
+			"clock": [1767225600035, 1767225600036],
 			"random": []
 		}
 	},
 	{
 		"seq": 10,
-		"timestamp": "2026-01-01T00:00:00.037Z",
+		"timestamp": "2026-01-01T00:00:00.038Z",
 		"traceId": "loam-mjuohs00-10",
 		"command": "layout-set",
 		"input": {
@@ -515,13 +515,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600038, 1767225600039],
+			"clock": [1767225600039, 1767225600040],
 			"random": []
 		}
 	},
 	{
 		"seq": 11,
-		"timestamp": "2026-01-01T00:00:00.041Z",
+		"timestamp": "2026-01-01T00:00:00.042Z",
 		"traceId": "loam-mjuohs00-11",
 		"command": "layout-set",
 		"input": {
@@ -579,13 +579,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600042, 1767225600043],
+			"clock": [1767225600043, 1767225600044],
 			"random": []
 		}
 	},
 	{
 		"seq": 12,
-		"timestamp": "2026-01-01T00:00:00.045Z",
+		"timestamp": "2026-01-01T00:00:00.046Z",
 		"traceId": "loam-mjuohs00-12",
 		"command": "layout-set",
 		"input": {
@@ -643,13 +643,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600046, 1767225600047],
+			"clock": [1767225600047, 1767225600048],
 			"random": []
 		}
 	},
 	{
 		"seq": 13,
-		"timestamp": "2026-01-01T00:00:00.049Z",
+		"timestamp": "2026-01-01T00:00:00.050Z",
 		"traceId": "loam-mjuohs00-13",
 		"command": "layout-set",
 		"input": {
@@ -693,13 +693,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600050, 1767225600051],
+			"clock": [1767225600051, 1767225600052],
 			"random": []
 		}
 	},
 	{
 		"seq": 14,
-		"timestamp": "2026-01-01T00:00:00.053Z",
+		"timestamp": "2026-01-01T00:00:00.054Z",
 		"traceId": "loam-mjuohs00-14",
 		"command": "layout-set",
 		"input": {
@@ -743,13 +743,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600054, 1767225600055],
+			"clock": [1767225600055, 1767225600056],
 			"random": []
 		}
 	},
 	{
 		"seq": 15,
-		"timestamp": "2026-01-01T00:00:00.057Z",
+		"timestamp": "2026-01-01T00:00:00.058Z",
 		"traceId": "loam-mjuohs00-15",
 		"command": "layout-set",
 		"input": {
@@ -792,13 +792,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600058, 1767225600059],
+			"clock": [1767225600059, 1767225600060],
 			"random": []
 		}
 	},
 	{
 		"seq": 16,
-		"timestamp": "2026-01-01T00:00:00.061Z",
+		"timestamp": "2026-01-01T00:00:00.062Z",
 		"traceId": "loam-mjuohs00-16",
 		"command": "palette-open",
 		"input": {},
@@ -829,13 +829,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600062, 1767225600063],
+			"clock": [1767225600063, 1767225600064],
 			"random": []
 		}
 	},
 	{
 		"seq": 17,
-		"timestamp": "2026-01-01T00:00:00.065Z",
+		"timestamp": "2026-01-01T00:00:00.066Z",
 		"traceId": "loam-mjuohs00-17",
 		"command": "palette-close",
 		"input": {},
@@ -866,13 +866,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600066, 1767225600067],
+			"clock": [1767225600067, 1767225600068],
 			"random": []
 		}
 	},
 	{
 		"seq": 18,
-		"timestamp": "2026-01-01T00:00:00.069Z",
+		"timestamp": "2026-01-01T00:00:00.070Z",
 		"traceId": "loam-mjuohs00-18",
 		"command": "palette-open",
 		"input": {
@@ -905,13 +905,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600070, 1767225600071],
+			"clock": [1767225600071, 1767225600072],
 			"random": []
 		}
 	},
 	{
 		"seq": 19,
-		"timestamp": "2026-01-01T00:00:00.073Z",
+		"timestamp": "2026-01-01T00:00:00.074Z",
 		"traceId": "loam-mjuohs00-19",
 		"command": "palette-close",
 		"input": {},
@@ -942,13 +942,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600074, 1767225600075],
+			"clock": [1767225600075, 1767225600076],
 			"random": []
 		}
 	},
 	{
 		"seq": 20,
-		"timestamp": "2026-01-01T00:00:00.077Z",
+		"timestamp": "2026-01-01T00:00:00.078Z",
 		"traceId": "loam-mjuohs00-20",
 		"command": "appearance-set",
 		"input": {
@@ -987,13 +987,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600078, 1767225600079],
+			"clock": [1767225600079, 1767225600080],
 			"random": []
 		}
 	},
 	{
 		"seq": 21,
-		"timestamp": "2026-01-01T00:00:00.081Z",
+		"timestamp": "2026-01-01T00:00:00.082Z",
 		"traceId": "loam-mjuohs00-21",
 		"command": "appearance-set",
 		"input": {
@@ -1032,13 +1032,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600082, 1767225600083],
+			"clock": [1767225600083, 1767225600084],
 			"random": []
 		}
 	},
 	{
 		"seq": 22,
-		"timestamp": "2026-01-01T00:00:00.085Z",
+		"timestamp": "2026-01-01T00:00:00.086Z",
 		"traceId": "loam-mjuohs00-22",
 		"command": "appearance-get",
 		"input": {},
@@ -1071,13 +1071,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600086, 1767225600087],
+			"clock": [1767225600087, 1767225600088],
 			"random": []
 		}
 	},
 	{
 		"seq": 23,
-		"timestamp": "2026-01-01T00:00:00.089Z",
+		"timestamp": "2026-01-01T00:00:00.090Z",
 		"traceId": "loam-mjuohs00-23",
 		"command": "layout-get",
 		"input": {},
@@ -1125,13 +1125,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600090, 1767225600091],
+			"clock": [1767225600091, 1767225600092],
 			"random": []
 		}
 	},
 	{
 		"seq": 24,
-		"timestamp": "2026-01-01T00:00:00.093Z",
+		"timestamp": "2026-01-01T00:00:00.094Z",
 		"traceId": "loam-mjuohs00-24",
 		"command": "view-state-get",
 		"input": {
@@ -1186,13 +1186,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600094, 1767225600095],
+			"clock": [1767225600095, 1767225600096],
 			"random": []
 		}
 	},
 	{
 		"seq": 25,
-		"timestamp": "2026-01-01T00:00:00.097Z",
+		"timestamp": "2026-01-01T00:00:00.098Z",
 		"traceId": "loam-mjuohs00-25",
 		"command": "view-state-set",
 		"input": {
@@ -1297,13 +1297,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600098, 1767225600099],
+			"clock": [1767225600099, 1767225600100],
 			"random": []
 		}
 	},
 	{
 		"seq": 26,
-		"timestamp": "2026-01-01T00:00:00.101Z",
+		"timestamp": "2026-01-01T00:00:00.102Z",
 		"traceId": "loam-mjuohs00-26",
 		"command": "view-state-set",
 		"input": {
@@ -1350,13 +1350,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600102, 1767225600103],
+			"clock": [1767225600103, 1767225600104],
 			"random": []
 		}
 	},
 	{
 		"seq": 27,
-		"timestamp": "2026-01-01T00:00:00.105Z",
+		"timestamp": "2026-01-01T00:00:00.106Z",
 		"traceId": "loam-mjuohs00-27",
 		"command": "view-state-set",
 		"input": {
@@ -1461,13 +1461,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600106, 1767225600107],
+			"clock": [1767225600107, 1767225600108],
 			"random": []
 		}
 	},
 	{
 		"seq": 28,
-		"timestamp": "2026-01-01T00:00:00.109Z",
+		"timestamp": "2026-01-01T00:00:00.110Z",
 		"traceId": "loam-mjuohs00-28",
 		"command": "view-state-list",
 		"input": {},
@@ -1555,11 +1555,27 @@
 						"state": {
 							"project": null
 						}
+					},
+					{
+						"id": "loam.editor",
+						"state": {
+							"version": 1,
+							"groups": [
+								{
+									"id": "g1",
+									"tabs": [],
+									"active": null
+								}
+							],
+							"activeGroup": "g1",
+							"nextTab": 1,
+							"nextGroup": 2
+						}
 					}
 				],
-				"total": 5
+				"total": 6
 			},
-			"reasoning": "Found 5 registered view state(s)",
+			"reasoning": "Found 6 registered view state(s)",
 			"confidence": 1,
 			"metadata": {
 				"executionTimeMs": 1,
@@ -1569,13 +1585,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600110, 1767225600111],
+			"clock": [1767225600111, 1767225600112],
 			"random": []
 		}
 	},
 	{
 		"seq": 29,
-		"timestamp": "2026-01-01T00:00:00.113Z",
+		"timestamp": "2026-01-01T00:00:00.114Z",
 		"traceId": "loam-mjuohs00-29",
 		"command": "layout-set",
 		"input": {
@@ -1633,13 +1649,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600114, 1767225600115],
+			"clock": [1767225600115, 1767225600116],
 			"random": []
 		}
 	},
 	{
 		"seq": 30,
-		"timestamp": "2026-01-01T00:00:00.117Z",
+		"timestamp": "2026-01-01T00:00:00.118Z",
 		"traceId": "loam-mjuohs00-30",
 		"command": "layout-set",
 		"input": {
@@ -1697,13 +1713,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600118, 1767225600119],
+			"clock": [1767225600119, 1767225600120],
 			"random": []
 		}
 	},
 	{
 		"seq": 31,
-		"timestamp": "2026-01-01T00:00:00.121Z",
+		"timestamp": "2026-01-01T00:00:00.122Z",
 		"traceId": "loam-mjuohs00-31",
 		"command": "layout-set",
 		"input": {
@@ -1761,13 +1777,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600122, 1767225600123],
+			"clock": [1767225600123, 1767225600124],
 			"random": []
 		}
 	},
 	{
 		"seq": 32,
-		"timestamp": "2026-01-01T00:00:00.125Z",
+		"timestamp": "2026-01-01T00:00:00.126Z",
 		"traceId": "loam-mjuohs00-32",
 		"command": "layout-set",
 		"input": {
@@ -1827,13 +1843,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600126, 1767225600127],
+			"clock": [1767225600127, 1767225600128],
 			"random": []
 		}
 	},
 	{
 		"seq": 33,
-		"timestamp": "2026-01-01T00:00:00.129Z",
+		"timestamp": "2026-01-01T00:00:00.130Z",
 		"traceId": "loam-mjuohs00-33",
 		"command": "appearance-set",
 		"input": {
@@ -1872,13 +1888,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600130, 1767225600131],
+			"clock": [1767225600131, 1767225600132],
 			"random": []
 		}
 	},
 	{
 		"seq": 34,
-		"timestamp": "2026-01-01T00:00:00.133Z",
+		"timestamp": "2026-01-01T00:00:00.134Z",
 		"traceId": "loam-mjuohs00-34",
 		"command": "view-state-set",
 		"input": {
@@ -1920,13 +1936,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600134, 1767225600135],
+			"clock": [1767225600135, 1767225600136],
 			"random": []
 		}
 	},
 	{
 		"seq": 35,
-		"timestamp": "2026-01-01T00:00:00.137Z",
+		"timestamp": "2026-01-01T00:00:00.138Z",
 		"traceId": "loam-mjuohs00-35",
 		"command": "view-state-set",
 		"input": {
@@ -1981,13 +1997,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600138, 1767225600139],
+			"clock": [1767225600139, 1767225600140],
 			"random": []
 		}
 	},
 	{
 		"seq": 36,
-		"timestamp": "2026-01-01T00:00:00.141Z",
+		"timestamp": "2026-01-01T00:00:00.142Z",
 		"traceId": "loam-mjuohs00-36",
 		"command": "shell-info-get",
 		"input": {},
@@ -2028,13 +2044,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600142, 1767225600143],
+			"clock": [1767225600143, 1767225600144],
 			"random": []
 		}
 	},
 	{
 		"seq": 37,
-		"timestamp": "2026-01-01T00:00:00.145Z",
+		"timestamp": "2026-01-01T00:00:00.146Z",
 		"traceId": "loam-mjuohs00-37",
 		"command": "layout-set",
 		"input": {
@@ -2094,13 +2110,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600146, 1767225600147],
+			"clock": [1767225600147, 1767225600148],
 			"random": []
 		}
 	},
 	{
 		"seq": 38,
-		"timestamp": "2026-01-01T00:00:00.149Z",
+		"timestamp": "2026-01-01T00:00:00.150Z",
 		"traceId": "loam-mjuohs00-38",
 		"command": "layout-set",
 		"input": {
@@ -2158,13 +2174,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600150, 1767225600151],
+			"clock": [1767225600151, 1767225600152],
 			"random": []
 		}
 	},
 	{
 		"seq": 39,
-		"timestamp": "2026-01-01T00:00:00.153Z",
+		"timestamp": "2026-01-01T00:00:00.154Z",
 		"traceId": "loam-mjuohs00-39",
 		"command": "layout-set",
 		"input": {
@@ -2222,13 +2238,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600154, 1767225600155],
+			"clock": [1767225600155, 1767225600156],
 			"random": []
 		}
 	},
 	{
 		"seq": 40,
-		"timestamp": "2026-01-01T00:00:00.157Z",
+		"timestamp": "2026-01-01T00:00:00.158Z",
 		"traceId": "loam-mjuohs00-40",
 		"command": "layout-reset",
 		"input": {},
@@ -2296,13 +2312,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600158, 1767225600159],
+			"clock": [1767225600159, 1767225600160],
 			"random": []
 		}
 	},
 	{
 		"seq": 41,
-		"timestamp": "2026-01-01T00:00:00.161Z",
+		"timestamp": "2026-01-01T00:00:00.162Z",
 		"traceId": "loam-mjuohs00-41",
 		"command": "layout-get",
 		"input": {},
@@ -2350,13 +2366,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600162, 1767225600163],
+			"clock": [1767225600163, 1767225600164],
 			"random": []
 		}
 	},
 	{
 		"seq": 42,
-		"timestamp": "2026-01-01T00:00:00.165Z",
+		"timestamp": "2026-01-01T00:00:00.166Z",
 		"traceId": "loam-mjuohs00-42",
 		"command": "layout-set",
 		"input": {
@@ -2416,13 +2432,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600166, 1767225600167],
+			"clock": [1767225600167, 1767225600168],
 			"random": []
 		}
 	},
 	{
 		"seq": 43,
-		"timestamp": "2026-01-01T00:00:00.169Z",
+		"timestamp": "2026-01-01T00:00:00.170Z",
 		"traceId": "loam-mjuohs00-43",
 		"command": "layout-set",
 		"input": {
@@ -2466,13 +2482,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600170, 1767225600171],
+			"clock": [1767225600171, 1767225600172],
 			"random": []
 		}
 	},
 	{
 		"seq": 44,
-		"timestamp": "2026-01-01T00:00:00.173Z",
+		"timestamp": "2026-01-01T00:00:00.174Z",
 		"traceId": "loam-mjuohs00-44",
 		"command": "appearance-set",
 		"input": {
@@ -2513,13 +2529,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600174, 1767225600175],
+			"clock": [1767225600175, 1767225600176],
 			"random": []
 		}
 	},
 	{
 		"seq": 45,
-		"timestamp": "2026-01-01T00:00:00.177Z",
+		"timestamp": "2026-01-01T00:00:00.178Z",
 		"traceId": "loam-mjuohs00-45",
 		"command": "auth-session-get",
 		"input": {},
@@ -2542,8 +2558,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1793754995722",
-					"expiresAt": "2026-11-04T02:16:35.722Z"
+					"id": "mock-session-1794103867394",
+					"expiresAt": "2026-11-08T03:11:07.394Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -2560,13 +2576,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600178, 1767225600179],
+			"clock": [1767225600179, 1767225600180],
 			"random": []
 		}
 	},
 	{
 		"seq": 46,
-		"timestamp": "2026-01-01T00:00:00.181Z",
+		"timestamp": "2026-01-01T00:00:00.182Z",
 		"traceId": "loam-mjuohs00-46",
 		"command": "auth-sign-out",
 		"input": {},
@@ -2596,13 +2612,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600182, 1767225600183],
+			"clock": [1767225600183, 1767225600184],
 			"random": []
 		}
 	},
 	{
 		"seq": 47,
-		"timestamp": "2026-01-01T00:00:00.185Z",
+		"timestamp": "2026-01-01T00:00:00.186Z",
 		"traceId": "loam-mjuohs00-47",
 		"command": "auth-session-get",
 		"input": {},
@@ -2630,13 +2646,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600186, 1767225600187],
+			"clock": [1767225600187, 1767225600188],
 			"random": []
 		}
 	},
 	{
 		"seq": 48,
-		"timestamp": "2026-01-01T00:00:00.189Z",
+		"timestamp": "2026-01-01T00:00:00.190Z",
 		"traceId": "loam-mjuohs00-48",
 		"command": "view-state-set",
 		"input": {
@@ -2751,13 +2767,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600190, 1767225600191],
+			"clock": [1767225600191, 1767225600192],
 			"random": []
 		}
 	},
 	{
 		"seq": 49,
-		"timestamp": "2026-01-01T00:00:00.193Z",
+		"timestamp": "2026-01-01T00:00:00.194Z",
 		"traceId": "loam-mjuohs00-49",
 		"command": "layout-get",
 		"input": {},
@@ -2799,13 +2815,13 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600194, 1767225600195],
+			"clock": [1767225600195, 1767225600196],
 			"random": []
 		}
 	},
 	{
 		"seq": 50,
-		"timestamp": "2026-01-01T00:00:00.197Z",
+		"timestamp": "2026-01-01T00:00:00.198Z",
 		"traceId": "loam-mjuohs00-50",
 		"command": "appearance-get",
 		"input": {},
@@ -2832,7 +2848,7 @@
 		},
 		"durationMs": 3,
 		"tape": {
-			"clock": [1767225600198, 1767225600199],
+			"clock": [1767225600199, 1767225600200],
 			"random": []
 		}
 	}
