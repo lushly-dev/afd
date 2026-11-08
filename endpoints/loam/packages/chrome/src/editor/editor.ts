@@ -149,7 +149,7 @@ export class EditorController implements FrameListener {
 	/**
 	 * What a test reads, and its check of the frames' invariants, in this order: the visit rendered, `#frames`,
 	 * `#parking`, the leaving frames, each frame's life, the tabs the person is closing, the state rendered, and
-	 * the tabs whose close is saving or asking.
+	 * the tabs whose close is saving or asking, and the tabs a leave may still owe a mark.
 	 */
 	get lifecycle() {
 		return [
@@ -161,6 +161,7 @@ export class EditorController implements FrameListener {
 			this.#closing,
 			this.#state,
 			this.#asking,
+			this.#owed,
 		] as const;
 	}
 
@@ -355,7 +356,8 @@ export class EditorController implements FrameListener {
 			? (this.#frames.get(tab) ?? this.#parking.get(tab))
 			: undefined;
 		return (
-			!!frame?.dirty ||
+			// Its own document's editor only: a tab id of another scope may name another document.
+			(!!frame?.dirty && (document ?? frame.document) === frame.document) ||
 			this.#asking.has(`${keyOf(scope)} ${tab}`) ||
 			[...this.#leaving].some(
 				(each) =>
@@ -405,26 +407,44 @@ export class EditorController implements FrameListener {
 		for (const [scope] of this.#owed.values()) scopes.set(keyOf(scope), scope);
 		const sets: [ScopeOf, string][] = [];
 		const clears: [ScopeOf, string, string?][] = [];
+		// By `<scope> <tab>`, the tabs whose mark is known gone: read unmarked, or cleared by this pass.
+		const settled = new Set<string>();
 		for (const [key, scope] of scopes) {
 			const read = await this.#kernel.call<EditorReadV1>('editor-get', {}, { scope });
-			if (!read.success) continue;
 			const tabs = read.data?.groups.flatMap((group) => group.tabs) ?? [];
+			// A scope it cannot read, archived or out of reach, owes nothing it could clear.
+			if (!read.success)
+				for (const [own, tab] of this.#owed.values())
+					if (keyOf(own) === key) settled.add(`${key} ${tab}`);
 			for (const tab of tabs) {
 				if (key !== keyOf(at) && !this.#owed.has(`${key} ${tab.id}`)) continue;
 				const wants = this.#wants(scope, tab.id, tab.document);
+				if (!wants && !tab.dirty) settled.add(`${key} ${tab.id}`);
 				if (wants !== tab.dirty) (wants ? sets : clears).push([scope, tab.id, tab.document]);
 			}
 			// A closed tab a leave owed: no read lists its mark, which goes once nothing holds it.
 			for (const [own, tab] of this.#owed.values())
 				if (keyOf(own) === key && !tabs.some((each) => each.id === tab)) clears.push([own, tab]);
 		}
-		const set = (scope: ScopeOf, tab: string, dirty: boolean) =>
-			this.#kernel.call('editor-dirty-set', { tab, dirty }, { scope });
+		const set = async (scope: ScopeOf, tab: string, dirty: boolean) => {
+			await this.#kernel.call('editor-dirty-set', { tab, dirty }, { scope });
+			// What the immediate set trusts, true to what was sent: typing straight after a clear marks at once.
+			const shown = same(scope, this.#at) && this.#tabOf(tab);
+			if (shown) shown.dirty = dirty;
+		};
 		for (const [scope, tab] of sets) await set(scope, tab, true);
-		for (const [scope, tab, document] of clears)
-			if (!this.#wants(scope, tab, document)) await set(scope, tab, false);
-		for (const [key, [scope, tab]] of this.#owed)
-			if (!this.#wants(scope, tab)) this.#owed.delete(key);
+		for (const [scope, tab, document] of clears) {
+			if (this.#wants(scope, tab, document)) continue;
+			await set(scope, tab, false);
+			settled.add(`${keyOf(scope)} ${tab}`);
+		}
+		// An owed tab goes only once its mark is known gone; one nothing holds any more, whose clear this pass did
+		// not send, as its leave let go during the pass, has another pass.
+		for (const [key, [scope, tab]] of this.#owed) {
+			if (this.#wants(scope, tab)) continue;
+			if (settled.has(key)) this.#owed.delete(key);
+			else void this.#reconcile();
+		}
 	}
 
 	/** The active tab's frame, made and opened once, and the group's oldest parked ones over ten dropped. */

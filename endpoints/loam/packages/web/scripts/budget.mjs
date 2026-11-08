@@ -115,7 +115,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 2026-11-08: one rule and one reconciler for every mark in place of six sites, with the closed tabs a leave
  * still owes, the person's close asking, the Discard by count of edits and the moves to `editor-parts.ts`, net
  * of what they replaced (273); a mark the rule wants set at once, before any read (256); a Discard of a draft
- * a reopen has given to another tab (122); and the reopen's check of the tab it opened (67 over its 127).
+ * a reopen has given to another tab (122); and the reopen's check of the tab it opened (67 over its 127). The
+ * final re-check raised it by 242, to 32,663, approved by the coordinator, 2026-11-08: a closed tab a leave owed
+ * kept until its mark is known gone (151), the state the immediate set trusts kept true to what was sent (46),
+ * and an editor's mark only for its own document (36), with about 9 between them.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -135,7 +138,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 32_421,
+	editorMinified: 32_663,
 });
 
 /** Group a module id by the package it belongs to. */

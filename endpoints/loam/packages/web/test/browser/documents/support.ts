@@ -63,7 +63,7 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
 }
 
 /**
- * The editor area's twelve invariants (documents specification, Status, deviation 16), as its controller holds
+ * The editor area's thirteen invariants (documents specification, Status, deviation 16), as its controller holds
  * them, checked after every `editorIdle`:
  * 1. every frame in `frames` or `parking` is of this visit of the scope rendered, in its place for that map,
  *    under its own tab;
@@ -71,7 +71,7 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 3. none in a map is disposed, or off the page while the area shows;
  * 4. a mounted frame in no map has its save or its reopen under way;
  * 5. every tab the active scope marks unsaved has a frame in a map, a leave under way, or the person's own
- *    close running;
+ *    close running, or saving or asking, of any visit;
  * 6. a group shows at most one frame, its active tab's, and no leaving or parked frame shows;
  * 7. every key of `frames` and `parking` is a tab of the state rendered;
  * 8. every group's active tab has a frame in `frames`, unless its close or leave is under way;
@@ -82,7 +82,9 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  *     document and scope whose save is under way, or the person's own close of it saving or asking;
  * 12. for the active scope, each tab's mark is `wantsMark`: its editor, shown or parked, says unsaved, a leave of
  *     that tab, document and scope still holds its draft, or the person's close of it saves or asks. 5, 9, 10
- *     and 11 follow from it, and stay as diagnostics.
+ *     and 11 follow from it, and stay as diagnostics;
+ * 13. no tab a leave still owes a mark has `wantsMark` false, and every tab marked in a scope with a leave in
+ *     flight has `wantsMark` true or is owed.
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -101,7 +103,9 @@ export function frameViolations(page: Page): Promise<string[]> {
 		const shell = document.querySelector('loam-shell') as unknown as {
 			kernel: {
 				call(
-					name: string
+					name: string,
+					input?: unknown,
+					options?: unknown
 				): Promise<{ data?: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> } }>;
 			};
 			shadowRoot: ShadowRoot | null;
@@ -115,12 +119,13 @@ export function frameViolations(page: Page): Promise<string[]> {
 					Set<string>,
 					State | null,
 					Set<string>,
+					Map<string, [{ workspace: string; project?: string }, string]>,
 				];
 			};
 		};
 		const lifecycle = shell.editor?.lifecycle;
 		if (!lifecycle) return [];
-		const [visit, frames, parking, leaving, lives, closing, rendered, asking] = lifecycle;
+		const [visit, frames, parking, leaving, lives, closing, rendered, asking, owed] = lifecycle;
 		const broken: string[] = [];
 		const parked = new Set(parking.values());
 		const main = shell.shadowRoot?.querySelector('loam-main');
@@ -194,7 +199,24 @@ export function frameViolations(page: Page): Promise<string[]> {
 			data?: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean; document: string }> }> };
 		};
 		const listed = read.data?.groups.flatMap((group) => group.tabs) ?? [];
-		const key = `${active?.workspace} ${active?.project ?? ''}`;
+		type Scope = { workspace?: string; project?: string | null } | undefined;
+		const keyOf = (scope: Scope) => `${scope?.workspace} ${scope?.project ?? ''}`;
+		const key = keyOf(active);
+		// `wantsMark`, as the documents specification states it, of a tab of any scope.
+		const wantsOf = (scope: Scope, tab: string, document?: string) => {
+			const frame = keyOf(scope) === key ? (frames.get(tab) ?? parking.get(tab)) : undefined;
+			return (
+				(!!frame?.dirty && (document ?? frame.document) === frame.document) ||
+				asking.has(`${keyOf(scope)} ${tab}`) ||
+				[...leaving].some(
+					(each) =>
+						each.tab === tab &&
+						(document ?? each.document) === each.document &&
+						!!lives.get(each)?.draft &&
+						keyOf(each.record?.scope) === keyOf(scope)
+				)
+			);
+		};
 		const marked = new Map(listed.map((tab) => [tab.id, tab.dirty]));
 		for (const frame of leaving) {
 			const own = lives.get(frame);
@@ -209,7 +231,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 			}
 		}
 		for (const [tab, dirty] of marked) {
-			if (!dirty || closingHere(tab)) continue;
+			if (!dirty || closingHere(tab) || asking.has(`${key} ${tab}`)) continue;
 			if (!frames.has(tab) && !parking.has(tab) && !leavingHere(tab)) {
 				broken.push(`5: ${tab} is unsaved with no frame and no leave`);
 			}
@@ -232,19 +254,29 @@ export function frameViolations(page: Page): Promise<string[]> {
 				);
 		}
 		for (const tab of listed) {
-			const frame = frames.get(tab.id) ?? parking.get(tab.id);
-			const wants =
-				!!frame?.dirty ||
-				asking.has(`${key} ${tab.id}`) ||
-				[...leaving].some(
-					(each) =>
-						each.tab === tab.id &&
-						each.document === tab.document &&
-						!!lives.get(each)?.draft &&
-						`${each.record?.scope.workspace} ${each.record?.scope.project ?? ''}` === key
-				);
+			const wants = wantsOf(active, tab.id, tab.document);
 			if (wants !== tab.dirty)
 				broken.push(`12: ${tab.id} is marked ${tab.dirty}, wantsMark ${wants}`);
+		}
+		const inFlight = new Map<string, Scope>();
+		for (const [owedKey, [scope, tab]] of owed) {
+			if (!wantsOf(scope, tab)) broken.push(`13: ${owedKey} is owed, and wantsMark is false`);
+			inFlight.set(keyOf(scope), scope);
+		}
+		for (const each of leaving)
+			if (each.record) inFlight.set(keyOf(each.record.scope), each.record.scope);
+		for (const [scopeKey, scope] of inFlight) {
+			const each = (await shell.kernel.call('editor-get', {}, { scope })) as typeof read;
+			for (const tab of each.data?.groups.flatMap((group) => group.tabs) ?? []) {
+				if (
+					tab.dirty &&
+					!wantsOf(scope, tab.id, tab.document) &&
+					!owed.has(`${scopeKey} ${tab.id}`)
+				)
+					broken.push(
+						`13: ${scopeKey} ${tab.id} is marked, with a leave in flight, unwanted and unowed`
+					);
+			}
 		}
 		if (showing) {
 			for (const [tab, frame] of frames) {

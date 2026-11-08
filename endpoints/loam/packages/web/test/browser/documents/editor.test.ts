@@ -904,7 +904,7 @@ describe('P2-D5: the editor area, native half', () => {
 		};
 		expect(read.data.groups[0]?.tabs).toMatchObject([{ id: 't2', dirty: true }]);
 		// A trash the moment the closed tab's mark went met the new tab's mark.
-		expect((await trapped(page))?.error?.code).toBe('EDITOR_TAB_DIRTY');
+		await expect.poll(async () => (await trapped(page))?.error?.code).toBe('EDITOR_TAB_DIRTY');
 		// A trash waits on it, naming the tab that holds it now.
 		const refused = (await agentCall(page, 'document-trash', { document: note })) as {
 			error?: { code: string; suggestion: string };
@@ -1891,7 +1891,96 @@ describe('P2-D5: the editor area, native half', () => {
 		120_000
 	);
 
-	it.each([0x5eed10, 9, 12, 20, 100, 1, 2, 0xdeadbeef, 42])(
+	it('P2-D5: a closed tab’s mark goes once its leave lets go, even while another tab’s clear is under way', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const alpha = await createNote(page, 'Alpha');
+		const beta = await createNote(page, 'Beta');
+		await open(page, alpha);
+		await open(page, beta, { group: 'beside' });
+		await failSaves(page, ['t1', 't2']);
+		await typeInto(page, 't1', 'One');
+		await typeInto(page, 't2', 'Two');
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await agentCall(page, 'editor-close', { tab: 't2', discard: true });
+		await framesGone(page, ['t1', 't2']);
+		// The person's page's clear of t2 waits on a gate, and t1's save resolves while it waits.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input?: unknown, ...rest: unknown[]): Promise<unknown> };
+			};
+			const call = shell.kernel.call.bind(shell.kernel);
+			const gate = new Promise<void>((resolve) => {
+				(window as Gated).openGate = resolve;
+			});
+			shell.kernel.call = async (name: string, input?: unknown, ...rest: unknown[]) => {
+				const asked = input as { tab?: string; dirty?: boolean } | undefined;
+				if (name === 'editor-dirty-set' && asked?.tab === 't2' && asked.dirty === false) {
+					(window as Gated).openAsked = true;
+					await gate;
+				}
+				return call(name, input, ...rest);
+			};
+		});
+		await settleSaves(page, 't2', 'pass');
+		await page.waitForFunction(() => (window as Gated).openAsked === true);
+		await settleSaves(page, 't1', 'pass');
+		await page.waitForTimeout(100);
+		await page.evaluate(() => (window as Gated).openGate?.());
+		await editorIdle(page);
+		// Both saves wrote: neither closed tab keeps a mark, so both trashes run.
+		for (const note of [alpha, beta]) {
+			expect(
+				((await agentCall(page, 'document-trash', { document: note })) as { success: boolean })
+					.success
+			).toBe(true);
+		}
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: the person’s close of a background tab, saving across a round trip, holds its mark', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const alpha = await createNote(page, 'Alpha');
+		const beta = await createNote(page, 'Beta');
+		await open(page, alpha);
+		await open(page, beta);
+		await failSaves(page, ['t2']);
+		await typeInto(page, 't2', 'Draft');
+		// The person closes Beta; its save is held, so the close is still saving.
+		await tabOf(page, 'Beta').focus();
+		await page.keyboard.press('Delete');
+		await expect
+			.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+			.toBeGreaterThan(0);
+		// Alpha is made active, and the person goes to Atlas and back; Beta's editor leaves, its save held too.
+		await agentCall(page, 'editor-activate', { tab: 't1' });
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		await kernelCall(page, 'scope-set', { project: null });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		// That leave's save rejects: Beta has no frame and no leave, and only the person's close holds its mark.
+		await settleNewest(page, 't2', 'fail');
+		await editorIdle(page);
+		expect(
+			(
+				(await agentCall(page, 'document-trash', { document: beta })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		await settleSaves(page, 't2', 'fail');
+		const discard = page.locator('loam-modal button', { hasText: 'Discard' });
+		await discard.waitFor();
+		await discard.click();
+		await editorIdle(page);
+		await opened.context.close();
+	}, 120_000);
+
+	it.each([0x5eed10, 9, 12, 20, 32, 100, 1, 2, 0xdeadbeef, 42])(
 		'P2-D5: a seeded walk of 200 steps, seed %i, keeps the twelve invariants after each and reaches reopens',
 		async (start) => {
 			const opened = await openShell(browser, site.root);
@@ -1970,7 +2059,14 @@ describe('P2-D5: the editor area, native half', () => {
 				reopenOpens += opens;
 			};
 			await kernelCall(page, 'project-create', { name: 'Atlas' });
-			for (const title of ['One', 'Two', 'Three']) await open(page, await createNote(page, title));
+			// Every document the walk makes, for its last check.
+			const documents: string[] = [];
+			const note = async (title: string, project?: string) => {
+				const id = await createNote(page, title, project);
+				documents.push(id);
+				return id;
+			};
+			for (const title of ['One', 'Two', 'Three']) await open(page, await note(title));
 			await holdSaves();
 			await instrument();
 			const kinds = [
@@ -2034,7 +2130,7 @@ describe('P2-D5: the editor area, native half', () => {
 				const some = () => pick(tabs);
 				if (kind === 'park') {
 					await kernelCall(page, 'document-open', {
-						document: await createNote(page, `Walk ${step}`, project),
+						document: await note(`Walk ${step}`, project),
 					});
 				} else if (kind === 'take' && tabs.length > 0) {
 					await kernelCall(page, 'editor-activate', { tab: some().id });
@@ -2243,12 +2339,87 @@ describe('P2-D5: the editor area, native half', () => {
 					);
 				}
 			}
-			await page.evaluate(() => {
-				for (const release of (window as Walk).gates?.splice(0) ?? []) release();
-				for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
-			});
-			await editorIdle(page);
+			// Everything settles: gates open, held saves reject, and every modal a close opens is answered Discard,
+			// until nothing is held.
+			for (let round = 0; round < 10; round++) {
+				await page.evaluate(() => {
+					for (const release of (window as Walk).gates?.splice(0) ?? []) release();
+					for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
+				});
+				await editorIdle(page);
+				const discard = page.locator('loam-modal button', { hasText: 'Discard' });
+				const asked = (await discard.count()) > 0;
+				if (asked)
+					await discard
+						.first()
+						.click({ timeout: 1000 })
+						.catch(() => undefined);
+				await editorIdle(page);
+				const held = await page.evaluate(() => (window as Walk).pending?.length ?? 0);
+				if (!asked && held === 0) break;
+			}
 			expect(await frameViolations(page)).toEqual([]);
+			// Every save settled: no document that no tab holds, in either scope, keeps a mark a trash meets.
+			const held = await page.evaluate(async () => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel: { call(name: string, input?: unknown, options?: unknown): Promise<unknown> };
+				};
+				const active = (
+					(await shell.kernel.call('scope-get')) as { data?: { scope?: { workspace: string } } }
+				).data?.scope;
+				const ids: string[] = [];
+				// Atlas by its id, which a call's scope names, not its slug.
+				const projects = (
+					(await shell.kernel.call('project-list')) as {
+						data?: { projects?: Array<{ id: string; slug: string }> };
+					}
+				).data?.projects;
+				const atlas = projects?.find((each) => each.slug === 'atlas')?.id;
+				for (const scope of [
+					{ workspace: active?.workspace },
+					{ workspace: active?.workspace, project: atlas },
+				]) {
+					const read = (await shell.kernel.call('editor-get', {}, { scope })) as {
+						data?: { groups: Array<{ tabs: Array<{ document: string }> }> };
+					};
+					for (const group of read.data?.groups ?? [])
+						for (const tab of group.tabs) ids.push(tab.document);
+				}
+				return ids;
+			});
+			for (const id of documents.filter((each) => !held.includes(each))) {
+				const trash = (await agentCall(page, 'document-trash', { document: id })) as {
+					error?: { code: string; message?: string; suggestion?: string };
+				};
+				if (trash.error?.code !== 'EDITOR_TAB_DIRTY') continue;
+				const state = await page.evaluate(() => {
+					const shell = document.querySelector('loam-shell') as unknown as {
+						editor?: { lifecycle: readonly unknown[] };
+					};
+					if (!shell.editor) return 'no editor area loaded';
+					const [visit, , , leaving, , , , asking, owed] = shell.editor.lifecycle as [
+						number,
+						unknown,
+						unknown,
+						Set<{ tab: string }>,
+						unknown,
+						unknown,
+						unknown,
+						Set<string>,
+						Map<string, unknown>,
+					];
+					return JSON.stringify({
+						visit,
+						leaving: [...leaving].map((each) => each.tab),
+						asking: [...asking],
+						owed: [...owed.keys()],
+					});
+				});
+				expect(
+					trash.error?.code,
+					`Seed ${start}: ${id} keeps a mark no tab holds: ${trash.error?.message} ${trash.error?.suggestion} ${state}. Steps: ${steps.join(', ')}`
+				).not.toBe('EDITOR_TAB_DIRTY');
+			}
 			await counted();
 			// Straight to the output, so every seed's count shows, passing or not.
 			process.stdout.write(
