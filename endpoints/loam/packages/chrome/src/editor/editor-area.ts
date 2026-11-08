@@ -8,7 +8,7 @@
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
 
 const template = html<LoamEditorArea>`
-	<section class="area" aria-labelledby="heading">
+	<section class="area" aria-label="Documents">
 		<h1 id="heading" class="hidden-heading">${(x) => x.heading || 'Documents'}</h1>
 		<div class="groups" ?hidden="${(x) => x.empty}"><slot></slot></div>
 		<div class="empty" ?hidden="${(x) => !x.empty}">

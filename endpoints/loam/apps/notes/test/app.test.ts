@@ -90,6 +90,37 @@ describe('notes', () => {
 		expect(editor.data?.groups[0]?.tabs.map((tab) => tab.document)).toEqual([document]);
 	});
 
+	it('P2-D10: refuses a save over 256 KiB as DOCUMENT_CONTENT_TOO_LARGE, journaled without its input', async () => {
+		const { kernel, journal } = await kernelIn();
+		const created = await kernel.call<{ id: string }>('document-create', { type: 'notes' });
+		const document = created.data?.id as string;
+		// 100,000 characters, under the schema's 200,000, and 300,000 bytes of JSON, over the kernel's bound.
+		const refused = await kernel.call('notes-content-set', { document, text: '€'.repeat(100_000) });
+		expect(refused.error?.code).toBe('DOCUMENT_CONTENT_TOO_LARGE');
+		const entry = (await journal.read()).at(-1);
+		expect(entry?.command).toBe('notes-content-set');
+		expect(entry?.input).toEqual({ document });
+		expect((await kernel.call('notes-content-get', { document })).data).toMatchObject({ text: '' });
+	});
+
+	it('P2-D10: measures the journal’s growth for a 10,000-character note saved 30 times, which is recorded and not limited', async () => {
+		const { kernel, journal } = await kernelIn();
+		const created = await kernel.call<{ id: string }>('document-create', { type: 'notes' });
+		const document = created.data?.id as string;
+		const before = JSON.stringify(await journal.read()).length;
+		for (let save = 0; save < 30; save++) {
+			const text = `${String(save).padStart(2, '0')}${'n'.repeat(9_998)}`;
+			expect((await kernel.call('notes-content-set', { document, text })).success).toBe(true);
+		}
+		const growth = JSON.stringify(await journal.read()).length - before;
+		// Each save journals its whole text, its undo's previous text and its result's: about three copies.
+		expect(growth).toBeGreaterThan(30 * 10_000 * 3);
+		expect(growth).toBeLessThan(30 * 10_000 * 3.2);
+		console.info(
+			`P2-D10: 30 saves of a 10,000-character note grew the journal by ${growth} bytes of JSON`
+		);
+	});
+
 	it('passes app check as a version 2 manifest with one document type and no rail', async () => {
 		const manifest = await readAppManifest(ROOT);
 		expect(manifest.manifest_version).toBe(2);

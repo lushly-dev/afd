@@ -213,8 +213,6 @@ export class LoamEditorFrame extends FASTElement {
 			scope: reference.scope,
 			document: reference,
 		});
-		mount.setAttribute('role', 'region');
-		mount.setAttribute('aria-label', reference.title);
 		this.#mount = mount;
 		this.append(mount);
 		this.state = 'ready';

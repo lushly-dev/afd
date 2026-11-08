@@ -497,6 +497,30 @@
 			"title": "Loam/Apps/ProjectsSectionLongCompact",
 			"module": "./apps.specimens.ts",
 			"exportName": "ProjectsSectionLongCompact"
+		},
+		{
+			"id": "editor-area",
+			"title": "Loam/Editor/Area",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorArea"
+		},
+		{
+			"id": "editor-area-compact",
+			"title": "Loam/Editor/AreaCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorAreaCompact"
+		},
+		{
+			"id": "editor-area-empty",
+			"title": "Loam/Editor/AreaEmpty",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorAreaEmpty"
+		},
+		{
+			"id": "editor-area-empty-compact",
+			"title": "Loam/Editor/AreaEmptyCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EditorAreaEmptyCompact"
 		}
 	]
 }

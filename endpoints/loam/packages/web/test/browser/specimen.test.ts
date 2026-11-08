@@ -173,6 +173,39 @@ describe('E11: Specimen captures of what apps add', () => {
 		}, 300_000);
 });
 
+/** The documents specification's D10 so far (step 10): the editor area's elements, comfortable and compact. */
+const EDITOR_CAPTURES: [string, string[]][] = [
+	[
+		'editor-area',
+		[
+			'region "Documents"',
+			'heading "Roadmap"',
+			'tablist "Documents, group 1"',
+			'tab "Roadmap, unsaved" [selected]',
+			'tab "Plan, pinned"',
+			'tab "Ideas (preview)"',
+			'Opening Roadmap',
+			'DOCUMENT_TYPE_UNAVAILABLE',
+			'button "Close"',
+		],
+	],
+	['editor-area-empty', ['region "Documents"', 'No documents are open']],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string[]],
+	[`${id}-compact`, expected] as [string, string[]],
+]);
+
+describe('P2-D10: Specimen captures of the editor area', () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+			for (const [id, expected] of EDITOR_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+			}
+		}, 300_000);
+});
+
 describe('E4: Specimen captures of each part and the whole shell', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
 		it(`captures every fixture in ${theme}, each with an ARIA snapshot`, async () => {

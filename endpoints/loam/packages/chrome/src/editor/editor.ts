@@ -104,6 +104,9 @@ function focusMain(shell: LoamShell, main: HTMLElement): void {
 	target.focus();
 }
 
+/** The chunk's elements, defined, for a fixture that renders them on their own. */
+export const defineEditorElements = (): Promise<unknown> => define();
+
 const controllers = new WeakMap<LoamShell, EditorController>();
 
 /** Follow the state: show, update or hide the editor area. One at a time per shell, so a later state wins. */
@@ -629,8 +632,12 @@ export class EditorController implements FrameListener {
 			return;
 		const state = this.#state;
 		const group = state?.groups.find((each) => each.id === state.activeGroup);
-		const frame = group?.active ? this.#frames.get(group.active) : undefined;
-		if (frame?.state !== 'ready') return;
+		// The editor holding focus, which may be in another group than the active one, or the active tab's.
+		const frame =
+			(event.composedPath().find((node) => node instanceof LoamEditorFrame) as
+				| LoamEditorFrame
+				| undefined) ?? (group?.active ? this.#frames.get(group.active) : undefined);
+		if (frame?.state !== 'ready' || !this.#frames.has(frame.tab)) return;
 		// Only with an editor the active owner: the browser keeps Mod+S everywhere else (5.5).
 		event.preventDefault();
 		if (!event.repeat) void this.#save(frame);
