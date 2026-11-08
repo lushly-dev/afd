@@ -1,0 +1,51 @@
+[package]
+name = "umbel-testkit-idp"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "Test-only, credential-free identity provider, authorization server, gateway signer and certificate authority for Umbel's auth tests; never linked into a shipped binary"
+repository = "https://github.com/lushly-dev/afd"
+
+# Test infrastructure (phase 5 specification, section 1, step 1b). Other crates use it only from
+# `[dev-dependencies]`; the host's `tests/no_auth_server.rs` fails if it is ever reachable from a
+# shipped crate through a normal or build dependency. It binds 127.0.0.1 only, generates every key
+# and certificate in memory on start, and writes nothing to disk.
+#
+# Every dependency was already in the workspace's lock except `jsonwebtoken` (the version and
+# backend the afd crate's `server-auth` feature uses) and `base64` 0.22, which it depends on too.
+# `rcgen` is a normal dependency here, not a dev-dependency as the specification's table says: the
+# test certificate authority is part of the library (step 1b's amendment).
+
+[dependencies]
+# The kit's own signing: RSA (PKCS #1 v1.5 and PSS), ECDSA on P-256 and P-384, and Ed25519, the
+# backend `jsonwebtoken`, rcgen and rustls already use.
+aws-lc-rs = { version = "1.15", default-features = false, features = ["aws-lc-sys"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+base64 = "0.22"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+# Verification of the tokens the kit receives (ID tokens in a token exchange, ID-JAGs in a JWT
+# bearer grant): its `aws-lc-rs` provider, called directly, as the afd crate's verifier does.
+jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
+serde = "1"
+serde_json = "1"
+time = { version = "0.3", default-features = false }
+tokio = { version = "1", features = ["macros", "net", "rt", "sync", "time"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+tower = { version = "0.5", features = ["util"] }
+# Redirect URIs and form bodies (`url::form_urlencoded`).
+url = "2"
+
+[dev-dependencies]
+# The suite verifies the kit's access tokens with AFD's own verifier and introspection rules.
+afd = { path = "../../../packages/rust", default-features = false, features = ["server-auth"] }
+# A live `KeySource` over the kit's own JWKS, for AFD's `#[async_trait]` trait.
+async-trait = "0.1"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true
