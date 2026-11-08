@@ -1,7 +1,7 @@
 {
   "name": "@lushly-dev/fast-element",
   "description": "A library for constructing Web Components",
-  "version": "3.0.1-preview.0",
+  "version": "3.0.1-preview.1",
   "author": "Lushly Dev (forked from Microsoft FAST)",
   "homepage": "https://github.com/lushly-dev/afd/tree/main/foundations/fast-af/packages/element/packages/fast-element#readme",
   "license": "MIT",
