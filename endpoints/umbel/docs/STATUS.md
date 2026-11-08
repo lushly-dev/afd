@@ -2285,8 +2285,9 @@ on another local branch and push to that remote name.
     and remembered limit checks, the system clock for limits, narrowed permissions, tests for forged identity and
     forwarding headers and the hook's gateway branch), all fixed with regression tests. Choices are in the
     specification's [Amendments from step 2a](phases/5-auth-hosted/spec.md#amendments-from-step-2a).
-  - **For the owner** (follow-ups, not blocking): behind a same-host proxy the per-IP limit is one limit for every
-    caller, since no forwarded header is read; and IPv6 peers are keyed on their /64.
+  - **Settled 2026-11-08** (the review's two rate-limit follow-ups; neither changes the trust model): no forwarded
+    header is ever read, and step 3 adds an opt-in `http.trusted_proxies`, which accepts a PROXY protocol version 2
+    header only from listed peers, for a same-host proxy; IPv6 peers stay keyed on their /64.
 - **Not done:** every step of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan) after 2a: 2b to 12.
 - **Next:** step 2b (it needs 2a); 5 needs 3 as well as 0c and 0d; 7 needs 1 and may run beside 2b to 6; 8 needs 0e
   and 3. Heavy steps follow the plan's build note. Steps 2b to 12 take `umbel-testkit-idp` from `[dev-dependencies]`;
