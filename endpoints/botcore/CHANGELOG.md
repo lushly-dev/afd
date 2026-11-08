@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-07
+
+Skill fixes for repositories that seed Botcore's skills. No code change.
+
 ### Fixed
 
 - **Seeded skills** read correctly outside AFD. `security-auditor` defers to a repository lane

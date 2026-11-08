@@ -19,7 +19,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as z from 'zod/mini';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from './commands.js';
 import { PERSON_SESSION } from './late/index.js';
-import { createScopedWorkspace, type ScopedWorkspace } from './testing.js';
+import {
+	createScopedWorkspace,
+	documentsDeployment,
+	documentsPorts,
+	type ScopedWorkspace,
+} from './testing.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -145,6 +150,76 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			const result = await client.call(name, { generation: 'forged', workspace: {}, entries: [] });
 			expect(result.error?.code, name).toBe('COMMAND_NOT_FOUND');
 		}
+	});
+
+	it("P2-D6: answers a restricted project's document as a missing one, and another scope's as SCOPE_MISMATCH", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { kernel, scopes } = workspace;
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'someone@example.com',
+			password: 'x',
+		});
+		const vault = (
+			await kernel.call<{ id: string }>(
+				'document-create',
+				{ type: 'probe' },
+				{ scope: scopes.citadel }
+			)
+		).data?.id;
+		await kernel.call('auth-sign-out');
+		const beacon = (
+			await kernel.call<{ id: string }>(
+				'document-create',
+				{ type: 'probe' },
+				{ scope: scopes.beacon }
+			)
+		).data?.id;
+		const client = await connect(await serve(workspace), mode);
+		// A server's actor has no id, and reads as `local`, which Citadel does not list (3.3).
+		const restricted = await client.call('document-get', { document: vault });
+		const missing = await client.call('document-get', { document: 'doc_nowhere00000' });
+		expect(missing.error?.code).toBe('DOCUMENT_NOT_FOUND');
+		expect(JSON.stringify(restricted.error)).toBe(JSON.stringify(missing.error));
+		const crossed = await client.call(
+			'probe-content-set',
+			{ document: beacon, text: 'x' },
+			{ 'dev.loam/scope': scopes.atlas }
+		);
+		expect(crossed.error?.code).toBe('SCOPE_MISMATCH');
+		expect((await workspace.journal.read()).at(-1)?.result.error?.code).toBe('SCOPE_MISMATCH');
+	});
+
+	it("P2-D6: decides the call's own scope for document-list, -create and -import, writing nothing", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { scopes, store } = workspace;
+		const client = await connect(await serve(workspace), mode);
+		const before = (await store.list('document')).data.length;
+		for (const [name, input] of [
+			['document-list', {}],
+			['document-create', { type: 'probe' }],
+			[
+				'document-import',
+				{
+					type: 'probe',
+					envelope: { loam_document: 1, type: 'probe', content_version: 1, content: { text: 'x' } },
+				},
+			],
+		] as const) {
+			const restricted = await client.call(name, input, { 'dev.loam/scope': scopes.citadel });
+			const missing = await client.call(name, input, {
+				'dev.loam/scope': { workspace: 'personal', project: 'prj_nowhere' },
+			});
+			expect(restricted.error?.code, name).toBe('PROJECT_NOT_FOUND');
+			expect(JSON.stringify(restricted.error), name).toBe(JSON.stringify(missing.error));
+		}
+		expect((await store.list('document')).data.length).toBe(before);
 	});
 
 	it('runs the middleware: a project restricted to a named member is refused, as a missing one', async () => {

@@ -14,6 +14,12 @@
 //! (the approval middleware among them) wraps each execution. No route reaches a command that a
 //! direct tool call could not.
 //!
+//! A host-verified command goes to the host's relay instead of the confirmation gate
+//! ([`super::human_relay`]), and only on a route to that one command: a batch or pipeline naming
+//! one fails before any step runs. A call to one command that can carry a form elicitation also
+//! binds the form-mode approval relay's channel to its context, which the approval middleware
+//! claims ([`crate::ApprovalRelay::McpElicitation`]); a host-verified command never gets one.
+//!
 //! Every tool result carries the whole result as `structuredContent` next to the JSON text, as
 //! TypeScript's `resultContent` does.
 
@@ -35,14 +41,20 @@ use crate::{
 };
 
 use super::authz;
-use super::confirmations::{self, Acknowledgement, Decision, Step};
+use super::confirmations::{self, Acknowledgement, Decision, Round, Step};
 use super::context_hook;
+use super::human_relay::{self, RelayDecision, RelayGate};
 use super::meta_argument;
 use super::meta_tools;
 use super::strategy::{command_action, command_group, ToolStrategy};
 use super::McpServer;
+use crate::approval::relay::{ApprovalRelayChannel, Asked, RoundAnswers, APPROVAL_INPUT_KEY};
 
 static TRACE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// How many approval questions a 2025 connection is asked in band for one call: one, and one more
+/// when the first answer expired or was already used.
+const LEGACY_APPROVAL_ROUNDS: usize = 2;
 
 /// A trace ID: `<prefix>-<nanoseconds>-<counter>`.
 pub(crate) fn trace_id(prefix: &str) -> String {
@@ -225,40 +237,241 @@ impl Call<'_> {
         context
     }
 
+    /// The call's principal binding (#532): who is calling, as the hook (and the verified
+    /// credentials) left the context, so a state answered for one caller is never another's.
+    /// `None` for credentials with an empty issuer, subject or client id (only host code could
+    /// build them), which are never bound: no state is then read or minted.
+    fn principal(&self) -> Option<String> {
+        crate::principal_binding(self.base.actor.as_ref(), self.base.credentials.as_deref()).ok()
+    }
+
+    /// The round of this call, which runs `steps`: the answers its retry carries.
+    fn round(&self, steps: &[Step], principal: Option<&str>) -> Arc<Round> {
+        let channel = self.channel(principal);
+        Arc::new(Round::new(
+            Arc::clone(&self.server.inner.confirmations),
+            &channel,
+            steps,
+        ))
+    }
+
+    fn channel<'a>(&'a self, principal: Option<&'a str>) -> confirmations::Channel<'a> {
+        confirmations::Channel {
+            request: self.request,
+            context: self.context,
+            legacy_back_channel: self.server.inner.legacy_back_channel,
+            principal,
+        }
+    }
+
     async fn confirm(
         &self,
         steps: &[Step],
         acknowledged: Acknowledgement,
         how_to_acknowledge: &str,
+        round: &Round,
+        principal: Option<&str>,
     ) -> Decision {
         let registry = &self.server.inner.registry;
-        // #532: the state binds who is calling, as the hook (and the verified credentials) left
-        // the context, so a confirmation answered for one caller is never another's.
-        // Credentials with an empty issuer, subject or client id (only host code could build
-        // them) are never bound: the gate then reads and mints no state.
-        let principal =
-            crate::principal_binding(self.base.actor.as_ref(), self.base.credentials.as_deref())
-                .ok();
-        let channel = confirmations::Channel {
-            request: self.request,
-            context: self.context,
-            legacy_back_channel: self.server.inner.legacy_back_channel,
-            principal: principal.as_deref(),
-        };
+        let channel = self.channel(principal);
         confirmations::check(
             &self.server.inner.confirmations,
             steps,
             |name| {
+                // A host-verified command is never confirmed with a form or an acknowledgement.
                 registry
                     .get(name)
-                    .filter(|command| command.expose.mcp)
+                    .filter(|command| command.expose.mcp && !command.is_host_verified())
                     .and_then(|command| command.confirm_prompt.clone())
             },
             acknowledged,
             how_to_acknowledge,
             &channel,
+            round,
         )
         .await
+    }
+
+    /// The refusal of a batch or pipeline that names a host-verified command: only a call to that
+    /// one command can be relayed, so nothing runs.
+    fn host_verified_steps(&self, steps: &[Step]) -> Option<CommandError> {
+        let mut names: Vec<String> = Vec::new();
+        for step in steps {
+            let host_verified = self
+                .exposed(&step.command)
+                .is_some_and(|command| command.is_host_verified());
+            if host_verified && !names.contains(&step.command) {
+                names.push(step.command.clone());
+            }
+        }
+        (!names.is_empty())
+            .then(|| human_relay::unrelayable(&names, self.server.inner.human_relay.is_some()))
+    }
+
+    /// Whether this request can carry a form elicitation: a modern request that declares it, or
+    /// a 2025 connection with a back channel whose client declared it.
+    fn can_elicit(&self) -> bool {
+        confirmations::allows_form_elicitation(self.context)
+            && (confirmations::is_modern(self.context) || self.server.inner.legacy_back_channel)
+    }
+
+    /// Run a call that routes to the one command `command` with `input` as sent: the host's relay
+    /// for a host-verified command, else the confirmation gate and the form-mode approval relay.
+    async fn single(
+        &self,
+        command: &CommandDefinition,
+        input: Value,
+        acknowledged: Acknowledgement,
+        how_to_acknowledge: &str,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let name = command.name.as_str();
+        if command.is_host_verified() {
+            let execution = self.execution_context();
+            let gate = RelayGate {
+                relay: self.server.inner.human_relay.as_ref(),
+                request: self.request,
+                context: self.context,
+                registry: &self.server.inner.registry,
+                command,
+                execution: &execution,
+            };
+            return match human_relay::check(gate, input.clone()).await {
+                RelayDecision::Proceed(evidence) => {
+                    let mut execution = execution;
+                    execution.relay_evidence = Some(Arc::new(evidence));
+                    command_result(
+                        &self
+                            .server
+                            .inner
+                            .registry
+                            .execute(name, input, Some(execution))
+                            .await,
+                    )
+                }
+                RelayDecision::Refuse(error) => refused(error),
+                RelayDecision::Ask(response) => Ok(response),
+                RelayDecision::Internal => Err(confirmation_internal()),
+            };
+        }
+        let principal = self.principal();
+        let steps = [Step::new(name, input.clone())];
+        let round = self.round(&steps, principal.as_deref());
+        match self
+            .confirm(
+                &steps,
+                acknowledged,
+                how_to_acknowledge,
+                &round,
+                principal.as_deref(),
+            )
+            .await
+        {
+            Decision::Proceed => self.execute_asking(name, input, round).await,
+            Decision::Refuse(error) => refused(error),
+            Decision::Ask(response) => Ok(response),
+            Decision::Internal => Err(confirmation_internal()),
+        }
+    }
+
+    /// Execute the one command this call routes to with the form-mode approval relay's channel
+    /// on its context when the request can carry a form elicitation: a hold the approval
+    /// middleware records becomes `input_required` on MCP 2026-07-28, or a server-sent elicitation
+    /// on a 2025 connection with a back channel.
+    async fn execute_asking(
+        &self,
+        name: &str,
+        input: Value,
+        round: Arc<Round>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        if !self.can_elicit() {
+            return self.execute(name, input).await;
+        }
+        if confirmations::is_modern(self.context) {
+            let answers = Arc::clone(&round);
+            let channel = Arc::new(ApprovalRelayChannel::asking(
+                name,
+                Box::new(move || answers.answers()),
+            ));
+            let result = self.execute_with_relay(name, input, &channel).await;
+            if channel.unbindable() {
+                return Err(confirmation_internal());
+            }
+            return match channel.held() {
+                Some(hold) => round.ask_approval(&hold).ok_or_else(confirmation_internal),
+                None => command_result(&result),
+            };
+        }
+        // A 2025 connection asks in band, then runs the call again with the answer.
+        let mut answers = RoundAnswers::default();
+        for _ in 0..LEGACY_APPROVAL_ROUNDS {
+            let carried = Arc::new(answers);
+            let channel = Arc::new(ApprovalRelayChannel::asking(
+                name,
+                Box::new(move || Some(Arc::clone(&carried))),
+            ));
+            let result = self.execute_with_relay(name, input.clone(), &channel).await;
+            let Some(hold) = channel.held() else {
+                return command_result(&result);
+            };
+            let elicitation = json!({
+                "mode": "form",
+                "message": hold.message,
+                "requestedSchema": confirmations::approval_requested_schema(),
+            });
+            let Ok(params) = serde_json::from_value(elicitation) else {
+                return command_result(&result);
+            };
+            let Ok(answer) = self.context.peer.create_elicitation(params).await else {
+                return command_result(&result);
+            };
+            let answer = serde_json::to_value(answer).unwrap_or(Value::Null);
+            let asked = Asked {
+                k: APPROVAL_INPUT_KEY.to_owned(),
+                b: hold.binding,
+                t: i64::MAX,
+                n: Some(hold.nonce),
+                x: Some(hold.expires_at),
+                m: Some(hold.mac),
+            };
+            answers = RoundAnswers::default();
+            if answer["action"] == "accept" && answer["content"]["approve"] == Value::Bool(true) {
+                answers.accepted.push(asked);
+            } else {
+                answers.declined.push(asked);
+            }
+        }
+        let carried = Arc::new(answers);
+        let channel = Arc::new(ApprovalRelayChannel::asking(
+            name,
+            Box::new(move || Some(Arc::clone(&carried))),
+        ));
+        command_result(&self.execute_with_relay(name, input, &channel).await)
+    }
+
+    async fn execute_with_relay(
+        &self,
+        name: &str,
+        input: Value,
+        channel: &Arc<ApprovalRelayChannel>,
+    ) -> CommandResult<Value> {
+        let mut context = self.execution_context();
+        context.approval_relay = Some(Arc::clone(channel));
+        self.server
+            .inner
+            .registry
+            .execute(name, input, Some(context))
+            .await
+    }
+
+    /// The context of a batch's or pipeline's steps: when the request could carry a form
+    /// elicitation, a relay channel that never asks, so the approval middleware tells the agent
+    /// to call the command on its own.
+    fn step_context(&self) -> CommandContext {
+        let mut context = self.execution_context();
+        if self.can_elicit() {
+            context.approval_relay = Some(Arc::new(ApprovalRelayChannel::never_asks()));
+        }
+        context
     }
 
     async fn execute(&self, name: &str, input: Value) -> Result<CallToolResponse, ErrorData> {
@@ -304,19 +517,13 @@ impl Call<'_> {
             return denied;
         }
         let input = input_or_empty(args.get("input"));
-        match self
-            .confirm(
-                &[Step::new(name, input.clone())],
-                flag(&args["confirm"]),
-                "repeat the afd-call with confirm: true",
-            )
-            .await
-        {
-            Decision::Proceed => self.execute(name, input).await,
-            Decision::Refuse(error) => refused(error),
-            Decision::Ask(response) => Ok(response),
-            Decision::Internal => Err(confirmation_internal()),
-        }
+        self.single(
+            &command,
+            input,
+            flag(&args["confirm"]),
+            "repeat the afd-call with confirm: true",
+        )
+        .await
     }
 
     fn afd_discover(&self, args: &Map<String, Value>) -> Result<CallToolResponse, ErrorData> {
@@ -386,11 +593,18 @@ impl Call<'_> {
             .iter()
             .map(|item| Step::new(&item.command, input_or_empty(Some(&item.input))))
             .collect();
+        if let Some(error) = self.host_verified_steps(&steps) {
+            return batch_failure(error);
+        }
+        let principal = self.principal();
+        let round = self.round(&steps, principal.as_deref());
         match self
             .confirm(
                 &steps,
                 acknowledged,
                 "repeat the afd-batch with confirm: [the command names]",
+                &round,
+                principal.as_deref(),
             )
             .await
         {
@@ -403,7 +617,7 @@ impl Call<'_> {
             .server
             .inner
             .registry
-            .execute_batch_with_context(request, self.execution_context())
+            .execute_batch_with_context(request, self.step_context())
             .await;
         tool_result(&result, !result.success)
     }
@@ -438,11 +652,18 @@ impl Call<'_> {
             .iter()
             .map(|step| Step::new(&step.command, input_or_empty(step.input.as_ref())))
             .collect();
+        if let Some(error) = self.host_verified_steps(&steps) {
+            return tool_result(&pipeline_failure(&error), true);
+        }
+        let principal = self.principal();
+        let round = self.round(&steps, principal.as_deref());
         match self
             .confirm(
                 &steps,
                 acknowledged,
                 "repeat the afd-pipe with confirm: [the command names]",
+                &round,
+                principal.as_deref(),
             )
             .await
         {
@@ -452,7 +673,7 @@ impl Call<'_> {
             Decision::Internal => return Err(confirmation_internal()),
         }
         let registry = Arc::clone(&self.server.inner.registry);
-        let base = self.execution_context();
+        let base = self.step_context();
         let executor: CommandExecutor = Arc::new(move |command, input, step| {
             let registry = Arc::clone(&registry);
             let mut context = base.clone();
@@ -516,19 +737,13 @@ impl Call<'_> {
             }
             let params = input_or_empty(args.get("params"));
             return Some(
-                match self
-                    .confirm(
-                        &[Step::new(&command.name, params.clone())],
-                        flag(args.get("confirm").unwrap_or(&Value::Null)),
-                        &format!("repeat the {name} call with confirm: true"),
-                    )
-                    .await
-                {
-                    Decision::Proceed => self.execute(&command.name, params).await,
-                    Decision::Refuse(error) => refused(error),
-                    Decision::Ask(response) => Ok(response),
-                    Decision::Internal => Err(confirmation_internal()),
-                },
+                self.single(
+                    command,
+                    params,
+                    flag(args.get("confirm").unwrap_or(&Value::Null)),
+                    &format!("repeat the {name} call with confirm: true"),
+                )
+                .await,
             );
         }
         // A group whose every action the caller may not see looks like a tool that does not
@@ -564,12 +779,14 @@ impl Call<'_> {
             return denied;
         }
         // A confirm-gated tool advertises an optional `confirm` argument, removed here before the
-        // command validates its input, unless the command's own schema declares `confirm`.
+        // command validates its input, unless the command's own schema declares `confirm`. A
+        // host-verified command advertises none and accepts none: a `confirm` it receives is input
+        // like any other.
         let mut input = args;
         let mut acknowledged = Acknowledgement::None;
         let gated = command
             .as_ref()
-            .is_some_and(|command| command.confirm_prompt.is_some());
+            .is_some_and(|command| command.confirm_prompt.is_some() && !command.is_host_verified());
         if gated && self.server.inner.confirmations.mode != confirmations::ConfirmationMode::Off {
             acknowledged = flag(input.get("confirm").unwrap_or(&Value::Null));
             if !confirmations::declares_confirm(self.server.command_tool(name).as_ref()) {
@@ -577,18 +794,18 @@ impl Call<'_> {
             }
         }
         let input = Value::Object(input);
-        match self
-            .confirm(
-                &[Step::new(name, input.clone())],
-                acknowledged,
-                "repeat the call with confirm: true",
-            )
-            .await
-        {
-            Decision::Proceed => self.execute(name, input).await,
-            Decision::Refuse(error) => refused(error),
-            Decision::Ask(response) => Ok(response),
-            Decision::Internal => Err(confirmation_internal()),
+        match command {
+            Some(command) => {
+                self.single(
+                    &command,
+                    input,
+                    acknowledged,
+                    "repeat the call with confirm: true",
+                )
+                .await
+            }
+            // Unknown or unexposed: the registry answers, as for any other name.
+            None => self.execute(name, input).await,
         }
     }
 }

@@ -405,7 +405,10 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). Tokens verify
   across TypeScript and Rust. Policies themselves (`CommandDefinition::with_approval`,
   `_meta.approval`) need no feature. With `wasm`, the token nonce comes from
-  `crypto.getRandomValues`.
+  `crypto.getRandomValues`. Behind the MCP server, the middleware also accepts relay evidence
+  from a host's `HumanRelay` (below) once, and `with_relay(ApprovalRelay::McpElicitation)` asks
+  the human behind an MCP client with a form elicitation instead of failing a call to one command
+  (`spec/command-metadata.md`, "Asking the human over MCP"); neither issues a token.
 - `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
   MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
   (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection
@@ -469,6 +472,38 @@ let server = McpServer::new(registry, "todo", "1.0.0").with_authorization(
 );
 // Mount it where it receives `/mcp` and `/.well-known/oauth-protected-resource/mcp`.
 let service = server.authorized_http_service(HttpOptions::default())?;
+```
+
+A command that only the host can confirm, because only the host can prove a person decided,
+declares `with_confirmation_mode(CommandConfirmationMode::HostVerified)` (`confirmationMode:
+"host-verified"`). Over MCP the server then never sends a form for it and never accepts an
+acknowledgement or a form answer, whatever `with_confirmations` says, `Off` included: only the
+host's `HumanRelay` confirms it, and without one every call is `CONFIRMATION_REQUIRED`
+(`spec/command-metadata.md`, "Host-verified confirmation"). Only a call to that one command on an
+MCP 2026-07-28 request is relayed. The relay gets the digest of the validated input
+(`afd::input_digest`), answers with a URL the person opens, and decides on the retry; once it
+returns `Approved`, the command runs, and its approval policy is satisfied by the same decision,
+once:
+
+```rust,ignore
+use afd::server::{HumanRelay, McpServer, RelayCall, RelayOutcome, RelayPrompt};
+
+struct PersonPage; // the host's page, where the person signs in and decides
+
+#[async_trait::async_trait]
+impl HumanRelay for PersonPage {
+    async fn begin(&self, call: &RelayCall) -> Result<RelayPrompt, afd::CommandError> {
+        // Record a pending decision for call.command, call.input_digest and
+        // call.principal_binding(), and seal a state that binds them (at most 24 hours).
+        Ok(RelayPrompt::new("https://host.example.com/decide/d-1", "Open the link to decide", state))
+    }
+    async fn resume(&self, state: &str, call: &RelayCall) -> RelayOutcome {
+        // Verify the state against this call; `Approved` at most once per decision.
+        RelayOutcome::Approved { decision_id: "d-1".into() }
+    }
+}
+
+let server = McpServer::new(registry, "todo", "1.0.0").with_human_relay(PersonPage);
 ```
 
 `with_resources(provider)` and `with_skills(catalog)` serve MCP resources and the Skills extension

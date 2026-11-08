@@ -66,6 +66,12 @@ export {
 	type TestKernelOptions,
 } from './session.js';
 export {
+	documentsDeployment,
+	documentsPorts,
+	PROBE_DOCUMENTS_DEFINITION,
+	PROBE_DOCUMENTS_MANIFEST,
+} from './testing-documents.js';
+export {
 	createFixturePorts,
 	type FixturePackage,
 	type FixturePorts,

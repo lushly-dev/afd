@@ -30,7 +30,12 @@ import {
 	versionSelected,
 } from './release-control.mjs';
 import { dependencyOrder, verifyPublished } from './release-operations/prerequisites.mjs';
-import { notes, packedManifest, validatePacked } from './release-operations/publish.mjs';
+import {
+	assertPackedContents,
+	notes,
+	packedManifest,
+	validatePacked,
+} from './release-operations/publish.mjs';
 import { reconcilePublication } from './release-operations/recovery.mjs';
 import {
 	entryHash,
@@ -1174,4 +1179,46 @@ test('held finalization requires the complete source-bound set and fresh byte pr
 	assert.equal(uploads, 0);
 	assert.equal(receipt.state, 'complete');
 	assert.equal(prior.finalization.state, 'held');
+});
+
+test('a tarball must hold every file its manifest promises, so an unbuilt release cannot plan', (t) => {
+	const base = mkdtempSync(join(tmpdir(), 'afd-packed-contents-'));
+	t.after(() => rmSync(base, { recursive: true, force: true }));
+	const manifest = {
+		name: '@fixture/built',
+		version: '1.0.0',
+		files: ['dist', 'README.md'],
+		main: './dist/index.js',
+		types: './dist/index.d.ts',
+		bin: { built: './dist/bin.js' },
+		exports: {
+			'.': { types: './dist/index.d.ts', import: './dist/index.js' },
+			'./*': './dist/*.js',
+			'./package.json': './package.json',
+		},
+	};
+	const pack = (name, files) => {
+		const root = join(base, name, 'package');
+		for (const [file, text] of Object.entries({
+			'package.json': JSON.stringify(manifest),
+			...files,
+		})) {
+			mkdirSync(dirname(join(root, file)), { recursive: true });
+			writeFileSync(join(root, file), text);
+		}
+		const file = join(base, `${name}.tgz`);
+		execFileSync('tar', ['-czf', file, '-C', join(base, name), 'package']);
+		return file;
+	};
+	assert.throws(
+		() => assertPackedContents(pack('unbuilt', { 'README.md': '#' }), manifest),
+		/@fixture\/built lacks what its manifest promises: dist, dist\/index\.js, dist\/index\.d\.ts, dist\/bin\.js\. Build it/
+	);
+	assert.throws(
+		() =>
+			assertPackedContents(pack('partial', { 'README.md': '#', 'dist/index.js': '' }), manifest),
+		/promises: dist\/index\.d\.ts, dist\/bin\.js\./
+	);
+	const built = { 'README.md': '#', 'dist/index.js': '', 'dist/index.d.ts': '', 'dist/bin.js': '' };
+	assertPackedContents(pack('built', built), manifest);
 });

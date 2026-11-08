@@ -35,6 +35,46 @@ export function packedManifest(file) {
 		throw new Error('Archive must contain exactly one package manifest');
 	return JSON.parse(run('tar', ['-xOzf', file, 'package/package.json'], process.cwd()));
 }
+/** The literal paths a manifest promises: its `files` entries and every file it points to. */
+function promisedPaths(metadata) {
+	const targets = [];
+	const collect = (value) => {
+		if (typeof value === 'string') targets.push(value);
+		else if (value && typeof value === 'object')
+			for (const entry of Object.values(value)) collect(entry);
+	};
+	for (const field of ['main', 'module', 'types', 'typings', 'bin', 'exports'])
+		collect(metadata[field]);
+	const literal = (path) => !/[*?[\]{}!]/.test(path);
+	return {
+		files: (metadata.files ?? [])
+			.filter(literal)
+			.map((path) => path.replace(/^\.\//, '').replace(/\/$/, '')),
+		targets: [...new Set(targets.filter(literal).map((path) => path.replace(/^\.\//, '')))],
+	};
+}
+/**
+ * A tarball must hold what its manifest promises. Packing copies built output that git ignores,
+ * so a release whose build did not run packs a manifest and a README; that is refused here, before
+ * the plan exists and before the run claims anything.
+ */
+export function assertPackedContents(file, metadata) {
+	const listing = run('tar', ['-tzf', file], process.cwd())
+		.trim()
+		.split('\n')
+		.map((entry) => entry.replace(/^package\//, ''));
+	const { files, targets } = promisedPaths(metadata);
+	const missing = [
+		...files.filter(
+			(path) => !listing.some((entry) => entry === path || entry.startsWith(`${path}/`))
+		),
+		...targets.filter((path) => !listing.includes(path)),
+	];
+	if (missing.length)
+		throw new Error(
+			`Packed ${metadata.name} lacks what its manifest promises: ${[...new Set(missing)].join(', ')}. Build it before planning`
+		);
+}
 function converted(range, name, all) {
 	if (!range.startsWith('workspace:')) return range;
 	const alias = range.match(/^workspace:((?:@[^/\s]+\/)?[^@\s]+)@(.+)$/);
@@ -137,6 +177,7 @@ export function packSelected({
 				throw new Error(`Expected one packed artifact: ${distribution.name}`);
 			const file = resolve(tarballs[0]);
 			const metadata = packedManifest(file);
+			assertPackedContents(file, metadata);
 			return {
 				...distribution,
 				file,

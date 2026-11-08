@@ -315,7 +315,7 @@ Rust and C++ have no CLI. MCP approval relay remains a separate capability.
 ### Asking the human over MCP
 
 A server MAY relay the approval to the human behind the MCP client (TypeScript
-`relay: 'mcp-elicitation'`). The relay is opt-in: it trusts the client application to show the
+`relay: 'mcp-elicitation'`, Rust `ApprovalRelay::McpElicitation`). The relay is opt-in: it trusts the client application to show the
 question to a person, and a server cannot tell a person's answer from client code that answers on
 its own.
 
@@ -373,8 +373,8 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) |
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
-| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Planned | Planned |
-| Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Planned (Umbel phase 5 step 0d) | N/A: no MCP server |
+| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Planned |
+| Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no MCP server |
 
 ### Relay evidence
 
@@ -585,7 +585,7 @@ follows `destructive`, `false` when it is unset.
 | `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
 | `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | Planned (declaration only) |
-| Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c): the server's `actor` and the SDK-verified token, through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data | N/A: no confirmation gate |
-| `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Planned (step 0d) | N/A: no MCP server |
+| Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c): the server's `actor` and the SDK-verified token, through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data; since step 0d the same state carries the form-mode approval relay's answers | N/A: no confirmation gate |
+| `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Yes (Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`) | N/A: no MCP server |
 | `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Planned | Planned | Planned (step 0e) | N/A: no MCP server |
 

@@ -61,7 +61,7 @@ const INPUTS: Array<{ name: string; input: unknown }> = [
 	{ name: 'auth-sign-in', input: { method: 'oauth', provider: 'a', scopes: 'all' } },
 ];
 
-function registry() {
+async function registry() {
 	const viewState = new ViewStateRegistry();
 	const state = registerShellState(viewState);
 	const auth = new MockAuthAdapter();
@@ -69,32 +69,34 @@ function registry() {
 	const apps = () => EMPTY_APPS;
 	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
 	return createDirectRegistry(
-		createLateParts(
-			createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] }),
-			{
-				viewState,
-				state,
-				environment,
-				auth,
-				host: 'test',
-				storeKind: 'memory',
-				overlays: createOverlayStore(),
-				apps,
-				paletteRows: () => [],
-				commandSet: () => 0,
-				scope,
-				store: new MemoryAdapter(),
-				generation: () => 'test',
-				isMutation: () => false,
-				summaries: () => [],
-				run: () => Promise.resolve({ success: true }) as never,
-			}
+		(
+			await createLateParts(
+				createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] }),
+				{
+					viewState,
+					state,
+					environment,
+					auth,
+					host: 'test',
+					storeKind: 'memory',
+					overlays: createOverlayStore(),
+					apps,
+					paletteRows: () => [],
+					commandSet: () => 0,
+					scope,
+					store: new MemoryAdapter(),
+					generation: () => 'test',
+					isMutation: () => false,
+					summaries: () => [],
+					run: () => Promise.resolve({ success: true }) as never,
+				}
+			)
 		).shell
 	);
 }
 
 async function refusals(cases: Array<{ name: string; input: unknown }>) {
-	const commands = registry();
+	const commands = await registry();
 	return Promise.all(
 		cases.map(async ({ name, input }) => {
 			const result = await commands.execute(name, input);

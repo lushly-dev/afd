@@ -12,6 +12,13 @@ export default defineConfig({
 		reportCompressedSize: false,
 		rolldownOptions: {
 			output: {
+				// The kernel's `document-*` definitions, which `late` imports in stage B, are named `late-documents`
+				// so `budget` counts them once, in their own row (phase 2 specification, 2.4). A name only: the
+				// bundler parts the chunks as it would.
+				chunkFileNames: (chunk) =>
+					/kernel[\\/]dist[\\/]late[\\/]documents\.js$/.test(chunk.facadeModuleId ?? '')
+						? 'assets/late-documents-[hash].js'
+						: 'assets/[name]-[hash].js',
 				codeSplitting: {
 					groups: [
 						{

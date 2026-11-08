@@ -178,9 +178,9 @@ pub fn command_action(command: &CommandDefinition) -> String {
 
 /// The per-command `_meta` of a tool (`spec/command-metadata.md`, "Surfaces"): `category`,
 /// `requires`, `mutation` (when true: Rust has no unset state), `destructive`, `undoable`,
-/// `approval`, `examples`, `outputSchema`, `contexts`, `scopes` and the output budget declaration
-/// (`dev.afd/outputBudget`: `{ defaultBytes, maxBytes }`), each only when set, then the command's
-/// extra tool `_meta` entries.
+/// `approval`, `examples`, `outputSchema`, `contexts`, `scopes`, `confirmationMode` and the output
+/// budget declaration (`dev.afd/outputBudget`: `{ defaultBytes, maxBytes }`), each only when set,
+/// then the command's extra tool `_meta` entries.
 pub(crate) fn command_tool_meta(command: &CommandDefinition) -> Map<String, Value> {
     let mut meta = Map::new();
     if let Some(category) = &command.category {
@@ -212,6 +212,9 @@ pub(crate) fn command_tool_meta(command: &CommandDefinition) -> Map<String, Valu
     }
     if let Some(scopes) = command.scopes.as_ref().filter(|list| !list.is_empty()) {
         meta.insert("scopes".into(), json!(scopes));
+    }
+    if let Some(mode) = command.confirmation_mode {
+        meta.insert("confirmationMode".into(), json!(mode));
     }
     if let Some(budget) = &command.output_budget {
         meta.insert(

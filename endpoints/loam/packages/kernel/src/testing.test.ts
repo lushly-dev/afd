@@ -125,8 +125,8 @@ describe('E2: a replayed journal reproduces the layout', () => {
 	});
 
 	it('replays extra commands given to the recording kernel', async () => {
-		const notesCreate = defineCommand({
-			name: 'notes-create',
+		const reportsCreate = defineCommand({
+			name: 'reports-create',
 			description: 'Create a note',
 			mutation: true,
 			input: z.object({ title: z.string() }),
@@ -134,9 +134,9 @@ describe('E2: a replayed journal reproduces the layout', () => {
 				return success({ title: input.title, id: Math.floor((context.random?.next() ?? 0) * 1e6) });
 			},
 		});
-		const commands = [notesCreate as never];
+		const commands = [reportsCreate as never];
 		const recorded = await recordSession(
-			[{ interface: 'agent', name: 'notes-create', input: { title: 'A' } }],
+			[{ interface: 'agent', name: 'reports-create', input: { title: 'A' } }],
 			{ commands }
 		);
 		expect(recorded.entries).toHaveLength(1);

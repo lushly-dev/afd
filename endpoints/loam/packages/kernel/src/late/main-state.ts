@@ -8,6 +8,7 @@ import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type AppsRuntime, unknownApp } from '../apps-runtime.js';
 import { kernelFailure } from '../errors.js';
+import type { ProjectV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from '../shell-state.js';
 
@@ -25,6 +26,30 @@ export function setScopeProject(viewState: ViewStateRegistry, project: string | 
  * `APP_DISABLED` when a `workspace-app` record disables `instance`: a gate, not an omission, so it takes
  * effect at once and replays the same (4.1). A call into it, `app-open` and its discovery all answer it.
  */
+/**
+ * `SCOPE_MISMATCH` for a person's or an agent's call (3.5; documents specification, 4.2): `what` is in
+ * `target`'s project, or the workspace with none, not in `current`'s, with the switch that reaches it.
+ */
+export const mismatchRefusal = (
+	what: string,
+	target: ProjectV1 | undefined,
+	current: ProjectV1 | undefined
+): CommandResult<never> =>
+	kernelFailure(
+		'SCOPE_MISMATCH',
+		`\`${what}\` is in ${target ? `the project ${target.name}` : 'the workspace'}, not ${current ? current.name : 'the workspace'}`,
+		`Switch with scope-set { project: ${target ? `"${target.slug}"` : 'null'} } and run this again.`,
+		{ details: target ? { project: { id: target.id, slug: target.slug, name: target.name } } : {} }
+	);
+
+/** Line 6 of a call, and an archived project's documents (3.4; documents specification, 4.2). */
+export const archivedRefusal = (project: ProjectV1): CommandResult<never> =>
+	kernelFailure(
+		'PROJECT_ARCHIVED',
+		`The project '${project.name}' is archived, so nothing in it can change`,
+		`Restore it with project-restore { project: "${project.slug}" }`
+	);
+
 export const disabledRefusal = (
 	scope: ScopeRuntime,
 	instance: string

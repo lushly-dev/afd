@@ -8,7 +8,7 @@ import { changedImporters, parseLockfile } from './affected/lockfile.mjs';
 import { resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, readTrigger, SUITES } from './affected/suites.mjs';
 import { readWorkspace, withDependencies, withDependents } from './affected/workspace.mjs';
-import { gate, parseArgs, planSuites, pnpmArgs } from './affected.mjs';
+import { checkEnvironment, gate, parseArgs, planSuites, pnpmArgs } from './affected.mjs';
 import { releaseTestFiles, selectToolingTests, testFiles } from './run-tooling-tests.mjs';
 
 const lockfile = ({ zod = '4.6.6', settings = 'autoInstallPeers: true', root = '2.5.14' } = {}) =>
@@ -414,4 +414,27 @@ test('verify plans the triggered suites and their passing gates', (t) => {
 	// A file that selects the whole workspace triggers only the workflows it matches.
 	assert.deepEqual(plan(['tsconfig.json']), []);
 	assert.deepEqual(plan(['tsconfig.json', 'docs/a.md']), ['web', 'host']);
+});
+
+test('the check gate runs even where LEFTHOOK=0 turns the git hooks off', () => {
+	// Release sets LEFTHOOK=0 for Changesets' push; lefthook then skips `run check` too and exits 0.
+	const environment = checkEnvironment(true, {
+		LEFTHOOK: '0',
+		LEFTHOOK_EXCLUDE: 'test',
+		PATH: '/bin',
+	});
+	assert.deepEqual(environment, { PATH: '/bin', AFD_SCOPE: 'all' });
+	assert.equal(checkEnvironment(false, { AFD_SCOPE: 'affected' }).AFD_SCOPE, 'affected');
+	const lefthook = join(dirname(import.meta.dirname), 'node_modules/.bin/lefthook');
+	const silent = execFileSync(lefthook, ['run', 'check'], {
+		cwd: dirname(import.meta.dirname),
+		env: { ...process.env, LEFTHOOK: '0' },
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+	assert.equal(
+		silent.trim(),
+		'',
+		'LEFTHOOK=0 no longer silences lefthook; revisit checkEnvironment'
+	);
 });

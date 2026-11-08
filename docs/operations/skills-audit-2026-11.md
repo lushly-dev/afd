@@ -1,6 +1,6 @@
 # Skills audit and rewrite plan
 
-Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 4 (all AFD and Botcore work) merged in #755, #757, #761, #774, #776 and #777. Batches 5 to 7 are in Lushly. The delivery decision is made: AFD now publishes `lushly-botcore` (see `docs/features/active/platform-monorepo/botcore-handoff.md`), so Batch 5 starts once 0.6.0 is released from AFD.
+Snapshot: 2026-11-03. Covers Botcore's canonical skills (`endpoints/botcore/src/botcore/skills`), AFD's projected and local skills (`.claude/skills`), and Lushly's skills at `origin/main`. Status: owner decisions recorded 2026-11-03 (see the end). Batches 0 to 4 (all AFD and Botcore work) merged in #755, #757, #761, #774, #776 and #777. Batches 5 to 7 and the final review merged in Lushly (lushly-dev/lushly#2127, #2129, #2130 and #2133) after AFD released `lushly-botcore` 0.6.0. Every batch is done; see the two outcome sections.
 
 ## Summary
 
@@ -254,9 +254,22 @@ Still to confirm: whether Codex discovers these skills through `.codex/skills`. 
   - #780: an unverified agents orchestrator reset.
   - #781: the `pnpm verify` preflight.
 
-Still open for the owner:
-- **Lushly delivery.** Decided 2026-11-04: AFD publishes `lushly-botcore`; the handoff's owner steps are in `docs/features/active/platform-monorepo/botcore-handoff.md`.
-- **loam-design.** Whether it should become a router to `endpoints/loam/docs/design.md`. That would reverse Loam's D26 (see Batch 3).
+## Outcome in Lushly (2026-11-07)
+
+- **Skill counts.** Lushly went from 93 skills to 30: 6 seeded from Botcore 0.6.0 under `metadata.source: botcore`, and 24 of its own.
+- **Listing.** It went from 51,594 to 8,069 description characters, and every skill lints with no errors or warnings. A new gate, `pnpm check:skill-listing`, counts exactly as Botcore's SK019 does and holds `botcore.toml`'s `listing_budget` at 8,100 in `check-invariants`.
+- **Knowledge moved to Docs.** Product and domain knowledge left the skills for `Docs/architecture/` (plant data, product tiers, commerce, Site), `Docs/security/data-privacy.md` and `Docs/operations/tanstack-ai-upgrades.md`. `lushly-maintain-docs` now sends durable knowledge to Docs.
+- **Mechanics moved to scripts.** `scripts/session-preflight.mjs` replaces `do-init-lushly`'s checkout and runtime steps, and `.github/labels.yml` with `scripts/issue-labels.mjs` replaces `do-triage`'s label tables.
+- **Drift fixed.** Each batch's writers recorded their fixes with file and line, and checked every claim they kept against the code. Examples: a SQLite storage claim, tables that don't exist, the transplant formula, server paths and transports, provider registration and the chat prompt.
+- **Found along the way.**
+  - #794 changed `skill-manager` without bumping its version, so seeding never delivered it. #799 bumped it and fixed three other seeded skills that contradicted a consuming repository.
+  - The flaky Storybook check that blocked several Lushly finals was a real axe exemption gap, fixed in lushly-dev/lushly#2132; a latent copy is lushly-dev/lushly#2131.
+
+Still open:
+- **`lushly-botcore` 0.6.1.** Lushly receives #794 and #799 only after this release. Then `skill-seed --update` refreshes its six seeded skills, and the hash-pinned `skill-manager` exemption in Lushly's agent-docs baseline expires.
+- **Lushly label descriptions (owner).** Five live label descriptions contradict current policy: `needs:ux`, `execution:frontier`, `execution:deep`, `execution:expert-escalation` and `risk:high`. `.github/labels.yml` mirrors them, so both must change together.
+- **FAST-AF docs.** Lushly dropped fork material that `foundations/fast-af` doesn't document: FAST authoring gotchas, data-grid lessons, token decision rules, the story-performance baselines, and a stale Storybook note in the violet-elements README.
+- **loam-design (owner).** Whether it should become a router to `endpoints/loam/docs/design.md`. That would reverse Loam's D26 (see Batch 3).
 
 ## Owner decisions (2026-11-03)
 

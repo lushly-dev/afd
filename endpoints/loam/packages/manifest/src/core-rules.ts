@@ -102,7 +102,7 @@ function zodAccepts(schema: object): boolean {
 const isObject = (value: unknown): value is Json =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
-function inputSchemaProblem(schema: unknown): string | undefined {
+export function inputSchemaProblem(schema: unknown): string | undefined {
 	// A path is read once the file system is at hand, by `app check`.
 	if (typeof schema === 'string') return undefined;
 	if (!isObject(schema) || schema.type !== 'object') return 'it must be a `type: object` schema';

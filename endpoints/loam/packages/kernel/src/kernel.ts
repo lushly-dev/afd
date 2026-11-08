@@ -63,7 +63,7 @@ import type {
 export type KernelInterfaceV0 = 'palette' | 'agent';
 
 /** Suggestion for a refused name (phase 0 specification, 6.1). */
-export const COMMAND_NAME_SUGGESTION = 'Rename it domain-action, e.g. notes-create';
+export const COMMAND_NAME_SUGGESTION = 'Rename it domain-action, e.g. reports-create';
 
 /**
  * Commands that answer from what stage B reads, so a call waits for stage B (phase 2 specification,
@@ -369,7 +369,7 @@ export async function createKernelParts(
 			const { createOverlayStore, createLateParts } = late;
 			addBootActions = late.withBootActions;
 			overlays = createOverlayStore();
-			const parts = createLateParts(bootCommands, {
+			const parts = await createLateParts(bootCommands, {
 				viewState,
 				state,
 				environment,
@@ -387,6 +387,7 @@ export async function createKernelParts(
 				internals,
 				summaries,
 				run,
+				clock,
 			});
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
@@ -535,8 +536,7 @@ export async function createKernelParts(
 			// none can lose a write to it (2.2). A replay's entries are what ran, an apply among them (10).
 			if (applying) {
 				registries = { ...registries, boot: build('palette', bootOnly) };
-				await lateParts?.apply(applying, internals.replaying === true, runBoot);
-				if (hydrated) await lateParts?.settle(internals.replaying === true, runBoot);
+				await lateParts?.apply(applying, runBoot, hydrated);
 			}
 			setAppCommands(apps.commands);
 		})()
@@ -704,7 +704,7 @@ export async function createKernelParts(
 		await state.hydrate();
 		apps.reconcileLayouts();
 		// Stage B ran before the persisted state was read, so its settle is here (F3).
-		if (applying) await lateParts?.settle(internals.replaying === true, runBoot);
+		if (applying) await lateParts?.settle(runBoot);
 	}
 	chooseScope(options.initialScope?.project);
 	// The first frame has this project's layout: without it, a reload in a project paints the workspace's.

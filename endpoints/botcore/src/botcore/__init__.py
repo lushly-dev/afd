@@ -23,7 +23,7 @@ from botcore.registry import (
 )
 from botcore.server import build_docs, build_namespace, create_mcp_server
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 __all__ = [
     "__version__",

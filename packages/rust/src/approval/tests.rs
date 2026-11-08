@@ -1353,3 +1353,339 @@ fn base64url_round_trips_and_accepts_one_spelling() {
         assert_eq!(base64url_decode(spelling), None, "{spelling}");
     }
 }
+
+// ─── Relay evidence (`spec/command-metadata.md`, "Relay evidence") ─────────────────────────────
+
+/// Credentials of `subject` through `client`.
+fn credentials(subject: &str, client: &str) -> crate::Credentials {
+    crate::Credentials::new(
+        "https://auth.example.com",
+        subject,
+        client,
+        "https://todo.example.com/mcp",
+        1_700_000_000,
+        4_000_000_000,
+    )
+}
+
+/// The validated input of `todo-delete` with `id`: `hard` defaults to `false`.
+fn validated(id: i64) -> Value {
+    json!({ "id": id, "hard": false })
+}
+
+/// Relay evidence for `todo-delete` with [`validated`] `1`, [`agent`] and `user-1`'s credentials.
+fn evidence() -> relay::RelayEvidence {
+    relay::RelayEvidence {
+        command: "todo-delete".into(),
+        input_digest: crate::input_digest(&validated(1)).unwrap(),
+        actor: crate::credentials::actor_binding_json(Some(&agent())),
+        credentials_binding: crate::credentials_binding(Some(&credentials("user-1", "app")))
+            .unwrap(),
+        decision_id: "d-1".into(),
+    }
+}
+
+/// A call as [`agent`] with `user-1`'s credentials, carrying `evidence`.
+fn relayed(evidence: relay::RelayEvidence) -> CommandContext {
+    let mut context = CommandContext::new()
+        .with_actor(agent())
+        .with_credentials(credentials("user-1", "app"));
+    context.relay_evidence = Some(Arc::new(evidence));
+    context
+}
+
+#[tokio::test]
+async fn relay_evidence_runs_the_call_once() {
+    let harness = setup_with(ApprovalPolicy::Required, |options| {
+        options.with_include_token(false)
+    });
+    let ran = harness
+        .call("todo-delete", json!({ "id": 1 }), relayed(evidence()))
+        .await;
+    assert!(ran.success, "{ran:?}");
+    assert_eq!(harness.handled(), 1);
+    let spent = harness
+        .call("todo-delete", json!({ "id": 1 }), relayed(evidence()))
+        .await;
+    assert_eq!(reason(&spent).as_deref(), Some("already-used"));
+    // Tokens stay off: a refused decision carries none.
+    assert!(!details(&spent).contains_key("approvalToken"));
+    assert_eq!(harness.handled(), 1);
+}
+
+#[tokio::test]
+async fn relay_evidence_is_single_use_whatever_the_replay_setting() {
+    let harness = setup_with(ApprovalPolicy::Required, |options| {
+        options.with_replay(ApprovalReplay::WithinTtl)
+    });
+    for _ in 0..2 {
+        harness
+            .call("todo-delete", json!({ "id": 1 }), relayed(evidence()))
+            .await;
+    }
+    assert_eq!(harness.handled(), 1);
+}
+
+#[tokio::test]
+async fn relay_evidence_is_checked_against_the_call_in_order() {
+    let other = |change: fn(&mut relay::RelayEvidence)| {
+        let mut evidence = evidence();
+        change(&mut evidence);
+        evidence
+    };
+    let cases: Vec<(relay::RelayEvidence, &str)> = vec![
+        (
+            other(|evidence| evidence.command = "todo-purge".into()),
+            "command-mismatch",
+        ),
+        // The command is checked first: every other field is wrong too.
+        (
+            other(|evidence| {
+                evidence.command = "todo-purge".into();
+                evidence.input_digest = "x".into();
+                evidence.actor = "null".into();
+                evidence.credentials_binding = "null".into();
+            }),
+            "command-mismatch",
+        ),
+        (
+            other(|evidence| evidence.input_digest = crate::input_digest(&validated(2)).unwrap()),
+            "input-mismatch",
+        ),
+        // The digest of the input as sent, before its default, is another input.
+        (
+            other(|evidence| {
+                evidence.input_digest = crate::input_digest(&json!({ "id": 1 })).unwrap()
+            }),
+            "input-mismatch",
+        ),
+        (
+            other(|evidence| {
+                evidence.input_digest = "x".into();
+                evidence.actor = "null".into();
+            }),
+            "input-mismatch",
+        ),
+        (
+            other(|evidence| {
+                evidence.actor = crate::credentials::actor_binding_json(Some(
+                    &Actor::new(ActorKind::Agent).with_id("advisor"),
+                ))
+            }),
+            "actor-mismatch",
+        ),
+        (
+            other(|evidence| {
+                evidence.actor = "null".into();
+                evidence.credentials_binding = "null".into();
+            }),
+            "actor-mismatch",
+        ),
+        (
+            other(|evidence| {
+                evidence.credentials_binding =
+                    crate::credentials_binding(Some(&credentials("user-1", "other-app"))).unwrap()
+            }),
+            "credentials-mismatch",
+        ),
+        (
+            other(|evidence| evidence.credentials_binding = "null".into()),
+            "credentials-mismatch",
+        ),
+    ];
+    for (evidence, expected) in cases {
+        let harness = setup_with(ApprovalPolicy::Required, |options| {
+            options.with_include_token(false)
+        });
+        let refused = harness
+            .call("todo-delete", json!({ "id": 1 }), relayed(evidence))
+            .await;
+        assert_eq!(reason(&refused).as_deref(), Some(expected));
+        assert!(!details(&refused).contains_key("approvalToken"));
+        assert_eq!(harness.handled(), 0, "{expected}");
+    }
+}
+
+#[tokio::test]
+async fn relay_evidence_needs_bindable_credentials_on_the_call() {
+    let harness = setup();
+    let mut context = relayed(evidence());
+    context.credentials = Some(Arc::new(credentials("", "app")));
+    let refused = harness
+        .call("todo-delete", json!({ "id": 1 }), context)
+        .await;
+    assert_eq!(reason(&refused).as_deref(), Some("credentials-mismatch"));
+    assert_eq!(harness.handled(), 0);
+}
+
+#[tokio::test]
+async fn relay_evidence_without_a_decision_id_runs_nothing() {
+    let harness = setup();
+    let mut empty = evidence();
+    empty.decision_id = String::new();
+    for _ in 0..2 {
+        let refused = harness
+            .call("todo-delete", json!({ "id": 1 }), relayed(empty.clone()))
+            .await;
+        assert_eq!(reason(&refused).as_deref(), Some("already-used"));
+    }
+    assert_eq!(harness.handled(), 0);
+}
+
+#[tokio::test]
+async fn relay_evidence_is_the_only_evidence_considered() {
+    let harness = setup();
+    // A valid token for this exact call...
+    let token = token_of(
+        &harness
+            .agent_call("todo-delete", json!({ "id": 1 }), None)
+            .await,
+    );
+    let mut wrong = evidence();
+    wrong.command = "todo-purge".into();
+    let mut context = relayed(wrong);
+    context.approval = Some(token);
+    // ...does not run it beside refused relay evidence.
+    let refused = harness
+        .call("todo-delete", json!({ "id": 1 }), context)
+        .await;
+    assert_eq!(reason(&refused).as_deref(), Some("command-mismatch"));
+    assert_eq!(harness.handled(), 0);
+}
+
+#[tokio::test]
+async fn relay_evidence_is_ignored_where_no_approval_is_needed() {
+    let harness = setup_with(ApprovalPolicy::NotRequired, |options| options);
+    let mut wrong = evidence();
+    wrong.command = "todo-purge".into();
+    let ran = harness
+        .call("todo-delete", json!({ "id": 1 }), relayed(wrong))
+        .await;
+    assert!(ran.success, "{ran:?}");
+}
+
+/// Records whether the handler's context carried relay evidence or an approval relay that asks.
+struct Peek(Arc<Mutex<Vec<(bool, bool)>>>);
+
+#[async_trait]
+impl CommandHandler for Peek {
+    async fn execute(&self, _: Value, context: CommandContext) -> CommandResult<Value> {
+        let claimable = context
+            .approval_relay
+            .as_ref()
+            .is_some_and(|relay| relay.claim("peek-run"));
+        self.0
+            .lock()
+            .unwrap()
+            .push((context.relay_evidence.is_some(), claimable));
+        success(json!({}))
+    }
+}
+
+#[tokio::test]
+async fn the_handler_never_sees_relay_evidence_or_a_claimable_relay() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "peek-run",
+            "Peek",
+            vec![],
+            Peek(Arc::clone(&seen)),
+        ))
+        .unwrap();
+    let mut context = CommandContext::new();
+    context.relay_evidence = Some(Arc::new(evidence()));
+    context.approval_relay = Some(Arc::new(relay::ApprovalRelayChannel::asking(
+        "peek-run",
+        Box::new(|| Some(Arc::new(relay::RoundAnswers::default()))),
+    )));
+    registry.execute("peek-run", json!({}), Some(context)).await;
+    assert_eq!(*seen.lock().unwrap(), vec![(false, false)]);
+}
+
+#[test]
+fn never_prints_relay_evidence() {
+    let printed = format!("{:?}", relayed(evidence()));
+    assert!(
+        !printed.contains("advisor") && !printed.contains("user-1"),
+        "{printed}"
+    );
+    assert!(!printed.contains("d-1"), "{printed}");
+}
+
+// ─── The form-mode relay's answers (`spec/command-metadata.md`, "Asking the human over MCP") ────
+
+#[test]
+fn only_the_routed_command_claims_the_relay_and_only_once() {
+    let channel = relay::ApprovalRelayChannel::asking(
+        "todo-delete",
+        Box::new(|| Some(Arc::new(relay::RoundAnswers::default()))),
+    );
+    assert!(!channel.claim("todo-purge"));
+    assert!(channel.claim("todo-delete"));
+    assert!(!channel.claim("todo-delete"));
+    assert!(!relay::ApprovalRelayChannel::never_asks().claim("todo-delete"));
+}
+
+/// An accepted answer to a relayed approval of `todo-delete` with [`validated`] `1` as [`agent`],
+/// signed with [`SECRET`] as the middleware signs its holds, expiring at `expires_at`.
+fn accepted_answer(expires_at: i64) -> relay::Asked {
+    let input = canonical_json(&validated(1)).unwrap();
+    let actor = crate::credentials::actor_binding_json(Some(&agent()));
+    let binding = base64url_encode(&hmac_sha256(
+        SECRET.as_bytes(),
+        format!(
+            "relay\0{}",
+            canonical_json(&json!(["todo-delete", input, actor])).unwrap()
+        )
+        .as_bytes(),
+    ));
+    let nonce = format!("nonce-{expires_at}");
+    let mac = base64url_encode(&hmac_sha256(
+        SECRET.as_bytes(),
+        format!(
+            "relay-hold\0{}",
+            canonical_json(&json!([binding, nonce, expires_at])).unwrap()
+        )
+        .as_bytes(),
+    ));
+    relay::Asked {
+        k: relay::APPROVAL_INPUT_KEY.into(),
+        b: binding,
+        t: i64::MAX,
+        n: Some(nonce),
+        x: Some(expires_at),
+        m: Some(mac),
+    }
+}
+
+#[tokio::test]
+async fn a_relayed_approval_counts_only_within_this_middlewares_lifetime() {
+    // A hold signed with the shared secret by an instance with a longer lifetime, an expired one,
+    // and one within this instance's five minutes.
+    for (expires_at, runs) in [
+        (START + 10 * 60_000, false),
+        (START, false),
+        (START + 4 * 60_000, true),
+    ] {
+        let harness = setup_with(ApprovalPolicy::Required, |options| {
+            options.with_relay(ApprovalRelay::McpElicitation)
+        });
+        let answers = Arc::new(relay::RoundAnswers {
+            accepted: vec![accepted_answer(expires_at)],
+            declined: Vec::new(),
+        });
+        let channel = Arc::new(relay::ApprovalRelayChannel::asking(
+            "todo-delete",
+            Box::new(move || Some(Arc::clone(&answers))),
+        ));
+        let mut context = CommandContext::new().with_actor(agent());
+        context.approval_relay = Some(Arc::clone(&channel));
+        let result = harness
+            .call("todo-delete", json!({ "id": 1 }), context)
+            .await;
+        assert_eq!(result.success, runs, "{expires_at}: {result:?}");
+        assert_eq!(channel.held().is_some(), !runs, "{expires_at}");
+    }
+}
