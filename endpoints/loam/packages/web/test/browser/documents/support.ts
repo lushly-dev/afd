@@ -63,16 +63,28 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
 }
 
 /**
- * The editor area's invariants (documents specification, Status, deviation 16), as its controller holds them:
- * every frame in `frames` or `parking` is of the scope rendered and in its place for that map; no frame is in
- * both; none in a map is disposed, or off the page while the area shows; every mounted frame is in a map or leaving with its save in
- * flight; and every tab the active scope marks unsaved has a frame in a map, a leave under way, or the person's
- * own close running. Empty when they hold, or before the editor area has loaded.
+ * The editor area's nine invariants (documents specification, Status, deviation 16), as its controller holds
+ * them, checked after every `editorIdle`:
+ * 1. every frame in `frames` or `parking` is of this visit of the scope rendered, in its place for that map,
+ *    under its own tab;
+ * 2. no frame is in both maps;
+ * 3. none in a map is disposed, or off the page while the area shows;
+ * 4. a mounted frame in no map has its save or its reopen under way;
+ * 5. every tab the active scope marks unsaved has a frame in a map, a leave under way, or the person's own
+ *    close running;
+ * 6. a group shows at most one frame, its active tab's, and no leaving or parked frame shows;
+ * 7. every key of `frames` and `parking` is a tab of the state rendered;
+ * 8. every group's active tab has a frame in `frames`, unless its close or leave is under way;
+ * 9. a frame in `frames` whose editor says unsaved has its tab marked unsaved.
+ * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
 	return page.evaluate(async () => {
-		type Frame = HTMLElement & { tab: string };
-		type Life = { key: string | null; place: string };
+		type Frame = HTMLElement & { tab: string; dirty: boolean };
+		type Life = { visit: number; place: string; busy?: boolean };
+		type State = {
+			groups: Array<{ id: string; active: string | null; tabs: Array<{ id: string }> }>;
+		};
 		const shell = document.querySelector('loam-shell') as unknown as {
 			kernel: {
 				call(
@@ -82,54 +94,90 @@ export function frameViolations(page: Page): Promise<string[]> {
 			shadowRoot: ShadowRoot | null;
 			editor?: {
 				lifecycle: readonly [
-					string | null,
+					number,
 					Map<string, Frame>,
 					Map<string, Frame>,
 					Set<Frame>,
 					WeakMap<Frame, Life>,
 					Set<string>,
+					State | null,
 				];
 			};
 		};
 		const lifecycle = shell.editor?.lifecycle;
 		if (!lifecycle) return [];
-		const [key, frames, parking, leaving, lives, closing] = lifecycle;
-		const life = { key, frames, parking, leaving, lives, closing };
+		const [visit, frames, parking, leaving, lives, closing, rendered] = lifecycle;
 		const broken: string[] = [];
-		const parked = new Set(life.parking.values());
+		const parked = new Set(parking.values());
 		const main = shell.shadowRoot?.querySelector('loam-main');
 		// An app's main keeps the editors off the page, with their drafts (Status, deviation 13).
 		const showing = !!main?.querySelector('loam-editor-area');
+		const tabs = new Set(
+			rendered?.groups.flatMap((group) => group.tabs.map((tab) => tab.id)) ?? []
+		);
+		const leavingHere = (tab: string) =>
+			[...leaving].some((frame) => frame.tab === tab && lives.get(frame)?.visit === visit);
+		const closingHere = (tab: string) => closing.has(`${visit} ${tab}`);
 		for (const [name, map, place] of [
-			['frames', life.frames, 'shown'],
-			['parking', life.parking, 'parked'],
+			['frames', frames, 'shown'],
+			['parking', parking, 'parked'],
 		] as const) {
 			for (const [tab, frame] of map) {
-				const own = life.lives.get(frame);
-				if (own?.key !== life.key)
-					broken.push(`${name} ${tab} is of scope ${own?.key}, not ${life.key}`);
-				if (own?.place !== place) broken.push(`${name} ${tab} is ${own?.place}`);
-				if (frame.tab !== tab) broken.push(`${name} ${tab} holds the frame of ${frame.tab}`);
-				if (showing && !frame.isConnected) broken.push(`${name} ${tab} is off the page`);
-				if (name === 'frames' && parked.has(frame)) broken.push(`${tab} is in both maps`);
+				const own = lives.get(frame);
+				if (own?.visit !== visit)
+					broken.push(`1: ${name} ${tab} is of visit ${own?.visit}, not ${visit}`);
+				if (own?.place !== place) broken.push(`1: ${name} ${tab} is ${own?.place}`);
+				if (frame.tab !== tab) broken.push(`1: ${name} ${tab} holds the frame of ${frame.tab}`);
+				if (name === 'frames' && parked.has(frame)) broken.push(`2: ${tab} is in both maps`);
+				if (showing && !frame.isConnected) broken.push(`3: ${name} ${tab} is off the page`);
+				if (rendered && !tabs.has(tab))
+					broken.push(`7: ${name} ${tab} is no tab of the state rendered`);
 			}
 		}
-		const held = new Set<Frame>([...life.frames.values(), ...parked, ...life.leaving]);
 		const mounted = [...(main?.querySelectorAll('loam-editor-frame') ?? [])] as Frame[];
 		for (const frame of mounted) {
-			if (!held.has(frame))
-				broken.push(`a mounted frame of ${frame.tab} is in no map and not leaving`);
-			if (life.lives.get(frame)?.place === 'disposed')
-				broken.push(`a disposed frame of ${frame.tab} is mounted`);
+			const own = lives.get(frame);
+			if (own?.place === 'disposed') broken.push(`3: a disposed frame of ${frame.tab} is mounted`);
+			if (frames.get(frame.tab) !== frame && parking.get(frame.tab) !== frame && !own?.busy) {
+				broken.push(
+					`4: a mounted frame of ${frame.tab} is in no map, with no save or reopen under way`
+				);
+			}
+			if (!frame.hidden && own?.place !== 'shown')
+				broken.push(`6: a ${own?.place} frame of ${frame.tab} shows`);
+		}
+		if (showing && rendered) {
+			for (const group of main?.querySelectorAll('loam-editor-group') ?? []) {
+				const id = (group as HTMLElement & { group: string }).group;
+				const active = rendered.groups.find((each) => each.id === id)?.active;
+				const shown = ([...group.children] as Frame[]).filter(
+					(child) => child.localName === 'loam-editor-frame' && !child.hidden
+				);
+				if (shown.length > 1) broken.push(`6: group ${id} shows ${shown.length} frames`);
+				if (shown[0] && shown[0].tab !== active)
+					broken.push(`6: group ${id} shows ${shown[0].tab}, not ${active}`);
+			}
+			for (const group of rendered.groups) {
+				if (!group.active || frames.has(group.active)) continue;
+				if (!closingHere(group.active) && !leavingHere(group.active)) {
+					broken.push(`8: group ${group.id}'s active tab ${group.active} has no frame`);
+				}
+			}
 		}
 		const read = await shell.kernel.call('editor-get');
-		for (const tab of read.data?.groups.flatMap((group) => group.tabs) ?? []) {
-			if (!tab.dirty || life.closing.has(tab.id)) continue;
-			const leaving = [...life.leaving].some(
-				(frame) => frame.tab === tab.id && life.lives.get(frame)?.key === life.key
-			);
-			if (!life.frames.has(tab.id) && !life.parking.has(tab.id) && !leaving) {
-				broken.push(`${tab.id} is unsaved with no frame and no leave`);
+		const marked = new Map(
+			(read.data?.groups.flatMap((group) => group.tabs) ?? []).map((tab) => [tab.id, tab.dirty])
+		);
+		for (const [tab, dirty] of marked) {
+			if (!dirty || closingHere(tab)) continue;
+			if (!frames.has(tab) && !parking.has(tab) && !leavingHere(tab)) {
+				broken.push(`5: ${tab} is unsaved with no frame and no leave`);
+			}
+		}
+		if (showing) {
+			for (const [tab, frame] of frames) {
+				if (frame.dirty && marked.get(tab) === false)
+					broken.push(`9: ${tab}'s editor is unsaved, its tab not`);
 			}
 		}
 		return broken;
@@ -144,8 +192,13 @@ export async function editorIdle(page: Page): Promise<void> {
 			editor?: { idle: Promise<void> };
 		};
 		await shell.apps?.idle;
-		await shell.editor?.idle;
-		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		// Until its queue holds still: a render's own marks may queue another.
+		for (let round = 0; round < 20; round++) {
+			const queued = shell.editor?.idle;
+			await queued;
+			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			if (shell.editor?.idle === queued) break;
+		}
 	});
 	await settle(page);
 	const broken = await frameViolations(page);

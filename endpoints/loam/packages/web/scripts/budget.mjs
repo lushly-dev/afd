@@ -98,7 +98,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * still saving counted as unsaved by a rejected draft's reopen (46). The seventh raised it by 455, to 30,078,
  * approved by the coordinator, 2026-11-08: one lifecycle for every frame in place of the patches before it, a
  * life each with one place that one function moves (about 377), the getter a test's check of its invariants
- * reads (72), and a lost draft's mark cleared with it (6).
+ * reads (72), and a lost draft's mark cleared with it (6). The eighth raised it by 1,004, to 31,082, approved
+ * by the coordinator, 2026-11-08, after the independent review of the lifecycle: a mark no editor holds
+ * cleared from the person's page, also while an app shows (360), a parked editor whose tab another's call
+ * closed reopened (112), a slot another frame holds refused (about 70), the person's close kept in its own
+ * scope (28), and visits of a scope, timers by frame, a leaving frame taken off the page and the rest (about
+ * 424), and the split of its helpers into `editor-parts.ts`, under the file-size limit (10).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -118,7 +123,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 30_078,
+	editorMinified: 31_082,
 });
 
 /** Group a module id by the package it belongs to. */
