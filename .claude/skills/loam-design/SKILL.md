@@ -210,6 +210,8 @@ fit a closable tab) and one tab panel.
   is no landmark of its own (`landmark-unique`).
 - Reordering the strip keeps focus: `insertBefore` blurs a focused node, so
   remove gone items first, `moveBefore` where it exists, and refocus.
+- An agent's close or move of the focused tab keeps focus: on the tab where
+  it went, else its group's active tab, else main; test it by agent call.
 - A busy hold needs a test that it clears; a template-bound property must be
   `observable`.
 - A lazy chunk imports nothing first paint holds but FAST's `css`, `html`,

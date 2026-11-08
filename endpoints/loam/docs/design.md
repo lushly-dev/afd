@@ -455,11 +455,14 @@ A kit or chrome component merges only when its pull request shows each item
 7. It has a line in this document's [component list](#component-list).
 8. It follows `prefers-reduced-motion`: no motion beyond opacity.
 
-Two lessons of phase 2's step 10, checked under items 2 and 3:
+Three lessons of phase 2's step 10, checked under items 2 and 3:
 
 - **Moving a focused node blurs it.** `insertBefore` of an element that holds focus drops focus to the
   page; remove what goes first, move with `moveBefore` where the browser has it, and put focus back
   otherwise, with a test that reorders under focus.
+- **Another's call can take the focused item.** An agent closing or moving what holds focus drops focus to
+  the page unless the component puts it back: on the item in its new place, else its group's active item,
+  else main. Test it with the agent's call, not only the person's keys.
 - **A busy hold needs a test that it clears,** and a property a template binds must be `observable`, or
   the binding never sees it change (`mainBusy`, whose `aria-busy` outlived a restore).
 

@@ -26,6 +26,8 @@ Under items 2 and 3, from phase 2's step 10:
 - [ ] A focused node moved by `insertBefore` is blurred: remove what goes
       first, use `moveBefore` where it exists, refocus otherwise, and test a
       reorder under focus.
+- [ ] An agent's close or move of the focused item puts focus on it where it
+      went, else its group's active item, else main, tested by agent call.
 - [ ] A busy hold has a test that busy clears, and every property a template
       binds is `observable`.
 
