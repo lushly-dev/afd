@@ -976,10 +976,14 @@ impl ServerHandler for McpServer {
             // The context hook does not run here, so filtering reads the credentials the bearer
             // layer verified (`spec/authorization.md`, M6, "Listing").
             let visible = authz::visibility(self, credentials.as_ref());
-            let tools: Vec<Tool> = serde_json::from_value(Value::Array(
-                self.tools_in(active.as_deref(), visible.as_ref()),
-            ))
-            .map_err(internal)?;
+            let mut listed = self.tools_in(active.as_deref(), visible.as_ref());
+            // A command's `requires` names only commands that exist for the caller
+            // (`spec/authorization.md`, M6, "Hidden commands").
+            if let Some(known) = authz::known(self, credentials.as_ref()) {
+                admit_requires(&mut listed, &known);
+            }
+            let tools: Vec<Tool> =
+                serde_json::from_value(Value::Array(listed)).map_err(internal)?;
             let ttl_ms = self.tools_list_ttl_ms();
             // A list filtered by scope varies by authorization: private, in every strategy.
             let cache_scope = if authz::filters_listing(self) {
@@ -1137,5 +1141,40 @@ impl ServerHandler for McpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<(), ErrorData> {
         panic_guard::guard_request(self.serve_cancel_task(request, &context)).await
+    }
+}
+
+/// Drop from every `requires` in `tools` (a tool's `_meta.requires` and each grouped action's)
+/// the commands `known` does not admit, and the member when nothing is left.
+fn admit_requires(tools: &mut [Value], known: &Visibility) {
+    fn admit(entry: &mut Value, known: &Visibility) {
+        let Some(object) = entry.as_object_mut() else {
+            return;
+        };
+        let Some(Value::Array(names)) = object.get("requires") else {
+            return;
+        };
+        let names: Vec<String> = names
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect();
+        let admitted = known.admitted(&names);
+        if admitted.is_empty() {
+            object.remove("requires");
+        } else {
+            object.insert("requires".into(), json!(admitted));
+        }
+    }
+    for tool in tools {
+        let Some(meta) = tool.get_mut("_meta") else {
+            continue;
+        };
+        admit(meta, known);
+        if let Some(Value::Array(actions)) = meta.get_mut("actions") {
+            for action in actions {
+                admit(action, known);
+            }
+        }
     }
 }

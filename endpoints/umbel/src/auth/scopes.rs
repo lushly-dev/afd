@@ -214,6 +214,24 @@ impl ScopePolicy {
             .is_some_and(|served| !served.iter().any(|space| reads(space)))
     }
 
+    /// Whether `command` exists for a caller (AFD's `ScopeResolver::known`, M6 "Hidden
+    /// commands"): it is exposed to MCP and, for a plugin command, its instance serves a space
+    /// `reads` admits ([`Self::hidden`]). When the caller's readability cannot be known (`None`),
+    /// no plugin command exists for it, so a guess never reveals one; every other command does.
+    /// A command that exists for the caller but that it may not call stays callable, so a missing
+    /// scope it may learn is still named (5.4).
+    #[cfg_attr(not(feature = "auth"), allow(dead_code))]
+    pub(crate) fn known(&self, command: &str, reads: Option<&dyn Fn(&str) -> bool>) -> bool {
+        let Some(needs) = self.needs_of(command, true) else {
+            return false;
+        };
+        match (&needs.served, reads) {
+            (None, _) => true,
+            (Some(_), Some(reads)) => !self.hidden(command, reads),
+            (Some(_), None) => false,
+        }
+    }
+
     /// AFD's `COMMAND_NOT_FOUND` for a remote caller naming `name`, exactly as the registry words
     /// it for a name it does not know: the message, and a suggestion naming up to three close
     /// matches among the MCP-exposed commands the caller may call in `context`'s active context
@@ -529,6 +547,26 @@ impl afd::server::auth::ScopeResolver for UmbelScopes {
         }
     }
 
+    /// A plugin command whose instance serves no space the caller reads does not exist for it
+    /// (section 9.4), so AFD answers its call exactly as a name nobody registered, on every
+    /// route and before its input is validated. Any other exposed command exists, listed or
+    /// not, so a call the token cannot make is still told which scope to obtain.
+    ///
+    /// AFD requires `known` to be a pure function of the command and the credentials. It reads
+    /// the caller from the in-flight [`super::caller::CallerBook`], which holds a request's
+    /// caller only while that request is in flight: AFD asks `known` only then (once per request,
+    /// as it arrives; a `tasks/*` request is itself in flight), and a task's runner uses the
+    /// answer given when the task was created, never asking again after the request is
+    /// answered. Without the caller, no plugin command exists, so a lookup that fails never
+    /// reveals one.
+    fn known(&self, command: &str, credentials: &afd::Credentials) -> bool {
+        let config = self.policy.workspace().config();
+        let caller = self.caller(credentials);
+        let reads = caller.as_ref().map(|caller| reads_for(config, caller));
+        let reads: Option<&dyn Fn(&str) -> bool> = reads.as_ref().map(|reads| reads as _);
+        self.policy.known(command, reads)
+    }
+
     fn visible(&self, command: &str, credentials: &afd::Credentials) -> bool {
         let Some(caller) = self.caller(credentials) else {
             // Without the caller nothing here can tell which spaces it reads: list nothing
@@ -838,6 +876,26 @@ mod tests {
         assert!(visible("m-tool", &["umbel:write"]));
     }
 
+    #[test]
+    fn a_command_exists_unless_its_instance_serves_no_space_the_caller_reads() {
+        let dir = tempfile::tempdir().unwrap();
+        let policy = policy(dir.path());
+        let alpha = |space: &str| space == "alpha";
+        let beta = |space: &str| space == "beta";
+        // The instance serves main and alpha: it exists for a reader of alpha, whatever the
+        // token may call there, so a missing scope is still named for it.
+        assert!(policy.known("p-write", Some(&alpha)));
+        assert!(!policy.known("p-write", Some(&beta)));
+        assert!(!policy.known("p-plain", Some(&beta)));
+        // A command of no instance always exists; an unexposed or unknown one never does.
+        assert!(policy.known("x-show", Some(&beta)));
+        assert!(policy.known("afd-help", None));
+        assert!(!policy.known("x-hidden", Some(&alpha)));
+        assert!(!policy.known("not-a-command", Some(&alpha)));
+        // Without what the caller reads, no plugin command exists for it.
+        assert!(!policy.known("p-read", None));
+    }
+
     #[cfg(feature = "auth")]
     #[test]
     fn without_the_requests_caller_the_resolver_defers_and_lists_nothing() {
@@ -863,8 +921,11 @@ mod tests {
             resolver.resolve("p-read", &json!({}), &none),
             ScopeDecision::Missing(vec!["umbel:read".to_owned()])
         );
-        // Nothing is listed when no request in flight holds the credentials.
+        // Nothing is listed when no request in flight holds the credentials, and no plugin
+        // command exists for them.
         assert!(!resolver.visible("p-read", &credentials));
         assert!(!resolver.visible("x-show", &credentials));
+        assert!(!resolver.known("p-read", &credentials));
+        assert!(resolver.known("x-show", &credentials));
     }
 }

@@ -94,8 +94,9 @@ The router handles a `tools/call` in this order, in every strategy and every lan
 3. Any other name is looked up as a command. An exposed command runs, so an agent can call a command
    that the strategy does not list (for example one found through `afd-discover` on a lazy server).
    An unknown or unexposed name answers `COMMAND_NOT_FOUND`, the same for both
-   ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)), with a suggestion ending "Use
-   afd-discover to list all commands."
+   ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)), and so does a command an authorized
+   server hides from the caller ([hidden commands](./authorization.md#hidden-commands)), with a
+   suggestion ending "Use afd-discover to list all commands."
    ([Suggestions](./error-codes.md#suggestions-name-only-tools-the-host-provides)).
 
 Every route runs the same exposure, context, confirmation, approval and validation checks as a

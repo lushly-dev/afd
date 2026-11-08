@@ -104,6 +104,21 @@ impl RegistryRef {
         }
     }
 
+    /// `command`'s `requires` as the calling context may read it: without the commands that do
+    /// not exist for an authorized MCP caller (`spec/authorization.md`, M6, "Hidden commands");
+    /// `None` when nothing is left.
+    pub(crate) fn requires_for(
+        context: &CommandContext,
+        command: &CommandDefinition,
+    ) -> Option<Vec<String>> {
+        let requires = command.requires.as_ref()?;
+        let requires = match &context.known {
+            Some(known) => known.admitted(requires),
+            None => requires.clone(),
+        };
+        (!requires.is_empty()).then_some(requires)
+    }
+
     /// The commands the calling context may see: all of them, or only those
     /// exposed to `context.interface` when it is set, and only those available
     /// in its active context.

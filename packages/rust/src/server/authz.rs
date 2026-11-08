@@ -118,17 +118,66 @@ pub(crate) fn task_refusal(
     None
 }
 
+/// Whether a task's `command` still exists for its owner with `credentials` (M6, "Hidden
+/// commands"); always without authorization or credentials.
+#[cfg(feature = "server-auth")]
+pub(crate) fn task_known(
+    server: &McpServer,
+    command: &str,
+    credentials: Option<&Credentials>,
+) -> bool {
+    match (&server.inner.auth, credentials) {
+        (Some(auth), Some(credentials)) => super::auth::task_known(auth, command, credentials),
+        _ => true,
+    }
+}
+
+#[cfg(not(feature = "server-auth"))]
+pub(crate) fn task_known(
+    _server: &McpServer,
+    _command: &str,
+    _credentials: Option<&Credentials>,
+) -> bool {
+    true
+}
+
 /// The listing filter for a caller with `credentials` (M6, "Listing").
 #[cfg(feature = "server-auth")]
 pub(crate) fn visibility(
     server: &McpServer,
     credentials: Option<&Arc<Credentials>>,
 ) -> Option<Visibility> {
-    super::auth::visibility(server.inner.auth.as_ref()?, credentials)
+    super::auth::visibility(
+        server.inner.auth.as_ref()?,
+        &server.inner.registry,
+        credentials,
+    )
 }
 
 #[cfg(not(feature = "server-auth"))]
 pub(crate) fn visibility(
+    _server: &McpServer,
+    _credentials: Option<&Arc<Credentials>>,
+) -> Option<Visibility> {
+    None
+}
+
+/// Which commands exist for a caller with `credentials` (M6, "Hidden commands"), when the
+/// server filters listings and has a resolver.
+#[cfg(feature = "server-auth")]
+pub(crate) fn known(
+    server: &McpServer,
+    credentials: Option<&Arc<Credentials>>,
+) -> Option<Visibility> {
+    super::auth::known(
+        server.inner.auth.as_ref()?,
+        &server.inner.registry,
+        credentials,
+    )
+}
+
+#[cfg(not(feature = "server-auth"))]
+pub(crate) fn known(
     _server: &McpServer,
     _credentials: Option<&Arc<Credentials>>,
 ) -> Option<Visibility> {

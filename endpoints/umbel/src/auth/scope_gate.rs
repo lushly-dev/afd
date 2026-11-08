@@ -89,9 +89,15 @@ pub(crate) fn scope_gate(policy: Arc<ScopePolicy>) -> CommandMiddleware {
 /// after the event stamp: to a hosted caller a token narrows, a plugin command whose instance
 /// serves no space the caller reads does not exist. Its call is answered exactly as AFD answers
 /// an unknown name, before the space, access and scope checks could answer it otherwise, so the
-/// instance hidden from the listings is not revealed by calling it. (AFD validates a call's input
-/// before any middleware runs, so an invalid input still gets `VALIDATION_ERROR`; a follow-up
-/// asks AFD to answer a command a resolver hides as unknown on every path.)
+/// instance hidden from the listings is not revealed by calling it.
+///
+/// Over MCP with filtered listings (`auth.filter_tools_by_scope`, the default), AFD answers such
+/// a call itself, on every route and before validating its input, since Umbel's resolver says
+/// the command is not `known` to the caller (AFD's M6, "Hidden commands"), so the call never
+/// reaches this check. It still answers a call that reaches the registry with credentials
+/// otherwise: over MCP with unfiltered listings (where `tools/list` names the instance's
+/// commands anyway, and an invalid input gets `VALIDATION_ERROR` first), and an in-process
+/// caller's.
 pub(crate) fn hidden_check(policy: Arc<ScopePolicy>) -> CommandMiddleware {
     Arc::new(
         move |name: String,

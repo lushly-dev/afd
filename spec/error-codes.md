@@ -60,9 +60,13 @@ Rules:
 
 1. **Remote callers cannot tell the two apart.** The code, message and suggestion for a private
    command are the ones an unknown name gets. TypeScript does this by giving the remote engine a
-   command map that holds only the MCP-exposed commands.
-2. **Lookup comes first.** An unknown command is `COMMAND_NOT_FOUND` whatever the interface. The
-   exposure check, then the context check, then input validation follow.
+   command map that holds only the MCP-exposed commands. The same holds for a command an
+   authorized server's resolver hides from the caller
+   ([hidden commands](./authorization.md#hidden-commands)): on every route it gets an unknown
+   name's answer, byte for byte, whatever its input.
+2. **Lookup comes first.** An unknown command is `COMMAND_NOT_FOUND` whatever the interface. A
+   command hidden from an authorized caller is unknown at lookup. The exposure check, then the
+   context check, then input validation follow.
 3. **An empty interface is no interface.** An interface that names no surface (anything other than
    `palette`, `mcp`, `agent` or `cli`) exposes nothing, so the command is `COMMAND_NOT_EXPOSED`.
    Python's former `INVALID_INTERFACE` code is gone.
