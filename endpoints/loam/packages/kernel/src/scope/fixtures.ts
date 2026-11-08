@@ -229,12 +229,14 @@ export const scopedDeployment = (): ProjectionV2 => ({
 	})),
 });
 
-export const scopedPorts = () =>
-	createFixturePorts({
-		'fixtures/tasks/': { manifest: TASKS_MANIFEST, definition: TASKS_DEFINITION },
-		'fixtures/dual/': { manifest: DUAL_MANIFEST, definition: DUAL_DEFINITION },
-		'fixtures/solo/': { manifest: SOLO_MANIFEST, definition: SOLO_DEFINITION },
-	});
+/** The three apps' packages, by directory, for ports that serve more beside them. */
+export const scopedPackages = () => ({
+	'fixtures/tasks/': { manifest: TASKS_MANIFEST, definition: TASKS_DEFINITION },
+	'fixtures/dual/': { manifest: DUAL_MANIFEST, definition: DUAL_DEFINITION },
+	'fixtures/solo/': { manifest: SOLO_MANIFEST, definition: SOLO_DEFINITION },
+});
+
+export const scopedPorts = () => createFixturePorts(scopedPackages());
 
 /** Write the projects into `store`, as a session before this one did. */
 export async function seedProjects(
@@ -272,6 +274,8 @@ export interface ScopedWorkspaceOptions {
 	clock?: () => number;
 	/** The URL's project, by slug, as the web host passes it (6.3). */
 	initialScope?: { project: string | null };
+	/** The packages `deployment` names. Default: the three apps'. */
+	ports?: ReturnType<typeof scopedPorts>;
 }
 
 /**
@@ -296,7 +300,7 @@ export async function createScopedWorkspace(
 			clock: options.clock ?? createSteppingClock(),
 			random: createSeededRandom('scoped'),
 			deployment: options.deployment ?? scopedDeployment(),
-			ports: scopedPorts(),
+			ports: options.ports ?? scopedPorts(),
 			...(options.initialScope ? { initialScope: options.initialScope } : {}),
 		},
 		options.internals

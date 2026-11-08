@@ -9,6 +9,7 @@ import { defaultExpose } from '@lushly-dev/afd-server/define';
 import { type ManifestV2, NOTICES_V1, TRUST_LINES_V1 } from '@lushly-dev/loam-manifest';
 import { keyOf, readManifest } from '@lushly-dev/loam-manifest/validate';
 import { parse as parseToml } from 'smol-toml';
+import { z } from 'zod';
 import { type AppTree, builtFileFindings, type FileFinding, inlineSchemas } from './file-rules.js';
 
 export const DEFAULT_MANIFEST = 'loam-app.toml';
@@ -25,6 +26,35 @@ export interface Trust {
 	code: string;
 	line: string;
 	notices: Array<{ code: string; message: string }>;
+}
+
+/**
+ * Each document template's `content` against its type's `content_schema`, read with `z.fromJSONSchema`
+ * as the reader reads the schema (documents specification, 2.1): `DOCUMENT_TEMPLATE_INVALID`. The kernel
+ * reads no content, so this is `app check`'s and `app pack`'s alone.
+ */
+function templateFindings(manifest: ManifestV2): Finding[] {
+	return (manifest.ui?.documents ?? []).flatMap((type, index) => {
+		let schema: z.ZodType;
+		try {
+			schema = z.fromJSONSchema(type.content_schema as Parameters<typeof z.fromJSONSchema>[0]);
+		} catch {
+			// The reader refused it already, as `MANIFEST_INPUT_SCHEMA_INVALID`.
+			return [];
+		}
+		return type.templates.flatMap((template, at) =>
+			schema.safeParse(template.content).success
+				? []
+				: [
+						{
+							code: 'DOCUMENT_TEMPLATE_INVALID',
+							key: keyOf(`/ui/documents/${index}/templates/${at}/content`),
+							message: `The template \`${template.id}\` does not match its type's \`content_schema\`.`,
+							suggestion: 'Correct the template, or the schema, so a new document starts valid.',
+						},
+					]
+		);
+	});
 }
 
 /** What `validateCommandSurface` reads of a command. */
@@ -209,6 +239,7 @@ export function checkApp(
 		...(trust ? { trust } : {}),
 	});
 	if (!read.ok) return report();
+	refusals.push(...templateFindings(read.manifest));
 	if (options.surface) {
 		const surface = surfaceFindings(read.manifest, options.surface);
 		refusals.push(...surface.refusals);

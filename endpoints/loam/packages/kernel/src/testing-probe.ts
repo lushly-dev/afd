@@ -37,10 +37,10 @@ function probeManifestOf(id: string, kind: 'native' | 'view'): ManifestV1 {
 		},
 		...(native ? { native: { entry: 'dist/native.js' } } : { view: { handlers: 'handlers.html' } }),
 		grants: [
-			{ name: 'store', reason: 'Keeps the notes.' },
+			{ name: 'store', reason: 'Keeps the reports.' },
 			{ name: 'clock', reason: 'Stamps each note.' },
 			{ name: 'random', reason: 'Gives each note a nonce.' },
-			{ name: 'projects', required: false, reason: 'Would group notes; phase 2 serves it.' },
+			{ name: 'projects', required: false, reason: 'Would group reports; phase 2 serves it.' },
 		],
 		config: {
 			schema: {
@@ -64,15 +64,15 @@ function probeManifestOf(id: string, kind: 'native' | 'view'): ManifestV1 {
 			},
 			{
 				name: name('list'),
-				title: 'List notes',
-				description: 'List the notes in the store, as a sidebar list.',
+				title: 'List reports',
+				description: 'List the reports in the store, as a sidebar list.',
 				effects: ['inspect'],
 				input_schema: EMPTY_INPUT,
 			},
 			{
 				name: name('count'),
-				title: 'Count notes',
-				description: 'Count the notes through a nested query.',
+				title: 'Count reports',
+				description: 'Count the reports through a nested query.',
 				effects: ['inspect'],
 				input_schema: EMPTY_INPUT,
 			},
@@ -110,7 +110,7 @@ function probeManifestOf(id: string, kind: 'native' | 'view'): ManifestV1 {
 							panel: { views: [{ id: 'log', title: 'Log', element: `${id}-log` }] },
 						}
 					: { main: { resource: `ui://${id}/main` } }),
-				status: { items: [{ id: 'count', label: 'Notes' }] },
+				status: { items: [{ id: 'count', label: 'Reports' }] },
 				keybindings: [{ chord: 'Mod+Shift+L', command: name('list') }],
 			},
 			...(native
@@ -126,7 +126,7 @@ export const PROBE_MANIFEST: ManifestV1 = probeManifestOf('probe', 'native');
 /** The same commands as a view, whose handlers run in a frame. */
 export const probeViewManifest = (id = 'probev'): ManifestV1 => probeManifestOf(id, 'view');
 
-async function countNotes(store: AppStoreV1 | undefined): Promise<number> {
+async function countReports(store: AppStoreV1 | undefined): Promise<number> {
 	return ((await store?.list('note-')) ?? []).length;
 }
 
@@ -143,9 +143,9 @@ export function probeDefinition(id = 'probe'): AppDefinitionV1 {
 				return success({ key, nonce, greeting: context.config.greeting ?? null });
 			},
 			[name('list')]: async (_input: unknown, context: AppCallContextV1) => {
-				const notes = (await context.store?.list('note-')) ?? [];
+				const reports = (await context.store?.list('note-')) ?? [];
 				return success({
-					items: notes.map(({ key, value }) => ({
+					items: reports.map(({ key, value }) => ({
 						id: key,
 						title: (value as { text: string }).text,
 					})),
@@ -157,7 +157,7 @@ export function probeDefinition(id = 'probe'): AppDefinitionV1 {
 				return list.success
 					? success({
 							count: list.data?.items.length ?? 0,
-							direct: await countNotes(context.store),
+							direct: await countReports(context.store),
 						})
 					: failure(list.error as NonNullable<typeof list.error>);
 			},

@@ -7,7 +7,7 @@ const entries: PaletteEntry[] = [
 	{ name: 'layout-set', title: 'Set layout', description: 'Open, close or resize shell parts' },
 	{ name: 'layout-get', description: 'Get the shell layout' },
 	{ name: 'appearance-set', title: 'Set appearance', description: 'Set the theme and density' },
-	{ name: 'notes-create', description: 'Create a note in the layout of the current project' },
+	{ name: 'reports-create', description: 'Create a report in the layout of the current project' },
 	{ name: 'palette-open', title: 'Open the command palette', description: 'Open the palette' },
 ];
 
@@ -25,8 +25,8 @@ describe('createPaletteIndex', () => {
 			['appearance-set', 0, 'name', []],
 			['layout-get', 0, 'name', []],
 			['layout-set', 0, 'name', []],
-			['notes-create', 0, 'name', []],
 			['palette-open', 0, 'name', []],
+			['reports-create', 0, 'name', []],
 		]);
 	});
 
@@ -51,7 +51,7 @@ describe('createPaletteIndex', () => {
 		expect(items.map((item) => [item.name, item.field])).toEqual([
 			['layout-get', 'name'],
 			['layout-set', 'name'],
-			['notes-create', 'description'],
+			['reports-create', 'description'],
 		]);
 		// Same score in the name: ties break by name.
 		expect(items[0]?.score).toBe(items[1]?.score);

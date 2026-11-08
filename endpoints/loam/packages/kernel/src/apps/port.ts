@@ -33,8 +33,9 @@ const SCOPED_TO_CALLER: ReadonlySet<string> = new Set([
 
 /**
  * What an app may call besides its own commands (phase 2 specification, 11.2): phase 1's nine,
- * `scope-get` and `app-route-set` always, and `project-list` and `project-get` with `projects`. Anything
- * else is `CALL_NOT_GRANTED`.
+ * `scope-get` and `app-route-set` always, `project-list` and `project-get` with `projects`, and
+ * `document-get` and `document-list` with `documents` (documents specification, 11; `document-open`,
+ * `editor-get` and the link commands join with steps 10 and 12). Anything else is `CALL_NOT_GRANTED`.
  */
 export function appCallable(grants: ReadonlySet<string>): ReadonlySet<string> {
 	return new Set<string>([
@@ -42,6 +43,7 @@ export function appCallable(grants: ReadonlySet<string>): ReadonlySet<string> {
 		'scope-get',
 		'app-route-set',
 		...(grants.has('projects') ? ['project-list', 'project-get'] : []),
+		...(grants.has('documents') ? ['document-get', 'document-list'] : []),
 	]);
 }
 

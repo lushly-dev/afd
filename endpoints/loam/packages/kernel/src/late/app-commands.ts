@@ -45,6 +45,8 @@ export interface AppCommandDeps {
 	scope: ScopeRuntime;
 	state: ShellState;
 	viewState: ViewStateRegistry;
+	/** A document type this instance lost to another, `DOCUMENT_TYPE_CONFLICT` (documents specification, 2.2). */
+	documentNotices?(instance: string): Array<{ code: string; message: string }>;
 }
 
 export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] {
@@ -52,9 +54,10 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 	/** An instance's notices, with `APP_DISABLED` and its suggestion when the workspace disables it. */
 	const noticesOf = (instance: string, notices: AppInstanceV1['notices']) => {
 		const off = disabledRefusal(scope, instance)?.error;
+		const lost = deps.documentNotices?.(instance) ?? [];
 		return off
-			? [...notices, { code: off.code, message: `${off.message}. ${off.suggestion}.` }]
-			: notices;
+			? [...notices, ...lost, { code: off.code, message: `${off.message}. ${off.suggestion}.` }]
+			: [...notices, ...lost];
 	};
 	/**
 	 * A change of what main shows moves the URL (phase 2 specification, 6.3). Every success reports

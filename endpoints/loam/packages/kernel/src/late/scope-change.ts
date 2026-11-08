@@ -10,6 +10,7 @@ import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppStoreRecord } from '../apps/store.js';
 import type { AppsRuntime } from '../apps-runtime.js';
+import { BOOT_ONLY } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
 import { SHELL_OWNER } from '../overlay-owner.js';
@@ -20,7 +21,15 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { canOpen, disabledRefusal, setMain, setScopeProject } from './main-state.js';
+import type { DocumentCheck } from './document-types.js';
+import {
+	archivedRefusal,
+	canOpen,
+	disabledRefusal,
+	mismatchRefusal,
+	setMain,
+	setScopeProject,
+} from './main-state.js';
 
 export interface LateScopeDeps {
 	scope: ScopeRuntime;
@@ -31,6 +40,8 @@ export interface LateScopeDeps {
 	apps(): AppsRuntime;
 	auth: AuthAdapter;
 	isMutation(name: string): boolean;
+	/** The documents specification's check, for a type's instance commands (4.2 and 4.4). */
+	documents?: DocumentCheck;
 	/**
 	 * What only a replay sets (10): its recorded actor by trace ID, undefined when the journal has no such
 	 * entry, and `replaying`.
@@ -40,6 +51,13 @@ export interface LateScopeDeps {
 		replaying?: boolean;
 	};
 }
+
+/**
+ * The shell commands that read or write at the call's scope, naming no project (3.4): the documents
+ * specification's commands, which check a record on top, and the `app-*` commands that keep a value per
+ * project, the status values, the selection. `layout-*` is first paint's own. Boot's own work is not one.
+ */
+const AT_CALL_SCOPE = /^(document-|editor-|new-list$|app-get$|app-selection-|status-item-set$)/;
 
 const sameScope = (a: ScopeV1, b: ScopeV1): boolean =>
 	a.workspace === b.workspace && a.project === b.project;
@@ -167,27 +185,14 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		const target = projects[0];
 		if (target === undefined && !inWorkspace) return undefined;
 		const current = here.project === undefined ? undefined : scope.projects.get(here.project);
-		const where = target ? `the project ${target.name}` : 'the workspace';
-		const answer = (message: string, suggestion: string, details?: Record<string, unknown>) =>
-			kernelFailure(
-				'SCOPE_MISMATCH',
-				message,
-				suggestion,
-				details === undefined ? {} : { details }
-			);
 		if (call.caller !== undefined) {
-			return answer(
+			return kernelFailure(
+				'SCOPE_MISMATCH',
 				`\`${key}\` is in another scope`,
 				'It is not in the scope this surface runs in; open it where it is, and run this again.'
 			);
 		}
-		return answer(
-			`\`${key}\` is in ${where}, not ${current ? current.name : 'the workspace'}`,
-			target
-				? `Switch with scope-set { project: "${target.slug}" } and run this again.`
-				: 'Switch with scope-set { project: null } and run this again.',
-			target ? { project: { id: target.id, slug: target.slug, name: target.name } } : {}
-		);
+		return mismatchRefusal(key, target, current);
 	}
 
 	let lastActor: string | undefined;
@@ -254,6 +259,16 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			const requested = call.scope as ScopeV1;
 			const apps = deps.apps();
 			const owner = apps.owners.get(name)?.instance;
+			// A shell command that acts at the call's scope: the access decision on that scope first, so a
+			// project an actor may not enter answers as a missing one, on every path, MCP's `_meta` too (3.4).
+			if (
+				owner === undefined &&
+				AT_CALL_SCOPE.test(name) &&
+				!BOOT_ONLY.includes(name) &&
+				!scope.allows(actorKey(call), requested)
+			) {
+				return projectNotFound();
+			}
 			if (owner !== undefined) {
 				// A gate, not an omission, so it takes effect at once and replays the same (4.1).
 				const off = disabledRefusal(scope, owner);
@@ -270,21 +285,20 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 					call.scope = { workspace: requested.workspace };
 					scope.note(call.traceId, { scope: call.scope });
 				}
-				// Line 5: a store key in another scope.
-				const mismatch = await checkResource(name, input, call);
+				// Line 5: a type's instance command names a document in this scope, of its type, under 256 KiB
+				// (documents specification, 4.2 and 4.4); then a store key in another scope.
+				const mismatch =
+					(await deps.documents?.instance(name, input, call)) ??
+					(await checkResource(name, input, call));
 				if (mismatch) return mismatch;
 				// Line 6: a mutation under an archived project.
 				const at = (call.scope as ScopeV1).project;
 				const project = at === undefined ? undefined : scope.projects.get(at);
-				if (project?.status === 'archived' && deps.isMutation(name)) {
-					return kernelFailure(
-						'PROJECT_ARCHIVED',
-						`The project '${project.name}' is archived, so nothing in it can change`,
-						`Restore it with project-restore { project: "${project.slug}" }`
-					);
-				}
+				if (project?.status === 'archived' && deps.isMutation(name))
+					return archivedRefusal(project);
 			}
 			const result = await next();
+			if (owner !== undefined) await deps.documents?.after(name, call, result.success);
 			if (
 				result.success &&
 				name.startsWith('auth-') &&
