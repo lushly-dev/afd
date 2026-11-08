@@ -443,6 +443,7 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 		"- 'endpoints/umbel/**'",
 		"- '!endpoints/umbel/docs/**'",
 		'--path endpoints/umbel/ ',
+		'--except endpoints/umbel/docs/ ',
 		'working-directory: endpoints/umbel',
 		'workspaces: endpoints/umbel',
 	];

@@ -8385,11 +8385,11 @@
       "upstream_sha256": "478f988a68d6c21fff1b41b7a36bdf26d126182f6b47984b4c9ad62d9864404d",
       "staged_path": "packages/violet-elements/src/menu/violet-menu.spec.ts",
       "staged_sha256": "478f988a68d6c21fff1b41b7a36bdf26d126182f6b47984b4c9ad62d9864404d",
-      "current_import_sha256": "3f9e29c27911d363e583877db7709b40b26a788790dc342cc335bdd635628244",
+      "current_import_sha256": "88bcb48edddd0610ec588b5c7bd1eca3387e9d05491ec5843e3168ee72b74e5f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Waits for open state and focus instead of a fixed number of frames, asserting the same behavior: open follows the native toggle event, which frames do not order (#505)"
+      "import_reason": "Waits for open state and focus instead of a fixed number of frames, asserting the same behavior: open follows the native toggle event, which frames do not order (#505); an arrow key on the trigger of an open menu is pressed once the deferred first-item focus has landed, so it moves to the second item instead of racing that focus"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/menu/violet-menu.stories.ts",

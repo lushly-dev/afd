@@ -170,6 +170,27 @@ test('files map to owning packages, unit roots and shared inputs', (t) => {
 	assert.equal(scope(['packages\\core\\a.ts']).changed[0], '@x/core');
 });
 
+test('spec prose reaches no package; the files beside it reach their readers', () => {
+	const root = join(import.meta.dirname, '..');
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	// Package tests read spec JSON, vectors, wire fixtures and VERSION; only repository-wide
+	// checks, which always run, read the Markdown.
+	assert.deepEqual(scope(['spec/authorization.md', 'spec/CHANGELOG.md']).affected, []);
+	assert.deepEqual(scope(['spec/plugin-manifest.md']).affected, []);
+	assert.deepEqual(scope(['spec/authorization.json']).changed, [
+		'@lushly-dev/afd-cli',
+		'@lushly-dev/afd-core',
+		'@lushly-dev/afd-server',
+	]);
+	assert.deepEqual(scope(['spec/vectors/error-codes.json']).changed, [
+		'@lushly-dev/afd-cli',
+		'@lushly-dev/afd-core',
+		'@lushly-dev/afd-server',
+	]);
+	assert.ok(scope(['spec/plugin-manifest.json']).changed.includes('@lushly-dev/loam-manifest'));
+	assert.ok(scope(['spec/VERSION']).changed.includes('@lushly-dev/loam-manifest'));
+});
+
 test('the diff runs against the merge base and the lockfile is compared by importer', (t) => {
 	const { root, write } = fixture(t);
 	write('pnpm-lock.yaml', lockfile({ zod: '4.7.0' }));
@@ -291,6 +312,20 @@ test('pnpm arguments, gates and options follow the scope', (t) => {
 	assert.equal(gate(scope, { packages: ['@x/violet-core'], paths: [] }).run, false);
 	assert.equal(gate(none, { packages: ['@x/violet-core'], paths: ['docs/'] }).run, true);
 	assert.equal(gate(all, { packages: ['@x/violet-core'], paths: [] }).run, true);
+	// An --except prefix inside a gated path (a unit's docs/) opens nothing on its own.
+	const docs = resolveScope({ root, files: ['endpoints/umbel/docs/STATUS.md'], git: () => '' });
+	const umbel = parseArgs(
+		['gate', '--path', 'endpoints/umbel/', '--except', 'endpoints/umbel/docs/'],
+		{}
+	);
+	assert.deepEqual(umbel.except, ['endpoints/umbel/docs/']);
+	assert.equal(gate(docs, umbel).run, false);
+	const mixed = resolveScope({
+		root,
+		files: ['endpoints/umbel/docs/STATUS.md', 'endpoints/umbel/src/lib.rs'],
+		git: () => '',
+	});
+	assert.deepEqual(gate(mixed, umbel), { run: true, reason: 'endpoints/umbel/src/lib.rs changed' });
 
 	const options = parseArgs(
 		['run', 'test', '--no-bail', '--files', 'a.ts', 'b.ts', '--base', 'dev', '--', '--coverage'],
