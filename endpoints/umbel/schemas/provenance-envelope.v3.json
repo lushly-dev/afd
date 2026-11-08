@@ -1,0 +1,396 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/provenance-envelope.v3.json",
+	"title": "Umbel provenance envelope, version 3",
+	"description": "Where a record came from (D71), version 3 (phase 5 section 2.4, D111, D115): version 2 with delegationChain given its meaning, the principal's chain at the write (outermost first, at most 8, empty when the call had no token or assertion), and confirmation gaining assurance, how the person who confirmed was proven: terminal (the CLI's check) or verified (the person page, with the namespace, the login's authTime and its acr). Every other field keeps version 2's meaning. Reserved, and refused by version 3: tenant (owner decision 14). Rows and lines written in versions 0 to 2 stay as written and are read in their own version; a document keeps its envelope version, since an applied document's decision trace is its proposal.",
+	"type": "object",
+	"required": [
+		"version",
+		"origin",
+		"space",
+		"plugin",
+		"agent",
+		"principal",
+		"session",
+		"traceId",
+		"observedAt",
+		"validFrom",
+		"validUntil",
+		"confidence",
+		"authority",
+		"sources",
+		"generated",
+		"contentHash",
+		"derivedFrom",
+		"access",
+		"sensitivity",
+		"redactions",
+		"constraints",
+		"delegationChain",
+		"confirmation"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 3
+		},
+		"origin": {
+			"enum": ["user-stated", "agent-inferred", "document-derived", "unspecified"]
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"plugin": {
+			"description": "The plugin instance whose command produced the record, filled by the host from the call; null for host built-ins.",
+			"type": ["string", "null"],
+			"pattern": "^[a-z][a-z0-9-]{0,31}$"
+		},
+		"agent": {
+			"description": "The actor when its kind is agent, service or script; otherwise null.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"$ref": "#/$defs/actor"
+				}
+			]
+		},
+		"principal": {
+			"description": "The call's effective principal string, such as human:local; null for a call with no actor.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"$ref": "#/$defs/principal"
+				}
+			]
+		},
+		"session": {
+			"type": ["string", "null"]
+		},
+		"traceId": {
+			"type": ["string", "null"]
+		},
+		"observedAt": {
+			"type": "string",
+			"minLength": 1,
+			"description": "ISO 8601"
+		},
+		"validFrom": {
+			"type": ["string", "null"],
+			"description": "ISO 8601"
+		},
+		"validUntil": {
+			"type": ["string", "null"],
+			"description": "ISO 8601"
+		},
+		"confidence": {
+			"type": ["number", "null"],
+			"minimum": 0,
+			"maximum": 1
+		},
+		"authority": {
+			"description": "What the host can vouch for about the source. null for documents and records; the memory store refuses null. Not an attestation: person rests on a terminal check until phase 5.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"$ref": "#/$defs/authority"
+				}
+			]
+		},
+		"sources": {
+			"description": "The OKF sources list as the record states it, at most 64 entries.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"maxItems": 64,
+					"items": {
+						"type": "object",
+						"required": ["resource"],
+						"additionalProperties": false,
+						"properties": {
+							"resource": {
+								"type": "string",
+								"minLength": 1
+							},
+							"id": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"author": {
+								"type": "string"
+							},
+							"last_modified": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			]
+		},
+		"generated": {
+			"description": "OKF's { by, at }; at carries a UTC offset.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["by", "at"],
+					"additionalProperties": false,
+					"properties": {
+						"by": {
+							"type": "string",
+							"minLength": 1
+						},
+						"at": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+						}
+					}
+				}
+			]
+		},
+		"contentHash": {
+			"description": "sha256:<64 hex> of the record's bytes.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$"
+				}
+			]
+		},
+		"derivedFrom": {
+			"description": "The records this one was derived from, at most 64.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"maxItems": 64,
+					"items": {
+						"type": "object",
+						"required": ["kind", "id", "contentHash"],
+						"additionalProperties": false,
+						"properties": {
+							"kind": {
+								"type": "string",
+								"minLength": 1
+							},
+							"id": {
+								"type": "string",
+								"minLength": 1
+							},
+							"contentHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$"
+							}
+						}
+					}
+				}
+			]
+		},
+		"access": {
+			"description": "An access set: never empty.",
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"description": "space, group:<id> or principal:<kind>:<id>.",
+				"type": "string",
+				"pattern": "^(space|group:[a-z][a-z0-9-]{0,62}|principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128})$"
+			}
+		},
+		"sensitivity": {
+			"enum": ["public", "internal", "confidential", "restricted"]
+		},
+		"redactions": {
+			"description": "What hygiene masked, by secret kind, sorted by kind, each kind once (sorting is checked when the envelope is read). Never the text.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"maxItems": 32,
+					"items": {
+						"type": "object",
+						"required": ["kind", "count"],
+						"additionalProperties": false,
+						"properties": {
+							"kind": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 64
+							},
+							"count": {
+								"type": "integer",
+								"minimum": 1
+							}
+						}
+					}
+				}
+			]
+		},
+		"constraints": {
+			"description": "Limits the source stated on use, such as staging only. Scanned like the record's text; phase 4 carries them through consolidation.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"maxItems": 16,
+					"items": {
+						"type": "string",
+						"maxLength": 200
+					}
+				}
+			]
+		},
+		"confirmation": {
+			"description": "Filled only by the host, for memory-confirm: who vouched for the record, when, the authority it had before, and how that person was proven (assurance). A value a plugin sends is overwritten.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["by", "at", "priorAuthority", "assurance"],
+					"additionalProperties": false,
+					"properties": {
+						"by": {
+							"$ref": "#/$defs/principal"
+						},
+						"at": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+						},
+						"priorAuthority": {
+							"$ref": "#/$defs/authority"
+						},
+						"assurance": {
+							"$ref": "#/$defs/assurance"
+						}
+					}
+				}
+			]
+		},
+		"delegationChain": {
+			"$ref": "#/$defs/delegationChain"
+		}
+	},
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"principal": {
+			"description": "<kind>:<id>: kind is human, agent, service or script; the id is 1 to 128 characters without a control character.",
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		},
+		"authority": {
+			"enum": ["person", "agent", "tool", "transcript", "import", "document", "external"]
+		},
+		"namespacedId": {
+			"description": "A namespaced id (phase 5 section 4.1): <namespace>/<id>, where <id> is the issuer's subject or client id as sent when it is at most 120 characters, does not start with ~ and leaves the whole at most 128 characters (phase 2's id limit), and otherwise ~ and the 52 lowercase base32 characters of its SHA-256. No literal id can produce the hashed form.",
+			"type": "string",
+			"maxLength": 128,
+			"pattern": "^[a-z][a-z0-9-]{0,31}/([^~\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]{0,119}|~[a-z2-7]{52})$"
+		},
+		"delegationChain": {
+			"description": "Outermost first (phase 5 sections 2.1 and 4.3): the client, or the RFC 8693 act chain from an issuer configured delegation = \"act\", each entry mapped as a client is in 4.1; empty without a token or assertion; at most 8.",
+			"type": "array",
+			"maxItems": 8,
+			"items": {
+				"type": "object",
+				"required": ["kind", "id"],
+				"additionalProperties": false,
+				"properties": {
+					"kind": {
+						"enum": ["agent", "service"]
+					},
+					"id": {
+						"$ref": "#/$defs/namespacedId"
+					}
+				}
+			}
+		},
+		"assurance": {
+			"description": "How a person was proven for one decision (phase 5 sections 2.4 and 7.1, owner decision 6): terminal, the CLI's check, records only its level and method; verified, the person page, records the namespace, the login's auth_time and its acr, which user verification makes mandatory on every login (7.2, step 3).",
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["level", "method"],
+					"additionalProperties": false,
+					"properties": {
+						"level": {
+							"const": "terminal"
+						},
+						"method": {
+							"const": "cli-terminal"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["level", "method", "namespace", "authTime", "acr"],
+					"additionalProperties": false,
+					"properties": {
+						"level": {
+							"const": "verified"
+						},
+						"method": {
+							"const": "person-page"
+						},
+						"namespace": {
+							"type": "string",
+							"pattern": "^[a-z][a-z0-9-]{0,31}$"
+						},
+						"authTime": {
+							"description": "The ID token's auth_time, ISO 8601 UTC.",
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"acr": {
+							"description": "The ID token's acr, one of the namespace's acr_values.",
+							"type": "string",
+							"pattern": "^[^\\s\\u0000-\\u001f\\u007f-\\u009f]{1,255}$"
+						}
+					}
+				}
+			]
+		}
+	}
+}

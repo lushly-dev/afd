@@ -259,6 +259,9 @@ pub(crate) fn plugin_gate(
                         return failure(error);
                     }
                 }
+                if entry.person_verified {
+                    return failure(crate::auth::person_verification_unavailable(&name));
+                }
                 if entry.require_human && !confirmed_by_a_person(&name, &context) {
                     return failure(require_human_refusal(&name));
                 }

@@ -1,0 +1,137 @@
+{
+	"config_version": 5,
+	"name": "corp-team",
+	"default_space": "main",
+	"profile": "team",
+	"spaces": {
+		"main": {
+			"title": "Main",
+			"readers": ["*"]
+		},
+		"alpha": {
+			"title": "Alpha",
+			"readers": ["group:eng", "human:corp/U019488227"]
+		}
+	},
+	"principal": {
+		"local_id": "corp/U019488227",
+		"on_behalf_of": "corp/U019488227",
+		"equivalents": {
+			"human:ada": "human:corp/U019488227",
+			"agent:ada": "human:corp/U019488227",
+			"agent:loopback": "human:corp/U019488227"
+		}
+	},
+	"http": {
+		"bind": "0.0.0.0:8443",
+		"public_url": "https://umbel.example.com/mcp",
+		"path": "/mcp",
+		"allowed_hosts": ["umbel.example.com"],
+		"tls": {
+			"cert": "secrets/tls/cert.pem",
+			"key": "secrets/tls/key.pem",
+			"client_auth": "any"
+		}
+	},
+	"auth": {
+		"mode": "oauth",
+		"scope_prefix": "umbel",
+		"filter_tools_by_scope": true,
+		"clock_skew_s": 60,
+		"max_token_lifetime_s": 3600,
+		"require_bound_tokens": false,
+		"namespaces": {
+			"corp": {
+				"person": {
+					"issuer": "corp-idp",
+					"client_id": "umbel-person-page",
+					"client_secret_env": "UMBEL_PERSON_SECRET",
+					"subject_claim": "sub",
+					"max_age_s": 300,
+					"acr_values": ["phr"],
+					"uv_amr": ["pin", "fpt", "face", "iris", "retina", "vbm"]
+				}
+			},
+			"partners": {}
+		},
+		"issuers": {
+			"corp-idp": {
+				"issuer": "https://idp.example.com",
+				"namespace": "corp",
+				"subject_claim": "sub",
+				"verify": "jwt",
+				"algorithms": ["RS256", "PS256", "ES256", "EdDSA"],
+				"delegation": "none",
+				"services": {
+					"clients": ["build-bot"],
+					"claim": {
+						"name": "idtyp",
+						"value": "app"
+					}
+				},
+				"access_tokens": true
+			},
+			"corp-as": {
+				"issuer": "https://as.example.com",
+				"namespace": "corp",
+				"subject_claim": "sub",
+				"delegation": "act"
+			},
+			"partner-as": {
+				"issuer": "https://auth.partner.example/oauth2",
+				"namespace": "partners",
+				"subject_claim": "oid",
+				"verify": "introspection",
+				"introspection": {
+					"client_id": "umbel-resource",
+					"client_secret_env": "UMBEL_INTROSPECTION_SECRET"
+				},
+				"access_tokens": true
+			}
+		}
+	},
+	"access": {
+		"groups": {
+			"eng": {
+				"members": ["human:corp/U019488227"],
+				"claim": {
+					"issuer": "corp-idp",
+					"name": "groups",
+					"value": "engineering"
+				}
+			},
+			"records-admins": {
+				"members": ["human:corp/U019488227", "human:corp/U020511931"]
+			}
+		}
+	},
+	"limits": {
+		"ip_requests_per_minute": 1200,
+		"calls_per_minute": 600,
+		"read_bytes_per_minute": 67108864,
+		"person_pages_per_hour": 30
+	},
+	"usage": {
+		"enabled": true,
+		"readers": ["group:records-admins"],
+		"retention_days": 400
+	},
+	"plugins": {
+		"enabled": ["memory"],
+		"memory": {
+			"source": "compiled:memory",
+			"grants": {
+				"memory_write": {
+					"allow": ["main", "alpha"],
+					"default_access": "private",
+					"writers": ["group:eng"],
+					"agents_may_share": false,
+					"editors": ["group:eng"],
+					"erasers": ["group:records-admins"],
+					"erase_approvals": 2,
+					"erase_approval_window_s": 86400
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,53 @@
+{
+	"config_version": 5,
+	"name": "edge-team",
+	"spaces": {
+		"main": {
+			"readers": ["*"]
+		}
+	},
+	"principal": {
+		"local_id": "corp/U019488227"
+	},
+	"http": {
+		"bind": "[::]:8443",
+		"public_url": "https://umbel.internal.example:8443/mcp",
+		"allowed_hosts": ["umbel.internal.example:8443"],
+		"tls": {
+			"cert": "/etc/umbel/tls/cert.pem",
+			"key": "/etc/umbel/tls/key.pem",
+			"client_auth": "ca",
+			"client_ca": "/etc/umbel/tls/gateway-ca.pem"
+		}
+	},
+	"auth": {
+		"mode": "gateway",
+		"namespaces": {
+			"corp": {
+				"person": {
+					"issuer": "corp-idp",
+					"client_id": "umbel-person-page",
+					"client_secret_env": "UMBEL_PERSON_SECRET",
+					"acr_values": ["urn:example:acr:mfa-uv"],
+					"uv_amr": ["pin", "fpt"]
+				}
+			}
+		},
+		"issuers": {
+			"corp-idp": {
+				"issuer": "https://idp.example.com",
+				"namespace": "corp",
+				"access_tokens": false
+			}
+		},
+		"gateway": {
+			"alias": "edge",
+			"namespace": "corp",
+			"issuer": "https://gateway.example.com",
+			"keys": "secrets/gateway/jwks.json",
+			"client_cert_sha256": ["9f2c1b7e3a5d4c6b8e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f"],
+			"max_assertion_age_s": 60,
+			"max_scopes": ["umbel:read", "umbel:write:main"]
+		}
+	}
+}

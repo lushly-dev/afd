@@ -129,20 +129,32 @@ async fn workspace_show_lists_the_plugins_and_the_versions() {
             {"id": "ghost", "status": "failed"},
         ])
     );
-    assert_eq!(shown["versions"]["config"], 4);
-    assert_eq!(shown["versions"]["manifest"], json!([1, 2, 3, 4]));
+    // Phase 5 section 2: lists name every version read side by side; `provenance` stays the
+    // envelope version this host writes.
+    assert_eq!(shown["versions"]["config"], json!([1, 2, 3, 4, 5]));
+    assert_eq!(shown["versions"]["manifest"], json!([1, 2, 3, 4, 5]));
     assert_eq!(shown["versions"]["provenance"], 2);
-    assert_eq!(shown["versions"]["event"], 2);
     assert_eq!(shown["versions"]["store"], 2);
-    assert_eq!(shown["versions"]["proposal"], json!([1, 2]));
+    for (shape, versions) in [
+        ("principal", json!([0, 1])),
+        ("envelope", json!([0, 1, 2, 3])),
+        ("event", json!([0, 1, 2, 3])),
+        ("proposal", json!([1, 2, 3])),
+        ("cursor", json!([0, 1])),
+        ("locator", json!([1, 2])),
+        ("memory", json!([1, 2])),
+    ] {
+        assert_eq!(shown["versions"][shape], versions, "{shape}");
+    }
     for shape in [
         "document",
-        "locator",
         "curator",
-        "memory",
         "memoryKeys",
         "capture",
         "bundle",
+        "task",
+        "usage",
+        "person",
     ] {
         assert_eq!(shown["versions"][shape], 1, "{shape}");
     }

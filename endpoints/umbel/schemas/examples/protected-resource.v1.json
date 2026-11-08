@@ -1,0 +1,8 @@
+{
+	"resource": "https://umbel.example.com/mcp",
+	"authorization_servers": ["https://idp.example.com", "https://as.example.com"],
+	"scopes_supported": ["umbel:read"],
+	"bearer_methods_supported": ["header"],
+	"resource_name": "Umbel (example)",
+	"tls_client_certificate_bound_access_tokens": false
+}

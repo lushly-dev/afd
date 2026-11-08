@@ -6,11 +6,12 @@ use crate::plugins::{
     LoadedPlugins, MANIFEST_VERSIONS, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD,
 };
 use crate::versions::{
-    BUNDLE_VERSION, CAPTURE_VERSION, CURATOR_VERSION, CURSOR_VERSION, DOCUMENT_VERSION,
-    EVENT_VERSION, LOCATOR_VERSION, MEMORY_KEYS_VERSION, MEMORY_VERSION, PRINCIPAL_VERSION,
-    PROPOSAL_VERSIONS, PROVENANCE_VERSION, STORE_VERSION,
+    BUNDLE_VERSION, CAPTURE_VERSION, CURATOR_VERSION, CURSOR_VERSIONS, DOCUMENT_VERSION,
+    ENVELOPE_VERSIONS, EVENT_VERSIONS, LOCATOR_VERSIONS, MEMORY_KEYS_VERSION, MEMORY_VERSIONS,
+    PERSON_VERSION, PRINCIPAL_VERSIONS, PROPOSAL_VERSIONS, PROVENANCE_VERSION, STORE_VERSION,
+    TASK_VERSION, USAGE_VERSION,
 };
-use crate::workspace::{CONFIG_VERSION, Workspace};
+use crate::workspace::{CONFIG_VERSIONS, Workspace};
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, success};
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -58,25 +59,31 @@ impl CommandHandler for Handler {
                 "version": env!("CARGO_PKG_VERSION"),
                 "afdContract": afd::CONTRACT_VERSION,
             },
+            // Phase 5 section 2: a list names every version of a shape read side by side;
+            // `provenance` stays the envelope version this host writes.
             "versions": {
-                "config": CONFIG_VERSION,
+                "config": CONFIG_VERSIONS,
                 "manifest": MANIFEST_VERSIONS,
                 "protocol": PLUGIN_PROTOCOL_VERSION,
                 "wit": WIT_WORLD,
                 "pack": PACK_VERSION,
-                "principal": PRINCIPAL_VERSION,
+                "principal": PRINCIPAL_VERSIONS,
                 "provenance": PROVENANCE_VERSION,
-                "event": EVENT_VERSION,
-                "cursor": CURSOR_VERSION,
+                "envelope": ENVELOPE_VERSIONS,
+                "event": EVENT_VERSIONS,
+                "cursor": CURSOR_VERSIONS,
                 "store": STORE_VERSION,
                 "document": DOCUMENT_VERSION,
-                "locator": LOCATOR_VERSION,
+                "locator": LOCATOR_VERSIONS,
                 "proposal": PROPOSAL_VERSIONS,
-                "memory": MEMORY_VERSION,
+                "memory": MEMORY_VERSIONS,
                 "memoryKeys": MEMORY_KEYS_VERSION,
                 "capture": CAPTURE_VERSION,
                 "bundle": BUNDLE_VERSION,
                 "curator": CURATOR_VERSION,
+                "task": TASK_VERSION,
+                "usage": USAGE_VERSION,
+                "person": PERSON_VERSION,
             },
             // How far access filtering holds (phase 2 specification, section 6, owner decision 1
             // of 2026-11-01): nothing verifies who a stdio or loopback HTTP caller is until

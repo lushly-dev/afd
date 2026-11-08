@@ -5,6 +5,7 @@ mod access;
 mod config;
 mod discovery;
 mod error;
+mod hosted;
 mod keys;
 mod layout;
 mod plugins_config;
@@ -19,14 +20,19 @@ use afd::{FileJournalSink, JournalFileLock, JournalLockError};
 
 pub use access::{AccessToken, PRINCIPAL_KINDS, ReaderEntry, check_member, parse_principal};
 pub use config::{
-    AccessConfig, AccessGroup, CONFIG_VERSION, CollectionConfig, CollectionKind, Config,
-    ConfigFile, Confirmations, DEFAULT_LOCAL_ID, DEFAULT_MAX_FILE_BYTES,
+    AccessConfig, AccessGroup, CONFIG_VERSION, CONFIG_VERSIONS, CollectionConfig, CollectionKind,
+    Config, ConfigFile, Confirmations, DEFAULT_LOCAL_ID, DEFAULT_MAX_FILE_BYTES,
     DEFAULT_STORE_LOCK_TIMEOUT_MS, HttpConfig, JournalConfig, KeyScan, LogConfig, LogFormat,
     McpConfig, Overrides, PrincipalConfig, SpaceConfig, StoreConfig,
 };
 pub(crate) use config::{RootProblem, resolve_root};
 pub use discovery::{FoundBy, Located, WORKSPACE_ENV, discover, discover_from_process};
 pub use error::{WorkspaceError, codes};
+pub use hosted::{
+    AuthConfig, AuthMode, ClaimMatch, ClientAuth, Delegation, GatewayConfig, GroupClaim,
+    IntrospectionClient, IssuerConfig, NamespaceConfig, PersonLogin, RateLimits, ServicesConfig,
+    TlsConfig, TokenCheck, UsageConfig,
+};
 pub use keys::{KEY_BYTES, TOKEN_CHARS};
 pub use layout::Layout;
 pub use plugins_config::{
@@ -91,7 +97,7 @@ impl Workspace {
     }
 
     /// Create a workspace in `dir` (made when missing): `umbel.toml` holding only
-    /// `config_version = 4`, when given, `name`, and `[principal] on_behalf_of` equal to the
+    /// `config_version = 5`, when given, `name`, and `[principal] on_behalf_of` equal to the
     /// default `local_id`, so a local agent's records belong to the same person as the CLI's
     /// (phase 3 section 3.2); `spaces/main/`; `state/` with the keys and a `.gitignore` of `*`.
     ///

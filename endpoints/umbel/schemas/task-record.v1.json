@@ -1,0 +1,360 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/task-record.v1.json",
+	"title": "Umbel task record, version 1",
+	"description": "One MCP task running one command, in state/shared/tasks.sqlite3 (phase 5 section 12.2, D127; step 0e's amendments). It exists before CreateTaskResult is sent, and every tasks/* call compares its caller with owner, a mismatch answering as an unknown id. It holds no token, credentials or input, and no content: only commands whose results are counts and ids may be tasks (manifest version 5), and a result carrying dev.umbel/trust content fails the task. status follows AFD's task states: working holds a lease and no outcome; completed holds the command's CallToolResult, a failed CommandResult included (isError, as TASK_LOST, TASK_TOKEN_EXPIRED and TASK_SPACE_UNREADABLE are); failed holds only the JSON-RPC internal error; cancelled holds neither. input_required never occurs: no task command asks a person. ttlMs never runs past the starting token's exp (the host's rule); results are purged at the TTL with secure_delete.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"owner",
+		"command",
+		"space",
+		"status",
+		"statusMessage",
+		"createdAt",
+		"lastUpdatedAt",
+		"ttlMs",
+		"pollIntervalMs",
+		"cancelRequested",
+		"lease",
+		"result",
+		"error"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"description": "128 bits from the OS random source, unpadded lowercase RFC 4648 base32: 26 characters.",
+			"type": "string",
+			"pattern": "^[a-z2-7]{26}$"
+		},
+		"owner": {
+			"description": "Who started it: the effective principal and the actor, and with credentials the issuer alias and the client id; both null for a caller with no token (stdio).",
+			"type": "object",
+			"required": ["effectivePrincipal", "actor", "issuer", "clientId"],
+			"additionalProperties": false,
+			"properties": {
+				"effectivePrincipal": {
+					"type": "string",
+					"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+				},
+				"actor": {
+					"$ref": "#/$defs/actor"
+				},
+				"issuer": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^[a-z][a-z0-9-]{0,62}$"
+						}
+					]
+				},
+				"clientId": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+						}
+					]
+				}
+			},
+			"oneOf": [
+				{
+					"properties": {
+						"issuer": {
+							"type": "null"
+						},
+						"clientId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"issuer": {
+							"type": "string"
+						},
+						"clientId": {
+							"type": "string"
+						}
+					}
+				}
+			]
+		},
+		"command": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+		},
+		"space": {
+			"description": "A task belongs to one space.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"status": {
+			"enum": ["working", "completed", "failed", "cancelled"]
+		},
+		"statusMessage": {
+			"description": "A phase name only, never content.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,63}$"
+				}
+			]
+		},
+		"createdAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+		},
+		"lastUpdatedAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+		},
+		"ttlMs": {
+			"description": "Default 3600000, and never past the starting token's exp.",
+			"type": "integer",
+			"minimum": 1
+		},
+		"pollIntervalMs": {
+			"description": "Default 1000.",
+			"type": "integer",
+			"minimum": 1
+		},
+		"cancelRequested": {
+			"description": "Whether tasks/cancel asked to stop it; a runner checks it between batches.",
+			"type": "boolean"
+		},
+		"lease": {
+			"description": "The process running it and how long its lease lasts; one not renewed for 10 seconds means TASK_LOST.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["process", "until"],
+					"additionalProperties": false,
+					"properties": {
+						"process": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9._:-]{1,128}$"
+						},
+						"until": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+						}
+					}
+				}
+			]
+		},
+		"result": {
+			"description": "A completed task's CallToolResult.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"$ref": "#/$defs/callToolResult"
+				}
+			]
+		},
+		"error": {
+			"description": "A failed task's JSON-RPC error: only the internal error.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["code", "message"],
+					"additionalProperties": false,
+					"properties": {
+						"code": {
+							"const": -32603
+						},
+						"message": {
+							"const": "Internal error"
+						}
+					}
+				}
+			]
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"status": {
+						"const": "working"
+					}
+				},
+				"required": ["status"]
+			},
+			"then": {
+				"properties": {
+					"lease": {
+						"type": "object"
+					},
+					"result": {
+						"type": "null"
+					},
+					"error": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"lease": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"status": {
+						"const": "completed"
+					}
+				},
+				"required": ["status"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"type": "object"
+					},
+					"error": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"status": {
+						"const": "failed"
+					}
+				},
+				"required": ["status"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"type": "null"
+					},
+					"error": {
+						"type": "object"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"status": {
+						"const": "cancelled"
+					}
+				},
+				"required": ["status"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"type": "null"
+					},
+					"error": {
+						"type": "null"
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"callToolResult": {
+			"description": "The CallToolResult an inline call would return. Never content: dev.umbel/trust content in its metadata fails the task.",
+			"type": "object",
+			"required": ["content"],
+			"additionalProperties": false,
+			"properties": {
+				"resultType": {
+					"const": "complete"
+				},
+				"content": {
+					"type": "array",
+					"items": {
+						"type": "object"
+					}
+				},
+				"structuredContent": {
+					"type": "object",
+					"not": {
+						"properties": {
+							"metadata": {
+								"type": "object",
+								"properties": {
+									"dev.umbel/trust": {
+										"const": "content"
+									}
+								},
+								"required": ["dev.umbel/trust"]
+							}
+						},
+						"required": ["metadata"]
+					}
+				},
+				"isError": {
+					"type": "boolean"
+				},
+				"_meta": {
+					"type": "object",
+					"not": {
+						"type": "object",
+						"properties": {
+							"dev.umbel/trust": {
+								"const": "content"
+							}
+						},
+						"required": ["dev.umbel/trust"]
+					}
+				}
+			}
+		}
+	}
+}

@@ -275,26 +275,27 @@ fn version_4_keys_are_refused_in_versions_1_to_3() {
 }
 
 #[test]
-fn another_version_is_unsupported_and_names_1_to_4() {
-    let error = open("config_version = 5\n").unwrap_err();
+fn another_version_is_unsupported_and_names_1_to_5() {
+    // Version 5 (phase 5) is read beside version 4 and tested in `config_v5.rs`.
+    let error = open("config_version = 6\n").unwrap_err();
     assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
-    assert!(error.message().contains("1 to 4"), "{error}");
-    assert_eq!(umbel::CONFIG_VERSION, 4);
+    assert!(error.message().contains("1 to 5"), "{error}");
+    assert_eq!(umbel::CONFIG_VERSION, 5);
 }
 
 // ── umbel init ─────────────────────────────────────────────────────────────────────────────────
 
 #[test]
-fn init_writes_version_4_with_on_behalf_of_the_local_id() {
+fn init_writes_the_current_version_with_on_behalf_of_the_local_id() {
     let dir = tempfile::tempdir().unwrap();
     let target = dir.path().join("fresh");
     let workspace = Workspace::init(&target, Some("team")).unwrap();
     assert_eq!(
         fs::read_to_string(target.join("umbel.toml")).unwrap(),
-        "config_version = 4\nname = \"team\"\n\n[principal]\non_behalf_of = \"local\"\n"
+        "config_version = 5\nname = \"team\"\n\n[principal]\non_behalf_of = \"local\"\n"
     );
     let config = workspace.config();
-    assert_eq!(config.version, 4);
+    assert_eq!(config.version, 5);
     assert_eq!(config.principal.local_id, "local");
     assert_eq!(config.principal.on_behalf_of.as_deref(), Some("local"));
     assert!(target.join("spaces/main").is_dir());
@@ -307,6 +308,6 @@ fn init_writes_version_4_with_on_behalf_of_the_local_id() {
     Workspace::init(&bare, None).unwrap();
     assert_eq!(
         fs::read_to_string(bare.join("umbel.toml")).unwrap(),
-        "config_version = 4\n\n[principal]\non_behalf_of = \"local\"\n"
+        "config_version = 5\n\n[principal]\non_behalf_of = \"local\"\n"
     );
 }

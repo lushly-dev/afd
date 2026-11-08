@@ -1,0 +1,29 @@
+{
+	"version": 1,
+	"id": "b25ufh5invebyjrq7lct3mojdq",
+	"owner": {
+		"effectivePrincipal": "human:local",
+		"actor": {
+			"kind": "agent",
+			"id": "local",
+			"onBehalfOf": "local"
+		},
+		"issuer": null,
+		"clientId": null
+	},
+	"command": "sources-sync",
+	"space": "main",
+	"status": "failed",
+	"statusMessage": null,
+	"createdAt": "2026-11-09T10:00:00.000Z",
+	"lastUpdatedAt": "2026-11-09T10:00:05.000Z",
+	"ttlMs": 600000,
+	"pollIntervalMs": 1000,
+	"cancelRequested": false,
+	"lease": null,
+	"result": null,
+	"error": {
+		"code": -32603,
+		"message": "Internal error"
+	}
+}

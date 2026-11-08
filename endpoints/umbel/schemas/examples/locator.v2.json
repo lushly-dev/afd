@@ -1,0 +1,13 @@
+{
+	"version": 2,
+	"space": "main",
+	"doc": "handbook/deploy/rollback",
+	"chunk": 3,
+	"lines": {
+		"start": 12,
+		"end": 40
+	},
+	"headingPath": ["Deploy", "Rolling back"],
+	"contentHash": "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8",
+	"indexVersion": "main@r1.Qm9yN2x0cFdaV3NkM1h2S2pUNmNiUjhnTHVBMHlFbkhxZk1pWTRvQjFlUA/1"
+}

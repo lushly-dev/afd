@@ -1,0 +1,67 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/locator.v2.json",
+	"title": "Umbel locator, version 2",
+	"description": "The stable address of a hit (D61), version 2 (phase 5 section 9.3, D125): version 1 with indexVersion <space>@r1.<token>/<schema>, where the token seals the last revision this caller can read at or below the applied one, so the locator moves only when something the caller can read changes. The token is the unpadded base64url of an XChaCha20-Poly1305 seal under state/keys/cursor.key with the caller's principal as associated data and a deterministic nonce (an SIV construction), compared only for equality; the nonce and tag make at least 55 characters, and 128 bound the revision. The locator string umbel:<space>/<doc>#L<start>-L<end>@<first 12 hex of the content hash> is unchanged and accepted by knowledge-open.",
+	"type": "object",
+	"required": [
+		"version",
+		"space",
+		"doc",
+		"chunk",
+		"lines",
+		"headingPath",
+		"contentHash",
+		"indexVersion"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 2
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"doc": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"chunk": {
+			"description": "The chunk's ordinal in the document.",
+			"type": "integer",
+			"minimum": 0
+		},
+		"lines": {
+			"type": "object",
+			"required": ["start", "end"],
+			"additionalProperties": false,
+			"properties": {
+				"start": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"end": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"headingPath": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"contentHash": {
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"indexVersion": {
+			"description": "<space>@r1.<sealed revision>/<index schema>.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}@r1\\.[A-Za-z0-9_-]{55,128}/[0-9]+$"
+		}
+	}
+}

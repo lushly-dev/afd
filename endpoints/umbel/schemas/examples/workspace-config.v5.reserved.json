@@ -1,0 +1,15 @@
+{
+	"config_version": 5,
+	"spaces": {
+		"main": {
+			"backend": "embedded"
+		}
+	},
+	"events": {
+		"retention": "forever"
+	},
+	"plugins": {
+		"enabled": ["hello"],
+		"hello": {}
+	}
+}
