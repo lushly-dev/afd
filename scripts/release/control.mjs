@@ -257,6 +257,13 @@ export function parseFragments(root, inventory = loadInventory(root)) {
 			// prerelease mode for one run only, so committed state of any kind is refused.
 			if (lstatSync(join(dir, file)).isDirectory())
 				fail(`Unexpected directory in release fragment storage: ${path}`);
+			// Changesets 3 never reads these names, so a fragment under one would be counted here
+			// and never applied.
+			if (
+				storage.protocol === 'npm-changesets' &&
+				/^(\..*|readme\.md|agents\.md|claude\.md|gemini\.md)$/i.test(file)
+			)
+				fail(`Changesets ignores this file name; rename the fragment: ${path}`);
 			const text = read(root, path);
 			const packages = [];
 			if (storage.protocol === 'npm-changesets') {

@@ -121,6 +121,28 @@ test('raw publishers/versioners and flag-position command bypasses cannot run', 
 		);
 	assert.equal(calls, 0);
 });
+test('a status report path from CHANGESETS_OUTPUT cannot bypass the output check', () => {
+	const { root } = fixture();
+	let calls = 0;
+	assert.throws(
+		() =>
+			runChangeset({
+				root,
+				args: ['status'],
+				env: { CHANGESETS_OUTPUT: '.changeset/report.json' },
+				execute: () => calls++,
+			}),
+		/Unset CHANGESETS_OUTPUT/
+	);
+	assert.equal(calls, 0);
+});
+test('fragments under names Changesets 3 never reads are refused, not counted', () => {
+	for (const name of ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', 'readme.md', '.hidden.md']) {
+		const { root } = fixture();
+		writeFileSync(join(root, '.changeset', name), '---\n"@fixture/a": patch\n---\nIgnored\n');
+		assert.throws(() => parseFragments(root), /Changesets ignores this file name/, name);
+	}
+});
 test('unknown npm identities need declared ownership before interactive package choice', () => {
 	const { root } = fixture();
 	mkdirSync(join(root, 'packages/import'), { recursive: true });

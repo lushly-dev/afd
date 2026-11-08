@@ -199,8 +199,46 @@ test('a prerelease refuses Changesets prerelease state it did not create', (t) =
 	write(f.root, '.changeset/pre/stale.md', '---\n"@fixture/p": major\n---\n\nStale\n');
 	commit(f.root);
 	const before = versions(f);
-	assert.throws(() => version(f, 'npm-prerelease'), /\.changeset\/pre/);
+	assert.throws(
+		() => version(f, 'npm-prerelease'),
+		/Unexpected directory in release fragment storage: \.changeset\/pre/
+	);
 	assert.deepEqual(versions(f), before);
+});
+
+// Changesets 3 bumps a dependent that leaves its peer range by patch and narrows the range.
+test('a release that narrows a peer range without a major of the dependent is refused', (t) => {
+	const f = fixture(t);
+	write(
+		f.root,
+		'.changeset/preview.md',
+		'---\n"@fixture/p": major\n"@fixture/d": patch\n---\n\nP\n'
+	);
+	commit(f.root);
+	const before = versions(f);
+	assert.throws(
+		() => version(f, 'npm-prerelease'),
+		/@fixture\/d .* changes its peer range on @fixture\/p without a major bump/
+	);
+	assert.deepEqual(versions(f), before);
+	assert.equal(existsSync(join(f.root, '.changeset/preview.md')), true);
+});
+
+test('a release that narrows a peer range ships with a major of the dependent', (t) => {
+	const f = fixture(t);
+	write(
+		f.root,
+		'.changeset/preview.md',
+		'---\n"@fixture/p": major\n"@fixture/d": major\n---\n\nP\n'
+	);
+	commit(f.root);
+	version(f, 'npm-prerelease');
+	assert.equal(versions(f).p, '3.0.0-preview.0');
+	assert.equal(versions(f).d, '3.0.0-preview.0');
+	assert.equal(
+		read(f.root, 'packages/d/package.json').peerDependencies['@fixture/p'],
+		'^3.0.0-preview.0'
+	);
 });
 
 test('a prerelease plan publishes under its own tag and refuses another', (t) => {
