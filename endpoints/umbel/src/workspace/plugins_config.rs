@@ -1,6 +1,7 @@
 //! `[plugins]` of `umbel.toml`, configuration version 2 (phase 1 specification, section 9.1), with
-//! version 3's grant allow lists (phase 2 section 4.1) and version 4's `memory_write` policy
-//! (phase 3 sections 2.4 and 3.2).
+//! version 3's grant allow lists (phase 2 section 4.1), version 4's `memory_write` policy
+//! (phase 3 sections 2.4 and 3.2) and version 5's editors, erasers and two-person rule (phase 5
+//! sections 8.3 and 8.4).
 //!
 //! Version 2 adds the plugin instances: `plugins.enabled` lists their ids in load order, and an
 //! optional `[plugins.<id>]` table per instance holds its source, spaces, denied grants,
@@ -64,6 +65,18 @@ pub(super) const GRANT_KEYS: &[&str] = &["allow"];
 /// policy the host enforces (phase 3 section 3.2).
 pub(super) const MEMORY_WRITE_GRANT_KEYS: &[&str] =
     &["allow", "default_access", "writers", "agents_may_share"];
+/// The keys of `grants.memory_write` from configuration version 5, which adds `editors` (phase 5
+/// section 8.3) and `erasers`, `erase_approvals` and `erase_approval_window_s` (section 8.4).
+pub(super) const MEMORY_WRITE_GRANT_KEYS_V5: &[&str] = &[
+    "allow",
+    "default_access",
+    "writers",
+    "agents_may_share",
+    "editors",
+    "erasers",
+    "erase_approvals",
+    "erase_approval_window_s",
+];
 /// The grants configuration version 4 adds to `deny` and `grants`.
 const GRANTS_V4: &[&str] = &["memory_write"];
 /// The component limits.
@@ -122,8 +135,8 @@ impl DefaultAccess {
 }
 
 /// `[plugins.<id>.grants.memory_write]`'s sharing policy (configuration version 4, phase 3 section
-/// 3.2). The host enforces it on every `memory_write` call.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// 3.2), with version 5's editors and erasers. The host enforces it on every `memory_write` call.
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct MemoryWritePolicy {
     /// The access set of a `memory-remember` with no `share`.
@@ -132,6 +145,30 @@ pub struct MemoryWritePolicy {
     pub writers: Vec<String>,
     /// Whether an agent holding a `writers` token may widen it too.
     pub agents_may_share: bool,
+    /// Version 5: access tokens whose holders, as a person (`verified` over MCP), may change
+    /// another principal's record (phase 5 section 8.3). Empty by default.
+    pub editors: Vec<String>,
+    /// Version 5: access tokens whose holders, as a verified person, may run `memory-erase`
+    /// (phase 5 section 8.4). Empty by default; `space` is refused.
+    pub erasers: Vec<String>,
+    /// Version 5: how many distinct erasers approve one erase, 1 or 2; 1 by default.
+    pub erase_approvals: u64,
+    /// Version 5: how long a first eraser's request waits for the second, in seconds.
+    pub erase_approval_window_s: u64,
+}
+
+impl Default for MemoryWritePolicy {
+    fn default() -> Self {
+        Self {
+            default_access: DefaultAccess::default(),
+            writers: Vec::new(),
+            agents_may_share: false,
+            editors: Vec::new(),
+            erasers: Vec::new(),
+            erase_approvals: crate::auth::DEFAULT_ERASE_APPROVALS,
+            erase_approval_window_s: crate::auth::DEFAULT_ERASE_APPROVAL_WINDOW_S,
+        }
+    }
 }
 
 /// One entry of `plugins.enabled`: a plugin, its source, its configuration and its spaces.
@@ -456,18 +493,22 @@ fn allow_lists(
                 "must be a table with an allow list",
             ));
         };
-        let known = if grant == "memory_write" {
-            MEMORY_WRITE_GRANT_KEYS
-        } else {
-            GRANT_KEYS
+        let known = match (grant.as_str(), version) {
+            ("memory_write", 5..) => MEMORY_WRITE_GRANT_KEYS_V5,
+            ("memory_write", _) => MEMORY_WRITE_GRANT_KEYS,
+            _ => GRANT_KEYS,
         };
         if let Some(unknown) = entry.keys().find(|k| !known.contains(&k.as_str())) {
             return Err(WorkspaceError::config_invalid(
                 &format!("{grant_key}.{unknown}"),
-                if grant == "memory_write" {
-                    "is not a known key; the memory_write table holds allow, default_access, writers and agents_may_share"
-                } else {
+                if grant != "memory_write" {
                     "is not a known key; a grant table holds only `allow`"
+                } else if MEMORY_WRITE_GRANT_KEYS_V5.contains(&unknown.as_str()) {
+                    "needs config_version = 5"
+                } else if version >= 5 {
+                    "is not a known key; the memory_write table holds allow, default_access, writers, agents_may_share, editors, erasers, erase_approvals and erase_approval_window_s"
+                } else {
+                    "is not a known key; the memory_write table holds allow, default_access, writers and agents_may_share"
                 },
             ));
         }
@@ -554,22 +595,52 @@ fn memory_write_policy(
             ));
         }
     };
-    let writers_key = format!("{grant_key}.writers");
-    let writers = reader.string_array("writers")?.unwrap_or_default();
-    for (index, token) in writers.iter().enumerate() {
-        AccessToken::parse(token)
-            .map_err(|problem| WorkspaceError::config_invalid(&writers_key, problem))?;
-        if writers[..index].contains(token) {
-            return Err(WorkspaceError::config_invalid(
-                &writers_key,
-                format!("names `{token}` twice"),
-            ));
+    let tokens = |name: &str| -> Result<Vec<String>, WorkspaceError> {
+        let key = format!("{grant_key}.{name}");
+        let tokens = reader.string_array(name)?.unwrap_or_default();
+        for (index, token) in tokens.iter().enumerate() {
+            AccessToken::parse(token)
+                .map_err(|problem| WorkspaceError::config_invalid(&key, problem))?;
+            if tokens[..index].contains(token) {
+                return Err(WorkspaceError::config_invalid(
+                    &key,
+                    format!("names `{token}` twice"),
+                ));
+            }
         }
+        Ok(tokens)
+    };
+    let erasers = tokens("erasers")?;
+    if erasers.iter().any(|token| token == "space") {
+        return Err(WorkspaceError::config_invalid(
+            &format!("{grant_key}.erasers"),
+            "must not hold `space`: erasing reaches every principal's records, so erasers are named by group or principal",
+        ));
     }
+    let editors = tokens("editors")?;
+    if editors.iter().any(|token| token == "space") {
+        return Err(WorkspaceError::config_invalid(
+            &format!("{grant_key}.editors"),
+            "must not hold `space`: an editor changes other people's records, so editors are named by group or principal (phase 5 section 8.3)",
+        ));
+    }
+    let defaults = MemoryWritePolicy::default();
     Ok(MemoryWritePolicy {
         default_access,
-        writers,
+        writers: tokens("writers")?,
         agents_may_share: reader.boolean("agents_may_share")?.unwrap_or(false),
+        editors,
+        erasers,
+        erase_approvals: reader
+            .integer("erase_approvals", 1, 2)?
+            .unwrap_or(defaults.erase_approvals),
+        erase_approval_window_s: reader
+            .integer(
+                "erase_approval_window_s",
+                to_i64(crate::auth::MIN_ERASE_APPROVAL_WINDOW_S),
+                to_i64(crate::auth::MAX_ERASE_APPROVAL_WINDOW_S),
+            )?
+            .unwrap_or(defaults.erase_approval_window_s),
     })
 }
 

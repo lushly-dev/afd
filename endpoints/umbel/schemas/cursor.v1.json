@@ -1,0 +1,8 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/cursor.v1.json",
+	"title": "Umbel cursor, version 1",
+	"description": "A sealed position in one space's event stream (phase 5 section 9.3, D125): v1. and the unpadded base64url of an XChaCha20-Poly1305 seal of { space, seq } under state/keys/cursor.key, with the caller's principal as associated data and the 24-byte nonce the first 24 bytes of HMAC-SHA256 under a key derived from it over the plaintext and associated data (an SIV construction: equal positions seal equal for one principal). The nonce and the 16-byte tag make at least 41 bytes, so at least 55 characters; 256 characters bounds any space id and sequence number. Handed to every caller that is not process; refused for another principal with INVALID_CURSOR, as a malformed one is. Version 0 strings stay valid from process callers (stdio and the CLI), and stored cursor files keep positions.",
+	"type": "string",
+	"pattern": "^v1\\.[A-Za-z0-9_-]{55,256}$"
+}

@@ -1,0 +1,39 @@
+{
+	"version": 1,
+	"actor": {
+		"kind": "agent",
+		"id": "corp/f53f191f9311af35",
+		"onBehalfOf": "corp/U019488227"
+	},
+	"transport": "http",
+	"authentication": "verified",
+	"namespace": "corp",
+	"issuer": "corp-as",
+	"delegationChain": [
+		{
+			"kind": "agent",
+			"id": "corp/f53f191f9311af35"
+		}
+	],
+	"tokenBinding": {
+		"kind": "mtls",
+		"thumbprint": "bwcK0esc3ACC3DB2Y5_lESsXE8o9ltc05O89jdN-dg2"
+	},
+	"humanPresent": {
+		"level": "verified",
+		"method": "person-page",
+		"at": "2026-11-09T10:02:11.000Z",
+		"authTime": "2026-11-09T10:01:58Z",
+		"acr": "phr"
+	},
+	"scopes": ["umbel:read:alpha", "umbel:write:alpha", "umbel:approve:alpha"],
+	"spaces": {
+		"alpha": ["read", "write", "approve"]
+	},
+	"policyDecision": {
+		"decision": "allow",
+		"policy": "auth",
+		"reason": null
+	},
+	"policyVersion": "sha256:5b0f6b2d3c1e4a79881f0e2d6c4b3a291807f6e5d4c3b2a1908f7e6d5c4b3a29"
+}

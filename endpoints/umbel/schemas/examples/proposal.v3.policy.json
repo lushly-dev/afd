@@ -1,0 +1,96 @@
+{
+	"version": 3,
+	"id": "p-4d5e6f708192a3b4c5d6",
+	"idempotencyKey": "curator/deprecate/handbook/deploy/old-rollback",
+	"changeHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	"space": "main",
+	"area": "handbook",
+	"state": "applied",
+	"change": {
+		"op": "deprecate",
+		"doc": "handbook/deploy/old-rollback",
+		"baseHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		"supersededBy": "handbook/deploy/rollback"
+	},
+	"diff": "--- a/deploy/old-rollback.md\n+++ b/deploy/old-rollback.md\n@@ -1,3 +1,4 @@\n+status: deprecated\n",
+	"rationale": "The document names a successor that resolves and is not deprecated.",
+	"evidence": [
+		{
+			"kind": "document",
+			"ref": "handbook/deploy/rollback",
+			"contentHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+		}
+	],
+	"provenance": {
+		"version": 3,
+		"origin": "agent-inferred",
+		"space": "main",
+		"plugin": "knowledge",
+		"agent": null,
+		"principal": "human:local",
+		"session": null,
+		"traceId": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
+		"observedAt": "2026-11-08T09:00:00.000Z",
+		"validFrom": null,
+		"validUntil": null,
+		"confidence": null,
+		"authority": null,
+		"sources": [
+			{
+				"resource": "/handbook/deploy/old-rollback"
+			}
+		],
+		"generated": null,
+		"contentHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"derivedFrom": null,
+		"access": ["space"],
+		"sensitivity": "internal",
+		"redactions": null,
+		"constraints": null,
+		"delegationChain": [],
+		"confirmation": null
+	},
+	"policy": {
+		"area": "handbook",
+		"version": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+		"rule": "auto:deprecate-declared"
+	},
+	"exception": null,
+	"proposer": {
+		"actor": {
+			"kind": "human",
+			"id": "local"
+		},
+		"principal": "human:local"
+	},
+	"confidence": null,
+	"decision": {
+		"by": {
+			"kind": "service",
+			"id": "policy:handbook"
+		},
+		"principal": "human:local",
+		"at": "2026-11-08T11:00:00.000Z",
+		"traceId": "8b9c0d1e2f30415263748596a7b8c9d0",
+		"proposerKind": "human",
+		"channel": "policy"
+	},
+	"result": {
+		"rev": 2215,
+		"contentHash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		"path": "deploy/old-rollback.md"
+	},
+	"flags": [],
+	"createdAt": "2026-11-08T09:00:00.000Z",
+	"updatedAt": "2026-11-08T11:00:00.000Z",
+	"drafter": {
+		"plugin": "curator",
+		"instance": "curator",
+		"pipeline": "curator-run",
+		"run": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
+		"mode": "scheduled"
+	},
+	"conflictSet": null,
+	"withdrawal": null,
+	"redacted": null
+}

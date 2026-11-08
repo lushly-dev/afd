@@ -1,0 +1,52 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/protected-resource.v1.json",
+	"title": "Umbel protected-resource metadata, version 1",
+	"description": "The RFC 9728 document Umbel serves without authentication at /.well-known/oauth-protected-resource<http.path> and /.well-known/oauth-protected-resource in mode oauth (phase 5 section 3.3, D109; AFD's ProtectedResource::document, spec/authorization.md M7). resource is http.public_url, the only audience accepted; authorization_servers lists every issuer that issues tokens, in configuration order; scopes_supported is minimal, the rest arriving by step-up, and left out when empty; bearer_methods_supported is header only; resource_name is optional, and which name to publish (configuration version 5 has no key for it) is step 2a's. Nothing else is published, and mode gateway publishes none.",
+	"type": "object",
+	"required": [
+		"resource",
+		"authorization_servers",
+		"bearer_methods_supported",
+		"tls_client_certificate_bound_access_tokens"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"resource": {
+			"description": "http.public_url: https, a host, the MCP path, no user information, query or fragment.",
+			"type": "string",
+			"pattern": "^https://[^\\s/?#@]+/[^\\s?#]+$"
+		},
+		"authorization_servers": {
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^https://[^\\s/?#@]+(/[^\\s?#]*)?$"
+			}
+		},
+		"scopes_supported": {
+			"type": "array",
+			"minItems": 1,
+			"uniqueItems": true,
+			"items": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9.-]{0,31}:(read|write|approve|erase)(:[a-z][a-z0-9-]{0,62})?$"
+			}
+		},
+		"bearer_methods_supported": {
+			"const": ["header"]
+		},
+		"resource_name": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 200,
+			"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+		},
+		"tls_client_certificate_bound_access_tokens": {
+			"description": "auth.require_bound_tokens.",
+			"type": "boolean"
+		}
+	}
+}

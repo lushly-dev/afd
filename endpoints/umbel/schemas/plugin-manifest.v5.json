@@ -1,0 +1,1335 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/plugin-manifest.v5.json",
+	"title": "Umbel plugin manifest, version 5",
+	"description": "umbel-plugin.toml read as JSON (D37, D54, D72, D86, D97, D105, D115, D127). Version 5 is version 4 with two command keys, each also admitted on a pipeline when every step admits its value (phase 5 specification section 2.3). task = never | optional | required (default never) lets an MCP tools/call run as a task; it is refused with digest journaling, confirm_prompt (so confirm and confirm_preview), approval or authority_prompt, without MCP exposure, on a component command or a mounted tool, and on a command whose effects are inspect alone, since read results carry content. person = { cli = terminal | verified, mcp = verified } goes on a confirm = require-human command and names the least person assurance per surface; the default is { cli = terminal }. Only with person.mcp may a require-human command be exposed to MCP (never to agents); a command with person.mcp or person.cli = verified declares confirm_preview and journals as digest, and every input property its preview declares is in journal.keep, so a person decision never stores text. A pipeline's task is admitted when every step's task is not never; its person may only be { cli = terminal } and is admitted when every step is a require-human command at the terminal (checked at seal). scopes stays reserved: scopes are resolved, never declared. It is an addition within plugin protocol 1: a phase 5 host reads manifest versions 1 to 5. Everything else is version 4's: the reserved keys (ui, connectors, backends, dependencies, signature, scopes, on_conflict, and allow in a grant) are refused until a manifest version defines them. Every top-level property is defined under $defs by its own name, so a larger manifest (Loam's app manifest) can reference each of them and add its own. Rules that need more than a schema, such as a command name starting with one of plugin.domains, keep naming each key once, what confirm_preview names, a pipeline passing a digest step's output to a plain step or exposed wider than a step, schemas that the afd crate's checker accepts, and paths that stay inside the plugin root once symlinks are resolved, are checked when the manifest is read or the plugin is sealed.",
+	"type": "object",
+	"required": ["manifest_version", "protocol", "plugin"],
+	"additionalProperties": false,
+	"properties": {
+		"manifest_version": {
+			"$ref": "#/$defs/manifest_version"
+		},
+		"protocol": {
+			"$ref": "#/$defs/protocol"
+		},
+		"plugin": {
+			"$ref": "#/$defs/plugin"
+		},
+		"component": {
+			"$ref": "#/$defs/component"
+		},
+		"mount": {
+			"$ref": "#/$defs/mount"
+		},
+		"grants": {
+			"$ref": "#/$defs/grants"
+		},
+		"commands": {
+			"$ref": "#/$defs/commands"
+		},
+		"contexts": {
+			"$ref": "#/$defs/contexts"
+		},
+		"pipelines": {
+			"$ref": "#/$defs/pipelines"
+		},
+		"packs": {
+			"$ref": "#/$defs/packs"
+		},
+		"skills": {
+			"$ref": "#/$defs/skills"
+		},
+		"config": {
+			"$ref": "#/$defs/config"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["component"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"required": ["component"]
+			},
+			"else": {
+				"properties": {
+					"component": false
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["mounted"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"required": ["mount"]
+			},
+			"else": {
+				"properties": {
+					"mount": false
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["mounted", "pack"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"properties": {
+					"commands": false,
+					"grants": false
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"enum": ["pack"]
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"properties": {
+					"contexts": false,
+					"pipelines": false
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"commands": {
+						"contains": {
+							"properties": {
+								"effects": {
+									"contains": {
+										"const": "store-write"
+									}
+								}
+							},
+							"required": ["effects"]
+						}
+					}
+				},
+				"required": ["commands"]
+			},
+			"then": {
+				"required": ["grants"],
+				"properties": {
+					"grants": {
+						"contains": {
+							"properties": {
+								"name": {
+									"enum": [
+										"documents_write",
+										"records_write",
+										"index_write",
+										"graph_write",
+										"memory_write"
+									]
+								}
+							},
+							"required": ["name"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"commands": {
+						"contains": {
+							"properties": {
+								"effects": {
+									"contains": {
+										"const": "workspace-write"
+									}
+								}
+							},
+							"required": ["effects"]
+						}
+					}
+				},
+				"required": ["commands"]
+			},
+			"then": {
+				"required": ["grants"],
+				"properties": {
+					"grants": {
+						"contains": {
+							"properties": {
+								"name": {
+									"enum": ["content_write"]
+								}
+							},
+							"required": ["name"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"const": "component"
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"properties": {
+					"commands": {
+						"items": {
+							"not": {
+								"required": ["output_budget"]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"plugin": {
+						"properties": {
+							"kind": {
+								"const": "component"
+							}
+						},
+						"required": ["kind"]
+					}
+				},
+				"required": ["plugin"]
+			},
+			"then": {
+				"properties": {
+					"commands": {
+						"items": {
+							"not": {
+								"anyOf": [
+									{
+										"required": ["journal"]
+									},
+									{
+										"required": ["authority_prompt"]
+									},
+									{
+										"required": ["confirm_preview"]
+									},
+									{
+										"required": ["task"]
+									},
+									{
+										"properties": {
+											"task": {
+												"enum": ["optional", "required"]
+											}
+										},
+										"required": ["task"]
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"grants": {
+						"contains": {
+							"properties": {
+								"name": {
+									"enum": ["memory_write"]
+								}
+							},
+							"required": ["name"]
+						}
+					}
+				},
+				"required": ["grants"]
+			},
+			"then": {
+				"properties": {
+					"grants": {
+						"not": {
+							"contains": {
+								"properties": {
+									"name": {
+										"enum": [
+											"documents_write",
+											"records_write",
+											"index_write",
+											"graph_write",
+											"content_write"
+										]
+									}
+								},
+								"required": ["name"]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"grants": {
+						"contains": {
+							"properties": {
+								"name": {
+									"enum": ["memory", "memory_write"]
+								}
+							},
+							"required": ["name"]
+						}
+					}
+				},
+				"required": ["grants"]
+			},
+			"then": {
+				"properties": {
+					"commands": {
+						"items": {
+							"required": ["journal"]
+						}
+					},
+					"pipelines": {
+						"items": {
+							"required": ["journal"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"commands": {
+						"contains": {
+							"required": ["authority_prompt"]
+						}
+					}
+				},
+				"required": ["commands"]
+			},
+			"then": {
+				"properties": {
+					"grants": {
+						"contains": {
+							"properties": {
+								"name": {
+									"enum": ["memory_write"]
+								}
+							},
+							"required": ["name"]
+						}
+					}
+				},
+				"required": ["grants"]
+			}
+		}
+	],
+	"$defs": {
+		"manifest_version": {
+			"const": 5
+		},
+		"protocol": {
+			"const": 1
+		},
+		"plugin": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "title", "version", "description", "kind"],
+			"properties": {
+				"id": {
+					"description": "The default instance id.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"version": {
+					"description": "A semantic version.",
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"kind": {
+					"enum": ["compiled", "component", "mounted", "pack"]
+				},
+				"domains": {
+					"description": "The first name segments the plugin's commands use. Required for every kind but pack, which refuses it. A host domain or a reserved CLI verb is refused when the manifest is read.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/domain"
+					}
+				},
+				"homepage": {
+					"type": "string",
+					"pattern": "^https://\\S+$"
+				},
+				"license": {
+					"description": "An SPDX expression.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[A-Za-z0-9 .+()-]+$"
+				}
+			},
+			"if": {
+				"properties": {
+					"kind": {
+						"const": "pack"
+					}
+				},
+				"required": ["kind"]
+			},
+			"then": {
+				"properties": {
+					"domains": false
+				}
+			},
+			"else": {
+				"required": ["domains"]
+			}
+		},
+		"domain": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]{0,31}$",
+			"not": {
+				"enum": [
+					"workspace",
+					"space",
+					"event",
+					"plugin",
+					"skill",
+					"afd",
+					"store",
+					"init",
+					"serve",
+					"help",
+					"docs",
+					"schema",
+					"call",
+					"batch"
+				]
+			}
+		},
+		"jsonPath": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*\\.json$",
+			"not": {
+				"pattern": "(^|/)\\.\\.(/|$)"
+			}
+		},
+		"relativePath": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*$",
+			"not": {
+				"pattern": "(^|/)\\.\\.(/|$)"
+			}
+		},
+		"component": {
+			"description": "Required when plugin.kind is component, refused otherwise. The component's world is read from the binary, so there is no world key.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["path"],
+			"properties": {
+				"path": {
+					"description": "A .wasm file relative to the plugin root, at most 32 MiB.",
+					"type": "string",
+					"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*\\.wasm$",
+					"not": {
+						"pattern": "(^|/)\\.\\.(/|$)"
+					}
+				}
+			}
+		},
+		"mount": {
+			"description": "Required when plugin.kind is mounted, refused otherwise. Where the server runs and with what credential (url, bearer_env) is the deployer's, in umbel.toml, so those keys are refused here.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["prefix", "transport"],
+			"properties": {
+				"prefix": {
+					"description": "Must equal one of plugin.domains.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$"
+				},
+				"transport": {
+					"enum": ["stdio", "http"]
+				},
+				"command": {
+					"description": "stdio: the command line; the first element is resolved against the plugin root, then PATH.",
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"cwd": {
+					"$ref": "#/$defs/relativePath"
+				},
+				"env": {
+					"description": "stdio: defaults for the child's environment. No secrets.",
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"bearer": {
+					"description": "http: whether the server needs a bearer token.",
+					"enum": ["none", "optional", "required"]
+				},
+				"only": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"tools": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/mountTool"
+					}
+				}
+			},
+			"if": {
+				"properties": {
+					"transport": {
+						"const": "stdio"
+					}
+				},
+				"required": ["transport"]
+			},
+			"then": {
+				"required": ["command"],
+				"properties": {
+					"bearer": false
+				}
+			},
+			"else": {
+				"properties": {
+					"command": false,
+					"cwd": false,
+					"env": false
+				}
+			}
+		},
+		"mountTool": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["tool"],
+			"properties": {
+				"tool": {
+					"type": "string",
+					"minLength": 1
+				},
+				"name": {
+					"description": "Relative to the prefix: the command is <prefix>-<name>.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$"
+				},
+				"effects": {
+					"description": "What a command may change. inspect appears alone; store-write and workspace-write are reserved.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["inspect", "plugin-state", "external"]
+					},
+					"if": {
+						"contains": {
+							"const": "inspect"
+						}
+					},
+					"then": {
+						"maxItems": 1
+					}
+				},
+				"bind_space": {
+					"type": "boolean"
+				},
+				"confirm_prompt": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"approval": {
+					"enum": ["none", "required"]
+				},
+				"first_class": {
+					"type": "boolean"
+				}
+			}
+		},
+		"grant": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "reason"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_]*$"
+				},
+				"required": {
+					"type": "boolean"
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				}
+			}
+		},
+		"grants": {
+			"description": "Refused for mounted and pack plugins. A grant outside the host's catalog is PLUGIN_GRANT_UNAVAILABLE at load, not a manifest error.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/grant"
+			}
+		},
+		"command": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "description", "effects", "input_schema"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"effects": {
+					"description": "What a command may change. inspect appears alone. store-write needs one of documents_write, records_write, index_write, graph_write or memory_write declared in grants; workspace-write needs content_write.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["inspect", "plugin-state", "external", "store-write", "workspace-write"]
+					},
+					"if": {
+						"contains": {
+							"const": "inspect"
+						}
+					},
+					"then": {
+						"maxItems": 1
+					}
+				},
+				"input_schema": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"returns": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"category": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"version": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+				},
+				"contexts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/contextName"
+					}
+				},
+				"first_class": {
+					"type": "boolean"
+				},
+				"confirm_prompt": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"destructive": {
+					"type": "boolean"
+				},
+				"approval": {
+					"enum": ["none", "required"]
+				},
+				"execution_time": {
+					"enum": ["instant", "fast", "slow", "long-running"]
+				},
+				"expose": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"mcp": {
+							"type": "boolean"
+						},
+						"agent": {
+							"type": "boolean"
+						},
+						"cli": {
+							"type": "boolean"
+						},
+						"palette": {
+							"type": "boolean"
+						}
+					}
+				},
+				"examples": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["title", "input"],
+						"properties": {
+							"title": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 200
+							},
+							"input": {
+								"type": "object"
+							}
+						}
+					}
+				},
+				"output_budget": {
+					"description": "Compiled plugins only in phase 2. default_bytes <= max_bytes.",
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["default_bytes", "max_bytes"],
+					"properties": {
+						"default_bytes": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"max_bytes": {
+							"type": "integer",
+							"minimum": 1
+						}
+					}
+				},
+				"confirm": {
+					"description": "The only value is require-human: the CLI asks at a terminal and refuses --yes and --approve; agents never see the command, and MCP only with person.mcp.",
+					"const": "require-human"
+				},
+				"journal": {
+					"$ref": "#/$defs/journal"
+				},
+				"authority_prompt": {
+					"description": "Shown by the CLI before a call whose memory write would get authority person; needs memory_write declared. A pipeline inherits its steps' prompts in step order.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"confirm_preview": {
+					"description": "The inspect command of this plugin whose { preview } the CLI prints before confirm_prompt (phase 4 section 2.2). Needs confirm_prompt.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+				},
+				"task": {
+					"$ref": "#/$defs/task"
+				},
+				"person": {
+					"$ref": "#/$defs/person"
+				}
+			},
+			"allOf": [
+				{
+					"description": "A require-human command: a prompt, never agents, the CLI, and MCP only with person.mcp.",
+					"if": {
+						"required": ["confirm"]
+					},
+					"then": {
+						"required": ["confirm_prompt", "expose"],
+						"properties": {
+							"expose": {
+								"required": ["agent"],
+								"properties": {
+									"agent": {
+										"const": false
+									},
+									"cli": {
+										"const": true
+									}
+								}
+							}
+						},
+						"if": {
+							"not": {
+								"properties": {
+									"person": {
+										"required": ["mcp"]
+									}
+								},
+								"required": ["person"]
+							}
+						},
+						"then": {
+							"properties": {
+								"expose": {
+									"required": ["mcp"],
+									"properties": {
+										"mcp": {
+											"const": false
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"required": ["confirm_preview"]
+					},
+					"then": {
+						"required": ["confirm_prompt"]
+					}
+				},
+				{
+					"description": "person goes with confirm = require-human.",
+					"if": {
+						"required": ["person"]
+					},
+					"then": {
+						"required": ["confirm"]
+					}
+				},
+				{
+					"description": "person.mcp needs MCP exposure.",
+					"if": {
+						"properties": {
+							"person": {
+								"required": ["mcp"]
+							}
+						},
+						"required": ["person"]
+					},
+					"then": {
+						"properties": {
+							"expose": {
+								"properties": {
+									"mcp": {
+										"const": true
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"description": "A command decided on the person page declares a preview and journals as digest.",
+					"if": {
+						"anyOf": [
+							{
+								"properties": {
+									"person": {
+										"required": ["mcp"]
+									}
+								},
+								"required": ["person"]
+							},
+							{
+								"properties": {
+									"person": {
+										"properties": {
+											"cli": {
+												"const": "verified"
+											}
+										},
+										"required": ["cli"]
+									}
+								},
+								"required": ["person"]
+							}
+						]
+					},
+					"then": {
+						"required": ["confirm_preview", "journal"],
+						"allOf": [
+							{
+								"properties": {
+									"journal": {
+										"properties": {
+											"mode": {
+												"const": "digest"
+											}
+										},
+										"required": ["mode"]
+									}
+								},
+								"required": ["journal"]
+							}
+						]
+					}
+				},
+				{
+					"description": "A task never waits for a person or an approval, never journals as digest, is exposed to MCP and is not a read.",
+					"if": {
+						"properties": {
+							"task": {
+								"enum": ["optional", "required"]
+							}
+						},
+						"required": ["task"]
+					},
+					"then": {
+						"not": {
+							"anyOf": [
+								{
+									"required": ["confirm_prompt"]
+								},
+								{
+									"required": ["confirm"]
+								},
+								{
+									"required": ["authority_prompt"]
+								},
+								{
+									"required": ["person"]
+								},
+								{
+									"properties": {
+										"approval": {
+											"const": "required"
+										}
+									},
+									"required": ["approval"]
+								}
+							]
+						},
+						"allOf": [
+							{
+								"not": {
+									"properties": {
+										"journal": {
+											"properties": {
+												"mode": {
+													"const": "digest"
+												}
+											},
+											"required": ["mode"]
+										}
+									},
+									"required": ["journal"]
+								}
+							},
+							{
+								"not": {
+									"properties": {
+										"expose": {
+											"properties": {
+												"mcp": {
+													"const": false
+												}
+											},
+											"required": ["mcp"]
+										}
+									},
+									"required": ["expose"]
+								}
+							},
+							{
+								"not": {
+									"properties": {
+										"effects": {
+											"const": ["inspect"]
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			]
+		},
+		"commands": {
+			"description": "Compiled and component plugins only; mounted commands come from tools/list. The first segment of each name is one of plugin.domains.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/command"
+			}
+		},
+		"schemaOrPath": {
+			"description": "A JSON Schema as an inline table, or the path of a JSON file relative to the plugin root.",
+			"oneOf": [
+				{
+					"$ref": "#/$defs/jsonPath"
+				},
+				{
+					"type": "object"
+				}
+			]
+		},
+		"contextName": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$"
+		},
+		"context": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "description"],
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/contextName"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"triggers": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"priority": {
+					"type": "integer"
+				}
+			}
+		},
+		"contexts": {
+			"description": "AFD contexts. Each name starts with one of plugin.domains. Refused for pack plugins.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/context"
+			}
+		},
+		"pipeline": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "description", "effects", "input_schema", "steps"],
+			"properties": {
+				"name": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"effects": {
+					"description": "What a command may change. inspect appears alone. store-write needs one of documents_write, records_write, index_write, graph_write or memory_write declared in grants; workspace-write needs content_write.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["inspect", "plugin-state", "external", "store-write", "workspace-write"]
+					},
+					"if": {
+						"contains": {
+							"const": "inspect"
+						}
+					},
+					"then": {
+						"maxItems": 1
+					}
+				},
+				"input_schema": {
+					"$ref": "#/$defs/schemaOrPath"
+				},
+				"steps": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["command"],
+						"properties": {
+							"command": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+							},
+							"input": {
+								"type": "object"
+							},
+							"as": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_-]{0,63}$"
+							}
+						}
+					}
+				},
+				"journal": {
+					"$ref": "#/$defs/journal"
+				},
+				"expose": {
+					"description": "The pipeline's exposure: a command's mcp, agent and cli, each defaulting to true. At seal it may be no wider than any step's. A pipeline is never in the palette.",
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"mcp": {
+							"type": "boolean"
+						},
+						"agent": {
+							"type": "boolean"
+						},
+						"cli": {
+							"type": "boolean"
+						}
+					}
+				},
+				"result": {
+					"description": "steps (the default) returns every step's index, command, as, status and data; last returns only the last step's data, which alone enters the journal entry.",
+					"enum": ["steps", "last"]
+				},
+				"task": {
+					"$ref": "#/$defs/task"
+				},
+				"person": {
+					"description": "On a pipeline only { cli = terminal }: a person-page decision needs a preview, which a pipeline cannot declare, and no pipeline step is confirmed over MCP.",
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"cli": {
+							"const": "terminal"
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"description": "A pipeline task: no person, no digest journal, MCP exposure, not a read. Every step admitting it is checked at seal.",
+					"if": {
+						"properties": {
+							"task": {
+								"enum": ["optional", "required"]
+							}
+						},
+						"required": ["task"]
+					},
+					"then": {
+						"not": {
+							"required": ["person"]
+						},
+						"allOf": [
+							{
+								"not": {
+									"properties": {
+										"journal": {
+											"properties": {
+												"mode": {
+													"const": "digest"
+												}
+											},
+											"required": ["mode"]
+										}
+									},
+									"required": ["journal"]
+								}
+							},
+							{
+								"not": {
+									"properties": {
+										"expose": {
+											"properties": {
+												"mcp": {
+													"const": false
+												}
+											},
+											"required": ["mcp"]
+										}
+									},
+									"required": ["expose"]
+								}
+							},
+							{
+								"not": {
+									"properties": {
+										"effects": {
+											"const": ["inspect"]
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			]
+		},
+		"pipelines": {
+			"description": "Pipelines as data. Parallel and streaming steps are refused, as the afd crate refuses them. Refused for pack plugins.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/pipeline"
+			}
+		},
+		"pack": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "path"],
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,62}$"
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				}
+			}
+		},
+		"packs": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/pack"
+			}
+		},
+		"skill": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "path"],
+			"properties": {
+				"name": {
+					"description": "Equals the plugin id or starts with \"<plugin id>-\", and equals the directory's last segment.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,63}$"
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				}
+			}
+		},
+		"skills": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/skill"
+			}
+		},
+		"config": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema"],
+			"properties": {
+				"schema": {
+					"description": "A JSON Schema 2020-12 object schema, closed at its root (additionalProperties false); defaults in it are applied.",
+					"$ref": "#/$defs/schemaOrPath"
+				}
+			}
+		},
+		"journal": {
+			"description": "How a call is journaled (phase 3 section 7.1). keep, with digest only, lists at most 16 top-level input keys whose value, when it is a string, a number, a boolean or a list of at most 100 strings, stays in the entry.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["mode"],
+			"properties": {
+				"mode": {
+					"enum": ["digest", "plain"]
+				},
+				"keep": {
+					"type": "array",
+					"maxItems": 16,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			},
+			"if": {
+				"properties": {
+					"mode": {
+						"const": "plain"
+					}
+				},
+				"required": ["mode"]
+			},
+			"then": {
+				"not": {
+					"required": ["keep"]
+				}
+			}
+		},
+		"task": {
+			"description": "Whether an MCP tools/call may run as a task (section 12.2). Default never.",
+			"enum": ["never", "optional", "required"]
+		},
+		"person": {
+			"description": "The least person assurance per surface (section 7.1): cli terminal (the default) or verified; mcp only verified.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"cli": {
+					"enum": ["terminal", "verified"]
+				},
+				"mcp": {
+					"const": "verified"
+				}
+			}
+		}
+	}
+}

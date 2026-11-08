@@ -16,11 +16,12 @@ pub use umbel_store::STORE_TRAITS_VERSION as STORE_VERSION;
 pub const DOCUMENT_VERSION: u32 = 1;
 /// The locator, version 1 (`schemas/locator.v1.json`).
 pub const LOCATOR_VERSION: u32 = 1;
-/// The newest proposal record version, 2 (`schemas/proposal.v2.json`, phase 4 section 2.1, D92).
-/// The knowledge plugin writes it from phase 4 step 3a; a version 1 record stays version 1.
+/// The proposal record version the knowledge plugin writes, 2 (`schemas/proposal.v2.json`, phase 4
+/// section 2.1, D92); version 3 (phase 5 section 7.3) from phase 5 step 6. A version 1 record
+/// stays version 1.
 pub const PROPOSAL_VERSION: u32 = 2;
-/// Every proposal record version a deployment holds, read side by side.
-pub const PROPOSAL_VERSIONS: &[u32] = &[1, 2];
+/// Every proposal record version a deployment holds, read side by side (phase 5 section 2).
+pub const PROPOSAL_VERSIONS: &[u32] = &[1, 2, 3];
 /// The memory record, version 1 (`schemas/memory-record.v1.json`, phase 3 section 4).
 pub const MEMORY_VERSION: u32 = 1;
 /// The memory key file, version 1 (`PRAGMA user_version` of `memory.keys`, phase 3 section 5.4).
@@ -32,3 +33,27 @@ pub const BUNDLE_VERSION: u32 = 1;
 /// The curator's records and its run report, version 1 (`schemas/curator-record.v1.json` and
 /// `schemas/curator-report.v1.json`, phase 4 sections 2.3 and 7.2).
 pub const CURATOR_VERSION: u32 = 1;
+
+// Phase 5 (specification section 2). Each list names the versions of a shape a phase 5 deployment
+// reads side by side, as `workspace-show` reports them; the constants above stay the versions this
+// host writes until the step that writes the new one (the principal from step 2a, the envelope,
+// event and memory record from step 5, the proposal from step 6, cursors and locators from step 7).
+
+/// Every principal projection version (`schemas/principal.v0.json`, `principal.v1.json`).
+pub const PRINCIPAL_VERSIONS: &[u32] = &[0, 1];
+/// Every provenance envelope version (`schemas/provenance-envelope.v0.json` to `.v3.json`).
+pub const ENVELOPE_VERSIONS: &[u32] = &[0, 1, 2, 3];
+/// Every event version (`schemas/event.v0.json` to `event.v3.json`).
+pub const EVENT_VERSIONS: &[u32] = &[0, 1, 2, 3];
+/// Every memory record version (`schemas/memory-record.v1.json`, `memory-record.v2.json`).
+pub const MEMORY_VERSIONS: &[u32] = &[1, 2];
+/// Every cursor string version (`schemas/cursor.v0.json`, `cursor.v1.json`, phase 5 section 9.3).
+pub const CURSOR_VERSIONS: &[u32] = &[0, 1];
+/// Every locator version (`schemas/locator.v1.json`, `locator.v2.json`, phase 5 section 9.3).
+pub const LOCATOR_VERSIONS: &[u32] = &[1, 2];
+/// The task record, version 1 (`schemas/task-record.v1.json`, phase 5 section 12.2).
+pub const TASK_VERSION: u32 = 1;
+/// The usage event, version 1 (`schemas/usage-event.v1.json`, phase 5 section 12.1).
+pub const USAGE_VERSION: u32 = 1;
+/// The person decision, version 1 (`schemas/person-decision.v1.json`, phase 5 section 7.2).
+pub const PERSON_VERSION: u32 = 1;

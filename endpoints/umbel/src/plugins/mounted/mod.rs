@@ -480,6 +480,7 @@ impl<'a> Plan<'a> {
                         space_command: tool.bind_space,
                         spaces_command: false,
                         require_human: false,
+                        person_verified: false,
                         pipeline: false,
                         memory_writer: false,
                         digest: None,

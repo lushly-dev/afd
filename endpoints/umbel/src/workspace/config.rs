@@ -1,9 +1,12 @@
-//! `umbel.toml`, versions 1 to 4: defaults, key scan and validation (phase 0 specification
+//! `umbel.toml`, versions 1 to 5: defaults, key scan and validation (phase 0 specification
 //! section 2; phase 1 section 9.1 adds the plugin instances of version 2; phase 2 section 4.1
 //! adds the collections, readers, access groups and store of version 3; phase 3 section 2.4 adds
 //! the `memory_write` grant table, `principal.agent_env` and
-//! `store.exclude_memory_from_machine_backup` of version 4).
+//! `store.exclude_memory_from_machine_backup` of version 4; phase 5 section 2.2 adds `[auth]`,
+//! `[http.tls]`, `http.public_url`, `[limits]`, `[usage]`, `[principal.equivalents]` and group
+//! claims of version 5, in [`super::hosted`]).
 
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::path::Path;
 
@@ -12,16 +15,24 @@ use toml::{Table, Value};
 use super::PluginsConfig;
 use super::access::{AccessToken, ReaderEntry, check_member, is_group_id};
 use super::error::WorkspaceError;
+use super::hosted::{
+    AuthConfig, GROUP_KEYS_V5, GroupClaim, HTTP_KEYS_V5, PRINCIPAL_KEYS_V5, RateLimits,
+    TOP_KEYS_V5, TlsConfig, UsageConfig, check_bind, check_channel, check_hosted, check_public_url,
+    group_claim, is_v5_key,
+};
 use super::plugins_config::{
     GRANT_KEYS, INSTANCE_KEYS, INSTANCE_KEYS_V3, INSTANCE_RESERVED, LIMITS_KEYS,
-    MEMORY_WRITE_GRANT_KEYS, is_env_name,
+    MEMORY_WRITE_GRANT_KEYS, MEMORY_WRITE_GRANT_KEYS_V5, is_env_name,
 };
 use super::space::SpaceId;
 
 /// The configuration version this build writes (`umbel init`). It also reads version 1, which
-/// is version 2 with no plugins, version 2, which is version 3 with no collections, and version 3,
-/// which is version 4 with no memory policy: each reads as version 4 with no change of meaning.
-pub const CONFIG_VERSION: u32 = 4;
+/// is version 2 with no plugins, version 2, which is version 3 with no collections, version 3,
+/// which is version 4 with no memory policy, and version 4, which is version 5 with
+/// `auth.mode = "none"`: each reads as version 5 with no change of meaning.
+pub const CONFIG_VERSION: u32 = 5;
+/// Every configuration version this build reads.
+pub const CONFIG_VERSIONS: &[u32] = &[1, 2, 3, 4, 5];
 
 const TOP_KEYS: &[&str] = &[
     "config_version",
@@ -184,6 +195,9 @@ pub struct AccessGroup {
     pub id: String,
     /// Principal strings, or `*`.
     pub members: Vec<String>,
+    /// Version 5: members from one issuer's token claim, unioned with `members` (phase 5 section
+    /// 4.5).
+    pub claim: Option<GroupClaim>,
 }
 
 /// `[access]`.
@@ -233,6 +247,11 @@ pub struct HttpConfig {
     pub allowed_origins: Vec<String>,
     /// Request body cap.
     pub max_body_bytes: u64,
+    /// Version 5: the MCP endpoint's absolute `https` URL, the token audience and the metadata's
+    /// `resource`; required in hosted modes (phase 5 section 2.2).
+    pub public_url: Option<String>,
+    /// Version 5: in-process TLS, which a non-loopback bind needs.
+    pub tls: Option<TlsConfig>,
 }
 
 /// `[journal]`.
@@ -276,6 +295,9 @@ pub struct PrincipalConfig {
     /// beside the built-in `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and `AI_AGENT` (phase 3 section
     /// 3.3). The CLI reads them before it sets `dev.umbel/human-present`.
     pub agent_env: Vec<String>,
+    /// Version 5: legacy principal strings mapped one way to namespaced ones, which every
+    /// principal comparison consults (phase 5 section 4.6, owner decision 16).
+    pub equivalents: BTreeMap<String, String>,
 }
 
 /// A validated `umbel.toml` with every default filled in.
@@ -283,7 +305,7 @@ pub struct PrincipalConfig {
 #[non_exhaustive]
 pub struct Config {
     /// The `config_version` the file declared: 1, 2 with plugin instances, 3 with collections,
-    /// access groups and a store, or 4 with the memory policy.
+    /// access groups and a store, 4 with the memory policy, or 5 with `[auth]`.
     pub version: u32,
     /// The workspace name.
     pub name: String,
@@ -309,12 +331,18 @@ pub struct Config {
     pub access: AccessConfig,
     /// `[store]`.
     pub store: StoreConfig,
+    /// `[auth]`, version 5; mode `none` before it.
+    pub auth: AuthConfig,
+    /// `[limits]`, version 5: the hosted rate limits.
+    pub limits: RateLimits,
+    /// `[usage]`, version 5.
+    pub usage: UsageConfig,
 }
 
 /// Values that override the file: flags first, then environment variables.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Overrides {
-    /// `--bind` or `UMBEL_HTTP_BIND`; still loopback only.
+    /// `--bind` or `UMBEL_HTTP_BIND`; loopback only, unless `http.bind` may be non-loopback.
     pub http_bind: Option<String>,
     /// `--log` or `UMBEL_LOG`, a `tracing` filter.
     pub log_filter: Option<String>,
@@ -361,7 +389,7 @@ impl ConfigFile {
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` for a syntax error or a missing or mistyped `config_version`;
-    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 4.
+    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 5.
     pub fn parse(text: &str) -> Result<Self, WorkspaceError> {
         let table: Table = text.parse().map_err(|error: toml::de::Error| {
             let place = error.span().map(|span| {
@@ -377,51 +405,57 @@ impl ConfigFile {
         match table.get("config_version") {
             None => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "is required; set config_version = 4",
+                "is required; set config_version = 5",
             )),
-            Some(Value::Integer(version @ (1..=4))) => {
+            Some(Value::Integer(version @ (1..=5))) => {
                 let version = u32::try_from(*version).unwrap_or(CONFIG_VERSION);
                 Ok(Self { table, version })
             }
             Some(Value::Integer(other)) => Err(WorkspaceError::config_unsupported(other)),
             Some(_) => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "must be the integer 1, 2, 3 or 4",
+                "must be the integer 1, 2, 3, 4 or 5",
             )),
         }
     }
 
-    /// The `config_version` of the file: 1 to 4.
+    /// The `config_version` of the file: 1 to 5.
     pub fn version(&self) -> u32 {
         self.version
     }
 
     /// The unknown and reserved keys.
     pub fn scan_keys(&self) -> KeyScan {
+        self.scan_keys_as(self.version)
+    }
+
+    /// The unknown and reserved keys, were the file of configuration version `version`.
+    fn scan_keys_as(&self, version: u32) -> KeyScan {
         let mut scan = KeyScan::default();
-        let v3 = self.version >= 3;
-        let v4 = self.version >= 4;
+        let v3 = version >= 3;
+        let v4 = version >= 4;
+        let v5 = version >= 5;
         let top: Vec<&str> = TOP_KEYS
             .iter()
             .chain(TOP_KEYS_V3.iter().filter(|_| v3))
+            .chain(TOP_KEYS_V5.iter().filter(|_| v5))
             .copied()
             .collect();
         scan_table(&self.table, "", &top, &[], &mut scan);
+        let principal_keys = if v5 {
+            PRINCIPAL_KEYS_V5
+        } else if v4 {
+            PRINCIPAL_KEYS_V4
+        } else {
+            PRINCIPAL_KEYS
+        };
         let mut sections: Vec<(&str, &[&str], &[&str])> = vec![
             ("mcp", MCP_KEYS, &[]),
-            ("http", HTTP_KEYS, &[]),
+            ("http", if v5 { HTTP_KEYS_V5 } else { HTTP_KEYS }, &[]),
             ("journal", JOURNAL_KEYS, &[]),
             ("events", EVENTS_KEYS, EVENTS_RESERVED),
             ("log", LOG_KEYS, &[]),
-            (
-                "principal",
-                if v4 {
-                    PRINCIPAL_KEYS_V4
-                } else {
-                    PRINCIPAL_KEYS
-                },
-                &[],
-            ),
+            ("principal", principal_keys, &[]),
         ];
         if v3 {
             sections.push(("access", ACCESS_KEYS, &[]));
@@ -441,7 +475,7 @@ impl ConfigFile {
                     scan_table(
                         table,
                         &format!("access.groups.{id}"),
-                        GROUP_KEYS,
+                        if v5 { GROUP_KEYS_V5 } else { GROUP_KEYS },
                         &[],
                         &mut scan,
                     );
@@ -449,7 +483,10 @@ impl ConfigFile {
             }
         }
         if let Some(Value::Table(plugins)) = self.table.get("plugins") {
-            self.scan_plugins(plugins, &mut scan);
+            self.scan_plugins(plugins, version, &mut scan);
+        }
+        if v5 {
+            self.scan_v5(&self.table, &mut scan);
         }
         if let Some(Value::Table(spaces)) = self.table.get("spaces") {
             let (known, reserved) = if v3 {
@@ -482,8 +519,8 @@ impl ConfigFile {
 
     /// `[plugins]`: `enabled`, and in version 2 one table per instance. An instance's `config`
     /// and `env` hold the deployer's own keys; everything else is closed.
-    fn scan_plugins(&self, plugins: &Table, scan: &mut KeyScan) {
-        if self.version == 1 {
+    fn scan_plugins(&self, plugins: &Table, version: u32, scan: &mut KeyScan) {
+        if version == 1 {
             scan_table(plugins, "plugins", PLUGINS_KEYS, &[], scan);
             return;
         }
@@ -495,13 +532,15 @@ impl ConfigFile {
                 continue;
             };
             let prefix = format!("plugins.{id}");
-            if self.version >= 3 {
+            if version >= 3 {
                 scan_table(instance, &prefix, INSTANCE_KEYS_V3, &[], scan);
                 if let Some(Value::Table(grants)) = instance.get("grants") {
                     for (grant, value) in grants {
                         if let Value::Table(entry) = value {
                             let grant_prefix = format!("{prefix}.grants.{grant}");
-                            let known = if self.version >= 4 && grant == "memory_write" {
+                            let known = if version >= 5 && grant == "memory_write" {
+                                MEMORY_WRITE_GRANT_KEYS_V5
+                            } else if version >= 4 && grant == "memory_write" {
                                 MEMORY_WRITE_GRANT_KEYS
                             } else {
                                 GRANT_KEYS
@@ -525,10 +564,13 @@ impl ConfigFile {
     /// `WORKSPACE_CONFIG_INVALID` naming the first key that breaks a rule.
     pub fn into_config(self, root: &Path) -> Result<Config, WorkspaceError> {
         if let Some(key) = self.scan_keys().unknown.into_iter().next() {
+            let v5_only = self.version < 5 && is_v5_key(&key);
             return Err(WorkspaceError::config_invalid(
                 &key,
                 if self.version >= 3 && key.ends_with(".content_roots") {
                     "was replaced by collections in configuration version 3; declare [spaces.<id>.collections.<cid>] with a root"
+                } else if v5_only {
+                    "needs config_version = 5"
                 } else {
                     "is not a known key"
                 },
@@ -541,6 +583,7 @@ impl ConfigFile {
         let http = self.http()?;
         check_declared_groups(&spaces, &rest.access)?;
         check_collection_roots(&spaces, root)?;
+        rest.check_hosted(&http)?;
         Ok(Config {
             version: self.version,
             name: general.0,
@@ -555,6 +598,9 @@ impl ConfigFile {
             principal: rest.principal,
             access: rest.access,
             store: rest.store,
+            auth: rest.auth,
+            limits: rest.limits,
+            usage: rest.usage,
         })
     }
 
@@ -566,6 +612,9 @@ impl ConfigFile {
         let rest = self.rest()?;
         if let Ok((spaces, _)) = self.spaces() {
             check_declared_groups(&spaces, &rest.access)?;
+        }
+        if let Ok(http) = self.http() {
+            rest.check_hosted(&http)?;
         }
         Ok(())
     }
@@ -645,7 +694,8 @@ impl ConfigFile {
     }
 
     pub(crate) fn http(&self) -> Result<HttpConfig, WorkspaceError> {
-        let reader = Reader::new(self.section("http")?, "http");
+        let section = self.section("http")?;
+        let reader = Reader::new(section, "http");
         let bind = reader
             .string("bind")?
             .unwrap_or_else(|| "127.0.0.1:7410".to_owned());
@@ -664,12 +714,37 @@ impl ConfigFile {
                 .map_err(|p| WorkspaceError::config_invalid("http.allowed_origins", p))?;
         }
         check_path(&path).map_err(|p| WorkspaceError::config_invalid("http.path", p))?;
+        let (tls, public_url, mode) = if self.version >= 5 {
+            (
+                self.tls(section)?,
+                reader.string("public_url")?,
+                self.auth_mode()?,
+            )
+        } else {
+            (None, None, super::AuthMode::None)
+        };
+        if let Some(url) = &public_url {
+            check_public_url(url, &path, &allowed_hosts)
+                .map_err(|p| WorkspaceError::config_invalid("http.public_url", p))?;
+        } else if mode.is_hosted() {
+            return Err(WorkspaceError::config_invalid(
+                "http.public_url",
+                format!(
+                    "is required when auth.mode = \"{}\": the MCP endpoint's https URL, which tokens name as their audience",
+                    mode.as_str()
+                ),
+            ));
+        }
+        let address = parse_bind(&bind, "umbel.toml")?;
+        check_bind(address, mode, tls.is_some(), &bind, "umbel.toml")?;
         Ok(HttpConfig {
-            bind: parse_bind(&bind, "umbel.toml")?,
+            bind: address,
             path,
             allowed_hosts,
             allowed_origins,
             max_body_bytes,
+            public_url,
+            tls,
         })
     }
 
@@ -807,6 +882,16 @@ impl ConfigFile {
                 ));
             }
         }
+        let equivalents = if self.version >= 5 {
+            self.equivalents(self.section("principal")?)?
+        } else {
+            BTreeMap::new()
+        };
+        let declared: Option<Vec<SpaceId>> = self
+            .spaces()
+            .ok()
+            .map(|(spaces, _)| spaces.into_iter().map(|space| space.id).collect());
+        let auth = self.auth(declared.as_deref())?;
         let store = Reader::new(self.section("store")?, "store");
         let store = StoreConfig {
             lock_timeout_ms: store
@@ -824,9 +909,13 @@ impl ConfigFile {
                 local_id,
                 on_behalf_of,
                 agent_env,
+                equivalents,
             },
             access: self.access()?,
             store,
+            auth,
+            limits: self.rate_limits()?,
+            usage: self.usage()?,
         })
     }
 
@@ -867,9 +956,15 @@ impl ConfigFile {
                     WorkspaceError::config_invalid(&format!("{key}.members"), problem)
                 })?;
             }
+            let claim = if self.version >= 5 {
+                group_claim(table, &key)?
+            } else {
+                None
+            };
             parsed.push(AccessGroup {
                 id: id.clone(),
                 members,
+                claim,
             });
         }
         Ok(AccessConfig { groups: parsed })
@@ -938,6 +1033,24 @@ struct Rest {
     principal: PrincipalConfig,
     access: AccessConfig,
     store: StoreConfig,
+    auth: AuthConfig,
+    limits: RateLimits,
+    usage: UsageConfig,
+}
+
+impl Rest {
+    /// Section 2.2's rules across `[auth]`, `[http]`, `[principal]`, `[access]` and `[usage]`.
+    fn check_hosted(&self, http: &HttpConfig) -> Result<(), WorkspaceError> {
+        check_hosted(
+            &self.auth,
+            http,
+            &self.principal.local_id,
+            self.principal.on_behalf_of.as_deref(),
+            &self.principal.equivalents,
+            &self.access.groups,
+            &self.usage,
+        )
+    }
 }
 
 /// `readers` of the space table behind `reader`: `["*"]` by default.
@@ -1225,10 +1338,22 @@ impl Config {
     /// Apply flag and environment overrides.
     ///
     /// # Errors
-    /// `WORKSPACE_CONFIG_INVALID` when the bind override is not a loopback socket address.
+    /// `WORKSPACE_CONFIG_INVALID` when the bind override is not a socket address, or is not
+    /// loopback where `http.bind` must be (phase 5 section 2.2), or breaks the gateway's channel
+    /// rule.
     pub fn with_overrides(mut self, overrides: &Overrides) -> Result<Self, WorkspaceError> {
         if let Some(bind) = &overrides.http_bind {
-            self.http.bind = parse_bind(bind, "--bind or UMBEL_HTTP_BIND")?;
+            let source = "--bind or UMBEL_HTTP_BIND";
+            let address = parse_bind(bind, source)?;
+            check_bind(
+                address,
+                self.auth.mode,
+                self.http.tls.is_some(),
+                bind,
+                source,
+            )?;
+            self.http.bind = address;
+            check_channel(&self.auth, &self.http)?;
         }
         if let Some(filter) = &overrides.log_filter {
             self.log.filter_override = Some(filter.clone());
@@ -1237,25 +1362,16 @@ impl Config {
     }
 }
 
+/// A socket address; whether it may be non-loopback is [`check_bind`]'s.
 fn parse_bind(value: &str, source: &str) -> Result<SocketAddr, WorkspaceError> {
-    let address: SocketAddr = value.parse().map_err(|_| {
+    value.parse().map_err(|_| {
         WorkspaceError::config_invalid(
             "http.bind",
             format!(
                 "must be a socket address such as 127.0.0.1:7410, not `{value}` (from {source})"
             ),
         )
-    })?;
-    if address.ip().is_loopback() {
-        Ok(address)
-    } else {
-        Err(WorkspaceError::config_invalid(
-            "http.bind",
-            format!(
-                "must be a loopback address (127.0.0.0/8 or ::1), not `{value}` (from {source}); non-loopback HTTP arrives with phase 5"
-            ),
-        ))
-    }
+    })
 }
 
 fn check_path(path: &str) -> Result<(), String> {
@@ -1321,7 +1437,13 @@ fn check_origin(entry: &str) -> Result<(), String> {
         .map_err(|_| format!("entry `{entry}` must be an exact http or https origin"))
 }
 
-fn scan_table(table: &Table, prefix: &str, known: &[&str], reserved: &[&str], scan: &mut KeyScan) {
+pub(super) fn scan_table(
+    table: &Table,
+    prefix: &str,
+    known: &[&str],
+    reserved: &[&str],
+    scan: &mut KeyScan,
+) {
     for key in table.keys() {
         let path = if prefix.is_empty() {
             key.clone()

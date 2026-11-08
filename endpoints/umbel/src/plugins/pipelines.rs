@@ -30,6 +30,10 @@
 //!   registered with its own `expose`, and one exposed to an interface (`mcp`, `agent`, `cli`)
 //!   that any of its steps is not exposed to is `PLUGIN_MANIFEST_INVALID`, naming the step. A
 //!   pipeline of manifest versions 1 to 3 keeps phase 1's exposure to every surface, unchecked.
+//! - **Task and person** (manifest version 5, phase 5 section 2.3). A pipeline's `task` is admitted
+//!   only when every step's own `task` is not `never`; its `person` only when every step is a
+//!   `require-human` command whose assurance it admits (as strong on each surface, and naming MCP
+//!   only when the step does). Otherwise `PLUGIN_MANIFEST_INVALID`, naming the step.
 //!
 //! What the handler does (phase 4 section 10.1, D91):
 //!
@@ -55,7 +59,7 @@ use serde_json::{Map, Value, json};
 
 use super::attestation::PipelineAttestations;
 use super::error::PluginError;
-use super::manifest::{Effect, Manifest, PipelineDecl, PipelineResult};
+use super::manifest::{Effect, Manifest, PersonDecl, PipelineDecl, PipelineResult, TaskMode};
 use umbel_sdk::PipelineAttestation;
 
 /// The interfaces a pipeline may be exposed to; no pipeline is offered in the palette.
@@ -80,6 +84,10 @@ pub(crate) struct Known {
     pub authority_prompt: Option<String>,
     /// The interfaces the command is exposed to (phase 4 section 2.2).
     pub expose: ExposeOptions,
+    /// The command's `task` (manifest version 5); `never` for the host's commands.
+    pub task: TaskMode,
+    /// The command's `person`, set for a `require-human` command (manifest version 5).
+    pub person: Option<PersonDecl>,
 }
 
 /// Whether a pipeline was registered.
@@ -178,6 +186,7 @@ fn plan_one(
     if manifest.manifest_version >= 4 {
         check_exposure(manifest, index, pipeline, &steps)?;
     }
+    check_task_and_person(manifest, index, pipeline, &steps)?;
     let union = |prompt: fn(&Known) -> Option<&String>| {
         let mut prompts: Vec<String> = Vec::new();
         let mut seen: Vec<&str> = Vec::new();
@@ -305,6 +314,49 @@ fn check_exposure(
                 ),
             ));
         }
+    }
+    Ok(())
+}
+
+/// Phase 5 section 2.3: a pipeline's `task` and `person` are admitted only when every step admits
+/// them.
+fn check_task_and_person(
+    manifest: &Manifest,
+    index: usize,
+    pipeline: &PipelineDecl,
+    steps: &[(&str, &Known, &Vec<Effect>)],
+) -> Result<(), PluginError> {
+    let refuse = |key: &str, problem: String| {
+        Err(PluginError::manifest_invalid(
+            &manifest.file,
+            &format!("pipelines[{index}].{key}"),
+            problem,
+        ))
+    };
+    if pipeline.task != TaskMode::Never
+        && let Some((name, _, _)) = steps
+            .iter()
+            .find(|(_, known, _)| known.task == TaskMode::Never)
+    {
+        return refuse(
+            "task",
+            format!(
+                "is \"{}\", but its step `{name}` is never a task: a pipeline runs as a task only when every step may",
+                pipeline.task.as_str()
+            ),
+        );
+    }
+    if let Some(person) = &pipeline.person
+        && let Some((name, _, _)) = steps
+            .iter()
+            .find(|(_, known, _)| !known.person.is_some_and(|step| person.admits(&step)))
+    {
+        return refuse(
+            "person",
+            format!(
+                "is not admitted by its step `{name}`: every step must be a require-human command whose person this pipeline's matches or exceeds on each surface"
+            ),
+        );
     }
     Ok(())
 }

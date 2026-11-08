@@ -30,7 +30,8 @@ fn assert_each_key_required(validator: &jsonschema::Validator, label: &str, base
 
 #[test]
 fn the_version_constants_name_schema_files() {
-    assert_eq!(umbel::PROPOSAL_VERSIONS, [1, 2]);
+    // Phase 5 adds proposal version 3 beside them (`schemas/phase5_records.rs`).
+    assert_eq!(umbel::PROPOSAL_VERSIONS, [1, 2, 3]);
     assert_eq!(umbel::PROPOSAL_VERSION, 2);
     assert_eq!(umbel::CURATOR_VERSION, 1);
     let exists = |stem: String| {

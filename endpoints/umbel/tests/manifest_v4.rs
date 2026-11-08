@@ -527,14 +527,14 @@ fn versions_1_to_3_refuse_what_version_4_adds() {
 }
 
 #[test]
-fn a_host_reads_manifest_versions_1_to_4() {
-    assert_eq!(umbel::MANIFEST_VERSION, 4);
-    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4]);
-    for other in [0, 5] {
+fn a_host_reads_manifest_versions_1_to_4_and_version_5_beside_them() {
+    assert_eq!(umbel::MANIFEST_VERSION, 5);
+    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5]);
+    for other in [0, 6] {
         let error = parse(&head(other, "compiled")).unwrap_err();
         assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{other}");
         assert!(
-            error.suggestion().contains("manifest versions 1 to 4"),
+            error.suggestion().contains("manifest versions 1 to 5"),
             "{error}"
         );
     }

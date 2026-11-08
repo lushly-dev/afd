@@ -26,7 +26,9 @@ use super::component::ComponentRuntime;
 use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
 use super::grants::{ALLOW_REQUIRED, CommandPolicy, Services, Shared, needs_allow};
-use super::manifest::{CommandDecl, Effect, JournalMode, Manifest, PluginKind, Transport};
+use super::manifest::{
+    Assurance, CommandDecl, Effect, JournalMode, Manifest, PluginKind, TaskMode, Transport,
+};
 #[cfg(feature = "mounted")]
 use super::mounted;
 use super::packs::{PackSet, PackState};
@@ -155,6 +157,10 @@ pub(crate) struct GateEntry {
     pub spaces_command: bool,
     /// `confirm = "require-human"` (manifest version 2): only a person at a terminal may run it.
     pub require_human: bool,
+    /// `person.cli = "verified"` (manifest version 5) on the command or pipeline: a person proven
+    /// on the person page, which phase 5 step 5 builds. Until then the gate refuses the call with
+    /// `PERSON_VERIFICATION_UNAVAILABLE` rather than accept the terminal check in its place.
+    pub person_verified: bool,
     /// Whether the command is a pipeline. Its steps are journaled and projected as the calls
     /// they are, so the pipeline itself is not projected as a second event.
     pub pipeline: bool,
@@ -398,6 +404,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
                 schema.clone(),
             )?;
             let mut entry = gate_entry(&id, kind, &prepared.spaces, schema, true, false);
+            entry.person_verified = decl.person.is_some_and(|person| person.needs_preview());
             entry.digest = plan.digest.then(Vec::new);
             entry.authority_prompt = plan.authority_prompt.clone();
             entry.steps = decl.steps.iter().map(|step| step.command.clone()).collect();
@@ -427,6 +434,7 @@ fn gate_entry(
         space_command: has_space_property(schema),
         spaces_command: has_spaces_property(schema),
         require_human,
+        person_verified: false,
         pipeline,
         memory_writer: false,
         digest: None,
@@ -490,6 +498,8 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     digest: false,
                     authority_prompt: None,
                     expose: command.expose.clone(),
+                    task: TaskMode::Never,
+                    person: None,
                 },
             )
         })
@@ -535,6 +545,8 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     }),
                     authority_prompt: decl.and_then(|command| command.authority_prompt.clone()),
                     expose: definition.expose.clone(),
+                    task: decl.map_or(TaskMode::Never, |command| command.task),
+                    person: decl.and_then(|command| command.person),
                 },
             );
         }
@@ -553,6 +565,8 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                         .with_mcp(pipeline.expose.mcp)
                         .with_agent(pipeline.expose.agent)
                         .with_cli(pipeline.expose.cli),
+                    task: pipeline.task,
+                    person: pipeline.person,
                 },
             );
         }
@@ -891,7 +905,7 @@ fn prepare(
                     CommandPolicy {
                         store_write: command.effects.contains(&Effect::StoreWrite),
                         cli_only: command.expose.cli
-                            && !command.expose.mcp
+                            && !command.mcp_exposed()
                             && !command.expose.agent,
                     },
                 )
@@ -950,6 +964,9 @@ fn prepare(
                     command.require_human,
                 );
                 entry.memory_writer = memory_writer;
+                entry.person_verified = command
+                    .person
+                    .is_some_and(|person| person.cli == Assurance::Verified);
                 entry.digest = command
                     .journal
                     .as_ref()
@@ -964,7 +981,7 @@ fn prepare(
     let suggestions = manifest
         .commands
         .iter()
-        .filter(|command| command.first_class && command.expose.mcp)
+        .filter(|command| command.first_class && command.mcp_exposed())
         .map(|command| command.name.clone())
         .collect();
     Ok(Prepared {
@@ -1216,10 +1233,12 @@ fn origin(instance: &str, manifest: &Manifest, command: &CommandDecl) -> Value {
     })
 }
 
+/// The command's exposure as registered: a `require-human` command stays off MCP until phase 5
+/// step 5 serves it to verified persons ([`CommandDecl::mcp_exposed`]).
 fn expose(command: &CommandDecl) -> ExposeOptions {
     ExposeOptions::new()
         .with_palette(command.expose.palette)
-        .with_mcp(command.expose.mcp)
+        .with_mcp(command.mcp_exposed())
         .with_agent(command.expose.agent)
         .with_cli(command.expose.cli)
 }

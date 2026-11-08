@@ -43,6 +43,28 @@ pub(crate) fn options(workspace: &Workspace) -> HttpOptions {
     }
 }
 
+/// Configuration version 5 reads the hosted profile (phase 5 section 2.2), but the listener that
+/// serves it, with TLS, the bearer or gateway layer, the metadata and the limits, is phase 5 step
+/// 2a's. Until then this surface refuses to start in a hosted mode, with `[http.tls]` or on a
+/// non-loopback bind, rather than serve them behind phase 0's loopback token alone.
+fn refuse_hosted(workspace: &Workspace) -> Result<(), HostError> {
+    let config = workspace.config();
+    let key = if config.auth.mode.is_hosted() {
+        "auth.mode"
+    } else if config.http.tls.is_some() {
+        "http.tls"
+    } else if !config.http.bind.ip().is_loopback() {
+        "http.bind"
+    } else {
+        return Ok(());
+    };
+    Err(HostError::config_invalid(
+        key,
+        "asks for the hosted HTTP surface (TLS, token verification, the protected-resource metadata), which this build reads but does not serve yet",
+        "Serve over stdio, or use auth.mode = \"none\" on a loopback bind without [http.tls] until the hosted listener arrives (phase 5 step 2a).",
+    ))
+}
+
 /// The router: the MCP endpoint at `http.path` and `GET /health`, behind the bearer layer.
 ///
 /// # Errors
@@ -50,6 +72,7 @@ pub(crate) fn options(workspace: &Workspace) -> HttpOptions {
 /// `WORKSPACE_STATE_UNWRITABLE` when it cannot be created; `WORKSPACE_CONFIG_INVALID` naming
 /// `mcp.first_class_tools` when the server's surface is invalid.
 pub(crate) fn router(server: &McpServer, workspace: &Workspace) -> Result<Router, HostError> {
+    refuse_hosted(workspace)?;
     let token = workspace.http_token()?;
     let service = server
         .try_streamable_http_service(options(workspace))

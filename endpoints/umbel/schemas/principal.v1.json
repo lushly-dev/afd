@@ -1,0 +1,514 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/principal.v1.json",
+	"title": "Umbel principal projection, version 1",
+	"description": "The caller, as the host sets it in CommandContext.extra[\"dev.umbel/principal\"] (phase 5 section 2.1, D110, D111). Version 0's four fields keep their meaning; authentication gains verified (an OAuth access token, 3.2) and gateway (a verified gateway assertion, 4.4), and the fields version 0 reserved take their meanings at the top level (D36). tenant stays reserved and refused (owner decision 14); neither the token nor AFD's credentials is ever copied here. The mode decides the rest: verified and gateway come over Streamable HTTP with an agent acting for a namespaced person, or a service, a namespace, an issuer alias, a delegation chain, scopes and the spaces they grant; none is the loopback agent; process is stdio or the CLI; embedder is the library. Without a token, scopes and spaces are null (nothing narrows the caller), never empty. humanPresent is set only by the host: terminal by the CLI's check, verified by a completed person decision; no token claim and no gateway sets it. Rules that need more than a schema, such as the actor's namespace equalling namespace, scopes under the configured prefix and spaces that are declared and readable, are the host's.",
+	"type": "object",
+	"required": [
+		"version",
+		"actor",
+		"transport",
+		"authentication",
+		"namespace",
+		"issuer",
+		"delegationChain",
+		"tokenBinding",
+		"humanPresent",
+		"scopes",
+		"spaces",
+		"policyDecision",
+		"policyVersion"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"actor": {
+			"$ref": "#/$defs/actor"
+		},
+		"transport": {
+			"enum": ["stdio", "http", "cli", "library"]
+		},
+		"authentication": {
+			"enum": ["none", "process", "embedder", "verified", "gateway"]
+		},
+		"namespace": {
+			"description": "The identity namespace; null for none, process and embedder.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$"
+				}
+			]
+		},
+		"issuer": {
+			"description": "The issuer alias, or the gateway's alias; null for none, process and embedder.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,62}$"
+				}
+			]
+		},
+		"delegationChain": {
+			"$ref": "#/$defs/delegationChain"
+		},
+		"tokenBinding": {
+			"description": "bearer, or mtls with the RFC 8705 certificate thumbprint (unpadded base64url SHA-256); dpop is reserved and refused (D19); null without a token, a gateway assertion included.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "bearer"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "thumbprint"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "mtls"
+						},
+						"thumbprint": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_-]{43}$"
+						}
+					}
+				}
+			]
+		},
+		"humanPresent": {
+			"description": "Set only by the host: terminal and cli-terminal by the CLI's check, verified and person-page by a completed person decision (7.2).",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["level", "method", "at"],
+					"additionalProperties": false,
+					"properties": {
+						"level": {
+							"const": "terminal"
+						},
+						"method": {
+							"const": "cli-terminal"
+						},
+						"at": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["level", "method", "at", "authTime", "acr"],
+					"additionalProperties": false,
+					"properties": {
+						"level": {
+							"const": "verified"
+						},
+						"method": {
+							"const": "person-page"
+						},
+						"at": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"authTime": {
+							"type": "string",
+							"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+						},
+						"acr": {
+							"type": "string",
+							"pattern": "^[^\\s\\u0000-\\u001f\\u007f-\\u009f]{1,255}$"
+						}
+					}
+				}
+			]
+		},
+		"scopes": {
+			"description": "The granted Umbel scopes after the prefix filter (5.1): <prefix>:<verb> or <prefix>:<verb>:<space>, at most 64; null without a token or assertion.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "array",
+					"maxItems": 64,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9.-]{0,31}:(read|write|approve|erase)(:[a-z][a-z0-9-]{0,62})?$"
+					}
+				}
+			]
+		},
+		"spaces": {
+			"description": "Per readable space, the verbs the scopes grant there (5.4); null without a token or assertion.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"propertyNames": {
+						"pattern": "^[a-z][a-z0-9-]{0,62}$"
+					},
+					"additionalProperties": {
+						"type": "array",
+						"minItems": 1,
+						"uniqueItems": true,
+						"items": {
+							"enum": ["read", "write", "approve", "erase"]
+						}
+					}
+				}
+			]
+		},
+		"policyDecision": {
+			"type": "object",
+			"required": ["decision", "policy", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"decision": {
+					"enum": ["allow", "deny"]
+				},
+				"policy": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,63}$"
+				},
+				"reason": {
+					"description": "A rule code, never a claim value.",
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^[a-z][a-z0-9-]{0,63}$"
+						}
+					]
+				}
+			}
+		},
+		"policyVersion": {
+			"description": "The SHA-256 of the [auth] and [access] tables as read.",
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"authentication": {
+						"enum": ["verified", "gateway"]
+					}
+				},
+				"required": ["authentication"]
+			},
+			"then": {
+				"properties": {
+					"transport": {
+						"const": "http"
+					},
+					"actor": {
+						"$ref": "#/$defs/verifiedActor"
+					},
+					"namespace": {
+						"type": "string"
+					},
+					"issuer": {
+						"type": "string"
+					},
+					"delegationChain": {
+						"minItems": 1
+					},
+					"scopes": {
+						"type": "array"
+					},
+					"spaces": {
+						"type": "object"
+					},
+					"humanPresent": {
+						"not": {
+							"type": "object",
+							"properties": {
+								"level": {
+									"const": "terminal"
+								}
+							},
+							"required": ["level"]
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"namespace": {
+						"type": "null"
+					},
+					"issuer": {
+						"type": "null"
+					},
+					"delegationChain": {
+						"maxItems": 0
+					},
+					"tokenBinding": {
+						"type": "null"
+					},
+					"scopes": {
+						"type": "null"
+					},
+					"spaces": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"authentication": {
+						"const": "verified"
+					}
+				},
+				"required": ["authentication"]
+			},
+			"then": {
+				"properties": {
+					"tokenBinding": {
+						"type": "object"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"authentication": {
+						"const": "gateway"
+					}
+				},
+				"required": ["authentication"]
+			},
+			"then": {
+				"properties": {
+					"tokenBinding": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"authentication": {
+						"const": "none"
+					}
+				},
+				"required": ["authentication"]
+			},
+			"then": {
+				"properties": {
+					"transport": {
+						"const": "http"
+					},
+					"actor": {
+						"const": {
+							"kind": "agent",
+							"id": "loopback"
+						}
+					},
+					"humanPresent": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"authentication": {
+						"const": "embedder"
+					}
+				},
+				"required": ["authentication"]
+			},
+			"then": {
+				"properties": {
+					"transport": {
+						"const": "library"
+					},
+					"humanPresent": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"authentication": {
+						"const": "process"
+					}
+				},
+				"required": ["authentication"]
+			},
+			"then": {
+				"properties": {
+					"transport": {
+						"enum": ["stdio", "cli"]
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"transport": {
+						"const": "stdio"
+					}
+				},
+				"required": ["transport"]
+			},
+			"then": {
+				"properties": {
+					"actor": {
+						"properties": {
+							"kind": {
+								"const": "agent"
+							}
+						}
+					},
+					"humanPresent": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"transport": {
+						"const": "cli"
+					}
+				},
+				"required": ["transport"]
+			},
+			"then": {
+				"properties": {
+					"actor": {
+						"properties": {
+							"kind": {
+								"const": "human"
+							}
+						}
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"verifiedActor": {
+			"description": "A verified caller (4.1): the client agent:<ns>/<client_id> acting for <ns>/<subject>, or a service service:<ns>/<client_id> with no onBehalfOf.",
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "id", "onBehalfOf"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "agent"
+						},
+						"id": {
+							"$ref": "#/$defs/namespacedId"
+						},
+						"label": {
+							"type": "string"
+						},
+						"onBehalfOf": {
+							"$ref": "#/$defs/namespacedId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "id"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "service"
+						},
+						"id": {
+							"$ref": "#/$defs/namespacedId"
+						},
+						"label": {
+							"type": "string"
+						}
+					}
+				}
+			]
+		},
+		"namespacedId": {
+			"description": "A namespaced id (phase 5 section 4.1): <namespace>/<id>, where <id> is the issuer's subject or client id as sent when it is at most 120 characters, does not start with ~ and leaves the whole at most 128 characters (phase 2's id limit), and otherwise ~ and the 52 lowercase base32 characters of its SHA-256. No literal id can produce the hashed form.",
+			"type": "string",
+			"maxLength": 128,
+			"pattern": "^[a-z][a-z0-9-]{0,31}/([^~\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]{0,119}|~[a-z2-7]{52})$"
+		},
+		"delegationChain": {
+			"description": "Outermost first (phase 5 sections 2.1 and 4.3): the client, or the RFC 8693 act chain from an issuer configured delegation = \"act\", each entry mapped as a client is in 4.1; empty without a token or assertion; at most 8.",
+			"type": "array",
+			"maxItems": 8,
+			"items": {
+				"type": "object",
+				"required": ["kind", "id"],
+				"additionalProperties": false,
+				"properties": {
+					"kind": {
+						"enum": ["agent", "service"]
+					},
+					"id": {
+						"$ref": "#/$defs/namespacedId"
+					}
+				}
+			}
+		}
+	}
+}

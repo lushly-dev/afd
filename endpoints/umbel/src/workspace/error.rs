@@ -11,7 +11,7 @@ pub mod codes {
     pub const WORKSPACE_NOT_FOUND: &str = "WORKSPACE_NOT_FOUND";
     /// `umbel.toml` is invalid, or a command breaks a registration rule.
     pub const WORKSPACE_CONFIG_INVALID: &str = "WORKSPACE_CONFIG_INVALID";
-    /// `config_version` is not 1 to 4.
+    /// `config_version` is not 1 to 5.
     pub const WORKSPACE_CONFIG_UNSUPPORTED: &str = "WORKSPACE_CONFIG_UNSUPPORTED";
     /// `state/` cannot be created or written.
     pub const WORKSPACE_STATE_UNWRITABLE: &str = "WORKSPACE_STATE_UNWRITABLE";
@@ -34,6 +34,9 @@ pub struct WorkspaceError {
     message: String,
     suggestion: String,
     retryable: bool,
+    /// The configuration key at fault, for `WORKSPACE_CONFIG_INVALID` (`details.key`, phase 5
+    /// section 10.5).
+    key: Option<String>,
 }
 
 impl WorkspaceError {
@@ -43,6 +46,7 @@ impl WorkspaceError {
             message,
             suggestion,
             retryable: false,
+            key: None,
         }
     }
 
@@ -66,11 +70,23 @@ impl WorkspaceError {
         self.retryable
     }
 
-    /// The error as AFD's [`CommandError`].
+    /// For `WORKSPACE_CONFIG_INVALID`, the configuration key (or the command or file) at fault.
+    pub fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
+
+    /// The error as AFD's [`CommandError`], with `details.key` when it names a key.
     pub fn to_command_error(&self) -> CommandError {
-        CommandError::new(self.code, &self.message)
+        let error = CommandError::new(self.code, &self.message)
             .with_suggestion(&self.suggestion)
-            .with_retryable(self.retryable)
+            .with_retryable(self.retryable);
+        match &self.key {
+            Some(key) => error.with_details(std::collections::HashMap::from([(
+                "key".to_owned(),
+                serde_json::Value::String(key.clone()),
+            )])),
+            None => error,
+        }
     }
 
     /// The error as a failure [`CommandResult`], which is what the CLI and the library print.
@@ -88,11 +104,13 @@ impl WorkspaceError {
 
     /// `key` is the configuration key, or the name of the command or file that breaks a rule.
     pub(crate) fn config_invalid(key: &str, problem: impl fmt::Display) -> Self {
-        Self::new(
+        let mut error = Self::new(
             codes::WORKSPACE_CONFIG_INVALID,
             format!("umbel.toml: `{key}` {problem}"),
             format!("Fix `{key}` in umbel.toml: {problem}."),
-        )
+        );
+        error.key = Some(key.to_owned());
+        error
     }
 
     pub(crate) fn config_syntax(problem: impl fmt::Display) -> Self {
@@ -107,9 +125,9 @@ impl WorkspaceError {
         Self::new(
             codes::WORKSPACE_CONFIG_UNSUPPORTED,
             format!(
-                "umbel.toml has config_version {found}; this umbel reads configuration versions 1 to 4"
+                "umbel.toml has config_version {found}; this umbel reads configuration versions 1 to 5"
             ),
-            "This umbel reads configuration versions 1 to 4; upgrade umbel or migrate umbel.toml."
+            "This umbel reads configuration versions 1 to 5; upgrade umbel or migrate umbel.toml."
                 .to_owned(),
         )
     }

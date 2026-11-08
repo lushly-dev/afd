@@ -224,7 +224,7 @@ fn show(instance: &InstanceReport) -> Value {
                 "mutation": command.mutation(),
                 "firstClass": command.first_class,
                 "expose": {
-                    "mcp": command.expose.mcp,
+                    "mcp": command.mcp_exposed(),
                     "agent": command.expose.agent,
                     "cli": command.expose.cli,
                     "palette": command.expose.palette,

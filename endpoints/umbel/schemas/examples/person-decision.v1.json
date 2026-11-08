@@ -1,0 +1,29 @@
+{
+	"version": 1,
+	"id": "kl4bl6u77uuvn3ofwdvu5fe7uq",
+	"for": {
+		"actor": {
+			"kind": "agent",
+			"id": "corp/f53f191f9311af35",
+			"onBehalfOf": "corp/U019488227"
+		},
+		"clientId": "f53f191f9311af35",
+		"issuer": "corp-as",
+		"namespace": "corp",
+		"subject": "U019488227"
+	},
+	"command": "knowledge-approve",
+	"inputDigest": "n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg",
+	"properties": {
+		"space": "alpha",
+		"id": "p-0a1b2c3d4e5f60718293"
+	},
+	"createdAt": "2026-11-09T10:00:00.000Z",
+	"expires": "2026-11-09T10:10:00.000Z",
+	"status": "pending",
+	"decidedAt": null,
+	"level": null,
+	"authTime": null,
+	"acr": null,
+	"previewHash": null
+}
