@@ -60,9 +60,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * accepted by the coordinator; and raised `appsMinified` by 4,427, to 384,253, approved by the coordinator,
  * 2026-11-03: the manifest's document rules in the one validator over untrusted input (4,185, with the
  * trust review's rule on `export_command` and `import_command`), the redaction of a call the kernel's own
- * bound refused, by its mark, in `apps.redact` (184), and the port's `documents` row (58), each measured as
- * the closure with it less without it, with no slack. First paint 285,348 and 87,990 gzip, the kernel alone
- * 111,350, `late` 56,860, `apps` 384,233.
+ * bound refused, by its mark, in `apps.redact` (about 180: 184 and 178 by two removals), and the port's
+ * `documents` row (58), each measured as the closure with it less without it, with no slack. The parts are
+ * approximate, since the minifier's renaming interacts with what is removed; the total is exact. First
+ * paint 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,860, `apps` 384,233.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
