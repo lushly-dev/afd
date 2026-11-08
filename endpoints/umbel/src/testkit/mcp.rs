@@ -187,6 +187,11 @@ impl Stdio {
     /// A connection that has not opened: for 2026-07-28 requests, which carry their own `_meta`.
     pub fn connect_modern(host: &Host) -> Self {
         use rmcp::ServiceExt;
+        // The in-memory pipe stands in for stdio, whose process boundary vouches for its peer: an
+        // authorized server (a hosted mode) serves it as `serve_stdio` would.
+        #[cfg(feature = "auth")]
+        let server = host.mcp_server().with_trusted_transport();
+        #[cfg(not(feature = "auth"))]
         let server = host.mcp_server();
         let (client_writer, server_reader) = tokio::io::duplex(1 << 20);
         let (server_writer, client_reader) = tokio::io::duplex(1 << 20);

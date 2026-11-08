@@ -2,9 +2,9 @@
 //! its namespaces, person logins, issuers and gateway, `[http.tls]` and `http.public_url`,
 //! `[limits]`, `[usage]`, `[principal.equivalents]`, group claims and the `memory_write` table's
 //! editors and erasers (sections 8.3 and 8.4), every rule section 2.2 checks at open, versions 1
-//! to 4 read as version 5 with `auth.mode = "none"`, and the HTTP surface refusing to serve a
-//! hosted configuration until the hosted listener exists (step 2a). Parsing only: nothing verifies
-//! a token, maps a caller or limits a request yet.
+//! to 4 read as version 5 with `auth.mode = "none"`, and the bare HTTP router refusing a hosted
+//! configuration, which only the listener serves (step 2a; `auth_layers.rs` holds the listener).
+//! Parsing only here: nothing verifies a token, maps a caller or limits a request.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -1330,7 +1330,7 @@ fn the_doctor_reads_version_5_and_reports_its_rules() {
 }
 
 #[test]
-fn a_hosted_workspace_opens_but_the_http_surface_waits_for_the_hosted_listener() {
+fn a_hosted_workspace_opens_but_the_bare_router_leaves_it_to_the_listener() {
     for (text, key) in [
         (oauth(""), "auth.mode"),
         (gateway("127.0.0.1:8443", "", ""), "auth.mode"),

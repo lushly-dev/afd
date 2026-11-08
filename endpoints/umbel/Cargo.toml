@@ -22,7 +22,12 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [features]
-default = ["cli", "component", "mounted", "store-embedded"]
+default = ["auth", "cli", "component", "mounted", "store-embedded"]
+# The hosted HTTP surface (phase 5 specification, sections 3 and 6): in-process TLS with
+# `tokio-rustls` (TLS 1.2 and 1.3 on the `aws-lc-rs` provider) and the client certificate per
+# `client_auth`, the layers of section 6.3, the protected-resource metadata, AFD's bearer layer
+# (`afd/server-auth`) and the shared limit counters in `state/shared/limits.sqlite3`. Without it the
+# HTTP surface serves phase 0's loopback token only, and refuses `[http.tls]` and the hosted modes.
 # The `umbel` binary's argument parser. Embedders use default-features = false.
 cli = ["dep:clap"]
 # The WebAssembly component loader (specification section 6.2): wasmtime 48 and its WASI 0.2
@@ -32,6 +37,7 @@ component = ["dep:bytes", "dep:rand", "dep:wasmtime", "dep:wasmtime-wasi", "dep:
 # (specification section 10.1). The specification names `tempfile` and `rmcp`; the drivers also
 # need `http` and `http-body-util` to speak to the router in process.
 testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
+auth = ["afd/server-auth", "dep:rusqlite", "dep:rustls-pki-types", "dep:tokio-rustls"]
 # The mounted MCP server loader (specification section 6.3): rmcp's client over a child process's
 # stdio and Streamable HTTP, with rustls (rmcp's `reqwest` feature is what enables it). The child
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither
@@ -77,6 +83,12 @@ tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net",
 toml = { version = "1", features = ["preserve_order"] }
 # The exact-path MCP service behind the bearer layer (`service_fn`).
 tower = { version = "0.5", features = ["util"] }
+# The HTTP listener serves HTTP/1.1 on hyper itself, as `axum::serve` does, so that it puts the
+# peer address (and, with the `auth` feature, the TLS client certificate) in each request's
+# extensions; `http-body` for the body size limit's capped body. All three come with axum.
+http-body = "1"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "server", "server-graceful", "http1", "service"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
@@ -97,6 +109,12 @@ futures = { version = "0.3", optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"], optional = true }
 sse-stream = { version = "0.2", optional = true }
 
+# Optional: the `auth` feature, the hosted HTTP surface. `rustls-pki-types`' `PemObject` reads the
+# PEM files; SQLite holds the limit counters every process behind one URL shares (section 10.2).
+rusqlite = { version = "0.41", features = ["bundled"], optional = true }
+rustls-pki-types = { version = "1.15", features = ["std"], optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"], optional = true }
+
 # Optional: the `testkit` feature's drivers (the same crates are dev-dependencies below, for the
 # integration tests' own use).
 http = { version = "1", optional = true }
@@ -116,16 +134,23 @@ bytes = "1"
 http = "1"
 http-body-util = "0.1"
 # The mounted-loader tests serve a plugin over HTTPS with a certificate made on the spot.
-hyper = { version = "1", features = ["http1", "server"] }
+# `auth_layers.rs` speaks HTTP/1.1 to the hosted listener, over TLS with and without a client
+# certificate, through hyper's client connection.
+hyper = { version = "1", features = ["client", "http1", "server"] }
 hyper-util = { version = "0.1", features = ["tokio", "http1", "server", "service"] }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
 rmcp = { version = "3.9", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
+# The body deadline's unit test runs on paused time.
+tokio = { version = "1", features = ["test-util"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
 # The integration tests drive the test kit, and the hello plugin as a second compiled plugin.
 umbel = { path = ".", features = ["testkit"] }
 umbel-plugin-hello = { path = "plugins/hello" }
 umbel-sdk = { path = "sdk", features = ["mounted"] }
+# The auth tests' certificate authority, access tokens and assertions (phase 5 step 1b). Only ever
+# a dev-dependency: `tests/no_auth_server.rs` fails otherwise.
+umbel-testkit-idp = { path = "testkit-idp" }
 # `doctor_stores.rs` damages a store's tables, and `store_commands.rs` opens a backup.
 rusqlite = { version = "0.41", features = ["bundled"] }
 # The store tests build documents and chunks with the conformance suite's own samples.
