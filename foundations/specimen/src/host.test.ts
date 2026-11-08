@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hostBinaryPath, hostPackageName } from './host.js';
+import { chromiumExecutable, hostBinaryPath, hostPackageName } from './host.js';
 
 const specimen = join(import.meta.dirname, '..');
 const read = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
@@ -104,5 +104,29 @@ describe('hostBinaryPath', () => {
 	it.runIf(name)('names the package when its binary is missing', () => {
 		install(false);
 		expect(() => hostBinaryPath(moduleUrl)).toThrow(`${name} has no host binary`);
+	});
+});
+
+describe('the Chromium headless shell', () => {
+	const configured = process.env.PLAYWRIGHT_BROWSERS_PATH;
+	afterEach(() => {
+		if (configured === undefined) delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+		else process.env.PLAYWRIGHT_BROWSERS_PATH = configured;
+	});
+
+	it('names the Playwright version it needs and a command any project can run', () => {
+		const empty = mkdtempSync(join(tmpdir(), 'specimen-no-browsers-'));
+		process.env.PLAYWRIGHT_BROWSERS_PATH = empty;
+		const { version } = read(join(specimen, 'node_modules/playwright/package.json'));
+		try {
+			expect(() => chromiumExecutable()).toThrow(
+				`for Playwright ${version}, is missing at ${empty}/`
+			);
+			expect(() => chromiumExecutable()).toThrow(
+				`install it with \`npx playwright@${version} install --only-shell chromium\``
+			);
+		} finally {
+			rmSync(empty, { recursive: true, force: true });
+		}
 	});
 });
