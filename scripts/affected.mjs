@@ -164,12 +164,20 @@ function missingTools(plan) {
 	return missing;
 }
 
+/**
+ * `LEFTHOOK=0` turns lefthook off entirely, `lefthook run check` included, which then exits 0
+ * having run nothing. Release sets it so Changesets' push skips the git hooks, so the gate drops it.
+ */
+export function checkEnvironment(all, environment = process.env) {
+	const { LEFTHOOK, LEFTHOOK_EXCLUDE, ...rest } = environment;
+	return { ...rest, AFD_SCOPE: all ? 'all' : (environment.AFD_SCOPE ?? '') };
+}
 function runCheck(all) {
 	execFileSync('npx', ['lefthook', 'run', 'check'], {
 		cwd: root,
 		stdio: 'inherit',
 		shell: windows,
-		env: { ...process.env, AFD_SCOPE: all ? 'all' : (process.env.AFD_SCOPE ?? '') },
+		env: checkEnvironment(all),
 	});
 }
 
