@@ -117,6 +117,22 @@ caller's credentials. Umbel phase 5 step 0c then implements #532 in TypeScript, 
 binds confirmation state (and TypeScript's approval-relay state, which shares it) to the principal
 binding as integrity-protected input, never as readable identity, refuses a mismatch as it refuses a
 tampered state, and loads the `principalBindings` cases. No case, fixture or wire field changes.
+Umbel phase 5 step 0e implements Tasks in Rust and adds `TASK_TOKEN_EXPIRED` to the shared catalog,
+`vectors/error-codes.json` (now 48 codes) and the constants in all four languages, a minor contract
+change. It writes back into the Tasks section of `command-metadata.md` the readings it settled, each
+the stricter one: a 2025 request never declares the extension, whatever it declared at
+`initialize`; credentials that cannot be bound get no task; the server stops the handler when the
+signal fires, and a task is gone when its `ttlMs` ends; a task whose token expired before it started
+completes with `TASK_TOKEN_EXPIRED` without running, and a result that arrives after `expiresAt` is
+not delivered; `TASK_TOKEN_EXPIRED`'s retryable value is "Varies", `false` for a mutation whose
+handler started; a handler that returned before a `tasks/cancel` took effect keeps its result; the
+unknown-task answer is `-32602`, and the server checks the owner and the TTL again whatever the store
+returned; on an authorized server the owner must still hold what the task's command needs to read or
+update it, but not to cancel it; a server that cannot tell its callers apart (HTTP without credentials
+or a host's declaration that its hook identifies callers) creates no task, declares no extension, runs
+an `optional` command inline and refuses a `required` one with `UNAUTHORIZED`;
+and the default store is bounded, dropping finished tasks to make room before a full store fails the
+call with `RATE_LIMITED`, with a limit on the tasks one process runs.
 
 [`plugin-manifest.md`](./plugin-manifest.md) specifies the shared plugin manifest (Loam D58): core
 version 1, JSON Schema `$defs` with every object left open and reserved keys refused, and the contract

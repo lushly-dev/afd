@@ -94,6 +94,30 @@ pub(crate) fn call_refusal(
     None
 }
 
+/// The refusal of a `tasks/*` request by a task's owner whose token no longer holds what the
+/// task's command needs (its `scopes`, or the resolver's `visible`), as a JSON-RPC error; `None`
+/// to proceed. The required scopes are checked before, with the request.
+#[cfg(feature = "server-auth")]
+pub(crate) fn task_refusal(
+    server: &McpServer,
+    command: &str,
+    credentials: Option<&Credentials>,
+) -> Option<ErrorData> {
+    let (Some(auth), Some(credentials)) = (&server.inner.auth, credentials) else {
+        return None;
+    };
+    super::auth::task_refusal(server, auth, command, credentials)
+}
+
+#[cfg(not(feature = "server-auth"))]
+pub(crate) fn task_refusal(
+    _server: &McpServer,
+    _command: &str,
+    _credentials: Option<&Credentials>,
+) -> Option<ErrorData> {
+    None
+}
+
 /// The listing filter for a caller with `credentials` (M6, "Listing").
 #[cfg(feature = "server-auth")]
 pub(crate) fn visibility(
@@ -128,6 +152,18 @@ pub(crate) fn execution_check(
     _credentials: Option<&Arc<Credentials>>,
 ) -> Option<ScopeCheck> {
     None
+}
+
+/// Whether the server has authorization, so every HTTP request it serves carries verified
+/// credentials.
+#[cfg(feature = "server-auth")]
+pub(crate) fn configured(server: &McpServer) -> bool {
+    server.inner.auth.is_some()
+}
+
+#[cfg(not(feature = "server-auth"))]
+pub(crate) fn configured(_server: &McpServer) -> bool {
+    false
 }
 
 /// Whether `tools/list` varies by authorization, so its `cacheScope` is `private`.

@@ -6,6 +6,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- `afd::error_codes::TASK_TOKEN_EXPIRED`, the shared catalog's 48th code (`spec/error-codes.md`, `spec/vectors/error-codes.json`), specified by `spec/command-metadata.md` ("Tasks") and emitted by the Rust server's task runner first (Umbel phase 5 step 0e). C++ has no MCP server, so it never emits it; the constant keeps the catalog whole.
 - `afd::error_codes::INSUFFICIENT_SCOPE`, the shared catalog's 47th code (`spec/error-codes.md`, `spec/vectors/error-codes.json`), specified by `spec/authorization.md` (M6) and emitted by the Rust server first (Umbel phase 5 step 0b). C++ has no HTTP server, so it never emits it; the constant keeps the catalog whole.
 - `afd::error_codes::OUTPUT_BUDGET_EXCEEDED`, the shared catalog's 46th code (`spec/error-codes.md`, `spec/vectors/error-codes.json`), specified by `spec/output-budgets.md` and emitted by the Rust engine first. C++ does not implement output budgets yet; the parity matrix tracks it.
 

@@ -53,6 +53,11 @@
 //!   grouped tool, `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` or an
 //!   unknown name. Every batch item and pipeline step runs with its context.
 //!
+//! The hook also runs on `tasks/get`, `tasks/update` and `tasks/cancel`
+//! ([`super::tasks`]), with [`ContextHookRequest::tool`] set to the method name: a task's owner is
+//! the principal binding of the actor it leaves, so map the same actor there as on the call that
+//! started the task. A refusal there is a JSON-RPC `-32600` carrying its `code` and `suggestion`.
+//!
 //! The hook does not cover `tools/list`, `server/discover` or `initialize`; to refuse a request
 //! before any MCP handling (a missing or invalid bearer token, for example), put a `tower` layer
 //! in front of [`McpServer::streamable_http_service`](super::McpServer::streamable_http_service):
@@ -110,7 +115,8 @@ use crate::{
 #[non_exhaustive]
 pub struct ContextHookRequest {
     /// The `name` of the tool being called, as the client sent it. It may name a tool that does
-    /// not exist or is not exposed to MCP: the hook runs first on purpose.
+    /// not exist or is not exposed to MCP: the hook runs first on purpose. On `tasks/get`,
+    /// `tasks/update` and `tasks/cancel` it is the method name.
     pub tool: String,
     request: RequestContext<RoleServer>,
 }

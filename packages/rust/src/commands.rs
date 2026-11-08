@@ -537,6 +537,11 @@ pub struct CommandContext {
     /// The form-mode approval relay of one MCP tool call (`spec/command-metadata.md`, "Asking the
     /// human over MCP"): only the MCP server sets it. The handler gets one that never asks.
     pub(crate) approval_relay: Option<Arc<crate::approval::relay::ApprovalRelayChannel>>,
+    /// The cancellation signal of a call the MCP server runs as a task (`spec/command-metadata.md`,
+    /// "Tasks"): only the server sets it. Read it with [`CommandContext::cancellation`].
+    pub(crate) cancellation: Option<crate::cancellation::CancellationSignal>,
+    /// Where a task's progress goes ([`CommandContext::report_progress`]): only the server sets it.
+    pub(crate) task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
 }
 
 impl fmt::Debug for CommandContext {
@@ -566,6 +571,8 @@ impl fmt::Debug for CommandContext {
                 &self.relay_evidence.as_ref().map(|_| "[redacted]"),
             )
             .field("approval_relay", &self.approval_relay)
+            .field("cancellation", &self.cancellation)
+            .field("task_progress", &self.task_progress)
             .finish()
     }
 }
@@ -674,6 +681,37 @@ impl CommandContext {
         self
     }
 
+    /// The cancellation signal of a call the MCP server runs as a task (`spec/command-metadata.md`,
+    /// "Tasks"): it fires on `tasks/cancel`, when the task's `ttlMs` ends, and when the token
+    /// that started the task expires. `None` for every other call.
+    ///
+    /// The server stops the handler when it fires, at the handler's next `.await`, and settles
+    /// the task itself (`cancelled`, `TASK_TOKEN_EXPIRED`, or gone at its TTL). Work the handler
+    /// spawned elsewhere, and a loop that does not await, should read it and stop.
+    pub fn cancellation(&self) -> Option<&crate::cancellation::CancellationSignal> {
+        self.cancellation.as_ref()
+    }
+
+    /// Whether this call runs as a task whose cancellation signal fired (see
+    /// [`Self::cancellation`]); always `false` for a call that is not a task.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation
+            .as_ref()
+            .is_some_and(crate::cancellation::CancellationSignal::is_cancelled)
+    }
+
+    /// Report progress: for a call the MCP server runs as a task, `message` becomes the task's
+    /// `statusMessage` and moves its `lastUpdatedAt` (`spec/command-metadata.md`, "Tasks"); no
+    /// progress or log notification is sent. A message longer than
+    /// [`MAX_PROGRESS_MESSAGE_BYTES`](crate::MAX_PROGRESS_MESSAGE_BYTES) is cut. Any other call
+    /// ignores it. The client sees `statusMessage` and may show it to a person or a model, so
+    /// report a phase or a count, never content.
+    pub fn report_progress(&self, message: impl Into<String>) {
+        if let Some(progress) = &self.task_progress {
+            progress.report(message.into());
+        }
+    }
+
     /// The active context, if any.
     pub fn active_context(&self) -> Option<String> {
         self.context_scope
@@ -747,6 +785,62 @@ impl CommandConfirmationMode {
 }
 
 impl fmt::Display for CommandConfirmationMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TASK SUPPORT OF ONE COMMAND
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Whether an MCP `tools/call` to a command may run as a task under the Tasks extension,
+/// `io.modelcontextprotocol/tasks` (`spec/command-metadata.md`, "Tasks"), reported as `task` in
+/// `_meta`, grouped `_meta.actions` and `afd-detail`.
+///
+/// | `task` | A request that declares the extension | One that does not |
+/// | --- | --- | --- |
+/// | [`Never`](Self::Never) (default) | Inline | Inline |
+/// | [`Optional`](Self::Optional) | A task | Inline |
+/// | [`Required`](Self::Required) | A task | JSON-RPC `-32021`, naming the extension |
+///
+/// Only a call that routes to one command (its own tool, a hybrid first-class tool, a grouped
+/// tool or `afd-call`) becomes a task; in `afd-batch` and `afd-pipe` an `Optional` step runs
+/// inline and a `Required` step fails the whole request before any step runs. `DirectClient`,
+/// in-process registries and the CLI always run inline. A task never asks a person, so
+/// [`CommandRegistry::register`] refuses `Optional` or `Required` beside `confirm_prompt`, an
+/// approval policy other than `not-required`, or a `confirmation_mode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "kebab-case")]
+pub enum TaskSupport {
+    /// `never`: every call runs inline.
+    #[default]
+    Never,
+    /// `optional`: a task for a request that declares the extension, inline otherwise.
+    Optional,
+    /// `required`: only as a task; a request that does not declare the extension gets JSON-RPC
+    /// `-32021` (missing required client capability).
+    Required,
+}
+
+impl TaskSupport {
+    /// The wire spelling: `never`, `optional` or `required`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Never => "never",
+            Self::Optional => "optional",
+            Self::Required => "required",
+        }
+    }
+
+    /// Whether a call may run as a task (`Optional` or `Required`).
+    pub fn allows_task(self) -> bool {
+        self != Self::Never
+    }
+}
+
+impl fmt::Display for TaskSupport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
@@ -931,6 +1025,13 @@ pub struct CommandDefinition {
     /// "Host-verified confirmation"). Reported as `confirmationMode` in `_meta`, grouped
     /// `_meta.actions` and `afd-detail`.
     pub confirmation_mode: Option<CommandConfirmationMode>,
+
+    /// Whether an MCP call may run as a task (`spec/command-metadata.md`, "Tasks"): `None` is
+    /// unset, read as [`TaskSupport::Never`]. Reported as `task` in `_meta`, grouped
+    /// `_meta.actions` and `afd-detail` when set. [`CommandRegistry::register`] refuses
+    /// [`TaskSupport::Optional`] or [`TaskSupport::Required`] beside `confirm_prompt`, an approval
+    /// policy other than `not-required`, or a `confirmation_mode`.
+    pub task: Option<TaskSupport>,
 }
 
 impl CommandDefinition {
@@ -968,7 +1069,19 @@ impl CommandDefinition {
             output_budget: None,
             scopes: None,
             confirmation_mode: None,
+            task: None,
         }
+    }
+
+    /// Declare whether an MCP call may run as a task (see [`CommandDefinition::task`]).
+    pub fn with_task(mut self, task: TaskSupport) -> Self {
+        self.task = Some(task);
+        self
+    }
+
+    /// The command's task support: [`TaskSupport::Never`] when unset.
+    pub fn task_support(&self) -> TaskSupport {
+        self.task.unwrap_or_default()
     }
 
     /// Set how the command is confirmed over MCP (see [`CommandDefinition::confirmation_mode`]):
@@ -1232,8 +1345,10 @@ impl CommandRegistry {
     /// # Errors
     /// Returns an error if the name is not `domain-action` kebab-case, a
     /// command with the same name already exists, an extra `_meta` key of
-    /// [`CommandDefinition::with_tool_meta`] breaks the key rule, or a scope of
-    /// [`CommandDefinition::with_scopes`] is not a scope token.
+    /// [`CommandDefinition::with_tool_meta`] breaks the key rule, a scope of
+    /// [`CommandDefinition::with_scopes`] is not a scope token, or the command may run as a task
+    /// ([`CommandDefinition::with_task`]) beside `confirm_prompt`, an approval policy other than
+    /// `not-required`, or a `confirmation_mode`.
     pub fn register(&self, command: CommandDefinition) -> Result<(), String> {
         validate_command_name(&command.name)?;
         validate_tool_meta(&command)?;
@@ -1331,8 +1446,8 @@ impl CommandRegistry {
     ///
     /// The tool carries the command's `title` only when it sets one, and its `_meta` the approval
     /// mode, the output budget declaration (`dev.afd/outputBudget`: `{ defaultBytes,
-    /// maxBytes }`), the `scopes` (when not empty) and the extra tool `_meta` entries, each only
-    /// when set.
+    /// maxBytes }`), the `scopes` (when not empty), `confirmationMode`, `task` and the extra tool
+    /// `_meta` entries, each only when set.
     ///
     /// A command with `mutation: true` also carries MCP `annotations`
     /// (`readOnlyHint: false`, `destructiveHint` from `destructive`; `spec/command-metadata.md`). `mutation`
@@ -1379,6 +1494,13 @@ impl CommandRegistry {
                 tool["_meta"] = serde_json::json!({});
             }
             tool["_meta"]["confirmationMode"] = serde_json::json!(mode);
+        }
+        // Whether a call may run as a task (`spec/command-metadata.md`, "Tasks"), when set.
+        if let Some(task) = command.task {
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            tool["_meta"]["task"] = serde_json::json!(task);
         }
         // The key rule keeps these from replacing any entry the server sets.
         if let Some(extra) = command.tool_meta.as_ref().filter(|extra| !extra.is_empty()) {
@@ -2197,12 +2319,34 @@ fn validate_scopes(command: &CommandDefinition) -> Result<(), String> {
 /// The registration check of the settings that make a call ask a person: `confirm_prompt`, an
 /// approval policy other than `not-required`, and `confirmation_mode`.
 ///
-/// Nothing among them combines badly yet. **Hook for Umbel phase 5 step 0e:** when `task` joins
-/// the definition, refuse `task: optional` or `required` here beside any of the three, naming the
-/// command (`spec/command-metadata.md`, "Tasks": a task never asks a person, so no AFD task is
-/// ever `input_required`).
-fn validate_person_gates(_command: &CommandDefinition) -> Result<(), String> {
-    Ok(())
+/// A command that may run as a task (`task: optional` or `required`) is refused beside any of
+/// the three, naming the command and the setting (`spec/command-metadata.md`, "Tasks": a task
+/// never asks a person, so no AFD task is ever `input_required`).
+fn validate_person_gates(command: &CommandDefinition) -> Result<(), String> {
+    let task = command.task_support();
+    if !task.allows_task() {
+        return Ok(());
+    }
+    let asks_approval = !matches!(
+        command.approval,
+        None | Some(crate::ApprovalPolicy::NotRequired)
+    );
+    let gate = if command.confirm_prompt.is_some() {
+        Some("confirm_prompt")
+    } else if asks_approval {
+        Some("an approval policy other than not-required")
+    } else if command.confirmation_mode.is_some() {
+        Some("confirmation_mode")
+    } else {
+        None
+    };
+    match gate {
+        Some(gate) => Err(format!(
+            "Command '{}': task \"{task}\" cannot be combined with {gate}: a task never asks a person (spec/command-metadata.md, \"Tasks\")",
+            command.name
+        )),
+        None => Ok(()),
+    }
 }
 
 /// Refuse a command whose extra tool `_meta` breaks the key rule, naming the command and the key.

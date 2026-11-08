@@ -331,6 +331,11 @@ pub mod error_codes {
     /// (`spec/authorization.md`, M6): `details.scopes` lists every missing scope. Over HTTP the
     /// same case is usually an HTTP 403 before dispatch instead.
     pub const INSUFFICIENT_SCOPE: &str = "INSUFFICIENT_SCOPE";
+    /// A task was still working when the token that started it expired, so it was stopped and
+    /// completes with this failure (`spec/command-metadata.md`, "Tasks"): start it again with a
+    /// new token. Retryable unless the command is a mutation whose handler started, which may
+    /// have made its change.
+    pub const TASK_TOKEN_EXPIRED: &str = "TASK_TOKEN_EXPIRED";
 }
 
 /// Standard error code alias for parity with other AFD implementations.

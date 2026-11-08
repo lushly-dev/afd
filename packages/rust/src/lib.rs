@@ -74,6 +74,7 @@ pub use direct::{DirectApprovalHook, DirectApprovalRequest, DirectClient};
 pub mod batch;
 pub mod bootstrap;
 pub mod builtin_names;
+pub mod cancellation;
 mod canonical;
 pub mod clock;
 pub mod commands;
@@ -170,7 +171,10 @@ pub use commands::{
     CommandConfirmationMode, CommandContext, CommandDefinition, CommandExample, CommandHandler,
     CommandInterface, CommandMiddleware, CommandParameter, CommandRegistry, ExecutionTime,
     ExposeOptions, JsonSchema, JsonSchemaType, McpInputSchema, McpTool, MiddlewareNext,
+    TaskSupport,
 };
+
+pub use cancellation::{CancellationSignal, Cancelled, MAX_PROGRESS_MESSAGE_BYTES};
 
 pub use canonical::input_digest;
 pub use credentials::{

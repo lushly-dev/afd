@@ -598,6 +598,7 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
         "confirmationMode",
         command.confirmation_mode.map(|mode| json!(mode)),
     );
+    optional("task", command.task.map(|task| json!(task)));
     optional(
         "toolMeta",
         command

@@ -105,9 +105,9 @@ construction ([H2](./tool-strategies.md#h2-validation-at-construction)), so
 
 ## The shared catalog
 
-47 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
+48 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
 engines emitted without a constant; then the 2 confirmation codes, the approval code, the output
-budget code and the authorization code.
+budget code, the authorization code and the task code.
 
 ### Validation
 
@@ -130,7 +130,7 @@ budget code and the authorization code.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `UNAUTHORIZED` | The caller is not signed in | No | Application; the auth package's middleware |
+| `UNAUTHORIZED` | The caller is not signed in. Also a call to a command that runs only as a task on a server that cannot tell its HTTP callers apart ([Tasks](./command-metadata.md#tasks)): the suggestion says the server needs authorization or a hook that identifies callers | No | Application; the auth package's middleware; server engine (Tasks) |
 | `FORBIDDEN` | The caller is signed in but not allowed | No | Application |
 | `TOKEN_EXPIRED` | The caller's session expired; sign in or refresh first | No | Application; the auth package |
 
@@ -243,18 +243,23 @@ verified credentials; see [M6](./authorization.md#m6-scopes). No handler ran.
 | --- | --- | --- | --- |
 | `INSUFFICIENT_SCOPE` | The caller's token lacks a scope the call needs, found after routing: a call the HTTP layer could not answer with a 403 before dispatch, such as one on the deprecated `/message` lane. `details.scopes` lists every missing scope; the suggestion says to obtain a token that grants them. A batch or pipeline fails as a whole before its first step. Where HTTP can answer, the same case is an HTTP 403 with `error="insufficient_scope"` instead, never a tool result | No (a new token) | Server engine, router, HTTP layer |
 
+### Tasks
+
+Emitted by a server's task runner; see [Tasks](./command-metadata.md#tasks). The task completes
+with this failure (`completed`, with `isError: true`).
+
+| Code | Meaning | Retryable | Layers |
+| --- | --- | --- | --- |
+| `TASK_TOKEN_EXPIRED` | A task was still working when the token that started it expired (`credentials.expiresAt`), so it was stopped; it completes with this failure. A token that expired before the task could start stops it the same way, before its handler runs, and so does a handler that returned after `expiresAt` (its result is not delivered). Start it again with a new token. Retryable unless the command is a `mutation` whose handler started: it may have made its change, in part or in full, and the suggestion says to check its effect first | Varies | Server engine (the task runner) |
+
 ## Specified, not yet in the catalog
 
 Engine codes a `spec/` page defines before any language emits them. Each joins
 [the shared catalog](#the-shared-catalog), with its constant in all four languages and its entry in
 [`vectors/error-codes.json`](./vectors/error-codes.json), in the first pull request that implements
 it ([Changing this page](#changing-this-page)). `OUTPUT_BUDGET_EXCEEDED` joined the catalog this way
-in Umbel phase 2 step 0b and `INSUFFICIENT_SCOPE` in Umbel phase 5 step 0b, and the catalog stands at
-47 codes. One is waiting, specified in Umbel phase 5 step 0a:
-
-| Code | Meaning | Retryable | Layers | Joins the catalog in |
-| --- | --- | --- | --- | --- |
-| `TASK_TOKEN_EXPIRED` | A task was still working when the token that started it expired, so it was stopped; it completes with this failure. Start it again with a new token. See [Tasks](./command-metadata.md#tasks) | Yes | Server engine (the task runner) | Umbel phase 5 step 0e (Rust) |
+in Umbel phase 2 step 0b, `INSUFFICIENT_SCOPE` in Umbel phase 5 step 0b and `TASK_TOKEN_EXPIRED` in
+Umbel phase 5 step 0e, and the catalog stands at 48 codes. None is waiting.
 
 A refused token is not an error code: it is an HTTP 401 whose body names the existing
 `UNAUTHORIZED`, with a rule code (`audience`, `expired`, `scopes-too-many` and so on) that is logged

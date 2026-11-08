@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `ErrorCodes.TASK_TOKEN_EXPIRED`, the shared catalog's 48th code (`spec/error-codes.md`, `spec/vectors/error-codes.json`), specified by `spec/command-metadata.md` ("Tasks") and emitted by the Rust server's task runner first (Umbel phase 5 step 0e). Python does not implement MCP Tasks yet; the parity matrix tracks it.
 - **The principal binding** (`spec/authorization.md`, M8): `afd.server.principal_binding(actor, credentials)`, `credentials_binding(credentials)` and `PrincipalCredentials(issuer, subject, client_id)`, the canonical JSON of the actor's `kind`, `id` and `onBehalfOf` (never `label`) and the credentials' `issuer`, `subject` and `clientId`. Credentials are a `PrincipalCredentials` or a mapping with non-empty string `issuer`, `subject` and `clientId`; credentials missing any of them raise `afd.server.IncompleteCredentials` (a `TypeError` whose message names no one), and an actor that is not an `Actor` raises `TypeError`. `tests/test_principal_binding.py` loads the `principalBindings` cases of `spec/authorization.json`.
 
 - `ErrorCodes.INSUFFICIENT_SCOPE`, the shared catalog's 47th code (`spec/error-codes.md`, `spec/vectors/error-codes.json`), specified by `spec/authorization.md` (M6) and emitted by the Rust server first (Umbel phase 5 step 0b). Python does not implement MCP authorization yet; the parity matrix tracks it.

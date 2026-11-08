@@ -506,6 +506,45 @@ impl HumanRelay for PersonPage {
 let server = McpServer::new(registry, "todo", "1.0.0").with_human_relay(PersonPage);
 ```
 
+A command that outlives a request declares `with_task(TaskSupport::Optional)` (or `Required`;
+`task` in `_meta` and `afd-detail`), and the server then serves it as an MCP task under the Tasks
+extension, `io.modelcontextprotocol/tasks` (`spec/command-metadata.md`, "Tasks"). Only a call to
+that one command on an MCP 2026-07-28 request that declares the extension in its `_meta` becomes
+a task; otherwise `Optional` runs inline and `Required` is JSON-RPC `-32021`, and an `afd-batch` or
+`afd-pipe` step naming a `Required` command fails the whole request. A task can never ask a person:
+registration refuses `task` beside `confirm_prompt`, an approval policy or a `confirmation_mode`.
+The task's owner is the call's principal binding; `tasks/get`, `tasks/update` and `tasks/cancel`
+answer anyone else, an expired task and an unknown id alike with `-32602` "Task not found". The
+handler runs on a fresh context with a `CancellationSignal` (`context.cancellation()`) that fires on
+`tasks/cancel`, at the task's `ttlMs` and at the token's `expiresAt` (then the task completes with
+`TASK_TOKEN_EXPIRED`, not retryable as it is for a mutation that may have run); the server stops
+the handler then, at its next `.await`.
+`context.report_progress("indexing")` sets the task's `statusMessage`. The default store is in
+memory, for one process, and bounded (32 tasks per owner, 256 in all, dropping finished tasks to
+make room; at most 64 running per process); a host with several processes supplies a shared
+`TaskStore`. A server creates tasks only for callers it can tell apart: over stdio always, over
+HTTP only with authorization (`server-auth`) or with
+`TaskOptions::with_callers_identified_by_hook()` and a context hook that maps every distinct
+caller to a distinct actor. Otherwise it does not declare the extension, `Optional` runs inline
+and `Required` fails with `UNAUTHORIZED`.
+
+```rust,ignore
+use afd::server::{InMemoryTaskStore, McpServer, TaskOptions};
+use afd::{CommandDefinition, TaskSupport};
+
+registry.register(
+    CommandDefinition::new("sources-sync", "Sync the sources", vec![], SyncSources)
+        .with_task(TaskSupport::Optional),
+)?;
+let server = McpServer::new(registry, "todo", "1.0.0")
+    .with_task_store(InMemoryTaskStore::with_limits(8, 64)) // or the host's shared store
+    .with_task_options(
+        TaskOptions::new()
+            .with_ttl_ms(15 * 60 * 1000)
+            .with_ttl_capped_at_token_expiry(0), // never past the starting token's `exp`
+    );
+```
+
 `with_resources(provider)` and `with_skills(catalog)` serve MCP resources and the Skills extension
 (`spec/mcp-resources.md`). A provider lists `ResourceEntry` values and reads their content; a
 `SkillCatalog` is a checked, fixed set of Agent Skills whose files are served as `skill://`
