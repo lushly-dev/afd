@@ -772,8 +772,9 @@ export async function createKernelParts(
 			chooseScope();
 		},
 		runBoot,
-		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served.
-		mcpOptions: () => lateParts?.mcpOptions(current.commands, current.middleware),
+		// Phase 6's, so `late/` builds it: before that chunk has loaded, nothing is served. A server's call
+		// reaches this page's listeners as a call made here does (documents specification, 5.4).
+		mcpOptions: () => lateParts?.mcpOptions(current, listeners),
 	};
 }
 

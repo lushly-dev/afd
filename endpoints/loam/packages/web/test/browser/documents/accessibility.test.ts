@@ -137,4 +137,29 @@ describe('P2-D10: the editor area under axe', () => {
 			.toBe(false);
 		await opened.context.close();
 	}, 60_000);
+
+	it('P2-D10: axe waits for no animation without an end, and names one still running at its deadline', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await page.evaluate(() => {
+			const spinner = document.createElement('div');
+			spinner.className = 'spinner';
+			document.body.append(spinner);
+			spinner.animate([{ opacity: 1 }, { opacity: 0.5 }], {
+				duration: 1_000,
+				iterations: Infinity,
+			});
+		});
+		expect(await settledAxe(page, 2_000)).toEqual([]);
+		await page.evaluate(() => {
+			const slow = document.createElement('div');
+			slow.className = 'slow';
+			document.body.append(slow);
+			slow.animate([{ opacity: 1 }, { opacity: 0.5 }], { duration: 60_000, id: 'fade' });
+		});
+		await expect(settledAxe(page, 300)).rejects.toThrow(
+			'Animations still running after 300 ms: div.slow fade'
+		);
+		await opened.context.close();
+	}, 60_000);
 });

@@ -154,6 +154,8 @@ export class EditorController implements FrameListener {
 	#types = new Map<string, DocumentTypeV1>();
 	/** The tab to focus once the strip renders, and whether focus then goes into its editor. */
 	#focus: { tab: string; editor: boolean } | null = null;
+	/** A render once the app surfaces have registered `ICONS_V1`, when one ran before them. */
+	#icons: Promise<void> | undefined;
 
 	constructor(shell: LoamShell) {
 		this.#shell = shell;
@@ -269,11 +271,20 @@ export class EditorController implements FrameListener {
 			const held = records.get(document);
 			return held && 'title' in held ? held.title : 'Unavailable document';
 		};
+		// Blank until the app surfaces register `ICONS_V1`, then drawn again, as the rail's entries are (2.4).
+		const icons = this.#shell.apps !== null;
+		if (!icons) this.#icons ??= this.#host().then(() => this.sync());
 		const iconOf = (document: string) => {
 			const held = records.get(document);
-			return (held && 'type' in held && this.#types.get(held.type)?.icon) || 'system/document';
+			return icons
+				? (held && 'type' in held && this.#types.get(held.type)?.icon) || 'system/document'
+				: '';
 		};
 		const compact = this.#shell.dataset.layoutClass === 'compact';
+		// The tab focus is on, in its strip or its editor, so focus stays with it if a change takes it (5.8).
+		const had = [...this.#groups.values()].find((group) => group.matches(':focus-within'));
+		const was =
+			(had?.shadowRoot?.activeElement as HTMLElement | null)?.dataset.tab ?? had?.activeTab?.id;
 		// Groups in order, as columns; a group the state no longer has goes with its frames.
 		const kept = new Set(state.groups.map((group) => group.id));
 		for (const [id, element] of this.#groups) {
@@ -287,7 +298,8 @@ export class EditorController implements FrameListener {
 			if (live.has(tab)) continue;
 			this.#frames.delete(tab);
 			this.#stopTimer(tab);
-			void frame.dispose();
+			// Closed by a call not the person's own close: an editor still unsaved saves first (5.5).
+			this.#retire(frame, false);
 		}
 		state.groups.forEach((group, index) => {
 			let element = this.#groups.get(group.id);
@@ -316,6 +328,9 @@ export class EditorController implements FrameListener {
 			for (const tab of group.tabs) {
 				const frame = this.#frames.get(tab.id);
 				if (frame && frame.parentElement !== element) element.append(frame);
+				// An editor that still says unsaved is, whoever marked its tab saved (5.5).
+				if (frame?.dirty && !tab.dirty)
+					void this.#kernel.call('editor-dirty-set', { tab: tab.id, dirty: true });
 			}
 			const active = group.tabs.find((tab) => tab.id === group.active);
 			for (const tab of group.tabs) this.#frames.get(tab.id)?.show(tab.id === active?.id);
@@ -330,12 +345,23 @@ export class EditorController implements FrameListener {
 		await Updates.next();
 		const focus = this.#focus;
 		this.#focus = null;
+		const groupOf = (tab?: string) =>
+			[...this.#groups.values()].find((each) => each.tabs.some((held) => held.id === tab));
+		const doc = this.#shell.ownerDocument;
 		if (focus) {
-			const group = [...this.#groups.values()].find((each) =>
-				each.tabs.some((tab) => tab.id === focus.tab)
-			);
 			if (focus.editor) this.#frames.get(focus.tab)?.focusEditor();
-			else group?.tabButton(focus.tab)?.focus();
+			else groupOf(focus.tab)?.tabButton(focus.tab)?.focus();
+		} else if (had && doc.activeElement === doc.body) {
+			// Focus went with what had it, as another's close or move takes a tab: to the tab, in the group it
+			// moved to, or its group's active tab, or main (5.8).
+			const holder = groupOf(was);
+			const to =
+				holder && holder !== had
+					? holder.tabButton(was as string)
+					: had.isConnected && had.activeTab && had.tabButton(had.activeTab.id);
+			const main = this.#main();
+			if (to) to.focus();
+			else if (main) focusMain(this.#shell, main);
 		}
 	}
 
@@ -631,24 +657,22 @@ export class EditorController implements FrameListener {
 	}
 
 	/**
-	 * A frame leaving: a dirty one saves first, and its save's own result clears its tab's dirty flag, in its
-	 * document's scope, whatever scope is active by then; then it goes (5.5, 7.6).
+	 * A frame leaving: a dirty one saves first, a rejection a toast, then it goes (5.5). With `clear`, its tab
+	 * stays, and a save clears its dirty flag in its document's scope, whatever scope is active by then, unless
+	 * that scope's tab holds a newer unsaved edit, as after a return there (7.6).
 	 */
-	#retire(frame: LoamEditorFrame): void {
+	#retire(frame: LoamEditorFrame, clear = true): void {
 		if (!frame.dirty) {
 			void frame.dispose();
 			return;
 		}
 		const scope = frame.record?.scope;
-		void frame
-			.save()
-			.then(() =>
-				this.#kernel.call(
-					'editor-dirty-set',
-					{ tab: frame.tab, dirty: false },
-					scope ? { scope } : {}
-				)
-			)
+		void this.#save(frame)
+			.then((saved) => {
+				const now = this.#frames.get(frame.tab);
+				if (saved && clear && scope && !(now?.dirty && now.record?.scope.project === scope.project))
+					return this.#kernel.call('editor-dirty-set', { tab: frame.tab, dirty: false }, { scope });
+			})
 			.catch(reportError)
 			.finally(() => frame.dispose());
 	}

@@ -12,7 +12,7 @@ import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import type { LateScope } from '../scope/middleware.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
-import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
+import type { AppSummaryV2, KernelEventV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
@@ -104,11 +104,16 @@ export interface LateParts {
 	/**
 	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
 	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
-	 * and `scope` alone.
+	 * and `scope` alone. Outside that chain, each of a server's mutations that succeeds reaches `listeners`
+	 * as the kernel's event, with what the call noted, so a page renders what a server changed (documents
+	 * specification, 5.4).
 	 */
 	mcpOptions(
-		commands: readonly ZodCommandDefinition[],
-		middleware: readonly CommandMiddleware[]
+		current: {
+			commands: readonly ZodCommandDefinition[];
+			middleware: readonly CommandMiddleware[];
+		},
+		listeners: ReadonlySet<(event: KernelEventV2) => void>
 	): KernelMcpOptions;
 	/** A reload, for a replay: the session is forgotten, as the Mock's page forgets it (10). */
 	reload(): Promise<void>;
@@ -200,14 +205,40 @@ export async function createLateParts(
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,
-		mcpOptions: (commands, middleware) => ({
+		mcpOptions: ({ commands, middleware }, listeners) => ({
 			// A server holds no active scope and no person's session (3.3), so the commands that move them
 			// are not served: a person's calls make them.
 			commands: commands.filter(
 				(command) =>
 					!INTERNAL_COMMANDS.includes(command.name) && !PERSON_SESSION.includes(command.name)
 			),
-			middleware,
+			middleware: [
+				async (command, _input, context, next) => {
+					const trace = context.traceId as string;
+					deps.scope.seen.set(trace, {});
+					const result = await next();
+					const seen = deps.scope.seen.get(trace);
+					deps.scope.seen.delete(trace);
+					if (result.success && deps.isMutation(command)) {
+						const event = {
+							command,
+							interface: 'agent',
+							success: true,
+							mutation: true,
+							...seen,
+						} as const;
+						for (const listener of [...listeners]) {
+							try {
+								listener(event);
+							} catch (cause) {
+								reportLate(cause);
+							}
+						}
+					}
+					return result;
+				},
+				...middleware,
+			],
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),

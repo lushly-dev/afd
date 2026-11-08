@@ -350,6 +350,25 @@ describe('P2-D5: the editor area, native half', () => {
 			await editorIdle(page);
 			expect((await editorView(page))?.[0]?.tabs.length).toBe(count);
 		}
+
+		// An agent moving the focused tab: focus follows it into the group it moved to.
+		const groups = (
+			(await kernelCall(page, 'editor-get')) as { data: { groups: Array<{ id: string }> } }
+		).data.groups;
+		await tabOf(page, 'Three').focus();
+		await agentCall(page, 'editor-move', { tab: 't3', group: groups[1]?.id });
+		await editorIdle(page);
+		expect((await editorView(page))?.map((group) => group.tabs.map((tab) => tab.title))).toEqual([
+			['Three', 'Two'],
+		]);
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Three, pinned' });
+		// An agent closing the focused tab: focus goes to its group's new active tab, and with none, to main.
+		await agentCall(page, 'editor-close', { tab: 't3' });
+		await editorIdle(page);
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Two' });
+		await agentCall(page, 'editor-close', { tab: 't2' });
+		await editorIdle(page);
+		expect((await focusedOn(page)).tag).toBe('loam-main');
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	});
@@ -437,6 +456,74 @@ describe('P2-D5: the editor area, native half', () => {
 		await editorIdle(page);
 		expect((await editorView(page))?.[0]?.tabs).toEqual([]);
 		expect(await stored(page, one)).toBe('Saved by the timer, then closed');
+		await opened.context.close();
+	});
+
+	it('P2-D5: an agent marking an unsaved tab saved, then closing it, loses nothing: the tab is unsaved again, and a close saves first', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const one = await createNote(page, 'One');
+		await open(page, one);
+		const dirty = async () =>
+			(
+				(await agentCall(page, 'editor-get')) as {
+					data: { groups: Array<{ tabs: Array<{ dirty: boolean }> }> };
+				}
+			).data.groups[0]?.tabs[0]?.dirty;
+		// Within autosave's 2,000 ms, so only the chrome's fixes save it.
+		await typeInto(page, 't1', 'Not an agent’s to drop');
+		await agentCall(page, 'editor-dirty-set', { tab: 't1', dirty: false });
+		await expect.poll(dirty, { timeout: 1500 }).toBe(true);
+		expect(
+			((await agentCall(page, 'editor-close', { tab: 't1' })) as { error?: { code: string } }).error
+				?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await expect.poll(() => stored(page, one), { timeout: 1500 }).toBe('Not an agent’s to drop');
+		await editorIdle(page);
+		expect((await editorView(page))?.[0]?.tabs).toEqual([]);
+		// Marked saved and closed at once: the text is saved, and the tab is closed or refused, never dropped.
+		await open(page, one);
+		await textOf(page, 't2').click();
+		await page.keyboard.press('ControlOrMeta+End');
+		await page.keyboard.type(', twice');
+		await agentCall(page, 'editor-dirty-set', { tab: 't2', dirty: false });
+		const closed = (await agentCall(page, 'editor-close', { tab: 't2' })) as {
+			success: boolean;
+			error?: { code: string };
+		};
+		expect(closed.success || closed.error?.code === 'EDITOR_TAB_DIRTY').toBe(true);
+		await expect
+			.poll(() => stored(page, one), { timeout: 6000 })
+			.toBe('Not an agent’s to drop, twice');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('P2-D5: a tab’s type icon is blank until the app surfaces register the icons, then drawn', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await open(page, await createNote(page, 'One'));
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { flush(): Promise<void> };
+			};
+			await shell.kernel.flush();
+		});
+		const icon = () =>
+			page.evaluate(
+				() =>
+					document
+						.querySelector('loam-shell')
+						?.shadowRoot?.querySelector('loam-main loam-editor-group')
+						?.shadowRoot?.querySelector('[role="tab"] .icon')
+						?.getAttribute('icon') ?? null
+			);
+		site.hold(/\/assets\/surfaces-/);
+		await page.reload();
+		await expect.poll(icon).toBe('');
+		site.release();
+		await expect.poll(icon).toBe('system/document');
 		await opened.context.close();
 	});
 

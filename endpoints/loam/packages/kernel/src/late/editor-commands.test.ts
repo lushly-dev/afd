@@ -5,8 +5,11 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createScopeRuntime } from '../scope/runtime.js';
+import { registerShellState } from '../shell-state.js';
 import {
 	createScopedWorkspace,
 	documentsDeployment,
@@ -16,6 +19,9 @@ import {
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
 import type { KernelEventV2, LoamKernelV2 } from '../types.js';
+import { DOCUMENT_KIT } from './document-kit.js';
+import { createEditorParts } from './editor-commands.js';
+import { type EditorStateV1, emptyEditorState } from './editor-state.js';
 
 const kernels: LoamKernelV2[] = [];
 afterEach(async () => {
@@ -438,6 +444,54 @@ describe('P2-D5: the editor commands', () => {
 		expect(
 			(await second.kernel.call('editor-selection-set', { tab: 't9', selection: null })).error?.code
 		).toBe('EDITOR_TAB_UNKNOWN');
+	});
+
+	it('P2-D5: forgets a document it trusted once a move closes its tabs, so a record naming it again is checked again', async () => {
+		const viewState = new ViewStateRegistry({ adapter: new MemoryAdapter() });
+		const store = new MemoryAdapter();
+		const parts = createEditorParts(
+			{
+				scope: createScopeRuntime({ id: 'personal', name: 'Personal' }),
+				viewState,
+				state: registerShellState(viewState),
+				store,
+				overlays: {} as never,
+				apps: () => ({}) as never,
+				lateScope: {} as never,
+				check: {} as never,
+				isMutation: () => true,
+			},
+			DOCUMENT_KIT
+		);
+		const here = { workspace: 'personal' };
+		await store.create(DOCUMENT_KIT.table, { id: 'doc_x', workspace: 'personal', scope: here });
+		// What a read of the store would put there: the workspace's record naming the document.
+		const naming: EditorStateV1 = {
+			...emptyEditorState(),
+			groups: [
+				{
+					id: 'g1',
+					active: 't1',
+					tabs: [{ id: 't1', document: 'doc_x', pinned: false, preview: false }],
+				},
+			],
+			nextTab: 2,
+		};
+		const tabs = () =>
+			(viewState.get('loam.editor') as unknown as EditorStateV1).groups.flatMap((group) =>
+				group.tabs.map((tab) => tab.document)
+			);
+		await parts.ensure(undefined);
+		viewState.set('loam.editor', naming as never);
+		await parts.ensure(undefined);
+		expect(tabs()).toEqual(['doc_x']);
+		// Moved to Atlas: its tab closes in the scope it left, and that scope trusts it no longer.
+		await store.update(DOCUMENT_KIT.table, 'doc_x', { scope: { ...here, project: 'atlas' } });
+		await parts.closeDocument('doc_x', here, { traceId: 'move' });
+		expect(tabs()).toEqual([]);
+		viewState.set('loam.editor', naming as never);
+		await parts.ensure(undefined);
+		expect(tabs()).toEqual([]);
 	});
 
 	it('P2-D5: the late-editor chunk imports types alone, but its own state module, which imports types alone', () => {

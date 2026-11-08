@@ -3,8 +3,9 @@
  *
  * What this proves: a real `createMcpHandler` from `@lushly-dev/afd-server`, given `mcpOptions()`, takes
  * `dev.loam/scope` as the one declared context field, and the kernel's own middleware runs on it, so the
- * journal holds each call's scope and a restricted project is refused. What it does not prove: anything
- * only `run` does (a default scope from the active one, the wait for stage B, the event, `dev.loam/seq`),
+ * journal holds each call's scope and a restricted project is refused, and a mutation's event reaches the
+ * page's listeners. What it does not prove: anything only `run` does (a default scope from the active one,
+ * the wait for stage B, a failure's or a query's event, `dev.loam/seq`),
  * identity over MCP, which is phase 3's (a server's actor has no id, and reads as `local`), or a hosted
  * server, which is phase 6's.
  */
@@ -25,6 +26,7 @@ import {
 	documentsPorts,
 	type ScopedWorkspace,
 } from './testing.js';
+import type { KernelEventV2 } from './types.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -326,6 +328,56 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			{ scope: scopes.atlas }
 		);
 		expect(atlasEditor.data?.groups[0]?.tabs.map((tab) => tab.document)).toEqual([atlasNote]);
+	});
+
+	it("P2-D5: a server's document-open into the active scope adds a tab and activates nothing, and its editor calls reach the page as events", async () => {
+		const workspace = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		const { kernel } = workspace;
+		const create = async (title: string) =>
+			(await kernel.call<{ id: string }>('document-create', { type: 'probe', title })).data
+				?.id as string;
+		const mine = await create('Mine');
+		const theirs = await create('Theirs');
+		await kernel.call('document-open', { document: mine });
+		const heard: KernelEventV2[] = [];
+		kernel.subscribe((event) => heard.push(event));
+		const client = await connect(await serve(workspace), mode);
+		const at = { 'dev.loam/scope': { workspace: 'personal' } };
+		const opened = await client.call<{ tab: string }>('document-open', { document: theirs }, at);
+		expect(opened.success).toBe(true);
+		// What the person sees is unchanged: the same active tab, so the same path, and no URL move.
+		expect((await kernel.call('section-get')).data).toMatchObject({
+			section: 'documents',
+			path: mine,
+		});
+		const editor = await kernel.call<{
+			groups: Array<{ active: string; tabs: Array<{ id: string; document: string }> }>;
+		}>('editor-get');
+		const group = editor.data?.groups[0];
+		expect(group?.tabs.map((tab) => tab.document)).toEqual([mine, theirs]);
+		expect(group?.tabs.find((tab) => tab.id === group.active)?.document).toBe(mine);
+		const open = heard.filter((event) => event.command === 'document-open');
+		expect(open).toEqual([
+			{
+				command: 'document-open',
+				interface: 'agent',
+				success: true,
+				mutation: true,
+				scope: { workspace: 'personal' },
+			},
+		]);
+		// A server's editor call that moves the active tab is heard with `mainChanged`, as the URL follows it.
+		await client.call('editor-activate', { tab: opened.data?.tab }, at);
+		expect(heard.at(-1)).toMatchObject({ command: 'editor-activate', mainChanged: 'replace' });
+		expect((await kernel.call('section-get')).data).toMatchObject({ path: theirs });
+		// A query is not an event, and nor is a refusal.
+		const count = heard.length;
+		await client.call('editor-get', {}, at);
+		await client.call('editor-activate', { tab: 't99' }, at);
+		expect(heard.length).toBe(count);
 	});
 
 	it("never moves a person's active scope: a server's call has no active scope", async () => {

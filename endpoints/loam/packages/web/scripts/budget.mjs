@@ -72,9 +72,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `loadLate` beside `late-documents`, with a row of its own, `lateEditorMinified`, first 13,111, so 14,423,
  * its measurement plus 10% (an amendment to 2.4 the coordinator decided, 2026-11-07), and 14,389 after the
  * reviews: `late`'s closure leaves both out. After the reviews, first paint 285,523 and 88,061 gzip, the bytes
- * 25 over step 10's allowance of 150 (the busy heading and an observable `mainBusy`), for the coordinator;
- * the kernel alone 111,543; `late` 57,661; `late-documents` 12,105; `url-sync` 4,806; `apps` 384,077, as the
- * port's callable list moved to `late`; `surfaces` 83,946, with `host()`.
+ * 25 over step 10's allowance of 150 (the busy heading and an observable `mainBusy`), accepted by the
+ * coordinator; the kernel alone 111,543; `late` 57,661; `late-documents` 12,105; `url-sync` 4,806; `apps`
+ * 384,077, as the port's callable list moved to `late`; `surfaces` 83,946, with `host()`. The re-check's
+ * fixes raised `lateEditorMinified` by 221, to 14,644, and `editorMinified` by 573, to 27,765, approved by the
+ * coordinator, 2026-11-07, each part measured as the chunk with it less without it (2.4 has them); after it,
+ * first paint 285,503 and 88,055, the kernel alone 111,521, `late` 57,956 with a server's events,
+ * `late-editor` 14,610 and `editor` 27,755.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -83,7 +87,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 14_423,
+	lateEditorMinified: 14_644,
 	urlMinified: 5_091,
 	appsMinified: 384_253,
 	surfacesMinified: 85_000,
@@ -94,7 +98,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 27_192,
+	editorMinified: 27_765,
 });
 
 /** Group a module id by the package it belongs to. */

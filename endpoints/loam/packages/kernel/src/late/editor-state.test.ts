@@ -264,6 +264,31 @@ describe('P2-D5: the operations on the state', () => {
 		expect(validateEditorState(state).valid).toBe(true);
 	});
 
+	it('P2-D5: in the background, a tab joins the active group and activates nothing, and replaces no active preview', () => {
+		let state = emptyEditorState();
+		// With no tab yet, the group's first tab is its active one, as the invariants require.
+		state = held(openDocument(state, 'a', { preview: true, background: true }, clean)).state;
+		expect(state.groups[0]?.active).toBe('t1');
+		state = held(openDocument(state, 'b', { group: 'beside' }, clean)).state;
+		state = held(activateTab(state, 't1')).state;
+		// The active tab is a preview: the background's tab is a plain one beside it, in the active group.
+		const opened = held(
+			openDocument(state, 'c', { preview: true, group: 'beside', background: true }, clean)
+		);
+		expect(opened.value).toEqual({ tab: 't3', group: 'g1', existed: false, previous: 't1' });
+		expect(opened.state.groups.map((group) => group.active)).toEqual(['t1', 't2']);
+		expect(opened.state.activeGroup).toBe('g1');
+		expect(opened.state.groups[0]?.tabs.map((each) => [each.document, each.preview])).toEqual([
+			['a', true],
+			['c', false],
+		]);
+		expect(validateEditorState(opened.state).valid).toBe(true);
+		// A document already open stays where it is, and the active tab stays active.
+		const again = held(openDocument(opened.state, 'c', { background: true }, clean));
+		expect(again.value).toMatchObject({ tab: 't3', existed: true });
+		expect(again.state.groups[0]?.active).toBe('t1');
+	});
+
 	it('P2-D5: activates a tab and its group, and says which was active', () => {
 		let state = emptyEditorState();
 		state = held(openDocument(state, 'a', {}, clean)).state;

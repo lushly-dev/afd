@@ -347,8 +347,12 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			const moved = scope.seen.get(context.traceId as string)?.scopeChanged;
 			await ensure(to.project);
 			const before = editors.peek(to.project) as EditorStateV1;
-			const change = openDocument(before, record.id, input, (tab) =>
-				editors.dirty(to.project, tab)
+			// A server's call into the active scope adds its tab, activating nothing the person sees (3.3).
+			const change = openDocument(
+				before,
+				record.id,
+				{ ...input, background: !screen && sameScope(to, scope.active()) },
+				(tab) => editors.dirty(to.project, tab)
 			);
 			if ('code' in change) return refusal(change);
 			editors.put(to.project, change.state);
@@ -358,7 +362,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			// the person had (5.4, as amended by step 10's deviation 15).
 			const undo = !existed
 				? { undoCommand: 'editor-close', undoArgs: { tab } }
-				: previous !== null && previous !== tab
+				: previous !== null && previous !== activeTab(change.state)?.id
 					? { undoCommand: 'editor-activate', undoArgs: { tab: previous } }
 					: {};
 			return success(
@@ -439,7 +443,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 				return kernelFailure(
 					'EDITOR_TAB_DIRTY',
 					'This tab has unsaved changes',
-					`${save ? `Save it with ${save}, or close` : 'Close'} it with editor-close { tab: "${input.tab}", discard: true }, which loses them`
+					`${save ? `Save it with ${save}, or close` : 'Close'} it with editor-close { tab: "${input.tab}", discard: true }; the chrome saves an open editor first`
 				);
 			}
 			const done = apply(context, before, closeTab(before, input.tab), 'replace');
@@ -508,7 +512,8 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 
 	const dirty = defineCommandWithSchema<typeof dirtyInput, { tab: string; dirty: boolean }>({
 		name: 'editor-dirty-set',
-		description: 'Mark a tab unsaved or saved, as its editor reports',
+		description:
+			"The chrome's, from its editor; to close unsaved work, use editor-close with discard: true",
 		input: dirtyInput,
 		jsonSchema: tabWith('dirty', { type: 'boolean' }, true),
 		async handler(input, context) {
@@ -524,7 +529,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 
 	const select = defineCommandWithSchema<typeof selectionInput, { tab: string }>({
 		name: 'editor-selection-set',
-		description: "Hold a tab's selection, in its binding's shape, as its editor reports",
+		description: "The chrome's, from its editor: a tab's selection, in its binding's shape",
 		mutation: false,
 		input: selectionInput,
 		jsonSchema: tabWith('selection', {} as JsonSchema, true),
@@ -574,6 +579,8 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		},
 		async closeDocument(document, at, context) {
 			await ensure(at.project);
+			// Trashed or moved, it is no longer this scope's to trust (6).
+			trusted.get(at.project ?? '')?.delete(document);
 			const before = editors.peek(at.project) as EditorStateV1;
 			const after = closeDocument(before, document);
 			if (!after) return;

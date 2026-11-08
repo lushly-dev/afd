@@ -251,28 +251,37 @@ export const unknownTab = (tab: string): EditorChange<never> => ({
 export function openDocument(
 	current: EditorStateV1,
 	document: string,
-	options: { group?: 'active' | 'beside'; preview?: boolean },
+	options: { group?: 'active' | 'beside'; preview?: boolean; background?: boolean },
 	dirty: (tab: string) => boolean
 ): EditorChange<{ tab: string; group: string; existed: boolean; previous: string | null }> {
 	const state = clone(current);
 	const previous = activeTab(state)?.id ?? null;
+	const { background } = options;
 	const active = state.groups.find((group) => group.id === state.activeGroup) as EditorGroupV1;
-	const group = options.group === 'beside' ? groupAfter(state, active) : active;
-	const preview = options.preview === true;
+	// In the background a tab joins the active group and activates nothing: no group is made, and an active
+	// preview is not replaced, so the new tab is a plain one there (5.3).
+	const group = options.group === 'beside' && !background ? groupAfter(state, active) : active;
+	let preview = options.preview === true;
 	let tab = group.tabs.find((held) => held.document === document);
 	const existed = tab !== undefined;
 	if (tab) {
 		if (!preview) tab.preview = false;
 	} else {
-		const replaced = preview ? group.tabs.find((held) => held.preview) : undefined;
+		let replaced = preview ? group.tabs.find((held) => held.preview) : undefined;
+		if (background && replaced?.id === group.active) {
+			replaced = undefined;
+			preview = false;
+		}
 		const full = replaced ? undefined : makeRoom(group, dirty);
 		if (full) return full;
 		tab = { id: `t${state.nextTab++}`, document, pinned: false, preview };
 		if (replaced) group.tabs.splice(group.tabs.indexOf(replaced), 1, tab);
 		else insert(group, tab);
 	}
-	group.active = tab.id;
-	state.activeGroup = group.id;
+	if (!background || !group.active) {
+		group.active = tab.id;
+		state.activeGroup = group.id;
+	}
 	return { state, value: { tab: tab.id, group: group.id, existed, previous } };
 }
 

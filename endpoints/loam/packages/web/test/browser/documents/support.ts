@@ -126,14 +126,13 @@ export async function replayDifferences(site: DeploymentSite, entries: JournalEn
 
 /**
  * Axe once every animation and transition in the page and its shadow roots has finished, so no color is
- * sampled half way through a change, as forced colors switching starts one. Never a retry.
+ * sampled half way through a change, as forced colors switching starts one. Never a retry. An animation
+ * with no end, a spinner's, is not waited for; one still running after `deadline` fails the test, named.
  */
-export async function settledAxe(page: Page): Promise<AxeViolation[]> {
-	await page.evaluate(async () => {
+export async function settledAxe(page: Page, deadline = 5_000): Promise<AxeViolation[]> {
+	await page.evaluate(async (deadline) => {
 		const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-		for (let round = 0; round < 20; round++) {
-			await frame();
-			await frame();
+		const running = () => {
 			const roots: Array<Document | ShadowRoot> = [document];
 			const walk = (root: Document | ShadowRoot) => {
 				for (const element of root.querySelectorAll('*')) {
@@ -144,12 +143,44 @@ export async function settledAxe(page: Page): Promise<AxeViolation[]> {
 				}
 			};
 			walk(document);
-			const running = roots
+			return roots
 				.flatMap((root) => root.getAnimations())
-				.filter((animation) => animation.playState === 'running' || animation.pending);
-			if (running.length === 0) return;
-			await Promise.all(running.map((animation) => animation.finished.catch(() => undefined)));
+				.filter(
+					(animation) =>
+						(animation.playState === 'running' || animation.pending) &&
+						animation.effect?.getComputedTiming().endTime !== Number.POSITIVE_INFINITY
+				);
+		};
+		let over = false;
+		const settled = (async () => {
+			while (!over) {
+				await frame();
+				await frame();
+				const now = running();
+				if (now.length === 0) return;
+				await Promise.all(now.map((animation) => animation.finished.catch(() => undefined)));
+			}
+		})();
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const late = new Promise<never>((_resolve, reject) => {
+			timer = setTimeout(() => {
+				const names = running().map((animation) => {
+					const target = (animation.effect as KeyframeEffect | null)?.target;
+					const name =
+						(animation as CSSAnimation).animationName ??
+						(animation as CSSTransition).transitionProperty ??
+						animation.id;
+					return `${target?.localName ?? '?'}${target?.className ? `.${target.className}` : ''} ${name}`;
+				});
+				reject(new Error(`Animations still running after ${deadline} ms: ${names.join(', ')}`));
+			}, deadline);
+		});
+		try {
+			await Promise.race([settled, late]);
+		} finally {
+			over = true;
+			clearTimeout(timer);
 		}
-	});
+	}, deadline);
 	return axe(page);
 }
