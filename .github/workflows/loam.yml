@@ -109,7 +109,7 @@ jobs:
       - name: Theme contract against the tree
         run: pnpm -F @lushly-dev/loam-theme theme:check
       - name: Token-only lint
-        run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally -F @lushly-dev/loam-app-tasks lint:tokens
+        run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally -F @lushly-dev/loam-app-tasks -F @lushly-dev/loam-app-notes lint:tokens
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
       # Specimen's native host renders the chrome's fixtures for E2 and E4; test:browser builds it.
       - name: Install Rust toolchain
