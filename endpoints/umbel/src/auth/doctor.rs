@@ -163,12 +163,6 @@ fn mode(inputs: &Inputs<'_>) -> Check {
             if accepted.is_empty() {
                 found
                     .fail("auth.mode is \"oauth\" with no issuer whose access tokens are accepted");
-            } else if !inputs.environment.serve_oauth {
-                found.warn(format!(
-                    "auth.mode is \"oauth\" with {} token issuer(s) ({}); this build verifies, maps and authorises their tokens but does not serve oauth over HTTP until phase 5 step 7 adds the exact filtering it waits for, so umbel serve --http refuses to start",
-                    accepted.len(),
-                    listed(&accepted)
-                ));
             }
             format!(
                 "auth.mode is \"oauth\" with {} token issuer(s) ({})",

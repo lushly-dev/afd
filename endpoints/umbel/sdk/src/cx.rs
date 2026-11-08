@@ -71,6 +71,14 @@ pub struct CallContext {
     /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
     /// a mounted server always see none.
     pub equivalents: Vec<String>,
+    /// Whether the host seals this caller's positions (phase 5 section 9.3, D125): a hosted
+    /// caller that is neither the operator nor stdio. A plugin then shows every store revision
+    /// through [`crate::Cx::doc_position`] (it does in any case) and counts in its totals only
+    /// what the caller can read.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see `false`.
+    pub sealed_positions: bool,
 }
 
 /// Who ran a pipeline step, as the host attests it (phase 4 specification, section 10.1): the
@@ -136,6 +144,12 @@ pub enum HostError {
         /// The record.
         id: String,
     },
+    /// A memory query matches more readable records than recall ranks
+    /// (`MEMORY_QUERY_TOO_BROAD`, phase 5 section 9.2); nothing was returned.
+    QueryTooBroad {
+        /// The most readable matches a recall ranks.
+        limit: u64,
+    },
 }
 
 impl fmt::Display for HostError {
@@ -178,6 +192,10 @@ impl fmt::Display for HostError {
             Self::SealInvalid { id } => {
                 write!(f, "MEMORY_SEAL_INVALID: the record {id} does not open")
             }
+            Self::QueryTooBroad { limit } => write!(
+                f,
+                "MEMORY_QUERY_TOO_BROAD: the query matches more than {limit} readable records"
+            ),
         }
     }
 }
@@ -328,6 +346,28 @@ pub trait HostServices: Send + Sync {
         _limit: u32,
         _trace: Option<&str>,
     ) -> Result<Vec<Change>, HostError> {
+        not_granted("documents")
+    }
+    /// Grant `documents`: a store revision of the space as the caller may see it (phase 5
+    /// section 9.3). For a caller whose positions are sealed (a hosted caller that is neither
+    /// the operator nor stdio), the last revision it can read at or below `rev`, sealed as a
+    /// string `r1.<token>` that only equality may compare; for every other caller `rev` itself,
+    /// as a number. A plugin shows every store revision through it, and takes it back through
+    /// [`HostServices::doc_position_of`].
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], [`HostError::Busy`], [`HostError::Corrupt`], [`HostError::Io`].
+    fn doc_position(&self, _space: &str, _rev: Rev) -> Result<Value, HostError> {
+        not_granted("documents")
+    }
+    /// Grant `documents`: the revision a value [`HostServices::doc_position`] gave this caller
+    /// names, for an `after` input: a number from a caller whose positions are plain, a sealed
+    /// token sealed for this caller and space from one whose are sealed.
+    ///
+    /// # Errors
+    /// [`HostError::Invalid`] for anything else, which tells nothing of why;
+    /// [`HostError::NotGranted`].
+    fn doc_position_of(&self, _space: &str, _value: &Value) -> Result<Rev, HostError> {
         not_granted("documents")
     }
     /// Grant `documents`: the access tokens of the caller's reader filter in the space (`space`,

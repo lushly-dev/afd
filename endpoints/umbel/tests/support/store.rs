@@ -221,6 +221,27 @@ fn read(cx: &Cx, space: &str, op: &str, args: &Value) -> Outcome {
             .index_chunks(space, text(args, "id"))
             .map(|chunks| json!(chunks.len())),
         "index-applied" => cx.index_applied(space).map(|rev| json!(rev)),
+        // A revision as the caller may see it, and back (phase 5 section 9.3).
+        "position" => cx.doc_position(space, args.get("rev").and_then(Value::as_u64).unwrap_or(0)),
+        "position-of" => cx
+            .doc_position_of(space, args.get("value").unwrap_or(&Value::Null))
+            .map(|rev| json!(rev)),
+        "index-search-scores" => cx
+            .index_search(
+                space,
+                &IndexQuery {
+                    text: text(args, "text").to_owned(),
+                    filters: IndexFilters::default(),
+                    limit: 50,
+                },
+            )
+            .map(|hits| {
+                json!(
+                    hits.iter()
+                        .map(|h| json!([h.doc, h.score]))
+                        .collect::<Vec<_>>()
+                )
+            }),
         "graph-applied" => cx.graph_applied(space).map(|rev| json!(rev)),
         "derive-head" => cx.derive_head(space).map(|rev| json!(rev)),
         "checkpoint" => cx.checkpoint(space).map(|()| json!("checkpointed")),

@@ -329,6 +329,8 @@ pub(crate) struct Selection {
     pub(crate) warnings: Vec<Warning>,
     /// `MEMORY_KEYS_MISSING` or `MEMORY_KEYS_MISMATCH` when the memory lane failed on its keys.
     pub(crate) keys_failed: Option<&'static str>,
+    /// The stores' revisions; `None` for a caller whose positions are sealed (phase 5 section
+    /// 9.3), since each counts every principal's writes.
     pub(crate) index_applied: Option<u64>,
     pub(crate) memory_head: Option<u64>,
 }
@@ -349,14 +351,14 @@ pub(crate) fn select(
     };
     if request.wants(Section::Knowledge) {
         let found = knowledge::lane(cx, request, settings, bundle)?;
-        selection.index_applied = found.applied;
+        selection.index_applied = found.applied.filter(|_| !cx.call().sealed_positions);
         selection.warnings.extend(found.warnings);
         selection.lanes.push(found.lane);
     }
     let found = memory::lanes(cx, request, settings, bundle)?;
     selection.lanes.extend(found.lanes);
     selection.keys_failed = found.keys_failed;
-    selection.memory_head = found.head;
+    selection.memory_head = found.head.filter(|_| !cx.call().sealed_positions);
     if let Some(code) = found.keys_failed {
         let message = if code == "MEMORY_KEYS_MISSING" {
             "the memory key file is missing, so no memory record opens and every memory section is left out; restore memory.keys and run umbel doctor"

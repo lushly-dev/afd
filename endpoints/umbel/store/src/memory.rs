@@ -10,6 +10,8 @@
 
 mod instant;
 mod query;
+/// The memory tokenizer: FTS5's `porter unicode61 remove_diacritics 2`, ported (section 9.2).
+pub mod tokenizer;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -53,6 +55,10 @@ pub const MAX_INVALIDATION_NOTE_CHARS: usize = 500;
 pub const MAX_MEMORY_LIST_LIMIT: u32 = 500;
 /// The most hits `recall` returns.
 pub const MAX_RECALL_LIMIT: u32 = 200;
+/// The most readable matches `recall` ranks; past it the query is
+/// [`StoreError::QueryTooBroad`] (`MEMORY_QUERY_TOO_BROAD`, phase 5 section 9.2), never a silent
+/// truncation.
+pub const MAX_RECALL_MATCHES: u64 = 50_000;
 /// The most changes `changes` returns.
 pub const MAX_MEMORY_CHANGES_LIMIT: u32 = 1000;
 /// The most records one sweep purges.
@@ -848,9 +854,11 @@ pub struct RecallHit {
 /// `recall`'s answer.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecallPage {
-    /// Rank order: BM25 at four places, then `recorded_at` descending, then id ascending.
+    /// Rank order (phase 5 section 9.2): BM25 over what the reader may read, at four places,
+    /// descending; then the authority's tier ([`Authority::tier`]); then `recorded_at`
+    /// descending; then id ascending.
     pub hits: Vec<RecallHit>,
-    /// Hits whose body did not open, plus readable records in scope that are not indexed.
+    /// Matches whose body did not open, plus readable records in scope that are not indexed.
     pub unreadable: u64,
 }
 

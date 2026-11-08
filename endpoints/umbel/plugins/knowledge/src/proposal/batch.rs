@@ -171,7 +171,7 @@ fn batch(caller: &Caller<'_>, input: &Value) -> Result<Outcome, Outcome> {
                     "proposal": common::summary(&submitted.proposal),
                 });
                 if let Some(rev) = submitted.rev {
-                    result["rev"] = json!(rev);
+                    result["rev"] = rev;
                 }
                 results.push(result);
             }

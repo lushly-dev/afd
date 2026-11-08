@@ -164,17 +164,6 @@ impl HostBuilder {
         self
     }
 
-    /// Serve mode `oauth` with the host's own verifier although the disclosure controls it needs
-    /// (section 5.4's one answer, section 9's listings and exact filtering) do not exist yet.
-    /// **Test seam** (`testkit` only): a shipped build refuses to serve `oauth` until the steps
-    /// that build them (amendment from phase 5 step 2b).
-    #[cfg(all(feature = "auth", feature = "testkit"))]
-    #[must_use]
-    pub fn with_unfinished_oauth(mut self) -> Self {
-        self.auth_environment.serve_oauth = true;
-        self
-    }
-
     /// Read the environment variable `name` as `value` when token verification needs a secret
     /// (an introspection client's). **Test seam** (`testkit` only): tests cannot set a variable.
     #[cfg(all(feature = "auth", feature = "testkit"))]
@@ -351,6 +340,7 @@ impl HostBuilder {
             self.clock.as_ref(),
         )?;
         let server = serve_skills(server, &loaded)?;
+        let stash = Arc::new(crate::positions::Stash::default());
         let scope_policy = install_middleware(
             &registry,
             &workspace,
@@ -358,8 +348,15 @@ impl HostBuilder {
             &ledger,
             &builtin_names,
             self.approval_observer,
+            (&stores, &stash),
         )?;
-        install_journal(&registry, &workspace, &projector, digest_commands(&loaded));
+        install_journal(
+            &registry,
+            &workspace,
+            &projector,
+            digest_commands(&loaded),
+            stash,
+        );
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
         // stream too damaged to repair does not stop the open: `umbel event rebuild` needs the
@@ -447,6 +444,7 @@ fn install_middleware(
     ledger: &Arc<plugins::Ledger>,
     builtins: &HashSet<String>,
     observer: Option<ApprovalObserver>,
+    (stores, stash): (&Hub, &Arc<crate::positions::Stash>),
 ) -> Result<Arc<crate::auth::scopes::ScopePolicy>, HostError> {
     let commands = registry.list();
     let with_space: Arc<HashSet<String>> = Arc::new(
@@ -595,6 +593,8 @@ fn install_middleware(
             ledger: Arc::clone(ledger),
             resolve_many,
             default_space: workspace.default_space().to_string(),
+            stores: Arc::clone(stores),
+            stash: Arc::clone(stash),
         },
     ));
 
@@ -673,21 +673,52 @@ fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
 }
 
 /// The journal recorder: the outermost layer, so the stamps are in the journaled result and the
-/// journal alone is enough to rebuild every stream. Its redact step reduces the entry of every
-/// digest command, on every route that records: a direct call, a batch item, a pipe or pipeline
-/// step, each journaled under its own name.
+/// journal alone is enough to rebuild every stream. Its redact step first puts back the host
+/// metadata a sealed result left out (phase 5 section 9.3), so every entry records it whole, then
+/// reduces the entry of every digest command, on every route that records: a direct call, a
+/// batch item, a pipe or pipeline step, each journaled under its own name.
 fn install_journal(
     registry: &CommandRegistry,
     workspace: &Workspace,
     projector: &Arc<Projector>,
     digests: digest::DigestCommands,
+    stash: Arc<crate::positions::Stash>,
 ) {
     registry.set_journal(
         JournalRecorder::new(Arc::new(ProjectingSink::new(Arc::clone(projector))))
             .with_record_failures(workspace.config().journal.record_failures)
-            .with_redact(move |record| Some(digest::redact(&digests, record)))
+            .with_redact(move |mut record| {
+                restore_sealed(&mut record, &stash);
+                Some(digest::redact(&digests, record))
+            })
             .with_on_error(|message| tracing::error!("journal: {message}")),
     );
+}
+
+/// Put back into a journal record what the plugin gate left out of a sealed result (phase 5
+/// section 9.3): its `dev.umbel/changes` and record `version`, found by the reference the result
+/// carries, which the record does not keep.
+fn restore_sealed(record: &mut afd::JournalRecord, stash: &crate::positions::Stash) {
+    let Some(metadata) = record.result.metadata.as_mut() else {
+        return;
+    };
+    let Some(Value::String(reference)) = metadata.extra.remove(middleware::JOURNAL_REF_KEY) else {
+        return;
+    };
+    let Some(mut raw) = stash.take(&reference) else {
+        tracing::error!(
+            "journal: a sealed result's metadata was no longer kept; its event names no changes"
+        );
+        return;
+    };
+    if let Some(version) = raw.remove("version")
+        && let Some(Value::Object(found)) = metadata.extra.get_mut(crate::events::RECORD_KEY)
+    {
+        found.insert("version".to_owned(), version);
+    }
+    for (key, value) in raw {
+        metadata.extra.insert(key, value);
+    }
 }
 
 /// A sealed host: the registry, the workspace, and the surfaces built over them.

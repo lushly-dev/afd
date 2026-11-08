@@ -265,6 +265,12 @@ impl CallServices {
         crate::authority::caller_is_person(&self.context, self.command.as_deref(), prompts)
     }
 
+    /// Whether the call's caller sees positions sealed (phase 5 section 9.3), which
+    /// `CallContext.sealed_positions` carries to every compiled plugin's command.
+    pub fn seals_positions(&self) -> bool {
+        crate::access::Caller::of(self.shared.workspace.config(), &self.context).seals_positions()
+    }
+
     /// The legacy principals the caller's effective principal stands for (phase 5 section 4.6),
     /// which `CallContext.equivalents` carries to every compiled plugin's command.
     pub fn equivalents(&self) -> Vec<String> {
@@ -505,6 +511,14 @@ impl HostServices for CallServices {
         trace: Option<&str>,
     ) -> Result<Vec<Change>, ServiceError> {
         self.svc_doc_changes(space, after, limit, trace)
+    }
+
+    fn doc_position(&self, space: &str, rev: Rev) -> Result<Value, ServiceError> {
+        self.svc_doc_position(space, rev)
+    }
+
+    fn doc_position_of(&self, space: &str, value: &Value) -> Result<Rev, ServiceError> {
+        self.svc_doc_position_of(space, value)
     }
 
     fn reader_tokens(&self, space: &str) -> Result<Vec<String>, ServiceError> {

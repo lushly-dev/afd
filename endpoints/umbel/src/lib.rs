@@ -15,6 +15,7 @@ pub mod authority;
 pub mod doctor;
 pub mod events;
 pub mod plugins;
+pub mod positions;
 pub mod principal;
 pub mod provenance;
 pub mod workspace;

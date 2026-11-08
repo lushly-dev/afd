@@ -1,11 +1,14 @@
 //! The memory store's reads (phase 3 section 5.2). Each filters by the reader inside its own
-//! statement, before ordering and limits, and never writes or waits on a write lock.
+//! statement, before ordering and limits, and never writes or waits on a write lock. Recall
+//! ranks by BM25 over what the reader may read (phase 5 section 9.2, [`super::rank`]).
+
+use std::collections::{BTreeMap, HashSet};
 
 use rusqlite::{Connection, params_from_iter};
 use umbel_store::memory::{
     AsOf, ClassCounts, LeftOut, MAX_MEMORY_CHANGES_LIMIT, MAX_MEMORY_LIST_LIMIT, MAX_RECALL_LIMIT,
-    MemoryChange, MemoryCounts, MemoryCursor, MemoryList, MemoryPage, MemoryUsage, RecallHit,
-    RecallPage, RecallQuery, check_limit, refuse_derivation,
+    MAX_RECALL_MATCHES, MemoryChange, MemoryCounts, MemoryCursor, MemoryList, MemoryPage,
+    MemoryUsage, QueryTerm, RecallHit, RecallPage, RecallQuery, check_limit, refuse_derivation,
 };
 use umbel_store::{
     MemoryClass, MemoryRecord, Millis, PushFilter, ReadFlags, ReaderFilter, Rev, ScopeQuery,
@@ -14,6 +17,7 @@ use umbel_store::{
 
 use super::SqliteMemoryStore;
 use super::keys::{self, Keys};
+use super::rank::{self, Columns, Corpus, Phrase};
 use super::rows::{
     RECORD_COLS, RECORD_WIDTH, RecordRow, VERSION_COLS, VersionRow, parse_change_kind,
 };
@@ -198,15 +202,15 @@ impl SqliteMemoryStore {
         self.pool.read(|conn| {
             self.pool.keys(|kc| {
                 let tx = conn.transaction()?;
-                // One statement: the match, the reader, the intervals, expiry, flags, scope and every
-                // filter, before ranking and the limit (section 5.3). The query text was parsed by
-                // `MemoryQuery::parse`; `fts5()` double-quotes every term.
+                // 1. Every readable match, in one statement: the match, the reader, the
+                // intervals, expiry, flags, scope and every filter, unranked (section 9.2). The
+                // query text was parsed by `MemoryQuery::parse`; `fts5()` double-quotes every
+                // term. Past the ceiling the query is refused, never truncated.
                 let mut sql = Sql::new(&format!(
-                    "SELECT {RECORD_COLS}, {VERSION_COLS}, \
-                 snippet(records_fts, 2, '**', '**', '…', 32) \
-                 FROM records_fts JOIN records r ON r.rowid = records_fts.rowid \
-                 JOIN versions v ON v.id = r.id \
-                 WHERE records_fts MATCH "
+                    "SELECT {RECORD_COLS}, {VERSION_COLS} \
+                     FROM records_fts JOIN records r ON r.rowid = records_fts.rowid \
+                     JOIN versions v ON v.id = r.id \
+                     WHERE records_fts MATCH "
                 ));
                 sql.bind(query.query.fts5()).push(" AND r.indexed = 1");
                 sql.and_memory_readable(reader)
@@ -219,46 +223,89 @@ impl SqliteMemoryStore {
                 if let Some(push) = &query.push {
                     sql.and_push(push, &query.scope.project);
                 }
-                sql.push(
-                " ORDER BY round(bm25(records_fts, 3.0, 2.0, 1.0), 4), v.recorded_at DESC, r.id \
-                 LIMIT ",
-            )
-            .bind(i64::from(query.limit));
-                let found = {
-                    let mut stmt = tx.prepare(&sql.text)?;
-                    let mut found = Vec::new();
-                    let mut cursor = stmt.query(params_from_iter(sql.params.iter()))?;
-                    while let Some(row) = cursor.next()? {
-                        found.push((
-                            RecordRow::from_row(row, 0)?,
-                            VersionRow::from_row(row, RECORD_WIDTH)?,
-                            row.get::<_, String>(RECORD_WIDTH + 12)?,
-                        ));
-                    }
-                    found
-                };
-                let mut hits = Vec::new();
+                // A forgotten record's rows may match until the roll-forward removes them; it is
+                // not a match, so the ceiling reads past as many as are pending.
+                let ceiling = self.recall_ceiling.min(MAX_RECALL_MATCHES);
+                let pending = keys::unsettled(kc)?.len() as u64;
+                let fetch = ceiling.saturating_add(1).saturating_add(pending);
+                sql.push(" LIMIT ")
+                    .bind(i64::try_from(fetch).unwrap_or(i64::MAX));
+                let found = rows(&tx, &sql)?;
+                let keys = keys_of(kc, found.iter().map(|(r, _)| r))?;
+                let matches = found
+                    .iter()
+                    .filter(|(rec, _)| keys.destroyed(&rec.id).is_none())
+                    .count() as u64;
+                if matches > ceiling {
+                    return Err(StoreError::QueryTooBroad { limit: ceiling }.into());
+                }
+
+                // 2. Open each match's body: a forgotten one is left out, one that does not
+                // open is counted.
                 let mut unreadable = 0;
-                let keys = keys_of(kc, found.iter().map(|(r, _, _)| r))?;
-                for (rec, v, snippet) in found {
-                    // A destroyed marker: forgotten. Its index row may still match until the
-                    // roll-forward removes it; the snippet is never served.
+                let mut matched = Vec::with_capacity(found.len());
+                for (rec, v) in found {
                     if keys.destroyed(&rec.id).is_some() {
                         continue;
+                    }
+                    match keys
+                        .require(&rec.id)
+                        .and_then(|key| rec.body(&self.space, key))
+                    {
+                        Ok(body) => {
+                            let columns = Columns::of(&body.subject, &body.tags, &body.text);
+                            matched.push((rec, v, columns));
+                        }
+                        Err(fail) if unopenable(&fail) => unreadable += 1,
+                        Err(fail) => return Err(fail),
+                    }
+                }
+
+                // 3. BM25 over the reader's records; then the tier, recency and id.
+                let terms = query.query.phrases();
+                let phrases: Vec<Phrase> = terms.iter().map(|t| Phrase::of(t)).collect();
+                let corpus = corpus(&tx, kc, reader, &terms, &phrases)?;
+                let mut ranked: Vec<(i64, _, _)> = matched
+                    .into_iter()
+                    .map(|(rec, v, columns)| {
+                        (
+                            rank::rounded(rank::score(&phrases, &corpus, &columns)),
+                            rec,
+                            v,
+                        )
+                    })
+                    .collect();
+                ranked.sort_by(|a, b| {
+                    b.0.cmp(&a.0)
+                        .then_with(|| a.2.authority.tier().cmp(&b.2.authority.tier()))
+                        .then_with(|| b.2.recorded_at.cmp(&a.2.recorded_at))
+                        .then_with(|| a.1.id.cmp(&b.1.id))
+                });
+
+                // 4. The hits: each record at its version, with FTS5's snippet of its text.
+                let mut hits = Vec::new();
+                let mut kept = Vec::new();
+                for (_, rec, v) in ranked {
+                    if kept.len() == query.limit as usize {
+                        break;
                     }
                     let opened = keys.require(&rec.id).and_then(|key| {
                         rec.version(&self.space, key, v)
                             .and_then(|version| rec.record(&tx, &self.space, key, version))
                     });
                     match opened {
-                        Ok(record) => hits.push(RecallHit {
-                            rank: u32::try_from(hits.len() + 1).unwrap_or(u32::MAX),
-                            record,
-                            snippet,
-                        }),
+                        Ok(record) => kept.push((rec.rowid, record)),
                         Err(fail) if unopenable(&fail) => unreadable += 1,
                         Err(fail) => return Err(fail),
                     }
+                }
+                let snippets = snippets(&tx, &query.query.fts5(), kept.iter().map(|k| k.0))?;
+                for (rowid, record) in kept {
+                    hits.push(RecallHit {
+                        rank: u32::try_from(hits.len() + 1).unwrap_or(u32::MAX),
+                        record,
+                        snippet: snippets.get(&rowid).cloned().unwrap_or_default(),
+                    });
                 }
                 // Readable records in scope that are not indexed can never match: count them too.
                 let mut missing = Sql::new(
@@ -441,6 +488,132 @@ impl SqliteMemoryStore {
             Ok(out)
         })
     }
+}
+
+/// FTS5's snippet of each `rowid`'s text for `expression`: matches marked `**`, at most 32
+/// tokens. A snippet reads only its own row.
+fn snippets(
+    conn: &Connection,
+    expression: &str,
+    rowids: impl Iterator<Item = i64>,
+) -> Result<BTreeMap<i64, String>, Fail> {
+    let rowids: Vec<i64> = rowids.collect();
+    let mut out = BTreeMap::new();
+    for chunk in rowids.chunks(500) {
+        let mut sql = Sql::new(
+            "SELECT rowid, snippet(records_fts, 2, '**', '**', '…', 32) FROM records_fts \
+             WHERE records_fts MATCH ",
+        );
+        sql.bind(expression.to_owned()).push(" AND rowid IN ");
+        sql.bind_list(chunk.iter().copied());
+        let mut stmt = conn.prepare(&sql.text)?;
+        let mut found = stmt.query(params_from_iter(sql.params.iter()))?;
+        while let Some(row) = found.next()? {
+            out.insert(row.get(0)?, row.get(1)?);
+        }
+    }
+    Ok(out)
+}
+
+/// A SQLite varint, as FTS5 writes each column's size in `records_fts_docsize.sz`, and the bytes
+/// after it.
+fn varint(bytes: &[u8]) -> Option<(u64, &[u8])> {
+    let mut value = 0u64;
+    for (i, &byte) in bytes.iter().enumerate() {
+        if i == 8 {
+            return Some(((value << 8) | u64::from(byte), &bytes[9..]));
+        }
+        value = (value << 7) | u64::from(byte & 0x7f);
+        if byte & 0x80 == 0 {
+            return Some((value, &bytes[i + 1..]));
+        }
+    }
+    None
+}
+
+/// A row's length in tokens: the sum of its columns' sizes.
+fn row_length(sz: &[u8]) -> Result<u64, Fail> {
+    let mut rest = sz;
+    let mut total = 0u64;
+    while !rest.is_empty() {
+        let (size, after) = varint(rest)
+            .ok_or_else(|| StoreError::Corrupt("records_fts_docsize holds a cut varint".into()))?;
+        total += size;
+        rest = after;
+    }
+    Ok(total)
+}
+
+/// The reader's statistics (phase 5 section 9.2): the indexed records it may read that are not
+/// forgotten, their total length, and per phrase how many of them hold it, as FTS5 would count
+/// a phrase alone over just those records.
+fn corpus(
+    conn: &Connection,
+    kc: &Connection,
+    reader: &ReaderFilter,
+    terms: &[&QueryTerm],
+    phrases: &[Phrase],
+) -> Result<Corpus, Fail> {
+    let mut sql = Sql::new(
+        "SELECT r.id, d.sz FROM records r JOIN records_fts_docsize d ON d.id = r.rowid \
+         WHERE r.indexed = 1",
+    );
+    sql.and_memory_readable(reader);
+    let mut lengths: Vec<(String, u64)> = Vec::new();
+    {
+        let mut stmt = conn.prepare(&sql.text)?;
+        let mut found = stmt.query(params_from_iter(sql.params.iter()))?;
+        while let Some(row) = found.next()? {
+            let sz: Vec<u8> = row.get(1)?;
+            lengths.push((row.get(0)?, row_length(&sz)?));
+        }
+    }
+    let ids: Vec<&str> = lengths.iter().map(|(id, _)| id.as_str()).collect();
+    let keys = keys::lookup(kc, &ids)?;
+    let forgotten: HashSet<&str> = ids
+        .iter()
+        .copied()
+        .filter(|id| keys.destroyed(id).is_some())
+        .collect();
+    let live = lengths
+        .iter()
+        .filter(|(id, _)| !forgotten.contains(id.as_str()));
+    let (records, tokens) = live.fold((0u64, 0u64), |(n, t), (_, len)| (n + 1, t + len));
+    let mut holding = Vec::with_capacity(terms.len());
+    let mut counted: BTreeMap<String, u64> = BTreeMap::new();
+    for (term, phrase) in terms.iter().zip(phrases) {
+        if phrase.is_empty() {
+            holding.push(0);
+            continue;
+        }
+        let expression = term.fts5();
+        if let Some(count) = counted.get(&expression) {
+            holding.push(*count);
+            continue;
+        }
+        let mut sql = Sql::new(
+            "SELECT r.id FROM records_fts JOIN records r ON r.rowid = records_fts.rowid \
+             WHERE records_fts MATCH ",
+        );
+        sql.bind(expression.clone()).push(" AND r.indexed = 1");
+        sql.and_memory_readable(reader);
+        let mut stmt = conn.prepare(&sql.text)?;
+        let mut found = stmt.query(params_from_iter(sql.params.iter()))?;
+        let mut count = 0u64;
+        while let Some(row) = found.next()? {
+            let id: String = row.get(0)?;
+            if !forgotten.contains(id.as_str()) {
+                count += 1;
+            }
+        }
+        counted.insert(expression, count);
+        holding.push(count);
+    }
+    Ok(Corpus {
+        records,
+        tokens,
+        holding,
+    })
 }
 
 /// The owner's stored records and bytes, and the writes and bytes of `(owner, agent)` at or after

@@ -33,9 +33,6 @@ pub(crate) struct AuthEnvironment {
     pub(crate) roots: Vec<Vec<u8>>,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) timeout: Duration,
-    /// Serve mode `oauth` before the disclosure controls it needs exist (amendment from step
-    /// 2b); only the `testkit` seam sets it.
-    pub(crate) serve_oauth: bool,
     /// Secrets by environment variable name, read before the environment; only the `testkit`
     /// seam sets them (tests cannot set a variable: `unsafe_code` is forbidden).
     pub(crate) secrets: std::collections::BTreeMap<String, String>,
@@ -47,7 +44,6 @@ impl Default for AuthEnvironment {
             roots: Vec::new(),
             clock: Arc::new(afd::SYSTEM_CLOCK),
             timeout: FETCH_TIMEOUT,
-            serve_oauth: false,
             secrets: std::collections::BTreeMap::new(),
         }
     }

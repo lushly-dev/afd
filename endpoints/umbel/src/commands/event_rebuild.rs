@@ -17,6 +17,9 @@ struct Handler {
 #[async_trait]
 impl CommandHandler for Handler {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        if let Some(refused) = super::operator_only(&self.workspace, &context, "event-rebuild") {
+            return failure(refused);
+        }
         // Absent means every space; a given space has been checked by the space middleware.
         let spaces: Vec<SpaceId> = match input.get("space") {
             None | Some(Value::Null) => self

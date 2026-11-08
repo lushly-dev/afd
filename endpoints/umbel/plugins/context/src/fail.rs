@@ -51,6 +51,12 @@ pub(crate) fn host(error: &HostError) -> Outcome {
             &message,
             "Enable the context plugin with its grants in umbel.toml.",
         ),
+        HostError::QueryTooBroad { limit } => failure(
+            "MEMORY_QUERY_TOO_BROAD",
+            &message,
+            "Name fewer or rarer task terms, or a project, so memory recall matches fewer records.",
+        )
+        .with_error_details(serde_json::json!({ "limit": limit })),
         _ => failure(
             "CONTEXT_FAILED",
             &message,

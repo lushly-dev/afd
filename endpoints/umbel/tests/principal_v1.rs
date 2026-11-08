@@ -363,7 +363,6 @@ async fn a_compiled_plugin_sees_the_legacy_principals_its_caller_stands_for() {
         umbel::HostBuilder::open(dir.path())
             .unwrap()
             .with_auth_root_certificate(kit.ca().certificate_pem().as_bytes().to_vec())
-            .with_unfinished_oauth()
             .with_auth_clock(clock.clone()),
     )
     .seal()

@@ -233,6 +233,16 @@ impl Workspace {
         keys::ensure_key(&self.layout.limits_key())
     }
 
+    /// The key of sealed positions (32 bytes), created race-safe on first use and shared by
+    /// every process, so a position one process seals another opens (phase 5 section 9.3).
+    ///
+    /// # Errors
+    /// `WORKSPACE_KEY_INVALID` for a key under 32 bytes; `WORKSPACE_STATE_UNWRITABLE` when it
+    /// cannot be created.
+    pub fn cursor_key(&self) -> Result<Vec<u8>, WorkspaceError> {
+        keys::ensure_key(&self.layout.cursor_key())
+    }
+
     /// The HTTP bearer token, created race-safe on first use.
     ///
     /// # Errors

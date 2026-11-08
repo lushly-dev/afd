@@ -190,7 +190,7 @@ async fn workspace_show_names_only_what_a_hosted_caller_reads() {
     assert_eq!(ids, ["main", "alpha"]);
     assert_eq!(
         data["access"],
-        json!({ "principals": "verified", "exact": ["library", "http"], "statistics": "shared" })
+        json!({ "principals": "verified", "exact": ["library", "http"], "statistics": "per-filter" })
     );
     let text = result.to_string();
     for hidden in [path.as_str(), "beta", "Beta hidden"] {

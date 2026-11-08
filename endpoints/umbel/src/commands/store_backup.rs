@@ -143,7 +143,9 @@ fn run(
             Err(StoreError::NotProvisioned) => false,
             Err(error) => return Err(command_error(&error)),
         };
-        let index_dir = target.join("index").join("v1");
+        let index_dir = target
+            .join("index")
+            .join(umbel_store_embedded::INDEX_SCHEMA_DIR);
         fs::create_dir_all(&index_dir).map_err(|e| io(&index_dir, e))?;
         for name in opened.tantivy.live_files().map_err(|e| command_error(&e))? {
             let from = opened.tantivy.path().join(&name);
@@ -154,7 +156,14 @@ fn run(
                 continue;
             }
             fs::copy(&from, &to).map_err(|e| io(&from, e))?;
-            files.push((format!("index/v1/{}", name.display()), to));
+            files.push((
+                format!(
+                    "index/{}/{}",
+                    umbel_store_embedded::INDEX_SCHEMA_DIR,
+                    name.display()
+                ),
+                to,
+            ));
         }
         let mut listed = Vec::new();
         let mut bytes = 0u64;
@@ -199,6 +208,9 @@ fn run(
 #[async_trait]
 impl CommandHandler for Handler {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        if let Some(refused) = super::operator_only(&self.workspace, &context, "store-backup") {
+            return failure(refused);
+        }
         let (space, _filter) = match view(&self.workspace, &input, &context) {
             Ok(view) => view,
             Err(error) => return failure(error),

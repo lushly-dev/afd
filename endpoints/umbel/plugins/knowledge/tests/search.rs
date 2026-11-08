@@ -136,7 +136,7 @@ async fn the_result_cites_one_source_per_hit_and_labels_itself_content() {
     );
     assert_eq!(result["metadata"]["dev.umbel/trust"], "content");
     let index = &result["metadata"]["dev.umbel/index"]["main"];
-    assert_eq!(index["schema"], 1);
+    assert_eq!(index["schema"], 2);
     assert!(index["applied"].as_u64().unwrap() > 0);
     assert!(
         result.get("confidence").is_none(),

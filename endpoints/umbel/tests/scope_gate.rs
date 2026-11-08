@@ -112,6 +112,14 @@ fn cursor(space: &str) -> Value {
     json!({ "space": space, "cursor": format!("v0:{space}:0") })
 }
 
+/// `event-ack`'s input with the cursor `event-list` gives `token`'s caller in `space`: a verified
+/// caller's positions are sealed (phase 5 section 9.3), so a version 0 string is not one.
+async fn sealed_cursor(running: &Running, token: &str, space: &str) -> Value {
+    let listed = result(&call(running, token, "event-list", json!({ "space": space })).await);
+    assert_eq!(listed["success"], json!(true), "{listed}");
+    json!({ "space": space, "cursor": listed["data"]["cursor"] })
+}
+
 #[tokio::test]
 async fn a_qualified_scope_grants_its_verb_in_its_space_and_every_verb_implies_read_there() {
     let running = running().await;
@@ -135,7 +143,10 @@ async fn a_qualified_scope_grants_its_verb_in_its_space_and_every_verb_implies_r
     let write_alpha = token(&running, &["umbel:write:alpha"]);
     for (command, input) in [
         ("event-list", json!({ "space": "alpha" })),
-        ("event-ack", cursor("alpha")),
+        (
+            "event-ack",
+            sealed_cursor(&running, &write_alpha, "alpha").await,
+        ),
     ] {
         let done = result(&call(&running, &write_alpha, command, input).await);
         assert_eq!(done["success"], json!(true), "{command}: {done}");
@@ -147,7 +158,8 @@ async fn a_qualified_scope_grants_its_verb_in_its_space_and_every_verb_implies_r
     // An unqualified verb grants it in every space; write does not imply approve or erase.
     let write = token(&running, &["umbel:write"]);
     for space in ["alpha", "beta", "main"] {
-        let done = result(&call(&running, &write, "event-ack", cursor(space)).await);
+        let input = sealed_cursor(&running, &write, space).await;
+        let done = result(&call(&running, &write, "event-ack", input).await);
         assert_eq!(done["success"], json!(true), "{space}: {done}");
     }
 }

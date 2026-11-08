@@ -84,12 +84,13 @@ impl CommandHandler for Handler {
             })
             .collect();
         let access = if config.auth.mode.is_hosted() {
-            // Statistics stay the whole index's until phase 5 step 7 makes them per filter
-            // (amendment from step 2c).
+            // Search statistics and positions are the reader's (phase 5 section 9, D125): BM25
+            // over what the caller may read, and sealed positions for every hosted caller but
+            // the operator and stdio, which the `exact` list names by transport.
             json!({
                 "principals": "verified",
                 "exact": ["library", "http"],
-                "statistics": "shared",
+                "statistics": "per-filter",
             })
         } else {
             // How far access filtering holds (phase 2 specification, section 6, owner decision 1

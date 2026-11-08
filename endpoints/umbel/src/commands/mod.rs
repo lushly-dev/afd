@@ -106,6 +106,25 @@ pub(crate) fn consumer_arg(input: &Value) -> Result<String, afd::CommandError> {
     }
 }
 
+/// `COMMAND_NOT_EXPOSED` for `name` to any caller but the operator in a hosted mode (phase 5
+/// sections 4.7 and 9.3): a built-in registered for the CLI alone that counts what every
+/// principal wrote, reached from the library, where no interface is checked. `None` in mode
+/// `none` and for the operator.
+pub(crate) fn operator_only(
+    workspace: &crate::workspace::Workspace,
+    context: &afd::CommandContext,
+    name: &str,
+) -> Option<afd::CommandError> {
+    (workspace.config().auth.mode.is_hosted() && !crate::access::is_operator(context)).then(|| {
+        afd::CommandError::new(
+            afd::error_codes::COMMAND_NOT_EXPOSED,
+            format!("{name} is the operator's in a hosted mode"),
+        )
+        .with_suggestion(format!("Run umbel call {name} at the host's command line."))
+        .with_retryable(false)
+    })
+}
+
 /// The caller named by the principal the host set: its actor and non-empty id. `None` for a
 /// bare `registry.execute`, or an actor without an id.
 pub(crate) fn caller(context: &afd::CommandContext) -> Option<(afd::Actor, String)> {

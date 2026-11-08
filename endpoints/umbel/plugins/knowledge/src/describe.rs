@@ -87,8 +87,11 @@ struct Facts {
     backlinks: usize,
     backlinks_at_least: bool,
     chunks: usize,
-    index_applied: u64,
-    graph_applied: u64,
+    /// The document's revision, and the index's and graph's, as the caller may see them
+    /// (phase 5 section 9.3).
+    rev: Value,
+    index_applied: Value,
+    graph_applied: Value,
     co_cited_targets: usize,
 }
 
@@ -155,8 +158,9 @@ impl Facts {
             backlinks,
             backlinks_at_least: edges.len() >= 1000,
             chunks,
-            index_applied: cx.index_applied(space)?,
-            graph_applied: cx.graph_applied(space)?,
+            rev: cx.doc_position(space, doc.rev)?,
+            index_applied: cx.doc_position(space, cx.index_applied(space)?)?,
+            graph_applied: cx.doc_position(space, cx.graph_applied(space)?)?,
             co_cited_targets: cited.len(),
         })
     }
@@ -186,7 +190,7 @@ fn render(space: &str, loaded: &Loaded, facts: &Facts, level: &Level) -> Outcome
         "space": space,
         "collection": doc.collection,
         "path": doc.path,
-        "rev": doc.rev,
+        "rev": facts.rev,
         "contentHash": doc.content_hash,
         "type": doc.doc_type,
         "title": doc.title,
@@ -235,8 +239,8 @@ fn render(space: &str, loaded: &Loaded, facts: &Facts, level: &Level) -> Outcome
             }),
         );
         map.insert("chunks".to_owned(), json!(facts.chunks));
-        map.insert("indexApplied".to_owned(), json!(facts.index_applied));
-        map.insert("graphApplied".to_owned(), json!(facts.graph_applied));
+        map.insert("indexApplied".to_owned(), facts.index_applied.clone());
+        map.insert("graphApplied".to_owned(), facts.graph_applied.clone());
         if loaded.is_code() {
             // How the file is indexed: by symbol, or as plain text and why. The same parse the
             // indexer runs, under the same budgets, on the stored bytes.

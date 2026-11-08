@@ -17,7 +17,8 @@
 //!
 //! Also: the TLS client certificate's thumbprint reaches the verifier from the handshake only,
 //! never from a header; removing an authenticating layer fails closed; stdio and the CLI are
-//! unaffected; what the build does not serve (`gateway`, until step 4) refuses to start.
+//! unaffected; a shipped build serves `oauth` (since step 7), and what the build does not serve
+//! (`gateway`, until step 4) refuses to start.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -910,36 +911,33 @@ async fn stdio_and_the_cli_are_unaffected_in_mode_oauth() {
 // ─── What this build does not serve refuses to start ───────────────────────────────────────────
 
 #[tokio::test]
-async fn what_this_build_does_not_serve_refuses_to_start() {
+async fn a_shipped_build_serves_oauth_and_refuses_what_it_does_not_serve() {
     let kit = TestIdp::start().await.unwrap();
-    // Mode oauth in a shipped build, with no test seam: since step 2b the host builds its own
-    // verifier from [auth.issuers], and still refuses to serve until the disclosure controls of
-    // steps 2c, 3 and 7 all exist (amendments from steps 2b, 2c and 3; 2c's and 3's are in).
+    // Mode oauth in a shipped build, with no test seam: the host builds its own verifier from
+    // [auth.issuers] and, since phase 5 step 7 brought the last disclosure control it waited for
+    // (exact filtering; steps 2c and 3 brought the others), serves it.
     let dir = support::workspace(&oauth_config(&kit, "", "", ""));
     let host = support::host(dir.path());
-    let error = host.http_server().unwrap_err();
-    assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID");
-    assert!(error.message().contains("auth.mode"), "{}", error.message());
-    assert!(error.message().contains("step 7"), "{}", error.message());
-    assert_eq!(
-        error
-            .clone()
-            .into_result::<Value>()
-            .error
-            .unwrap()
-            .details
-            .unwrap()["key"],
-        json!("auth.mode")
+    assert!(
+        host.http_server().is_ok(),
+        "a shipped build serves oauth since step 7"
     );
-    // Nor does the bare router serve a hosted mode.
+    // And it answers: the listener, the layers and the metadata are up, and a request without a
+    // token gets the 401 that sends a client to the metadata.
+    let served = Served::start(&host).await;
+    let client = Client::plain(served.address);
+    let reply = support::oauth::modern(&client, "tools/list", json!({}), None).await;
+    assert_eq!(reply.status, 401, "{}", reply.text);
+    let reply = client
+        .send(client.request("GET", METADATA_PATHS[0], &[], String::new()))
+        .await;
+    assert_eq!(reply.status, 200, "{}", reply.text);
+    served.stop().await;
+    // The bare router never serves a hosted mode: it has no layers.
     assert_eq!(
         host.http_router().unwrap_err().code(),
         "WORKSPACE_CONFIG_INVALID"
     );
-    // `umbel serve --http --print-token` in a hosted mode is refused before anything is bound.
-    let run = support::cli(dir.path(), &["serve", "--http", "--print-token"]).await;
-    assert_eq!(run.code, 1);
-    assert!(run.stdout.is_empty(), "{}", run.stdout);
 
     // Mode gateway, with a verifier or not, until step 4.
     let gateway = format!(

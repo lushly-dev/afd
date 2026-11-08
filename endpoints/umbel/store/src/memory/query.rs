@@ -207,6 +207,34 @@ impl MemoryQuery {
     }
 }
 
+impl QueryTerm {
+    /// The term alone as FTS5 text: `column:"text"`, with a star after a prefix term.
+    #[must_use]
+    pub fn fts5(&self) -> String {
+        quote(self)
+    }
+}
+
+impl MemoryQuery {
+    /// The phrases of [`MemoryQuery::fts5`]'s expression, in the order FTS5 numbers them: the
+    /// required terms; the first required term again when there are plain terms; the plain
+    /// terms; then the excluded ones. Recall's BM25 scores each (phase 5 section 9.2), as FTS5's
+    /// `bm25()` scored the expression's phrases.
+    #[must_use]
+    pub fn phrases(&self) -> Vec<&QueryTerm> {
+        let of = |occur: Occur| self.terms.iter().filter(move |t| t.occur == occur);
+        let mut out: Vec<&QueryTerm> = of(Occur::Must).collect();
+        let first = out.first().copied();
+        let plain: Vec<&QueryTerm> = of(Occur::Should).collect();
+        if let (Some(first), false) = (first, plain.is_empty()) {
+            out.push(first);
+        }
+        out.extend(plain);
+        out.extend(of(Occur::MustNot));
+        out
+    }
+}
+
 /// One term as FTS5 text: `column:"text"`, with a star after a prefix term.
 fn quote(term: &QueryTerm) -> String {
     let mut out = String::new();

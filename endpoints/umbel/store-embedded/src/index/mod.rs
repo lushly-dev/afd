@@ -1,11 +1,14 @@
 //! `SearchIndex` on tantivy (specification sections 3.1, 3.2 and 8.1): one tantivy document per
-//! chunk under `index/v1/`, an `MmapDirectory`, LZ4 named in the index settings, English stems
-//! and the access set as a mandatory clause of every query.
+//! chunk under `index/v2/`, an `MmapDirectory`, LZ4 named in the index settings, English stems
+//! and the access set as a mandatory clause of every query. A search scores with BM25 statistics
+//! over the chunks its reader may read (phase 5 section 9.1).
 
 mod query;
 mod schema;
+mod stats;
 mod writer;
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -27,19 +30,18 @@ use umbel_store::{
 };
 
 use crate::StoreOptions;
-use schema::{Fields, SCHEMA_VERSION};
+pub use schema::SCHEMA_DIR as INDEX_SCHEMA_DIR;
+use schema::SCHEMA_DIR;
+use schema::{Fields, RETIRED_DIRS, SCHEMA_VERSION};
 
-/// The directory under a space's state directory (`index/v1/`; the `v1` is the schema version).
+/// The directory under a space's state directory (`index/v2/`; the `v2` is the schema version).
 const INDEX_DIR: &str = "index";
-const SCHEMA_DIR: &str = "v1";
 /// The writer's memory budget (one indexing thread).
 const WRITER_BUDGET: usize = 64 * 1024 * 1024;
 /// How often a waiter retries the writer lock.
 const LOCK_POLL: Duration = Duration::from_millis(50);
 /// A snippet's length, in characters (the concise form of section 8.2).
 const SNIPPET_CHARS: usize = 240;
-/// The most candidates `search` reads to settle ties at the cut-off.
-const TIE_WINDOW: usize = 4096;
 /// Scores are rounded to this many decimal places (section 8.2).
 const SCORE_SCALE: f64 = 10_000.0;
 
@@ -72,6 +74,8 @@ pub struct TantivyIndex {
     fields: Fields,
     reader: IndexReader,
     lock_timeout: Duration,
+    /// The readable chunks of each reader, per segment set (phase 5 section 9.1).
+    statistics: stats::Cache,
 }
 
 pub(crate) fn map_tantivy(error: &TantivyError) -> StoreError {
@@ -124,6 +128,16 @@ impl TantivyIndex {
         let dir = space_dir.join(INDEX_DIR).join(SCHEMA_DIR);
         std::fs::create_dir_all(&dir)
             .map_err(|e| StoreError::Io(format!("{}: {e}", dir.display())))?;
+        // An index of an earlier schema is derived data the next `knowledge-index` rebuilds in
+        // this one; left in place it would keep the text of documents forgotten since.
+        for retired in RETIRED_DIRS {
+            let old = space_dir.join(INDEX_DIR).join(retired);
+            match std::fs::remove_dir_all(&old) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(StoreError::Io(format!("{}: {e}", old.display()))),
+            }
+        }
         let directory = MmapDirectory::open(&dir)
             .map_err(|e| StoreError::Io(format!("{}: {e}", dir.display())))?;
         let lock_timeout = Duration::from_millis(options.lock_timeout_ms);
@@ -171,10 +185,11 @@ impl TantivyIndex {
             fields,
             reader,
             lock_timeout,
+            statistics: stats::Cache::default(),
         })
     }
 
-    /// The index directory (`index/v1/`).
+    /// The index directory (`index/v2/`).
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.dir
@@ -288,6 +303,44 @@ impl TantivyIndex {
     }
 }
 
+impl TantivyIndex {
+    /// The snippet generator of `query`: tantivy's own, weighting each body term by how few
+    /// readable live chunks hold it (phase 5 section 9.1), where tantivy's would count every
+    /// chunk of the index. `None` when the body's tokenizer is missing, as before.
+    fn snippets(
+        &self,
+        searcher: &Searcher,
+        readable: &stats::Readable,
+        query: &dyn Query,
+    ) -> Result<Option<SnippetGenerator>, StoreError> {
+        let body = self.fields.body;
+        let mut terms: BTreeSet<Term> = BTreeSet::new();
+        query.query_terms(&mut |term, _| {
+            if term.field() == body {
+                terms.insert(term.clone());
+            }
+        });
+        let mut weights: BTreeMap<String, f32> = BTreeMap::new();
+        for term in terms {
+            let Some(text) = term.value().as_str().map(str::to_owned) else {
+                continue;
+            };
+            let found = readable
+                .doc_freq(searcher, &term)
+                .map_err(|e| map_tantivy(&e))?;
+            if found > 0 {
+                #[allow(clippy::cast_precision_loss)]
+                weights.insert(text, 1.0 / (1.0 + found as f32));
+            }
+        }
+        Ok(self
+            .index
+            .tokenizer_for_field(body)
+            .ok()
+            .map(|tokenizer| SnippetGenerator::new(weights, tokenizer, body, SNIPPET_CHARS)))
+    }
+}
+
 /// A score as the integer its fourth decimal place makes: what ordering compares.
 #[allow(clippy::cast_possible_truncation)]
 fn rounded(score: f32) -> i64 {
@@ -345,36 +398,57 @@ impl SearchIndex for TantivyIndex {
                 "a query limit is 1 to {MAX_QUERY_LIMIT}"
             )));
         }
-        let query: Box<dyn Query> =
-            query::build(&self.index, &self.fields, &q.text, &q.filters, reader)?;
         let searcher = self.searcher()?;
-        let limit = q.limit as usize;
-        // Read one past the limit; while the extra candidate ties the last one (to four decimals)
-        // widen the window, so which tied chunks make the cut never depends on segment order.
-        let mut window = limit + 1;
-        let scored = loop {
-            let found = searcher
-                .search(&*query, &TopDocs::with_limit(window).order_by_score())
-                .map_err(|e| map_tantivy(&e))?;
-            let settled = found.len() < window
-                || window >= TIE_WINDOW
-                || found
-                    .last()
-                    .zip(found.get(limit - 1))
-                    .is_none_or(|(next, last)| rounded(next.0) < rounded(last.0));
-            if settled {
-                break found;
-            }
-            window = (window * 4).min(TIE_WINDOW);
+        let readable = self.statistics.readable(&searcher, &self.fields, reader)?;
+        let expansion = query::Expansion {
+            searcher: &searcher,
+            readable: &readable,
         };
-        let cutoff = scored.get(limit - 1).map(|(score, _)| rounded(*score));
+        let query: Box<dyn Query> = query::build(
+            &self.index,
+            &self.fields,
+            &q.text,
+            &q.filters,
+            reader,
+            &expansion,
+        )?;
+        let statistics = stats::Statistics {
+            searcher: &searcher,
+            readable: &readable,
+        };
+        let limit = q.limit as usize;
+        // The order is total: the score at four decimals descending, then the document id, then
+        // the ordinal. Collecting by that key keeps exactly the first `limit`, so which tied
+        // chunks make the cut never depends on segment layout, which writes the reader cannot
+        // read also change (phase 5 section 9.1).
+        let collector =
+            TopDocs::with_limit(limit).tweak_score(move |segment: &tantivy::SegmentReader| {
+                let docs = segment.fast_fields().str(schema::DOC_FIELD).ok().flatten();
+                let ordinals = segment.fast_fields().u64("ordinal").ok();
+                move |doc: tantivy::DocId, score: tantivy::Score| {
+                    let mut name = String::new();
+                    if let Some(column) = &docs
+                        && let Some(ord) = column.term_ords(doc).next()
+                    {
+                        let _ = column.ord_to_str(ord, &mut name);
+                    }
+                    let ordinal = ordinals
+                        .as_ref()
+                        .and_then(|column| column.first(doc))
+                        .unwrap_or(0);
+                    (
+                        rounded(score),
+                        std::cmp::Reverse(name),
+                        std::cmp::Reverse(ordinal),
+                    )
+                }
+            });
+        let scored = searcher
+            .search_with_statistics_provider(&*query, &collector, &statistics)
+            .map_err(|e| map_tantivy(&e))?;
         let mut candidates: Vec<(i64, String, u64, TantivyDocument)> =
             Vec::with_capacity(scored.len());
-        for (score, address) in scored {
-            let score = rounded(score);
-            if cutoff.is_some_and(|c| score < c) {
-                continue;
-            }
+        for ((score, _, _), address) in scored {
             let document: TantivyDocument = searcher.doc(address).map_err(|e| map_tantivy(&e))?;
             let (doc, ordinal) = self.address(&document)?;
             candidates.push((score, doc, ordinal, document));
@@ -384,13 +458,7 @@ impl SearchIndex for TantivyIndex {
                 .then_with(|| a.1.cmp(&b.1))
                 .then(a.2.cmp(&b.2))
         });
-        candidates.truncate(limit);
-        let generator = SnippetGenerator::create(&searcher, &*query, self.fields.body)
-            .ok()
-            .map(|mut g| {
-                g.set_max_num_chars(SNIPPET_CHARS);
-                g
-            });
+        let generator = self.snippets(&searcher, &readable, &*query)?;
         candidates
             .into_iter()
             .map(|(score, _, _, document)| {

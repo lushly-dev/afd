@@ -582,17 +582,30 @@ fn apply(
     envelope.content_hash = Some(final_hash.to_string());
     envelope.confidence = None;
     envelope.derived_from = None;
+    // The document's revision as the caller may see it (phase 5 section 9.3), in the data and
+    // never in the reasoning's text.
+    let shown_rev = caller
+        .cx
+        .doc_position(&caller.space, doc_rev)
+        .map_err(|error| fail::host(&error))?;
     let outcome = success(json!({
         "applied": true,
         "indexed": false,
         "proposal": common::summary(&proposal),
-        "document": { "id": proposal.change.doc, "rev": doc_rev, "contentHash": final_hash.to_string() },
+        "document": { "id": proposal.change.doc, "rev": shown_rev, "contentHash": final_hash.to_string() },
         "nextStep": "knowledge-refresh",
     }))
-    .with_reasoning(&format!(
-        "Applied proposal {} to `{}` at revision {doc_rev}; the index is behind until knowledge-refresh runs.",
-        proposal.id, proposal.change.doc
-    ))
+    .with_reasoning(&if caller.cx.call().sealed_positions {
+        format!(
+            "Applied proposal {} to `{}`; the index is behind until knowledge-refresh runs.",
+            proposal.id, proposal.change.doc
+        )
+    } else {
+        format!(
+            "Applied proposal {} to `{}` at revision {doc_rev}; the index is behind until knowledge-refresh runs.",
+            proposal.id, proposal.change.doc
+        )
+    })
     .with_metadata(
         "dev.umbel/record",
         json!({ "kind": "proposal", "id": proposal.id, "version": meta.rev }),

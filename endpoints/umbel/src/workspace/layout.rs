@@ -77,6 +77,11 @@ impl Layout {
         self.keys_dir().join("limits.key")
     }
 
+    /// `state/keys/cursor.key`: the key of sealed positions (phase 5 sections 9.3 and 10.2).
+    pub fn cursor_key(&self) -> PathBuf {
+        self.keys_dir().join("cursor.key")
+    }
+
     /// `state/shared/`: the stores every process behind one URL shares (phase 5 section 10.2).
     pub fn shared_dir(&self) -> PathBuf {
         self.state_dir().join("shared")

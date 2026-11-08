@@ -173,18 +173,14 @@ pub(crate) fn server(
                 let verifier: Arc<dyn TokenVerifier> = match verifier {
                     Some(verifier) => verifier,
                     None => {
-                        // Built first, so that a configuration it cannot serve is named.
+                        // Every disclosure control mode `oauth` waited for is in: the doctor's
+                        // hosted answers (step 2c), one answer and the listings (step 3), and
+                        // exact filtering (step 7), so a shipped build serves it.
                         let verifier = crate::auth::verifier::HostVerifier::from_config(
                             config,
                             workspace.root(),
                             environment,
                         )?;
-                        if !environment.serve_oauth {
-                            return Err(not_served(
-                                "auth.mode",
-                                "is \"oauth\", which this build verifies, maps and authorises (phase 5 steps 2b to 3) but does not serve yet: until the exact filtering of sections 9.1 to 9.3 exists (step 7), a verified caller could learn from hidden counts and positions what spaces it reads hold beyond its view",
-                            ));
-                        }
                         Arc::new(verifier)
                     }
                 };

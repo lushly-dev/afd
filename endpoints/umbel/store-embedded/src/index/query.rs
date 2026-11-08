@@ -2,20 +2,26 @@
 //! promised syntax (it refuses a bare `term*` and has no limits), so the text is parsed with
 //! `tantivy-query-grammar` and the resulting AST is walked here to build the tantivy query. The
 //! reader filter and the structured filters are added as mandatory clauses of the outer query,
-//! never through the text, and score nothing, so a score never depends on who is asking.
+//! never through the text, and score nothing.
+//!
+//! A prefix expands only into terms some chunk the reader may read holds (phase 5 section 9.1):
+//! tantivy's own expansion takes the first terms of each segment's dictionary, so terms only
+//! hidden chunks hold would count against the cap and change which readable chunks match.
 
 use std::collections::BTreeSet;
+use std::fmt;
 use std::ops::Bound;
 
 use tantivy::DateTime;
 use tantivy::Index;
 use tantivy::Term;
 use tantivy::query::{
-    AllQuery, BooleanQuery, BoostQuery, ConstScoreQuery, EmptyQuery, Occur, PhrasePrefixQuery,
-    PhraseQuery, Query, RangeQuery, TermQuery,
+    AllQuery, BooleanQuery, BoostQuery, ConstScoreQuery, EmptyQuery, EnableScoring, Occur,
+    PhraseQuery, Query, RangeQuery, TermQuery, Weight,
 };
 use tantivy::schema::{Field, IndexRecordOption};
 use tantivy::tokenizer::TextAnalyzer;
+use tantivy::{DocSet, Searcher, TERMINATED};
 use tantivy_query_grammar::{
     Delimiter, Occur as GrammarOccur, UserInputAst, UserInputBound, UserInputLeaf,
     UserInputLiteral, parse_query, parse_query_lenient,
@@ -24,7 +30,9 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use umbel_store::{IndexFilters, MAX_QUERY_CHARS, ReaderFilter, StoreError};
 
+use super::map_tantivy;
 use super::schema::{Fields, PLAIN, STEMMED};
+use super::stats::Readable;
 
 /// Leaf clauses a query may hold, counted as written (a default-field expansion is one).
 pub(crate) const MAX_LEAVES: usize = 64;
@@ -73,13 +81,111 @@ enum Kind {
     Meta,
 }
 
-/// Build the full query: `text` as the user wrote it, `filters`, and the reader clause.
+/// What a prefix may expand into: the terms of the chunks one reader may read.
+pub(crate) struct Expansion<'a> {
+    /// The searcher the query runs on.
+    pub(crate) searcher: &'a Searcher,
+    /// The reader's readable live chunks in it.
+    pub(crate) readable: &'a Readable,
+}
+
+/// The first byte string after every string starting with `prefix`, or `None` when there is none.
+fn prefix_end(prefix: &[u8]) -> Option<Vec<u8>> {
+    let mut end = prefix.to_vec();
+    while let Some(last) = end.pop() {
+        if last < u8::MAX {
+            end.push(last + 1);
+            return Some(end);
+        }
+    }
+    None
+}
+
+impl Expansion<'_> {
+    /// The first [`MAX_EXPANSIONS`] terms of `field`, in byte order, that start with `prefix` and
+    /// that a readable live chunk holds.
+    fn terms(&self, field: Field, prefix: &str) -> Result<Vec<Term>, StoreError> {
+        let cap = MAX_EXPANSIONS as usize;
+        let start = prefix.as_bytes();
+        let end = prefix_end(start);
+        let mut found: BTreeSet<Vec<u8>> = BTreeSet::new();
+        for (ord, segment) in self.searcher.segment_readers().iter().enumerate() {
+            let inverted = segment.inverted_index(field).map_err(|e| map_tantivy(&e))?;
+            let mut range = inverted.terms().range().ge(start);
+            if let Some(end) = &end {
+                range = range.lt(end);
+            }
+            let mut stream = range
+                .into_stream()
+                .map_err(|e| StoreError::Io(e.to_string()))?;
+            // The global first `cap` are among the union of each segment's first `cap`.
+            let mut here = 0;
+            while here < cap && stream.advance() {
+                let mut postings = inverted
+                    .read_postings_from_terminfo(stream.value(), IndexRecordOption::Basic)
+                    .map_err(|e| StoreError::Io(e.to_string()))?;
+                let mut doc = postings.doc();
+                while doc != TERMINATED && !self.readable.admits(ord, doc) {
+                    doc = postings.advance();
+                }
+                if doc != TERMINATED {
+                    found.insert(stream.key().to_vec());
+                    here += 1;
+                }
+            }
+        }
+        Ok(found
+            .into_iter()
+            .filter_map(|bytes| String::from_utf8(bytes).ok())
+            .take(cap)
+            .map(|text| Term::from_field_text(field, &text))
+            .collect())
+    }
+}
+
+/// A query whose terms, for snippets, are only the ones given: a prefix's expansion is matched
+/// but, as before the expansion was the reader's, never highlighted.
+struct Shown {
+    inner: Box<dyn Query>,
+    shown: Vec<Term>,
+}
+
+impl Clone for Shown {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.box_clone(),
+            shown: self.shown.clone(),
+        }
+    }
+}
+
+impl fmt::Debug for Shown {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Shown({:?})", self.inner)
+    }
+}
+
+impl Query for Shown {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
+        self.inner.weight(enable_scoring)
+    }
+
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        for term in &self.shown {
+            visitor(term, true);
+        }
+    }
+}
+
+/// Build the full query: `text` as the user wrote it, `filters`, and the reader clause, with
+/// prefixes expanded over what `expansion`'s reader may read.
 pub(crate) fn build(
     index: &Index,
     fields: &Fields,
     text: &str,
     filters: &IndexFilters,
     reader: &ReaderFilter,
+    expansion: &Expansion<'_>,
 ) -> Result<Box<dyn Query>, StoreError> {
     if text.trim().is_empty() {
         return Err(StoreError::invalid(
@@ -95,6 +201,7 @@ pub(crate) fn build(
     let mut walker = Walker {
         index,
         f: fields,
+        expansion,
         leaves: 0,
         names: BTreeSet::new(),
     };
@@ -212,6 +319,7 @@ fn parse(text: &str) -> Result<UserInputAst, StoreError> {
 struct Walker<'a> {
     index: &'a Index,
     f: &'a Fields,
+    expansion: &'a Expansion<'a>,
     leaves: usize,
     names: BTreeSet<String>,
 }
@@ -452,9 +560,10 @@ impl Walker<'_> {
         }
     }
 
-    /// `roll*` as a phrase prefix of one term, bounded at [`MAX_EXPANSIONS`]. The prefix is
-    /// lower-cased and not stemmed; the words before it, in a phrase, are stemmed as indexed.
-    /// Constant score, like every expansion, so a common prefix cannot outrank a real match.
+    /// `roll*` as a phrase prefix of one term, bounded at [`MAX_EXPANSIONS`] readable terms
+    /// (phase 5 section 9.1). The prefix is lower-cased and not stemmed; the words before it, in
+    /// a phrase, are stemmed as indexed. Constant score, like every expansion, so a common prefix
+    /// cannot outrank a real match.
     fn prefix_query(
         &self,
         field: Field,
@@ -470,7 +579,7 @@ impl Walker<'_> {
                 "a prefix is at least {MIN_PREFIX_CHARS} characters"
             )));
         }
-        let mut terms: Vec<(usize, Term)> = Vec::with_capacity(words.len() + 1);
+        let mut before: Vec<Term> = Vec::with_capacity(words.len());
         for word in &words {
             let stemmed = if tokenizer == STEMMED {
                 self.tokens(STEMMED, word)?
@@ -480,12 +589,34 @@ impl Walker<'_> {
             } else {
                 word.clone()
             };
-            terms.push((terms.len(), Term::from_field_text(field, &stemmed)));
+            before.push(Term::from_field_text(field, &stemmed));
         }
-        terms.push((terms.len(), Term::from_field_text(field, &prefix)));
-        let mut query = PhrasePrefixQuery::new_with_offset(terms);
-        query.set_max_expansions(MAX_EXPANSIONS);
-        Ok(Box::new(ConstScoreQuery::new(Box::new(query), 1.0)))
+        let alternatives: Vec<(Occur, Box<dyn Query>)> = self
+            .expansion
+            .terms(field, &prefix)?
+            .into_iter()
+            .map(|last| {
+                let query: Box<dyn Query> = if before.is_empty() {
+                    Box::new(TermQuery::new(last, IndexRecordOption::Basic))
+                } else {
+                    let mut phrase: Vec<(usize, Term)> =
+                        before.iter().cloned().enumerate().collect();
+                    phrase.push((before.len(), last));
+                    Box::new(PhraseQuery::new_with_offset(phrase))
+                };
+                (Occur::Should, query)
+            })
+            .collect();
+        let matching: Box<dyn Query> = if alternatives.is_empty() {
+            Box::new(EmptyQuery)
+        } else {
+            Box::new(BooleanQuery::new(alternatives))
+        };
+        let shown = Box::new(Shown {
+            inner: matching,
+            shown: before,
+        });
+        Ok(Box::new(ConstScoreQuery::new(shown, 1.0)))
     }
 
     /// `meta.<key>:value`: the string, and the number or boolean it also reads as.

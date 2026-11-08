@@ -134,8 +134,19 @@ pub(crate) fn show(input: &Value, cx: &mut Cx) -> Outcome {
         Err(error) => return fail::host(&error),
     };
     // The diff holds the change (a create's diff is the whole file), so the stored content is not
-    // repeated: the record is shown without `change.content`.
+    // repeated: the record is shown without `change.content`. An applied proposal's document
+    // revision is shown as the caller may see it (phase 5 section 9.3).
     let mut value = proposal.to_value();
+    if let Some(rev) = value
+        .get("result")
+        .and_then(|result| result.get("rev"))
+        .and_then(Value::as_u64)
+    {
+        match cx.doc_position(&caller.space, rev) {
+            Ok(shown) => value["result"]["rev"] = shown,
+            Err(error) => return fail::host(&error),
+        }
+    }
     let content_bytes = value["change"]
         .as_object_mut()
         .and_then(|change| change.remove("content"))

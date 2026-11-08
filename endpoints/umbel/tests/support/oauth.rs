@@ -140,7 +140,6 @@ pub fn host_with(
         HostBuilder::open(dir)
             .unwrap()
             .with_auth_root_certificate(kit.ca().certificate_pem().as_bytes().to_vec())
-            .with_unfinished_oauth()
             .register(whoami())
             .register(touch()),
     );

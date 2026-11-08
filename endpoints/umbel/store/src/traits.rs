@@ -66,6 +66,38 @@ pub trait DocumentStore: Send + Sync {
     /// `Busy`, `Io`.
     fn head(&self) -> Result<Rev>;
 
+    /// The highest revision at or below `at` of a change to a **document** (a put or a delete)
+    /// that `reader` may read, 0 when there is none (phase 5 section 9.3): the position a sealed
+    /// revision names, so that it moves only when a document the reader can read changes. Plugin
+    /// records (a sync's bookkeeping, a proposal) are left out: one record can stand for many
+    /// documents, some of which the reader cannot read. The default pages through
+    /// [`DocumentStore::changes`]; a backend answers it in one query.
+    ///
+    /// # Errors
+    /// `Busy`, `Corrupt`, `Io`.
+    fn last_readable_document(&self, at: Rev, reader: &ReaderFilter) -> Result<Rev> {
+        let mut after = 0;
+        let mut last = 0;
+        loop {
+            let page = self.changes(after, 1000, reader, None)?;
+            let Some(tail) = page.last().map(|change| change.rev) else {
+                return Ok(last);
+            };
+            for change in &page {
+                if change.rev > at {
+                    return Ok(last);
+                }
+                if matches!(
+                    change.kind,
+                    crate::ChangeKind::Put | crate::ChangeKind::Delete
+                ) {
+                    last = change.rev;
+                }
+            }
+            after = tail;
+        }
+    }
+
     /// Write a plugin record. The record's access set is the envelope's.
     ///
     /// # Errors

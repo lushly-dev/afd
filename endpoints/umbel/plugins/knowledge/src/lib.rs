@@ -58,6 +58,10 @@ mod stale;
 mod traverse;
 mod view;
 
+/// The index schema this plugin's index is built in (`umbel-store-embedded`'s schema 2, phase 5
+/// section 9.1): `dev.umbel/index`'s `schema` and a locator's `indexVersion` name it.
+pub(crate) const INDEX_SCHEMA: u64 = 2;
+
 use serde_json::Value;
 use umbel_sdk::{Asset, Cx, Outcome, Plugin, failure};
 

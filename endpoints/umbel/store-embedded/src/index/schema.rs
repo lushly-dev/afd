@@ -1,16 +1,27 @@
-//! Index schema 1 (specification section 8.1): one tantivy document per chunk.
+//! Index schema 2 (specification section 8.1; phase 5 section 9.1): one tantivy document per
+//! chunk. Schema 2 is schema 1 with a `u64` fast field per scored field (`len_title`,
+//! `len_body`, ...) holding the chunk's exact token count in that field, so the statistics of a
+//! search can be summed over the chunks its reader may read, never from the quantized field
+//! norms.
 
 use serde_json::{Map, Value, json};
+use tantivy::schema::document::{ReferenceValue, ReferenceValueLeaf};
 use tantivy::schema::{
-    DateOptions, Field, IndexRecordOption, JsonObjectOptions, Schema, TextFieldIndexing,
-    TextOptions,
+    DateOptions, Field, FieldType, IndexRecordOption, JsonObjectOptions, NumericOptions, Schema,
+    TextFieldIndexing, TextOptions,
 };
 use tantivy::store::Compressor;
+use tantivy::tokenizer::{MAX_TOKEN_LEN, TokenizerManager};
 use tantivy::{IndexSettings, TantivyDocument};
 use umbel_store::{IndexChunk, StoreError};
 
-/// The schema version, part of the directory name (`index/v1/`) and of every commit payload.
-pub(crate) const SCHEMA_VERSION: u32 = 1;
+/// The schema version, part of the directory name (`index/v2/`) and of every commit payload.
+pub(crate) const SCHEMA_VERSION: u32 = 2;
+/// The directory of this schema under a space's `index/`.
+pub const SCHEMA_DIR: &str = "v2";
+/// The directories of earlier schemas, removed when this one opens: an index is derived data, and
+/// one left behind would keep the text of documents forgotten since.
+pub(crate) const RETIRED_DIRS: &[&str] = &["v1"];
 
 /// The tokenizer of the prose fields: lower-cased, split on non-alphanumerics, English stems.
 pub(crate) const STEMMED: &str = "en_stem";
@@ -18,6 +29,8 @@ pub(crate) const STEMMED: &str = "en_stem";
 pub(crate) const PLAIN: &str = "default";
 /// One term, as written.
 pub(crate) const RAW: &str = "raw";
+/// The document id's field, also a fast field, so a search orders tied chunks by it.
+pub(crate) const DOC_FIELD: &str = "doc";
 
 /// The fields of schema 1.
 #[derive(Clone)]
@@ -45,6 +58,19 @@ pub(crate) struct Fields {
     pub(crate) stale_after: Field,
     pub(crate) meta: Field,
     pub(crate) access: Field,
+    /// Each scored field with the fast field holding its exact token count per chunk.
+    pub(crate) lengths: Vec<Length>,
+}
+
+/// A scored field and its exact token count (phase 5 section 9.1).
+#[derive(Clone, Copy)]
+pub(crate) struct Length {
+    /// The indexed field.
+    pub(crate) field: Field,
+    /// The `u64` fast field with the field's token count in each chunk.
+    pub(crate) len: Field,
+    /// The fast field's name, which the fast-field reader takes.
+    pub(crate) name: &'static str,
 }
 
 fn text(tokenizer: &str) -> TextOptions {
@@ -66,8 +92,8 @@ fn raw() -> TextOptions {
 /// Build the schema and its field handles.
 pub(crate) fn build() -> (Schema, Fields) {
     let mut b = Schema::builder();
-    let fields = Fields {
-        doc: b.add_text_field("doc", raw().set_stored()),
+    let mut fields = Fields {
+        doc: b.add_text_field("doc", raw().set_stored().set_fast(RAW)),
         ordinal: b.add_u64_field(
             "ordinal",
             tantivy::schema::NumericOptions::default()
@@ -107,11 +133,117 @@ pub(crate) fn build() -> (Schema, Fields) {
                 ),
         ),
         access: b.add_text_field("access", raw()),
+        lengths: Vec::new(),
     };
+    // Every field a query's text may name (section 8.1), and so every field a query can score;
+    // `doc` and `access` only ever filter, under a constant score.
+    let scored = [
+        (fields.title, "len_title"),
+        (fields.aliases, "len_aliases"),
+        (fields.description, "len_description"),
+        (fields.headings, "len_headings"),
+        (fields.body, "len_body"),
+        (fields.code, "len_code"),
+        (fields.tags, "len_tags"),
+        (fields.owners, "len_owners"),
+        (fields.doc_type, "len_type"),
+        (fields.collection, "len_collection"),
+        (fields.status, "len_status"),
+        (fields.verified, "len_verified"),
+        (fields.sensitivity, "len_sensitivity"),
+        (fields.lang, "len_lang"),
+        (fields.path, "len_path"),
+        (fields.path_raw, "len_path_raw"),
+        (fields.meta, "len_meta"),
+    ];
+    for (field, name) in scored {
+        let len = b.add_u64_field(name, NumericOptions::default().set_fast());
+        fields.lengths.push(Length { field, len, name });
+    }
     (b.build(), fields)
 }
 
-/// The index's settings. LZ4 is named, never defaulted: the compressor is part of schema 1.
+/// The tokens tantivy indexes for one value of a field: what its analyzer emits, less any token
+/// over [`MAX_TOKEN_LEN`] bytes, which the indexer drops. A JSON value counts each leaf as the
+/// indexer does: a string's tokens, one token for a number, boolean or date (none for a
+/// non-finite number or `null`), the entries of arrays and objects, and no entry whose key holds
+/// the path separator byte.
+fn count_value<'a, V: tantivy::schema::Value<'a>>(
+    value: V,
+    tokenizers: &TokenizerManager,
+    tokenizer: &str,
+) -> Result<u64, StoreError> {
+    Ok(match value.as_value() {
+        ReferenceValue::Leaf(leaf) => match leaf {
+            ReferenceValueLeaf::Null => 0,
+            ReferenceValueLeaf::Str(text) => {
+                let mut analyzer = tokenizers.get(tokenizer).ok_or_else(|| {
+                    StoreError::Corrupt(format!("the tokenizer `{tokenizer}` is not registered"))
+                })?;
+                let mut stream = analyzer.token_stream(text);
+                let mut count = 0;
+                while stream.advance() {
+                    if stream.token().text.len() <= MAX_TOKEN_LEN {
+                        count += 1;
+                    }
+                }
+                count
+            }
+            ReferenceValueLeaf::F64(number) => u64::from(number.is_finite()),
+            _ => 1,
+        },
+        ReferenceValue::Array(values) => {
+            let mut count = 0;
+            for value in values {
+                count += count_value(value, tokenizers, tokenizer)?;
+            }
+            count
+        }
+        ReferenceValue::Object(entries) => {
+            let mut count = 0;
+            for (key, value) in entries {
+                if !key.as_bytes().contains(&0u8) {
+                    count += count_value(value, tokenizers, tokenizer)?;
+                }
+            }
+            count
+        }
+    })
+}
+
+/// The tokenizer a text or JSON field is indexed with.
+fn tokenizer_of(schema: &Schema, field: Field) -> &str {
+    let options = match schema.get_field_entry(field).field_type() {
+        FieldType::Str(options) => options.get_indexing_options(),
+        FieldType::JsonObject(options) => options.get_text_indexing_options(),
+        _ => None,
+    };
+    options.map_or("default", TextFieldIndexing::tokenizer)
+}
+
+/// Add each scored field's exact token count to `document`, counting as the indexer counts.
+fn add_lengths(
+    schema: &Schema,
+    fields: &Fields,
+    tokenizers: &TokenizerManager,
+    document: &mut TantivyDocument,
+) -> Result<(), StoreError> {
+    let mut counts = Vec::with_capacity(fields.lengths.len());
+    for length in &fields.lengths {
+        let tokenizer = tokenizer_of(schema, length.field);
+        let mut count = 0;
+        for value in document.get_all(length.field) {
+            count += count_value(value, tokenizers, tokenizer)?;
+        }
+        counts.push((length.len, count));
+    }
+    for (len, count) in counts {
+        document.add_u64(len, count);
+    }
+    Ok(())
+}
+
+/// The index's settings. LZ4 is named, never defaulted: the compressor is part of the schema.
 pub(crate) fn settings() -> IndexSettings {
     IndexSettings {
         docstore_compression: Compressor::Lz4,
@@ -132,6 +264,8 @@ fn join(parts: &[String]) -> String {
 /// nothing.
 pub(crate) fn document(
     schema: &Schema,
+    fields: &Fields,
+    tokenizers: &TokenizerManager,
     expected_doc: &str,
     chunk: &IndexChunk,
 ) -> Result<TantivyDocument, StoreError> {
@@ -190,10 +324,13 @@ pub(crate) fn document(
         put("meta", Value::Object(chunk.meta.clone()));
     }
     put("access", json!(chunk.access.tokens()));
-    TantivyDocument::parse_json(schema, &Value::Object(json).to_string()).map_err(|e| {
-        StoreError::invalid(format!(
-            "chunk {} of `{}` does not index: {e}",
-            chunk.ordinal, chunk.doc
-        ))
-    })
+    let mut document = TantivyDocument::parse_json(schema, &Value::Object(json).to_string())
+        .map_err(|e| {
+            StoreError::invalid(format!(
+                "chunk {} of `{}` does not index: {e}",
+                chunk.ordinal, chunk.doc
+            ))
+        })?;
+    add_lengths(schema, fields, tokenizers, &mut document)?;
+    Ok(document)
 }

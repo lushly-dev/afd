@@ -22,6 +22,9 @@ tempfile = { version = "3", optional = true }
 [dev-dependencies]
 # `tests/suite_detects.rs` runs the suite against a deliberately broken fake.
 umbel-store = { path = ".", features = ["conformance"] }
+# `tests/memory_tokenizer.rs` reads FTS5's own tokens (`fts5vocab`) to hold the memory tokenizer
+# to them (phase 5 section 9.2). Already in the lock, with the embedded backend's features.
+rusqlite = { version = "0.41", features = ["bundled"] }
 
 [lints]
 workspace = true

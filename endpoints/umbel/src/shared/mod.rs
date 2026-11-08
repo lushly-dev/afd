@@ -17,6 +17,7 @@ pub(crate) mod read_limit;
 use std::fs::{self, DirBuilder};
 use std::path::Path;
 
+use crate::positions::hmac_sha256;
 use crate::workspace::WorkspaceError;
 
 /// The codes a shared store's failure carries.
@@ -42,25 +43,6 @@ pub(crate) enum SharedError {
         /// What failed, for the log.
         message: String,
     },
-}
-
-/// HMAC-SHA256 (RFC 2104) of `message` under `key`.
-fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
-    use sha2::{Digest, Sha256};
-    const BLOCK: usize = 64;
-    let mut block = [0u8; BLOCK];
-    if key.len() > BLOCK {
-        block[..32].copy_from_slice(&Sha256::digest(key));
-    } else {
-        block[..key.len()].copy_from_slice(key);
-    }
-    let mut inner = Sha256::new();
-    inner.update(block.map(|byte| byte ^ 0x36));
-    inner.update(message);
-    let mut outer = Sha256::new();
-    outer.update(block.map(|byte| byte ^ 0x5c));
-    outer.update(inner.finalize());
-    outer.finalize().into()
 }
 
 /// `<label>:` and the lowercase hex HMAC-SHA256 under `key` of `parts`, each prefixed by its
