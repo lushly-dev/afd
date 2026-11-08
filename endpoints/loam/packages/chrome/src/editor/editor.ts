@@ -348,15 +348,25 @@ export class EditorController implements FrameListener {
 	 * and no close of the person's behind it holds nothing, and its mark goes, from the person's page.
 	 */
 	#unmark(tabs: EditorReadV1['groups'][number]['tabs']): Promise<unknown>[] {
+		const at = this.#at;
 		return tabs
-			.filter(
-				(tab) =>
-					tab.dirty &&
-					!this.#frames.has(tab.id) &&
+			.filter((tab) => {
+				if (!tab.dirty || this.#closing.has(`${this.#visit} ${tab.id}`)) return false;
+				// An editor ready, clean and of this visit says there is nothing unsaved, whoever marked it.
+				const frame = this.#frames.get(tab.id);
+				if (frame) return frame.state === 'ready' && !frame.dirty && this.#here(frame);
+				// A leaving one of this scope, of any visit, still saves its draft: a return here keeps its mark.
+				return (
 					!this.#parking.has(tab.id) &&
-					!this.#closing.has(`${this.#visit} ${tab.id}`) &&
-					![...this.#leaving].some((frame) => frame.tab === tab.id && this.#here(frame))
-			)
+					![...this.#leaving].some(
+						(each) =>
+							each.tab === tab.id &&
+							(this.#here(each) ||
+								(each.record?.scope.workspace === at?.workspace &&
+									each.record?.scope.project === at?.project))
+					)
+				);
+			})
 			.map((tab) =>
 				this.#kernel.call('editor-dirty-set', { tab: tab.id, dirty: false }, { scope: this.#at })
 			);
@@ -600,7 +610,9 @@ export class EditorController implements FrameListener {
 			if (!saved && !(await this.#confirmDiscard(frame?.title ?? 'this document'))) return false;
 		}
 		const hadFocus = this.#area.matches(':focus-within');
-		if (frame && this.#here(frame)) {
+		// Only while the frame is still this tab's: a reopen meanwhile may have given it, with its draft, to
+		// another tab, whose editor it is now.
+		if (frame && frame.tab === tab && (this.#frames.get(tab) ?? this.#parking.get(tab)) === frame) {
 			this.#stopTimer(frame);
 			await this.#move(frame, 'disposed');
 		}

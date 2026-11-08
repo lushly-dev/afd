@@ -80,7 +80,11 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  */
 export function frameViolations(page: Page): Promise<string[]> {
 	return page.evaluate(async () => {
-		type Frame = HTMLElement & { tab: string; dirty: boolean };
+		type Frame = HTMLElement & {
+			tab: string;
+			dirty: boolean;
+			record?: { scope: { workspace: string; project?: string } } | null;
+		};
 		type Life = { visit: number; place: string; busy?: boolean };
 		type State = {
 			groups: Array<{ id: string; active: string | null; tabs: Array<{ id: string }> }>;
@@ -115,8 +119,20 @@ export function frameViolations(page: Page): Promise<string[]> {
 		const tabs = new Set(
 			rendered?.groups.flatMap((group) => group.tabs.map((tab) => tab.id)) ?? []
 		);
+		// A leaving frame of this visit, or of the scope active in any visit, still saving its draft.
+		const active = (
+			await (shell.kernel.call('scope-get') as unknown as Promise<{
+				data?: { scope?: { workspace?: string; project?: string } };
+			}>)
+		).data?.scope;
 		const leavingHere = (tab: string) =>
-			[...leaving].some((frame) => frame.tab === tab && lives.get(frame)?.visit === visit);
+			[...leaving].some(
+				(frame) =>
+					frame.tab === tab &&
+					(lives.get(frame)?.visit === visit ||
+						(frame.record?.scope.workspace === active?.workspace &&
+							frame.record?.scope.project === active?.project))
+			);
 		const closingHere = (tab: string) => closing.has(`${visit} ${tab}`);
 		for (const [name, map, place] of [
 			['frames', frames, 'shown'],
@@ -192,8 +208,9 @@ export async function editorIdle(page: Page): Promise<void> {
 			editor?: { idle: Promise<void> };
 		};
 		await shell.apps?.idle;
-		// Until its queue holds still: a render's own marks may queue another.
-		for (let round = 0; round < 20; round++) {
+		// Until its queue holds still: a render's own marks may queue another; one that never does is a fault.
+		for (let round = 0; ; round++) {
+			if (round === 20) throw new Error("The editor area's queue did not settle in 20 rounds");
 			const queued = shell.editor?.idle;
 			await queued;
 			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));

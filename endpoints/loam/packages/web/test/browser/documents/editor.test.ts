@@ -1540,7 +1540,94 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	}, 120_000);
 
-	it.each([0x5eed10, 1, 2, 0xdeadbeef, 42])(
+	it('P2-D5: the person’s Discard never disposes a frame a reopen has meanwhile given to another tab', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Draft');
+		// The person closes t1, its save held; an agent closes it too, its save held as well.
+		await tabOf(page, 'Alpha').focus();
+		await page.keyboard.press('Delete');
+		await expect
+			.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+			.toBeGreaterThan(0);
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await framesGone(page, ['t1']);
+		// Both reject: the person's modal opens, and the reopen gives the draft to t2, marked.
+		await settleSaves(page, 't1', 'fail');
+		await expect.poll(() => draftOf(page, 't2')).toBe('Draft');
+		await page.locator('loam-modal button', { hasText: 'Discard' }).click();
+		await editorIdle(page);
+		// t2 keeps its editor, with the draft, and its mark.
+		expect(await draftOf(page, 't2')).toBe('Draft');
+		expect(
+			(
+				(await agentCall(page, 'document-trash', { document: alpha })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: a scope round trip keeps the mark of a tab whose editor’s save is still held', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Held');
+		await open(page, await createNote(page, 'Beta'));
+		await failSaves(page, ['t2']);
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		await kernelCall(page, 'scope-set', { project: null });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		// Alpha's editor, of the visit before, still saves: its tab keeps its mark, and a trash waits.
+		expect(
+			(
+				(await agentCall(page, 'document-trash', { document: alpha })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		await settleSaves(page, 't1', 'fail');
+		await editorIdle(page);
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: an agent marking a tab whose editor is ready and clean unsaved holds nothing: the mark goes', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		expect(
+			(
+				(await agentCall(page, 'editor-dirty-set', { tab: 't1', dirty: true })) as {
+					success: boolean;
+				}
+			).success
+		).toBe(true);
+		await editorIdle(page);
+		const dirty = (
+			(await agentCall(page, 'editor-get')) as {
+				data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
+			}
+		).data.groups[0]?.tabs[0]?.dirty;
+		expect(dirty).toBe(false);
+		expect(
+			((await agentCall(page, 'document-trash', { document: alpha })) as { success: boolean })
+				.success
+		).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+
+	it.each([0x5eed10, 9, 1, 2, 0xdeadbeef, 42])(
 		'P2-D5: a seeded walk of 200 steps, seed %i, keeps the nine invariants after each',
 		async (start) => {
 			const opened = await openShell(browser, site.root);
@@ -1600,6 +1687,11 @@ describe('P2-D5: the editor area, native half', () => {
 				'reload',
 				'app',
 				'beside',
+				'pin',
+				'activate',
+				'stay',
+				'pagehide-reject',
+				'move-held',
 			] as const;
 			let project: string | undefined;
 			let app = false;
@@ -1698,6 +1790,22 @@ describe('P2-D5: the editor area, native half', () => {
 					);
 				} else if (kind === 'beside' && tabs.length > 0) {
 					await kernelCall(page, 'document-open', { document: some().document, group: 'beside' });
+				} else if (kind === 'pin' && tabs.length > 0) {
+					await agentCall(page, 'editor-pin', { tab: some().id, pinned: random() < 0.5 });
+				} else if (kind === 'activate' && tabs.length > 0) {
+					await agentCall(page, 'editor-activate', { tab: some().id });
+				} else if (kind === 'stay' && tabs.length > 0) {
+					await agentCall(page, 'document-open', { document: some().document, stay: 'background' });
+				} else if (kind === 'pagehide-reject') {
+					await page.evaluate(() => {
+						window.dispatchEvent(new Event('pagehide'));
+						for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
+					});
+				} else if (kind === 'move-held' && tabs.length > 0) {
+					// A tab moved while a save is held, of its editor or another's.
+					if (await page.evaluate(() => ((window as Walk).pending?.length ?? 0) > 0)) {
+						await agentCall(page, 'editor-move', { tab: some().id, group: 'new' });
+					}
 				}
 				try {
 					await editorIdle(page);

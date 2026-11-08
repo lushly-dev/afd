@@ -103,7 +103,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * cleared from the person's page, also while an app shows (360), a parked editor whose tab another's call
  * closed reopened (112), a slot another frame holds refused (about 70), the person's close kept in its own
  * scope (28), and visits of a scope, timers by frame, a leaving frame taken off the page and the rest (about
- * 424), and the split of its helpers into `editor-parts.ts`, under the file-size limit (10).
+ * 424), and the split of its helpers into `editor-parts.ts`, under the file-size limit (10). The re-check after it raised it by 199, to 31,281, approved by the coordinator,
+ * 2026-11-08: a mark cleared when its tab's editor is ready and clean (65), a leaving editor of the scope
+ * rendered keeping its tab's mark across a round trip (about 97), and the person's close disposing only a
+ * frame still its tab's (37).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -123,7 +126,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 31_082,
+	editorMinified: 31_281,
 });
 
 /** Group a module id by the package it belongs to. */
