@@ -486,10 +486,14 @@ The principal binding (M8) is implemented in all three languages with a confirma
 phase 5 step 0c, [#532](https://github.com/lushly-dev/afd/issues/532)), and each loads the
 `principalBindings` cases: Rust in `tests/authorization_cases.rs`, TypeScript in
 `packages/server/src/principal-binding.test.ts`, Python in `python/tests/test_principal_binding.py`.
+Rust loads the `inputDigests` cases through `afd::input_digest`, the digest its `HumanRelay` gets
+and its approval middleware checks relay evidence with (step 0d).
 Each binds it to confirmation state as integrity-protected input, never as readable identity:
 
 - **Rust:** HMAC associated data of the `requestState`, after the context hook, with the verified
-  credentials of an authorized server.
+  credentials of an authorized server. Since Umbel phase 5 step 0d the same state carries the
+  form-mode approval relay's answers, and relay evidence binds the credentials' identity
+  (`credentials_binding`) beside the actor.
 - **TypeScript:** the HMAC bind tag of the round's `requestState` (confirmation and approval-relay
   answers alike), with the actor the commands run with and the `credentials` that `createContext`
   sets. TypeScript does not verify tokens yet; its MCP authorization step fills `credentials`.
@@ -513,4 +517,4 @@ Rust ask again, Python answers `-32602`.
 | 401 and 403, rule codes (M5) | Planned | Planned | Yes (step 0b) | N/A |
 | Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
 | Protected-resource metadata (M7) | Planned | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
-| The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data) | N/A: no confirmation gate |
+| The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |

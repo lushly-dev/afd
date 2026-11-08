@@ -29,8 +29,23 @@
 //! Credentials with an empty issuer, subject or client id are never bound
 //! ([`IncompleteCredentials`](crate::IncompleteCredentials)): such a call gets no state, and a
 //! retry carrying one is refused, both with a JSON-RPC internal error that names no one.
+//!
+//! # One state per call
+//!
+//! The confirmation and the form-mode approval relay ([`ApprovalRelay::McpElicitation`](crate::ApprovalRelay))
+//! share one signed `requestState` (`spec/command-metadata.md`, "Asking the human over MCP"): it
+//! carries the questions just asked and the answers accepted in earlier rounds, so a call that
+//! needs a confirmation and then an approval keeps the first answer while the second is asked. Each
+//! answer counts for 10 minutes from when its question was asked, however many rounds carry it.
+//! The state's associated data is the call's principal binding and every command the call runs
+//! with its input as sent, so it answers nothing for another call or another caller.
+//!
+//! A [host-verified](crate::CommandConfirmationMode::HostVerified) command never reaches this
+//! gate: only the host's [`HumanRelay`](super::HumanRelay) confirms it (see
+//! [`super::human_relay`]).
 
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use rmcp::model::{
@@ -39,8 +54,11 @@ use rmcp::model::{
 };
 use rmcp::service::RequestContext;
 use rmcp::RoleServer;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
+use crate::approval::relay::{ApprovalHold, Asked, RoundAnswers, APPROVAL_INPUT_KEY};
 use crate::{error_codes, CommandError};
 
 /// How a server treats `confirm_prompt`.
@@ -61,8 +79,20 @@ pub const AFD_CONFIRM_META_KEY: &str = "dev.afd/confirm";
 /// The `inputRequests` key of the confirmation elicitation.
 pub const CONFIRM_INPUT_KEY: &str = "confirm";
 
-/// How long a confirmation `requestState` stays valid.
+/// How long a confirmation `requestState` stays valid, and how long an answer counts from when its
+/// question was asked.
 const STATE_TTL: Duration = Duration::from_secs(600);
+
+/// The form-mode approval elicitation: one required boolean.
+pub fn approval_requested_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "approve": { "type": "boolean", "title": "Approve", "description": "Allow this action to run" }
+        },
+        "required": ["approve"],
+    })
+}
 
 /// The elicitation form: one required boolean.
 pub fn confirm_requested_schema() -> Value {
@@ -104,24 +134,194 @@ fn canonical(value: &Value) -> String {
 }
 
 /// Labels the associated data's layout, so a state minted under an earlier layout (the command
-/// and input alone, before #532) never verifies.
-const BINDING_VERSION: &str = "afd.confirm.v2";
+/// and input alone, before #532; the gated commands alone with a bare payload, before the
+/// approval relay shared the state) never verifies.
+const BINDING_VERSION: &str = "afd.confirm.v3";
 
-/// The associated data of a confirmation for one command: the command, its input and the call's
-/// principal binding ([`principal_binding`](crate::principal_binding)), canonically.
+/// The associated data of the `requestState` of a call to one command: the command, its input as
+/// sent and the call's principal binding ([`principal_binding`](crate::principal_binding)),
+/// canonically. Confirmation and approval-relay answers of that call are both bound to it.
 pub fn confirmation_binding(command: &str, input: &Value, principal: &str) -> Vec<u8> {
     steps_binding(&[Step::new(command, input.clone())], principal)
 }
 
-/// The associated data of a confirmation: the layout's version, the call's principal binding
-/// (as a JSON string, so it can never be read as part of the steps) and the gated commands with
-/// their input, canonically.
+/// The associated data of a call's `requestState`: the layout's version, the call's principal
+/// binding (as a JSON string, so it can never be read as part of the steps) and every command the
+/// call runs with its input as sent, canonically.
 fn steps_binding(steps: &[Step], principal: &str) -> Vec<u8> {
     let steps: Vec<Value> = steps
         .iter()
         .map(|step| json!([step.command, step.input]))
         .collect();
     canonical(&json!([BINDING_VERSION, principal, steps])).into_bytes()
+}
+
+/// The binding of a confirmation question: the unpadded base64url SHA-256 of the gated commands
+/// and their input, canonically. The state's associated data binds the caller.
+fn confirm_question(steps: &[Step]) -> String {
+    let steps: Vec<Value> = steps
+        .iter()
+        .map(|step| json!([step.command, step.input]))
+        .collect();
+    crate::canonical::base64url_encode(&Sha256::digest(canonical(&json!(steps)).as_bytes()))
+}
+
+/// The signed `requestState`: the questions just asked (`p`) and those accepted in earlier rounds
+/// (`a`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct RoundState {
+    p: Vec<Asked>,
+    a: Vec<Asked>,
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
+        })
+}
+
+/// The elicitations of one `tools/call`: the answers its retry carries, read once, and the
+/// `input_required` result for the next question. Only a modern request carries a state.
+pub(crate) struct Round {
+    gate: Arc<Gate>,
+    modern: bool,
+    /// The state's associated data; `None` when the call's credentials cannot be bound.
+    binding: Option<Vec<u8>>,
+    state: Option<String>,
+    responses: Value,
+    answers: OnceLock<Option<Arc<RoundAnswers>>>,
+}
+
+impl Round {
+    /// The round of a call that runs `steps` (every command, with its input as sent).
+    pub(crate) fn new(gate: Arc<Gate>, channel: &Channel<'_>, steps: &[Step]) -> Self {
+        Self {
+            gate,
+            modern: is_modern(channel.context),
+            binding: channel
+                .principal
+                .map(|principal| steps_binding(steps, principal)),
+            state: channel.request.request_state.clone(),
+            responses: channel
+                .request
+                .input_responses
+                .as_ref()
+                .and_then(|responses| serde_json::to_value(responses).ok())
+                .unwrap_or(Value::Null),
+            answers: OnceLock::new(),
+        }
+    }
+
+    /// The answers this request carries: none without a state that verifies for this call and
+    /// this caller. `None` when it carries a state but its credentials cannot be bound: the call
+    /// then fails with an internal error, before any state is verified.
+    pub(crate) fn answers(&self) -> Option<Arc<RoundAnswers>> {
+        self.answers.get_or_init(|| self.read()).clone()
+    }
+
+    fn read(&self) -> Option<Arc<RoundAnswers>> {
+        let none = Some(Arc::new(RoundAnswers::default()));
+        let Some(state) = self.state.as_deref().filter(|_| self.modern) else {
+            return none;
+        };
+        let binding = self.binding.as_ref()?;
+        let Ok(payload) = self.gate.codec.open_with(state, binding) else {
+            return none;
+        };
+        let Ok(round) = serde_json::from_slice::<RoundState>(&payload) else {
+            return none;
+        };
+        // An answer carried from an earlier round lapses with its own question, so re-minting the
+        // state never extends it.
+        let now = now_ms();
+        let mut answers = RoundAnswers {
+            accepted: round.a.into_iter().filter(|item| item.t > now).collect(),
+            declined: Vec::new(),
+        };
+        for asked in round.p.into_iter().filter(|item| item.t > now) {
+            let response = &self.responses[asked.k.as_str()];
+            let Some(action) = response["action"].as_str() else {
+                continue;
+            };
+            let field = if asked.k == APPROVAL_INPUT_KEY {
+                "approve"
+            } else {
+                "confirm"
+            };
+            if action == "accept" && response["content"][field] == Value::Bool(true) {
+                answers.accepted.push(asked);
+            } else {
+                answers.declined.push(asked);
+            }
+        }
+        Some(Arc::new(answers))
+    }
+
+    /// The `input_required` result asking `question` with one form elicitation. The state carries
+    /// the answers accepted so far, except earlier answers to the same question (`replaces`, the
+    /// question's bindings under every key). `None` when the call's credentials cannot be bound:
+    /// no state is minted for it.
+    fn ask(
+        &self,
+        question: Asked,
+        message: String,
+        requested_schema: Value,
+        replaces: &[String],
+    ) -> Option<CallToolResponse> {
+        let binding = self.binding.as_ref()?;
+        let answers = self.answers()?;
+        let kept: Vec<Asked> = answers
+            .accepted
+            .iter()
+            .filter(|item| item.k != question.k || !replaces.contains(&item.b))
+            .cloned()
+            .collect();
+        let key = question.k.clone();
+        let asked = Asked {
+            t: now_ms().saturating_add(STATE_TTL.as_millis() as i64),
+            ..question
+        };
+        let payload = serde_json::to_vec(&RoundState {
+            p: vec![asked],
+            a: kept,
+        })
+        .ok()?;
+        let state = self.gate.codec.seal_with(
+            &payload,
+            &SealOptions::new().associated_data(binding).ttl(STATE_TTL),
+        );
+        let result: InputRequiredResult = serde_json::from_value(json!({
+            "resultType": "input_required",
+            "inputRequests": {
+                key: {
+                    "method": "elicitation/create",
+                    "params": { "mode": "form", "message": message, "requestedSchema": requested_schema },
+                }
+            },
+            "requestState": state,
+        }))
+        .ok()?;
+        Some(CallToolResponse::InputRequired(result))
+    }
+
+    /// The `input_required` result asking for the approval the middleware held.
+    pub(crate) fn ask_approval(&self, hold: &ApprovalHold) -> Option<CallToolResponse> {
+        self.ask(
+            Asked {
+                k: APPROVAL_INPUT_KEY.to_owned(),
+                b: hold.binding.clone(),
+                t: 0,
+                n: Some(hold.nonce.clone()),
+                x: Some(hold.expires_at),
+                m: Some(hold.mac.clone()),
+            },
+            hold.message.clone(),
+            approval_requested_schema(),
+            &hold.bindings,
+        )
+    }
 }
 
 /// Whether a tool's own input schema declares a `confirm` property.
@@ -207,7 +407,7 @@ pub(crate) fn is_modern(context: &RequestContext<RoleServer>) -> bool {
     })
 }
 
-fn allows_form_elicitation(context: &RequestContext<RoleServer>) -> bool {
+pub(crate) fn allows_form_elicitation(context: &RequestContext<RoleServer>) -> bool {
     context
         .client_capabilities()
         .and_then(|capabilities| capabilities.elicitation)
@@ -218,7 +418,7 @@ fn answer(action: &Value, content: &Value) -> bool {
     action == "accept" && content["confirm"] == Value::Bool(true)
 }
 
-fn quoted(names: &[String]) -> String {
+pub(crate) fn quoted(names: &[String]) -> String {
     names
         .iter()
         .map(|name| format!("'{name}'"))
@@ -226,7 +426,7 @@ fn quoted(names: &[String]) -> String {
         .join(", ")
 }
 
-fn declined(names: &[String]) -> CommandError {
+pub(crate) fn declined(names: &[String]) -> CommandError {
     CommandError::new(
         error_codes::CONFIRMATION_DECLINED,
         format!("The user did not confirm {}", quoted(names)),
@@ -265,9 +465,10 @@ pub(crate) struct Channel<'a> {
     pub(crate) principal: Option<&'a str>,
 }
 
-/// Decide a tool call that runs `steps`. `prompt` returns a command's `confirm_prompt`;
+/// Decide a tool call that runs `steps`. `prompt` returns a command's `confirm_prompt` (and
+/// `None` for a host-verified command, which only the host's relay confirms);
 /// `how_to_acknowledge` is the recovery text for this tool, such as "repeat the call with
-/// confirm: true".
+/// confirm: true". `round` holds the answers the request carries.
 pub(crate) async fn check(
     gate: &Gate,
     steps: &[Step],
@@ -275,8 +476,9 @@ pub(crate) async fn check(
     acknowledged: Acknowledgement,
     how_to_acknowledge: &str,
     channel: &Channel<'_>,
+    round: &Round,
 ) -> Decision {
-    let (request, context) = (channel.request, channel.context);
+    let context = channel.context;
     if gate.mode == ConfirmationMode::Off {
         return Decision::Proceed;
     }
@@ -294,32 +496,22 @@ pub(crate) async fn check(
         }
     }
     let gated_steps: Vec<Step> = gated.iter().map(|(step, _)| step.clone()).collect();
-    let binding = channel
-        .principal
-        .map(|principal| steps_binding(&gated_steps, principal));
+    let question = confirm_question(&gated_steps);
     let modern = is_modern(context);
-    // Incomplete credentials are never bound: a retry carrying a state fails closed.
-    if modern && request.request_state.is_some() && binding.is_none() {
-        return Decision::Internal;
-    }
 
-    // The retry of an earlier elicitation, if its state verifies for these commands, this input
-    // and this principal. A state that does not (altered, expired, or issued for other input or
-    // to another principal) is no answer, and the call is asked again below.
-    if modern {
-        if let (Some(responses), Some(state), Some(binding)) =
-            (&request.input_responses, &request.request_state, &binding)
-        {
-            let responses = serde_json::to_value(responses).unwrap_or(Value::Null);
-            let response = &responses[CONFIRM_INPUT_KEY];
-            if !response["action"].is_null() && gate.codec.open_with(state, binding).is_ok() {
-                return if answer(&response["action"], &response["content"]) {
-                    Decision::Proceed
-                } else {
-                    Decision::Refuse(declined(&names))
-                };
-            }
-        }
+    // The retry of an earlier elicitation, if its state verifies for this call and this
+    // principal. A state that does not (altered, expired, or issued for other input or to
+    // another principal) is no answer, and the call is asked again below. Incomplete
+    // credentials are never bound: a retry carrying a state fails closed.
+    let Some(answers) = round.answers() else {
+        return Decision::Internal;
+    };
+    let asks = |item: &Asked| item.k == CONFIRM_INPUT_KEY && item.b == question;
+    if answers.declined.iter().any(asks) {
+        return Decision::Refuse(declined(&names));
+    }
+    if answers.accepted.iter().any(asks) {
+        return Decision::Proceed;
     }
 
     if gate.mode == ConfirmationMode::Enforce {
@@ -337,31 +529,27 @@ pub(crate) async fn check(
     }
 
     if allows_form_elicitation(context) {
-        let elicitation = json!({
-            "mode": "form",
-            "message": elicitation_message(&gated),
-            "requestedSchema": confirm_requested_schema(),
-        });
+        let message = elicitation_message(&gated);
         if modern {
             // Incomplete credentials are never bound: no state is minted for them.
-            let Some(binding) = &binding else {
-                return Decision::Internal;
+            let asked = Asked {
+                k: CONFIRM_INPUT_KEY.to_owned(),
+                b: question.clone(),
+                t: 0,
+                n: None,
+                x: None,
+                m: None,
             };
-            let state = gate.codec.seal_with(
-                b"confirm",
-                &SealOptions::new().associated_data(binding).ttl(STATE_TTL),
-            );
-            let result: Result<InputRequiredResult, _> = serde_json::from_value(json!({
-                "resultType": "input_required",
-                "inputRequests": {
-                    CONFIRM_INPUT_KEY: { "method": "elicitation/create", "params": elicitation }
-                },
-                "requestState": state,
-            }));
-            if let Ok(result) = result {
-                return Decision::Ask(CallToolResponse::InputRequired(result));
-            }
+            return match round.ask(asked, message, confirm_requested_schema(), &[question]) {
+                Some(response) => Decision::Ask(response),
+                None => Decision::Internal,
+            };
         } else if channel.legacy_back_channel {
+            let elicitation = json!({
+                "mode": "form",
+                "message": message,
+                "requestedSchema": confirm_requested_schema(),
+            });
             if let Ok(params) = serde_json::from_value::<ElicitRequestParams>(elicitation) {
                 if let Ok(result) = context.peer.create_elicitation(params).await {
                     let result = serde_json::to_value(result).unwrap_or(Value::Null);

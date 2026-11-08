@@ -528,6 +528,15 @@ pub struct CommandContext {
     /// MCP server sets it, and every execution under this context (batch items, pipeline steps,
     /// nested calls that pass the context on) is decided again on its validated input.
     pub(crate) scope_check: Option<ScopeCheck>,
+    /// Relay evidence (`spec/command-metadata.md`, "Relay evidence"): only the MCP server sets it,
+    /// after the host's [`HumanRelay`](crate::server::HumanRelay) returned `Approved` for this
+    /// call; the approval middleware then considers it and nothing else. Never read from a
+    /// request, never serialized, and removed before the handler runs, so a command the handler
+    /// calls in process never sees it.
+    pub(crate) relay_evidence: Option<Arc<crate::approval::relay::RelayEvidence>>,
+    /// The form-mode approval relay of one MCP tool call (`spec/command-metadata.md`, "Asking the
+    /// human over MCP"): only the MCP server sets it. The handler gets one that never asks.
+    pub(crate) approval_relay: Option<Arc<crate::approval::relay::ApprovalRelayChannel>>,
 }
 
 impl fmt::Debug for CommandContext {
@@ -551,6 +560,12 @@ impl fmt::Debug for CommandContext {
             .field("output_budget_ask", &self.output_budget_ask)
             .field("output_budget", &self.output_budget)
             .field("scope_check", &self.scope_check)
+            // Relay evidence names the caller: never print it.
+            .field(
+                "relay_evidence",
+                &self.relay_evidence.as_ref().map(|_| "[redacted]"),
+            )
+            .field("approval_relay", &self.approval_relay)
             .finish()
     }
 }
@@ -694,6 +709,46 @@ impl CommandContext {
     pub fn with_extra(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
         self.extra.insert(key.into(), value);
         self
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONFIRMATION MODE OF ONE COMMAND
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// How one command is confirmed over MCP (`spec/command-metadata.md`, "Host-verified
+/// confirmation"), reported as `confirmationMode` in `_meta` and `afd-detail`. Unset, the
+/// server's [`ConfirmationMode`](crate::server::ConfirmationMode) option applies to the command's
+/// `confirm_prompt`.
+///
+/// Named apart from the server option, which says how a server treats `confirm_prompt`; this one
+/// says that only the host can confirm the command at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "kebab-case")]
+pub enum CommandConfirmationMode {
+    /// `host-verified`: only the host can prove that a person decided, through the server's
+    /// [`HumanRelay`](crate::server::HumanRelay). On every MCP surface, whatever the server's
+    /// confirmation option says (`Off` included), the server never sends a form elicitation for
+    /// the command, never accepts an acknowledgement or a form answer for it, and gates it whether
+    /// or not it declares `confirm_prompt`. Without a relay a call fails with
+    /// `CONFIRMATION_REQUIRED`. `DirectClient` and in-process registries are unchanged: the host
+    /// owns in-process calls.
+    HostVerified,
+}
+
+impl CommandConfirmationMode {
+    /// The wire spelling: `host-verified`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::HostVerified => "host-verified",
+        }
+    }
+}
+
+impl fmt::Display for CommandConfirmationMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -869,6 +924,13 @@ pub struct CommandDefinition {
     /// ([`is_scope_token`](crate::is_scope_token)); the registry refuses anything else when the
     /// command is registered. `None` or empty is no scope of its own.
     pub scopes: Option<Vec<String>>,
+
+    /// How the command is confirmed over MCP: `None` lets the server's confirmation option apply;
+    /// [`CommandConfirmationMode::HostVerified`] lets only the host's
+    /// [`HumanRelay`](crate::server::HumanRelay) confirm it (`spec/command-metadata.md`,
+    /// "Host-verified confirmation"). Reported as `confirmationMode` in `_meta`, grouped
+    /// `_meta.actions` and `afd-detail`.
+    pub confirmation_mode: Option<CommandConfirmationMode>,
 }
 
 impl CommandDefinition {
@@ -905,7 +967,22 @@ impl CommandDefinition {
             tool_meta: None,
             output_budget: None,
             scopes: None,
+            confirmation_mode: None,
         }
+    }
+
+    /// Set how the command is confirmed over MCP (see [`CommandDefinition::confirmation_mode`]):
+    /// [`CommandConfirmationMode::HostVerified`] lets only the host's
+    /// [`HumanRelay`](crate::server::HumanRelay) confirm it, whatever the server's confirmation
+    /// option says.
+    pub fn with_confirmation_mode(mut self, mode: CommandConfirmationMode) -> Self {
+        self.confirmation_mode = Some(mode);
+        self
+    }
+
+    /// Whether only the host can confirm the command ([`CommandConfirmationMode::HostVerified`]).
+    pub fn is_host_verified(&self) -> bool {
+        self.confirmation_mode == Some(CommandConfirmationMode::HostVerified)
     }
 
     /// Declare the OAuth scopes a caller's token needs to run the command on an authorized HTTP
@@ -1162,6 +1239,7 @@ impl CommandRegistry {
         validate_tool_meta(&command)?;
         validate_output_budget(&command)?;
         validate_scopes(&command)?;
+        validate_person_gates(&command)?;
         for parameter in &command.parameters {
             if let Some(schema) = &parameter.schema {
                 crate::validation::validate_schema_definition(
@@ -1204,6 +1282,7 @@ impl CommandRegistry {
         validate_tool_meta(&command)?;
         validate_output_budget(&command)?;
         validate_scopes(&command)?;
+        validate_person_gates(&command)?;
         let mut commands = write_lock(&self.commands);
         if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
@@ -1293,6 +1372,13 @@ impl CommandRegistry {
                 tool["_meta"] = serde_json::json!({});
             }
             tool["_meta"]["scopes"] = serde_json::json!(scopes);
+        }
+        // Only the host can confirm it (`spec/command-metadata.md`, "Host-verified confirmation").
+        if let Some(mode) = command.confirmation_mode {
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            tool["_meta"]["confirmationMode"] = serde_json::json!(mode);
         }
         // The key rule keeps these from replacing any entry the server sets.
         if let Some(extra) = command.tool_meta.as_ref().filter(|extra| !extra.is_empty()) {
@@ -1545,12 +1631,7 @@ impl CommandRegistry {
             );
         }
 
-        let schema = read_lock(&self.commands).schemas.get(name).cloned();
-        let validation = match schema {
-            Some(schema) => crate::schema_validation::execute(&schema, input),
-            None => validate_input(&command.parameters, input),
-        };
-        let input = match validation {
+        let input = match self.validate(&command, input) {
             Ok(input) => input,
             Err(error) => return failure(*error),
         };
@@ -1600,6 +1681,25 @@ impl CommandRegistry {
         match (journal, recording) {
             (Some(recorder), Some(recording)) => recorder.finish(recording, result).await,
             _ => result,
+        }
+    }
+
+    /// `input` validated against `command`'s schema, defaults applied, exactly as
+    /// [`CommandRegistry::execute`] validates it before the middleware: the MCP server's
+    /// host-verified gate validates with it before asking anyone, so the person decides on the
+    /// input that runs.
+    pub(crate) fn validate(
+        &self,
+        command: &CommandDefinition,
+        input: serde_json::Value,
+    ) -> Result<serde_json::Value, Box<CommandError>> {
+        let schema = read_lock(&self.commands)
+            .schemas
+            .get(&command.name)
+            .cloned();
+        match schema {
+            Some(schema) => crate::schema_validation::execute(&schema, input),
+            None => validate_input(&command.parameters, input),
         }
     }
 
@@ -1895,7 +1995,15 @@ fn middleware_chain(
         Arc::new(move || {
             let command = Arc::clone(&command);
             let input = input.clone();
-            let context = context.clone();
+            let mut context = context.clone();
+            // Relay evidence and the approval relay serve the call that reached the middleware,
+            // never a command the handler runs in process with this context.
+            context.relay_evidence = None;
+            if context.approval_relay.is_some() {
+                context.approval_relay = Some(Arc::new(
+                    crate::approval::relay::ApprovalRelayChannel::never_asks(),
+                ));
+            }
             Box::pin(async move {
                 // Only the kind is reported, never the actor's id or label.
                 let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
@@ -2083,6 +2191,17 @@ fn validate_scopes(command: &CommandDefinition) -> Result<(), String> {
             ));
         }
     }
+    Ok(())
+}
+
+/// The registration check of the settings that make a call ask a person: `confirm_prompt`, an
+/// approval policy other than `not-required`, and `confirmation_mode`.
+///
+/// Nothing among them combines badly yet. **Hook for Umbel phase 5 step 0e:** when `task` joins
+/// the definition, refuse `task: optional` or `required` here beside any of the three, naming the
+/// command (`spec/command-metadata.md`, "Tasks": a task never asks a person, so no AFD task is
+/// ever `input_required`).
+fn validate_person_gates(_command: &CommandDefinition) -> Result<(), String> {
     Ok(())
 }
 

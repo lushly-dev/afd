@@ -23,14 +23,15 @@ use crate::commands::{BoxFuture, CommandContext};
 
 #[cfg(feature = "approval")]
 mod middleware;
+pub(crate) mod relay;
 #[cfg(feature = "approval")]
 mod token;
 
 #[cfg(feature = "approval")]
 #[cfg_attr(docsrs, doc(cfg(feature = "approval")))]
 pub use middleware::{
-    create_approval_middleware, ApprovalMiddlewareOptions, ApprovalNonceStore, ApprovalReplay,
-    ApprovalRequest,
+    create_approval_middleware, ApprovalMiddlewareOptions, ApprovalNonceStore, ApprovalRelay,
+    ApprovalReplay, ApprovalRequest,
 };
 #[cfg(feature = "approval")]
 #[cfg_attr(docsrs, doc(cfg(feature = "approval")))]
@@ -189,8 +190,14 @@ pub enum ApprovalRejection {
     InputMismatch,
     /// It was issued for another actor.
     ActorMismatch,
-    /// A single-use token that already ran the command.
+    /// A single-use token that already ran the command, or relay evidence whose decision was
+    /// already used.
     AlreadyUsed,
+    /// Relay evidence issued for another caller's credentials (another issuer, subject or
+    /// client), or a call whose credentials cannot be bound.
+    CredentialsMismatch,
+    /// The human declined the approval asked over MCP (the form-mode relay): not retryable.
+    Declined,
 }
 
 impl ApprovalRejection {
@@ -204,6 +211,8 @@ impl ApprovalRejection {
             Self::InputMismatch => "input-mismatch",
             Self::ActorMismatch => "actor-mismatch",
             Self::AlreadyUsed => "already-used",
+            Self::CredentialsMismatch => "credentials-mismatch",
+            Self::Declined => "declined",
         }
     }
 }

@@ -59,7 +59,10 @@
 //! context hook, the active context and the fields alike. Other keys are dropped; a key also in `_meta` with a different value, or
 //! a `meta` that is not an object, is a `VALIDATION_ERROR` tool result.
 //!
-//! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]).
+//! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]). A
+//! [host-verified](crate::CommandConfirmationMode::HostVerified) command is confirmed only by the
+//! host's [`HumanRelay`] ([`McpServer::with_human_relay`]; see [`human_relay`]), whatever that
+//! option says.
 //!
 //! A panicking command handler is a `COMMAND_EXECUTION_ERROR` result on every route (the
 //! registry catches it, so a batch item or pipeline step fails alone and the journal records
@@ -119,6 +122,7 @@ mod authz;
 pub mod confirmations;
 pub mod context_hook;
 mod encoding;
+pub mod human_relay;
 mod meta_argument;
 pub mod meta_tools;
 mod panic_guard;
@@ -131,6 +135,7 @@ use confirmations::Gate;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
 pub use context_hook::ContextHookRequest;
+pub use human_relay::{HumanRelay, RelayCall, RelayOutcome, RelayPrompt, RELAY_INPUT_KEY};
 pub use resources::{
     ResourceCaller, ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError,
     DIGEST_META_KEY, MCP_APP_MIME_TYPE,
@@ -176,6 +181,8 @@ struct Inner {
     contexts: Option<Arc<Vec<ContextConfig>>>,
     context_defaults: ContextDefaults,
     confirmations: Arc<Gate>,
+    /// The host's relay for host-verified commands.
+    human_relay: Option<Arc<dyn HumanRelay>>,
     context_hook: Option<ContextHook>,
     advertise_output_schema: bool,
     resources: Option<Arc<dyn ResourceProvider>>,
@@ -227,6 +234,7 @@ impl McpServer {
                     Gate::new(ConfirmationMode::Off, None)
                         .expect("the OS random source is available"),
                 ),
+                human_relay: None,
                 context_hook: None,
                 advertise_output_schema: true,
                 resources: None,
@@ -253,6 +261,7 @@ impl McpServer {
             contexts: shared.contexts.clone(),
             context_defaults: shared.context_defaults.clone(),
             confirmations: Arc::clone(&shared.confirmations),
+            human_relay: shared.human_relay.clone(),
             context_hook: shared.context_hook.clone(),
             advertise_output_schema: shared.advertise_output_schema,
             resources: shared.resources.clone(),
@@ -419,6 +428,21 @@ impl McpServer {
         Ok(self.with(|inner| inner.confirmations = Arc::new(gate)))
     }
 
+    /// Install the host's [`HumanRelay`]: the only way a
+    /// [host-verified](crate::CommandConfirmationMode::HostVerified) command is confirmed over MCP
+    /// (`spec/command-metadata.md`, "Host-verified confirmation"; see [`human_relay`]). Without
+    /// one, every call to such a command fails with `CONFIRMATION_REQUIRED`. It applies whatever
+    /// [`Self::with_confirmations`] says, `Off` included, and replaces any relay set before.
+    ///
+    /// When the command also has an approval policy, an approved decision is its approval too:
+    /// the approval middleware accepts the relay evidence the server sets, once, and issues no
+    /// token (keep tokens off MCP with
+    /// [`ApprovalMiddlewareOptions::with_include_token(false)`](crate::ApprovalMiddlewareOptions::with_include_token)).
+    pub fn with_human_relay(self, relay: impl HumanRelay + 'static) -> Self {
+        let relay: Arc<dyn HumanRelay> = Arc::new(relay);
+        self.with(|inner| inner.human_relay = Some(relay))
+    }
+
     /// Advertise a top-level `outputSchema` on tools whose command declares `returns` (the
     /// `CommandResult` envelope with `data` typed by `returns`). Default: `true`. Only the
     /// individual strategy and the hybrid strategy's first-class tools are command tools;
@@ -475,7 +499,8 @@ impl McpServer {
         self.with(|inner| inner.skills = Some(catalog))
     }
 
-    /// Add the `confirm` acknowledgement to a confirm-gated tool under `Enforce`.
+    /// Add the `confirm` acknowledgement to a confirm-gated tool under `Enforce`, never to a
+    /// host-verified command's.
     fn with_confirm_argument(&self, mut tool: Value) -> Value {
         if self.inner.confirmations.mode != ConfirmationMode::Enforce
             || confirmations::declares_confirm(Some(&tool))
@@ -485,7 +510,7 @@ impl McpServer {
         let gated = tool["name"]
             .as_str()
             .and_then(|name| self.inner.registry.get(name))
-            .is_some_and(|command| command.confirm_prompt.is_some());
+            .is_some_and(|command| command.confirm_prompt.is_some() && !command.is_host_verified());
         if gated {
             if let Some(schema) = tool["inputSchema"].as_object_mut() {
                 let properties = schema
@@ -605,6 +630,7 @@ impl McpServer {
                 let tool = self.command_tool(&command.name);
                 let accepts_confirm = enforce
                     && command.confirm_prompt.is_some()
+                    && !command.is_host_verified()
                     && !confirmations::declares_confirm(tool.as_ref());
                 strategy::Listed {
                     command,
