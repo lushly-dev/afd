@@ -511,8 +511,85 @@ async fn an_instance_hidden_from_a_caller_answers_as_an_unknown_command() {
             assert!(hidden.text.contains("COMMAND_NOT_FOUND"), "{}", hidden.text);
         }
     }
-    // ada reads alpha: the command exists for her.
+    // On every route, and before its input is validated: an input the command's schema refuses,
+    // and none, answer as for a name nobody registered (AFD's M6, "Hidden commands").
+    let cy = token(&running, "cy", &["umbel:read", "umbel:write"]);
+    let routes = |command: &str, input: &Option<Value>| {
+        let with_input = |mut object: Value, key: &str| {
+            if let Some(input) = input {
+                object[key] = input.clone();
+            }
+            object
+        };
+        vec![
+            (
+                command.to_owned(),
+                input.clone().unwrap_or_else(|| json!({})),
+            ),
+            (
+                "afd-call".to_owned(),
+                with_input(json!({ "command": command }), "input"),
+            ),
+            (
+                "afd-batch".to_owned(),
+                json!({ "commands": [with_input(json!({ "command": command }), "input")] }),
+            ),
+            (
+                "afd-pipe".to_owned(),
+                json!({ "steps": [with_input(json!({ "command": command }), "input")] }),
+            ),
+            ("afd-detail".to_owned(), json!({ "command": command })),
+        ]
+    };
+    for input in [
+        Some(json!({ "space": 5 })),
+        Some(json!({ "space": "main", "bogus": true })),
+        Some(json!({ "space": "main", "text": "x" })),
+        None,
+    ] {
+        let hidden = routes("probe-note", &input);
+        let unknown = routes("probe-gone", &input);
+        for ((tool, arguments), (gone_tool, gone_arguments)) in hidden.into_iter().zip(unknown) {
+            let hidden = running.call(Some(&cy), &tool, arguments).await;
+            let absent = running.call(Some(&cy), &gone_tool, gone_arguments).await;
+            let normalize = |reply: &Reply| stable(reply).replace("probe-gone", "probe-note");
+            assert_eq!(normalize(&hidden), normalize(&absent), "{tool} {input:?}");
+            assert!(!hidden.text.contains("VALIDATION_ERROR"), "{}", hidden.text);
+        }
+    }
+    // A token with no Umbel scope gets the one 403 naming `umbel:read` whatever it names: a
+    // hidden instance's command, a name nobody registered (both decided by layer 6, since AFD
+    // asks the resolver about neither) and a command that exists (decided by the resolver).
+    let none = token(&running, "cy", &["openid"]);
+    let mut refused: Vec<Reply> = Vec::new();
+    for command in ["probe-note", "probe-gone", "workspace-show"] {
+        refused.push(call(&running, &none, command, json!({ "space": "main" })).await);
+    }
+    for reply in &refused {
+        assert_eq!(reply.status, 403, "{}", reply.text);
+        assert_eq!(reply.text, refused[0].text);
+        assert_eq!(
+            reply.headers.get("www-authenticate"),
+            refused[0].headers.get("www-authenticate")
+        );
+        assert!(
+            reply
+                .headers
+                .get("www-authenticate")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.contains("scope=\"umbel:read\"")),
+            "{:?}",
+            reply.headers
+        );
+    }
+    // ada reads alpha: the command exists for her, and validates its input.
     let ada = token(&running, "ada", &["umbel:read", "umbel:write"]);
+    let invalid = call(&running, &ada, "probe-note", json!({ "space": 5 })).await;
+    assert!(
+        invalid.text.contains("VALIDATION_ERROR"),
+        "{}",
+        invalid.text
+    );
     let noted = result(
         &call(
             &running,

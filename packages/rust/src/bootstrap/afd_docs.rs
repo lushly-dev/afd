@@ -46,7 +46,7 @@ impl AfdDocsHandler {
         Self { registry }
     }
 
-    fn generate_command_docs(&self, cmd: &CommandDefinition) -> String {
+    fn generate_command_docs(&self, cmd: &CommandDefinition, context: &CommandContext) -> String {
         let mut lines: Vec<String> = Vec::new();
         lines.push(format!("### `{}`", cmd.name));
         lines.push(String::new());
@@ -65,11 +65,7 @@ impl AfdDocsHandler {
             }
         }
 
-        if let Some(requires) = cmd
-            .requires
-            .as_ref()
-            .filter(|requires| !requires.is_empty())
-        {
+        if let Some(requires) = RegistryRef::requires_for(context, cmd) {
             let requires = requires
                 .iter()
                 .map(|name| format!("`{name}`"))
@@ -221,7 +217,7 @@ impl CommandHandler for AfdDocsHandler {
             sorted_cmds.sort_by(|a, b| a.name.cmp(&b.name));
 
             for cmd in sorted_cmds {
-                lines.push(self.generate_command_docs(cmd));
+                lines.push(self.generate_command_docs(cmd, &context));
             }
         }
 

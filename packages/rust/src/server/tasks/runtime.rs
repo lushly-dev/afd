@@ -512,6 +512,11 @@ impl McpServer {
             }
             _ => return Err(task_not_found()),
         };
+        // A task whose command no longer exists for its owner is a task that does not exist,
+        // whatever the method (`spec/authorization.md`, M6, "Hidden commands").
+        if !authz::task_known(self, &record.command, caller.credentials.as_deref()) {
+            return Err(task_not_found());
+        }
         // The owner must still hold what the task's command needs.
         if needs_command {
             if let Some(refusal) =

@@ -50,6 +50,9 @@
     listings of 9.4 (and `plugin-list`, `plugin-show` and `skill-list`), the shared nonce store in approvals, the
     per-token and read limits, and `http.trusted_proxies` ([Amendments from step 3](#amendments-from-step-3)). Its
     disclosure controls are in; a shipped build still refuses to serve `oauth` until step 7 lands.
+  - Step 3's follow-up to AFD, hidden commands, done 2026-11-08: AFD answers a command its resolver hides as an
+    unknown name on every route before validation, and Umbel's resolver implements `known`
+    ([Amendments from AFD's hidden commands](#amendments-from-afds-hidden-commands)).
 - **Last verified:** 2026-11-03 against `main` at `e5b4e43c` (phase 4 done), and again for the review. Read in
   `endpoints/umbel`:
   - `src/principal.rs`:
@@ -2131,6 +2134,26 @@ branch, each with a regression test that fails without its fix, and the rows mar
 | 13.2, 14: `confirm_binding.rs` | "#532 through Umbel" | Two instances on one workspace: a confirmation `requestState` minted by one is read by the other for the same principal, and another person, or another client of the same person, presenting it is asked again; the same person and client with a new token is not refused. An approval token binds its actor on every instance and is spent once across them. A confirmation state is not single-use within its time to live for its own principal and call, as AFD designs it; person-gated commands never rest on one (host-verified mode, section 3.1) | Section 13.2's two rows |
 | 1: tests | The five named files | Also `tests/trusted_proxies.rs`. The `testkit` seam `HostBuilder::with_approval_observer` hands every held approval, with its token, to a test, so a second host can be shown it; a shipped build never lets a token leave its process | Shared nonces cannot be shown across hosts otherwise |
 
+## Amendments from AFD's hidden commands
+
+Step 3's follow-up of 2026-11-08 landed in AFD: `spec/authorization.md` M6 gains
+[hidden commands](../../../../../spec/authorization.md#hidden-commands), and AFD's Rust server implements them.
+With filtered listings and a resolver, a command for which the resolver's new `known(command, credentials)` (default:
+`visible`) is false does not exist for that caller: every route answers it byte for byte as a name nobody
+registered, before its input is validated and before any middleware, confirmation, relay or task. Umbel's resolver
+implements `known` as section 9.4's hidden instance reads it (`ScopePolicy::known`), not as `visible`, so a command
+the caller may learn of but not call still gets the 403 that names the scope it lacks (5.4). It changes the trust
+model nowhere; each change makes the hidden instance's answer more like an unknown name's, never less.
+
+| Section | Was | Now | Why |
+| --- | --- | --- | --- |
+| 9.4, step 3's hidden instance | The hidden-instance check (a host middleware) answers a call of a hidden instance's command as an unknown name; AFD validates the input first, so an invalid input gets `VALIDATION_ERROR`, and a direct `tools/call` of the tool, a batch or pipeline step, or a confirmation could answer otherwise | `UmbelScopes::known` is false for an MCP-exposed plugin command whose instance serves no space the caller reads, and for every plugin command when the resolver cannot find the request's caller (it never guesses); true for every other exposed command, listed or not. AFD then answers such a call as an unknown name on every route (its own tool, `afd-call`, `afd-batch` and `afd-pipe` steps, `afd-detail`, the listings), with valid, invalid or no input, before validation | The follow-up of 2026-11-08 |
+| 3.3: `visible` and `known` | `visible` alone filters the listings | The listings show a command only when `visible` and `known` both hold. `known` is wider than `visible`: a command that exists for the caller but that its token cannot call (`event-ack` to a reader of `alpha`) is unlisted and still decided by `resolve`, which names the missing scope; with `known` defaulting to `visible` it would have looked unknown instead, losing 5.4's step-up | 5.4: a missing scope is named for a space the caller reads |
+| 5.2: the hidden-instance check | The only answer for a hidden instance's command | Kept as defence in depth for a call that reaches the registry another way with credentials (an in-process caller); a call over MCP no longer reaches it | Defence in depth |
+| 5.2, 3.3: a token with no Umbel scope on a name that does not exist | AFD asked the resolver about every command name, so its any-Umbel-scope rule refused an unknown name before dispatch | AFD asks the resolver about no command name that does not exist for the caller (unknown, unexposed or hidden), deciding it on the required scopes alone, so no resolver can tell a hidden command from a missing one. Layer 6's token gate already refuses every admitted request from a token with no Umbel scope, `tools/call` included, with the same 403 naming `<prefix>:read` (the same body and challenge as the resolver's), so a hidden instance's command, a missing name and a command that exists all get the one 403 | The rule holds for every name, decided once |
+| 3.3: when `known` is asked | Unstated | AFD decides `visible` and `known` once per request, as it arrives, while the request's caller is in the `CallerBook`; a task runs with that answer, so its runner never asks once the request is answered. A `tasks/*` request on a task whose command no longer exists for its owner gets the unknown-task answer | AFD's purity requirement; Umbel's `known` reads in-flight state |
+| 14: `space_visibility.rs` | A hidden instance's command through `afd-call` with valid input | Also each input the schema refuses, and none, through its own tool, `afd-call`, `afd-batch`, `afd-pipe` and `afd-detail`, each byte for byte as an unknown name's; a token with no Umbel scope gets the one 403 for a hidden, a missing and an existing name; a unit test of `ScopePolicy::known` | The follow-up's routes |
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -2154,4 +2177,4 @@ branch, each with a regression test that fails without its fix, and the rows mar
 | 2026-11-08 | Step 2a keys an IPv6 peer on its /64, so the hosts sharing one /64 share one budget. **Settled 2026-11-08:** /64 stands. It is the smallest prefix a single site is normally assigned (RFC 6177), and keying on a full address would let one client rotate addresses within its own /64 to escape the limit | Done |
 | 2026-11-07 | Section 9.3 seals the `event-list` cursor and `head`, but an event's own `id` (`<space>:<seq>`), `seq` and `journalSeq` still count every event, readable or not; event version 3 keeps the stored line's shape. Decide how `event-list` presents them to non-operators (found writing step 1's schemas) | Step 7 |
 | 2026-11-08 | `space-list` lists only readable spaces since step 3, but each listed space's `events` and `head` still count every event of the space, readable or not (found in step 3). Make them the caller's readable positions with section 9.3's sealed head | Step 7 |
-| 2026-11-08 | AFD validates a call's input before any middleware runs, so a hosted caller can still learn that a command of an instance hidden from it exists by sending it an invalid input (`VALIDATION_ERROR` rather than `COMMAND_NOT_FOUND`), and a direct `tools/call` of a hidden tool differs from one of a tool that does not exist (found by step 3's review). Specify in AFD's M6 that a command a resolver hides from a caller is unknown to it on every route, before validation, and implement it in Rust | AFD, before step 7 lifts the refusal to serve `oauth` |
+| 2026-11-08 | AFD validates a call's input before any middleware runs, so a hosted caller can still learn that a command of an instance hidden from it exists by sending it an invalid input (`VALIDATION_ERROR` rather than `COMMAND_NOT_FOUND`), and a direct `tools/call` of a hidden tool differs from one of a tool that does not exist (found by step 3's review). Specify in AFD's M6 that a command a resolver hides from a caller is unknown to it on every route, before validation, and implement it in Rust | Done 2026-11-08 in AFD ([Amendments from AFD's hidden commands](#amendments-from-afds-hidden-commands)) |

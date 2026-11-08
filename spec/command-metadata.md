@@ -23,7 +23,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `errors` | string[] of error codes | None | afd-detail |
 | `version` | string | None | afd-detail; results carry it as `metadata.commandVersion` |
 | `tags` | string[] | None | afd-detail, afd-help (full), afd-docs; afd-discover filters on it |
-| `requires` | string[] of command names | None | `_meta`, afd-help (brief and full). Metadata only: not enforced at runtime |
+| `requires` | string[] of command names | None | `_meta`, afd-help (brief and full). Metadata only: not enforced at runtime. On an authorized server, only the commands that exist for the caller ([hidden commands](./authorization.md#hidden-commands)) |
 | `mutation` | boolean | `false` | `_meta`, afd-detail, afd-discover (`includeMutation`), afd-help (full), afd-docs |
 | `destructive` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools`. `afd validate --execute` never calls it |
 | `confirmPrompt` | string | None; a frontend MAY show a generic prompt | afd-detail, afd-docs |
@@ -489,9 +489,11 @@ anyone else, an expired task and an unknown id get the same answer, the extensio
 unknown task (`-32602`), so an id reveals nothing. The server checks the owner and the TTL again
 itself, whatever the store returned. On an authorized server the owner must also still hold what a
 call of the task's command needs, as far as it is known without the input, to read or update it: the
-command's `scopes`, or under a resolver its `visible` (else the request is refused with
+command's `scopes`, or under a resolver its `visible` and `known` (else the request is refused with
 `INSUFFICIENT_SCOPE`, as a request that names no command is for its required scopes). `tasks/cancel`
-does not ask that, since stopping a task only takes authority away. `tasks/update` finds no task
+does not ask that, since stopping a task only takes authority away. A task whose command no longer
+exists for its owner ([hidden commands](./authorization.md#hidden-commands)) gets the unknown-task
+answer on all three. `tasks/update` finds no task
 waiting for input, and answers as the extension says for that. `tasks/cancel` requests cooperative
 cancellation; a finished task is unchanged. `Mcp-Name` carries the task id on Streamable HTTP.
 

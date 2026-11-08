@@ -68,6 +68,10 @@
 //!   `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema` and grouped actions show
 //!   only commands the caller may see, no "did you mean" suggestion names another, and
 //!   `tools/list` carries `cacheScope: "private"`.
+//! - **Hidden commands** (M6): with filtered listings and a resolver, a command the resolver's
+//!   [`ScopeResolver::known`] (by default its `visible`) rejects for a caller is answered to that
+//!   caller exactly as a name that does not exist, on every route, before validation, the
+//!   middleware, a confirmation, a relay or a task.
 //! - **Other methods** (`tools/list`, `server/discover`, `resources/*`, `initialize` and the rest)
 //!   need the server's required scopes.
 //!
@@ -397,7 +401,9 @@ impl Authorization {
         self
     }
 
-    /// Filter the listings by scope (`filterToolsByScope`). Default: `false`.
+    /// Filter the listings by scope (`filterToolsByScope`). Default: `false`. With a resolver, a
+    /// command its [`ScopeResolver::known`] rejects is then also answered as one that does not
+    /// exist, on every route (M6, "Hidden commands").
     pub fn with_filter_tools_by_scope(mut self, filter: bool) -> Self {
         self.filter_tools_by_scope = filter;
         self
@@ -565,7 +571,8 @@ pub(crate) fn error_data(auth: &Authorization, refused: &Refused) -> rmcp::Error
 /// A `tasks/*` request by a task's owner (`spec/command-metadata.md`, "Tasks"): the owner must
 /// still hold what a call of the task's command needs, as far as it is known without the
 /// input: under the static rule the command's `scopes` (named in the refusal), under a resolver
-/// its `visible` (a refusal naming no scope). A command no longer exposed to MCP has no scope of
+/// its `visible` and `known` (a refusal naming no scope; a command it does not know has made the
+/// task unknown before, [`task_known`]). A command no longer exposed to MCP has no scope of
 /// its own.
 pub(crate) fn task_refusal(
     server: &McpServer,
@@ -579,7 +586,7 @@ pub(crate) fn task_refusal(
         .get(command)
         .filter(|definition| definition.expose.mcp)?;
     let missing = match &auth.resolver {
-        Some(resolver) if resolver.visible(&definition.name, credentials) => return None,
+        Some(_) if scopes::visible(auth, &definition, credentials) => return None,
         Some(_) => Vec::new(),
         None => match scopes::static_decision(
             &[],
@@ -593,20 +600,59 @@ pub(crate) fn task_refusal(
     Some(error_data(auth, &Refused::MissingScopes(missing)))
 }
 
+/// The names of `registry`'s commands that `admits`, as a filter: each command is decided once,
+/// when the request arrives, so a filter consulted many times (and by a task's runner after the
+/// request is answered) never asks the resolver again.
+fn snapshot(
+    registry: &crate::CommandRegistry,
+    admits: impl Fn(&crate::CommandDefinition) -> bool,
+) -> Visibility {
+    let names: std::collections::HashSet<String> = registry
+        .list()
+        .into_iter()
+        .filter(|command| admits(command))
+        .map(|command| command.name.clone())
+        .collect();
+    Visibility(Arc::new(names))
+}
+
+/// Whether a task's `command` still exists for its owner (M6, "Hidden commands"): a task whose
+/// command the owner no longer knows is answered as a task that does not exist.
+pub(crate) fn task_known(auth: &Authorization, command: &str, credentials: &Credentials) -> bool {
+    scopes::knows(auth, command, credentials)
+}
+
 /// The listing filter for a caller, when the server filters listings and the caller has
-/// credentials.
+/// credentials: decided once per request ([`snapshot`]).
 pub(crate) fn visibility(
-    auth: &Arc<Authorization>,
+    auth: &Authorization,
+    registry: &crate::CommandRegistry,
     credentials: Option<&Arc<Credentials>>,
 ) -> Option<Visibility> {
     if !auth.filter_tools_by_scope {
         return None;
     }
-    let credentials = Arc::clone(credentials?);
-    let auth = Arc::clone(auth);
-    Some(Visibility(Arc::new(move |command| {
-        scopes::visible(&auth, command, &credentials)
-    })))
+    let credentials = credentials?;
+    Some(snapshot(registry, |command| {
+        scopes::visible(auth, command, credentials)
+    }))
+}
+
+/// Which commands exist for a caller (M6, "Hidden commands"), when the server filters listings,
+/// a resolver is installed and the caller has credentials: a command the resolver's `known`
+/// rejects is answered as a name that does not exist, on every route. Decided once per request
+/// ([`snapshot`]), so a task created by the request runs with the answer given while it was in
+/// flight.
+pub(crate) fn known(
+    auth: &Authorization,
+    registry: &crate::CommandRegistry,
+    credentials: Option<&Arc<Credentials>>,
+) -> Option<Visibility> {
+    scopes::hider(auth)?;
+    let credentials = credentials?;
+    Some(snapshot(registry, |command| {
+        scopes::knows(auth, &command.name, credentials)
+    }))
 }
 
 /// The decision at execute time (M6, "At execution"), when a resolver is installed: the

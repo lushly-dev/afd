@@ -171,7 +171,7 @@ impl CommandHandler for AfdHelpHandler {
                     None
                 },
                 output_budget: if is_full { cmd.output_budget } else { None },
-                requires: cmd.requires.clone().filter(|requires| !requires.is_empty()),
+                requires: RegistryRef::requires_for(&context, cmd),
                 first_class: first_class.contains(&cmd.name).then_some(true),
             };
             let category = cmd

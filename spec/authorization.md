@@ -262,6 +262,7 @@ arguments"):
 ScopeResolver
     resolve(command, input, credentials) -> Allowed | Missing(scopes) | Defer
     visible(command, credentials) -> bool          // tools/list, afd-discover and the other listings
+    known(command, credentials) -> bool            // whether the command exists for the caller; default: visible
 ```
 
 - `requiredScopes` still apply to every call: a call missing one is `Missing` with the required
@@ -276,6 +277,10 @@ ScopeResolver
 - `input` is the call's arguments as sent before dispatch: the resolver runs before validation
   there. Because a default or a pipeline reference can supply a value the caller did not send,
   the resolver is asked again at execution on the validated input (below).
+- `visible` and `known` must be pure functions of the command and the credentials: the same
+  answer for the same arguments, on every route and at any point of a request. `known` decides
+  whether a command exists for the caller at all ([Hidden commands](#hidden-commands)); `resolve`
+  still decides every call to a command that exists for it.
 
 ### Which commands a request names
 
@@ -284,9 +289,14 @@ ScopeResolver
   an unknown or ambiguous one) is decided as a tool that names no command, under the grouped tool's
   name, so it still needs `requiredScopes`; the router then answers it (`COMMAND_NOT_FOUND`,
   `AMBIGUOUS_ACTION` or `INVALID_GROUPED_CALL`).
-- A command the request names that is unknown, or not exposed to MCP, has no `scopes` of its own,
-  so a scope never reveals a command the caller cannot see
-  ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)).
+- A command the request names that does not exist for the caller (unknown, not exposed to MCP, or
+  [hidden](#hidden-commands) from it) is decided on `requiredScopes` alone: it has no `scopes` of
+  its own, and a resolver is never asked about it, so a scope never reveals a command the caller
+  cannot see ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)).
+- A command hidden from the caller ([Hidden commands](#hidden-commands)) is named exactly as a
+  name that does not exist: a grouped action is resolved among the commands that exist for the
+  caller, so one naming a hidden command is an unknown action, and a grouped tool whose every
+  action is hidden is a tool that names a command that does not exist.
 - `afd-call`: the command it names, with its `input`.
 - `afd-batch` and `afd-pipe`: every step's command, with its input. A pipeline step's input is
   resolved with its references unresolved, as sent.
@@ -332,13 +342,16 @@ no second decision, since it does not read the input.
 ### Listing
 
 With `filterToolsByScope` (default off, A6), `tools/list`, `afd-discover`, `afd-detail`, `afd-help`,
-`afd-docs`, `afd-schema` and a grouped tool's actions show only commands for which `visible` holds (under the static rule:
-the credentials hold every scope the command needs). A grouped tool with no visible action is left
-out. The meta-tools stay listed. A hidden command looks unknown on these surfaces, as an unexposed
-one does ([D4](./error-codes.md#unknown-and-unexposed-commands-d4)): no "did you mean"
+`afd-docs`, `afd-schema` and a grouped tool's actions show only commands for which `visible` and
+`known` hold (under the static rule: the credentials hold every scope the command needs). A grouped
+tool with no visible action is left out. The meta-tools stay listed, and `afd-help`'s
+`firstClassTools` names only the first-class tools the caller's list shows. A command left off the
+list looks unknown on these surfaces, as an unexposed one does
+([D4](./error-codes.md#unknown-and-unexposed-commands-d4)): no "did you mean"
 suggestion on any route (a command's own tool, a grouped tool, a hybrid tool, `afd-call`,
 `afd-batch`, `afd-pipe`) names it, and a grouped tool whose every action is hidden answers as a
-tool that does not exist. Calls are still decided only by `resolve`.
+tool that does not exist. Calls to a command that exists for the caller are decided by `resolve`;
+one that does not exist for it is unknown on every route ([Hidden commands](#hidden-commands)).
 
 A filtered list varies by authorization, which MCP allows (lists may vary by authorization, not by
 connection). The `tools/list` result then carries `cacheScope: "private"`, in every tool strategy,
@@ -346,11 +359,67 @@ hybrid included; without filtering it stays `"public"` ([tool strategies](./tool
 The context hook does not run on `tools/list`, so filtering reads the credentials the HTTP layer
 verified.
 
+### Hidden commands
+
+With `filterToolsByScope` and a resolver, on a call that carries credentials, a command for which
+`known(command, credentials)` is false does not exist for that caller. `known` defaults to
+`visible`, so by default a command the caller cannot list does not exist for it either. The
+command is unknown to the caller on every route: it is looked up as a name that does not exist,
+before its input is validated and before any middleware, confirmation gate, approval relay,
+host-verified relay, task creation or execution-time decision, none of which sees it. The answer
+is byte-identical (code, message, suggestion, `details`, `data`, `_meta`, the HTTP status and
+headers) to the answer the same route gives a name that does not exist, whatever the input: valid,
+invalid or none.
+
+| Route | The answer to a hidden command |
+| --- | --- |
+| A command's own tool, in every strategy (lazy and hybrid included), and a hybrid first-class tool | The unknown-tool answer: `COMMAND_NOT_FOUND` |
+| `afd-call` | `COMMAND_NOT_FOUND`, with the same message and suggestion shape |
+| A grouped tool's action | An unknown action. A grouped tool whose every action is hidden is a tool that does not exist, with or without an `action` |
+| `afd-batch` and `afd-pipe` | The same per-step failure, the other steps running as they would. A confirmation never names it, and it never fails a batch or pipeline as host-verified or task-only |
+| `afd-detail` | An entry with `found: false` and `COMMAND_NOT_FOUND`, as for a name that does not exist |
+| Another command's `requires` | Left out |
+| `tasks/*` on a task of it | The unknown-task answer |
+| `tools/list`, `afd-discover`, `afd-help`, `afd-docs`, `afd-schema` | Absent, as [Listing](#listing) specifies |
+| A nested in-process call that passes the call's context on | `COMMAND_NOT_FOUND`, as for a name that does not exist |
+
+Before dispatch and after routing, a hidden command is decided as a name that does not exist
+([Which commands a request names](#which-commands-a-request-names)): on `requiredScopes` alone,
+with `resolve` never asked about it, so no resolver can answer it otherwise.
+
+The server decides `visible` and `known` for every command once per request, as the request
+arrives, and uses that answer for the whole request: a task the request creates runs its command
+with it, and its runner never asks again once the request is answered. A host whose `known` reads
+state it keeps only while a request is in flight is therefore asked only then.
+
+A command's `requires` names only commands that exist for the caller, wherever it appears:
+`_meta.requires`, a grouped action's entry in `_meta.actions`, `afd-help` and `afd-docs`. A
+command that exists for the caller but is hidden from its listings may be named.
+
+On a `tasks/*` request ([Other methods](#other-methods)), a task whose command no longer exists
+for its owner answers exactly as a task that does not exist (`-32602`, "Task not found"), for
+`tasks/get`, `tasks/update` and `tasks/cancel` alike.
+
+A command for which `known` holds but `visible` does not is left off the listings and still decided
+by `resolve`, so a host can let a caller step up: a call of it may be refused with a 403 naming the
+scope it lacks. A host overrides `known` for that, and only for commands whose existence the caller
+may learn. Without `filterToolsByScope`, a resolver or credentials (stdio, a trusted transport, the
+CLI, `DirectClient`, in-process calls), nothing is hidden this way, and a caller who may see the
+command keeps every check: validation, confirmation, relays, tasks and the middleware. Under the
+static rule a command whose scopes the caller lacks is left off the listings and its call is
+refused with a 403 naming them, as before.
+
+The hidden path is the unknown name's path, so it does the same work: no timing tells them apart
+beyond what the resolver's own `known` costs.
+
 ### Other methods
 
 `tools/list`, `server/discover`, `resources/*` and `tasks/*` need a valid token and
 `requiredScopes`. A `tasks/*` request is also checked against the task's owner
-([tasks](./command-metadata.md#tasks)). A resource provider is given the caller's credentials
+([tasks](./command-metadata.md#tasks)). A task whose command no longer exists for the owner
+([hidden commands](#hidden-commands)) answers as a task that does not exist; `tasks/get` and
+`tasks/update` on one that exists also need what the command needs, as far as it is known
+without the input: its `scopes` under the static rule, `visible` and `known` under a resolver. A resource provider is given the caller's credentials
 for `resources/list` and `resources/read`, so a host may list and read resources per caller (an
 unreadable resource answers as an absent one).
 
@@ -480,7 +549,9 @@ Rust serves MCP on Streamable HTTP and stdio only: it has no `/sse`, `/message`,
 decides every other call after routing. `tests/authorization_cases.rs` loads every case of
 `authorization.json`; `tests/auth_verifier.rs` holds one test per rule of M3 with keys generated in
 the test (RSA, EC P-256 and P-384, Ed25519), `tests/server_auth.rs` the layer end to end,
-`tests/server_auth_hardening.rs` the fail-closed, refusal, execution-time and suggestion rules, and
+`tests/server_auth_hardening.rs` the fail-closed, refusal, execution-time and suggestion rules,
+`tests/server_auth_hidden.rs` the hidden commands, each answer compared with a twin server's
+for a name it does not have, and
 `tests/auth_canary.rs` the token canary over every log line. Rust serves the layer and the service
 together through `McpServer::authorized_http_service`.
 
@@ -520,6 +591,7 @@ Rust ask again, Python answers `-32602`.
 | Bearer token, verification, audience, credentials (M1 to M4) | Planned | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
 | 401 and 403, rule codes (M5) | Planned | Planned | Yes (step 0b) | N/A |
 | Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
+| [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Planned | Planned | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
 | Protected-resource metadata (M7) | Planned | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |
-| `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need the required scopes and run the context hook; the owner is the principal binding, checked by the `TaskStore` and again by the server; the owner must still hold the task's command's `scopes` (or its resolver `visible`); a task stops at `credentials.expiresAt` | N/A: no MCP server |
+| `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need the required scopes and run the context hook; the owner is the principal binding, checked by the `TaskStore` and again by the server; the owner must still hold the task's command's `scopes` (or its resolver `visible` and `known`), and a task whose command no longer exists for the owner answers as an unknown task; a task stops at `credentials.expiresAt` | N/A: no MCP server |

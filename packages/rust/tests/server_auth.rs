@@ -860,4 +860,17 @@ async fn a_resolver_decides_visibility() {
     let names = tool_names(&answer);
     assert!(names.contains(&"todo-purge".to_owned()), "{names:?}");
     assert!(!names.contains(&"todo-create".to_owned()), "{names:?}");
+    // `Spaces` keeps `known` at its default, `visible`: with filtered listings, a command the
+    // caller cannot list does not exist for it either (`spec/authorization.md`, M6, "Hidden
+    // commands"), so calling `todo-create` answers as a name that does not exist, where without
+    // filtering (`a_resolver_decides_each_call`) the same call runs.
+    let hidden = send(
+        &server,
+        post("tools/call", call("todo-create", json!({})), Some(&token)),
+    )
+    .await;
+    let error = &command_result(&hidden.body)["error"];
+    assert_eq!(error["code"], "COMMAND_NOT_FOUND", "{}", hidden.text);
+    assert_eq!(error["message"], "Command 'todo-create' not found");
+    assert_eq!(fixture.runs(), 0);
 }

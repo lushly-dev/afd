@@ -14,6 +14,13 @@
 //! (the approval middleware among them) wraps each execution. No route reaches a command that a
 //! direct tool call could not.
 //!
+//! On an authorized server that filters its listings with a resolver, a command the resolver
+//! hides from the caller (`spec/authorization.md`, M6, "Hidden commands") is looked up as a name
+//! that does not exist on every route: the router's own lookups (a command's tool, a grouped
+//! action, `afd-call`, the confirmation gate, the relay and task checks) and the registry's,
+//! which every batch item and pipeline step reaches. So it gets an unknown name's answer before
+//! its input is validated, and nothing else looks at it.
+//!
 //! A host-verified command goes to the host's relay instead of the confirmation gate
 //! ([`super::human_relay`]), and only on a route to that one command: a batch or pipeline naming
 //! one fails before any step runs. A call to one command that can carry a form elicitation also
@@ -185,6 +192,9 @@ pub(crate) struct Call<'a> {
     base: CommandContext,
     /// The listing filter of an authorized caller (`spec/authorization.md`, M6, "Listing").
     visible: Option<Visibility>,
+    /// Which commands exist for an authorized caller (M6, "Hidden commands"): any other is
+    /// answered as a name that does not exist, on every route.
+    known: Option<Visibility>,
 }
 
 impl Call<'_> {
@@ -210,13 +220,22 @@ impl Call<'_> {
             .is_none_or(|visible| visible.allows(command))
     }
 
-    /// The MCP-exposed command named `name`.
+    /// Whether `command` exists for this caller (M6, "Hidden commands").
+    fn knows(&self, command: &CommandDefinition) -> bool {
+        self.known
+            .as_ref()
+            .is_none_or(|known| known.allows(command))
+    }
+
+    /// The MCP-exposed command named `name` that exists for this caller: every route looks a
+    /// command up here, so one hidden from the caller follows an unknown name's path from the
+    /// start.
     fn exposed(&self, name: &str) -> Option<Arc<CommandDefinition>> {
         self.server
             .inner
             .registry
             .get(name)
-            .filter(|command| command.expose.mcp)
+            .filter(|command| command.expose.mcp && self.knows(command))
     }
 
     /// The `COMMAND_NOT_IN_CONTEXT` result when `command` is outside the active context.
@@ -236,8 +255,23 @@ impl Call<'_> {
         let mut context = self.base.clone();
         context.context_scope = self.scope.clone();
         let mut surface = self.server.tool_surface();
+        // `afd-help` reports the first-class tools: only those this caller's list shows.
+        if let (Some(names), Some(visible)) = (&surface.first_class_tools, &self.visible) {
+            let registry = &self.server.inner.registry;
+            let shown: Vec<String> = names
+                .iter()
+                .filter(|name| {
+                    registry
+                        .get(name)
+                        .is_some_and(|command| visible.allows(&command))
+                })
+                .cloned()
+                .collect();
+            surface.first_class_tools = Some(Arc::new(shown));
+        }
         surface.visible = self.visible.clone();
         context.tool_surface = Some(surface);
+        context.known = self.known.clone();
         context.scope_check = authz::execution_check(self.server, context.credentials.as_ref());
         context
     }
@@ -283,10 +317,13 @@ impl Call<'_> {
             &self.server.inner.confirmations,
             steps,
             |name| {
-                // A host-verified command is never confirmed with a form or an acknowledgement.
+                // A host-verified command is never confirmed with a form or an acknowledgement,
+                // and a command hidden from the caller is never named in a prompt.
                 registry
                     .get(name)
-                    .filter(|command| command.expose.mcp && !command.is_host_verified())
+                    .filter(|command| {
+                        command.expose.mcp && self.knows(command) && !command.is_host_verified()
+                    })
                     .and_then(|command| command.confirm_prompt.clone())
             },
             acknowledged,
@@ -781,11 +818,14 @@ impl Call<'_> {
         args: &Map<String, Value>,
     ) -> Option<Result<CallToolResponse, ErrorData>> {
         let group_by = self.server.inner.group_by.as_ref();
+        // A member hidden from the caller is not one: an action naming it is an unknown action,
+        // and a group of hidden members is a tool that does not exist (M6, "Hidden commands").
         let members: Vec<Arc<CommandDefinition>> = self
             .server
             .exposed_commands()
             .into_iter()
             .filter(|command| command_group(command, group_by) == name)
+            .filter(|command| self.knows(command))
             .collect();
         if let Some(action) = args
             .get("action")
@@ -894,17 +934,18 @@ impl Call<'_> {
     }
 }
 
-/// The trace ID prefix of the executions `name` routes to, as TypeScript names them.
-fn trace_prefix(server: &McpServer, name: &str) -> &'static str {
+/// The trace ID prefix of the executions `name` routes to, as TypeScript names them. A group
+/// whose every member is hidden from the caller (`known`) is a tool that does not exist.
+fn trace_prefix(server: &McpServer, name: &str, known: Option<&Visibility>) -> &'static str {
     match name {
         "afd-call" => "afd-call",
         "afd-batch" => "batch",
         "afd-pipe" => "pipeline",
         _ if server.inner.strategy == ToolStrategy::Grouped
-            && server
-                .exposed_commands()
-                .iter()
-                .any(|command| command_group(command, server.inner.group_by.as_ref()) == name) =>
+            && server.exposed_commands().iter().any(|command| {
+                command_group(command, server.inner.group_by.as_ref()) == name
+                    && known.is_none_or(|known| known.allows(command))
+            }) =>
         {
             "trace"
         }
@@ -952,9 +993,13 @@ pub(crate) async fn route(
     };
     // The hook runs before anything else but that, so a refused caller reaches neither a confirmation
     // prompt nor the unknown-tool answer.
-    let mut base = server
-        .base_context()
-        .with_trace_id(trace_id(trace_prefix(server, name)));
+    // Which commands exist for this caller (M6, "Hidden commands"), from the verified
+    // credentials alone, which the hook cannot change.
+    let known = authz::known(server, credentials.as_ref());
+    let mut base =
+        server
+            .base_context()
+            .with_trace_id(trace_id(trace_prefix(server, name, known.as_ref())));
     // Verified credentials (`spec/authorization.md`, M4): the hook sees them and the actor they
     // map to by default, `{ kind: "agent", id: <clientId>, onBehalfOf: <subject> }`, which also
     // replaces an actor the hook removes.
@@ -1005,6 +1050,7 @@ pub(crate) async fn route(
         scope,
         base,
         visible,
+        known,
     };
     match name {
         "afd-call" => call.afd_call(&args).await,
