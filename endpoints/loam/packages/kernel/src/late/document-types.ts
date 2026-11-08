@@ -160,6 +160,12 @@ export interface DocumentCheck {
 	put(record: DocumentRecordV1, with_?: BatchOperation[]): Promise<void>;
 	/** Why `type`'s instance cannot open at `at` (`canOpen`): disabled, gone, or not listing its project. */
 	opens(type: RegisteredTypeV1, at: ScopeV1): CommandResult<never> | undefined;
+	/**
+	 * Run `run` after every earlier change to `document`'s record has finished, so each reads the record the
+	 * last one wrote: rename, update, move, trash, restore and an instance command's stamp. Nothing run under
+	 * it waits on another change to the same record, so it cannot wait on itself.
+	 */
+	serial<T>(document: string, run: () => Promise<T>): Promise<T>;
 }
 
 /** Leave the call without its input in the journal, and answered from its record in a replay (4.4). */
@@ -187,6 +193,18 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 	const { scope, store } = deps;
 	/** The record each instance command's call was checked against, by the call itself (4.2). */
 	const checked = new WeakMap<CommandContext, string>();
+	/** By document, the last change to its record, which the next one waits for. */
+	const chains = new Map<string, Promise<unknown>>();
+	const serial = <T>(document: string, run: () => Promise<T>): Promise<T> => {
+		const next = (chains.get(document) ?? Promise.resolve()).then(run, run);
+		const tail = next.then(
+			() => undefined,
+			() => undefined
+		);
+		chains.set(document, tail);
+		void tail.then(() => chains.get(document) === tail && chains.delete(document));
+		return next;
+	};
 
 	function types(): DocumentTypesV1 {
 		const apps = deps.apps();
@@ -282,6 +300,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 	}
 
 	return {
+		serial,
 		types,
 		find,
 		put,
@@ -316,11 +335,13 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			const id = checked.get(call);
 			checked.delete(call);
 			if (id === undefined || !succeeded || !deps.isMutation(name)) return;
-			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id);
-			if (!record) return;
-			// So `document-list`'s recents are right however the content changes (3).
-			await put({ ...record, updatedAt: callNow(call), updatedBy: actorKey(call) });
-			scope.note(call.traceId, { document: record.id });
+			await serial(id, async () => {
+				const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id);
+				if (!record) return;
+				// So `document-list`'s recents are right however the content changes (3).
+				await put({ ...record, updatedAt: callNow(call), updatedBy: actorKey(call) });
+				scope.note(call.traceId, { document: record.id });
+			});
 		},
 	};
 }

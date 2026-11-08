@@ -87,7 +87,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * The third raised `lateEditorMinified` by 255, to 15,305, and `editorMinified` by 661, to 28,833, their
  * measured costs, approved by the coordinator, 2026-11-07: `document-open`'s `stay` and the suggestion that
  * says a rejected save's draft comes back, less what one read-and-write step saved; and a draft kept in every
- * case but those deviation 16 lists.
+ * case but those deviation 16 lists. The fourth raised `editorMinified` by 257, to 29,090: a rejected draft's
+ * tab marked before its closed tab's mark goes (83), a full group's retry beside (58), and every group searched
+ * for its document's clean tab (44), with the loop that does it (about 72).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -107,7 +109,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 28_833,
+	editorMinified: 29_090,
 });
 
 /** Group a module id by the package it belongs to. */

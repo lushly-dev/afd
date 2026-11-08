@@ -78,6 +78,130 @@ const editor = async (
 const documentsOf = (read: EditorRead) =>
 	read.groups.map((group) => group.tabs.map((tab) => tab.document));
 
+describe('P2-D4: changes to one document record at once', () => {
+	type Call = () => Promise<{ success: boolean }>;
+	/** Two calls started together, in the order given or reversed; their results in the given order. */
+	const race = async (calls: [Call, Call], reversed: boolean) =>
+		reversed
+			? ((await Promise.all([calls[1](), calls[0]()])).reverse() as [
+					{ success: boolean },
+					{ success: boolean },
+				])
+			: await Promise.all([calls[0](), calls[1]()]);
+	const recordOf = async (workspace: ScopedWorkspace, document: string) =>
+		(
+			await workspace.kernel.call<{
+				status: string;
+				title: string;
+				tags: string[];
+				scope: { project?: string };
+			}>('document-get', { document })
+		).data;
+
+	it.each([false, true])('P2-D4: a trash and a rename both land, reversed %s', async (reversed) => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		const [trashed, renamed] = await race(
+			[
+				() => kernel.agent.call('document-trash', { document: a }),
+				() => kernel.call('document-rename', { document: a, title: 'Renamed' }),
+			],
+			reversed
+		);
+		const record = await recordOf(workspace, a);
+		expect(trashed.success).toBe(true);
+		expect(record?.status).toBe('trashed');
+		if (renamed.success) expect(record?.title).toBe('Renamed');
+	});
+
+	it.each([false, true])('P2-D4: a move and a trash both land, reversed %s', async (reversed) => {
+		const workspace = await documents();
+		const { kernel, scopes } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		const [moved, trashed] = await race(
+			[
+				() => kernel.agent.call('document-move', { document: a, project: 'atlas' }),
+				() => kernel.call('document-trash', { document: a }),
+			],
+			reversed
+		);
+		const record = await recordOf(workspace, a);
+		expect(trashed.success).toBe(true);
+		expect(record?.status).toBe('trashed');
+		if (moved.success) expect(record?.scope.project).toBe(scopes.atlas.project);
+	});
+
+	it.each([false, true])(
+		'P2-D4: a restore and an update both land, reversed %s',
+		async (reversed) => {
+			const workspace = await documents();
+			const { kernel } = workspace;
+			const a = await probe(workspace, 'Alpha');
+			await kernel.call('document-trash', { document: a });
+			const [restored, updated] = await race(
+				[
+					() => kernel.agent.call('document-restore', { document: a }),
+					() => kernel.call('document-update', { document: a, tags: ['kept'] }),
+				],
+				reversed
+			);
+			const record = await recordOf(workspace, a);
+			expect(restored.success).toBe(true);
+			expect(record?.status).toBe('active');
+			if (updated.success) expect(record?.tags).toEqual(['kept']);
+		}
+	);
+
+	it('P2-D4: an instance command’s stamp holding a read of the record cannot write it over a rename', async () => {
+		// The second read of the record after arming, the stamp's (the first is the instance check's), waits on
+		// a gate after reading, as a slow store would: the rename then runs while the stamp holds a stale copy.
+		let armed = 0;
+		let open: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			open = resolve;
+		});
+		class HeldStore extends MemoryAdapter {
+			override async get<T>(table: string, id: string): Promise<T | null> {
+				const read = await super.get<T>(table, id);
+				if (armed > 0 && table === DOCUMENT_KIT.table && --armed === 0) await gate;
+				return read;
+			}
+		}
+		const workspace = await documents({ store: new HeldStore() });
+		const { kernel } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		armed = 2;
+		const saved = kernel.agent.call('probe-content-set', { document: a, text: 'Saved' });
+		while (armed > 0) await new Promise((resolve) => setTimeout(resolve, 0));
+		const renamed = kernel.call('document-rename', { document: a, title: 'Renamed' });
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		open();
+		expect((await saved).success).toBe(true);
+		expect((await renamed).success).toBe(true);
+		expect((await recordOf(workspace, a))?.title).toBe('Renamed');
+	});
+
+	it.each([false, true])(
+		'P2-D4: an update and a rename both land, reversed %s',
+		async (reversed) => {
+			const workspace = await documents();
+			const { kernel } = workspace;
+			const a = await probe(workspace, 'Alpha');
+			const [updated, renamed] = await race(
+				[
+					() => kernel.agent.call('document-update', { document: a, tags: ['kept'] }),
+					() => kernel.call('document-rename', { document: a, title: 'Renamed' }),
+				],
+				reversed
+			);
+			expect(updated.success).toBe(true);
+			expect(renamed.success).toBe(true);
+			expect(await recordOf(workspace, a)).toMatchObject({ title: 'Renamed', tags: ['kept'] });
+		}
+	);
+});
+
 describe('P2-D5: the editor commands', () => {
 	it('P2-D5: opens, activates, pins, moves and closes, each with its undo, moving the URL as 6.3 says, and replays the same', async () => {
 		const workspace = await documents();
@@ -242,6 +366,26 @@ describe('P2-D5: the editor commands', () => {
 		const opened = await port.call('document-open', { document: b });
 		expect(opened.success).toBe(true);
 		expect(documentsOf(await editor(workspace))).toEqual([[a, b]]);
+		// `stay` is the person's page's alone: not an app's port, though it runs on the palette's interface, nor a
+		// call nested in one of its commands; and neither may mark a tab saved.
+		expect(
+			(await port.call('document-open', { document: b, stay: 'background' })).error?.code
+		).toBe('DOCUMENT_OPEN_STAY_REFUSED');
+		const reach = async (command: string, input: unknown) =>
+			(
+				await port.call<{ answer: { error?: { code: string } } }>('probe-reach', {
+					command,
+					input,
+				})
+			).data?.answer.error?.code;
+		// Nested in an app's query, a mutation is refused before it reaches `stay`; `person` refuses one with a
+		// parent too.
+		expect(await reach('document-open', { document: b, stay: 'background' })).toBe(
+			'NESTED_MUTATION_REFUSED'
+		);
+		await kernel.call('editor-dirty-set', { tab: 't2', dirty: true });
+		expect(await reach('editor-dirty-set', { tab: 't2', dirty: false })).toBe('CALL_NOT_GRANTED');
+		expect((await editor(workspace)).groups[0]?.tabs[1]?.dirty).toBe(true);
 	});
 
 	it('P2-D5: the editor owner may open a modal as an active app may, and gives up its overlays when main leaves it', async () => {
@@ -455,6 +599,18 @@ describe('P2-D5: the editor commands', () => {
 		expect(late.error?.code).toBe('DOCUMENT_OPEN_STAY_REFUSED');
 		expect((await kernel.call<{ scope: unknown }>('scope-get')).data?.scope).toEqual(scopes.atlas);
 		expect(documentsOf(await editor(workspace, { workspace: 'personal' }))).toEqual([[a, b]]);
+	});
+
+	it('P2-D5: a selection racing a close of its tab is refused, leaving none behind', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		await kernel.call('document-open', { document: await probe(workspace, 'Alpha') });
+		const [selected, closed] = await Promise.all([
+			kernel.call('editor-selection-set', { tab: 't1', selection: null }),
+			kernel.agent.call('editor-close', { tab: 't1' }),
+		]);
+		expect(closed.success).toBe(true);
+		expect(selected.error?.code).toBe('EDITOR_TAB_UNKNOWN');
 	});
 
 	it("P2-D5: holds a selection in the binding's shape, unjournaled, and refuses another shape", async () => {

@@ -463,16 +463,18 @@ export function createDocumentCommands(
 		...UNDOABLE,
 		input: renameInput,
 		jsonSchema: object({ document: ID_JSON, title: STRING }, ['document', 'title']),
-		async handler(input, context) {
-			const record = await found(input.document, 'document-rename', context);
-			if (isRefusal(record)) return record;
-			const bad = titleRefusal(input.title);
-			if (bad) return bad;
-			return change(record, { title: input.title }, context, {
-				command: 'document-rename',
-				args: { document: record.id, title: record.title },
-			});
-		},
+		// After every earlier change to this record, so it changes the one the last wrote (4.1).
+		handler: (input, context) =>
+			check.serial(input.document, async () => {
+				const record = await found(input.document, 'document-rename', context);
+				if (isRefusal(record)) return record;
+				const bad = titleRefusal(input.title);
+				if (bad) return bad;
+				return change(record, { title: input.title }, context, {
+					command: 'document-rename',
+					args: { document: record.id, title: record.title },
+				});
+			}),
 	});
 
 	const update = defineCommandWithSchema<typeof updateInput, DocumentRecordV1>({
@@ -489,17 +491,19 @@ export function createDocumentCommands(
 			},
 			['document']
 		),
-		async handler(input, context) {
-			const record = await found(input.document, 'document-update', context);
-			if (isRefusal(record)) return record;
-			const bad = input.tags === undefined ? undefined : tagsRefusal(input.tags);
-			if (bad) return bad;
-			const { document: _document, ...changes } = input;
-			const args: Record<string, unknown> = { document: record.id };
-			if (changes.tags !== undefined) args.tags = record.tags;
-			if (changes.status !== undefined) args.status = record.status;
-			return change(record, changes, context, { command: 'document-update', args });
-		},
+		// After every earlier change to this record, so it changes the one the last wrote (4.1).
+		handler: (input, context) =>
+			check.serial(input.document, async () => {
+				const record = await found(input.document, 'document-update', context);
+				if (isRefusal(record)) return record;
+				const bad = input.tags === undefined ? undefined : tagsRefusal(input.tags);
+				if (bad) return bad;
+				const { document: _document, ...changes } = input;
+				const args: Record<string, unknown> = { document: record.id };
+				if (changes.tags !== undefined) args.tags = record.tags;
+				if (changes.status !== undefined) args.status = record.status;
+				return change(record, changes, context, { command: 'document-update', args });
+			}),
 	});
 
 	const move = defineCommandWithSchema<typeof moveInput, DocumentRecordV1>({
@@ -509,54 +513,56 @@ export function createDocumentCommands(
 		...UNDOABLE,
 		input: moveInput,
 		jsonSchema: object({ document: ID_JSON, project: PROJECT_JSON }, ['document', 'project']),
-		async handler(input, context) {
-			const record = await found(input.document, 'document-move', context);
-			if (isRefusal(record)) return record;
-			const to = target(input.project, context);
-			if (isRefusal(to)) return to;
-			const type = typeOf(record.type);
-			if (isRefusal(type)) return type;
-			const refused = archived(to) ?? levelRefusal(type, to) ?? check.opens(type, to);
-			if (refused) return refused;
-			const from = record.scope;
-			const back = { document: record.id, project: from.project ?? null };
-			if (sameScope(from, to)) return success(record);
-			// Its tabs in the scope it leaves close, or it is refused while one of them is unsaved, so no draft
-			// is lost (4.1, Status deviation 16).
-			const unsaved = await deps.editor?.closeDocument(record.id, from, context);
-			if (unsaved) return unsaved;
-			const next: DocumentRecordV1 = {
-				...record,
-				scope: to,
-				scopeKey: scopeKeyOf(to),
-				epoch: record.epoch + 1,
-				updatedAt: callNow(context),
-				updatedBy: actorKey(context),
-			};
-			// The content row whole, read only to move it: the shell does not look inside it (3).
-			const key = documentContentKey(record.id);
-			const table = `app-${record.instance}`;
-			const content = await store.get<AppStoreRecord>(table, storeRecordId(from, key));
-			await check.put(
-				next,
-				content
-					? [
-							{
-								method: 'PUT' as const,
-								path: contentPath(record.instance, to, record.id),
-								body: {
-									...content,
-									id: storeRecordId(to, key),
-									scope: to,
-									scopeKey: next.scopeKey,
+		// After every earlier change to this record, so it changes the one the last wrote (4.1).
+		handler: (input, context) =>
+			check.serial(input.document, async () => {
+				const record = await found(input.document, 'document-move', context);
+				if (isRefusal(record)) return record;
+				const to = target(input.project, context);
+				if (isRefusal(to)) return to;
+				const type = typeOf(record.type);
+				if (isRefusal(type)) return type;
+				const refused = archived(to) ?? levelRefusal(type, to) ?? check.opens(type, to);
+				if (refused) return refused;
+				const from = record.scope;
+				const back = { document: record.id, project: from.project ?? null };
+				if (sameScope(from, to)) return success(record);
+				// Its tabs in the scope it leaves close, or it is refused while one of them is unsaved, so no draft
+				// is lost (4.1, Status deviation 16).
+				const unsaved = await deps.editor?.closeDocument(record.id, from, context);
+				if (unsaved) return unsaved;
+				const next: DocumentRecordV1 = {
+					...record,
+					scope: to,
+					scopeKey: scopeKeyOf(to),
+					epoch: record.epoch + 1,
+					updatedAt: callNow(context),
+					updatedBy: actorKey(context),
+				};
+				// The content row whole, read only to move it: the shell does not look inside it (3).
+				const key = documentContentKey(record.id);
+				const table = `app-${record.instance}`;
+				const content = await store.get<AppStoreRecord>(table, storeRecordId(from, key));
+				await check.put(
+					next,
+					content
+						? [
+								{
+									method: 'PUT' as const,
+									path: contentPath(record.instance, to, record.id),
+									body: {
+										...content,
+										id: storeRecordId(to, key),
+										scope: to,
+										scopeKey: next.scopeKey,
+									},
 								},
-							},
-							{ method: 'DELETE' as const, path: contentPath(record.instance, from, record.id) },
-						]
-					: []
-			);
-			return success(next, { undoCommand: 'document-move', undoArgs: back });
-		},
+								{ method: 'DELETE' as const, path: contentPath(record.instance, from, record.id) },
+							]
+						: []
+				);
+				return success(next, { undoCommand: 'document-move', undoArgs: back });
+			}),
 	});
 
 	const trash = defineCommandWithSchema<typeof documentInput, DocumentRecordV1>({
@@ -567,23 +573,25 @@ export function createDocumentCommands(
 		...UNDOABLE,
 		input: documentInput,
 		jsonSchema: DOCUMENT_JSON,
-		async handler(input, context) {
-			const record = await found(input.document, 'document-trash', context);
-			if (isRefusal(record)) return record;
-			// Already in the trash: nothing changes, so nothing is there to undo.
-			if (record.status === 'trashed') return success(record);
-			// Its tabs close, as `app-switch` closes a surface, or it is refused while one of them is unsaved, so
-			// no draft is lost (4.1, Status deviation 16).
-			const unsaved = await deps.editor?.closeDocument(record.id, record.scope, context);
-			if (unsaved) return unsaved;
-			// The status it had, so a restore brings an archived document back archived.
-			return change(
-				record,
-				{ status: 'trashed', trashedAt: callNow(context), trashedFrom: record.status },
-				context,
-				{ command: 'document-restore', args: { document: record.id } }
-			);
-		},
+		// After every earlier change to this record, so it changes the one the last wrote (4.1).
+		handler: (input, context) =>
+			check.serial(input.document, async () => {
+				const record = await found(input.document, 'document-trash', context);
+				if (isRefusal(record)) return record;
+				// Already in the trash: nothing changes, so nothing is there to undo.
+				if (record.status === 'trashed') return success(record);
+				// Its tabs close, as `app-switch` closes a surface, or it is refused while one of them is unsaved, so
+				// no draft is lost (4.1, Status deviation 16).
+				const unsaved = await deps.editor?.closeDocument(record.id, record.scope, context);
+				if (unsaved) return unsaved;
+				// The status it had, so a restore brings an archived document back archived.
+				return change(
+					record,
+					{ status: 'trashed', trashedAt: callNow(context), trashedFrom: record.status },
+					context,
+					{ command: 'document-restore', args: { document: record.id } }
+				);
+			}),
 	});
 
 	const restore = defineCommandWithSchema<typeof documentInput, DocumentRecordV1>({
@@ -593,18 +601,20 @@ export function createDocumentCommands(
 		...UNDOABLE,
 		input: documentInput,
 		jsonSchema: DOCUMENT_JSON,
-		async handler(input, context) {
-			const record = await found(input.document, 'document-restore', context);
-			if (isRefusal(record)) return record;
-			// Not in the trash: nothing changes, so nothing is there to undo.
-			if (record.status !== 'trashed') return success(record);
-			return change(
-				record,
-				{ status: record.trashedFrom ?? 'active', trashedAt: null, trashedFrom: null },
-				context,
-				{ command: 'document-trash', args: { document: record.id } }
-			);
-		},
+		// After every earlier change to this record, so it changes the one the last wrote (4.1).
+		handler: (input, context) =>
+			check.serial(input.document, async () => {
+				const record = await found(input.document, 'document-restore', context);
+				if (isRefusal(record)) return record;
+				// Not in the trash: nothing changes, so nothing is there to undo.
+				if (record.status !== 'trashed') return success(record);
+				return change(
+					record,
+					{ status: record.trashedFrom ?? 'active', trashedAt: null, trashedFrom: null },
+					context,
+					{ command: 'document-trash', args: { document: record.id } }
+				);
+			}),
 	});
 
 	const exportCommand = defineCommandWithSchema<typeof documentInput, DocumentEnvelopeV1>({

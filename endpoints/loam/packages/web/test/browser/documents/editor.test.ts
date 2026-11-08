@@ -193,6 +193,45 @@ const focusedOn = (page: Page) =>
 const tabOf = (page: Page, title: string, group = 0) =>
 	page.locator('loam-editor-group').nth(group).locator('[role="tab"]', { hasText: title });
 
+/** What `trashOnClear` leaves on the page: what the agent's trash answered. */
+type Trapped = Window & { trapped?: { success: boolean; error?: { code: string } } };
+
+/**
+ * When the area clears the mark of `tab`, an agent trashes `note` at once, through the same page: what that
+ * trash answered is kept for {@link trapped}.
+ */
+async function trashOnClear(page: Page, note: string, tab: string): Promise<void> {
+	await page.evaluate(
+		({ note, tab }) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: {
+					call(name: string, input?: unknown, options?: unknown): Promise<unknown>;
+					agent: { call(name: string, input: unknown): Promise<unknown> };
+				};
+			};
+			const call = shell.kernel.call.bind(shell.kernel);
+			const held = window as Trapped;
+			shell.kernel.call = async (name: string, input?: unknown, options?: unknown) => {
+				const answer = await call(name, input, options);
+				const asked = input as { tab?: string; dirty?: boolean } | undefined;
+				if (
+					name === 'editor-dirty-set' &&
+					asked?.tab === tab &&
+					asked.dirty === false &&
+					!held.trapped
+				) {
+					held.trapped = (await shell.kernel.agent.call('document-trash', {
+						document: note,
+					})) as Trapped['trapped'];
+				}
+				return answer;
+			};
+		},
+		{ note, tab }
+	);
+}
+const trapped = (page: Page) => page.evaluate(() => (window as Trapped).trapped);
+
 /** What `failSaves` leaves on the page: each held save's rejection, and whether saves now reject at once. */
 type FailedSaves = Window & { failSaves?: Array<() => void>; failNow?: boolean };
 
@@ -731,6 +770,7 @@ describe('P2-D5: the editor area, native half', () => {
 			area.dispatchEvent(new CustomEvent('input', { detail: { value: area.value } }));
 		});
 		await expect.poll(() => tabName(page)).toBe('Long, unsaved');
+		await trashOnClear(page, note, 't1');
 		expect(
 			(
 				(await agentCall(page, 'editor-close', { tab: 't1', discard: true })) as {
@@ -757,6 +797,8 @@ describe('P2-D5: the editor area, native half', () => {
 			data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
 		};
 		expect(read.data.groups[0]?.tabs).toMatchObject([{ id: 't2', dirty: true }]);
+		// A trash the moment the closed tab's mark went met the new tab's mark.
+		expect((await trapped(page))?.error?.code).toBe('EDITOR_TAB_DIRTY');
 		// A trash waits on it, naming the tab that holds it now.
 		const refused = (await agentCall(page, 'document-trash', { document: note })) as {
 			error?: { code: string; suggestion: string };
@@ -955,12 +997,73 @@ describe('P2-D5: the editor area, native half', () => {
 			.toBe('Twice, unsaved');
 		await kernelCall(page, 'editor-activate', { tab: 't1' });
 		await editorIdle(page);
+		await trashOnClear(page, note, 't2');
 		await agentCall(page, 'editor-close', { tab: 't2', discard: true });
 		// The draft is in t1, the active group's tab of the same note, and t1 is unsaved.
 		await expect.poll(() => draftLength(page, 't1')).toBe(200_001);
 		await expect
 			.poll(async () => (await editorView(page))?.[0]?.tabs.map((tab) => tab.name))
 			.toEqual(['Twice, unsaved']);
+		await expect.poll(async () => (await trapped(page))?.error?.code).toBe('EDITOR_TAB_DIRTY');
+		await opened.context.close();
+	});
+
+	it('P2-D5: a rejected draft in the background, or beside an unsaved editor, is marked before its closed tab’s mark goes', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		// In the background: Gamma active, Alpha's draft refused.
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		await longDraft(page, 't1');
+		await open(page, await createNote(page, 'Gamma'));
+		await trashOnClear(page, alpha, 't1');
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await expect
+			.poll(() => draftsOf(page, [alpha]).then((drafts) => drafts[0]?.length))
+			.toBe(200_001);
+		await expect.poll(async () => (await trapped(page))?.error?.code).toBe('EDITOR_TAB_DIRTY');
+		await opened.context.close();
+	});
+
+	it('P2-D5: a rejected draft whose document is open in the active group with an unsaved editor opens beside, marked first', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Twice');
+		await open(page, note);
+		await open(page, note, { group: 'beside' });
+		await longDraft(page, 't1');
+		await longDraft(page, 't2');
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await trashOnClear(page, note, 't2');
+		await agentCall(page, 'editor-close', { tab: 't2', discard: true });
+		// t1 keeps its own draft; t2's comes back beside it, in a new tab, unsaved.
+		await expect
+			.poll(async () => {
+				const view = (await editorView(page)) ?? [];
+				return view.map((group) => group.tabs.map((tab) => tab.name));
+			})
+			.toEqual([['Twice, unsaved'], ['Twice, unsaved']]);
+		await expect.poll(() => draftLength(page, 't3')).toBe(200_001);
+		await expect.poll(async () => (await trapped(page))?.error?.code).toBe('EDITOR_TAB_DIRTY');
+		await opened.context.close();
+	});
+
+	it('P2-D5: a rejected draft takes its document’s tab in another group when that tab’s editor is clean', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Thrice');
+		await open(page, note);
+		await open(page, note, { group: 'beside' });
+		await open(page, note, { group: 'beside' });
+		// t1, active, and t3 hold refused drafts; t2's editor is clean.
+		await longDraft(page, 't1');
+		await longDraft(page, 't3');
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await agentCall(page, 'editor-close', { tab: 't3', discard: true });
+		await expect.poll(() => draftLength(page, 't2')).toBe(200_001);
+		expect(await draftLength(page, 't1')).toBe(200_001);
 		await opened.context.close();
 	});
 

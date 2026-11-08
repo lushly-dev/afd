@@ -192,12 +192,22 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			'EDITOR_TAB_DIRTY',
 			`The person has unsaved changes in tab ${tab}`,
 			open
-				? `Ask the person to save it, then retry; or close it with editor-close { tab: "${tab}", discard: true }, which saves their editor first, and if that save rejects, brings their draft back in a new tab`
+				? `Ask the person to save it, then retry; or close it with editor-close { tab: "${tab}", discard: true }, which saves their editor first, and if that save rejects, brings their draft back in a tab`
 				: 'Its tab is closed and its editor is saving them; retry once it has'
 		);
-	/** The person's own page, the chrome's calls among it: never an agent's or a server's call. */
-	const person = (context: CommandContext) =>
-		marked(context) && (context as { interface?: string }).interface === 'palette';
+	/**
+	 * The person's own page, the chrome's calls among it: never an agent's or a server's call, an app's
+	 * through its port, which runs on the palette's interface too, or a call nested in another.
+	 */
+	const person = (context: CommandContext) => {
+		const held = context as KernelFieldContext & { interface?: string; parent?: string };
+		return (
+			marked(context) &&
+			held.interface === 'palette' &&
+			held.caller === undefined &&
+			held.parent === undefined
+		);
+	};
 
 	/** By record, the documents already found in its scope, so each is read once. */
 	const trusted = new Map<string, Set<string>>();
@@ -583,24 +593,27 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		mutation: false,
 		input: selectionInput,
 		jsonSchema: tabWith('selection', {} as JsonSchema, true),
-		handler: (input, context) =>
-			read(context, async (before, project) => {
-				const record = await recordOf(before, input.tab, here(context));
-				if (!record) return refusal(unknownTab(input.tab));
-				if (!selectionFits(input.selection, record.binding.selection)) {
-					return kernelFailure(
-						'EDITOR_SELECTION_INVALID',
-						`A ${record.type} selection is ${record.binding.selection === 'none' ? 'null' : `a ${record.binding.selection}, or null`}`,
-						record.binding.selection === 'text-range'
-							? "Report { kind: 'text-range', start, end } in UTF-16 units, start at most end"
-							: record.binding.selection === 'item'
-								? "Report { kind: 'item', id }"
-								: 'Report null'
-					);
-				}
+		async handler(input, context) {
+			const record = await read(context, (before) => recordOf(before, input.tab, here(context)));
+			if (!record) return refusal(unknownTab(input.tab));
+			if (!selectionFits(input.selection, record.binding.selection)) {
+				return kernelFailure(
+					'EDITOR_SELECTION_INVALID',
+					`A ${record.type} selection is ${record.binding.selection === 'none' ? 'null' : `a ${record.binding.selection}, or null`}`,
+					record.binding.selection === 'text-range'
+						? "Report { kind: 'text-range', start, end } in UTF-16 units, start at most end"
+						: record.binding.selection === 'item'
+							? "Report { kind: 'item', id }"
+							: 'Report null'
+				);
+			}
+			// Written in the step that finds the tab still open, so a close meanwhile leaves no selection behind.
+			return read(context, (before, project) => {
+				if (!findTab(before, input.tab)) return refusal(unknownTab(input.tab));
 				editors.setSelection(project, input.tab, input.selection);
 				return success({ tab: input.tab });
-			}),
+			});
+		},
 	});
 
 	return {

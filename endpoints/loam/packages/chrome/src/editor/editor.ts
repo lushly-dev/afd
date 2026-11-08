@@ -726,42 +726,58 @@ export class EditorController implements FrameListener {
 	}
 
 	/**
-	 * A closed tab's frame, its draft unsaved, back in a tab of its document, through the person's own
-	 * `document-open` with `stay`, which moves no one and opens only where main shows: active when the closed
-	 * tab was, else in the background. Its document already open in the active group takes it into that tab,
-	 * whose editor, clean, goes; one whose editor is unsaved too has it open beside.
+	 * A closed tab's frame, its draft unsaved, back in a tab of its document: one whose editor is clean, or not
+	 * drawn, in any group, the active one first, which takes it, the clean editor going; else a new tab, through
+	 * the person's own `document-open` with `stay`, which moves no one and opens only where main shows, active
+	 * when the closed tab was, else in the background, or beside when every group holding the document has an
+	 * unsaved editor, or when a full group refuses it. Whichever tab takes it is marked unsaved before the
+	 * closed tab's mark goes, so a trash or a move meets one throughout (Status deviation 16).
 	 */
 	async #reopen(frame: LoamEditorFrame, shown: boolean): Promise<boolean> {
 		const { document } = frame;
+		const at = { scope: frame.record?.scope as ScopeOf };
+		const mark = (tab: string) => this.#kernel.call('editor-dirty-set', { tab, dirty: true }, at);
 		const state = this.#state;
-		const active = state?.groups.find((group) => group.id === state.activeGroup);
-		const held = active?.tabs.find((each) => each.document === document);
-		const other = held && this.#frames.get(held.id);
-		const group = held && active && this.#groups.get(active.id);
-		if (held && group && !other?.dirty) {
+		const groups = state
+			? [
+					...state.groups.filter((group) => group.id === state.activeGroup),
+					...state.groups.filter((group) => group.id !== state.activeGroup),
+				]
+			: [];
+		let unsaved = false;
+		for (const each of groups) {
+			const held = each.tabs.find((tab) => tab.document === document);
+			const group = held && this.#groups.get(each.id);
+			if (!held || !group) continue;
+			const other = this.#frames.get(held.id);
+			if (other?.dirty) {
+				unsaved = true;
+				continue;
+			}
 			if (other) void other.dispose();
 			this.#take(frame, held.id, group);
-			if (shown) {
-				await this.#kernel.call(
-					'editor-activate',
-					{ tab: held.id },
-					{ scope: frame.record?.scope as ScopeOf }
-				);
-			}
+			await mark(held.id);
+			if (shown) await this.#kernel.call('editor-activate', { tab: held.id }, at);
 			return true;
 		}
 		this.#adopt.set(document, frame);
-		const opened = await this.#kernel.call<{ tab: string }>('document-open', {
-			document,
-			...(held ? { group: 'beside', stay: 'active' } : { stay: shown ? 'active' : 'background' }),
-		});
+		const open = (more: object) =>
+			this.#kernel.call<{ tab: string }>('document-open', { document, ...more });
+		const beside = { group: 'beside', stay: 'active' };
+		let opened = await open(unsaved ? beside : { stay: shown ? 'active' : 'background' });
+		if (opened.error?.code === 'EDITOR_TAB_LIMIT') opened = await open(beside);
 		await this.idle;
 		if (this.#adopt.get(document) === frame) this.#adopt.delete(document);
 		const tab = opened.data?.tab as string;
-		if (!opened.success || this.#frames.get(tab) === frame) return opened.success;
-		const into = !this.#frames.has(tab) && this.#groupOf(tab);
-		// In the background its tab draws no frame, so it takes the tab where it is.
-		return !!into && !!this.#take(frame, tab, into);
+		if (!opened.success) return false;
+		if (this.#frames.get(tab) !== frame) {
+			// In the background its tab draws no frame, so it takes the tab where it is.
+			const into = !this.#frames.has(tab) && this.#groupOf(tab);
+			if (!into) return false;
+			this.#take(frame, tab, into);
+		}
+		await mark(tab);
+		return true;
 	}
 
 	/** A frame's Close, after a failure: no editor holds a draft there. */
