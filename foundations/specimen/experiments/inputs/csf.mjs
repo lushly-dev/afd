@@ -1,4 +1,5 @@
-import ts from 'typescript';
+// TypeScript 7 exports no compiler API; the parser comes from TypeScript 6.
+import ts from '@typescript/typescript6';
 
 // Static, read-only reading of retained CSF annotations. Storybook's own index remains the
 // authority for discovered identities and tags; this records what the index omits and marks

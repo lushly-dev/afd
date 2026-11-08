@@ -4,8 +4,6 @@
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"target": "ES2024",
-		"module": "ESNext",
-		"moduleResolution": "node",
 		"declaration": true,
 		"declarationMap": true
 	},

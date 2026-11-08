@@ -49,7 +49,7 @@
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^4.1.12",
 		"happy-dom": "^15.11.7",
-		"typescript": "^5.9.3",
+		"typescript": "^7.0.2",
 		"vitest": "^4.1.12"
 	},
 	"files": [

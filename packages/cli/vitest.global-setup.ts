@@ -12,7 +12,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Directory of this package (`packages/cli`). */
@@ -43,7 +43,11 @@ export default function setup(): void {
 	const stale = staleOutputs(CLI_PACKAGE_DIR);
 	if (stale.length === 0) return;
 
-	const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
+	// TypeScript 7's exports map omits ./bin/tsc; the file is still the package's bin.
+	const tsc = join(
+		dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+		'bin/tsc'
+	);
 	try {
 		execFileSync(process.execPath, [tsc, '-p', join(CLI_PACKAGE_DIR, 'tsconfig.json')], {
 			cwd: CLI_PACKAGE_DIR,

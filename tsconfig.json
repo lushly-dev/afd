@@ -4,6 +4,8 @@
 		// Language & Environment
 		"target": "ES2024",
 		"lib": ["ES2024"],
+		// TypeScript 6+ no longer includes every visible @types package by default.
+		"types": ["node"],
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 

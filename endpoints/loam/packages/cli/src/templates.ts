@@ -136,6 +136,7 @@ const TSCONFIG = {
 		noEmit: true,
 		skipLibCheck: true,
 		verbatimModuleSyntax: true,
+		types: ['node'],
 	},
 	include: ['src', 'test', 'vite.config.ts'],
 };
@@ -190,7 +191,8 @@ function packageJson(id: string, kind: AppKind, depSpec: string): string {
 		devDependencies: {
 			'@lushly-dev/loam-cli': cli,
 			'@lushly-dev/loam-testing': specFor(depSpec, 'testing'),
-			typescript: '^5.9.3',
+			'@types/node': '^26.6.6',
+			typescript: '^7.0.2',
 			vite: '^8.3.0',
 			vitest: '^4.1.12',
 		},

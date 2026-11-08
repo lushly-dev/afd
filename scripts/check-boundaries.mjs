@@ -10,8 +10,9 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+// TypeScript 7's `typescript` package exports no compiler API; the parser comes from TypeScript 6.
+import ts from '@typescript/typescript6';
 import { parse as parseToml } from 'smol-toml';
-import ts from 'typescript';
 import {
 	cargoRequirements,
 	npmRequirements,
