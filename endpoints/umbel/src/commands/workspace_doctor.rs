@@ -2,9 +2,15 @@
 //!
 //! [`doctor::run`](crate::doctor::run) reports the registry-independent checks and `skip`s the
 //! two that need a registry; this command runs the same checks and then fills those two in.
+//!
+//! **In a hosted mode it is the operator's** (phase 5 sections 4.7 and 6.1; amendment from step
+//! 2c): the report names the workspace's path, its files, its issuers, the variables that hold
+//! its secrets and its operator, which no remote caller may learn. It is registered for the CLI
+//! alone there, so MCP neither lists nor serves it, and its handler refuses any caller but the
+//! CLI's (transport `cli`, authentication `process`) whatever route reached it.
 
 use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_object};
-use crate::doctor::{self, Check, CheckStatus};
+use crate::doctor::{self, AuthInputs, Check, CheckStatus};
 use crate::host::RESERVED_VERBS;
 use crate::plugins::{
     CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pipelines_check,
@@ -26,6 +32,39 @@ struct Handler {
     catalog: Arc<CompiledCatalog>,
     #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
     stores: Hub,
+    #[cfg(feature = "auth")]
+    auth_environment: crate::auth::fetch::AuthEnvironment,
+}
+
+/// `COMMAND_NOT_EXPOSED` for a caller other than the operator in a hosted mode.
+fn operator_only() -> afd::CommandError {
+    afd::CommandError::new(
+        afd::error_codes::COMMAND_NOT_EXPOSED,
+        "workspace-doctor is the operator's in a hosted mode",
+    )
+    .with_suggestion("Run umbel workspace doctor at the host's command line.")
+    .with_retryable(false)
+}
+
+/// Whether the workspace's `umbel.toml`, as it is on disk now, asks for a hosted mode.
+fn file_is_hosted(workspace: &Workspace) -> bool {
+    std::fs::read_to_string(workspace.layout().config_file())
+        .ok()
+        .and_then(|text| crate::workspace::ConfigFile::parse(&text).ok())
+        .and_then(|file| file.auth_mode().ok())
+        .is_some_and(crate::workspace::AuthMode::is_hosted)
+}
+
+/// The commands with `person.mcp` of the loaded plugins (manifest version 5).
+fn person_mcp(loaded: &LoadedPlugins) -> Vec<String> {
+    loaded
+        .instances
+        .iter()
+        .filter_map(|instance| instance.manifest.as_ref())
+        .flat_map(|manifest| manifest.commands.iter())
+        .filter(|command| command.person.is_some_and(|person| person.mcp.is_some()))
+        .map(|command| command.name.clone())
+        .collect()
 }
 
 impl Handler {
@@ -73,19 +112,31 @@ impl Handler {
 #[async_trait]
 impl CommandHandler for Handler {
     async fn execute(&self, _input: Value, context: CommandContext) -> CommandResult<Value> {
-        #[cfg(not(feature = "store-embedded"))]
-        let _ = &context;
+        // Hosted by the configuration this host sealed, or by the file the report will read: a
+        // mode-`none` host whose umbel.toml was since edited to a hosted mode reports a hosted
+        // profile too, and that report is the operator's as well.
+        if (self.workspace.config().auth.mode.is_hosted() || file_is_hosted(&self.workspace))
+            && !crate::access::is_operator(&context)
+        {
+            return afd::failure(operator_only());
+        }
         let workspace = Arc::clone(&self.workspace);
         let registry = self.registry.upgrade();
         let first_class_ready = self.first_class.get().is_some();
         let catalog = Arc::clone(&self.catalog);
+        let auth = AuthInputs {
+            #[cfg(feature = "auth")]
+            environment: self.auth_environment.clone(),
+            person_mcp: self.loaded.get().map(|loaded| person_mcp(loaded)),
+        };
         let mut report = tokio::task::spawn_blocking(move || {
-            doctor::inspect_with_catalog(
+            doctor::inspect_with(
                 Ok(Located {
                     root: workspace.root().to_path_buf(),
                     found_by: workspace.found_by(),
                 }),
                 Some(&catalog),
+                &auth,
             )
         })
         .await
@@ -140,7 +191,9 @@ impl CommandHandler for Handler {
     }
 }
 
-/// `workspace-doctor`.
+/// `workspace-doctor`: exposed everywhere but the palette in mode `none`, and to the CLI alone in
+/// a hosted mode.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn workspace_doctor(
     workspace: Arc<Workspace>,
     registry: Weak<CommandRegistry>,
@@ -149,7 +202,17 @@ pub(crate) fn workspace_doctor(
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
     catalog: Arc<CompiledCatalog>,
     stores: Hub,
+    #[cfg(feature = "auth")] auth_environment: crate::auth::fetch::AuthEnvironment,
 ) -> Builtin {
+    let expose = if workspace.config().auth.mode.is_hosted() {
+        afd::ExposeOptions::new()
+            .with_palette(false)
+            .with_mcp(false)
+            .with_agent(false)
+            .with_cli(true)
+    } else {
+        expose_everywhere_but_the_palette()
+    };
     let definition = CommandDefinition::new(
         "workspace-doctor",
         "Check this workspace: configuration, state, keys, the lock, the journal, the HTTP and MCP settings",
@@ -162,13 +225,15 @@ pub(crate) fn workspace_doctor(
             loaded,
             catalog,
             stores,
+            #[cfg(feature = "auth")]
+            auth_environment,
         },
     )
     .with_category("workspace")
     .with_returns(returns_object(
         "workspace, foundBy, healthy and checks (id, status, message, suggestion)",
     ))
-    .with_expose(expose_everywhere_but_the_palette());
+    .with_expose(expose);
     Builtin {
         definition,
         schema: empty_input(),

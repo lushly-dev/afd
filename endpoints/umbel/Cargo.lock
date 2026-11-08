@@ -3970,6 +3970,7 @@ dependencies = [
  "reqwest",
  "rmcp",
  "rusqlite",
+ "rustix",
  "rustls-pki-types",
  "rustls-platform-verifier",
  "serde",
@@ -3993,6 +3994,7 @@ dependencies = [
  "wasmtime",
  "wasmtime-wasi",
  "wasmtime-wasi-io",
+ "x509-parser",
 ]
 
 [[package]]

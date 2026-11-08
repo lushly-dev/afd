@@ -98,6 +98,23 @@ pub(crate) fn form_encode(text: &str) -> String {
     out
 }
 
+/// RFC 6749 2.3.1's `client_secret_basic` header for `client_id` and `secret`, form-encoded
+/// before base64, and marked sensitive so that no `Debug` of it shows the secret.
+///
+/// # Errors
+/// The credentials cannot form an `Authorization` header.
+pub(crate) fn basic_authorization(client_id: &str, secret: &str) -> Result<HeaderValue, String> {
+    let basic = STANDARD.encode(format!(
+        "{}:{}",
+        form_encode(client_id),
+        form_encode(secret)
+    ));
+    let mut authorization = HeaderValue::from_str(&format!("Basic {basic}"))
+        .map_err(|_| "the introspection credentials cannot be sent".to_owned())?;
+    authorization.set_sensitive(true);
+    Ok(authorization)
+}
+
 impl Introspector {
     /// The introspection client of `issuer` (its exact configured string), logged as `alias`,
     /// authenticating as `client_id` with `secret`, checking answers under `rules`.
@@ -113,14 +130,7 @@ impl Introspector {
         fetcher: Fetcher,
         environment: &AuthEnvironment,
     ) -> Result<Self, String> {
-        let basic = STANDARD.encode(format!(
-            "{}:{}",
-            form_encode(client_id),
-            form_encode(secret)
-        ));
-        let mut authorization = HeaderValue::from_str(&format!("Basic {basic}"))
-            .map_err(|_| "the introspection credentials cannot be sent".to_owned())?;
-        authorization.set_sensitive(true);
+        let authorization = basic_authorization(client_id, secret)?;
         Ok(Self {
             alias: alias.to_owned(),
             issuer: issuer.to_owned(),

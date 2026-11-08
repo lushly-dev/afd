@@ -139,6 +139,54 @@ pub fn not_readable(space: &str) -> CommandError {
     .with_retryable(false)
 }
 
+/// Whether `context` is the operator's: the CLI, with the CLI interface, transport `cli` and
+/// authentication `process` (phase 5 section 4.7, owner decision 17), as the CLI's marks need
+/// them (`authority::cli_mark`). Nothing else is: not stdio, not the library, not a verified
+/// caller whose person is the operator.
+#[must_use]
+pub fn is_operator(context: &CommandContext) -> bool {
+    use crate::principal::{Authentication, Transport};
+    context.interface == Some(afd::CommandInterface::Cli)
+        && Principal::from_context(context).is_some_and(|principal| {
+            principal.transport == Transport::Cli
+                && principal.authentication == Authentication::Process
+        })
+}
+
+/// The spaces a host built-in may name to `context`'s caller (phase 5 sections 9.4 and 4.7):
+/// `None`, meaning every declared space, in mode `none` (phases 2 to 4 list every space to every
+/// caller) and to the operator; otherwise the ids of the spaces the caller reads, in declaration
+/// order. A verified caller's are its principal's `spaces` (the spaces it reads that its token
+/// grants a verb in); any other caller's (stdio, the library, a call with no principal) are the
+/// spaces its effective principal, with its claim groups, may read.
+#[must_use]
+pub fn listed_spaces(config: &Config, context: &CommandContext) -> Option<Vec<String>> {
+    if !config.auth.mode.is_hosted() || is_operator(context) {
+        return None;
+    }
+    let principal = Principal::from_context(context);
+    if let Some(granted) = principal.as_ref().and_then(|p| p.spaces.as_ref()) {
+        return Some(
+            config
+                .spaces
+                .iter()
+                .map(|space| space.id.as_str().to_owned())
+                .filter(|space| granted.contains_key(space))
+                .collect(),
+        );
+    }
+    let effective = principal.and_then(|p| effective_principal(&p.actor));
+    let claim_groups = claim_groups_of(context);
+    Some(
+        config
+            .spaces
+            .iter()
+            .filter(|space| may_read_space(config, space, effective.as_deref(), &claim_groups))
+            .map(|space| space.id.as_str().to_owned())
+            .collect(),
+    )
+}
+
 /// The reader filter of `principal`, with the claim groups of its token, in `space`: `space`,
 /// `principal:` for the principal and each legacy principal it stands for, and `group:` for each
 /// group that holds it.

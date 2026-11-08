@@ -103,6 +103,9 @@ fn the_version_5_config_schema_admits_what_the_host_admits() {
             c["auth"]["require_bound_tokens"] = json!(true);
         }),
         edited(&base, |c| {
+            c["auth"]["issuers"]["corp-idp"]["ca_file"] = json!("trust/idp-roots.pem");
+        }),
+        edited(&base, |c| {
             c["auth"]["issuers"]["corp-idp"]["verify"] = json!("introspection");
             c["auth"]["issuers"]["corp-idp"]["introspection"] =
                 json!({ "client_id": "u", "client_secret_env": "S" });
@@ -189,6 +192,9 @@ fn the_version_5_config_schema_refuses_what_the_host_refuses() {
         }),
         // Issuers.
         with(&|c| c["auth"]["issuers"]["corp-idp"]["issuer"] = json!("http://idp.example.com")),
+        with(&|c| c["auth"]["issuers"]["corp-idp"]["ca_file"] = json!("../roots.pem")),
+        with(&|c| c["auth"]["issuers"]["corp-idp"]["ca_file"] = json!("state/roots.pem")),
+        with(&|c| c["auth"]["issuers"]["corp-idp"]["ca_file"] = json!("")),
         with(&|c| c["auth"]["issuers"]["corp-idp"]["algorithms"] = json!(["HS256"])),
         with(&|c| c["auth"]["issuers"]["corp-idp"]["algorithms"] = json!(["none"])),
         with(&|c| c["auth"]["issuers"]["corp-idp"]["algorithms"] = json!(["ES512"])),

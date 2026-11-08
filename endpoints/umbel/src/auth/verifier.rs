@@ -104,17 +104,20 @@ pub(crate) fn token_rules(config: &Config) -> Result<TokenRules, WorkspaceError>
 
 impl HostVerifier {
     /// The verifier `config` describes, its clock, roots and timeout from `environment`, and the
-    /// introspection secret read from the environment variable `[auth.issuers]` names.
+    /// introspection secret read from the environment variable `[auth.issuers]` names. An
+    /// issuer's `ca_file` is read under `root`, the workspace, and trusted for that issuer alone.
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` naming the key that cannot be served: a rule AFD refuses, an
-    /// algorithm it cannot verify, or an introspection secret that is unset or empty.
+    /// algorithm it cannot verify, an introspection secret that is unset or empty, or a `ca_file`
+    /// that cannot be read, holds no certificate, or holds one expired or not yet valid.
     pub(crate) fn from_config(
         config: &Config,
+        root: &std::path::Path,
         environment: &AuthEnvironment,
     ) -> Result<Self, WorkspaceError> {
         let rules = token_rules(config)?;
-        let fetcher =
+        let platform =
             Fetcher::new(environment).map_err(|message| invalid("auth.issuers", message))?;
         let accepted: Vec<IssuerConfig> = config
             .auth
@@ -127,6 +130,8 @@ impl HostVerifier {
         let mut introspection = None;
         for issuer in &accepted {
             let key = format!("auth.issuers.{}", issuer.alias);
+            let fetcher = super::fetch::for_issuer(issuer, root, environment, &platform)
+                .map_err(|problem| invalid(&format!("{key}.ca_file"), problem))?;
             match issuer.verify {
                 TokenCheck::Jwt => {
                     let algorithms = issuer
@@ -141,12 +146,7 @@ impl HostVerifier {
                             })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    let keys = IssuerKeys::new(
-                        &issuer.alias,
-                        &issuer.issuer,
-                        fetcher.clone(),
-                        environment,
-                    );
+                    let keys = IssuerKeys::new(&issuer.alias, &issuer.issuer, fetcher, environment);
                     jwt_issuers.push(
                         JwtIssuer::new(
                             issuer.alias.clone(),
@@ -186,7 +186,7 @@ impl HostVerifier {
                         &client.client_id,
                         &secret,
                         rules.clone(),
-                        fetcher.clone(),
+                        fetcher,
                         environment,
                     )
                     .map_err(|message| invalid(&secret_key, message))?;
@@ -350,7 +350,12 @@ algorithms = ["ES256"]
         let config = ConfigFile::parse(CONFIG)
             .and_then(|file| file.into_config(std::path::Path::new("/w")))
             .unwrap();
-        let verifier = HostVerifier::from_config(&config, &AuthEnvironment::default()).unwrap();
+        let verifier = HostVerifier::from_config(
+            &config,
+            std::path::Path::new("/w"),
+            &AuthEnvironment::default(),
+        )
+        .unwrap();
         let (parts, ()) = axum::http::Request::new(()).into_parts();
         let refusal = verifier
             .verify("not-even-a-token", &parts)

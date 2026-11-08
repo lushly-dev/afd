@@ -6,6 +6,11 @@
 //! point anywhere, SSRF), an `http` URL is refused before any connection, a body is read in
 //! chunks and refused past 1 MiB (or when `Content-Length` says so), and a whole fetch, metadata
 //! and key set together, has 10 seconds. Nothing here logs a URL's query, a header or a body.
+//!
+//! **Whom it trusts.** An issuer without `ca_file` is reached through the platform's roots. An
+//! issuer with `ca_file` (amendment from step 2c) is reached through a client of its own that
+//! trusts **only** that file's roots: never the platform's, and never another issuer's, so a
+//! private certificate authority vouches for its issuer alone.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,7 +26,8 @@ pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The test seams of the outbound client: extra trusted roots, the clock that ages caches and
 /// tokens, and the timeout. A shipped build uses the platform's roots, the system clock and
-/// [`FETCH_TIMEOUT`]; only the `testkit` feature's `HostBuilder` methods change them.
+/// [`FETCH_TIMEOUT`]; only the `testkit` feature's `HostBuilder` methods change them. The extra
+/// roots stand beside the platform's, so they never reach an issuer with a `ca_file`.
 #[derive(Clone)]
 pub(crate) struct AuthEnvironment {
     pub(crate) roots: Vec<Vec<u8>>,
@@ -128,12 +134,42 @@ impl Fetcher {
         let verifier =
             rustls_platform_verifier::Verifier::new_with_extra_roots(roots, Arc::clone(&provider))
                 .map_err(|_| "the platform's certificate verifier cannot be built".to_owned())?;
-        let mut tls = rustls::ClientConfig::builder_with_provider(provider)
+        let tls = rustls::ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
             .map_err(|_| "the TLS client cannot be built".to_owned())?
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(verifier))
             .with_no_client_auth();
+        Self::with_tls(tls, environment)
+    }
+
+    /// A client trusting exactly `roots`, an issuer's `ca_file`: not the platform's roots, and not
+    /// `environment.roots`. Every handshake is refused outside the window in which all of them
+    /// are valid, so a root that expires while the process runs stops being trusted then.
+    ///
+    /// # Errors
+    /// A root that cannot be a trust anchor, or a client that cannot be built.
+    pub(crate) fn with_roots(
+        roots: Vec<super::files::Certificate>,
+        environment: &AuthEnvironment,
+    ) -> Result<Self, String> {
+        use tokio_rustls::rustls;
+        let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+        let verifier = RootsInDate::new(roots, &provider)?;
+        let tls = rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .map_err(|_| "the TLS client cannot be built".to_owned())?
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(verifier))
+            .with_no_client_auth();
+        Self::with_tls(tls, environment)
+    }
+
+    /// The HTTPS client over `tls`: HTTP/1.1, no redirect, no proxy, the time limit.
+    fn with_tls(
+        mut tls: tokio_rustls::rustls::ClientConfig,
+        environment: &AuthEnvironment,
+    ) -> Result<Self, String> {
         tls.alpn_protocols = vec![b"http/1.1".to_vec()];
         let client = reqwest::Client::builder()
             .tls_backend_preconfigured(tls)
@@ -218,6 +254,120 @@ impl Fetcher {
     }
 }
 
+/// WebPKI over an issuer's own roots, refusing every certificate outside the window in which all
+/// of the roots are valid: WebPKI never checks a trust anchor's own dates, so without this an
+/// expired private root would be trusted for as long as the process runs.
+#[derive(Debug)]
+pub(crate) struct RootsInDate {
+    inner: Arc<tokio_rustls::rustls::client::WebPkiServerVerifier>,
+    not_before: i64,
+    not_after: i64,
+}
+
+impl RootsInDate {
+    fn new(
+        roots: Vec<super::files::Certificate>,
+        provider: &Arc<tokio_rustls::rustls::crypto::CryptoProvider>,
+    ) -> Result<Self, String> {
+        use tokio_rustls::rustls;
+        let not_before = roots.iter().map(|root| root.not_before).max();
+        let not_after = roots.iter().map(|root| root.not_after).min();
+        let (Some(not_before), Some(not_after)) = (not_before, not_after) else {
+            return Err("holds no root certificate".to_owned());
+        };
+        let mut store = rustls::RootCertStore::empty();
+        for root in roots {
+            store
+                .add(root.der)
+                .map_err(|_| "holds a certificate that cannot be a trust anchor".to_owned())?;
+        }
+        let inner = rustls::client::WebPkiServerVerifier::builder_with_provider(
+            Arc::new(store),
+            Arc::clone(provider),
+        )
+        .build()
+        .map_err(|_| "cannot verify servers with its roots".to_owned())?;
+        Ok(Self {
+            inner,
+            not_before,
+            not_after,
+        })
+    }
+}
+
+impl tokio_rustls::rustls::client::danger::ServerCertVerifier for RootsInDate {
+    fn verify_server_cert(
+        &self,
+        end_entity: &rustls_pki_types::CertificateDer<'_>,
+        intermediates: &[rustls_pki_types::CertificateDer<'_>],
+        server_name: &rustls_pki_types::ServerName<'_>,
+        ocsp_response: &[u8],
+        now: rustls_pki_types::UnixTime,
+    ) -> Result<tokio_rustls::rustls::client::danger::ServerCertVerified, tokio_rustls::rustls::Error>
+    {
+        use tokio_rustls::rustls::{CertificateError, Error};
+        let now_s = i64::try_from(now.as_secs()).unwrap_or(i64::MAX);
+        if now_s > self.not_after {
+            return Err(Error::InvalidCertificate(CertificateError::Expired));
+        }
+        if now_s < self.not_before {
+            return Err(Error::InvalidCertificate(CertificateError::NotValidYet));
+        }
+        self.inner
+            .verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &rustls_pki_types::CertificateDer<'_>,
+        dss: &tokio_rustls::rustls::DigitallySignedStruct,
+    ) -> Result<
+        tokio_rustls::rustls::client::danger::HandshakeSignatureValid,
+        tokio_rustls::rustls::Error,
+    > {
+        self.inner.verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &rustls_pki_types::CertificateDer<'_>,
+        dss: &tokio_rustls::rustls::DigitallySignedStruct,
+    ) -> Result<
+        tokio_rustls::rustls::client::danger::HandshakeSignatureValid,
+        tokio_rustls::rustls::Error,
+    > {
+        self.inner.verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<tokio_rustls::rustls::SignatureScheme> {
+        self.inner.supported_verify_schemes()
+    }
+}
+
+/// The client for `issuer`: one trusting only its `ca_file`'s roots when it names one, else
+/// `platform`, the client over the platform's roots. `root` is the workspace a relative path is
+/// read from; the roots must be valid on `environment`'s clock.
+///
+/// # Errors
+/// What is wrong with the `ca_file`, naming the path, never its contents.
+pub(crate) fn for_issuer(
+    issuer: &crate::workspace::IssuerConfig,
+    root: &std::path::Path,
+    environment: &AuthEnvironment,
+    platform: &Fetcher,
+) -> Result<Fetcher, String> {
+    let Some(path) = &issuer.ca_file else {
+        return Ok(platform.clone());
+    };
+    let path = root.join(path);
+    let now_s = environment.clock.now().div_euclid(1000);
+    let roots = super::files::roots(&path, now_s)?;
+    Fetcher::with_roots(roots, environment)
+        .map_err(|problem| format!("{} {problem}", path.display()))
+}
+
 /// `url` parsed, when it is an absolute `https` URL with a host and no user information.
 pub(crate) fn https(url: &str) -> Result<reqwest::Url, FetchError> {
     let parsed = reqwest::Url::parse(url).map_err(|_| FetchError::Insecure)?;
@@ -280,6 +430,55 @@ mod tests {
         assert_eq!(max_age(&headers("no-cache")), Some(0));
         assert_eq!(max_age(&headers("public")), None);
         assert_eq!(max_age(&reqwest::header::HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn an_issuers_roots_stop_being_trusted_when_one_of_them_expires() {
+        use tokio_rustls::rustls::client::danger::ServerCertVerifier;
+        use tokio_rustls::rustls::{CertificateError, Error};
+        let now = 2_000_000_000_i64;
+        let ca = umbel_testkit_idp::TestCa::valid_between(now - 3_600, now + 86_400).unwrap();
+        let server = ca.server_certificate(&["127.0.0.1"]).unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("roots.pem");
+        std::fs::write(&path, ca.certificate_pem()).unwrap();
+        let mut roots = super::super::files::roots(&path, now).unwrap();
+        let provider = Arc::new(tokio_rustls::rustls::crypto::aws_lc_rs::default_provider());
+        // WebPKI alone still accepts the leaf after its root's notAfter: an anchor's own dates are
+        // never checked. Here the root ends an hour into the leaf's validity.
+        let webpki = RootsInDate::new(roots.clone(), &provider).unwrap().inner;
+        roots[0].not_after = now + 3_600;
+        let verifier = RootsInDate::new(roots, &provider).unwrap();
+        let leaf = rustls_pki_types::CertificateDer::from(server.certificate_der().to_vec());
+        let name = rustls_pki_types::ServerName::try_from("127.0.0.1").unwrap();
+        let at = |seconds: i64| {
+            rustls_pki_types::UnixTime::since_unix_epoch(Duration::from_secs(
+                u64::try_from(seconds).unwrap(),
+            ))
+        };
+        assert!(
+            verifier
+                .verify_server_cert(&leaf, &[], &name, &[], at(now))
+                .is_ok()
+        );
+        let later = at(now + 7_200);
+        assert!(
+            webpki
+                .verify_server_cert(&leaf, &[], &name, &[], later)
+                .is_ok()
+        );
+        assert_eq!(
+            verifier
+                .verify_server_cert(&leaf, &[], &name, &[], later)
+                .err(),
+            Some(Error::InvalidCertificate(CertificateError::Expired))
+        );
+        assert_eq!(
+            verifier
+                .verify_server_cert(&leaf, &[], &name, &[], at(now - 7_200))
+                .err(),
+            Some(Error::InvalidCertificate(CertificateError::NotValidYet))
+        );
     }
 
     #[test]

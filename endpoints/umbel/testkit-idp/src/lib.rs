@@ -121,6 +121,15 @@ impl TestIdp {
     /// # Errors
     /// A port cannot be bound, a key or certificate cannot be made, or the thread cannot start.
     pub async fn start() -> Result<Self, Error> {
+        Self::start_with_ca(TestCa::new()?).await
+    }
+
+    /// [`Self::start`] with `ca` as the kit's certificate authority, so the listener's
+    /// certificate has `ca`'s validity: an expired one, for a client that must refuse it.
+    ///
+    /// # Errors
+    /// As [`Self::start`].
+    pub async fn start_with_ca(ca: TestCa) -> Result<Self, Error> {
         let bind = || {
             let listener = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
                 .map_err(|error| Error::new(format!("cannot bind 127.0.0.1: {error}")))?;
@@ -139,7 +148,6 @@ impl TestIdp {
         let (plain_listener, plain_address) = bind()?;
         let base_url = format!("https://{address}");
         let plain_base_url = format!("http://{plain_address}");
-        let ca = TestCa::new()?;
         let server_certificate = ca.server_certificate(&["127.0.0.1", "localhost"])?;
         let idp_keys = Arc::new(KeySet::generate("idp")?);
         let as_keys = Arc::new(KeySet::generate("as")?);

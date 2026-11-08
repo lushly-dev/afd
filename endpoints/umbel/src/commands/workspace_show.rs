@@ -1,4 +1,11 @@
 //! `workspace-show`: what this deployment is.
+//!
+//! **In a hosted mode a caller other than the operator gets the hosted answer** (phase 5 sections
+//! 6.1, 9.4 and 4.7; amendment from step 2c). It names no more than the caller could learn by
+//! reading: no workspace `name` and no `workspace` path (both `null`), only the spaces the caller
+//! reads (and its token grants a verb in), the default space only when it is one of them, and only
+//! the plugin instances that serve one of them; and `access` says the principals are verified.
+//! The operator, at the CLI, gets the whole answer, as every caller does in mode `none`.
 
 use super::plugin_list::summary;
 use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_object};
@@ -25,12 +32,20 @@ struct Handler {
 
 #[async_trait]
 impl CommandHandler for Handler {
-    async fn execute(&self, _input: Value, _context: CommandContext) -> CommandResult<Value> {
+    async fn execute(&self, _input: Value, context: CommandContext) -> CommandResult<Value> {
         let config = self.workspace.config();
+        // `None`: every space (mode `none`, or the operator); else the spaces the caller reads.
+        let listed = crate::access::listed_spaces(config, &context);
+        let shown = |space: &str| {
+            listed
+                .as_ref()
+                .is_none_or(|listed| listed.iter().any(|s| s == space))
+        };
         let spaces: Vec<Value> = self
             .workspace
             .spaces()
             .iter()
+            .filter(|space| shown(space.id.as_str()))
             .map(|space| json!({ "id": space.id.as_str(), "title": space.title }))
             .collect();
         let plugins: Vec<Value> = self
@@ -40,6 +55,9 @@ impl CommandHandler for Handler {
                 loaded
                     .instances
                     .iter()
+                    .filter(|instance| {
+                        listed.is_none() || instance.spaces.iter().any(|space| shown(space))
+                    })
                     .map(|instance| {
                         let mut entry = summary(instance);
                         entry.remove("error");
@@ -48,10 +66,52 @@ impl CommandHandler for Handler {
                     .collect()
             })
             .unwrap_or_default();
+        let hosted = listed.is_some();
+        // A first-class tool of a plugin that serves no space the caller reads would name it.
+        let first_class: Vec<String> = self
+            .first_class
+            .get()
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|tool| {
+                listed.is_none()
+                    || self
+                        .loaded
+                        .get()
+                        .and_then(|loaded| loaded.gate.get(tool))
+                        .is_none_or(|entry| entry.spaces.iter().any(|space| shown(space)))
+            })
+            .collect();
+        let access = if config.auth.mode.is_hosted() {
+            // Statistics stay the whole index's until phase 5 step 7 makes them per filter
+            // (amendment from step 2c).
+            json!({
+                "principals": "verified",
+                "exact": ["library", "http"],
+                "statistics": "shared",
+            })
+        } else {
+            // How far access filtering holds (phase 2 specification, section 6, owner decision 1
+            // of 2026-11-01): nothing verifies who a stdio or loopback HTTP caller is in mode
+            // `none`, so the reader filters are exact only for embedders and tests.
+            json!({
+                "principals": "unverified",
+                "exact": ["library"],
+            })
+        };
         success(json!({
-            "name": config.name,
-            "workspace": self.workspace.root().display().to_string(),
-            "defaultSpace": config.default_space.as_str(),
+            "name": if hosted { Value::Null } else { json!(config.name) },
+            "workspace": if hosted {
+                Value::Null
+            } else {
+                json!(self.workspace.root().display().to_string())
+            },
+            "defaultSpace": if shown(config.default_space.as_str()) {
+                json!(config.default_space.as_str())
+            } else {
+                Value::Null
+            },
             "profile": config.profile,
             "spaces": spaces,
             "host": {
@@ -85,16 +145,10 @@ impl CommandHandler for Handler {
                 "usage": USAGE_VERSION,
                 "person": PERSON_VERSION,
             },
-            // How far access filtering holds (phase 2 specification, section 6, owner decision 1
-            // of 2026-11-01): nothing verifies who a stdio or loopback HTTP caller is until
-            // phase 5, so the reader filters are exact only for embedders and tests.
-            "access": {
-                "principals": "unverified",
-                "exact": ["library"],
-            },
+            "access": access,
             "surfaces": {
                 "toolStrategy": "hybrid",
-                "firstClassTools": self.first_class.get().cloned().unwrap_or_default(),
+                "firstClassTools": first_class,
             },
             "plugins": plugins,
         }))
@@ -109,7 +163,7 @@ pub(crate) fn workspace_show(
 ) -> Builtin {
     let definition = CommandDefinition::new(
         "workspace-show",
-        "What this deployment is: its name, spaces, default space and versions",
+        "What this deployment is: its name, spaces, default space and versions; in a hosted mode, to anyone but the operator, only the spaces you read",
         vec![],
         Handler {
             workspace,

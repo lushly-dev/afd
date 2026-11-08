@@ -695,6 +695,44 @@ fn issuers_name_a_namespace_an_exact_https_iss_and_their_checks() {
 }
 
 #[test]
+fn an_issuers_ca_file_follows_the_file_path_rules() {
+    // Amendment from step 2c: the roots trusted for one issuer, a file under 2.2's path rules.
+    let issuer = |text: &str| {
+        open(text)
+            .unwrap()
+            .config()
+            .auth
+            .issuer("corp-idp")
+            .unwrap()
+            .ca_file
+            .clone()
+    };
+    assert_eq!(issuer(&oauth("")), None);
+    assert_eq!(
+        issuer(&oauth("ca_file = \"trust/idp.pem\"\n")).as_deref(),
+        Some("trust/idp.pem")
+    );
+    assert_eq!(
+        issuer(&oauth("ca_file = \"/etc/umbel/idp-roots.pem\"\n")).as_deref(),
+        Some("/etc/umbel/idp-roots.pem")
+    );
+    for bad in [
+        "\"\"",
+        "\"../roots.pem\"",
+        "\"trust/../../roots.pem\"",
+        "\"state/roots.pem\"",
+        "\"./state/keys/roots.pem\"",
+        "\"trust\\\\roots.pem\"",
+        "1",
+    ] {
+        invalid(
+            &oauth(&format!("ca_file = {bad}\n")),
+            "auth.issuers.corp-idp.ca_file",
+        );
+    }
+}
+
+#[test]
 fn a_person_login_requires_user_verification() {
     let login = |person: &str| oauth("").replace(PERSON, person);
     for (person, key) in [
