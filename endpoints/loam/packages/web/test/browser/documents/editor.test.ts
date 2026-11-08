@@ -193,6 +193,66 @@ const focusedOn = (page: Page) =>
 const tabOf = (page: Page, title: string, group = 0) =>
 	page.locator('loam-editor-group').nth(group).locator('[role="tab"]', { hasText: title });
 
+/** What `holdSave` leaves on the page. */
+type HeldSave = Window & { releaseSave?: () => void; disposed?: boolean };
+
+/**
+ * Hold the next save of `tab`'s frame until {@link releaseSave}, and note when the frame is disposed, which
+ * follows anything its retiring does; with `dropRecord`, the frame holds no record.
+ */
+async function holdSave(page: Page, tab: string, dropRecord = false): Promise<void> {
+	await page.evaluate(
+		({ tab, dropRecord }) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				editor: { frames: Map<string, unknown> };
+			};
+			const frame = shell.editor.frames.get(tab) as {
+				save(): Promise<void>;
+				dispose(): Promise<void>;
+				record: unknown;
+			};
+			const held = window as HeldSave;
+			frame.save = () =>
+				new Promise<void>((resolve) => {
+					held.releaseSave = resolve;
+				});
+			const dispose = frame.dispose.bind(frame);
+			frame.dispose = async () => {
+				await dispose();
+				held.disposed = true;
+			};
+			if (dropRecord) frame.record = null;
+		},
+		{ tab, dropRecord }
+	);
+}
+
+/** Resolve the held save, and wait until its frame has retired. */
+async function releaseSave(page: Page): Promise<void> {
+	await page.evaluate(() => (window as HeldSave).releaseSave?.());
+	await page.waitForFunction(() => (window as HeldSave).disposed === true);
+	await editorIdle(page);
+}
+
+/** The journal's `editor-dirty-set { dirty: false }` entries from entry `from`, with their scopes. */
+const clears = async (page: Page, from: number) =>
+	(await entriesOf(page))
+		.slice(from)
+		.filter(
+			(entry) =>
+				entry.command === 'editor-dirty-set' && (entry.input as { dirty?: boolean }).dirty === false
+		)
+		.map((entry) => entry.context);
+
+/** The first group's first tab: its accessible name, and whether the kernel holds it dirty. */
+const tabName = (page: Page) => editorView(page).then((view) => view?.[0]?.tabs[0]?.name);
+const dirtyOf = async (page: Page) =>
+	(
+		(await agentCall(page, 'editor-get')) as {
+			data: { groups: Array<{ tabs: Array<{ dirty: boolean }> }> };
+		}
+	).data.groups[0]?.tabs[0]?.dirty;
+
 /** The text area of the tab's editor. */
 const textOf = (page: Page, tab: string) =>
 	page.locator(`loam-editor-frame[data-tab="${tab}"] textarea`);
@@ -673,6 +733,51 @@ describe('P2-D5: the editor area, native half', () => {
 		expect(
 			((await agentCall(page, 'editor-close', { tab: 't1' })) as { success: boolean }).success
 		).toBe(true);
+		await opened.context.close();
+	});
+
+	it('P2-D5: a save held past a return to its scope and a newer edit clears nothing, so the tab stays unsaved', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Drafted');
+		await open(page, note);
+		await typeInto(page, 't1', 'First edit');
+		await expect.poll(() => tabName(page)).toBe('Drafted, unsaved');
+		await holdSave(page, 't1');
+		// To another scope: the frame retires, and its save starts and is held.
+		await kernelCall(page, 'project-create', { name: 'Elsewhere' });
+		await kernelCall(page, 'scope-set', { project: 'elsewhere' });
+		await editorIdle(page);
+		await page.waitForFunction(() => typeof (window as HeldSave).releaseSave === 'function');
+		// Back, and edited again: a newer unsaved edit in the same tab.
+		await kernelCall(page, 'scope-set', { project: null });
+		await editorIdle(page);
+		await typeInto(page, 't1', ', then a newer one');
+		await editorIdle(page);
+		// From here, the retiring frame's own clear is the only one that could land: the new frame's editor
+		// reported clean on loading, and dirty again on the newer edit, before it.
+		const from = (await entriesOf(page)).length;
+		await releaseSave(page);
+		expect(await clears(page, from)).toEqual([]);
+		expect(await dirtyOf(page)).toBe(true);
+		expect(await tabName(page)).toBe('Drafted, unsaved');
+		await opened.context.close();
+	});
+
+	it('P2-D5: a leaving editor with no record clears no tab, in any scope', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await open(page, await createNote(page, 'Drafted'));
+		await typeInto(page, 't1', 'Unsaved');
+		await expect.poll(() => tabName(page)).toBe('Drafted, unsaved');
+		await holdSave(page, 't1', true);
+		await kernelCall(page, 'project-create', { name: 'Elsewhere' });
+		await kernelCall(page, 'scope-set', { project: 'elsewhere' });
+		// A tab with the same id in the scope now active, which a clear with no scope would reach.
+		await open(page, await createNote(page, 'There', 'elsewhere'));
+		const from = (await entriesOf(page)).length;
+		await releaseSave(page);
+		expect(await clears(page, from)).toEqual([]);
 		await opened.context.close();
 	});
 
