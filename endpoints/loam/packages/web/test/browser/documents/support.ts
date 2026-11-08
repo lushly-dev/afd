@@ -27,7 +27,7 @@ export interface GroupView {
 	label: string;
 	tabs: Array<{ name: string; selected: boolean; title: string }>;
 	/** The text of each frame's `notes-editor`, by tab, for the frames mounted. */
-	editors: Array<{ tab: string; hidden: boolean; text: string | null }>;
+	editors: Array<{ tab: string; hidden: HTMLElement['hidden']; text: string | null }>;
 }
 
 /** The editor area as it renders: each group's strip and frames, or null when main does not show it. */
