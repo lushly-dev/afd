@@ -79,7 +79,7 @@
 		"@vitest/coverage-v8": "^4.1.12",
 		"nanoid": "^5.1.16",
 		"pg": "^8.23.1",
-		"typescript": "^5.9.3",
+		"typescript": "^7.0.2",
 		"vitest": "^4.1.12",
 		"ws": "^8.22.0"
 	},

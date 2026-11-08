@@ -19,7 +19,8 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-const compiler = require.resolve('typescript/bin/tsc');
+// TypeScript 7's exports map omits ./bin/tsc; the file is still the package's bin.
+const compiler = join(dirname(require.resolve('typescript/package.json')), 'bin/tsc');
 
 function isWithin(directory, path) {
 	const fromDirectory = relative(directory, path);

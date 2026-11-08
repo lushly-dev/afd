@@ -70,6 +70,7 @@
 		"@storybook/addon-vitest": "10.6.2",
 		"@storybook/web-components-vite": "10.6.2",
 		"@types/node": "^26.6.6",
+		"@typescript/typescript6": "^6.0.2",
 		"@vitest/browser": "4.1.12",
 		"@vitest/browser-playwright": "^4.1.12",
 		"@vitest/coverage-v8": "^4.1.12",
@@ -77,7 +78,7 @@
 		"parse5": "^8.0.0",
 		"rimraf": "^6.1.3",
 		"storybook": "10.6.2",
-		"typescript": "^5.9.3",
+		"typescript": "^7.0.2",
 		"vitest": "^4.1.12"
 	},
 	"publishConfig": {
