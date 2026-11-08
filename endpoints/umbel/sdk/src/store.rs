@@ -293,6 +293,26 @@ reads!(Cx);
 reads!(Reader);
 
 impl Cx {
+    /// Grant `documents`: a store revision of `space` as the caller may see it (phase 5 section
+    /// 9.3): a sealed `r1.<token>` of the last revision it can read at or below `rev` when its
+    /// positions are sealed, else `rev` as a number.
+    ///
+    /// # Errors
+    /// See [`HostServices::doc_position`].
+    pub fn doc_position(&self, space: &str, rev: Rev) -> Result<Value, HostError> {
+        self.check_space(space)?;
+        self.host()?.doc_position(space, rev)
+    }
+
+    /// Grant `documents`: the revision a value [`Cx::doc_position`] gave this caller names.
+    ///
+    /// # Errors
+    /// See [`HostServices::doc_position_of`].
+    pub fn doc_position_of(&self, space: &str, value: &Value) -> Result<Rev, HostError> {
+        self.check_space(space)?;
+        self.host()?.doc_position_of(space, value)
+    }
+
     /// Check that `space` is one of the call's spaces; the host checks again.
     pub(crate) fn check_space(&self, space: &str) -> Result<(), HostError> {
         if self.call().spaces.iter().any(|allowed| allowed == space) {

@@ -200,6 +200,7 @@ pub(super) fn call_context(
         pipeline: services.pipeline(),
         person: services.person(),
         equivalents: services.equivalents(),
+        sealed_positions: services.seals_positions(),
     }
 }
 

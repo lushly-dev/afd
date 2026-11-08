@@ -17,6 +17,11 @@
 //! A multi-space search runs each space with that space's own reader filter and fuses the
 //! per-space rankings by reciprocal rank, because BM25 scores of different indexes are not
 //! comparable. Nothing is written back.
+//!
+//! The index scores with statistics over what the caller may read (phase 5 section 9.1), and
+//! every revision the result shows (a stale index's `applied` and `head`, a locator's
+//! `indexVersion`) goes through the host, which seals it for a caller whose positions are sealed
+//! (section 9.3): a detailed hit's locator object is then version 2.
 
 use std::collections::BTreeMap;
 
@@ -69,6 +74,13 @@ pub(crate) struct Ranked {
     pub(crate) shown: f64,
 }
 
+/// One space's revisions as the caller may see them: numbers, or sealed revisions.
+struct Positions {
+    applied: Value,
+    graph_applied: Option<Value>,
+    head: Value,
+}
+
 /// What searching one space found.
 pub(crate) struct SpaceResult {
     space: String,
@@ -108,12 +120,33 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     };
     let multi = spaces.len() > 1;
 
+    // Each space's revisions as the caller may see them (phase 5 section 9.3).
+    let mut positions: BTreeMap<String, Positions> = BTreeMap::new();
+    for result in &results {
+        let shown = (|| -> Result<Positions, HostError> {
+            Ok(Positions {
+                applied: cx.doc_position(&result.space, result.applied)?,
+                graph_applied: result
+                    .graph_applied
+                    .map(|graph| cx.doc_position(&result.space, graph))
+                    .transpose()?,
+                head: cx.doc_position(&result.space, result.head)?,
+            })
+        })();
+        match shown {
+            Ok(shown) => {
+                positions.insert(result.space.clone(), shown);
+            }
+            Err(error) => return fail::host(&error),
+        }
+    }
     let budget = cx.call().output_budget;
     let total = ranked.len();
     let assemble = |kept: usize| {
         render(
             &ranked[..kept],
             &results,
+            &positions,
             &request,
             &settings,
             now,
@@ -486,9 +519,11 @@ fn fuse(results: &mut [SpaceResult], limit: usize, k: f64) -> Vec<Ranked> {
 }
 
 /// The result for the first `kept` of `ranked`; `total` is how many there were before fitting.
+#[allow(clippy::too_many_arguments)]
 fn render(
     ranked: &[Ranked],
     spaces: &[SpaceResult],
+    positions: &BTreeMap<String, Positions>,
     request: &Request,
     settings: &Settings,
     now_ms: Option<i64>,
@@ -542,10 +577,9 @@ fn render(
                 map.insert("spaceScore".to_owned(), json!(item.score));
             }
             if request.detailed {
-                let applied = spaces
-                    .iter()
-                    .find(|result| result.space == item.space)
-                    .map_or(0, |result| result.applied);
+                let applied = positions
+                    .get(&item.space)
+                    .map_or(Value::from(0u64), |shown| shown.applied.clone());
                 map.insert("description".to_owned(), json!(best.chunk.description));
                 map.insert("tags".to_owned(), json!(best.chunk.tags));
                 map.insert("owners".to_owned(), json!(best.chunk.owners));
@@ -566,7 +600,7 @@ fn render(
                         lines,
                         &best.chunk.heading_path,
                         item.meta.content_hash.as_str(),
-                        applied,
+                        &applied,
                     ),
                 );
                 let chunks: Vec<Value> = item
@@ -600,7 +634,7 @@ fn render(
     for result in spaces {
         index.insert(
             result.space.clone(),
-            json!({ "applied": result.applied, "head": result.head, "schema": 1 }),
+            json!({ "applied": result.applied, "head": result.head, "schema": crate::INDEX_SCHEMA }),
         );
     }
     let searched: Vec<&str> = spaces.iter().map(|result| result.space.as_str()).collect();
@@ -626,11 +660,13 @@ fn render(
                 "the index of `{}` is behind the documents; run knowledge-refresh",
                 result.space
             ),
-            json!({
-                "space": result.space,
-                "applied": result.applied,
-                "graphApplied": result.graph_applied,
-                "head": result.head,
+            positions.get(&result.space).map_or(Value::Null, |shown| {
+                json!({
+                    "space": result.space,
+                    "applied": shown.applied,
+                    "graphApplied": shown.graph_applied,
+                    "head": shown.head,
+                })
             }),
         );
     }

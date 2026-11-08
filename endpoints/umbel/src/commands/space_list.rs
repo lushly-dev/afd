@@ -2,12 +2,16 @@
 //!
 //! In a hosted mode a caller other than the operator is listed only the spaces it reads and its
 //! token grants a verb in (phase 5 sections 5.4 and 9.4), as `workspace-show` lists them; the
-//! operator, and every caller in mode `none`, sees every space. A space's `events` and `head`
-//! still count every event of the space until phase 5 step 7 makes them the caller's readable
-//! positions.
+//! operator, and every caller in mode `none`, sees every space. To a caller whose positions are
+//! sealed (section 9.3: neither the operator nor stdio) a space's `events` counts the events it
+//! can read, and `head` is the cursor version 1 of the last of them, so neither moves with an
+//! event it cannot read.
 
+use super::event_list::admits;
 use super::{Builtin, blocking, empty_input, expose_everywhere_but_the_palette, returns_object};
-use crate::events::{Cursor, Projector};
+use crate::access::{Caller, reader_filter};
+use crate::events::{Cursor, Projector, scan_readable};
+use crate::positions::Presenter;
 use crate::workspace::Workspace;
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, failure, success};
 use async_trait::async_trait;
@@ -26,8 +30,10 @@ impl CommandHandler for Handler {
         let projector = Arc::clone(&self.projector);
         // `None`: every space (mode `none`, or the operator); else the spaces the caller reads.
         let listed = crate::access::listed_spaces(workspace.config(), &context);
+        let caller = Caller::of(workspace.config(), &context);
         let spaces = blocking(move || {
             let events_error = |error: crate::events::EventsError| error.to_command_error();
+            let presenter = Presenter::of(&workspace, &caller)?;
             projector.catch_up_if_pending().map_err(events_error)?;
             workspace
                 .spaces()
@@ -39,12 +45,23 @@ impl CommandHandler for Handler {
                 })
                 .map(|space| {
                     let events = projector.tail(&space.id).map_err(events_error)?.seq;
+                    let (events, head) = if presenter.seals() {
+                        let filter = reader_filter(workspace.config(), space.id.as_str(), &caller)?;
+                        let tokens = filter.token_list().unwrap_or_default();
+                        let path = workspace.layout().events_file(&space.id);
+                        let scan =
+                            scan_readable(&path, 0, 0, 0, events, |event| admits(tokens, event))
+                                .map_err(|error| error.to_sealed_command_error())?;
+                        (scan.count, presenter.cursor(&space.id, scan.head))
+                    } else {
+                        (events, Cursor::new(space.id.clone(), events).to_string())
+                    };
                     Ok(json!({
                         "id": space.id.as_str(),
                         "title": space.title,
                         "default": &space.id == workspace.default_space(),
                         "events": events,
-                        "head": Cursor::new(space.id.clone(), events).to_string(),
+                        "head": head,
                     }))
                 })
                 .collect::<Result<Vec<Value>, afd::CommandError>>()

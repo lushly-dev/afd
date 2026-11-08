@@ -999,6 +999,7 @@ impl MemoryStore for FakeMemory {
             .collect();
         scored.sort_by(|a, b| {
             b.0.total_cmp(&a.0)
+                .then_with(|| a.2.authority().tier().cmp(&b.2.authority().tier()))
                 .then_with(|| b.2.recorded_at.cmp(&a.2.recorded_at))
                 .then_with(|| a.1.id.cmp(&b.1.id))
         });

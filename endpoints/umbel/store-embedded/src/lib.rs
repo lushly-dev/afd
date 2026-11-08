@@ -2,7 +2,7 @@
 //! mode, bundled, for documents, plugin records, the change log and the structural graph. Several
 //! processes may open one space's store at once; writers take turns under `BEGIN IMMEDIATE` and
 //! wait at most `store.lock_timeout_ms`. The lexical lane is [`TantivyIndex`], tantivy under
-//! `index/v1/` with LZ4 and English stems; the readable graph's petgraph form is cached per
+//! `index/v2/` with LZ4 and English stems; the readable graph's petgraph form is cached per
 //! process. Memory (phase 3) is [`SqliteMemoryStore`], its own database beside the store's.
 
 mod connection;
@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use umbel_store::StoreError;
 
 pub use connection::StoreOptions;
-pub use index::{IndexCheck, IndexInfo, TantivyIndex};
+pub use index::{INDEX_SCHEMA_DIR, IndexCheck, IndexInfo, TantivyIndex};
 pub use inspect::StoreCounts;
 pub use memory::{
     KEYS_FILE, MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryCheck, MemoryInfo, MemoryKeysInfo,

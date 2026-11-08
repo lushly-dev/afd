@@ -106,6 +106,8 @@ pub mod codes {
     pub const MEMORY_KEY_ABSENT: &str = "MEMORY_KEY_ABSENT";
     /// A readable record's sealed blob does not open.
     pub const MEMORY_SEAL_INVALID: &str = "MEMORY_SEAL_INVALID";
+    /// A memory query matches more readable records than recall ranks (phase 5 section 9.2).
+    pub const MEMORY_QUERY_TOO_BROAD: &str = "MEMORY_QUERY_TOO_BROAD";
     /// The memory key file is never part of a `store-backup` copy (a warning).
     pub const MEMORY_KEYS_NOT_BACKED_UP: &str = "MEMORY_KEYS_NOT_BACKED_UP";
 }
@@ -138,6 +140,7 @@ pub(crate) fn host_error(error: StoreError) -> umbel_sdk::HostError {
         StoreError::KeysMismatch => HostError::KeysMismatch,
         StoreError::KeyAbsent { id } => HostError::KeyAbsent { id },
         StoreError::SealInvalid { id } => HostError::SealInvalid { id },
+        StoreError::QueryTooBroad { limit } => HostError::QueryTooBroad { limit },
         other => HostError::Io(other.to_string()),
     }
 }
@@ -176,6 +179,11 @@ pub(crate) fn command_error(error: &StoreError) -> CommandError {
         StoreError::SealInvalid { .. } => (
             codes::MEMORY_SEAL_INVALID,
             "Restore the key file that belongs to this database, or forget the record.",
+            false,
+        ),
+        StoreError::QueryTooBroad { .. } => (
+            codes::MEMORY_QUERY_TOO_BROAD,
+            "Narrow the query: add a required term with +, a field, or a filter.",
             false,
         ),
         StoreError::Invalid(_) | StoreError::TooLarge(_) | StoreError::NotFound => (

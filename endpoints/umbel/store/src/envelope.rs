@@ -45,6 +45,22 @@ pub enum Authority {
 }
 
 impl Authority {
+    /// The authority's tier, lower first: `person`, `tool`, `agent`, `import`, `transcript` (the
+    /// order phase 3 section 9.3 places memory in), then `document` and `external`, which a
+    /// person never pushes. Recall breaks a tie of scores by it (phase 5 section 9.2).
+    #[must_use]
+    pub fn tier(self) -> u8 {
+        match self {
+            Self::Person => 0,
+            Self::Tool => 1,
+            Self::Agent => 2,
+            Self::Import => 3,
+            Self::Transcript => 4,
+            Self::Document => 5,
+            Self::External => 6,
+        }
+    }
+
     /// Every authority, in the order the specification lists them.
     pub const ALL: [Self; 7] = [
         Self::Person,

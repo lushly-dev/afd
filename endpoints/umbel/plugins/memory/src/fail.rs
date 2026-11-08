@@ -190,6 +190,12 @@ pub(crate) fn host(error: &HostError) -> Outcome {
             "the record's sealed body does not open",
             "Run store-check; the database or its key file was changed outside Umbel.",
         ),
+        HostError::QueryTooBroad { limit } => failure(
+            "MEMORY_QUERY_TOO_BROAD",
+            &format!("the query matches more than {limit} readable records; nothing is ranked past that"),
+            "Narrow the query: add a required term with +, limit a term to subject:, tags: or body:, or filter by class, tags or project.",
+        )
+        .with_error_details(json!({ "limit": limit })),
         HostError::NotProvisioned => not_found(),
         HostError::Corrupt(_) => failure("STORE_CORRUPT", &message, "Run store-check."),
         HostError::Io(_) => failure(

@@ -221,6 +221,9 @@ fn run(
 #[async_trait]
 impl CommandHandler for Handler {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        if let Some(refused) = super::operator_only(&self.workspace, &context, "store-check") {
+            return failure(refused);
+        }
         let (space, _filter) = match view(&self.workspace, &input, &context) {
             Ok(view) => view,
             Err(error) => return failure(error),

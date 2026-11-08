@@ -660,7 +660,6 @@ async fn a_replay_clock_on_the_host_never_reaches_token_verification() {
     let host = umbel::HostBuilder::open(dir.path())
         .unwrap()
         .with_auth_root_certificate(kit.ca().certificate_pem().as_bytes().to_vec())
-        .with_unfinished_oauth()
         .with_clock(afd::fixed_clock(0))
         .register(support::oauth::whoami())
         .register(support::oauth::touch())

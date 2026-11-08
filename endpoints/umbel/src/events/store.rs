@@ -2,8 +2,11 @@
 //!
 //! `state/spaces/<space>/cursors/<cursor-key>.json`, where `<cursor-key>` is the lowercase hex
 //! SHA-256 of `<actor kind>:<actor id>:<consumer>`, so no caller-chosen string becomes a path
-//! (`schemas/cursor-file.v0.json`). No lock: the last writer wins, and a reader sees the old file
-//! or the new one, never a mix.
+//! (`schemas/cursor-file.v0.json`). For a caller whose positions are sealed (phase 5 section 9.3)
+//! the person the actor acts for is part of the key too (`<kind>:<id>`, a NUL byte, the person,
+//! `:<consumer>`): every person using one OAuth client is that client acting for them, and each
+//! keeps a cursor of their own. No lock: the last writer wins, and a reader sees the old file or
+//! the new one, never a mix.
 
 use super::cursor::Cursor;
 use super::error::EventsError;
@@ -36,7 +39,20 @@ fn kind_name(actor: &Actor) -> String {
 
 /// The file stem for a principal and a consumer.
 pub(crate) fn cursor_key(actor: &Actor, id: &str, consumer: &str) -> String {
-    let digest = Sha256::digest(format!("{}:{id}:{consumer}", kind_name(actor)).as_bytes());
+    key_of(&kind_name(actor), id, consumer)
+}
+
+/// The file stem for a principal acting for `person`, when that is part of the key.
+fn key_for(actor: &Actor, id: &str, person: Option<&str>, consumer: &str) -> String {
+    match person {
+        Some(person) => key_of(&kind_name(actor), &format!("{id}\u{0}{person}"), consumer),
+        None => cursor_key(actor, id, consumer),
+    }
+}
+
+/// The file stem for the principal `<kind>:<id>` and a consumer.
+fn key_of(kind: &str, id: &str, consumer: &str) -> String {
+    let digest = Sha256::digest(format!("{kind}:{id}:{consumer}").as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -57,6 +73,7 @@ struct CursorFile {
 }
 
 /// The cursor `actor` (whose id is `id`) acknowledged for `consumer` in `space`, if any.
+#[cfg(test)]
 pub(crate) fn read(
     layout: &Layout,
     space: &SpaceId,
@@ -64,7 +81,37 @@ pub(crate) fn read(
     id: &str,
     consumer: &str,
 ) -> Result<Option<Cursor>, EventsError> {
-    let path = layout.cursor_file(space, &cursor_key(actor, id, consumer));
+    read_key(layout, space, &cursor_key(actor, id, consumer))
+}
+
+/// The cursor `actor` acknowledged for `consumer` in `space`, consulting the legacy principals
+/// it stands for (phase 5 section 4.6, `[principal.equivalents]`): its own file when there is
+/// one (keyed with `person` when the caller's positions are sealed), else the first legacy
+/// principal's in `legacy`'s order. Writing stays its own, so its first acknowledgement takes
+/// over from the legacy cursor, which is never changed.
+pub(crate) fn read_as(
+    layout: &Layout,
+    space: &SpaceId,
+    (actor, id, person): (&Actor, &str, Option<&str>),
+    consumer: &str,
+    legacy: &[String],
+) -> Result<Option<Cursor>, EventsError> {
+    if let Some(cursor) = read_key(layout, space, &key_for(actor, id, person, consumer))? {
+        return Ok(Some(cursor));
+    }
+    for principal in legacy {
+        let Some((kind, legacy_id)) = principal.split_once(':') else {
+            continue;
+        };
+        if let Some(cursor) = read_key(layout, space, &key_of(kind, legacy_id, consumer))? {
+            return Ok(Some(cursor));
+        }
+    }
+    Ok(None)
+}
+
+fn read_key(layout: &Layout, space: &SpaceId, key: &str) -> Result<Option<Cursor>, EventsError> {
+    let path = layout.cursor_file(space, key);
     let text = match fs::read_to_string(&path) {
         Ok(text) => text,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
@@ -94,15 +141,14 @@ pub(crate) fn read(
 /// rename over the target.
 pub(crate) fn write(
     layout: &Layout,
-    actor: &Actor,
-    id: &str,
+    (actor, id, person): (&Actor, &str, Option<&str>),
     consumer: &str,
     cursor: &Cursor,
     updated_at: &str,
 ) -> Result<(), EventsError> {
     let space = cursor.space();
     let dir = layout.cursors_dir(space);
-    let key = cursor_key(actor, id, consumer);
+    let key = key_for(actor, id, person, consumer);
     let target = layout.cursor_file(space, &key);
     let file = CursorFile {
         version: CURSOR_VERSION,
@@ -199,8 +245,7 @@ mod tests {
         );
         write(
             &layout,
-            &actor,
-            "local",
+            (&actor, "local", None),
             "default",
             &Cursor::new(main.clone(), 3),
             "t1",
@@ -208,8 +253,7 @@ mod tests {
         .unwrap();
         write(
             &layout,
-            &actor,
-            "local",
+            (&actor, "local", None),
             "default",
             &Cursor::new(main.clone(), 1),
             "t2",

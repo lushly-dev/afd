@@ -316,6 +316,10 @@ pub(crate) struct GateContext {
     pub(crate) ledger: Arc<Ledger>,
     pub(crate) resolve_many: ResolveSpaces,
     pub(crate) default_space: String,
+    /// The stores, to seal `dev.umbel/index` for a caller whose positions are sealed.
+    pub(crate) stores: crate::store::Hub,
+    /// Where a sealed result's host metadata waits for the journal.
+    pub(crate) stash: Arc<crate::positions::Stash>,
 }
 
 /// The plugin gate (specification section 8.1), between the space check and approvals. For a
@@ -395,6 +399,9 @@ pub(crate) fn plugin_gate(
                 let mut result = next().await;
                 let record = gate.ledger.take(&trace);
                 sanitize(&mut result, &entry, &spaces, record);
+                if caller.seals_positions() {
+                    present_sealed(&mut result, &gate, &caller);
+                }
                 result
             })
         },
@@ -533,6 +540,66 @@ fn sanitize(
             .extra
             .insert(TRUST_KEY.to_owned(), Value::String("external".to_owned()));
     }
+}
+
+/// The host key a sealed result carries in place of what it left out: an opaque random reference
+/// to the stash, which the journal takes back (phase 5 section 9.3).
+pub(crate) const JOURNAL_REF_KEY: &str = "dev.umbel/journal-ref";
+
+/// A result as a caller whose positions are sealed sees it (phase 5 section 9.3): no
+/// `dev.umbel/changes`, no record `version`, and `dev.umbel/index`'s `applied` and `head` each
+/// the sealed last document revision the caller can read at or below it (the key is left out
+/// when that cannot be read). The changes and the version are kept in the stash under a fresh
+/// random reference the result carries, which the journal's last look takes back, so the
+/// journal and every event stream record them whole; nothing about them reaches the caller.
+fn present_sealed(result: &mut CommandResult<Value>, gate: &GateContext, caller: &Caller) {
+    let journaled = result.success || gate.workspace.config().journal.record_failures;
+    let Some(metadata) = result.metadata.as_mut() else {
+        return;
+    };
+    let mut raw = Map::new();
+    if let Some(changes) = metadata.extra.remove(CHANGES_KEY) {
+        raw.insert(CHANGES_KEY.to_owned(), changes);
+    }
+    if let Some(Value::Object(record)) = metadata.extra.get_mut(RECORD_KEY)
+        && let Some(version) = record.remove("version")
+    {
+        raw.insert("version".to_owned(), version);
+    }
+    if let Some(index) = metadata.extra.remove(INDEX_KEY)
+        && let Some(sealed) = sealed_index(&index, gate, caller)
+    {
+        metadata.extra.insert(INDEX_KEY.to_owned(), sealed);
+    }
+    // Only for a result the journal records: a failure is journaled only when the workspace
+    // records failures, and nothing else would take the entry back.
+    if !raw.is_empty() && journaled {
+        let reference = crate::host::new_trace_id();
+        gate.stash.put(&reference, raw);
+        metadata
+            .extra
+            .insert(JOURNAL_REF_KEY.to_owned(), Value::String(reference));
+    }
+}
+
+/// `{ <space>: { applied, head, schema } }` with `applied` and `head` sealed for `caller`;
+/// `None` when a store or a filter cannot be read.
+fn sealed_index(index: &Value, gate: &GateContext, caller: &Caller) -> Option<Value> {
+    let presenter = crate::positions::Presenter::of(&gate.workspace, caller).ok()?;
+    let config = gate.workspace.config();
+    let mut out = Map::new();
+    for (space, state) in index.as_object()? {
+        let filter = reader_filter(config, space, caller).ok()?;
+        let stores = gate.stores.space(space).ok()?;
+        let mut shown = state.as_object()?.clone();
+        for field in ["applied", "head"] {
+            let rev = shown.get(field)?.as_u64()?;
+            let last = stores.documents.last_readable_document(rev, &filter).ok()?;
+            shown.insert(field.to_owned(), presenter.revision(space, last));
+        }
+        out.insert(space.clone(), Value::Object(shown));
+    }
+    Some(Value::Object(out))
 }
 
 /// `{ <space>: { applied, head, schema } }` reduced to the spaces of the call, each with three

@@ -102,7 +102,8 @@ pub const MAX_ERASE_APPROVAL_WINDOW_S: u64 = 604_800;
 /// A task's default `ttlMs` (12.2).
 pub const DEFAULT_TASK_TTL_MS: u64 = 3_600_000;
 /// More readable memory matches than this is `MEMORY_QUERY_TOO_BROAD` (9.2).
-pub const MAX_MEMORY_MATCHES: usize = 50_000;
+#[allow(clippy::cast_possible_truncation)]
+pub const MAX_MEMORY_MATCHES: usize = umbel_store::memory::MAX_RECALL_MATCHES as usize;
 
 /// A `verified` command with no person login to prove the person (phase 5 section 10.5).
 pub const PERSON_VERIFICATION_UNAVAILABLE: &str = "PERSON_VERIFICATION_UNAVAILABLE";

@@ -235,6 +235,11 @@ pub struct Caller {
     operator: bool,
     /// Whether the workspace is hosted (`auth.mode` not `none`).
     hosted: bool,
+    /// Whether the call's authentication is `process` (stdio and the CLI), which keeps version 0
+    /// cursors and plain positions (phase 5 section 9.3).
+    process: bool,
+    /// Who positions are sealed for: the actor, and the person it acts for.
+    identity: String,
 }
 
 impl Caller {
@@ -272,6 +277,13 @@ impl Caller {
                 None => (Narrowing::None, Vec::new()),
             },
         };
+        let process = principal
+            .as_ref()
+            .is_some_and(|p| p.authentication == Authentication::Process);
+        let identity = principal
+            .as_ref()
+            .map(|p| position_identity(&p.actor))
+            .unwrap_or_default();
         let effective = principal.and_then(|p| effective_principal(&p.actor));
         let mut caller = Self::new(
             config,
@@ -281,6 +293,8 @@ impl Caller {
             is_operator(context),
         );
         caller.scope_text = scope_text;
+        caller.process = process;
+        caller.identity = identity;
         caller
     }
 
@@ -301,6 +315,8 @@ impl Caller {
             scope_text: Vec::new(),
             operator,
             hosted: config.auth.mode.is_hosted(),
+            process: false,
+            identity: String::new(),
         }
     }
 
@@ -317,6 +333,8 @@ impl Caller {
             scope_text: self.scope_text.clone(),
             operator: self.operator,
             hosted: self.hosted,
+            process: self.process,
+            identity: self.identity.clone(),
         }
     }
 
@@ -360,6 +378,22 @@ impl Caller {
         self.hosted && !self.operator
     }
 
+    /// Whether this caller sees positions sealed (phase 5 sections 9 and 9.3): a hosted caller
+    /// that is neither the operator nor a `process` caller (stdio), so the library and every
+    /// HTTP caller, as `workspace-show`'s `exact` says. Mode `none`, the operator and stdio keep
+    /// plain positions and version 0 cursors (section 14's point 10).
+    #[must_use]
+    pub fn seals_positions(&self) -> bool {
+        self.hosted && !self.operator && !self.process
+    }
+
+    /// Who this caller's positions are sealed for: its actor's kind and id and the person it acts
+    /// for, so a token opens for nobody else.
+    #[must_use]
+    pub fn position_identity(&self) -> &str {
+        &self.identity
+    }
+
     /// Whether the caller may read `space` by its `readers` (with equivalents and claim groups),
     /// and its token, if any, grants a verb there. A scope never makes an unreadable space
     /// readable (5.3).
@@ -379,6 +413,20 @@ impl Caller {
             not_readable(space)
         }
     }
+}
+
+/// The identity a sealed position binds (phase 5 section 9.3): `<kind>:<id>`, and the person the
+/// actor acts for after a NUL byte, which no principal string holds.
+fn position_identity(actor: &afd::Actor) -> String {
+    let kind = serde_json::to_value(actor.kind)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default();
+    format!(
+        "{kind}:{}\u{0}{}",
+        actor.id.as_deref().unwrap_or(""),
+        actor.on_behalf_of.as_deref().unwrap_or("")
+    )
 }
 
 /// The spaces a host built-in may name to `context`'s caller (phase 5 sections 9.4 and 4.7):

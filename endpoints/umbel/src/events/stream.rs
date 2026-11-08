@@ -199,6 +199,85 @@ pub(crate) fn read_after(
     Ok(events)
 }
 
+/// What one reader can see of a stream (phase 5 section 9.3): positions are those of events it
+/// can read, so none moves with an event it cannot.
+#[derive(Debug, Default)]
+pub(crate) struct ReadableScan {
+    /// Up to `limit` events it can read after `start`, in order.
+    pub(crate) events: Vec<Event>,
+    /// The `seq` of the last of them, or, when there are none, of the last event it can read at
+    /// or before `start` (0 when there is none).
+    pub(crate) cursor: u64,
+    /// The `seq` of the last event it can read at or before `head` (0 when there is none).
+    pub(crate) head: u64,
+    /// How many events it can read at or before `head`.
+    pub(crate) count: u64,
+    /// The `seq` of the last event it can read at or before `mark` (0 when there is none).
+    pub(crate) marked: u64,
+}
+
+impl ReadableScan {
+    /// Whether it can read an event after the cursor.
+    pub(crate) fn more(&self) -> bool {
+        self.head > self.cursor
+    }
+}
+
+/// Read the stream at `path` up to event `head` as one reader, whom `admits` names, after
+/// `start`, also finding its last event at or before `mark`: every event is parsed, so the answer
+/// depends only on the events it admits.
+pub(crate) fn scan_readable(
+    path: &Path,
+    start: u64,
+    mark: u64,
+    limit: usize,
+    head: u64,
+    admits: impl Fn(&Event) -> bool,
+) -> Result<ReadableScan, EventsError> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(ReadableScan::default()),
+        Err(error) => return Err(EventsError::io(path, error)),
+    };
+    let mut reader = BufReader::new(file);
+    let mut scan = ReadableScan::default();
+    let mut line = Vec::new();
+    let mut index = 0u64;
+    let mut base = 0u64;
+    loop {
+        line.clear();
+        let read = reader
+            .read_until(b'\n', &mut line)
+            .map_err(|error| EventsError::io(path, error))?;
+        if read == 0 || line.last() != Some(&b'\n') {
+            break;
+        }
+        if line.iter().all(u8::is_ascii_whitespace) {
+            continue;
+        }
+        index += 1;
+        let event = parse_line(path, index, &line)?;
+        if event.seq > head {
+            break;
+        }
+        if !admits(&event) {
+            continue;
+        }
+        scan.count += 1;
+        scan.head = event.seq;
+        if event.seq <= mark {
+            scan.marked = event.seq;
+        }
+        if event.seq <= start {
+            base = event.seq;
+        } else if scan.events.len() < limit {
+            scan.events.push(event);
+        }
+    }
+    scan.cursor = scan.events.last().map_or(base, |event| event.seq);
+    Ok(scan)
+}
+
 fn parse_line(path: &Path, line_number: u64, line: &[u8]) -> Result<Event, EventsError> {
     let value: Value = serde_json::from_slice(line).map_err(|error| {
         EventsError::damaged(path, format!("line {line_number} is not JSON: {error}"))

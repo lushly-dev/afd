@@ -1,5 +1,6 @@
 //! Group `memory_recall`: every query form with its hit set, `+a b`, stemming, field weights,
-//! order and ties, hostile strings, scope and class filters, snippets and ranks (section 5.2).
+//! order and ties (score, then the authority's tier, then recency, then id: phase 5 section
+//! 9.2), hostile strings, scope and class filters, snippets and ranks (section 5.2).
 //! The corpus holds filler records so that no term is common enough for BM25 to discount it.
 
 use std::collections::BTreeSet;
@@ -17,7 +18,7 @@ pub(super) const CASES: &[(&str, super::MemoryCaseFn)] = &[
     ("a_required_term_beside_a_plain_one", plus_a_b),
     ("stemming_matches_inflections", stemming),
     ("subject_outweighs_tags_outweighs_text", field_weights),
-    ("ties_order_by_recorded_then_id", ties),
+    ("ties_order_by_tier_then_recorded_then_id", ties),
     ("hostile_strings_are_text_or_invalid", hostile),
     ("scope_class_tag_and_authority_filters", filters),
     ("hits_carry_ranks_and_snippets", ranks_and_snippets),
@@ -233,15 +234,21 @@ fn ties(env: &MemoryEnv<'_>) -> CaseResult {
     };
     write(m, T0, vec![tied(31, "p31"), tied(30, "p30")])?;
     write(m, T0 + 5000, vec![tied(32, "p32")])?;
+    // A person's record, the oldest: the authority's tier comes before recency (phase 5
+    // section 9.2).
+    let mut person = tied(33, "p33");
+    samples::set_authority(&mut person, Authority::Person);
+    write(m, T0 - 5000, vec![person])?;
     let hits = recall_ids(m, &recall_query("kumquat", NOW)?, &ada())?;
     ensure_eq(
         hits,
         vec![
+            samples::memory_id(33),
             samples::memory_id(32),
             samples::memory_id(30),
             samples::memory_id(31),
         ],
-        "equal scores: newest recorded first, then id",
+        "equal scores: the higher tier first, then newest recorded, then id",
     )?;
     pass()
 }

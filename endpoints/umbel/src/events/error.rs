@@ -50,6 +50,22 @@ impl EventsError {
         }
     }
 
+    /// The error as a caller whose positions are sealed is told of it (phase 5 section 9.3): its
+    /// code, and no message naming a line, which would count events it cannot read, or a path.
+    pub(crate) fn to_sealed_command_error(&self) -> CommandError {
+        let error = self.to_command_error();
+        let message = match self {
+            Self::Lock(_) => return error,
+            Self::Damaged(_) => "this space's event stream is damaged; the operator repairs it",
+            Self::Io(_) => "this space's event stream could not be read",
+        };
+        let mut sealed = CommandError::new(&error.code, message).with_retryable(false);
+        if let Some(suggestion) = error.suggestion {
+            sealed = sealed.with_suggestion(suggestion);
+        }
+        sealed
+    }
+
     /// The same, for opening or repairing a host.
     pub(crate) fn into_host_error(self) -> HostError {
         match self {
@@ -88,4 +104,30 @@ pub(crate) fn invalid_cursor(message: String) -> CommandError {
     CommandError::new(INVALID_CURSOR, message)
         .with_suggestion("Use a cursor returned by event-list for this space, or omit it to start after your acknowledged cursor.")
         .with_retryable(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_sealed_stream_error_names_no_line_or_path() {
+        let path = Path::new("/srv/umbel/state/spaces/main/events.jsonl");
+        for error in [
+            EventsError::damaged(path, "line 4127 is not an event"),
+            EventsError::io(path, "permission denied"),
+        ] {
+            let plain = error.to_command_error();
+            let sealed = error.to_sealed_command_error();
+            assert_eq!(sealed.code, plain.code);
+            assert!(plain.message.contains("events.jsonl"));
+            assert!(
+                !sealed.message.contains("events.jsonl"),
+                "{}",
+                sealed.message
+            );
+            assert!(!sealed.message.contains("4127"), "{}", sealed.message);
+            assert!(!sealed.message.contains("/srv"), "{}", sealed.message);
+        }
+    }
 }

@@ -252,17 +252,14 @@ async fn a_hosted_workspace_reports_every_auth_check_in_order_after_http_config(
     let at = ids.iter().position(|id| id == "http.config").unwrap();
     let end = at + 1 + umbel::doctor::AUTH_CHECKS.len();
     assert_eq!(&ids[at + 1..end], umbel::doctor::AUTH_CHECKS, "{ids:?}");
-    // A shipped build verifies oauth but does not serve it yet: a warning, not a failure.
-    let mode = report.expect("auth.mode", "warn");
-    assert!(mode.contains("does not serve oauth"), "{mode}");
+    // A shipped build serves oauth since phase 5 step 7: no warning, as for every other check.
+    let mode = report.expect("auth.mode", "pass");
+    assert!(!mode.contains("does not serve"), "{mode}");
     for id in &umbel::doctor::AUTH_CHECKS[1..] {
         report.expect(id, "pass");
     }
     assert_eq!(report.value["data"]["healthy"], json!(true));
     assert_eq!(report.run.code, 0, "{}", report.run.stdout);
-    // The seam that serves unfinished oauth for tests also clears the warning.
-    let served = doctor_with(dir.path(), &kit, HostBuilder::with_unfinished_oauth).await;
-    served.expect("auth.mode", "pass");
 }
 
 #[tokio::test]

@@ -50,6 +50,7 @@ pub fn run(plugin: &impl Plugin, name: &str, input: &str, context: types::CallCo
         // Nor the host's terminal check, nor the workspace's equivalents.
         person: false,
         equivalents: Vec::new(),
+        sealed_positions: false,
     };
     let outcome = match serde_json::from_str::<Value>(input) {
         Ok(input) => {

@@ -75,6 +75,10 @@ required-features = ["testkit"]
 afd = { path = "../../packages/rust", features = ["server", "journal-file-shared"] }
 async-trait = "0.1"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+# Sealed positions (phase 5 section 9.3, D125): XChaCha20-Poly1305 with a synthetic nonce under
+# `state/keys/cursor.key`, for every build, since any build may open a hosted workspace. Already
+# in the lock, through the embedded store's sealed memory.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"], optional = true }
 getrandom = ">=0.3, <0.5"
@@ -119,6 +123,7 @@ sse-stream = { version = "0.2", optional = true }
 # PEM files; SQLite holds the limit counters every process behind one URL shares (section 10.2).
 # `base64` decodes a verified access token's claims for the mapping of section 4.1.
 base64 = { version = "0.22", optional = true }
+
 # The outbound client's TLS: the platform's roots, on the `aws-lc-rs` provider passed explicitly.
 rustls-platform-verifier = { version = "0.7", optional = true }
 rusqlite = { version = "0.41", features = ["bundled"], optional = true }

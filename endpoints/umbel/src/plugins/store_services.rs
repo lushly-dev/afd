@@ -314,6 +314,47 @@ impl CallServices {
             .map_err(host_error)
     }
 
+    /// How this call's caller sees positions (phase 5 section 9.3): the call's own caller, never
+    /// a principal read as.
+    fn presenter(&self) -> Result<crate::positions::Presenter> {
+        let caller = Caller::of(self.shared.workspace.config(), &self.context);
+        crate::positions::Presenter::of(&self.shared.workspace, &caller)
+            .map_err(|error| ServiceError::Io(format!("{}: {}", error.code, error.message)))
+    }
+
+    pub(super) fn svc_doc_position(&self, space: &str, rev: Rev) -> Result<Value> {
+        let (stores, filter) = self.reading("documents", space)?;
+        let presenter = self.presenter()?;
+        if !presenter.seals() {
+            return Ok(Value::from(rev));
+        }
+        let last = stores
+            .documents
+            .last_readable_document(rev, &filter)
+            .map_err(host_error)?;
+        Ok(presenter.revision(space, last))
+    }
+
+    pub(super) fn svc_doc_position_of(&self, space: &str, value: &Value) -> Result<Rev> {
+        self.scoped("documents", space)?;
+        self.filter(space)?;
+        let presenter = self.presenter()?;
+        let rev = if presenter.seals() {
+            value
+                .as_str()
+                .and_then(|text| presenter.open(crate::positions::Kind::Revision, space, text))
+        } else {
+            value.as_u64()
+        };
+        rev.ok_or_else(|| {
+            ServiceError::Invalid(if presenter.seals() {
+                "not a revision this space gave you; pass one as it was returned".to_owned()
+            } else {
+                "a revision is a non-negative integer".to_owned()
+            })
+        })
+    }
+
     pub(super) fn svc_doc_put(
         &self,
         space: &str,

@@ -306,6 +306,7 @@ impl<P: Plugin> CommandHandler for Handler<P> {
             pipeline: None,
             person: false,
             equivalents: Vec::new(),
+            sealed_positions: false,
         };
         let services = Services {
             shared: Arc::clone(&self.shared),

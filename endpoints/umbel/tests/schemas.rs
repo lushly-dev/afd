@@ -22,7 +22,7 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 42] = [
+const STEMS: [&str; 43] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
@@ -65,6 +65,7 @@ const STEMS: [&str; 42] = [
     "usage-event.v1",
     "person-decision.v1",
     "protected-resource.v1",
+    "event-view.v1",
 ];
 
 fn schemas_dir() -> PathBuf {

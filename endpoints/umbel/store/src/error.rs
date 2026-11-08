@@ -58,6 +58,12 @@ pub enum StoreError {
         /// The record.
         id: String,
     },
+    /// A memory query matches more readable records than recall ranks
+    /// (`MEMORY_QUERY_TOO_BROAD`, phase 5 section 9.2); nothing was returned.
+    QueryTooBroad {
+        /// The most readable matches a recall ranks.
+        limit: u64,
+    },
 }
 
 impl StoreError {
@@ -97,6 +103,10 @@ impl fmt::Display for StoreError {
             Self::KeysMismatch => write!(f, "the memory key file does not belong to this store"),
             Self::KeyAbsent { id } => write!(f, "the key of memory record {id} is absent"),
             Self::SealInvalid { id } => write!(f, "memory record {id} does not open"),
+            Self::QueryTooBroad { limit } => write!(
+                f,
+                "the query matches more than {limit} readable records; narrow it"
+            ),
         }
     }
 }

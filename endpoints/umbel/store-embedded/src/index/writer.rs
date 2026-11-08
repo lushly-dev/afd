@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use tantivy::schema::Schema;
+use tantivy::tokenizer::TokenizerManager;
 use tantivy::{Index, IndexWriter, TantivyDocument, Term};
 use umbel_store::{DocId, IndexChunk, IndexWriterSession, Rev, StoreError};
 
@@ -16,6 +17,8 @@ pub(crate) struct Session {
     writer: Option<IndexWriter<TantivyDocument>>,
     schema: Schema,
     fields: Fields,
+    /// The index's analyzers, to count each chunk's tokens as the indexer will.
+    tokenizers: TokenizerManager,
     /// The revision the index reflects, read under the lock and moved by this session's commit.
     applied: Rev,
 }
@@ -31,6 +34,7 @@ impl Session {
             writer: Some(writer),
             schema: index.schema(),
             fields,
+            tokenizers: index.tokenizers().clone(),
             applied: read_applied(index)?,
         })
     }
@@ -62,7 +66,13 @@ impl IndexWriterSession for Session {
                     chunk.ordinal
                 )));
             }
-            documents.push(schema::document(&self.schema, doc, chunk)?);
+            documents.push(schema::document(
+                &self.schema,
+                &self.fields,
+                &self.tokenizers,
+                doc,
+                chunk,
+            )?);
         }
         let doc_field = self.fields.doc;
         let writer = self.open()?;

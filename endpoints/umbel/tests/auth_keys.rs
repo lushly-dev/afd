@@ -260,7 +260,6 @@ async fn with_ca_file(as_roots: Option<&str>, kit_ca_is_a_platform_root: bool) -
     let clock = afd::fixed_clock(support::oauth::now_ms());
     let mut builder = umbel::HostBuilder::open(dir.path())
         .unwrap()
-        .with_unfinished_oauth()
         .with_auth_clock(clock.clone())
         .register(support::oauth::whoami())
         .register(support::oauth::touch());
@@ -344,7 +343,6 @@ async fn a_ca_file_that_cannot_be_trusted_stops_the_server_before_it_starts() {
         }
         let host = umbel::HostBuilder::open(dir.path())
             .unwrap()
-            .with_unfinished_oauth()
             .register(support::oauth::whoami())
             .register(support::oauth::touch())
             .seal()
@@ -374,7 +372,6 @@ async fn a_ca_file_that_cannot_be_trusted_stops_the_server_before_it_starts() {
     let dir = support::workspace(&support::oauth::config(&kit, &setup));
     let host = umbel::HostBuilder::open(dir.path())
         .unwrap()
-        .with_unfinished_oauth()
         .register(support::oauth::whoami())
         .register(support::oauth::touch())
         .seal()

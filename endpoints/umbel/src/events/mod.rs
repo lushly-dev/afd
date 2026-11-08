@@ -19,5 +19,5 @@ pub use projector::{RepairReport, RepairedSpace};
 pub(crate) use error::{EventsError, invalid_cursor};
 pub(crate) use event::CHANGES_KEY;
 pub(crate) use projector::{ProjectingSink, Projector};
-pub(crate) use store::{read as read_cursor, valid_consumer, write as write_cursor};
-pub(crate) use stream::read_after;
+pub(crate) use store::{read_as as read_cursor_as, valid_consumer, write as write_cursor};
+pub(crate) use stream::{read_after, scan_readable};
