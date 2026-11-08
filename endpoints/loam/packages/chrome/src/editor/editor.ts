@@ -159,6 +159,10 @@ export class EditorController implements FrameListener {
 	#focus: { tab: string; editor: boolean } | null = null;
 	/** By tab, the parked frames still saving, which a tab shown again meanwhile takes back with their drafts. */
 	readonly #parking = new Map<string, LoamEditorFrame>();
+	/** The frames with a leave under way, and the leave asked for again meanwhile, which runs once it settles. */
+	readonly #leaving = new WeakMap<LoamEditorFrame, 'closed' | 'parked' | 'left' | null>();
+	/** Each frame's count of edits its editor reported, so a leave knows of one made after its save began. */
+	readonly #edits = new WeakMap<LoamEditorFrame, number>();
 	/** By document, the frames waiting for their document's new tab, after their saves rejected (5.5). */
 	readonly #adopt = new Map<string, LoamEditorFrame>();
 	/** A render once the app surfaces have registered `ICONS_V1`, when one ran before them. */
@@ -653,6 +657,7 @@ export class EditorController implements FrameListener {
 
 	dirty(frame: LoamEditorFrame, dirty: boolean): void {
 		if (!this.#live(frame)) return;
+		if (dirty) this.#edits.set(frame, (this.#edits.get(frame) ?? 0) + 1);
 		// Every edit restarts the timer; the kernel hears a change only.
 		this.#stopTimer(frame.tab);
 		if (dirty && frame.autosaveMs !== undefined) {
@@ -690,7 +695,21 @@ export class EditorController implements FrameListener {
 	 * `closed` frame also clears its closed tab's mark, saved, kept or clean, since that call may have left one.
 	 */
 	#retire(frame: LoamEditorFrame, how: 'closed' | 'parked' | 'left' = 'left'): void {
-		void this.#leave(frame, how).catch(reportError);
+		if (how === 'parked') this.#parking.set(frame.tab, frame);
+		// One leave at a time: a frame taken back and parked again leaves again once the first has settled,
+		// saving what it holds then.
+		if (this.#leaving.has(frame)) {
+			this.#leaving.set(frame, how);
+			return;
+		}
+		this.#leaving.set(frame, null);
+		void this.#leave(frame, how)
+			.catch(reportError)
+			.finally(() => {
+				const again = this.#leaving.get(frame);
+				this.#leaving.delete(frame);
+				if (again && this.#frames.get(frame.tab) !== frame) this.#retire(frame, again);
+			});
 	}
 
 	async #leave(frame: LoamEditorFrame, how: 'closed' | 'parked' | 'left'): Promise<void> {
@@ -699,8 +718,8 @@ export class EditorController implements FrameListener {
 		const key = this.#scopeKey;
 		// A closed tab's frame was showing when its tab was the active one.
 		const shown = !frame.hidden;
+		const edits = this.#edits.get(frame);
 		let kept = false;
-		if (how === 'parked') this.#parking.set(tab, frame);
 		try {
 			const saved = !dirty || (await this.#save(frame));
 			if (!saved && key === this.#scopeKey && this.#area.isConnected) {
@@ -714,14 +733,18 @@ export class EditorController implements FrameListener {
 			const now = this.#frames.get(tab);
 			if (
 				scope &&
-				(how === 'closed' || (dirty && saved)) &&
+				// Not when it holds an edit made after its save began, which keeps the tab unsaved.
+				(how === 'closed' || (dirty && saved && this.#edits.get(frame) === edits)) &&
 				!(now?.dirty && now.record?.scope.project === scope.project)
 			)
 				await this.#kernel.call('editor-dirty-set', { tab, dirty: false }, { scope });
 		} finally {
-			if (this.#parking.get(tab) === frame) this.#parking.delete(tab);
-			// Taken back by its tab while it saved, it is that tab's frame now.
-			if (!kept && this.#frames.get(tab) !== frame) await frame.dispose();
+			// Asked to leave again meanwhile, the next leave has its parking entry and its frame.
+			if (!this.#leaving.get(frame)) {
+				if (this.#parking.get(tab) === frame) this.#parking.delete(tab);
+				// Taken back by its tab while it saved, it is that tab's frame now.
+				if (!kept && this.#frames.get(tab) !== frame) await frame.dispose();
+			}
 		}
 	}
 
@@ -762,12 +785,15 @@ export class EditorController implements FrameListener {
 			const held = each.tabs.find((tab) => tab.document === document);
 			const group = held && this.#groups.get(each.id);
 			if (!held || !group) continue;
-			const other = this.#frames.get(held.id);
+			// A tab's editor parked and still saving is its editor too: unsaved, it is not clean.
+			const parked = this.#parking.get(held.id);
+			const other = this.#frames.get(held.id) ?? parked;
 			if (other?.dirty) {
 				unsaved = true;
 				continue;
 			}
-			if (other) void other.dispose();
+			if (parked) this.#parking.delete(held.id);
+			else if (other) void other.dispose();
 			this.#take(frame, held.id, group);
 			await mark(held.id);
 			if (shown) await this.#kernel.call('editor-activate', { tab: held.id }, at);

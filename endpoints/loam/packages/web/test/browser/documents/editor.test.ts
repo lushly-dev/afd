@@ -232,8 +232,12 @@ async function trashOnClear(page: Page, note: string, tab: string): Promise<void
 }
 const trapped = (page: Page) => page.evaluate(() => (window as Trapped).trapped);
 
-/** What `failSaves` leaves on the page: each held save's rejection, and whether saves now reject at once. */
-type FailedSaves = Window & { failSaves?: Array<() => void>; failNow?: boolean };
+/** What `failSaves` leaves on the page: each held save, by tab, and whether saves now reject at once. */
+type FailedSaves = Window & {
+	failSaves?: Array<() => void>;
+	heldSaves?: Array<{ tab: string; fail: () => void; pass: () => void }>;
+	failNow?: boolean;
+};
 
 /** Hold every later save of each tab's frame, autosave's too, until {@link failAll} rejects them. */
 async function failSaves(page: Page, tabs: string[]): Promise<void> {
@@ -243,15 +247,19 @@ async function failSaves(page: Page, tabs: string[]): Promise<void> {
 		};
 		const held = window as FailedSaves;
 		held.failSaves ??= [];
+		held.heldSaves ??= [];
 		for (const tab of tabs) {
 			const frame = shell.editor.frames.get(tab);
 			if (!frame) throw new Error(`No frame for ${tab}`);
 			frame.save = () =>
-				new Promise<void>((_resolve, reject) => {
+				new Promise<void>((resolve, reject) => {
 					const fail = () =>
 						reject(Object.assign(new Error('Held, then refused'), { code: 'TEST_REFUSED' }));
 					if (held.failNow) fail();
-					else held.failSaves?.push(fail);
+					else {
+						held.failSaves?.push(fail);
+						held.heldSaves?.push({ tab, fail, pass: () => resolve() });
+					}
 				});
 		}
 	}, tabs);
@@ -266,6 +274,28 @@ async function framesGone(page: Page, tabs: string[]): Promise<void> {
 		return tabs.every((tab) => !shell.editor.frames.has(tab));
 	}, tabs);
 }
+
+/** Settle the saves held for `tab` so far: each resolves, as a save that wrote, or rejects. */
+const settleSaves = (page: Page, tab: string, how: 'pass' | 'fail') =>
+	page.evaluate(
+		({ tab, how }) => {
+			const held = window as FailedSaves;
+			const mine = (held.heldSaves ?? []).filter((each) => each.tab === tab);
+			held.heldSaves = (held.heldSaves ?? []).filter((each) => each.tab !== tab);
+			for (const each of mine) each[how]();
+		},
+		{ tab, how }
+	);
+
+/** Whether the controller holds a frame for `tab` that is on the page, with its editor. */
+const frameDrawn = (page: Page, tab: string) =>
+	page.evaluate((tab) => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			editor: { frames: Map<string, HTMLElement> };
+		};
+		const frame = shell.editor.frames.get(tab);
+		return !!frame?.isConnected && !!frame.querySelector('loam-mount');
+	}, tab);
 
 /** Reject every held save together, and every later one at once. */
 const failAll = (page: Page) =>
@@ -1103,6 +1133,94 @@ describe('P2-D5: the editor area, native half', () => {
 		expect((await editorView(page))?.[0]?.editors.find((each) => !each.hidden)?.tab).toBe('t1');
 		await opened.context.close();
 	});
+
+	it('P2-D5: a parked editor taken back, edited and parked again keeps its mark and its draft through both saves', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const first = await createNote(page, 'First');
+		await open(page, first);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'A');
+		const park = async (from: number) => {
+			for (let index = from; index < from + 10; index++) {
+				await open(page, await createNote(page, `Note ${index}`));
+			}
+			await framesGone(page, ['t1']);
+		};
+		// Parked with its save held; taken back and edited; parked again while that first save is pending.
+		await park(2);
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await textOf(page, 't1').click();
+		await page.keyboard.press('ControlOrMeta+End');
+		await page.keyboard.type('B');
+		await park(12);
+		// The first save writes what it began with; the frame holds a later edit, so the tab stays unsaved.
+		await settleSaves(page, 't1', 'pass');
+		await editorIdle(page);
+		const dirty = async () =>
+			(
+				(await agentCall(page, 'editor-get')) as {
+					data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
+				}
+			).data.groups[0]?.tabs.find((tab) => tab.id === 't1')?.dirty;
+		expect(await dirty()).toBe(true);
+		expect(
+			(
+				(await agentCall(page, 'document-trash', { document: first })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		// The second save rejects: the same frame, never disposed, goes back into its tab with the draft.
+		await expect
+			.poll(async () => await page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+			.toBeGreaterThan(0);
+		await settleSaves(page, 't1', 'fail');
+		await expect.poll(() => draftOf(page, 't1')).toBe('AB');
+		expect(await frameDrawn(page, 't1')).toBe(true);
+		expect(await dirty()).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: a rejected draft does not take a tab whose parked editor is still saving its own draft', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Shared');
+		// t1 in the first group, parked with its save held.
+		await open(page, note);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Parked draft');
+		for (let index = 2; index <= 11; index++)
+			await open(page, await createNote(page, `Note ${index}`));
+		await framesGone(page, ['t1']);
+		// The same note beside, t12, with its own draft, its save held; then the first group active again.
+		await open(page, note, { group: 'beside' });
+		await failSaves(page, ['t12']);
+		await typeInto(page, 't12', 'Beside draft');
+		await kernelCall(page, 'editor-activate', { tab: 't11' });
+		await editorIdle(page);
+		await agentCall(page, 'editor-close', { tab: 't12', discard: true });
+		await framesGone(page, ['t12']);
+		// t12's save rejects first: its draft goes beside, not into t1, whose parked editor is unsaved.
+		await settleSaves(page, 't12', 'fail');
+		await expect
+			.poll(() =>
+				page.evaluate((note) => {
+					const shell = document.querySelector('loam-shell') as unknown as {
+						editor: { frames: Map<string, HTMLElement & { document: string }> };
+					};
+					return [...shell.editor.frames.entries()]
+						.filter(([, frame]) => frame.document === note)
+						.map(([tab]) => tab);
+				}, note)
+			)
+			.toEqual(['t13']);
+		await settleSaves(page, 't1', 'fail');
+		await expect.poll(() => draftOf(page, 't1')).toBe('Parked draft');
+		expect(await draftOf(page, 't13')).toBe('Beside draft');
+		await opened.context.close();
+	}, 120_000);
 
 	it('P2-D5: a tab’s type icon is blank until the app surfaces register the icons, then drawn', async () => {
 		const opened = await openShell(browser, site.root);

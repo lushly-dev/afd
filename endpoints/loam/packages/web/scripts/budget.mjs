@@ -92,7 +92,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * retry beside (58), and every group searched for its document's clean tab (44), with the loop that does it
  * (about 72). The fifth raised it by 210, to 29,300, approved by the coordinator, 2026-11-07: a parked editor
  * still saving taken back, with its draft, by its tab shown again; `late` rose to 58,480 with an instance
- * mutation's check, write and stamp in its document's chain.
+ * mutation's check, write and stamp in its document's chain. The sixth raised it by 323, to 29,623, approved
+ * by the coordinator, 2026-11-07: one leave at a time for a frame taken back and parked again (195), each frame's
+ * count of edits, so a leave knows of one made after its save began (82), and a tab whose parked editor is
+ * still saving counted as unsaved by a rejected draft's reopen (46).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -112,7 +115,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 29_300,
+	editorMinified: 29_623,
 });
 
 /** Group a module id by the package it belongs to. */
