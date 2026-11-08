@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { success } from '@lushly-dev/afd-core';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { InMemoryTransport } from '@modelcontextprotocol/server';
+import { createRequestStateCodec, InMemoryTransport } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { confirmationBinding, createConfirmationGate } from './confirmation-gate.js';
@@ -398,6 +398,221 @@ describe('confirmations over MCP', () => {
 		);
 		expect((matching.json.result as { isError: boolean }).isError).toBe(false);
 		expect(calls).toEqual(['clear:a']);
+	});
+
+	it('binds a confirmation to the actor and credentials it was issued to (#532)', async () => {
+		// Test-only headers: a real createContext reads identity something verified.
+		const { url, calls } = await serve({
+			createContext: (req) => {
+				const actor = req.headers['x-test-actor'];
+				const credentials = req.headers['x-test-credentials'];
+				return {
+					...(typeof actor === 'string' && { actor: JSON.parse(actor) }),
+					...(typeof credentials === 'string' && { credentials: JSON.parse(credentials) }),
+				};
+			},
+		});
+		const envelope = {
+			'io.modelcontextprotocol/protocolVersion': MODERN,
+			'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
+			'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+		};
+		const caller = {
+			actor: { kind: 'agent', id: 'todo-agent', label: 'Todo agent', onBehalfOf: 'user-1' },
+			credentials: {
+				issuer: 'https://auth.example.com',
+				subject: 'user-1',
+				clientId: 'todo-agent',
+				scopes: ['todo:write'],
+			},
+		};
+		type Caller = { actor?: object; credentials?: object };
+		const call = (id: number, as: Caller, extra: object = {}) =>
+			post(
+				url,
+				{
+					jsonrpc: '2.0',
+					id,
+					method: 'tools/call',
+					params: { name: 'todo-clear', arguments: { scope: 'a' }, _meta: envelope, ...extra },
+				},
+				{
+					'MCP-Protocol-Version': MODERN,
+					'Mcp-Method': 'tools/call',
+					'Mcp-Name': 'todo-clear',
+					...(as.actor && { 'X-Test-Actor': JSON.stringify(as.actor) }),
+					...(as.credentials && { 'X-Test-Credentials': JSON.stringify(as.credentials) }),
+				}
+			);
+		/** The question asked, without the `requestState`, which is fresh on every mint. */
+		const question = (response: { json: Record<string, unknown> }) => {
+			const { requestState, ...rest } = response.json.result as Record<string, unknown>;
+			expect(typeof requestState).toBe('string');
+			return rest;
+		};
+		const first = await call(1, caller);
+		const state = (first.json.result as { requestState: string }).requestState;
+		const accepted = { confirm: { action: 'accept', content: { confirm: true } } };
+		const retry = { inputResponses: accepted, requestState: state };
+
+		// A tampered state is the reference: a caller the state was not issued to gets exactly
+		// the same answer, and nothing runs.
+		const tampered = question(
+			await call(2, caller, { ...retry, requestState: `${state.slice(0, -2)}xx` })
+		);
+		expect(tampered).toEqual(question(first));
+		const others: Caller[] = [
+			{ ...caller, actor: { ...caller.actor, id: 'other-agent' } },
+			{ ...caller, actor: { ...caller.actor, onBehalfOf: 'user-2' } },
+			{ ...caller, actor: { ...caller.actor, kind: 'human' } },
+			// No actor: the server's default actor.
+			{ credentials: caller.credentials },
+			{ actor: caller.actor },
+			{ ...caller, credentials: { ...caller.credentials, issuer: 'https://other.example.com' } },
+			{ ...caller, credentials: { ...caller.credentials, subject: 'user-2' } },
+			// The same person through another client is another principal.
+			{ ...caller, credentials: { ...caller.credentials, clientId: 'other-agent' } },
+		];
+		let id = 3;
+		for (const other of others) {
+			expect(question(await call(id++, other, retry))).toEqual(tampered);
+		}
+		// A decline in another caller's state is no answer either: it is asked again.
+		const declined = { confirm: { action: 'decline' } };
+		expect(
+			question(await call(id++, others[0] ?? {}, { ...retry, inputResponses: declined }))
+		).toEqual(tampered);
+		expect(calls).toEqual([]);
+
+		// The state carries no identity in readable form.
+		const readable = Buffer.from(state.slice(3, state.lastIndexOf('.')), 'base64url').toString();
+		for (const name of ['todo-agent', 'user-1', 'auth.example.com']) {
+			expect(readable).not.toContain(name);
+		}
+
+		// The label and the credentials' scopes are not bound: the same principal confirms.
+		const same = {
+			actor: { ...caller.actor, label: 'Renamed' },
+			credentials: { ...caller.credentials, scopes: ['todo:read'] },
+		};
+		const matching = await call(id++, same, retry);
+		expect((matching.json.result as { isError: boolean }).isError).toBe(false);
+		expect(calls).toEqual(['clear:a']);
+	});
+
+	it('does not accept a state minted before the principal was bound', async () => {
+		const key = 'confirm-test-key-0123456789abcdef-0123456789';
+		const { url, calls } = await serve({ confirmationKey: key });
+		// The layout before #532: the method and the SDK's client id alone.
+		const old = createRequestStateCodec<unknown>({
+			key,
+			ttlSeconds: 600,
+			bind: (ctx) => `${ctx.mcpReq.method}\0${ctx.http?.authInfo?.clientId ?? ''}`,
+		});
+		const asked = {
+			k: 'confirm',
+			b: confirmationBinding([{ command: 'todo-clear', input: { scope: 'a' } }]),
+			t: Date.now() + 600_000,
+		};
+		const state = await old.mint({ p: [asked], a: [] }, {
+			mcpReq: { method: 'tools/call' },
+		} as never);
+		const response = await post(
+			url,
+			{
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'tools/call',
+				params: {
+					name: 'todo-clear',
+					arguments: { scope: 'a' },
+					_meta: {
+						'io.modelcontextprotocol/protocolVersion': MODERN,
+						'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
+						'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+					},
+					inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+					requestState: state,
+				},
+			},
+			{ 'MCP-Protocol-Version': MODERN, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'todo-clear' }
+		);
+		expect((response.json.result as { resultType: string }).resultType).toBe('input_required');
+		expect(calls).toEqual([]);
+	});
+
+	it('fails closed when the context carries credentials it cannot bind', async () => {
+		const complete = {
+			issuer: 'https://auth.example.com',
+			subject: 'user-1',
+			clientId: 'todo-agent',
+		};
+		// Test-only header: a real createContext reads identity something verified.
+		const { url, calls } = await serve({
+			createContext: (req) => {
+				const credentials = req.headers['x-test-credentials'];
+				return typeof credentials === 'string' ? { credentials: JSON.parse(credentials) } : {};
+			},
+		});
+		const call = (id: number, credentials: object, extra: object = {}) =>
+			post(
+				url,
+				{
+					jsonrpc: '2.0',
+					id,
+					method: 'tools/call',
+					params: {
+						name: 'todo-clear',
+						arguments: { scope: 'a' },
+						_meta: {
+							'io.modelcontextprotocol/protocolVersion': MODERN,
+							'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
+							'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+						},
+						...extra,
+					},
+				},
+				{
+					'MCP-Protocol-Version': MODERN,
+					'Mcp-Method': 'tools/call',
+					'Mcp-Name': 'todo-clear',
+					'X-Test-Credentials': JSON.stringify(credentials),
+				}
+			);
+		const issued = await call(1, complete);
+		const state = (issued.json.result as { requestState: string }).requestState;
+		const retry = {
+			inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+			requestState: state,
+		};
+		let id = 2;
+		for (const field of ['issuer', 'subject', 'clientId'] as const) {
+			const { [field]: _left, ...missing } = complete;
+			for (const incomplete of [missing, { ...complete, [field]: '' }]) {
+				// No state is minted for them, and none is taken from them, not even one issued
+				// to a complete caller: an internal error that names no one.
+				// A retry from a client that cannot elicit reads the state but never mints one.
+				const cannotElicit = {
+					...retry,
+					_meta: {
+						'io.modelcontextprotocol/protocolVersion': MODERN,
+						'io.modelcontextprotocol/clientCapabilities': {},
+						'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+					},
+				};
+				for (const response of [
+					await call(id++, incomplete),
+					await call(id++, incomplete, retry),
+					await call(id++, incomplete, cannotElicit),
+				]) {
+					expect(response.json.error).toMatchObject({ message: 'Internal error' });
+					const text = JSON.stringify(response.json);
+					expect(text).not.toContain('user-1');
+					expect(text).not.toContain('todo-agent');
+				}
+			}
+		}
+		expect(calls).toEqual([]);
 	});
 
 	it('elicits on a 2025-era stdio connection through the SDK shim', async () => {

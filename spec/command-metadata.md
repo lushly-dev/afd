@@ -131,7 +131,9 @@ sealed inside the state or as its associated data. A retry whose principal bindi
 one the state was issued to (another actor, or another issuer, subject or client) is refused exactly
 as a tampered state is, in the same language. So a confirmation one caller answered cannot let
 another caller skip the question, even a different client of the same person. Without credentials
-the binding is the actor alone, which still separates the actors a context hook admits.
+the binding is the actor alone, which still separates the actors a context hook admits. Credentials
+missing an issuer, subject or client id are never bound: such a call gets no state, and its retry
+is refused with an internal error (M8).
 
 A 2025-era request elicits only where its connection can carry a server-sent request (stdio, or
 stateful HTTP). Over stateless HTTP it gets the acknowledgement path.
@@ -583,7 +585,7 @@ follows `destructive`, `false` when it is unset.
 | `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
 | `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | Planned (declaration only) |
-| Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Planned (Umbel phase 5 step 0c) | Planned (step 0c) | Planned (step 0c) | N/A: no confirmation gate |
+| Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c): the server's `actor` and the SDK-verified token, through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data | N/A: no confirmation gate |
 | `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Planned (step 0d) | N/A: no MCP server |
 | `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Planned | Planned | Planned (step 0e) | N/A: no MCP server |
 

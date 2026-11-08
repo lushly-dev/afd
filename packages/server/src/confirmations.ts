@@ -7,7 +7,8 @@
  *
  * - an accepted MCP elicitation, through the `input_required` round trip of MCP 2026-07-28 (or the
  *   SDK's server-side shim on a 2025-era stdio connection), bound by a signed `requestState` to
- *   the commands and their input; or
+ *   the commands, their input and the call's principal binding (`principal-binding.ts`, #532);
+ *   or
  * - under `enforce`, an acknowledgement: a `confirm` argument, or `_meta["dev.afd/confirm"]`.
  *
  * Otherwise the call fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` before any
@@ -62,7 +63,8 @@ export interface ConfirmationChannel {
 	acknowledged: boolean;
 	/**
 	 * The response to an earlier confirmation elicitation, if this request is its retry and its
-	 * `requestState` verifies for `binding`. A stale, altered or mismatched state is `missing`.
+	 * `requestState` verifies for `binding` and for this call's principal. A stale, altered or
+	 * mismatched state, or one issued to another principal, is `missing`.
 	 */
 	response(binding: string): Promise<'accept' | 'decline' | 'missing'>;
 	/** The `input_required` result that asks `message`, bound to `binding`. */

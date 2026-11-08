@@ -33,7 +33,11 @@ function canonicalJson(value: unknown): string {
 	return JSON.stringify(value ?? null);
 }
 
-/** The binding of a confirmation: a digest of the gated commands and their input. */
+/**
+ * The binding of a confirmation: a digest of the gated commands and their input. The lane that
+ * mints the `requestState` binds the call's principal to the whole state (`mcp-modern.ts`), so
+ * this digest never needs to name the caller.
+ */
 export function confirmationBinding(steps: readonly ConfirmationStep[]): string {
 	return createHash('sha256')
 		.update(canonicalJson(steps.map((step) => [step.command, step.input ?? {}])))

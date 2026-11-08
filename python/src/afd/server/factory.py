@@ -6,6 +6,7 @@ import asyncio
 import copy
 import json
 import logging
+import os
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -64,6 +65,7 @@ from afd.core.schema_validation import SchemaValidationError
 from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_ENVELOPE, to_wire
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
+from afd.server.principal import IncompleteCredentials, principal_binding, sdk_credentials
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.decorators import (
     CommandMetadata,
@@ -1286,17 +1288,79 @@ class MCPServer:
             version=self.config.version,
             cache_hints={"tools/list": hint, "server/discover": hint},
             middleware=[capture_request],
-            **(
-                {"request_state_security": RequestStateSecurity(keys=[self.config.confirmation_key])}
-                if self.config.confirmation_key is not None
-                else {}
+            # The requestState of confirmation elicitations is sealed (AES-256-GCM) and bound
+            # by the SDK to the request, the audience (the server name) and the call's principal
+            # binding (spec/authorization.md, M8; #532): this server's actor and the verified
+            # token's issuer, subject and client. A retry by another principal fails the SDK's
+            # check exactly as an altered state does (JSON-RPC -32602), before any handler runs.
+            # Without a configured key each process uses its own, as the SDK's default would.
+            request_state_security=RequestStateSecurity(
+                keys=[
+                    self.config.confirmation_key
+                    if self.config.confirmation_key is not None
+                    else os.urandom(32)
+                ],
+                bind_principal=lambda _ctx: self._request_principal(),
             ),
         )
+        self._install_unbindable_state_refusal()
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
         self._advertise_fixed_tools_list()
         self._advertise_context_fields()
         return self._mcp_server
+
+    def _install_unbindable_state_refusal(self) -> None:
+        """Refuse a retry that carries a ``requestState`` when the call's credentials cannot be
+        bound (``IncompleteCredentials``), with the internal error the SDK gives when it cannot
+        seal one, before the SDK's boundary would answer ``-32602``.
+
+        The SDK runs user middleware inside its request-state boundary, so this one is placed
+        just before the boundary. Without the boundary where it is expected, the server refuses
+        to start rather than accept such a retry.
+        """
+        from mcp import MCPError
+        from mcp.server.request_state import RequestStateBoundary
+        from mcp_types import INTERNAL_ERROR
+        from mcp_types.methods import INPUT_REQUIRED_METHODS
+
+        server = self
+
+        async def refuse_unbindable_state(ctx: Any, call_next: Any) -> Any:
+            params = getattr(ctx, "params", None)
+            if (
+                getattr(ctx, "method", None) in INPUT_REQUIRED_METHODS
+                and isinstance(params, Mapping)
+                and params.get("requestState") is not None
+            ):
+                try:
+                    server._request_principal()
+                except IncompleteCredentials:
+                    # The reason only, never who: the credentials name the caller.
+                    logger.warning("refusing requestState on %s: incomplete credentials", ctx.method)
+                    raise MCPError(code=INTERNAL_ERROR, message="Internal error") from None
+            return await call_next(ctx)
+
+        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        chain = getattr(lowlevel, "middleware", None)
+        boundary = next(
+            (index for index, item in enumerate(chain or ()) if isinstance(item, RequestStateBoundary)),
+            None,
+        )
+        if boundary is None:
+            raise RuntimeError("the MCP SDK's request-state boundary was not found")
+        chain.insert(boundary, refuse_unbindable_state)
+
+    def _request_principal(self) -> str:
+        """The principal binding of the MCP request being served: the actor its commands run
+        with and the identity of the access token the SDK verified, if any.
+
+        Raises:
+            IncompleteCredentials: A verified token lacks an issuer, subject or client id. The
+                SDK then refuses to seal a state with an internal error, and
+                ``_install_unbindable_state_refusal`` refuses a retry the same way.
+        """
+        return principal_binding(self.config.actor or Actor(kind="agent"), sdk_credentials())
 
     def streamable_http_app(self, **options: Any) -> Any:
         """The Streamable HTTP ASGI app, for mounting in a host application.
@@ -1410,7 +1474,8 @@ class _SdkConfirmationChannel:
     """What one SDK ``tools/call`` can carry for confirmations (``afd.server.confirmations``).
 
     A 2026-07-28 request elicits through ``input_required`` when it declares form
-    elicitation; the SDK seals the ``requestState`` and binds it to the request. A 2025
+    elicitation; the SDK seals the ``requestState`` and binds it to the request and to the
+    call's principal binding (``_request_principal``). A 2025
     request elicits with a server-sent request when its connection has a back channel
     (stdio, stateful HTTP), never over stateless HTTP.
     """
@@ -1576,7 +1641,10 @@ def create_server(
             context has none. Default: ``system_random``.
         actor: Actor for commands called over MCP when the context has none.
             Default: ``Actor(kind="agent")``. Direct ``server.execute()`` calls
-            get no default actor.
+            get no default actor. Confirmation state is bound to this actor and to
+            the SDK-verified token (#532), not to an actor middleware sets later:
+            a host that tells callers apart without SDK tokens cannot separate
+            their confirmations, since Python has no per-request context hook.
         confirmations: Enforce ``confirm_prompt`` on MCP calls
             (``spec/command-metadata.md``, "Confirmations"): ``"off"`` (the default),
             ``"enforce"`` (an accepted elicitation, or an acknowledgement:
@@ -1586,7 +1654,9 @@ def create_server(
             runs. ``server.execute()`` and DirectClient calls are never gated.
         confirmation_key: Key (32 bytes or more) that seals the ``requestState`` of
             confirmation elicitations, shared by every instance behind one URL.
-            Default: a random key per process.
+            Default: a random key per process. The state is bound to the call's
+            principal binding (``afd.server.principal``, #532): ``actor`` and the
+            issuer, subject and client of the access token the SDK verified.
     """
     if confirmations not in CONFIRMATION_MODES:
         raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")

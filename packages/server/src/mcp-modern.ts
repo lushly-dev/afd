@@ -20,7 +20,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { CommandContext } from '@lushly-dev/afd-core';
+import type { Actor, CommandContext } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import {
@@ -72,6 +72,7 @@ import {
 	type RoundState,
 } from './elicitation-state.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
+import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import { type ResourceService, resourceCacheHints } from './resources.js';
 import type { ContextConfig, CreateRequestContext, ToolStrategy } from './server-types.js';
@@ -79,6 +80,12 @@ import { resultContent, type ToolCallResult } from './tool-router.js';
 
 /** The MCP protocol revision this lane serves statelessly. */
 export const MODERN_PROTOCOL_VERSION = '2026-07-28';
+
+/**
+ * Labels the layout of the `requestState` binding (#532 added the principal), so a state minted
+ * under an earlier layout never verifies.
+ */
+const STATE_BINDING_VERSION = 'afd.requestState.v2';
 
 /** Default freshness hint for `tools/list` and `server/discover` results (5 minutes). */
 export const DEFAULT_TOOLS_LIST_TTL_MS = 300_000;
@@ -110,6 +117,11 @@ export interface ModernMcpDeps {
 	 * key per process).
 	 */
 	confirmationKey?: string | Uint8Array;
+	/**
+	 * The actor of a call whose context has none (the server's `actor` option): the principal
+	 * binding of its `requestState` names the actor the commands run with.
+	 */
+	actor?: Actor;
 	/**
 	 * Resources, skills and the Skills extension (`spec/mcp-resources.md`), when the server was
 	 * given a `resources` provider or a `skills` catalog.
@@ -143,6 +155,11 @@ function reporter(onError: ModernMcpDeps['onError']) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** A shallow copy of a plain object; anything else as it is. */
+function shallowCopy(value: unknown): unknown {
+	return isRecord(value) ? { ...value } : value;
 }
 
 /**
@@ -236,28 +253,47 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		return state === undefined ? context : bindContextState(context, state);
 	}
 
-	// The requestState of confirmation and approval elicitations: HMAC-signed, bound to the method
-	// and the caller's client id, and verified in the handler so a stale or altered state is "no
-	// answer", not an error.
-	const stateCodec = createRequestStateCodec<RoundState>({
-		key: deps.confirmationKey ?? randomBytes(32),
-		ttlSeconds: ANSWER_TTL_SECONDS,
-		bind: (ctx) => `${ctx.mcpReq.method}\0${ctx.http?.authInfo?.clientId ?? ''}`,
-	});
+	// The key of the requestState of confirmation and approval elicitations, one per process
+	// unless the host shares one.
+	const stateKey = deps.confirmationKey ?? randomBytes(32);
 
 	/**
 	 * The elicitations of one `tools/call`: the answers its retry carries, and the
 	 * `input_required` result for the next question. One `requestState` carries the questions
 	 * accepted in earlier rounds, so a call that needs a confirmation and then an approval keeps
 	 * the first answer while the second is asked.
+	 *
+	 * The state is HMAC-signed and bound to the method, the SDK's `authInfo.clientId` and the
+	 * call's principal binding (`spec/authorization.md`, M8; #532), and verified in the handler,
+	 * so a stale or altered state is "no answer", not an error. The binding is never in the state:
+	 * the SDK keeps only a truncated HMAC of it, so the state names no one. A state issued to
+	 * another principal (another actor, or another issuer, subject or client) fails that check
+	 * exactly as an altered one fails its MAC, and the call is asked again. `principal` is read
+	 * only when the round reads or mints a state.
 	 */
-	function elicitationRound(ctx: ServerContext) {
+	function elicitationRound(ctx: ServerContext, principal: () => string) {
+		const stateCodec = createRequestStateCodec<RoundState>({
+			key: stateKey,
+			ttlSeconds: ANSWER_TTL_SECONDS,
+			// A JSON array, so no value can run into the next. The version label keeps a state
+			// minted before the principal was bound from ever verifying.
+			bind: (bound) =>
+				JSON.stringify([
+					STATE_BINDING_VERSION,
+					bound.mcpReq.method,
+					bound.http?.authInfo?.clientId ?? '',
+					principal(),
+				]),
+		});
 		let answers: Promise<RoundAnswers> | undefined;
 		const read = (): Promise<RoundAnswers> => {
 			answers ??= (async () => {
 				const none: RoundAnswers = { accepted: [], declined: [] };
 				const state = ctx.mcpReq.requestState();
 				if (typeof state !== 'string') return none;
+				// Credentials that cannot be bound fail the call here, before any state is
+				// verified: a retry is refused with an internal error, as a mint is.
+				principal();
 				let payload: unknown;
 				try {
 					payload = await stateCodec.verify(state, ctx);
@@ -427,12 +463,27 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				throw internalError(error);
 			}
 			const canElicit = canElicitFor(era, server, ctx);
-			const round = elicitationRound(ctx);
-			const relay = canElicit ? approvalRelayFor(round) : undefined;
-			// Declared fields from `_meta` first, so a value `createContext` sets wins.
+			// Declared fields from `_meta` first, so a value `createContext` sets wins. Neither
+			// `actor` nor `credentials` can be a declared field: only `createContext` sets them.
 			const declared = contextFieldValues(deps.contextFields, meta);
+			const callValues: CommandContext = { ...declared, ...values };
+			// Who is calling, as the call starts: the actor the commands run with (`createContext`'s,
+			// or the server's default) and `createContext`'s credentials, copied so that code
+			// changing them in place later cannot change what the state binds. They are checked
+			// and bound only when a state is read or minted, so other calls are unaffected.
+			const actorAtStart = shallowCopy(callValues.actor ?? deps.actor);
+			const credentialsAtStart = shallowCopy(callValues.credentials);
+			let principal: string | undefined;
+			const round = elicitationRound(ctx, () => {
+				principal ??= principalBinding(
+					actorAtStart as Actor | undefined,
+					credentialsAtStart as PrincipalCredentials | undefined
+				);
+				return principal;
+			});
+			const relay = canElicit ? approvalRelayFor(round) : undefined;
 			let context = bindConfirmationChannel(
-				scoped({ ...declared, ...values, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
+				scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
 				confirmationChannelFor(canElicit, round, ctx)
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);

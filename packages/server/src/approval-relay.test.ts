@@ -570,6 +570,66 @@ describe('approval relay over MCP', () => {
 			expect(calls).toEqual([]);
 		});
 
+		it('does not take an approval asked of one principal from another (#532)', async () => {
+			// Test-only header: a real createContext reads identity something verified.
+			const { url, calls } = await serve({
+				server: {
+					createContext: (req) => {
+						const caller = req.headers['x-test-caller'];
+						return typeof caller === 'string' ? JSON.parse(caller) : {};
+					},
+				},
+			});
+			const caller = {
+				actor: { kind: 'agent', id: 'todo-agent', onBehalfOf: 'user-1' },
+				credentials: {
+					issuer: 'https://auth.example.com',
+					subject: 'user-1',
+					clientId: 'todo-agent',
+				},
+			};
+			let id = 0;
+			const call = (as: object, extra: object = {}) =>
+				post(
+					url,
+					{
+						jsonrpc: '2.0',
+						id: ++id,
+						method: 'tools/call',
+						params: {
+							name: 'todo-delete',
+							arguments: { id: 7 },
+							_meta: {
+								'io.modelcontextprotocol/protocolVersion': MODERN,
+								'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
+								'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+							},
+							...extra,
+						},
+					},
+					{
+						'MCP-Protocol-Version': MODERN,
+						'Mcp-Method': 'tools/call',
+						'Mcp-Name': 'todo-delete',
+						'X-Test-Caller': JSON.stringify(as),
+					}
+				);
+			const state = asked(await call(caller)).requestState as string;
+			const retry = { inputResponses: approved, requestState: state };
+			for (const other of [
+				{ ...caller, actor: { ...caller.actor, id: 'other-agent' } },
+				{ ...caller, credentials: { ...caller.credentials, issuer: 'https://other.example.com' } },
+				{ ...caller, credentials: { ...caller.credentials, subject: 'user-2' } },
+				{ ...caller, credentials: { ...caller.credentials, clientId: 'other-agent' } },
+			]) {
+				expect(asked(await call(other, retry)).resultType).toBe('input_required');
+			}
+			expect(calls).toEqual([]);
+			const genuine = await call(caller, retry);
+			expect((genuine.result as { isError?: boolean }).isError).toBe(false);
+			expect(calls).toEqual(['delete:7']);
+		});
+
 		it('does not replay an approved requestState: an approval runs the call once', async () => {
 			const { url, calls } = await serve();
 			const call = rawCaller(url);

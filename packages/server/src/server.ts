@@ -185,6 +185,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		toolsListTtlMs: options.toolsListTtlMs,
 		toolStrategy,
 		confirmationKey: options.confirmationKey,
+		actor: options.actor ?? { kind: 'agent' },
 		resources,
 		resourcesTtlMs,
 		devMode,

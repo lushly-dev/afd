@@ -187,12 +187,33 @@ pub fn is_scope_token(scope: &str) -> bool {
             .all(|byte| matches!(byte, 0x21 | 0x23..=0x5B | 0x5D..=0x7E))
 }
 
+/// Credentials whose `issuer`, `subject` or `client_id` is empty: a principal binding is never
+/// made of them, since it could not tell two callers apart (`spec/authorization.md`, M8). The
+/// verifier never admits such credentials; host code that builds them itself gets this error.
+/// Its message names no one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IncompleteCredentials;
+
+impl std::fmt::Display for IncompleteCredentials {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("credentials lack an issuer, subject or client id")
+    }
+}
+
+impl std::error::Error for IncompleteCredentials {}
+
 /// The identity part of credentials that a principal binding holds: `{ issuer, subject,
 /// clientId }`, or `null`.
-fn identity_json(credentials: Option<&Credentials>) -> Value {
-    match credentials {
+fn identity_json(credentials: Option<&Credentials>) -> Result<Value, IncompleteCredentials> {
+    Ok(match credentials {
         None => Value::Null,
         Some(credentials) => {
+            if credentials.issuer.is_empty()
+                || credentials.subject.is_empty()
+                || credentials.client_id.is_empty()
+            {
+                return Err(IncompleteCredentials);
+            }
             let mut identity = Map::new();
             identity.insert("issuer".into(), Value::String(credentials.issuer.clone()));
             identity.insert("subject".into(), Value::String(credentials.subject.clone()));
@@ -202,7 +223,7 @@ fn identity_json(credentials: Option<&Credentials>) -> Value {
             );
             Value::Object(identity)
         }
-    }
+    })
 }
 
 /// The actor part of a principal binding: `kind`, `id` and `onBehalfOf` when set (never
@@ -232,22 +253,71 @@ fn actor_identity_json(actor: Option<&Actor>) -> Value {
 /// `onBehalfOf` (never `label`) and the identity is the credentials' `issuer`, `subject` and
 /// `clientId`, each `null` when absent. Two calls share a binding only when their actor and
 /// their token's issuer, subject and client are the same.
-pub fn principal_binding(actor: Option<&Actor>, credentials: Option<&Credentials>) -> String {
+///
+/// # Errors
+/// [`IncompleteCredentials`] when the credentials' `issuer`, `subject` or `client_id` is empty:
+/// such a binding is never made, rather than one that binds less.
+pub fn principal_binding(
+    actor: Option<&Actor>,
+    credentials: Option<&Credentials>,
+) -> Result<String, IncompleteCredentials> {
     let mut binding = Map::new();
     binding.insert("actor".into(), actor_identity_json(actor));
-    binding.insert("credentials".into(), identity_json(credentials));
-    crate::canonical::nearest(&Value::Object(binding))
+    binding.insert("credentials".into(), identity_json(credentials)?);
+    Ok(crate::canonical::nearest(&Value::Object(binding)))
 }
 
 /// The credentials' part of a principal binding alone (relay evidence's `credentialsBinding`):
 /// the canonical JSON of `{ issuer, subject, clientId }`, or `null` without credentials.
-pub fn credentials_binding(credentials: Option<&Credentials>) -> String {
-    crate::canonical::nearest(&identity_json(credentials))
+///
+/// # Errors
+/// [`IncompleteCredentials`], as for [`principal_binding`].
+pub fn credentials_binding(
+    credentials: Option<&Credentials>,
+) -> Result<String, IncompleteCredentials> {
+    Ok(crate::canonical::nearest(&identity_json(credentials)?))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn incomplete_credentials_are_never_bound() {
+        let complete = || {
+            Credentials::new(
+                "https://auth.example.com",
+                "user-1",
+                "todo-agent",
+                "r",
+                1,
+                2,
+            )
+        };
+        assert!(principal_binding(None, Some(&complete())).is_ok());
+        for (issuer, subject, client) in [
+            ("", "user-1", "todo-agent"),
+            ("https://auth.example.com", "", "todo-agent"),
+            ("https://auth.example.com", "user-1", ""),
+        ] {
+            let credentials = Credentials::new(issuer, subject, client, "r", 1, 2);
+            assert_eq!(
+                principal_binding(None, Some(&credentials)),
+                Err(IncompleteCredentials)
+            );
+            assert_eq!(
+                credentials_binding(Some(&credentials)),
+                Err(IncompleteCredentials)
+            );
+        }
+        // Without credentials the binding is the actor alone.
+        assert_eq!(
+            principal_binding(None, None).unwrap(),
+            r#"{"actor":null,"credentials":null}"#
+        );
+        let message = IncompleteCredentials.to_string();
+        assert!(!message.contains("user-1") && !message.contains("todo-agent"));
+    }
 
     #[test]
     fn debug_prints_only_issuer_and_expiry() {

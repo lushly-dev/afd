@@ -113,7 +113,10 @@ server's own HTTP layer admitted them, and a transport other than HTTP or stdio 
 trusted (M1); `exp` before `iat` is `lifetime`; any `Missing` refuses, and a 403 with no valid
 scope to name leaves `scope=` out; a resolver is asked again at execution on the validated input;
 suggestions never name a hidden command; a JSON-RPC batch is 400; and a resource provider sees the
-caller's credentials.
+caller's credentials. Umbel phase 5 step 0c then implements #532 in TypeScript, Python and Rust: each
+binds confirmation state (and TypeScript's approval-relay state, which shares it) to the principal
+binding as integrity-protected input, never as readable identity, refuses a mismatch as it refuses a
+tampered state, and loads the `principalBindings` cases. No case, fixture or wire field changes.
 
 [`plugin-manifest.md`](./plugin-manifest.md) specifies the shared plugin manifest (Loam D58): core
 version 1, JSON Schema `$defs` with every object left open and reserved keys refused, and the contract

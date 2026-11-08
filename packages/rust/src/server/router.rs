@@ -53,6 +53,12 @@ pub(crate) fn trace_id(prefix: &str) -> String {
     format!("{prefix}-{nanos:x}-{count}")
 }
 
+/// The answer to a call whose confirmation state cannot be bound: a generic internal error that
+/// names no one, as TypeScript and Python answer.
+fn confirmation_internal() -> ErrorData {
+    ErrorData::internal_error("Internal error", None)
+}
+
 fn internal(error: impl std::fmt::Display) -> ErrorData {
     ErrorData::internal_error(error.to_string(), None)
 }
@@ -226,10 +232,18 @@ impl Call<'_> {
         how_to_acknowledge: &str,
     ) -> Decision {
         let registry = &self.server.inner.registry;
+        // #532: the state binds who is calling, as the hook (and the verified credentials) left
+        // the context, so a confirmation answered for one caller is never another's.
+        // Credentials with an empty issuer, subject or client id (only host code could build
+        // them) are never bound: the gate then reads and mints no state.
+        let principal =
+            crate::principal_binding(self.base.actor.as_ref(), self.base.credentials.as_deref())
+                .ok();
         let channel = confirmations::Channel {
             request: self.request,
             context: self.context,
             legacy_back_channel: self.server.inner.legacy_back_channel,
+            principal: principal.as_deref(),
         };
         confirmations::check(
             &self.server.inner.confirmations,
@@ -301,6 +315,7 @@ impl Call<'_> {
             Decision::Proceed => self.execute(name, input).await,
             Decision::Refuse(error) => refused(error),
             Decision::Ask(response) => Ok(response),
+            Decision::Internal => Err(confirmation_internal()),
         }
     }
 
@@ -382,6 +397,7 @@ impl Call<'_> {
             Decision::Proceed => {}
             Decision::Refuse(error) => return batch_failure(error),
             Decision::Ask(response) => return Ok(response),
+            Decision::Internal => return Err(confirmation_internal()),
         }
         let result = self
             .server
@@ -433,6 +449,7 @@ impl Call<'_> {
             Decision::Proceed => {}
             Decision::Refuse(error) => return tool_result(&pipeline_failure(&error), true),
             Decision::Ask(response) => return Ok(response),
+            Decision::Internal => return Err(confirmation_internal()),
         }
         let registry = Arc::clone(&self.server.inner.registry);
         let base = self.execution_context();
@@ -510,6 +527,7 @@ impl Call<'_> {
                     Decision::Proceed => self.execute(&command.name, params).await,
                     Decision::Refuse(error) => refused(error),
                     Decision::Ask(response) => Ok(response),
+                    Decision::Internal => Err(confirmation_internal()),
                 },
             );
         }
@@ -570,6 +588,7 @@ impl Call<'_> {
             Decision::Proceed => self.execute(name, input).await,
             Decision::Refuse(error) => refused(error),
             Decision::Ask(response) => Ok(response),
+            Decision::Internal => Err(confirmation_internal()),
         }
     }
 }
