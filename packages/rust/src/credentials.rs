@@ -248,6 +248,13 @@ fn actor_identity_json(actor: Option<&Actor>) -> Value {
     }
 }
 
+/// The canonical JSON of the actor fields approval tokens, relay evidence and principal bindings
+/// bind (`kind`, `id`, `onBehalfOf`, never `label`), or `null` without an actor.
+#[cfg_attr(not(any(feature = "approval", feature = "server")), allow(dead_code))]
+pub(crate) fn actor_binding_json(actor: Option<&Actor>) -> String {
+    crate::canonical::nearest(&actor_identity_json(actor))
+}
+
 /// A call's principal binding (`spec/authorization.md`, M8): the canonical JSON of
 /// `{ "actor": <actor>, "credentials": <identity> }`, where the actor is its `kind`, `id` and
 /// `onBehalfOf` (never `label`) and the identity is the credentials' `issuer`, `subject` and

@@ -8,10 +8,7 @@ use afd::server::auth::{
     RuleCode, ScopeDecision, TokenRules,
 };
 use afd::{credentials_binding, principal_binding, Actor, Credentials};
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine;
 use serde_json::{json, Map, Value};
-use sha2::{Digest, Sha256};
 
 fn cases() -> Value {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../spec/authorization.json");
@@ -388,15 +385,31 @@ fn principal_bindings() {
     }
 }
 
-/// The relay's input digest is step 0d's API; here the crate's canonical JSON is checked against
-/// the cases, and the digest is computed from it as the specification states.
-#[cfg(feature = "approval")]
+/// The relay's input digest (`spec/command-metadata.md`, "Host-verified confirmation", step 2):
+/// [`afd::input_digest`], the function the server gives the `HumanRelay` and the approval
+/// middleware checks relay evidence with; its canonical JSON is the approval tokens'.
 #[test]
 fn input_digests() {
     for case in section(&cases(), "inputDigests") {
-        let canonical = afd::canonical_json(&case["input"]).unwrap();
-        assert_eq!(canonical, case["canonical"], "{}", case["description"]);
-        let digest = URL_SAFE_NO_PAD.encode(Sha256::digest(canonical.as_bytes()));
-        assert_eq!(digest, case["inputDigest"], "{}", case["description"]);
+        assert_eq!(
+            afd::input_digest(&case["input"]).unwrap(),
+            case["inputDigest"],
+            "{}",
+            case["description"]
+        );
+        #[cfg(feature = "approval")]
+        assert_eq!(
+            afd::canonical_json(&case["input"]).unwrap(),
+            case["canonical"],
+            "{}",
+            case["description"]
+        );
     }
+}
+
+/// An input whose canonical JSON could collide with another's has no digest.
+#[test]
+fn an_unsafe_integer_has_no_input_digest() {
+    assert!(afd::input_digest(&json!({ "n": 9_007_199_254_740_993_u64 })).is_err());
+    assert!(afd::input_digest(&json!({ "n": 9_007_199_254_740_991_u64 })).is_ok());
 }

@@ -479,6 +479,482 @@ fn the_binding_includes_the_principal() {
     );
 }
 
+/// The form-mode approval relay (`spec/command-metadata.md`, "Asking the human over MCP").
+#[cfg(feature = "approval")]
+mod approval_relay {
+    use super::*;
+
+    // ─── The form-mode approval relay (`spec/command-metadata.md`, "Asking the human over MCP") ───
+
+    const SECRET: &str = "test-approval-secret-0123456789abcdef";
+    const STATE_KEY: [u8; 32] = [9u8; 32];
+
+    /// `todo-delete` needs approval; `todo-clear` needs a confirmation and an approval. The approval
+    /// middleware relays over MCP and keeps tokens off.
+    pub(super) fn relay_server(mode: ConfirmationMode) -> (McpServer, Arc<AtomicUsize>) {
+        use afd::{
+            create_approval_middleware, ApprovalMiddlewareOptions, ApprovalPolicy, ApprovalRelay,
+        };
+        let runs = Arc::new(AtomicUsize::new(0));
+        let registry = CommandRegistry::new();
+        let mut delete = CommandDefinition::new(
+            "todo-delete",
+            "Delete a todo",
+            vec![afd::CommandParameter::required_number("id", "Todo ID")],
+            Clear(Arc::clone(&runs)),
+        )
+        .with_approval(ApprovalPolicy::Required);
+        let mut clear =
+            CommandDefinition::new("todo-clear", "Clear", vec![], Clear(Arc::clone(&runs)))
+                .with_confirm_prompt("Delete every todo?")
+                .with_approval(ApprovalPolicy::Required);
+        delete.expose.mcp = true;
+        clear.expose.mcp = true;
+        registry.register(delete).unwrap();
+        registry.register(clear).unwrap();
+        let options = ApprovalMiddlewareOptions::new(SECRET, registry.list())
+            .with_include_token(false)
+            .with_relay(ApprovalRelay::McpElicitation);
+        registry.add_middleware(create_approval_middleware(options).unwrap());
+        let server = McpServer::new(Arc::new(registry), "relay", "1.0.0")
+            .with_confirmations_key(mode, STATE_KEY.to_vec())
+            .unwrap();
+        (server, runs)
+    }
+
+    pub(super) fn named_call(
+        name: &str,
+        id: u64,
+        args: Value,
+        elicitation: bool,
+        extra: Value,
+    ) -> Value {
+        let mut body = call(id, args, elicitation, extra);
+        body["params"]["name"] = json!(name);
+        body
+    }
+
+    pub(super) fn approve(answer: bool) -> Value {
+        json!({ "approval": { "action": "accept", "content": { "approve": answer } } })
+    }
+
+    pub(super) fn state_of(response: &Value) -> String {
+        response["result"]["requestState"]
+            .as_str()
+            .unwrap_or_else(|| panic!("no state: {response}"))
+            .to_owned()
+    }
+
+    #[tokio::test]
+    async fn an_approval_is_asked_with_a_form_and_runs_once() {
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let input = json!({ "id": 7 });
+        let asked = post(
+            &server,
+            named_call("todo-delete", 1, input.clone(), true, json!({})),
+            "todo-delete",
+        )
+        .await;
+        let request = &asked["result"]["inputRequests"]["approval"];
+        assert_eq!(asked["result"]["resultType"], "input_required", "{asked}");
+        assert_eq!(request["params"]["mode"], "form");
+        assert_eq!(
+            request["params"]["message"],
+            "Run todo-delete\n\nCommand: todo-delete\nInput: {\"id\":7}"
+        );
+        assert_eq!(
+            request["params"]["requestedSchema"]["required"],
+            json!(["approve"])
+        );
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+        let state = state_of(&asked);
+
+        let extra = json!({ "inputResponses": approve(true), "requestState": state });
+        let ran = post(
+            &server,
+            named_call("todo-delete", 2, input.clone(), true, extra.clone()),
+            "todo-delete",
+        )
+        .await;
+        assert_eq!(body(&ran)["success"], true, "{ran}");
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+        // The same answer again: its nonce is spent, so the human is asked again, saying why.
+        let again = post(
+            &server,
+            named_call("todo-delete", 3, input, true, extra),
+            "todo-delete",
+        )
+        .await;
+        let message = again["result"]["inputRequests"]["approval"]["params"]["message"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{again}"));
+        assert!(
+            message.starts_with("The earlier approval expired or was already used"),
+            "{message}"
+        );
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_declined_approval_ends_the_call() {
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let input = json!({ "id": 7 });
+        let asked = post(
+            &server,
+            named_call("todo-delete", 1, input.clone(), true, json!({})),
+            "todo-delete",
+        )
+        .await;
+        let state = state_of(&asked);
+        for (id, responses) in [
+            (2, approve(false)),
+            (3, json!({ "approval": { "action": "decline" } })),
+            (4, json!({ "approval": { "action": "cancel" } })),
+        ] {
+            let extra = json!({ "inputResponses": responses, "requestState": state });
+            let refused = body(
+                &post(
+                    &server,
+                    named_call("todo-delete", id, input.clone(), true, extra),
+                    "todo-delete",
+                )
+                .await,
+            );
+            assert_eq!(refused["error"]["code"], "APPROVAL_REQUIRED", "{refused}");
+            assert_eq!(refused["error"]["details"]["reason"], "declined");
+            assert_eq!(refused["error"]["retryable"], false);
+            assert!(refused["error"]["details"].get("approvalToken").is_none());
+        }
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn a_confirmation_and_an_approval_are_asked_in_turn() {
+        let (server, runs) = relay_server(ConfirmationMode::RequireHuman);
+        let clear = |id: u64, extra: Value| named_call("todo-clear", id, json!({}), true, extra);
+        let first = post(&server, clear(1, json!({})), "todo-clear").await;
+        assert!(
+            first["result"]["inputRequests"]["confirm"].is_object(),
+            "{first}"
+        );
+        let confirmed =
+            json!({ "confirm": { "action": "accept", "content": { "confirm": true } } });
+        let second = post(
+            &server,
+            clear(
+                2,
+                json!({ "inputResponses": confirmed, "requestState": state_of(&first) }),
+            ),
+            "todo-clear",
+        )
+        .await;
+        // The confirmation's answer is carried while the approval is asked.
+        assert!(
+            second["result"]["inputRequests"]["approval"].is_object(),
+            "{second}"
+        );
+        assert!(second["result"]["inputRequests"].get("confirm").is_none());
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+        let third = post(
+            &server,
+            clear(
+                3,
+                json!({ "inputResponses": approve(true), "requestState": state_of(&second) }),
+            ),
+            "todo-clear",
+        )
+        .await;
+        assert_eq!(body(&third)["success"], true, "{third}");
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn an_approval_state_is_bound_to_the_actor_it_was_issued_to() {
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let server = by_header(server);
+        let input = json!({ "id": 7 });
+        let asked = post_as(
+            &server,
+            named_call("todo-delete", 1, input.clone(), true, json!({})),
+            "todo-delete",
+            Some("agent-a@user-1"),
+        )
+        .await;
+        let state = state_of(&asked);
+        for (id, responses) in [(2, approve(true)), (3, approve(false))] {
+            let extra = json!({ "inputResponses": responses, "requestState": state });
+            let other = post_as(
+                &server,
+                named_call("todo-delete", id, input.clone(), true, extra),
+                "todo-delete",
+                Some("agent-b@user-1"),
+            )
+            .await;
+            // Neither an approval nor a decline for another caller: they are asked themselves.
+            assert!(
+                other["result"]["inputRequests"]["approval"].is_object(),
+                "{other}"
+            );
+        }
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+        let extra = json!({ "inputResponses": approve(true), "requestState": state });
+        let ran = post_as(
+            &server,
+            named_call("todo-delete", 4, input, true, extra),
+            "todo-delete",
+            Some("agent-a@user-1"),
+        )
+        .await;
+        assert_eq!(body(&ran)["success"], true, "{ran}");
+    }
+
+    #[tokio::test]
+    async fn the_state_key_alone_cannot_mint_an_approval() {
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let input = json!({ "id": 7 });
+        let asked = post(
+            &server,
+            named_call("todo-delete", 1, input.clone(), true, json!({})),
+            "todo-delete",
+        )
+        .await;
+        // Whoever holds the state key reads and re-signs the state, but not the approval's MAC.
+        let codec = rmcp::model::RequestStateCodec::try_new(STATE_KEY.to_vec()).unwrap();
+        let principal = afd::principal_binding(Some(&Actor::new(ActorKind::Agent)), None).unwrap();
+        let binding =
+            afd::server::confirmations::confirmation_binding("todo-delete", &input, &principal);
+        let opened: Value =
+            serde_json::from_slice(&codec.open_with(&state_of(&asked), &binding).unwrap()).unwrap();
+        let asked_item = opened["p"][0].clone();
+        assert_eq!(asked_item["k"], "approval");
+        let forge = |change: &dyn Fn(&mut Value)| {
+            let mut item = asked_item.clone();
+            change(&mut item);
+            let payload = serde_json::to_vec(&json!({ "p": [item], "a": [] })).unwrap();
+            codec.seal_with(
+                &payload,
+                &rmcp::model::SealOptions::new()
+                    .associated_data(&binding)
+                    .ttl(std::time::Duration::from_secs(600)),
+            )
+        };
+        let forged = [
+            forge(&|item| item["n"] = json!("another-nonce")),
+            forge(&|item| item["x"] = json!(item["x"].as_i64().unwrap() + 3_600_000)),
+            forge(&|item| item["m"] = json!("AAAA")),
+        ];
+        for (id, state) in forged.into_iter().enumerate() {
+            let extra = json!({ "inputResponses": approve(true), "requestState": state });
+            let again = post(
+                &server,
+                named_call("todo-delete", 10 + id as u64, input.clone(), true, extra),
+                "todo-delete",
+            )
+            .await;
+            assert!(
+                again["result"]["inputRequests"]["approval"].is_object(),
+                "{again}"
+            );
+        }
+        // The genuine item, re-signed, still works: only the approval's own MAC was in the way.
+        let genuine = forge(&|_| {});
+        let extra = json!({ "inputResponses": approve(true), "requestState": genuine });
+        let ran = post(
+            &server,
+            named_call("todo-delete", 20, input, true, extra),
+            "todo-delete",
+        )
+        .await;
+        assert_eq!(body(&ran)["success"], true, "{ran}");
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_confirmation_answer_is_never_an_approval() {
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let input = json!({ "id": 7 });
+        let asked = post(
+            &server,
+            named_call("todo-delete", 1, input.clone(), true, json!({})),
+            "todo-delete",
+        )
+        .await;
+        let confirmed = json!({ "confirm": { "action": "accept", "content": { "confirm": true, "approve": true } } });
+        let extra = json!({ "inputResponses": confirmed, "requestState": state_of(&asked) });
+        let again = post(
+            &server,
+            named_call("todo-delete", 2, input, true, extra),
+            "todo-delete",
+        )
+        .await;
+        assert!(
+            again["result"]["inputRequests"]["approval"].is_object(),
+            "{again}"
+        );
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn calls_that_cannot_elicit_are_held_without_a_token() {
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let held = body(
+            &post(
+                &server,
+                named_call("todo-delete", 1, json!({ "id": 7 }), false, json!({})),
+                "todo-delete",
+            )
+            .await,
+        );
+        assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED");
+        assert!(held["error"]["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("supports form elicitation"));
+        assert!(held["error"]["details"].get("approvalToken").is_none());
+        let batch = named_call(
+            "afd-batch",
+            2,
+            json!({ "commands": [{ "command": "todo-delete", "input": { "id": 7 } }] }),
+            true,
+            json!({}),
+        );
+        let batch = post(&server, batch, "afd-batch").await;
+        assert_ne!(batch["result"]["resultType"], "input_required", "{batch}");
+        let batch = body(&batch);
+        let step = &batch["results"][0];
+        assert_eq!(
+            step["result"]["error"]["code"], "APPROVAL_REQUIRED",
+            "{batch}"
+        );
+        assert!(step["result"]["error"]["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("inside afd-batch"));
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+    }
+
+    /// With the default options (tokens included), a server that relays approvals over MCP still
+    /// gives the agent no token on a call that cannot be asked.
+    #[tokio::test]
+    async fn fallbacks_carry_no_token_even_when_tokens_are_included() {
+        use afd::{
+            create_approval_middleware, ApprovalMiddlewareOptions, ApprovalPolicy, ApprovalRelay,
+        };
+        let runs = Arc::new(AtomicUsize::new(0));
+        let registry = CommandRegistry::new();
+        let mut delete = CommandDefinition::new(
+            "todo-delete",
+            "Delete a todo",
+            vec![afd::CommandParameter::required_number("id", "Todo ID")],
+            Clear(Arc::clone(&runs)),
+        )
+        .with_approval(ApprovalPolicy::Required);
+        delete.expose.mcp = true;
+        registry.register(delete).unwrap();
+        let options = ApprovalMiddlewareOptions::new(SECRET, registry.list())
+            .with_relay(ApprovalRelay::McpElicitation);
+        registry.add_middleware(create_approval_middleware(options).unwrap());
+        let server = McpServer::new(Arc::new(registry), "relay", "1.0.0");
+        let without_form = named_call("todo-delete", 1, json!({ "id": 7 }), false, json!({}));
+        let held = body(&post(&server, without_form, "todo-delete").await);
+        assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED", "{held}");
+        assert!(
+            held["error"]["details"].get("approvalToken").is_none(),
+            "{held}"
+        );
+        assert!(held["error"]["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("supports form elicitation"));
+        let batch = named_call(
+            "afd-batch",
+            2,
+            json!({ "commands": [{ "command": "todo-delete", "input": { "id": 7 } }] }),
+            true,
+            json!({}),
+        );
+        let batch = body(&post(&server, batch, "afd-batch").await);
+        let error = &batch["results"][0]["result"]["error"];
+        assert_eq!(error["code"], "APPROVAL_REQUIRED", "{batch}");
+        assert!(error["details"].get("approvalToken").is_none(), "{batch}");
+        assert!(error["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("inside afd-batch"));
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+    }
+
+    /// A 2025 stdio connection whose client declares form elicitation and answers each
+    /// `elicitation/create` with the next of `answers`; returns the call's response and the questions.
+    async fn legacy_call(
+        server: McpServer,
+        params: Value,
+        answers: Vec<Value>,
+    ) -> (Value, Vec<Value>) {
+        use rmcp::ServiceExt;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        let (mut writer, server_reader) = tokio::io::duplex(1 << 20);
+        let (server_writer, client_reader) = tokio::io::duplex(1 << 20);
+        tokio::spawn(async move {
+            if let Ok(running) = server.serve((server_reader, server_writer)).await {
+                let _ = running.waiting().await;
+            }
+        });
+        let mut reader = BufReader::new(client_reader);
+        let send = |message: Value| format!("{message}\n");
+        let mut answers = answers.into_iter();
+        let mut asked = Vec::new();
+        let initialize = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+            "protocolVersion": "2025-11-25",
+            "capabilities": { "elicitation": { "form": {} } },
+            "clientInfo": { "name": "legacy", "version": "0" },
+        }});
+        writer.write_all(send(initialize).as_bytes()).await.unwrap();
+        let initialized = json!({ "jsonrpc": "2.0", "method": "notifications/initialized" });
+        writer
+            .write_all(send(initialized).as_bytes())
+            .await
+            .unwrap();
+        let call = json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": params });
+        writer.write_all(send(call).as_bytes()).await.unwrap();
+        loop {
+            let mut line = String::new();
+            assert!(reader.read_line(&mut line).await.unwrap() > 0);
+            let message: Value = serde_json::from_str(&line).unwrap();
+            if message["method"] == "elicitation/create" {
+                asked.push(message["params"].clone());
+                let answer = answers.next().unwrap_or(json!({ "action": "cancel" }));
+                let reply = json!({ "jsonrpc": "2.0", "id": message["id"], "result": answer });
+                writer.write_all(send(reply).as_bytes()).await.unwrap();
+            } else if message["id"] == 2 {
+                return (message, asked);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_2025_stdio_connection_is_asked_in_band() {
+        let params = json!({ "name": "todo-delete", "arguments": { "id": 7 } });
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let accept = json!({ "action": "accept", "content": { "approve": true } });
+        let (ran, asked) = legacy_call(server, params.clone(), vec![accept]).await;
+        assert_eq!(body(&ran)["success"], true, "{ran}");
+        assert_eq!(asked.len(), 1);
+        assert_eq!(asked[0]["requestedSchema"]["required"], json!(["approve"]));
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let (refused, _) = legacy_call(server, params, vec![json!({ "action": "decline" })]).await;
+        assert_eq!(
+            body(&refused)["error"]["details"]["reason"],
+            "declined",
+            "{refused}"
+        );
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
+    }
+}
+
 /// With `server-auth`: the state binds the verified credentials' issuer, subject and client.
 #[cfg(feature = "server-auth")]
 mod with_credentials {
@@ -530,7 +1006,7 @@ mod with_credentials {
             .header("accept", "application/json, text/event-stream")
             .header("mcp-protocol-version", "2026-07-28")
             .header("mcp-method", "tools/call")
-            .header("mcp-name", "todo-clear")
+            .header("mcp-name", body["params"]["name"].as_str().unwrap())
             .header("authorization", format!("Bearer {token}"))
             .body(Full::new(bytes::Bytes::from(body.to_string())))
             .unwrap();
@@ -659,5 +1135,46 @@ mod with_credentials {
         )
         .await;
         assert_eq!(body(&acknowledged)["success"], true, "{acknowledged}");
+    }
+
+    #[cfg(feature = "approval")]
+    #[tokio::test]
+    async fn incomplete_credentials_never_mint_an_approval_state() {
+        use super::approval_relay::{approve, named_call, relay_server, state_of};
+        let (server, runs) = relay_server(ConfirmationMode::Off);
+        let authorization = Authorization::new(
+            ProtectedResource::new(RESOURCE, ["https://auth.example.com"]).unwrap(),
+            ByToken,
+        )
+        .unwrap();
+        let server = server.with_authorization(authorization);
+        let delete =
+            |id: u64, extra: Value| named_call("todo-delete", id, json!({ "id": 7 }), true, extra);
+        let asked = post_with(&server, delete(1, json!({})), "auth.user-1.todo-agent").await;
+        assert!(
+            asked["result"]["inputRequests"]["approval"].is_object(),
+            "{asked}"
+        );
+        let state = state_of(&asked);
+        for (id, token) in [
+            (2, "-.user-1.todo-agent"),
+            (3, "auth..todo-agent"),
+            (4, "auth.user-1."),
+        ] {
+            let first = post_with(&server, delete(id, json!({})), token).await;
+            assert_eq!(first["error"]["code"], -32603, "{token}: {first}");
+            let extra = json!({ "inputResponses": approve(true), "requestState": state });
+            let retry = post_with(&server, delete(id + 10, extra), token).await;
+            assert_eq!(retry["error"]["code"], -32603, "{token}: {retry}");
+            assert_eq!(retry["error"]["message"], "Internal error");
+        }
+        // Another client of the same person is another principal: asked again.
+        let extra = json!({ "inputResponses": approve(true), "requestState": state });
+        let other = post_with(&server, delete(20, extra), "auth.user-1.other-agent").await;
+        assert!(
+            other["result"]["inputRequests"]["approval"].is_object(),
+            "{other}"
+        );
+        assert_eq!(runs.load(Ordering::SeqCst), 0);
     }
 }

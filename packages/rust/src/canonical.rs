@@ -2,11 +2,12 @@
 //! units, as JavaScript sorts), no whitespace, strings escaped and numbers written as
 //! `JSON.stringify` writes them (`1.0` is `1`, `1e21` is `1e+21`, `-0` is `0`).
 //!
-//! The approval token's input binding (the `approval` feature) and the journal's cap on a
-//! context field's value (`spec/journal.md`, "Declared context fields") both use it, so they
-//! agree with TypeScript byte for byte.
+//! The approval token's input binding (the `approval` feature), the relay input digest
+//! ([`input_digest`]) and the journal's cap on a context field's value (`spec/journal.md`,
+//! "Declared context fields") all use it, so they agree with TypeScript byte for byte.
 
 use serde_json::{Map, Number, Value};
+use sha2::{Digest, Sha256};
 
 /// Largest integer every JSON number reader holds exactly (`Number.MAX_SAFE_INTEGER`).
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
@@ -31,7 +32,6 @@ pub(crate) enum Inexact {
 }
 
 /// The canonical JSON of `value`, or why it holds a number JavaScript would read as another.
-#[cfg_attr(not(feature = "approval"), allow(dead_code))]
 pub(crate) fn exact(value: &Value) -> Result<String, Inexact> {
     let mut out = String::new();
     encode(value, Integers::Exact, &mut out)?;
@@ -45,6 +45,74 @@ pub(crate) fn nearest(value: &Value) -> String {
     let mut out = String::new();
     encode(value, Integers::Nearest, &mut out).expect("nearest floats are always written");
     out
+}
+
+/// The digest of a validated input that a person decides on (`spec/command-metadata.md`,
+/// "Host-verified confirmation", step 2): the unpadded base64url SHA-256 of the input's canonical
+/// JSON (the approval tokens' canonical JSON, "Approvals", rule 3). The server computes it from
+/// the input validated against the command's schema, defaults applied, and gives it to the
+/// [`HumanRelay`](crate::server::HumanRelay) as `RelayCall::input_digest`; the approval middleware
+/// compares relay evidence against the same digest of the input it holds. `spec/authorization.json`
+/// (`inputDigests`) pins it.
+///
+/// # Errors
+/// The input holds an integer that a 64-bit float cannot hold exactly (beyond ±2^53), which
+/// JavaScript would read as another number, so two inputs could share a digest.
+pub fn input_digest(input: &Value) -> Result<String, String> {
+    let canonical = exact(input).map_err(|inexact| match inexact {
+        Inexact::BeyondSixtyFourBits => "Cannot digest an input holding a number beyond 64 bits",
+        Inexact::UnsafeInteger => {
+            "Cannot digest an input holding an integer that a 64-bit float cannot hold exactly"
+        }
+    })?;
+    Ok(base64url_encode(&Sha256::digest(canonical.as_bytes())))
+}
+
+const BASE64URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+/// Unpadded base64url, as Node's `toString('base64url')` writes it.
+pub(crate) fn base64url_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let triple = chunk.iter().enumerate().fold(0u32, |acc, (index, byte)| {
+            acc | u32::from(*byte) << (16 - 8 * index)
+        });
+        for index in 0..=chunk.len() {
+            out.push(BASE64URL[(triple >> (18 - 6 * index) & 63) as usize] as char);
+        }
+    }
+    out
+}
+
+/// Strict unpadded base64url: `None` for any other character, a dangling character, or
+/// non-zero padding bits, so every byte string has exactly one accepted spelling.
+#[cfg_attr(not(feature = "approval"), allow(dead_code))]
+pub(crate) fn base64url_decode(text: &str) -> Option<Vec<u8>> {
+    let sextet = |byte: u8| {
+        BASE64URL
+            .iter()
+            .position(|&c| c == byte)
+            .map(|at| at as u32)
+    };
+    let bytes = text.as_bytes();
+    if bytes.len() % 4 == 1 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3 + 2);
+    for chunk in bytes.chunks(4) {
+        let mut bits = 0u32;
+        for (index, byte) in chunk.iter().enumerate() {
+            bits |= sextet(*byte)? << (18 - 6 * index);
+        }
+        let produced = chunk.len() - 1;
+        for index in 0..produced {
+            out.push((bits >> (16 - 8 * index)) as u8);
+        }
+        if bits & (0x00ff_ffff >> (8 * produced)) != 0 {
+            return None;
+        }
+    }
+    Some(out)
 }
 
 /// ECMAScript `Number::toString` of a finite float (as `JSON.stringify` writes it): the shortest

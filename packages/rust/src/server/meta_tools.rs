@@ -595,6 +595,10 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
         command.scopes.as_ref().map(|scopes| json!(scopes)),
     );
     optional(
+        "confirmationMode",
+        command.confirmation_mode.map(|mode| json!(mode)),
+    );
+    optional(
         "toolMeta",
         command
             .tool_meta
