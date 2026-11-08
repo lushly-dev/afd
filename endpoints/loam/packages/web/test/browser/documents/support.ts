@@ -62,6 +62,80 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
 	});
 }
 
+/**
+ * The editor area's invariants (documents specification, Status, deviation 16), as its controller holds them:
+ * every frame in `frames` or `parking` is of the scope rendered and in its place for that map; no frame is in
+ * both; none in a map is disposed, or off the page while the area shows; every mounted frame is in a map or leaving with its save in
+ * flight; and every tab the active scope marks unsaved has a frame in a map, a leave under way, or the person's
+ * own close running. Empty when they hold, or before the editor area has loaded.
+ */
+export function frameViolations(page: Page): Promise<string[]> {
+	return page.evaluate(async () => {
+		type Frame = HTMLElement & { tab: string };
+		type Life = { key: string | null; place: string };
+		const shell = document.querySelector('loam-shell') as unknown as {
+			kernel: {
+				call(
+					name: string
+				): Promise<{ data?: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> } }>;
+			};
+			shadowRoot: ShadowRoot | null;
+			editor?: {
+				lifecycle: readonly [
+					string | null,
+					Map<string, Frame>,
+					Map<string, Frame>,
+					Set<Frame>,
+					WeakMap<Frame, Life>,
+					Set<string>,
+				];
+			};
+		};
+		const lifecycle = shell.editor?.lifecycle;
+		if (!lifecycle) return [];
+		const [key, frames, parking, leaving, lives, closing] = lifecycle;
+		const life = { key, frames, parking, leaving, lives, closing };
+		const broken: string[] = [];
+		const parked = new Set(life.parking.values());
+		const main = shell.shadowRoot?.querySelector('loam-main');
+		// An app's main keeps the editors off the page, with their drafts (Status, deviation 13).
+		const showing = !!main?.querySelector('loam-editor-area');
+		for (const [name, map, place] of [
+			['frames', life.frames, 'shown'],
+			['parking', life.parking, 'parked'],
+		] as const) {
+			for (const [tab, frame] of map) {
+				const own = life.lives.get(frame);
+				if (own?.key !== life.key)
+					broken.push(`${name} ${tab} is of scope ${own?.key}, not ${life.key}`);
+				if (own?.place !== place) broken.push(`${name} ${tab} is ${own?.place}`);
+				if (frame.tab !== tab) broken.push(`${name} ${tab} holds the frame of ${frame.tab}`);
+				if (showing && !frame.isConnected) broken.push(`${name} ${tab} is off the page`);
+				if (name === 'frames' && parked.has(frame)) broken.push(`${tab} is in both maps`);
+			}
+		}
+		const held = new Set<Frame>([...life.frames.values(), ...parked, ...life.leaving]);
+		const mounted = [...(main?.querySelectorAll('loam-editor-frame') ?? [])] as Frame[];
+		for (const frame of mounted) {
+			if (!held.has(frame))
+				broken.push(`a mounted frame of ${frame.tab} is in no map and not leaving`);
+			if (life.lives.get(frame)?.place === 'disposed')
+				broken.push(`a disposed frame of ${frame.tab} is mounted`);
+		}
+		const read = await shell.kernel.call('editor-get');
+		for (const tab of read.data?.groups.flatMap((group) => group.tabs) ?? []) {
+			if (!tab.dirty || life.closing.has(tab.id)) continue;
+			const leaving = [...life.leaving].some(
+				(frame) => frame.tab === tab.id && life.lives.get(frame)?.key === life.key
+			);
+			if (!life.frames.has(tab.id) && !life.parking.has(tab.id) && !leaving) {
+				broken.push(`${tab.id} is unsaved with no frame and no leave`);
+			}
+		}
+		return broken;
+	});
+}
+
 /** Wait until the area's editors are idle: its controller's queue, then the journal. */
 export async function editorIdle(page: Page): Promise<void> {
 	await page.evaluate(async () => {
@@ -74,6 +148,9 @@ export async function editorIdle(page: Page): Promise<void> {
 		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 	});
 	await settle(page);
+	const broken = await frameViolations(page);
+	if (broken.length > 0)
+		throw new Error(`The editor's frames broke an invariant: ${broken.join('; ')}`);
 }
 
 /** Type into the `notes-editor` of a tab, as a person does: its text area takes focus, then keys. */

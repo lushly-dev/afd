@@ -95,7 +95,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * mutation's check, write and stamp in its document's chain. The sixth raised it by 323, to 29,623, approved
  * by the coordinator, 2026-11-07: one leave at a time for a frame taken back and parked again (195), each frame's
  * count of edits, so a leave knows of one made after its save began (82), and a tab whose parked editor is
- * still saving counted as unsaved by a rejected draft's reopen (46).
+ * still saving counted as unsaved by a rejected draft's reopen (46). The seventh raised it by 455, to 30,078,
+ * approved by the coordinator, 2026-11-08: one lifecycle for every frame in place of the patches before it, a
+ * life each with one place that one function moves (about 377), the getter a test's check of its invariants
+ * reads (72), and a lost draft's mark cleared with it (6).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -115,7 +118,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 29_623,
+	editorMinified: 30_078,
 });
 
 /** Group a module id by the package it belongs to. */

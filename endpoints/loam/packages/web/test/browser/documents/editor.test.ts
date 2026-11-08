@@ -22,6 +22,7 @@ import {
 	editorIdle,
 	editorView,
 	entriesOf,
+	frameViolations,
 	replayDifferences,
 	typeInto,
 } from './support';
@@ -192,6 +193,9 @@ const focusedOn = (page: Page) =>
 /** The tab strip's tab named `title`, in group `group` (from 0). */
 const tabOf = (page: Page, title: string, group = 0) =>
 	page.locator('loam-editor-group').nth(group).locator('[role="tab"]', { hasText: title });
+
+/** What the seeded walk leaves on the page: each save held until a step resolves or rejects it. */
+type Walk = Window & { pending?: Array<{ resolve: () => void; reject: () => void }> };
 
 /** What `trashOnClear` leaves on the page: what the agent's trash answered. */
 type Trapped = Window & { trapped?: { success: boolean; error?: { code: string } } };
@@ -1221,6 +1225,229 @@ describe('P2-D5: the editor area, native half', () => {
 		expect(await draftOf(page, 't13')).toBe('Beside draft');
 		await opened.context.close();
 	}, 120_000);
+
+	it('P2-D5: a frame parked again in one scope never lands in another, and its leave ends where it began', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const first = await createNote(page, 'First');
+		await open(page, first);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'A');
+		const park = async (from: number, project?: string) => {
+			for (let index = from; index < from + 10; index++) {
+				await open(page, await createNote(page, `Note ${index}`, project));
+			}
+			await framesGone(page, ['t1']);
+		};
+		// Parked with its save held, taken back, edited and parked again: a leave queued behind the first.
+		await park(2);
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await textOf(page, 't1').click();
+		await page.keyboard.press('ControlOrMeta+End');
+		await page.keyboard.type('B');
+		await park(12);
+		// To another scope, whose own first note is its t1, parked there too.
+		await kernelCall(page, 'project-create', { name: 'Elsewhere' });
+		await kernelCall(page, 'scope-set', { project: 'elsewhere' });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		const there = await createNote(page, 'There', 'elsewhere');
+		await open(page, there);
+		await park(2, 'elsewhere');
+		// The first save resolves; the queued leave runs as the scope's going, and holds its own save.
+		await settleSaves(page, 't1', 'pass');
+		await editorIdle(page);
+		await expect
+			.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+			.toBeGreaterThan(0);
+		const before = (await entriesOf(page)).length;
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		// Elsewhere's t1 is There's, and nothing of First is under it.
+		const held = await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				editor: { frames: Map<string, HTMLElement & { document: string }> };
+			};
+			return [...shell.editor.frames.values()].map((frame) => frame.document);
+		});
+		expect(held).toContain(there);
+		expect(held).not.toContain(first);
+		expect(await draftOf(page, 't1')).not.toBe('AB');
+		// The journal settles: no mark is reported again and again.
+		await page.waitForTimeout(1000);
+		const settled = (await entriesOf(page)).length;
+		await page.waitForTimeout(1000);
+		expect((await entriesOf(page)).length).toBe(settled);
+		const marks = (await entriesOf(page))
+			.slice(before)
+			.filter((entry) => entry.command === 'editor-dirty-set');
+		expect(marks).toEqual([]);
+		// The workspace draft's save rejects after its scope went: lost after its toast (Status, deviation 16).
+		await settleSaves(page, 't1', 'fail');
+		await expect
+			.poll(async () =>
+				JSON.stringify(await kernelCall(page, 'overlay-list')).includes('was not saved')
+			)
+			.toBe(true);
+		await editorIdle(page);
+		expect(await frameViolations(page)).toEqual([]);
+		await opened.context.close();
+	}, 180_000);
+
+	it('P2-D5: a frame kept back with a park queued leaves the parking map, so a later reopen leaves one frame', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const first = await createNote(page, 'First');
+		await open(page, first);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'A');
+		const park = async (from: number) => {
+			for (let index = from; index < from + 10; index++) {
+				await open(page, await createNote(page, `Note ${index}`));
+			}
+			await framesGone(page, ['t1']);
+		};
+		await park(2);
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await textOf(page, 't1').click();
+		await page.keyboard.press('ControlOrMeta+End');
+		await page.keyboard.type('B');
+		await park(12);
+		// The first save rejects: kept back in t1, its queued park dropped.
+		await settleSaves(page, 't1', 'fail');
+		await expect.poll(() => draftOf(page, 't1')).toBe('AB');
+		await editorIdle(page);
+		// Its own save back, the person saves it, and the note opens beside, where an agent closes it unsaved.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				editor: { frames: Map<string, { save?: unknown }> };
+			};
+			delete (shell.editor.frames.get('t1') as { save?: unknown }).save;
+		});
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await textOf(page, 't1').click();
+		await page.keyboard.press('ControlOrMeta+s');
+		await expect.poll(() => stored(page, first)).toBe('AB');
+		await open(page, first, { group: 'beside' });
+		const read = (await agentCall(page, 'editor-get')) as {
+			data: { groups: Array<{ active: string }> };
+		};
+		const beside = read.data.groups[1]?.active as string;
+		await failSaves(page, [beside]);
+		await typeInto(page, beside, 'C');
+		await agentCall(page, 'editor-close', { tab: beside, discard: true });
+		await framesGone(page, [beside]);
+		await settleSaves(page, beside, 'fail');
+		await editorIdle(page);
+		// One frame of the note is on the page, t1's; the one kept back earlier went when t1 took the draft.
+		const mounted = await page.evaluate((first) => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				shadowRoot: ShadowRoot;
+				editor: { frames: Map<string, HTMLElement> };
+			};
+			const frames = [
+				...(shell.shadowRoot.querySelector('loam-main')?.querySelectorAll('loam-editor-frame') ??
+					[]),
+			].filter((frame) => (frame as unknown as { document: string }).document === first);
+			return { count: frames.length, held: frames[0] === shell.editor.frames.get('t1') };
+		}, first);
+		expect(mounted).toEqual({ count: 1, held: true });
+		await opened.context.close();
+	}, 180_000);
+
+	it('P2-D5: a seeded walk of 200 steps keeps every frame invariant after each', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		// mulberry32, seed 0x5eed10: the same 200 steps every run.
+		let seed = 0x5eed10;
+		const random = () => {
+			seed = (seed + 0x6d2b79f5) | 0;
+			let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+			return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+		};
+		const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)] as T;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		for (const title of ['One', 'Two', 'Three']) await open(page, await createNote(page, title));
+		// Every save waits until the walk resolves or rejects it.
+		await page.evaluate(() => {
+			const held = window as Walk;
+			held.pending = [];
+			const frame = customElements.get('loam-editor-frame')?.prototype as {
+				save(): Promise<void>;
+			};
+			frame.save = () =>
+				new Promise<void>((resolve, reject) => {
+					held.pending?.push({
+						resolve,
+						reject: () => reject(Object.assign(new Error('Refused by the walk'), { code: 'WALK' })),
+					});
+				});
+		});
+		const steps = [
+			'park',
+			'park',
+			'take',
+			'take',
+			'type',
+			'type',
+			'type',
+			'resolve',
+			'reject',
+			'hold',
+			'switch',
+			'close',
+			'beside',
+		] as const;
+		let project: string | undefined;
+		for (let step = 0; step < 200; step++) {
+			const kind = pick(steps);
+			const tabs = (
+				(await agentCall(page, 'editor-get')) as {
+					data: { groups: Array<{ tabs: Array<{ id: string; document: string }> }> };
+				}
+			).data.groups.flatMap((group) => group.tabs);
+			if (kind === 'park') {
+				await kernelCall(page, 'document-open', {
+					document: await createNote(page, `Walk ${step}`, project),
+				});
+			} else if (kind === 'take' && tabs.length > 0) {
+				await kernelCall(page, 'editor-activate', { tab: pick(tabs).id });
+			} else if (kind === 'type') {
+				const area = page
+					.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+					.first();
+				if ((await area.count()) > 0) {
+					await area.click({ timeout: 1000 }).catch(() => undefined);
+					await page.keyboard.type('x');
+				}
+			} else if (kind === 'resolve' || kind === 'reject') {
+				await page.evaluate((kind) => (window as Walk).pending?.shift()?.[kind](), kind);
+			} else if (kind === 'switch') {
+				project = project ? undefined : 'atlas';
+				await kernelCall(page, 'scope-set', { project: project ?? null });
+				await kernelCall(page, 'section-open', { section: 'documents' });
+			} else if (kind === 'close' && tabs.length > 0) {
+				await agentCall(page, 'editor-close', { tab: pick(tabs).id, discard: true });
+			} else if (kind === 'beside' && tabs.length > 0) {
+				await kernelCall(page, 'document-open', { document: pick(tabs).document, group: 'beside' });
+			}
+			try {
+				await editorIdle(page);
+			} catch (cause) {
+				throw new Error(`Step ${step} (${kind}): ${(cause as Error).message}`);
+			}
+		}
+		await page.evaluate(() => {
+			for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
+		});
+		await editorIdle(page);
+		expect(await frameViolations(page)).toEqual([]);
+		await opened.context.close();
+	}, 300_000);
 
 	it('P2-D5: a tab’s type icon is blank until the app surfaces register the icons, then drawn', async () => {
 		const opened = await openShell(browser, site.root);

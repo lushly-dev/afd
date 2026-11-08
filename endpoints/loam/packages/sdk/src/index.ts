@@ -310,7 +310,11 @@ export interface LoamEditorElementV1 extends LoamSurfaceElementV1 {
 	documentChanged?(change: DocumentChangeV1): void;
 }
 
-/** What an editor dispatches, bubbling and composed, from its element: `detail` is `{ dirty: boolean }`. */
+/**
+ * What an editor dispatches, bubbling and composed, from its element, on each edit, not only when its state
+ * changes: `detail` is `{ dirty: boolean }`. The shell's autosave timer restarts on each, and a leaving editor
+ * counts them to know of an edit made after its save began (documents specification, 5.5).
+ */
 export const EDITOR_DIRTY_EVENT = 'loam-editor-dirty';
 
 /** What an editor dispatches, bubbling and composed, from its element: `detail` is the selection, or null. */

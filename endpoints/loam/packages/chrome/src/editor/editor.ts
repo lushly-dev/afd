@@ -95,6 +95,21 @@ function define(): Promise<unknown> {
 /** A document's scope, as a call's option takes it. */
 type ScopeOf = DocumentRecordV1['scope'];
 
+/**
+ * Where a frame is (5.6): held by its tab, in `#frames`; parked while its save runs, in `#parking`; leaving,
+ * in neither, while a closed, left or reopened frame saves; or gone, once disposed.
+ */
+type Place = 'shown' | 'parked' | 'leaving' | 'disposed';
+/** Why a frame leaves: another's call closed its tab, it parked as an eleventh editor, or its scope went. */
+type How = 'closed' | 'parked' | 'left';
+/** One frame's life: the scope it was made in, its one place, its editor's edits, and a leave asked again. */
+interface Life {
+	key: string | null;
+	place: Place;
+	edits: number;
+	queued?: How;
+}
+
 /** A tab's record, or why `document-get` gave none. */
 type RecordRead = DocumentRecordV1 | { code: string; message: string; suggestion?: string };
 
@@ -159,10 +174,10 @@ export class EditorController implements FrameListener {
 	#focus: { tab: string; editor: boolean } | null = null;
 	/** By tab, the parked frames still saving, which a tab shown again meanwhile takes back with their drafts. */
 	readonly #parking = new Map<string, LoamEditorFrame>();
-	/** The frames with a leave under way, and the leave asked for again meanwhile, which runs once it settles. */
-	readonly #leaving = new WeakMap<LoamEditorFrame, 'closed' | 'parked' | 'left' | null>();
-	/** Each frame's count of edits its editor reported, so a leave knows of one made after its save began. */
-	readonly #edits = new WeakMap<LoamEditorFrame, number>();
+	/** Each frame's life, which only `#move` changes the place of. */
+	readonly #lives = new WeakMap<LoamEditorFrame, Life>();
+	/** The frames with a leave under way, one each at a time. */
+	readonly #leaving = new Set<LoamEditorFrame>();
 	/** By document, the frames waiting for their document's new tab, after their saves rejected (5.5). */
 	readonly #adopt = new Map<string, LoamEditorFrame>();
 	/** A render once the app surfaces have registered `ICONS_V1`, when one ran before them. */
@@ -201,6 +216,21 @@ export class EditorController implements FrameListener {
 	/** What a test reads: the frames by tab, and the area. */
 	get frames(): ReadonlyMap<string, LoamEditorFrame> {
 		return this.#frames;
+	}
+
+	/**
+	 * What a test's check of the frames' invariants reads, in this order: the scope key rendered, `#frames`,
+	 * `#parking`, the leaving frames, each frame's life, and the tabs the person is closing.
+	 */
+	get lifecycle() {
+		return [
+			this.#scopeKey,
+			this.#frames,
+			this.#parking,
+			this.#leaving,
+			this.#lives,
+			this.#closing,
+		] as const;
 	}
 
 	get idle(): Promise<void> {
@@ -307,7 +337,6 @@ export class EditorController implements FrameListener {
 		const live = new Set(tabs.map((tab) => tab.id));
 		for (const [tab, frame] of this.#frames) {
 			if (live.has(tab)) continue;
-			this.#frames.delete(tab);
 			this.#stopTimer(tab);
 			// Closed by a call not the person's own close: an editor still unsaved saves first, and its save
 			// clears the mark the kernel keeps for it, which holds a trash or a move until then (5.5).
@@ -340,8 +369,8 @@ export class EditorController implements FrameListener {
 			for (const tab of group.tabs) {
 				const frame = this.#frames.get(tab.id);
 				if (frame && frame.parentElement !== element) element.append(frame);
-				// An editor that still says unsaved is, whoever marked its tab saved (5.5).
-				if (frame?.dirty && !tab.dirty)
+				// An editor that still says unsaved is, whoever marked its tab saved (5.5): only one of this scope.
+				if (frame?.dirty && !tab.dirty && this.#here(frame))
 					void this.#kernel.call(
 						'editor-dirty-set',
 						{ tab: tab.id, dirty: true },
@@ -389,14 +418,12 @@ export class EditorController implements FrameListener {
 		ids: ReadonlySet<string>
 	): void {
 		let frame = this.#frames.get(tab.id);
-		// A frame whose save rejected after another's close, with its draft, taken by its document's new tab;
-		// or one parked and still saving, taken back by its own tab.
-		const adopted = this.#adopt.get(tab.document);
+		// One parked and still saving, taken back by its own tab; or one whose save rejected after another's
+		// close, with its draft, taken by its document's new tab.
 		const parking = this.#parking.get(tab.id);
-		if (!frame && parking) {
-			this.#parking.delete(tab.id);
-			frame = this.#take(parking, tab.id, group);
-		} else if (!frame && adopted) {
+		const adopted = this.#adopt.get(tab.document);
+		if (!frame && parking) frame = this.#take(parking, tab.id, group);
+		else if (!frame && adopted) {
 			this.#adopt.delete(tab.document);
 			frame = this.#take(adopted, tab.id, group);
 		}
@@ -409,8 +436,9 @@ export class EditorController implements FrameListener {
 			frame.document = tab.document;
 			frame.listener = this;
 			frame.dirty = tab.dirty;
-			this.#frames.set(tab.id, frame);
+			this.#lives.set(frame, { key: this.#scopeKey, place: 'leaving', edits: 0 });
 			group.append(frame);
+			this.#move(frame, 'shown');
 			void this.#open(frame, record);
 		}
 		if (record && 'title' in record) frame.title = record.title;
@@ -423,7 +451,6 @@ export class EditorController implements FrameListener {
 		while (order.length > PARKED_PER_GROUP) {
 			const oldest = order.shift() as string;
 			const parked = this.#frames.get(oldest);
-			this.#frames.delete(oldest);
 			this.#stopTimer(oldest);
 			if (parked) this.#retire(parked, 'parked');
 		}
@@ -612,9 +639,8 @@ export class EditorController implements FrameListener {
 		}
 		const hadFocus = this.#area.matches(':focus-within');
 		if (frame) {
-			this.#frames.delete(tab);
 			this.#stopTimer(tab);
-			await frame.dispose();
+			await this.#move(frame, 'disposed');
 		}
 		const closed = await this.#kernel.call<{ previous: { group: string } }>('editor-close', {
 			tab,
@@ -657,7 +683,7 @@ export class EditorController implements FrameListener {
 
 	dirty(frame: LoamEditorFrame, dirty: boolean): void {
 		if (!this.#live(frame)) return;
-		if (dirty) this.#edits.set(frame, (this.#edits.get(frame) ?? 0) + 1);
+		if (dirty) (this.#lives.get(frame) as Life).edits++;
 		// Every edit restarts the timer; the kernel hears a change only.
 		this.#stopTimer(frame.tab);
 		if (dirty && frame.autosaveMs !== undefined) {
@@ -679,81 +705,102 @@ export class EditorController implements FrameListener {
 	}
 
 	/**
-	 * Whether `frame` is the one now held for its tab, or parked and still saving: tab ids repeat across scopes,
-	 * and a retired frame is gone.
+	 * Whether `frame` is held by its tab or parked while it saves, in the scope rendered, which only those maps
+	 * hold: tab ids repeat across scopes, and a leaving frame is no tab's.
 	 */
 	#live(frame: LoamEditorFrame): boolean {
-		return this.#frames.get(frame.tab) === frame || this.#parking.get(frame.tab) === frame;
+		const place = this.#lives.get(frame)?.place;
+		return place === 'shown' || place === 'parked';
 	}
 
 	/**
-	 * A frame leaving: a dirty one saves first, a rejection a toast (5.5). A save clears its tab's dirty mark in
-	 * its document's scope, whatever scope is active by then, unless that scope's tab holds a newer unsaved edit,
-	 * as after a return there (7.6). When its save rejects while main still shows its scope's area, its draft is
-	 * kept for the person to save or discard (Status deviation 16): one another's call `closed` takes a tab of
-	 * its document again, and a `parked` one goes back into its tab, which its group then holds beyond ten. A
-	 * `closed` frame also clears its closed tab's mark, saved, kept or clean, since that call may have left one.
+	 * The one way a frame changes place: out of both maps, then into the one its place names, or disposed, once.
+	 * So a frame is in one map or none, and only frames of the scope rendered are in either.
 	 */
-	#retire(frame: LoamEditorFrame, how: 'closed' | 'parked' | 'left' = 'left'): void {
-		if (how === 'parked') this.#parking.set(frame.tab, frame);
-		// One leave at a time: a frame taken back and parked again leaves again once the first has settled,
-		// saving what it holds then.
+	#move(frame: LoamEditorFrame, to: Place): Promise<void> | undefined {
+		const life = this.#lives.get(frame) as Life;
+		if (life.place === 'disposed') return;
+		if (this.#frames.get(frame.tab) === frame) this.#frames.delete(frame.tab);
+		if (this.#parking.get(frame.tab) === frame) this.#parking.delete(frame.tab);
+		life.place = to;
+		if (to === 'shown') this.#frames.set(frame.tab, frame);
+		if (to === 'parked') this.#parking.set(frame.tab, frame);
+		return to === 'disposed' ? frame.dispose() : undefined;
+	}
+
+	/** Whether `frame` was made in the scope rendered now. */
+	#here(frame: LoamEditorFrame): boolean {
+		return this.#lives.get(frame)?.key === this.#scopeKey;
+	}
+
+	/**
+	 * A frame leaving (5.5, 5.6): parked, it waits in `#parking`, where its tab can take it back; else it leaves
+	 * both maps. One leave at a time: asked again while one runs, it runs once that settles, unless its tab has
+	 * taken the frame back; then the frame goes. A frame of another scope than the one rendered only leaves, as
+	 * `left`, and goes: it never returns to a map, reopens or reports a mark here (5.1, 7.6).
+	 */
+	#retire(frame: LoamEditorFrame, how: How = 'left'): void {
+		const life = this.#lives.get(frame) as Life;
+		if (life.place === 'disposed') return;
+		const kind = this.#here(frame) ? how : 'left';
+		this.#move(frame, kind === 'parked' ? 'parked' : 'leaving');
 		if (this.#leaving.has(frame)) {
-			this.#leaving.set(frame, how);
+			life.queued = kind;
 			return;
 		}
-		this.#leaving.set(frame, null);
-		void this.#leave(frame, how)
+		this.#leaving.add(frame);
+		void this.#leave(frame, kind)
 			.catch(reportError)
 			.finally(() => {
-				const again = this.#leaving.get(frame);
 				this.#leaving.delete(frame);
-				if (again && this.#frames.get(frame.tab) !== frame) this.#retire(frame, again);
+				const again = life.queued;
+				life.queued = undefined;
+				if (life.place === 'shown') return;
+				if (again) this.#retire(frame, again);
+				else void this.#move(frame, 'disposed');
 			});
 	}
 
-	async #leave(frame: LoamEditorFrame, how: 'closed' | 'parked' | 'left'): Promise<void> {
+	/**
+	 * A leave's work: a dirty frame saves first, a rejection a toast (5.5). When its save rejects while main
+	 * shows its scope's area, its draft is kept for the person (Status deviation 16): a `closed` one takes a tab
+	 * of its document again, and a `parked` one goes back into its tab, which its group then holds beyond ten. A
+	 * save clears its tab's mark in its document's scope, unless its editor reported an edit since the save
+	 * began, or that scope's tab holds a newer unsaved edit (7.6); so does a draft that could not be kept; a
+	 * `closed` frame clears its closed tab's mark in any case, since that call may have left one.
+	 */
+	async #leave(frame: LoamEditorFrame, how: How): Promise<void> {
+		const life = this.#lives.get(frame) as Life;
 		const { tab, dirty } = frame;
 		const scope = frame.record?.scope;
-		const key = this.#scopeKey;
 		// A closed tab's frame was showing when its tab was the active one.
 		const shown = !frame.hidden;
-		const edits = this.#edits.get(frame);
-		let kept = false;
-		try {
-			const saved = !dirty || (await this.#save(frame));
-			if (!saved && key === this.#scopeKey && this.#area.isConnected) {
-				kept =
-					how === 'closed'
-						? await this.#reopen(frame, shown)
-						: how === 'parked' && !this.#frames.has(tab) && !!this.#tabOf(tab);
-				// Back in its tab, out of the parking order until it shows again.
-				if (kept && how === 'parked') this.#frames.set(tab, frame);
-			}
-			const now = this.#frames.get(tab);
-			if (
-				scope &&
-				// Not when it holds an edit made after its save began, which keeps the tab unsaved.
-				(how === 'closed' || (dirty && saved && this.#edits.get(frame) === edits)) &&
-				!(now?.dirty && now.record?.scope.project === scope.project)
-			)
-				await this.#kernel.call('editor-dirty-set', { tab, dirty: false }, { scope });
-		} finally {
-			// Asked to leave again meanwhile, the next leave has its parking entry and its frame.
-			if (!this.#leaving.get(frame)) {
-				if (this.#parking.get(tab) === frame) this.#parking.delete(tab);
-				// Taken back by its tab while it saved, it is that tab's frame now.
-				if (!kept && this.#frames.get(tab) !== frame) await frame.dispose();
+		const edits = life.edits;
+		const saved = !dirty || (await this.#save(frame));
+		if (!saved && life.place !== 'shown' && this.#here(frame) && this.#area.isConnected) {
+			if (how === 'closed') await this.#reopen(frame, shown);
+			else if (how === 'parked' && !this.#frames.has(tab) && this.#tabOf(tab)) {
+				this.#move(frame, 'shown');
 			}
 		}
+		const now = this.#frames.get(tab);
+		// A draft that could not be kept is gone, after its toast, and its mark with it, unless it leaves again.
+		const lost = !saved && life.place !== 'shown' && !life.queued;
+		if (
+			scope &&
+			(how === 'closed' || lost || (dirty && saved && life.edits === edits)) &&
+			!(now?.dirty && now.record?.scope.project === scope.project)
+		)
+			await this.#kernel.call('editor-dirty-set', { tab, dirty: false }, { scope });
 	}
 
 	/** `frame` held by `tab` of `group`, as its own. */
 	#take(frame: LoamEditorFrame, tab: string, group: LoamEditorGroup): LoamEditorFrame {
+		this.#move(frame, 'leaving');
 		frame.tab = tab;
 		frame.dataset.tab = tab;
-		this.#frames.set(tab, frame);
 		group.append(frame);
+		this.#move(frame, 'shown');
 		return frame;
 	}
 
@@ -792,8 +839,8 @@ export class EditorController implements FrameListener {
 				unsaved = true;
 				continue;
 			}
-			if (parked) this.#parking.delete(held.id);
-			else if (other) void other.dispose();
+			// A clean one goes: a parked one once its leave settles, a shown one now.
+			if (other) void this.#move(other, parked ? 'leaving' : 'disposed');
 			this.#take(frame, held.id, group);
 			await mark(held.id);
 			if (shown) await this.#kernel.call('editor-activate', { tab: held.id }, at);
@@ -808,7 +855,7 @@ export class EditorController implements FrameListener {
 		await this.idle;
 		if (this.#adopt.get(document) === frame) this.#adopt.delete(document);
 		const tab = opened.data?.tab as string;
-		if (!opened.success) return false;
+		if (!opened.success || !this.#here(frame)) return false;
 		if (this.#frames.get(tab) !== frame) {
 			// In the background its tab draws no frame, so it takes the tab where it is.
 			const into = !this.#frames.has(tab) && this.#groupOf(tab);
@@ -885,9 +932,10 @@ export class EditorController implements FrameListener {
 	async #dropAll(): Promise<void> {
 		for (const tab of [...this.#timers.keys()]) this.#stopTimer(tab);
 		const frames = [...this.#frames.values()];
-		this.#frames.clear();
+		// Parked ones still saving leave both maps; their leaves end in `left`, as their scope went.
+		for (const frame of [...this.#parking.values()]) this.#move(frame, 'leaving');
+		this.#adopt.clear();
 		this.#shown.clear();
-		this.#parking.clear();
 		this.#records.clear();
 		for (const group of this.#groups.values()) group.remove();
 		this.#groups.clear();
