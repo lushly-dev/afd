@@ -20,6 +20,10 @@
 //! binds the form-mode approval relay's channel to its context, which the approval middleware
 //! claims ([`crate::ApprovalRelay::McpElicitation`]); a host-verified command never gets one.
 //!
+//! A call to one command that may run as a task becomes a task once every check above has passed,
+//! when the request declares the Tasks extension ([`super::tasks`]); a batch or pipeline naming a
+//! command that runs only as a task fails before any step runs.
+//!
 //! Every tool result carries the whole result as `structuredContent` next to the JSON text, as
 //! TypeScript's `resultContent` does.
 
@@ -37,7 +41,7 @@ use crate::commands::Visibility;
 use crate::contexts::{not_in_context_error, ContextScope};
 use crate::{
     error_codes, execute_pipeline, failure, BatchRequest, CommandContext, CommandDefinition,
-    CommandError, CommandExecutor, CommandResult, PipelineRequest,
+    CommandError, CommandExecutor, CommandResult, PipelineRequest, TaskSupport,
 };
 
 use super::authz;
@@ -47,6 +51,7 @@ use super::human_relay::{self, RelayDecision, RelayGate};
 use super::meta_argument;
 use super::meta_tools;
 use super::strategy::{command_action, command_group, ToolStrategy};
+use super::tasks;
 use super::McpServer;
 use crate::approval::relay::{ApprovalRelayChannel, Asked, RoundAnswers, APPROVAL_INPUT_KEY};
 
@@ -366,11 +371,68 @@ impl Call<'_> {
             )
             .await
         {
-            Decision::Proceed => self.execute_asking(name, input, round).await,
+            Decision::Proceed => self.dispatch(command, input, round).await,
             Decision::Refuse(error) => refused(error),
             Decision::Ask(response) => Ok(response),
             Decision::Internal => Err(confirmation_internal()),
         }
+    }
+
+    /// Run the one command this call routes to, once every check before dispatch passed: as a
+    /// task when it may be one and the request declares the Tasks extension
+    /// (`spec/command-metadata.md`, "Tasks"); JSON-RPC `-32021` for a `required` command when
+    /// the request does not; inline otherwise.
+    async fn dispatch(
+        &self,
+        command: &CommandDefinition,
+        input: Value,
+        round: Arc<Round>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let support = command.task_support();
+        if support.allows_task() {
+            if tasks::declares_tasks(self.context) {
+                return self
+                    .server
+                    .start_task(command, input, self.execution_context())
+                    .await;
+            }
+            if support == TaskSupport::Required {
+                return Err(tasks::missing_capability());
+            }
+        }
+        self.execute_asking(&command.name, input, round).await
+    }
+
+    /// The refusal of a batch or pipeline with a step naming a command that runs only as a task:
+    /// only a call to that one command can become a task, so nothing runs.
+    fn task_only_steps(&self, steps: &[Step], code: &str, kind: &str) -> Option<CommandError> {
+        let mut names: Vec<String> = Vec::new();
+        for step in steps {
+            let required = self
+                .exposed(&step.command)
+                .is_some_and(|command| command.task_support() == TaskSupport::Required);
+            if required && !names.contains(&step.command) {
+                names.push(step.command.clone());
+            }
+        }
+        if names.is_empty() {
+            return None;
+        }
+        Some(
+            CommandError::new(
+                code,
+                format!(
+                    "{} runs only as a task, which a {kind} step cannot be",
+                    confirmations::quoted(&names)
+                ),
+            )
+            .with_suggestion(format!(
+                "Call each of {} on its own (its tool or afd-call) from a client that declares the {} extension; nothing ran.",
+                confirmations::quoted(&names),
+                tasks::TASKS_EXTENSION_ID
+            ))
+            .with_retryable(false),
+        )
     }
 
     /// Execute the one command this call routes to with the form-mode approval relay's channel
@@ -593,6 +655,11 @@ impl Call<'_> {
             .iter()
             .map(|item| Step::new(&item.command, input_or_empty(Some(&item.input))))
             .collect();
+        if let Some(error) =
+            self.task_only_steps(&steps, error_codes::INVALID_BATCH_REQUEST, "batch")
+        {
+            return batch_failure(error);
+        }
         if let Some(error) = self.host_verified_steps(&steps) {
             return batch_failure(error);
         }
@@ -652,6 +719,11 @@ impl Call<'_> {
             .iter()
             .map(|step| Step::new(&step.command, input_or_empty(step.input.as_ref())))
             .collect();
+        if let Some(error) =
+            self.task_only_steps(&steps, error_codes::INVALID_PIPELINE_REQUEST, "pipeline")
+        {
+            return tool_result(&pipeline_failure(&error), true);
+        }
         if let Some(error) = self.host_verified_steps(&steps) {
             return tool_result(&pipeline_failure(&error), true);
         }

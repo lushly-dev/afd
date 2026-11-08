@@ -487,7 +487,9 @@ phase 5 step 0c, [#532](https://github.com/lushly-dev/afd/issues/532)), and each
 `principalBindings` cases: Rust in `tests/authorization_cases.rs`, TypeScript in
 `packages/server/src/principal-binding.test.ts`, Python in `python/tests/test_principal_binding.py`.
 Rust loads the `inputDigests` cases through `afd::input_digest`, the digest its `HumanRelay` gets
-and its approval middleware checks relay evidence with (step 0d).
+and its approval middleware checks relay evidence with (step 0d). Rust's task owners are the same
+binding (step 0e, `tests/server_tasks.rs`): a `tasks/*` request from another actor, issuer, subject
+or client gets the unknown-task answer, byte for byte.
 Each binds it to confirmation state as integrity-protected input, never as readable identity:
 
 - **Rust:** HMAC associated data of the `requestState`, after the context hook, with the verified
@@ -518,3 +520,4 @@ Rust ask again, Python answers `-32602`.
 | Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
 | Protected-resource metadata (M7) | Planned | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |
+| `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need the required scopes and run the context hook; the owner is the principal binding, checked by the `TaskStore` and again by the server; the owner must still hold the task's command's `scopes` (or its resolver `visible`); a task stops at `credentials.expiresAt` | N/A: no MCP server |

@@ -562,6 +562,37 @@ pub(crate) fn error_data(auth: &Authorization, refused: &Refused) -> rmcp::Error
     rmcp::ErrorData::invalid_request(error.message, Some(Value::Object(data)))
 }
 
+/// A `tasks/*` request by a task's owner (`spec/command-metadata.md`, "Tasks"): the owner must
+/// still hold what a call of the task's command needs, as far as it is known without the
+/// input: under the static rule the command's `scopes` (named in the refusal), under a resolver
+/// its `visible` (a refusal naming no scope). A command no longer exposed to MCP has no scope of
+/// its own.
+pub(crate) fn task_refusal(
+    server: &McpServer,
+    auth: &Authorization,
+    command: &str,
+    credentials: &Credentials,
+) -> Option<rmcp::ErrorData> {
+    let definition = server
+        .inner
+        .registry
+        .get(command)
+        .filter(|definition| definition.expose.mcp)?;
+    let missing = match &auth.resolver {
+        Some(resolver) if resolver.visible(&definition.name, credentials) => return None,
+        Some(_) => Vec::new(),
+        None => match scopes::static_decision(
+            &[],
+            definition.scopes.as_deref().unwrap_or_default(),
+            &credentials.scopes,
+        ) {
+            ScopeDecision::Missing(missing) => missing,
+            ScopeDecision::Allowed | ScopeDecision::Defer => return None,
+        },
+    };
+    Some(error_data(auth, &Refused::MissingScopes(missing)))
+}
+
 /// The listing filter for a caller, when the server filters listings and the caller has
 /// credentials.
 pub(crate) fn visibility(

@@ -107,6 +107,8 @@ inline constexpr char APPROVAL_REQUIRED[] = "APPROVAL_REQUIRED";
 inline constexpr char OUTPUT_BUDGET_EXCEEDED[] = "OUTPUT_BUDGET_EXCEEDED";
 // Authorization
 inline constexpr char INSUFFICIENT_SCOPE[] = "INSUFFICIENT_SCOPE";
+// Tasks
+inline constexpr char TASK_TOKEN_EXPIRED[] = "TASK_TOKEN_EXPIRED";
 } // namespace error_codes
 
 /// `{code, message}` plus any of `options`.

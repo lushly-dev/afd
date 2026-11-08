@@ -64,6 +64,11 @@
 //! host's [`HumanRelay`] ([`McpServer::with_human_relay`]; see [`human_relay`]), whatever that
 //! option says.
 //!
+//! A command that declares [`TaskSupport`](crate::TaskSupport) runs as an MCP task for a request
+//! that declares the Tasks extension (`spec/command-metadata.md`, "Tasks"): the server declares the
+//! extension, answers `tasks/get`, `tasks/update` and `tasks/cancel` for the task's owner only, and
+//! keeps tasks in a [`TaskStore`] ([`McpServer::with_task_store`]; see [`tasks`]).
+//!
 //! A panicking command handler is a `COMMAND_EXECUTION_ERROR` result on every route (the
 //! registry catches it, so a batch item or pipeline step fails alone and the journal records
 //! it). A panic in code outside the registry, such as a [`McpServer::with_group_by`] closure,
@@ -84,12 +89,13 @@
 use std::sync::Arc;
 
 use rmcp::model::{
-    CacheScope, CallToolRequestParams, CallToolResponse, CustomRequest, CustomResult,
-    DiscoverResult, GetSkillRequestParams, GetSkillResult, InitializeRequestParams,
-    InitializeResult, ListResourceTemplatesResult, ListResourcesResult, ListSkillsResult,
-    ListToolsResult, MetaObject, PaginatedRequestParams, ReadResourceDirectoryRequestParams,
-    ReadResourceDirectoryResult, ReadResourceRequestParams, ReadResourceResponse,
-    ResourcesCapability, ServerCapabilities, ServerConfig, Tool, ToolsCapability,
+    CacheScope, CallToolRequestParams, CallToolResponse, CancelTaskParams, CustomRequest,
+    CustomResult, DiscoverResult, GetSkillRequestParams, GetSkillResult, GetTaskParams,
+    GetTaskResult, InitializeRequestParams, InitializeResult, ListResourceTemplatesResult,
+    ListResourcesResult, ListSkillsResult, ListToolsResult, MetaObject, PaginatedRequestParams,
+    ReadResourceDirectoryRequestParams, ReadResourceDirectoryResult, ReadResourceRequestParams,
+    ReadResourceResponse, ResourcesCapability, ServerCapabilities, ServerConfig, Tool,
+    ToolsCapability, UpdateTaskParams,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::{
@@ -131,6 +137,7 @@ mod router;
 mod skills;
 pub mod strategy;
 mod structured;
+pub mod tasks;
 use confirmations::Gate;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
@@ -142,6 +149,10 @@ pub use resources::{
 };
 pub use skills::{Skill, SkillCatalog, MAX_SKILL_BYTES, MAX_SKILL_FILES};
 pub use strategy::{GroupBy, ToolStrategy, MAX_FIRST_CLASS_TOOLS};
+pub use tasks::{
+    InMemoryTaskStore, TaskChange, TaskOptions, TaskOwner, TaskRecord, TaskState, TaskStore,
+    TaskStoreError, TASKS_EXTENSION_ID,
+};
 
 /// Origin, Host and body-size policy for [`McpServer::streamable_http_service`].
 #[derive(Debug, Clone)]
@@ -196,6 +207,9 @@ struct Inner {
     /// `with_trusted_transport`): an authorized server serves it without credentials.
     #[cfg_attr(not(feature = "server-auth"), allow(dead_code))]
     trusted_transport: bool,
+    /// The task store, options and running tasks (`spec/command-metadata.md`, "Tasks"), shared
+    /// by every clone.
+    tasks: Arc<tasks::TaskRuntime>,
 }
 
 /// An MCP server for the MCP-exposed commands of a [`CommandRegistry`].
@@ -242,6 +256,7 @@ impl McpServer {
                 legacy_back_channel: true,
                 auth: Default::default(),
                 trusted_transport: false,
+                tasks: Arc::new(tasks::TaskRuntime::default()),
             }),
             session: Some(ContextStack::new()),
         }
@@ -269,6 +284,7 @@ impl McpServer {
             legacy_back_channel: shared.legacy_back_channel,
             auth: shared.auth.clone(),
             trusted_transport: shared.trusted_transport,
+            tasks: Arc::clone(&shared.tasks),
         });
         change(&mut inner);
         Self {
@@ -443,6 +459,28 @@ impl McpServer {
         self.with(|inner| inner.human_relay = Some(relay))
     }
 
+    /// Keep tasks in `store` instead of the default [`InMemoryTaskStore`] (see [`tasks`]): a host
+    /// with several processes behind one URL supplies a store they share. It replaces the store
+    /// set before; set it before serving, since tasks already in the old store stay there.
+    pub fn with_task_store(self, store: impl TaskStore + 'static) -> Self {
+        let store: Arc<dyn TaskStore> = Arc::new(store);
+        self.with(|inner| {
+            inner.tasks = Arc::new(tasks::TaskRuntime::new(store, inner.tasks.options.clone()));
+        })
+    }
+
+    /// How tasks run: their `ttlMs` and `pollIntervalMs`, how often a running task checks its
+    /// deadlines and the store, and the largest result kept (see [`TaskOptions`]). Set it before
+    /// serving.
+    pub fn with_task_options(self, options: TaskOptions) -> Self {
+        self.with(|inner| {
+            inner.tasks = Arc::new(tasks::TaskRuntime::new(
+                Arc::clone(&inner.tasks.store),
+                options,
+            ));
+        })
+    }
+
     /// Advertise a top-level `outputSchema` on tools whose command declares `returns` (the
     /// `CommandResult` envelope with `data` typed by `returns`). Default: `true`. Only the
     /// individual strategy and the hybrid strategy's first-class tools are command tools;
@@ -469,7 +507,10 @@ impl McpServer {
     /// and pipeline steps run with its context. The request's active context
     /// ([`Self::with_contexts`]) is applied after it, and the hook cannot set one. The request's
     /// declared context fields are added after it too, except a name the hook set, which wins.
-    /// It does not run for `tools/list`, `server/discover` or `initialize`.
+    /// It also runs on `tasks/get`, `tasks/update` and `tasks/cancel`, with
+    /// [`ContextHookRequest::tool`] set to the method name, so the caller is bound with the same
+    /// actor as the call that started the task; a refusal there is a JSON-RPC `-32600`. It does not
+    /// run for `tools/list`, `server/discover` or `initialize`.
     pub fn with_context_hook<F, Fut>(self, hook: F) -> Self
     where
         F: Fn(ContextHookRequest, CommandContext) -> Fut + Send + Sync + 'static,
@@ -874,6 +915,11 @@ fn internal(error: impl std::fmt::Display) -> ErrorData {
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder().enable_tools();
+        // The Tasks extension (SEP-2663), when an MCP-exposed command may run as a task. `rmcp`
+        // reads this declaration to route `tasks/get`, `tasks/update` and `tasks/cancel`.
+        if self.serves_tasks() {
+            capabilities = capabilities.enable_tasks();
+        }
         // The Skills extension (S1): `{}`, or `{ "directoryRead": true }`. `rmcp` reads this
         // declaration to route `skills/list`, `skills/get` and `resources/directory/read`.
         if let Some(catalog) = &self.inner.skills {
@@ -1051,5 +1097,29 @@ impl ServerHandler for McpServer {
             return Err(internal(message));
         }
         panic_guard::guard_call(router::route(self, &request, &context)).await
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, ErrorData> {
+        panic_guard::guard_request(self.serve_get_task(request, &context)).await
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        panic_guard::guard_request(self.serve_update_task(request, &context)).await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        panic_guard::guard_request(self.serve_cancel_task(request, &context)).await
     }
 }

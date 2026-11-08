@@ -118,13 +118,18 @@ impl Stdio {
 
     /// A 2025 connection: `initialize`, then `notifications/initialized`.
     pub async fn connect(server: McpServer) -> Self {
+        Self::connect_with(server, json!({})).await
+    }
+
+    /// A 2025 connection whose `initialize` declares `capabilities`.
+    pub async fn connect_with(server: McpServer, capabilities: Value) -> Self {
         let mut client = Self::connect_modern(server);
         let initialize = client
             .request(
                 "initialize",
                 json!({
                     "protocolVersion": "2025-11-25",
-                    "capabilities": {},
+                    "capabilities": capabilities,
                     "clientInfo": { "name": "test", "version": "0" },
                 }),
             )

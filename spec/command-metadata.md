@@ -433,6 +433,9 @@ a person, so no AFD task is ever `input_required`. Only a `tools/call` that rout
 command fails the whole request with `INVALID_BATCH_REQUEST` or `INVALID_PIPELINE_REQUEST` before
 any step runs. The HTTP routes, `DirectClient`, in-process registries and the CLI always run
 inline. The server never answers with a task to a request that did not declare the extension.
+A request declares it in its own `_meta` client capabilities on MCP 2026-07-28; a 2025 request
+never does, whatever its session declared at `initialize` (the extension is not defined for
+2025-11-25), so it is treated as not declaring it, `tasks/*` included (`-32021`).
 
 **Creating one.** Everything an inline call meets before dispatch happens first: the HTTP layer's
 403 ([authorization, M6](./authorization.md#m6-scopes)), the context hook and the scope check.
@@ -441,29 +444,42 @@ Then:
 - the record is in the `TaskStore` before the server answers with `CreateTaskResult`; a store that
   cannot record it fails the call, and nothing runs;
 - the record's **owner** is the call's [principal binding](./authorization.md#m8-the-principal-binding),
-  and it holds no token.
+  and it holds no token. Credentials that cannot be bound (M8) get no task: the call fails with
+  an internal error that names no one, and nothing runs.
 
 **Running one.** The command runs through the normal executor (validation, middleware, handler)
 with a fresh context carrying the call's actor, credentials and trace. Its cancellation signal
-fires on `tasks/cancel`, when the task's `ttlMs` ends, and at `credentials.expiresAt`.
+fires on `tasks/cancel`, when the task's `ttlMs` ends, and at `credentials.expiresAt`, and the
+server then stops the handler; when its `ttlMs` ends the task is gone.
 - **Its result** is the `CallToolResult` an inline call would return, `structuredContent` included,
   with status `completed`; a failed `CommandResult` is `completed` with `isError: true`, as the
   extension says. `failed` is only for a JSON-RPC error. A task stopped by `tasks/cancel` is
-  `cancelled`.
+  `cancelled`; a handler that had already returned when the cancel arrived keeps its result.
 - **The token bounds it.** A task never outlives the token that started it: when
   `credentials.expiresAt` passes while it is working, it is stopped and completes with the failure
-  `TASK_TOKEN_EXPIRED` ([error codes](./error-codes.md#specified-not-yet-in-the-catalog)),
-  retryable: start it again with a new token. A host may also end the task's `ttlMs` there.
+  `TASK_TOKEN_EXPIRED` ([error codes](./error-codes.md#tasks)): start it again with a new token.
+  A task whose token expired before it could start completes the same way without running, and
+  a result that arrives after `expiresAt` is not delivered. The failure is retryable unless the
+  command is a `mutation` whose handler started, since it may have made its change. A host may
+  also end the task's `ttlMs` there, or a grace after it.
 - **Progress** updates `statusMessage` and `lastUpdatedAt`; no progress or log notification is sent
   for a task (the extension delivers none).
 
 **`tasks/get`, `tasks/update` and `tasks/cancel`.** Each request passes the same authorization as a
-`tools/call` ([M6, other methods](./authorization.md#other-methods)), and then the **owner
-check**: the store returns a task only when the caller's principal binding equals its owner. A task
-owned by anyone else, an expired task and an unknown id get the same answer, the extension's answer
-for an unknown task, so an id reveals nothing. `tasks/update` finds no task waiting for input, and
-answers as the extension says for that. `tasks/cancel` requests cooperative cancellation; a
-finished task is unchanged. `Mcp-Name` carries the task id on Streamable HTTP.
+`tools/call` ([M6, other methods](./authorization.md#other-methods)), and then the **owner check**:
+the store returns a task only when the caller's principal binding equals its owner. A task owned by
+anyone else, an expired task and an unknown id get the same answer, the extension's answer for an
+unknown task (`-32602`), so an id reveals nothing. The server checks the owner and the TTL again
+itself, whatever the store returned. On an authorized server the owner must also still hold what a
+call of the task's command needs, as far as it is known without the input, to read or update it: the
+command's `scopes`, or under a resolver its `visible` (else the request is refused with
+`INSUFFICIENT_SCOPE`, as a request that names no command is for its required scopes). `tasks/cancel`
+does not ask that, since stopping a task only takes authority away. The check is only as good as the
+binding: a server that cannot tell its callers apart (HTTP with neither authorization nor a hook
+that maps callers to actors) gives them all one owner, and a task id is then their only guard.
+`tasks/update` finds no task waiting for input, and answers as the extension says for that.
+`tasks/cancel` requests cooperative cancellation; a finished task is unchanged. `Mcp-Name` carries
+the task id on Streamable HTTP.
 
 **The store.**
 
@@ -475,8 +491,13 @@ TaskStore
     expire(now) -> count                // removes tasks past their ttl
 ```
 
-The default store is in memory and serves one process. A host with several processes behind one
-URL supplies a shared store.
+The default store is in memory and serves one process, and it is bounded so that one principal
+cannot exhaust it: a store may refuse a new task when its owner, or the store, holds as many as it
+allows, and the call then fails with `RATE_LIMITED` (retryable) and nothing runs. It may drop a
+finished task before its `ttlMs` ends to make room, so finished results cannot keep other callers
+out. A server also bounds how many tasks one process runs at once, whatever its store allows. A host
+with several processes behind one URL supplies a shared store; a `tasks/cancel` answered by another
+process reaches the task through the store.
 
 ## Scopes
 
@@ -587,5 +608,5 @@ follows `destructive`, `false` when it is unset.
 | `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | Planned (declaration only) |
 | Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c): the server's `actor` and the SDK-verified token, through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data; since step 0d the same state carries the form-mode approval relay's answers | N/A: no confirmation gate |
 | `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Yes (Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`) | N/A: no MCP server |
-| `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Planned | Planned | Planned (step 0e) | N/A: no MCP server |
+| `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e: `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` with `TaskStore`, `InMemoryTaskStore` (32 tasks per owner, 256 in all), `McpServer::with_task_store` and `with_task_options`, `CommandContext::report_progress` and `cancellation`; `tests/server_tasks.rs`) | N/A: no MCP server |
 

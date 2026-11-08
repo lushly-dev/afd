@@ -165,6 +165,9 @@ class ErrorCodes:
     # Authorization (spec/authorization.md, M6)
     INSUFFICIENT_SCOPE = "INSUFFICIENT_SCOPE"
 
+    # Tasks (spec/command-metadata.md, "Tasks")
+    TASK_TOKEN_EXPIRED = "TASK_TOKEN_EXPIRED"
+
 
 def create_error(
     code: str,
