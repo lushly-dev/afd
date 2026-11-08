@@ -173,7 +173,9 @@ test('a preview versions from its seed, counts on, and keeps its ranges without 
 		m: '1.0.0',
 	});
 	// Prerelease mode is entered for the run only, and the fragments it applied are consumed.
+	// Changesets 3 moves applied prerelease fragments to .changeset/pre; none of it is kept.
 	assert.equal(existsSync(join(f.root, '.changeset/pre.json')), false);
+	assert.equal(existsSync(join(f.root, '.changeset/pre')), false);
 	assert.equal(existsSync(join(f.root, '.changeset/preview.md')), false);
 	assert.equal(existsSync(join(f.root, '.changeset/main.md')), true);
 	assert.deepEqual(readIntent(f.root).selectedUnits, ['d', 'p']);
@@ -189,6 +191,53 @@ test('a preview versions from its seed, counts on, and keeps its ranges without 
 	assert.equal(
 		read(f.root, 'packages/d/package.json').peerDependencies['@fixture/p'],
 		'^2.2.0-preview'
+	);
+});
+
+test('a prerelease refuses Changesets prerelease state it did not create', (t) => {
+	const f = fixture(t);
+	write(f.root, '.changeset/pre/stale.md', '---\n"@fixture/p": major\n---\n\nStale\n');
+	commit(f.root);
+	const before = versions(f);
+	assert.throws(
+		() => version(f, 'npm-prerelease'),
+		/Unexpected directory in release fragment storage: \.changeset\/pre/
+	);
+	assert.deepEqual(versions(f), before);
+});
+
+// Changesets 3 bumps a dependent that leaves its peer range by patch and narrows the range.
+test('a release that narrows a peer range without a major of the dependent is refused', (t) => {
+	const f = fixture(t);
+	write(
+		f.root,
+		'.changeset/preview.md',
+		'---\n"@fixture/p": major\n"@fixture/d": patch\n---\n\nP\n'
+	);
+	commit(f.root);
+	const before = versions(f);
+	assert.throws(
+		() => version(f, 'npm-prerelease'),
+		/@fixture\/d .* changes its peer range on @fixture\/p without a major bump/
+	);
+	assert.deepEqual(versions(f), before);
+	assert.equal(existsSync(join(f.root, '.changeset/preview.md')), true);
+});
+
+test('a release that narrows a peer range ships with a major of the dependent', (t) => {
+	const f = fixture(t);
+	write(
+		f.root,
+		'.changeset/preview.md',
+		'---\n"@fixture/p": major\n"@fixture/d": major\n---\n\nP\n'
+	);
+	commit(f.root);
+	version(f, 'npm-prerelease');
+	assert.equal(versions(f).p, '3.0.0-preview.0');
+	assert.equal(versions(f).d, '3.0.0-preview.0');
+	assert.equal(
+		read(f.root, 'packages/d/package.json').peerDependencies['@fixture/p'],
+		'^3.0.0-preview.0'
 	);
 });
 

@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import semver from 'semver';
 import { assertChannelVersions, planRelease, releaseChannel } from '../release/control.mjs';
 import { json, repositoryEntry, run, safePath, sourceDigest, tree } from './shared.mjs';
 
@@ -96,17 +97,28 @@ export function versionSelected({
 		const baseline = new Map(tree(candidate, '', { allowRepositoryMirror: true }));
 		const channel = releaseChannel(inventory, plan.selectedUnits);
 		const preState = join(candidate, '.changeset/pre.json');
+		const preApplied = join(candidate, '.changeset/pre');
 		// Changesets' prerelease mode, entered for this run only: each version's own prerelease
 		// number is the state, so the next preview counts on from the published one.
 		if (channel.route === 'npm-prerelease')
-			writeFileSync(
-				preState,
-				`${JSON.stringify({ mode: 'pre', tag: channel.distTag, initialVersions: {}, changesets: [] })}\n`
-			);
+			writeFileSync(preState, `${JSON.stringify({ mode: 'pre', tag: channel.distTag })}\n`);
+		const manifests = new Map(
+			plan.distributions.map(({ manifest }) => [
+				manifest,
+				JSON.parse(readFileSync(join(candidate, manifest), 'utf8')),
+			])
+		);
 		invoke(candidate);
 		if (channel.route === 'npm-prerelease') {
 			rmSync(preState);
-			// Prerelease mode keeps the fragments it applied; this release has consumed them.
+			// Prerelease mode keeps the fragments it applied, moved to .changeset/pre; this release
+			// has consumed them, and only them.
+			const selected = new Set([...fragments].map((file) => file.replace(/^\.changeset\//, '')));
+			for (const [file] of existsSync(preApplied) ? tree(candidate, '.changeset/pre') : []) {
+				if (!selected.has(file.replace(/^\.changeset\/pre\//, '')))
+					throw new Error(`Changesets applied an unselected fragment: ${file}`);
+			}
+			rmSync(preApplied, { recursive: true, force: true });
 			for (const file of fragments) rmSync(join(candidate, file), { force: true });
 		}
 		const after = new Map(tree(candidate, '', { allowRepositoryMirror: true }));
@@ -116,6 +128,19 @@ export function versionSelected({
 		for (const file of changed) {
 			if (!allowed.has(file) && !(fragments.has(file) && !after.has(file)))
 				throw new Error(`Changesets wrote outside selected release: ${file}`);
+		}
+		// A dependent that a release leaves outside its peer range is bumped by patch and its range
+		// narrowed (Changesets 3; Changesets 2 made it major). Narrowing a peer range breaks the
+		// dependent's consumers, so it ships only with a major of the dependent.
+		for (const [manifest, before] of manifests) {
+			const now = JSON.parse(readFileSync(join(candidate, manifest), 'utf8'));
+			const peers = Object.keys(before.peerDependencies ?? {}).filter(
+				(name) => now.peerDependencies?.[name] !== before.peerDependencies[name]
+			);
+			if (peers.length && semver.major(now.version) <= semver.major(before.version))
+				throw new Error(
+					`${now.name} ${before.version} -> ${now.version} changes its peer range on ${peers.join(', ')} without a major bump; add a major fragment for ${now.name} or widen its peer range`
+				);
 		}
 		const versioned = planRelease({
 			root: candidate,

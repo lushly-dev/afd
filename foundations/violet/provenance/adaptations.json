@@ -15,9 +15,9 @@
       "path": "docs/features/active/platform-monorepo/violet-transition.md",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "dd7a4a6de054af80267749e04f696cbbf363a9726d1a9c51824ae0617633b7a7",
+      "current_import_sha256": "2f2732699baea6f321ec818969055d851567d3eac17714aa57d40a30de038c91",
       "classification": "afd-authored",
-      "reason": "Public contract changes and upgrade steps for the split; first publication as 0.3.0 from AFD and the move to AFD core 2.x; release readiness, version reporting and store legs recorded; the runtime contract change for Loam D50 and phase 0 spec section 3 (step 0b) (preloaded source, VioletConfig union, high-contrast theme), its upgrade step and its pending fragment",
+      "reason": "Public contract changes and upgrade steps for the split; first publication as 0.3.0 from AFD and the move to AFD core 2.x; release readiness, version reporting and store legs recorded; the runtime contract change for Loam D50 and phase 0 spec section 3 (step 0b) (preloaded source, VioletConfig union, high-contrast theme), its upgrade step and its pending fragment; the Changesets 3 peer-range rule (a narrowed peer range needs a major)",
       "candidate": {
         "path": null,
         "sha256": null,

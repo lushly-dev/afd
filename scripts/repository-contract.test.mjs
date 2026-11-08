@@ -63,9 +63,15 @@ test('release documentation and workflow agree with root scripts', () => {
 	assert.match(agents, /pnpm changeset/);
 
 	const qualityGate = release.indexOf('run: pnpm check');
-	const publishAction = release.search(/uses: changesets\/action@[0-9a-f]{40} # v1\./);
+	const publishAction = release.search(/uses: changesets\/action@[0-9a-f]{40} # v2\./);
 	assert.ok(qualityGate >= 0, 'release workflow must run pnpm check');
 	assert.ok(publishAction > qualityGate, 'quality gate must finish before Changesets can publish');
+	// The action only opens the version PR: publication and tags belong to the guarded scripts,
+	// and v2 pushes tags unless told not to.
+	const actionStep = release.slice(publishAction, release.indexOf('\n\n', publishAction));
+	assert.doesNotMatch(actionStep, /publish-script:/);
+	assert.match(actionStep, /push-git-tags: false/);
+	assert.match(actionStep, /create-github-releases: false/);
 });
 
 test('publish workflows check the tag against the manifest before publishing', () => {
