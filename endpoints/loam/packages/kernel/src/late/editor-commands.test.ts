@@ -151,7 +151,7 @@ describe('P2-D5: the editor commands', () => {
 		const refused = await kernel.call('editor-close', { tab: 't1' });
 		expect(refused.error?.code).toBe('EDITOR_TAB_DIRTY');
 		expect(refused.error?.message).toBe('The person has unsaved changes in tab t1');
-		expect(refused.error?.suggestion).toContain('Retry once they save');
+		expect(refused.error?.suggestion).toContain('Ask the person to save it, then retry');
 		expect(refused.error?.suggestion).not.toContain('probe-content-set');
 		expect(refused.error?.suggestion).toContain('discard: true');
 		await workspace.resetSession();
@@ -299,14 +299,14 @@ describe('P2-D5: the editor commands', () => {
 		// An agent's trash and move are refused, naming the type's save and an editor-close that saves first.
 		const trashed = await kernel.agent.call('document-trash', { document: a });
 		expect(trashed.error?.code).toBe('EDITOR_TAB_DIRTY');
-		expect(trashed.error?.suggestion).toContain('Retry once they save');
+		expect(trashed.error?.suggestion).toContain('Ask the person to save it, then retry');
 		expect(trashed.error?.suggestion).toContain('editor-close { tab: "t1", discard: true }');
 		const moved = await kernel.agent.call('document-move', { document: a, project: 'atlas' });
 		expect(moved.error?.code).toBe('EDITOR_TAB_DIRTY');
 		// Nor may it mark the tab saved, which would let them through: only the person's page does.
 		const marked = await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: false });
 		expect(marked.error?.code).toBe('EDITOR_TAB_DIRTY');
-		expect(marked.error?.suggestion).toContain('Retry once they save');
+		expect(marked.error?.suggestion).toContain('Ask the person to save it, then retry');
 		expect((await editor(workspace)).groups[0]?.tabs[0]?.dirty).toBe(true);
 		expect((await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: true })).success).toBe(
 			true
@@ -356,6 +356,105 @@ describe('P2-D5: the editor commands', () => {
 		expect(
 			(await kernel.call<{ status: string }>('document-get', { document: a })).data?.status
 		).toBe('active');
+	});
+
+	it('P2-D5: concurrent calls each read the record in the step that writes it, so none undoes another', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const ids: string[] = [];
+		for (const title of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']) {
+			const id = await probe(workspace, title);
+			ids.push(id);
+			await kernel.call('document-open', { document: id });
+		}
+		const tabs = async () => (await editor(workspace)).groups.flatMap((group) => group.tabs);
+		const ids_ = async () => (await tabs()).map((tab) => tab.id);
+		// Two agents' closes at once both take effect.
+		const closed = await Promise.all([
+			kernel.agent.call('editor-close', { tab: 't1' }),
+			kernel.agent.call('editor-close', { tab: 't2' }),
+		]);
+		expect(closed.map((each) => each.success)).toEqual([true, true]);
+		expect(await ids_()).not.toContain('t1');
+		expect(await ids_()).not.toContain('t2');
+		// An agent's close racing the person's mark of another tab: the closed tab stays closed, the mark holds.
+		await Promise.all([
+			kernel.agent.call('editor-close', { tab: 't3' }),
+			kernel.call('editor-dirty-set', { tab: 't4', dirty: true }),
+		]);
+		expect(await ids_()).not.toContain('t3');
+		expect((await tabs()).find((tab) => tab.id === 't4')?.dirty).toBe(true);
+		// Mutations of distinct tabs at once all take effect.
+		const all = await Promise.all([
+			kernel.agent.call('editor-pin', { tab: 't5', pinned: true }),
+			kernel.agent.call('editor-pin', { tab: 't6', pinned: true }),
+			kernel.agent.call('editor-close', { tab: 't7' }),
+			kernel.call('editor-dirty-set', { tab: 't8', dirty: true }),
+			kernel.agent.call('editor-activate', { tab: 't4' }),
+		]);
+		expect(all.map((each) => each.success)).toEqual([true, true, true, true, true]);
+		const now = await tabs();
+		expect(
+			now
+				.filter((tab) => tab.pinned)
+				.map((tab) => tab.id)
+				.sort()
+		).toEqual(['t5', 't6']);
+		expect(now.map((tab) => tab.id)).not.toContain('t7');
+		expect(now.find((tab) => tab.id === 't8')?.dirty).toBe(true);
+		expect((await editor(workspace)).groups[0]?.active).toBe('t4');
+	});
+
+	it('P2-D5: an agent’s trash racing the person’s mark ends one way or the other, never with the tab back unmarked or the mark lost', async () => {
+		for (const order of ['trash first', 'mark first'] as const) {
+			const workspace = await documents();
+			const { kernel } = workspace;
+			const a = await probe(workspace, 'Alpha');
+			await kernel.call('document-open', { document: a });
+			const trash = () => kernel.agent.call('document-trash', { document: a });
+			const mark = () => kernel.call('editor-dirty-set', { tab: 't1', dirty: true });
+			const [trashed, marked] =
+				order === 'trash first'
+					? await Promise.all([trash(), mark()])
+					: (await Promise.all([mark(), trash()])).reverse();
+			const tabs = (await editor(workspace)).groups.flatMap((group) => group.tabs);
+			const status = (await kernel.call<{ status: string }>('document-get', { document: a })).data
+				?.status;
+			if (trashed?.success) {
+				expect(marked?.success, order).toBe(false);
+				expect(tabs, order).toEqual([]);
+				expect(status, order).toBe('trashed');
+			} else {
+				expect(trashed?.error?.code, order).toBe('EDITOR_TAB_DIRTY');
+				expect(marked?.success, order).toBe(true);
+				expect(tabs, order).toMatchObject([{ id: 't1', dirty: true }]);
+				expect(status, order).toBe('active');
+			}
+		}
+	});
+
+	it('P2-D5: document-open with stay is the person’s page’s alone, and only where main shows: it moves no one', async () => {
+		const workspace = await documents();
+		const { kernel, scopes } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		const b = await probe(workspace, 'Beta');
+		await kernel.call('document-open', { document: a });
+		const refused = await kernel.agent.call('document-open', { document: b, stay: 'background' });
+		expect(refused.error?.code).toBe('DOCUMENT_OPEN_STAY_REFUSED');
+		// The person's page, in the background, adds a tab and activates nothing.
+		expect((await kernel.call('document-open', { document: b, stay: 'background' })).success).toBe(
+			true
+		);
+		const read = await editor(workspace);
+		expect(documentsOf(read)).toEqual([[a, b]]);
+		expect(read.groups[0]?.active).toBe('t1');
+		// Once the person has gone to Atlas, it refuses, and leaves them there.
+		await kernel.call('scope-set', { project: scopes.atlas.project });
+		const c = await probe(workspace, 'Gamma', { workspace: 'personal' });
+		const late = await kernel.call('document-open', { document: c, stay: 'active' });
+		expect(late.error?.code).toBe('DOCUMENT_OPEN_STAY_REFUSED');
+		expect((await kernel.call<{ scope: unknown }>('scope-get')).data?.scope).toEqual(scopes.atlas);
+		expect(documentsOf(await editor(workspace, { workspace: 'personal' }))).toEqual([[a, b]]);
 	});
 
 	it("P2-D5: holds a selection in the binding's shape, unjournaled, and refuses another shape", async () => {

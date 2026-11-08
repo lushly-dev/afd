@@ -84,6 +84,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 12,169, `late-editor` 15,016 and `editor` 27,768. The second narrow re-check's raised `editorMinified` by
  * its measured cost, 394, to 28,172, approved by the coordinator, 2026-11-07, chiefly a draft kept when its
  * save rejects after another's close; `late-editor` fell to 14,957, `late` 58,089, `late-documents` 12,125.
+ * The third raised `lateEditorMinified` by 255, to 15,305, and `editorMinified` by 661, to 28,833, their
+ * measured costs, approved by the coordinator, 2026-11-07: `document-open`'s `stay` and the suggestion that
+ * says a rejected save's draft comes back, less what one read-and-write step saved; and a draft kept in every
+ * case but those deviation 16 lists.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -92,7 +96,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
-	lateEditorMinified: 15_050,
+	lateEditorMinified: 15_305,
 	urlMinified: 5_091,
 	appsMinified: 384_253,
 	surfacesMinified: 85_000,
@@ -103,7 +107,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 28_172,
+	editorMinified: 28_833,
 });
 
 /** Group a module id by the package it belongs to. */

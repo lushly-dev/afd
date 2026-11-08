@@ -159,6 +159,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		document: id,
 		group: optional(choice(['active', 'beside'])),
 		preview: optional(boolean()),
+		stay: optional(choice(['active', 'background'])),
 	});
 	const closeInput = strictObject({ tab: id, discard: optional(boolean()) });
 	const pinInput = strictObject({ tab: id, pinned: boolean() });
@@ -191,7 +192,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			'EDITOR_TAB_DIRTY',
 			`The person has unsaved changes in tab ${tab}`,
 			open
-				? `Retry once they save, or close it with editor-close { tab: "${tab}", discard: true }, which saves their editor first`
+				? `Ask the person to save it, then retry; or close it with editor-close { tab: "${tab}", discard: true }, which saves their editor first, and if that save rejects, brings their draft back in a new tab`
 				: 'Its tab is closed and its editor is saving them; retry once it has'
 		);
 	/** The person's own page, the chrome's calls among it: never an agent's or a server's call. */
@@ -242,11 +243,17 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		if (kept) editors.put(project, kept);
 	}
 
-	/** The call's scope's record, registered and read before anything writes it. */
-	async function read(context: CommandContext): Promise<EditorStateV1> {
+	/**
+	 * The call's scope's record, registered and read before anything writes it, handed to `then` in the same
+	 * step as the read: no other call's write lands between a command's read and its write.
+	 */
+	async function read<T>(
+		context: CommandContext,
+		then: (before: EditorStateV1, project: string | undefined) => T
+	): Promise<Awaited<T>> {
 		const project = here(context).project;
 		await ensure(project);
-		return editors.peek(project) as EditorStateV1;
+		return then(editors.peek(project) as EditorStateV1, project) as Awaited<T>;
 	}
 
 	/** Whether main shows the editor area of `at`: the documents section, no app, and `at` active. */
@@ -331,6 +338,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 				document: ID_JSON,
 				group: { type: 'string', enum: ['active', 'beside'] },
 				preview: { type: 'boolean' },
+				stay: { type: 'string', enum: ['active', 'background'] },
 			},
 			required: ['document'],
 			additionalProperties: false,
@@ -338,6 +346,16 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		async handler(input, context) {
 			const app = caller(context);
 			const from = here(context);
+			const { stay } = input;
+			// `stay` is the person's page's alone: its own reopen of a draft, which moves nothing but the tabs
+			// (Status deviation 16).
+			const stayRefused = () =>
+				kernelFailure(
+					'DOCUMENT_OPEN_STAY_REFUSED',
+					"Only the person's page opens with stay, where main shows",
+					'Open it without stay'
+				);
+			if (stay && !person(context)) return stayRefused();
 			// An app's call answers the same bytes as a missing id for a document outside its scope, first (4.2).
 			const record = await check.find(input.document, 'document-open', context);
 			if (isRefusal(record)) return record;
@@ -356,7 +374,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			const to = record.scope;
 			// Only a person's or an agent's call in this page has a screen to move: a server's holds no active
 			// scope, so it writes the document's record alone (scope and projects specification, 3.3).
-			const screen = marked(context);
+			const screen = marked(context) && !stay;
 			if (screen) {
 				// From the active scope, as the switch computes it, whatever scope the call named (4.3).
 				if (!sameScope(scope.active(), to)) {
@@ -370,12 +388,17 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			}
 			const moved = scope.seen.get(context.traceId as string)?.scopeChanged;
 			await ensure(to.project);
+			// After the last wait: `stay` opens only where main shows, so it never moves the person.
+			if (stay && !showing(to)) return stayRefused();
 			const before = editors.peek(to.project) as EditorStateV1;
 			// A server's call into the active scope adds its tab, activating nothing the person sees (3.3).
 			const change = openDocument(
 				before,
 				record.id,
-				{ ...input, background: !screen && sameScope(to, scope.active()) },
+				{
+					...input,
+					background: stay ? stay === 'background' : !screen && sameScope(to, scope.active()),
+				},
 				(tab) => editors.dirty(to.project, tab)
 			);
 			if ('code' in change) return refusal(change);
@@ -411,17 +434,16 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		mutation: false,
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
-		async handler(_input, context) {
-			const held = await read(context);
-			const project = here(context).project;
-			return success({
-				...held,
-				groups: held.groups.map((group) => ({
-					...group,
-					tabs: group.tabs.map((tab) => ({ ...tab, dirty: editors.dirty(project, tab.id) })),
-				})),
-			});
-		},
+		handler: (_input, context) =>
+			read(context, (held, project) =>
+				success({
+					...held,
+					groups: held.groups.map((group) => ({
+						...group,
+						tabs: group.tabs.map((tab) => ({ ...tab, dirty: editors.dirty(project, tab.id) })),
+					})),
+				})
+			),
 	});
 
 	const activate = defineCommandWithSchema<
@@ -434,17 +456,17 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		undoable: true,
 		input: tabInput,
 		jsonSchema: TAB_JSON,
-		async handler(input, context) {
-			const before = await read(context);
-			const done = apply(context, before, activateTab(before, input.tab), 'replace');
-			if (isRefusal(done)) return done;
-			return success(
-				done,
-				done.previous === null || done.previous === done.tab
-					? {}
-					: { undoCommand: 'editor-activate', undoArgs: { tab: done.previous } }
-			);
-		},
+		handler: (input, context) =>
+			read(context, (before) => {
+				const done = apply(context, before, activateTab(before, input.tab), 'replace');
+				if (isRefusal(done)) return done;
+				return success(
+					done,
+					done.previous === null || done.previous === done.tab
+						? {}
+						: { undoCommand: 'editor-activate', undoArgs: { tab: done.previous } }
+				);
+			}),
 	});
 
 	const close = defineCommandWithSchema<
@@ -458,24 +480,23 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		undoable: true,
 		input: closeInput,
 		jsonSchema: tabWith('discard', { type: 'boolean' }, false),
-		async handler(input, context) {
-			const before = await read(context);
-			const project = here(context).project;
-			if (editors.dirty(project, input.tab) && input.discard !== true) {
-				return unsavedTab(input.tab, true);
-			}
-			const done = apply(context, before, closeTab(before, input.tab), 'replace');
-			if (isRefusal(done)) return done;
-			// The person's close has saved or discarded; another's keeps the mark until the chrome's save of the
-			// open editor clears it, so a trash or a move waits for that save (Status deviation 16).
-			if (person(context)) editors.setDirty(project, input.tab, false);
-			editors.setSelection(project, input.tab, null);
-			const { document, group, pinned, preview } = done.previous;
-			return success(
-				{ closed: done.closed, previous: { document, group, pinned } },
-				{ undoCommand: 'document-open', undoArgs: { document, preview } }
-			);
-		},
+		handler: (input, context) =>
+			read(context, (before, project) => {
+				if (editors.dirty(project, input.tab) && input.discard !== true) {
+					return unsavedTab(input.tab, true);
+				}
+				const done = apply(context, before, closeTab(before, input.tab), 'replace');
+				if (isRefusal(done)) return done;
+				// The person's close has saved or discarded; another's keeps the mark until the chrome's save of the
+				// open editor clears it, so a trash or a move waits for that save (Status deviation 16).
+				if (person(context)) editors.setDirty(project, input.tab, false);
+				editors.setSelection(project, input.tab, null);
+				const { document, group, pinned, preview } = done.previous;
+				return success(
+					{ closed: done.closed, previous: { document, group, pinned } },
+					{ undoCommand: 'document-open', undoArgs: { document, preview } }
+				);
+			}),
 	});
 
 	const pin = defineCommandWithSchema<typeof pinInput, { tab: string; pinned: boolean }>({
@@ -485,16 +506,16 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		undoable: true,
 		input: pinInput,
 		jsonSchema: tabWith('pinned', { type: 'boolean' }, true),
-		async handler(input, context) {
-			const before = await read(context);
-			const was = findTab(before, input.tab);
-			const done = apply(context, before, pinTab(before, input.tab, input.pinned), 'push');
-			if (isRefusal(done)) return done;
-			return success(done, {
-				undoCommand: 'editor-pin',
-				undoArgs: { tab: input.tab, pinned: was?.group.tabs[was.index]?.pinned === true },
-			});
-		},
+		handler: (input, context) =>
+			read(context, (before) => {
+				const was = findTab(before, input.tab);
+				const done = apply(context, before, pinTab(before, input.tab, input.pinned), 'push');
+				if (isRefusal(done)) return done;
+				return success(done, {
+					undoCommand: 'editor-pin',
+					undoArgs: { tab: input.tab, pinned: was?.group.tabs[was.index]?.pinned === true },
+				});
+			}),
 	});
 
 	const move = defineCommandWithSchema<typeof moveInput, { tab: string; group: string }>({
@@ -509,25 +530,25 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			required: ['tab', 'group'],
 			additionalProperties: false,
 		},
-		async handler(input, context) {
-			const before = await read(context);
-			const done = apply(
-				context,
-				before,
-				moveTab(before, input.tab, input.group, (tab) => editors.dirty(here(context).project, tab)),
-				'push'
-			);
-			if (isRefusal(done)) return done;
-			const after = editors.peek(here(context).project) as EditorStateV1;
-			// Back to the group it left, or a new one when that group went with it.
-			const back = after.groups.some((group) => group.id === done.from) ? done.from : 'new';
-			return success(
-				{ tab: done.tab, group: done.group },
-				done.group === done.from
-					? {}
-					: { undoCommand: 'editor-move', undoArgs: { tab: done.tab, group: back } }
-			);
-		},
+		handler: (input, context) =>
+			read(context, (before, project) => {
+				const done = apply(
+					context,
+					before,
+					moveTab(before, input.tab, input.group, (tab) => editors.dirty(project, tab)),
+					'push'
+				);
+				if (isRefusal(done)) return done;
+				const after = editors.peek(project) as EditorStateV1;
+				// Back to the group it left, or a new one when that group went with it.
+				const back = after.groups.some((group) => group.id === done.from) ? done.from : 'new';
+				return success(
+					{ tab: done.tab, group: done.group },
+					done.group === done.from
+						? {}
+						: { undoCommand: 'editor-move', undoArgs: { tab: done.tab, group: back } }
+				);
+			}),
 	});
 
 	const dirty = defineCommandWithSchema<typeof dirtyInput, { tab: string; dirty: boolean }>({
@@ -536,25 +557,24 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			"The chrome's, from its editor; to close unsaved work, use editor-close with discard: true",
 		input: dirtyInput,
 		jsonSchema: tabWith('dirty', { type: 'boolean' }, true),
-		async handler(input, context) {
-			const before = await read(context);
-			const project = here(context).project;
-			// A tab another's call closed keeps its mark, which the person's page clears, the chrome's save or its
-			// leaving frame, as it may a closed tab's that holds none.
-			const open = !!findTab(before, input.tab);
-			if (!open && (input.dirty || !(person(context) || editors.dirty(project, input.tab)))) {
-				return refusal(unknownTab(input.tab));
-			}
-			// THE OWNER'S DECISION (Status deviation 16): only the person's page marks an unsaved tab saved, as its
-			// editor reports. To let an agent or a server do it too, delete this check; nothing else depends on it.
-			if (!input.dirty && editors.dirty(project, input.tab) && !person(context)) {
-				return unsavedTab(input.tab, open);
-			}
-			editors.setDirty(project, input.tab, input.dirty);
-			// A first edit promotes a preview tab (5.3).
-			if (input.dirty) editors.put(project, promoteTab(before, input.tab));
-			return success({ tab: input.tab, dirty: input.dirty });
-		},
+		handler: (input, context) =>
+			read(context, (before, project) => {
+				// A tab another's call closed keeps its mark, which the person's page clears, the chrome's save or its
+				// leaving frame, as it may a closed tab's that holds none.
+				const open = !!findTab(before, input.tab);
+				if (!open && (input.dirty || !(person(context) || editors.dirty(project, input.tab)))) {
+					return refusal(unknownTab(input.tab));
+				}
+				// THE OWNER'S DECISION (Status deviation 16): only the person's page marks an unsaved tab saved, as its
+				// editor reports. To let an agent or a server do it too, delete this check; nothing else depends on it.
+				if (!input.dirty && editors.dirty(project, input.tab) && !person(context)) {
+					return unsavedTab(input.tab, open);
+				}
+				editors.setDirty(project, input.tab, input.dirty);
+				// A first edit promotes a preview tab (5.3).
+				if (input.dirty) editors.put(project, promoteTab(before, input.tab));
+				return success({ tab: input.tab, dirty: input.dirty });
+			}),
 	});
 
 	const select = defineCommandWithSchema<typeof selectionInput, { tab: string }>({
@@ -563,24 +583,24 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		mutation: false,
 		input: selectionInput,
 		jsonSchema: tabWith('selection', {} as JsonSchema, true),
-		async handler(input, context) {
-			const before = await read(context);
-			const record = await recordOf(before, input.tab, here(context));
-			if (!record) return refusal(unknownTab(input.tab));
-			if (!selectionFits(input.selection, record.binding.selection)) {
-				return kernelFailure(
-					'EDITOR_SELECTION_INVALID',
-					`A ${record.type} selection is ${record.binding.selection === 'none' ? 'null' : `a ${record.binding.selection}, or null`}`,
-					record.binding.selection === 'text-range'
-						? "Report { kind: 'text-range', start, end } in UTF-16 units, start at most end"
-						: record.binding.selection === 'item'
-							? "Report { kind: 'item', id }"
-							: 'Report null'
-				);
-			}
-			editors.setSelection(here(context).project, input.tab, input.selection);
-			return success({ tab: input.tab });
-		},
+		handler: (input, context) =>
+			read(context, async (before, project) => {
+				const record = await recordOf(before, input.tab, here(context));
+				if (!record) return refusal(unknownTab(input.tab));
+				if (!selectionFits(input.selection, record.binding.selection)) {
+					return kernelFailure(
+						'EDITOR_SELECTION_INVALID',
+						`A ${record.type} selection is ${record.binding.selection === 'none' ? 'null' : `a ${record.binding.selection}, or null`}`,
+						record.binding.selection === 'text-range'
+							? "Report { kind: 'text-range', start, end } in UTF-16 units, start at most end"
+							: record.binding.selection === 'item'
+								? "Report { kind: 'item', id }"
+								: 'Report null'
+					);
+				}
+				editors.setSelection(project, input.tab, input.selection);
+				return success({ tab: input.tab });
+			}),
 	});
 
 	return {

@@ -425,8 +425,11 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		] as const) {
 			const refused = await client.call(name, input, at);
 			expect(refused.error?.code, name).toBe('EDITOR_TAB_DIRTY');
-			expect(refused.error?.suggestion, name).toContain('Retry once they save');
+			expect(refused.error?.suggestion, name).toContain('Ask the person to save it, then retry');
 		}
+		// Nor may a server open with stay, which is the person's page's alone.
+		const stayed = await client.call('document-open', { document: note, stay: 'background' }, at);
+		expect(stayed.error?.code).toBe('DOCUMENT_OPEN_STAY_REFUSED');
 		expect((await kernel.call('document-get', { document: note })).data).toMatchObject({
 			status: 'active',
 			scope: { workspace: 'personal' },

@@ -193,6 +193,94 @@ const focusedOn = (page: Page) =>
 const tabOf = (page: Page, title: string, group = 0) =>
 	page.locator('loam-editor-group').nth(group).locator('[role="tab"]', { hasText: title });
 
+/** What `failSaves` leaves on the page: each held save's rejection, and whether saves now reject at once. */
+type FailedSaves = Window & { failSaves?: Array<() => void>; failNow?: boolean };
+
+/** Hold every later save of each tab's frame, autosave's too, until {@link failAll} rejects them. */
+async function failSaves(page: Page, tabs: string[]): Promise<void> {
+	await page.evaluate((tabs) => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			editor: { frames: Map<string, { save(): Promise<void> }> };
+		};
+		const held = window as FailedSaves;
+		held.failSaves ??= [];
+		for (const tab of tabs) {
+			const frame = shell.editor.frames.get(tab);
+			if (!frame) throw new Error(`No frame for ${tab}`);
+			frame.save = () =>
+				new Promise<void>((_resolve, reject) => {
+					const fail = () =>
+						reject(Object.assign(new Error('Held, then refused'), { code: 'TEST_REFUSED' }));
+					if (held.failNow) fail();
+					else held.failSaves?.push(fail);
+				});
+		}
+	}, tabs);
+}
+
+/** Wait until the controller holds no frame for any of `tabs`, as once their tabs close. */
+async function framesGone(page: Page, tabs: string[]): Promise<void> {
+	await page.waitForFunction((tabs) => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			editor: { frames: Map<string, unknown> };
+		};
+		return tabs.every((tab) => !shell.editor.frames.has(tab));
+	}, tabs);
+}
+
+/** Reject every held save together, and every later one at once. */
+const failAll = (page: Page) =>
+	page.evaluate(() => {
+		const held = window as FailedSaves;
+		held.failNow = true;
+		for (const fail of held.failSaves?.splice(0) ?? []) fail();
+	});
+
+/** Give a tab's `notes-editor` a draft notes' schema refuses, so its save rejects. */
+async function longDraft(page: Page, tab: string): Promise<void> {
+	await page.evaluate((tab) => {
+		const editor = document
+			.querySelector('loam-shell')
+			?.shadowRoot?.querySelector('loam-main')
+			?.querySelector(`loam-editor-frame[data-tab="${tab}"] loam-mount`)
+			?.shadowRoot?.querySelector('notes-editor');
+		const area = editor?.shadowRoot?.querySelector('violet-text-area') as HTMLElement & {
+			value: string;
+		};
+		area.value = 'x'.repeat(200_001);
+		area.dispatchEvent(new CustomEvent('input', { detail: { value: area.value } }));
+	}, tab);
+}
+
+/** A tab's frame's `notes-editor` draft, by the controller's frames, mounted or parked. */
+const draftOf = (page: Page, tab: string) =>
+	page.evaluate((tab) => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			editor: { frames: Map<string, HTMLElement> };
+		};
+		const editor = shell.editor.frames
+			.get(tab)
+			?.querySelector('loam-mount')
+			?.shadowRoot?.querySelector('notes-editor') as (HTMLElement & { draft?: string }) | null;
+		return editor?.draft ?? null;
+	}, tab);
+const draftLength = async (page: Page, tab: string) => (await draftOf(page, tab))?.length ?? null;
+
+/** The drafts of the frames showing each document, in order. */
+const draftsOf = (page: Page, documents: string[]) =>
+	page.evaluate((documents) => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			editor: { frames: Map<string, HTMLElement & { document: string }> };
+		};
+		return documents.map((id) => {
+			const frame = [...shell.editor.frames.values()].find((each) => each.document === id);
+			const editor = frame
+				?.querySelector('loam-mount')
+				?.shadowRoot?.querySelector('notes-editor') as (HTMLElement & { draft?: string }) | null;
+			return editor?.draft ?? null;
+		});
+	}, documents);
+
 /** What `holdSave` leaves on the page. */
 type HeldSave = Window & { releaseSave?: () => void; disposed?: boolean };
 
@@ -742,6 +830,155 @@ describe('P2-D5: the editor area, native half', () => {
 			data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
 		};
 		expect(atlas.data.groups[0]?.tabs).toMatchObject([{ id: 't1', dirty: false }]);
+		await opened.context.close();
+	});
+
+	it("P2-D5: two saves that reject together after an agent's closes both keep their drafts, in the background, with no URL move", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const alpha = await createNote(page, 'Alpha');
+		const beta = await createNote(page, 'Beta');
+		// Each save is held from the first keystroke, so autosave saves nothing either.
+		await open(page, alpha);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Alpha draft');
+		await open(page, beta);
+		await failSaves(page, ['t2']);
+		await typeInto(page, 't2', 'Beta draft');
+		await open(page, await createNote(page, 'Gamma'));
+		const url = page.url();
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await agentCall(page, 'editor-close', { tab: 't2', discard: true });
+		// Both retiring frames' saves are held; then they reject together.
+		await framesGone(page, ['t1', 't2']);
+		await failAll(page);
+		// Both drafts are back, each in a tab of its document, unsaved; Gamma stays active and the URL with it.
+		await expect.poll(() => draftsOf(page, [alpha, beta])).toEqual(['Alpha draft', 'Beta draft']);
+		await editorIdle(page);
+		const read = (await agentCall(page, 'editor-get')) as {
+			data: {
+				groups: Array<{
+					active: string;
+					tabs: Array<{ id: string; document: string; dirty: boolean }>;
+				}>;
+			};
+		};
+		const tabs = read.data.groups[0]?.tabs ?? [];
+		expect(tabs.filter((tab) => tab.document !== alpha && tab.document !== beta)).toMatchObject([
+			{ id: 't3' },
+		]);
+		expect(read.data.groups[0]?.active).toBe('t3');
+		await expect
+			.poll(async () =>
+				(((await agentCall(page, 'editor-get')) as typeof read).data.groups[0]?.tabs ?? [])
+					.filter((tab) => tab.document === alpha || tab.document === beta)
+					.map((tab) => tab.dirty)
+			)
+			.toEqual([true, true]);
+		expect(page.url()).toBe(url);
+		await opened.context.close();
+	});
+
+	it("P2-D5: two active tabs' saves that reject together after an agent's closes both keep their drafts", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const alpha = await createNote(page, 'Alpha');
+		const beta = await createNote(page, 'Beta');
+		// Each the active tab of its own group, so each comes back active and is drawn as its group's frame.
+		await open(page, alpha);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Alpha draft');
+		await open(page, beta, { group: 'beside' });
+		await failSaves(page, ['t2']);
+		await typeInto(page, 't2', 'Beta draft');
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await agentCall(page, 'editor-close', { tab: 't2', discard: true });
+		await framesGone(page, ['t1', 't2']);
+		await failAll(page);
+		await expect.poll(() => draftsOf(page, [alpha, beta])).toEqual(['Alpha draft', 'Beta draft']);
+		await opened.context.close();
+	});
+
+	it('P2-D5: a reopen after a rejected save never takes the person back to a scope they left', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const note = await createNote(page, 'Here');
+		await open(page, note);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'A draft');
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await framesGone(page, ['t1']);
+		// The toast and the area's next read of the scope wait on a gate, so its check of the scope passes.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, ...rest: unknown[]): Promise<unknown> };
+			};
+			const call = shell.kernel.call.bind(shell.kernel);
+			const held = new Promise<void>((resolve) => {
+				(window as unknown as { openGate: () => void }).openGate = resolve;
+			});
+			shell.kernel.call = async (name: string, ...rest: unknown[]) => {
+				const answer = await call(name, ...rest);
+				if (name === 'toast-show' || name === 'scope-get') await held;
+				return answer;
+			};
+		});
+		await failAll(page);
+		// Between the toast and the reopen, the person goes to Atlas.
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { agent: { call(name: string, input: unknown): Promise<unknown> } };
+			};
+			// The person's own call, through the kernel underneath the gate.
+			await (
+				shell.kernel as unknown as { call(name: string, input: unknown): Promise<unknown> }
+			).call('scope-set', { project: 'atlas' });
+		});
+		await page.evaluate(() => (window as unknown as { openGate: () => void }).openGate());
+		await editorIdle(page);
+		const scope = (await kernelCall(page, 'scope-get')) as { data: { project?: { slug: string } } };
+		expect(scope.data.project?.slug).toBe('atlas');
+		await expect.poll(() => new URL(page.url()).pathname).toContain('/p/atlas');
+		await opened.context.close();
+	});
+
+	it('P2-D5: a rejected save whose document is open in the active group, with a clean editor, takes that tab', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Twice');
+		await open(page, note);
+		await open(page, note, { group: 'beside' });
+		await longDraft(page, 't2');
+		await expect
+			.poll(async () => (await editorView(page))?.[1]?.tabs[0]?.name)
+			.toBe('Twice, unsaved');
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await agentCall(page, 'editor-close', { tab: 't2', discard: true });
+		// The draft is in t1, the active group's tab of the same note, and t1 is unsaved.
+		await expect.poll(() => draftLength(page, 't1')).toBe(200_001);
+		await expect
+			.poll(async () => (await editorView(page))?.[0]?.tabs.map((tab) => tab.name))
+			.toEqual(['Twice, unsaved']);
+		await opened.context.close();
+	});
+
+	it('P2-D5: an eleventh editor parked while its save rejects stays, with its draft, in its tab', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await open(page, await createNote(page, 'First'));
+		await longDraft(page, 't1');
+		await expect.poll(() => tabName(page)).toBe('First, unsaved');
+		for (let index = 2; index <= 11; index++)
+			await open(page, await createNote(page, `Note ${index}`));
+		await editorIdle(page);
+		// Parked as the oldest of eleven, its save rejected: its frame is back, with the draft, the tab unsaved.
+		await expect.poll(() => draftLength(page, 't1')).toBe(200_001);
+		const read = (await agentCall(page, 'editor-get')) as {
+			data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
+		};
+		expect(read.data.groups[0]?.tabs.find((tab) => tab.id === 't1')?.dirty).toBe(true);
 		await opened.context.close();
 	});
 
