@@ -9,8 +9,8 @@
 //!
 //! # Security
 //!
-//! The hook is **trust-bearing**: whatever it puts on the context (the `actor`, and later
-//! credentials) is believed by every command, middleware and journal downstream.
+//! The hook is **trust-bearing**: whatever it puts on the context (the `actor` above all) is
+//! believed by every command, middleware and journal downstream.
 //!
 //! - **Verify, then trust.** A header such as `X-Actor` is attacker-controlled unless something
 //!   in front of the server has verified the request. Read identity only from values your own
@@ -32,7 +32,11 @@
 //!   is refilled, a missing `actor`, `clock` or `random` falls back to the server's defaults, and
 //!   the active context is the request's own (`_meta["dev.afd/context"]` or the connection's
 //!   stack; see [`McpServer::with_contexts`](super::McpServer::with_contexts)), whatever the hook
-//!   set. Everything else, including `approval` evidence and `extra`, is exactly what the hook
+//!   set. On a server with authorization (the `server-auth` feature), the hook sees the request's
+//!   verified [`credentials`](crate::CommandContext::credentials) and the actor they map to by
+//!   default, may map another actor, and cannot add, change or drop the credentials: the server
+//!   restores the verified ones after it. Everything else, including `approval` evidence and
+//!   `extra`, is exactly what the hook
 //!   returns, except that `extra` also gets the request's declared context fields (below). Never
 //!   copy request input into `approval`.
 //! - **Declared context fields are the caller's claims, and the hook wins.** After the hook, each
@@ -51,7 +55,8 @@
 //!
 //! The hook does not cover `tools/list`, `server/discover` or `initialize`; to refuse a request
 //! before any MCP handling (a missing or invalid bearer token, for example), put a `tower` layer
-//! in front of [`McpServer::streamable_http_service`](super::McpServer::streamable_http_service).
+//! in front of [`McpServer::streamable_http_service`](super::McpServer::streamable_http_service):
+//! with the `server-auth` feature, the bearer layer of `afd::server::auth` is that layer.
 //!
 //! # Transports
 //!

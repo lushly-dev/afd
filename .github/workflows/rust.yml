@@ -11,6 +11,13 @@ on:
       - 'spec/vectors/**'
       # tests/contract_version.rs checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
+      # tests/authorization_cases.rs loads every case (the `server-auth` feature), and the server
+      # suites load the meta-tool, tool-strategy, resource and output-budget cases.
+      - 'spec/authorization.json'
+      - 'spec/meta-tools.json'
+      - 'spec/tool-strategies.json'
+      - 'spec/mcp-resources.json'
+      - 'spec/output-budgets.json'
       - '.github/workflows/rust.yml'
   pull_request:
     branches: [main]
@@ -19,6 +26,11 @@ on:
       - 'spec/wire/**'
       - 'spec/vectors/**'
       - 'spec/VERSION'
+      - 'spec/authorization.json'
+      - 'spec/meta-tools.json'
+      - 'spec/tool-strategies.json'
+      - 'spec/mcp-resources.json'
+      - 'spec/output-budgets.json'
       - '.github/workflows/rust.yml'
   # publish-rust.yml runs these same checks before `cargo publish`.
   workflow_call:
@@ -80,6 +92,14 @@ jobs:
 
       - name: Test (server feature)
         run: cargo test --features server
+
+      # MCP authorization (`afd::server::auth`): `jsonwebtoken` on `aws-lc-rs` (a C build); implies
+      # `server`, so it needs Rust 1.88 too.
+      - name: Clippy (server-auth feature)
+        run: cargo clippy --all-targets --features server-auth -- -D warnings
+
+      - name: Test (server-auth feature)
+        run: cargo test --features server-auth
 
       # The process-shared file journal (`FileJournalSink::shared`); off by default, and its file
       # locks need Rust 1.89.

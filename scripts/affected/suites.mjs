@@ -187,9 +187,14 @@ export const SUITES = [
 				run: 'cargo clippy --all-targets --no-default-features -- -D warnings',
 			},
 			{ cwd: 'packages/rust', run: 'cargo clippy --all-targets --features server -- -D warnings' },
+			{
+				cwd: 'packages/rust',
+				run: 'cargo clippy --all-targets --features server-auth -- -D warnings',
+			},
 			{ cwd: 'packages/rust', run: 'cargo test' },
 			{ cwd: 'packages/rust', run: 'cargo test --no-default-features' },
 			{ cwd: 'packages/rust', run: 'cargo test --features server' },
+			{ cwd: 'packages/rust', run: 'cargo test --features server-auth' },
 			{ cwd: 'packages/rust', run: 'cargo test --features journal-file-shared' },
 			{
 				cwd: 'packages/rust',

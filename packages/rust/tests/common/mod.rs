@@ -9,6 +9,9 @@ use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream};
 use tower::ServiceExt;
 
+#[cfg(feature = "server-auth")]
+pub mod auth;
+
 pub const META: &str = r#"{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}"#;
 
 /// POST one JSON-RPC request to the server's Streamable HTTP service.

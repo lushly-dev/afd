@@ -437,6 +437,39 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   `server/discover` lists them under `_meta["dev.afd/context-fields"]`. `with_resources` and
   `with_skills` serve MCP resources and the Skills extension (below). **The `server` feature
   needs Rust 1.88** (`rmcp`'s minimum); the rest of the crate keeps the 1.85 minimum.
+- `server-auth` - MCP authorization over HTTP (`afd::server::auth`, `spec/authorization.md`):
+  the server becomes an OAuth 2.1 protected resource. `McpServer::with_authorization` takes the
+  RFC 9728 metadata (`ProtectedResource`), a `TokenVerifier` (AFD's `JwtVerifier`, which verifies
+  RFC 9068 JWT access tokens by every rule of M3 in its own code and uses `jsonwebtoken`'s
+  `aws-lc-rs` backend only for the signature; or a host verifier for introspection, with
+  `check_introspection`), the required scopes, an optional `ScopeResolver` and list filtering;
+  `McpServer::authorized_http_service(HttpOptions)` builds the Streamable HTTP service behind its
+  bearer layer, which serves the metadata, refuses requests with the exact 401 and 403 answers,
+  decides every command a `tools/call` names before dispatch, and admits the verified
+  `Credentials` while stripping the token. A server with authorization fails closed on any
+  request whose credentials its own layer did not admit, and on any transport but stdio
+  (`serve_stdio`) unless the host marks it trusted (`with_trusted_transport`). A resolver is asked
+  again at execution on the validated input. Implies `server`; needs Rust 1.88. A command's
+  `scopes` (`CommandDefinition::with_scopes`, reported in `_meta` and `afd-detail`) and
+  `Credentials` need no feature.
+
+```rust,ignore
+use afd::server::auth::{
+    Authorization, JwtIssuer, JwtVerifier, ProtectedResource, SigningAlgorithm, StaticKeys,
+    TokenRules,
+};
+let resource = "https://todo.example.com/mcp";
+let keys = StaticKeys::from_jwks(&jwks)?; // or the host's own `KeySource`, which fetches and caches
+let issuer = JwtIssuer::new("auth", "https://auth.example.com", [SigningAlgorithm::ES256], keys)?;
+let verifier = JwtVerifier::new(TokenRules::new(resource)?, vec![issuer])?;
+let metadata = ProtectedResource::new(resource, ["https://auth.example.com"])?
+    .with_scopes_supported(["todo:read"])?;
+let server = McpServer::new(registry, "todo", "1.0.0").with_authorization(
+    Authorization::new(metadata, verifier)?.with_required_scopes(["todo:read"])?,
+);
+// Mount it where it receives `/mcp` and `/.well-known/oauth-protected-resource/mcp`.
+let service = server.authorized_http_service(HttpOptions::default())?;
+```
 
 `with_resources(provider)` and `with_skills(catalog)` serve MCP resources and the Skills extension
 (`spec/mcp-resources.md`). A provider lists `ResourceEntry` values and reads their content; a

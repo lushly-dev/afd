@@ -82,11 +82,11 @@ use std::sync::Arc;
 
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CustomRequest, CustomResult,
-    DiscoverResult, GetSkillRequestParams, GetSkillResult, ListResourceTemplatesResult,
-    ListResourcesResult, ListSkillsResult, ListToolsResult, MetaObject, PaginatedRequestParams,
-    ReadResourceDirectoryRequestParams, ReadResourceDirectoryResult, ReadResourceRequestParams,
-    ReadResourceResponse, ResourcesCapability, ServerCapabilities, ServerConfig, Tool,
-    ToolsCapability,
+    DiscoverResult, GetSkillRequestParams, GetSkillResult, InitializeRequestParams,
+    InitializeResult, ListResourceTemplatesResult, ListResourcesResult, ListSkillsResult,
+    ListToolsResult, MetaObject, PaginatedRequestParams, ReadResourceDirectoryRequestParams,
+    ReadResourceDirectoryResult, ReadResourceRequestParams, ReadResourceResponse,
+    ResourcesCapability, ServerCapabilities, ServerConfig, Tool, ToolsCapability,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::{
@@ -95,7 +95,7 @@ use rmcp::transport::streamable_http_server::{
 use rmcp::{ErrorData, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 
-use crate::commands::ToolSurface;
+use crate::commands::{ToolSurface, Visibility};
 use crate::context_fields::AFD_CONTEXT_FIELDS_META_KEY;
 use crate::contexts::{ContextConfig, ContextScope, ContextStack, AFD_CONTEXT_META_KEY};
 use crate::{
@@ -112,6 +112,10 @@ pub const SKILLS_EXTENSION_ID: &str = rmcp::model::SKILLS_EXTENSION_ID;
 /// Default freshness hint of `tools/list` results (5 minutes).
 pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 
+#[cfg(feature = "server-auth")]
+#[cfg_attr(docsrs, doc(cfg(feature = "server-auth")))]
+pub mod auth;
+mod authz;
 pub mod confirmations;
 pub mod context_hook;
 mod encoding;
@@ -128,8 +132,8 @@ pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
 pub use context_hook::ContextHookRequest;
 pub use resources::{
-    ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError, DIGEST_META_KEY,
-    MCP_APP_MIME_TYPE,
+    ResourceCaller, ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError,
+    DIGEST_META_KEY, MCP_APP_MIME_TYPE,
 };
 pub use skills::{Skill, SkillCatalog, MAX_SKILL_BYTES, MAX_SKILL_FILES};
 pub use strategy::{GroupBy, ToolStrategy, MAX_FIRST_CLASS_TOOLS};
@@ -179,6 +183,12 @@ struct Inner {
     /// Whether a 2025 connection can receive server-sent requests (stdio: yes; the stateless
     /// Streamable HTTP service: no).
     legacy_back_channel: bool,
+    /// Authorization over HTTP (`spec/authorization.md`; the `server-auth` feature).
+    auth: authz::AuthConfig,
+    /// A transport without HTTP requests whose callers the host trusts (stdio, or
+    /// `with_trusted_transport`): an authorized server serves it without credentials.
+    #[cfg_attr(not(feature = "server-auth"), allow(dead_code))]
+    trusted_transport: bool,
 }
 
 /// An MCP server for the MCP-exposed commands of a [`CommandRegistry`].
@@ -222,6 +232,8 @@ impl McpServer {
                 resources: None,
                 skills: None,
                 legacy_back_channel: true,
+                auth: Default::default(),
+                trusted_transport: false,
             }),
             session: Some(ContextStack::new()),
         }
@@ -246,6 +258,8 @@ impl McpServer {
             resources: shared.resources.clone(),
             skills: shared.skills.clone(),
             legacy_back_channel: shared.legacy_back_channel,
+            auth: shared.auth.clone(),
+            trusted_transport: shared.trusted_transport,
         });
         change(&mut inner);
         Self {
@@ -355,7 +369,9 @@ impl McpServer {
     }
 
     /// The actor on every tool call's context. Default: `{ kind: "agent" }`, reported as
-    /// `metadata.actorKind`.
+    /// `metadata.actorKind`. A call that carries verified credentials (the `server-auth`
+    /// feature) starts from the actor they map to instead, `{ kind: "agent", id: <clientId>,
+    /// onBehalfOf: <subject> }`, which the context hook may replace.
     pub fn with_actor(self, actor: impl Into<Actor>) -> Self {
         let actor = actor.into();
         self.with(|inner| inner.context_defaults.actor = Some(actor))
@@ -411,8 +427,8 @@ impl McpServer {
         self.with(|inner| inner.advertise_output_schema = advertise)
     }
 
-    /// Set the context every tool call runs with from the request itself (the actor, later
-    /// credentials). The hook gets the request and the [`CommandContext`] being built and returns
+    /// Set the context every tool call runs with from the request itself (the actor, mapped from
+    /// verified credentials or other transport data). The hook gets the request and the [`CommandContext`] being built and returns
     /// the context to use, or a [`CommandError`] that becomes the call's failed `CommandResult`.
     /// It replaces any hook set before.
     ///
@@ -495,6 +511,7 @@ impl McpServer {
             first_class_tools: (self.inner.strategy == ToolStrategy::Hybrid)
                 .then(|| self.inner.first_class_tools.clone())
                 .flatten(),
+            visible: None,
         }
     }
 
@@ -531,14 +548,15 @@ impl McpServer {
 
     /// The listed tools with no active context (see [`McpServer::with_tool_strategy`]).
     pub fn tools(&self) -> Vec<Value> {
-        self.tools_in(None)
+        self.tools_in(None, None)
     }
 
-    /// The listed tools while `active` is the active context.
-    fn tools_in(&self, active: Option<&str>) -> Vec<Value> {
+    /// The listed tools while `active` is the active context, showing only the commands
+    /// `visible` allows when the server filters listings by scope.
+    fn tools_in(&self, active: Option<&str>, visible: Option<&Visibility>) -> Vec<Value> {
         let mut tools = Vec::new();
         if self.inner.strategy == ToolStrategy::Hybrid {
-            return self.hybrid_tools();
+            return self.hybrid_tools(visible);
         }
         if self.inner.strategy == ToolStrategy::Lazy {
             tools.push(meta_tools::discover_tool());
@@ -550,6 +568,7 @@ impl McpServer {
             .exposed_commands()
             .into_iter()
             .filter(|command| command.is_accessible_in_context(active))
+            .filter(|command| visible.is_none_or(|visible| visible.allows(command)))
             .collect();
         tools.extend(strategy::built_in_tools());
         if self.inner.strategy == ToolStrategy::Individual {
@@ -602,7 +621,7 @@ impl McpServer {
     /// The hybrid list (`spec/tool-strategies.md`, H3): the meta-tools, the context tools when
     /// contexts are configured, then the first-class tools in configured order. It does not
     /// depend on the active context.
-    fn hybrid_tools(&self) -> Vec<Value> {
+    fn hybrid_tools(&self, visible: Option<&Visibility>) -> Vec<Value> {
         let mut tools = vec![
             meta_tools::discover_tool(),
             meta_tools::detail_tool(),
@@ -625,11 +644,9 @@ impl McpServer {
             .copied()
             .chain(first_class.iter().map(String::as_str));
         for name in names {
-            let exposed = self
-                .inner
-                .registry
-                .get(name)
-                .is_some_and(|command| command.expose.mcp);
+            let exposed = self.inner.registry.get(name).is_some_and(|command| {
+                command.expose.mcp && visible.is_none_or(|visible| visible.allows(&command))
+            });
             if let Some(tool) = exposed.then(|| self.individual_tool(name)).flatten() {
                 tools.push(tool);
             }
@@ -787,10 +804,11 @@ impl McpServer {
     /// SDK error message when the connection cannot be established.
     pub async fn serve_stdio(self) -> Result<(), String> {
         self.validate()?;
-        // One connection, one context stack.
+        // One connection, one context stack. The process boundary is stdio's trust boundary, so
+        // an authorized server serves it without credentials (`spec/authorization.md`, M1).
         let server = Self {
             session: Some(ContextStack::new()),
-            ..self
+            ..self.with(|inner| inner.trusted_transport = true)
         };
         let service = server
             .serve(rmcp::transport::stdio())
@@ -865,29 +883,51 @@ impl ServerHandler for McpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         panic_guard::guard_request(async {
+            let credentials = authz::check_request(self, &context)?;
             self.validate_strategy().map_err(internal)?;
             let active = self
                 .request_scope(&context)?
                 .and_then(|scope| scope.active());
-            let tools: Vec<Tool> =
-                serde_json::from_value(Value::Array(self.tools_in(active.as_deref())))
-                    .map_err(internal)?;
+            // The context hook does not run here, so filtering reads the credentials the bearer
+            // layer verified (`spec/authorization.md`, M6, "Listing").
+            let visible = authz::visibility(self, credentials.as_ref());
+            let tools: Vec<Tool> = serde_json::from_value(Value::Array(
+                self.tools_in(active.as_deref(), visible.as_ref()),
+            ))
+            .map_err(internal)?;
             let ttl_ms = self.tools_list_ttl_ms();
+            // A list filtered by scope varies by authorization: private, in every strategy.
+            let cache_scope = if authz::filters_listing(self) {
+                "private"
+            } else {
+                "public"
+            };
             serde_json::from_value(json!({
                 "resultType": "complete",
                 "tools": tools,
                 "ttlMs": ttl_ms,
-                "cacheScope": "public",
+                "cacheScope": cache_scope,
             }))
             .map_err(internal)
         })
         .await
     }
 
+    async fn initialize(
+        &self,
+        request: InitializeRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<InitializeResult, ErrorData> {
+        authz::check_request(self, &context)?;
+        context.peer.set_peer_info(request.clone());
+        self.negotiate_initialize(&request)
+    }
+
     async fn discover(
         &self,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<DiscoverResult, ErrorData> {
+        authz::check_request(self, &context)?;
         self.validate_strategy().map_err(internal)?;
         let mut result = DiscoverResult::from_server_info(
             self.supported_protocol_versions().into_owned(),
@@ -914,7 +954,8 @@ impl ServerHandler for McpServer {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        self.serve_list_resources(request, &context).await
+        let caller = ResourceCaller::new(authz::check_request(self, &context)?);
+        self.serve_list_resources(request, &context, &caller).await
     }
 
     async fn list_resource_templates(
@@ -922,6 +963,7 @@ impl ServerHandler for McpServer {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
+        authz::check_request(self, &context)?;
         self.serve_list_resource_templates(request, &context).await
     }
 
@@ -930,7 +972,8 @@ impl ServerHandler for McpServer {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
-        self.serve_read_resource(request, &context).await
+        let caller = ResourceCaller::new(authz::check_request(self, &context)?);
+        self.serve_read_resource(request, &context, &caller).await
     }
 
     async fn list_skills(
@@ -938,6 +981,7 @@ impl ServerHandler for McpServer {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListSkillsResult, ErrorData> {
+        authz::check_request(self, &context)?;
         let cursor = request.as_ref().and_then(|request| request.cursor.as_ref());
         self.serve_list_skills(cursor, &context)
     }
@@ -947,6 +991,7 @@ impl ServerHandler for McpServer {
         request: GetSkillRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetSkillResult, ErrorData> {
+        authz::check_request(self, &context)?;
         self.serve_get_skill(&request.uri, &context)
     }
 
@@ -955,6 +1000,7 @@ impl ServerHandler for McpServer {
         request: ReadResourceDirectoryRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceDirectoryResult, ErrorData> {
+        authz::check_request(self, &context)?;
         self.serve_read_directory(&request.uri, &context)
     }
 
@@ -963,6 +1009,7 @@ impl ServerHandler for McpServer {
         request: CustomRequest,
         context: RequestContext<RoleServer>,
     ) -> Result<CustomResult, ErrorData> {
+        authz::check_request(self, &context)?;
         self.serve_custom_request(request, &context).await
     }
 

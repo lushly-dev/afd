@@ -162,6 +162,9 @@ class ErrorCodes:
     # Output budgets (spec/output-budgets.md, B5)
     OUTPUT_BUDGET_EXCEEDED = "OUTPUT_BUDGET_EXCEEDED"
 
+    # Authorization (spec/authorization.md, M6)
+    INSUFFICIENT_SCOPE = "INSUFFICIENT_SCOPE"
+
 
 def create_error(
     code: str,

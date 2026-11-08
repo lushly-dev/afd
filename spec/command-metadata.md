@@ -582,7 +582,7 @@ follows `destructive`, `false` when it is unset.
 | `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
 | `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
-| `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Planned (Umbel phase 5 step 0b) | Planned (declaration only) |
+| `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | Planned (declaration only) |
 | Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Planned (Umbel phase 5 step 0c) | Planned (step 0c) | Planned (step 0c) | N/A: no confirmation gate |
 | `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Planned (step 0d) | N/A: no MCP server |
 | `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Planned | Planned | Planned (step 0e) | N/A: no MCP server |

@@ -35,9 +35,9 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   ([`output-budgets.md`](../output-budgets.md#conformance)), is loaded by Rust so far (`packages/rust/tests/output_budget.rs`).
   [`authorization.json`](../authorization.json), for MCP authorization, the principal binding of
   [#532](https://github.com/lushly-dev/afd/issues/532) and the relay input digest
-  ([`authorization.md`](../authorization.md#conformance)), is loaded by no language yet: Rust loads
-  it first (Umbel phase 5 steps 0b to 0d), and C++, which has no HTTP server, never will, so it
-  stays beside this directory.
+  ([`authorization.md`](../authorization.md#conformance)), is loaded by Rust so far, every case
+  (`packages/rust/tests/authorization_cases.rs`, Umbel phase 5 step 0b, with the `server-auth`
+  feature), and C++, which has no HTTP server, never will, so it stays beside this directory.
 
 ### `pipeline-variables.json`
 

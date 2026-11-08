@@ -43,6 +43,11 @@
 //!   durations with `web-time`
 //! - `frontmatter`: [`frontmatter`], the YAML 1.2 core-schema frontmatter reader (`saphyr-parser`);
 //!   `server` enables it
+//! - `server`: [`server`], the MCP server (`rmcp`) over Streamable HTTP and stdio; needs Rust 1.88
+//! - `server-auth`: `server::auth`, OAuth 2.1 resource-server authorization for the MCP server
+//!   over HTTP (`spec/authorization.md`): the bearer layer, AFD's JWT verifier (`jsonwebtoken` on
+//!   `aws-lc-rs`), protected-resource metadata and scope decisions; implies `server`. A command's
+//!   [`scopes`](CommandDefinition::scopes) and [`Credentials`] need no feature
 //! - `journal-file` (default): [`FileJournalSink`], a command journal in a
 //!   JSON Lines file (`std::fs`)
 //! - `journal-file-shared`: `FileJournalSink::shared`, several sinks and processes appending to
@@ -75,6 +80,7 @@ pub mod commands;
 pub mod connectors;
 pub mod context_fields;
 pub mod contexts;
+pub mod credentials;
 pub mod errors;
 #[cfg(feature = "frontmatter")]
 #[cfg_attr(docsrs, doc(cfg(feature = "frontmatter")))]
@@ -166,6 +172,7 @@ pub use commands::{
     JsonSchemaType, McpInputSchema, McpTool, MiddlewareNext,
 };
 
+pub use credentials::{credentials_binding, is_scope_token, principal_binding, Credentials};
 pub use meta_keys::{check_meta_entry, MCP_APPS_META_KEY};
 pub use output_budget::{OutputBudget, AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES};
 
