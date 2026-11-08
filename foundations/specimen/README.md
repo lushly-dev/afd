@@ -1,12 +1,21 @@
 # Specimens
 
-**Preview.** Specimen works end to end on [AFD's FAST-AF stories](../fast-af/README.md#stories), which use it as their only runner. Its API can still change, and Lushly has not moved to it yet. It is admitted for an npm prerelease under the `preview` tag, `2.2.0-preview.0` first, with its hosts, CLI, AFD bindings and FAST-AF plugin; until that release is out, it comes from a source build.
+**Preview.** Specimen works end to end on [AFD's FAST-AF stories](../fast-af/README.md#stories), which use it as their only runner. Its API can still change, and Lushly has not moved to it yet. It is published to npm as a prerelease under the `preview` tag, with its hosts, CLI, AFD bindings and FAST-AF plugin. The first preview, `2.2.0-preview.0`, was published without its built code and is deprecated; use `2.2.0-preview.1` or later.
 
 A native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes its operations as `specimen-*` commands, through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
 
 It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
 
 It runs stories in Storybook's format, with their plays, helpers and accessibility checks, and needs [no Storybook installed](#helpers-and-types). On FAST-AF's 407 stories, three consecutive full runs against Storybook [agreed on every story](../../docs/features/active/specimens/t08-cutover.md#qualifying-pairs). On a first measurement it uses more CPU than Storybook over a full suite, about 1.6 to 1.8 times per story, and about a quarter of the memory in its largest process. The [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md) is the design, and [its status](../../docs/features/active/specimens/STATUS.md) lists what is still open.
+
+## Install
+
+```sh
+npm install @lushly-dev/specimen@preview
+npx playwright@<version> install --only-shell chromium
+```
+
+npm installs the prebuilt native host for your system with it: Linux on glibc (x64 and arm64) or macOS (arm64 and x64). Specimen renders in Chromium's headless shell, so install the one its Playwright names. The first render that cannot find it says which version to install. Add `@lushly-dev/specimen-cli@preview` for the `specimen` command, `@lushly-dev/specimen-afd@preview` for AFD commands, and `@lushly-dev/specimen-fast-af@preview` with `@lushly-dev/fast-element@preview` for FAST-AF components.
 
 ## Run the fixtures
 

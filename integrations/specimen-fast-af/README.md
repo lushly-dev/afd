@@ -1,6 +1,6 @@
 # Specimen FAST-AF plugin
 
-**Preview,** like [Specimen](../../foundations/specimen/README.md).
+**Preview,** like [Specimen](../../foundations/specimen/README.md). Install it with Specimen and the FAST-AF runtime: `npm install @lushly-dev/specimen@preview @lushly-dev/specimen-fast-af@preview @lushly-dev/fast-element@preview`.
 
 `@lushly-dev/specimen-fast-af` adds FAST-AF's knowledge to a Specimen bench through three of Specimen's plugin points:
 

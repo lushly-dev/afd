@@ -107,10 +107,15 @@ export function chromiumExecutable(): string {
 		directory,
 		'chrome-headless-shell'
 	);
-	if (!existsSync(executable))
+	if (!existsSync(executable)) {
+		// The project resolves Specimen's Playwright range itself, so name that exact version.
+		const { version } = JSON.parse(readFileSync(join(playwright, 'package.json'), 'utf8')) as {
+			version: string;
+		};
 		throw new Error(
-			`Chromium headless shell is missing at ${executable}; run \`pnpm -F @lushly-dev/specimen exec playwright install chromium\``
+			`Chromium headless shell ${shell.revision}, for Playwright ${version}, is missing at ${executable}; install it with \`npx playwright@${version} install --only-shell chromium\` (in the AFD repository, \`pnpm -F @lushly-dev/specimen exec playwright install chromium\`)`
 		);
+	}
 	return executable;
 }
 
