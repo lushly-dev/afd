@@ -81,7 +81,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `late-editor` 14,610 and `editor` 27,755. The narrow re-check's raised them again by their measured
  * cost, `lateEditorMinified` by 406 to 15,050 and `editorMinified` by 13 to 27,778, approved by the
  * coordinator, 2026-11-07; after it, first paint 285,503 and 88,055, `late` 58,015, `late-documents`
- * 12,169, `late-editor` 15,016 and `editor` 27,768.
+ * 12,169, `late-editor` 15,016 and `editor` 27,768. The second narrow re-check's raised `editorMinified` by
+ * its measured cost, 394, to 28,172, approved by the coordinator, 2026-11-07, chiefly a draft kept when its
+ * save rejects after another's close; `late-editor` fell to 14,957, `late` 58,089, `late-documents` 12,125.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -101,7 +103,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 27_778,
+	editorMinified: 28_172,
 });
 
 /** Group a module id by the package it belongs to. */

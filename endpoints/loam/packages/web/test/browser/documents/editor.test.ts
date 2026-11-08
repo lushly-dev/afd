@@ -608,6 +608,143 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	});
 
+	it('P2-D5: a clean tab an agent marked unsaved and closed leaves no mark behind, so a trash then runs', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Clean');
+		await open(page, note);
+		const ok = async (name: string, input: unknown) =>
+			((await agentCall(page, name, input)) as { success: boolean }).success;
+		expect(await ok('editor-dirty-set', { tab: 't1', dirty: true })).toBe(true);
+		expect(await ok('editor-close', { tab: 't1', discard: true })).toBe(true);
+		await editorIdle(page);
+		// The clean frame clears the mark the agent's close kept, from the person's page.
+		await expect.poll(() => ok('document-trash', { document: note })).toBe(true);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it("P2-D5: a save that rejects after an agent's close keeps the draft, in a tab again, unsaved, and once the person discards it a trash runs", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const note = await createNote(page, 'Long');
+		await open(page, note);
+		// A draft notes' schema refuses, so its save rejects.
+		await page.evaluate(() => {
+			const editor = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main')
+				?.querySelector('loam-editor-frame loam-mount')
+				?.shadowRoot?.querySelector('notes-editor');
+			const area = editor?.shadowRoot?.querySelector('violet-text-area') as HTMLElement & {
+				value: string;
+			};
+			area.value = 'x'.repeat(200_001);
+			area.dispatchEvent(new CustomEvent('input', { detail: { value: area.value } }));
+		});
+		await expect.poll(() => tabName(page)).toBe('Long, unsaved');
+		expect(
+			(
+				(await agentCall(page, 'editor-close', { tab: 't1', discard: true })) as {
+					success: boolean;
+				}
+			).success
+		).toBe(true);
+		// The danger toast says it was not saved, and the draft is back, whole, in a tab of its own, unsaved.
+		await expect
+			.poll(async () =>
+				JSON.stringify(await kernelCall(page, 'overlay-list')).includes('was not saved')
+			)
+			.toBe(true);
+		await expect
+			.poll(
+				async () =>
+					(await editorView(page))?.[0]?.editors.find((each) => !each.hidden)?.text?.length
+			)
+			.toBe(200_001);
+		await expect
+			.poll(async () => (await editorView(page))?.[0]?.tabs.map((each) => each.name))
+			.toEqual(['Long, unsaved']);
+		const read = (await agentCall(page, 'editor-get')) as {
+			data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
+		};
+		expect(read.data.groups[0]?.tabs).toMatchObject([{ id: 't2', dirty: true }]);
+		// A trash waits on it, naming the tab that holds it now.
+		const refused = (await agentCall(page, 'document-trash', { document: note })) as {
+			error?: { code: string; suggestion: string };
+		};
+		expect(refused.error?.code).toBe('EDITOR_TAB_DIRTY');
+		expect(refused.error?.suggestion).toContain('editor-close { tab: "t2", discard: true }');
+		// The person discards it; then the trash runs.
+		await tabOf(page, 'Long').focus();
+		await page.keyboard.press('Delete');
+		await page.locator('loam-modal button', { hasText: 'Discard' }).click();
+		await editorIdle(page);
+		await expect
+			.poll(
+				async () =>
+					((await agentCall(page, 'document-trash', { document: note })) as { success: boolean })
+						.success
+			)
+			.toBe(true);
+		await opened.context.close();
+	});
+
+	it('P2-D5: the re-report of an unsaved tab goes to the scope it was rendered in, not one the person switched to meanwhile', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		// Note B in Atlas, open there as its t1; note A in the workspace, open as its t1, and edited.
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await open(page, await createNote(page, 'Bee', 'atlas'));
+		await kernelCall(page, 'scope-set', { project: null });
+		await open(page, await createNote(page, 'Ay'));
+		await typeInto(page, 't1', 'Unsaved');
+		await expect.poll(() => tabName(page)).toBe('Ay, unsaved');
+		// The area's next editor-get answer waits on a gate.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, ...rest: unknown[]): Promise<unknown> };
+			};
+			const call = shell.kernel.call.bind(shell.kernel);
+			const held = new Promise<void>((resolve) => {
+				(window as unknown as { openGate: () => void }).openGate = resolve;
+			});
+			let once = true;
+			shell.kernel.call = async (name: string, ...rest: unknown[]) => {
+				const answer = await call(name, ...rest);
+				if (name === 'editor-get' && once) {
+					once = false;
+					await held;
+				}
+				return answer;
+			};
+		});
+		const from = (await entriesOf(page)).length;
+		// The person's page marks the tab saved while its editor is not: the area will report it unsaved again,
+		// from a read of the workspace, after the person has switched to Atlas.
+		await kernelCall(page, 'editor-dirty-set', { tab: 't1', dirty: false });
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await page.evaluate(() => (window as unknown as { openGate: () => void }).openGate());
+		await editorIdle(page);
+		const reported = async () =>
+			(await entriesOf(page))
+				.slice(from)
+				.filter(
+					(entry) =>
+						entry.command === 'editor-dirty-set' &&
+						(entry.input as { dirty?: boolean }).dirty === true
+				)
+				.map((entry) => (entry.context as { scope?: unknown }).scope);
+		await expect.poll(async () => (await reported()).length).toBe(1);
+		expect(await reported()).toEqual([{ workspace: 'personal' }]);
+		const atlas = (await agentCall(page, 'editor-get')) as {
+			data: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> };
+		};
+		expect(atlas.data.groups[0]?.tabs).toMatchObject([{ id: 't1', dirty: false }]);
+		await opened.context.close();
+	});
+
 	it('P2-D5: a tab’s type icon is blank until the app surfaces register the icons, then drawn', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;

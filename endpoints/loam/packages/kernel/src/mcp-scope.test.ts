@@ -425,7 +425,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		] as const) {
 			const refused = await client.call(name, input, at);
 			expect(refused.error?.code, name).toBe('EDITOR_TAB_DIRTY');
-			expect(refused.error?.suggestion, name).toContain('probe-content-set');
+			expect(refused.error?.suggestion, name).toContain('Retry once they save');
 		}
 		expect((await kernel.call('document-get', { document: note })).data).toMatchObject({
 			status: 'active',
@@ -471,6 +471,34 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			{ 'dev.loam/scope': { workspace: 'personal' } }
 		);
 		expect(heard.map((event) => event.command)).toEqual(['document-create']);
+	});
+
+	it("tells the page of a server's call that takes the page's actor out of the call's scope", async () => {
+		const workspace = await createScopedWorkspace();
+		const { kernel } = workspace;
+		// Signed out, the page's actor is `local`, as a server's is: a project both it and the person may enter.
+		const shared = await kernel.call<{ id: string }>('project-create', {
+			name: 'Shared',
+			access: { mode: 'restricted', members: ['local', 'mock-user-person@example.com'] },
+		});
+		expect(shared.success, JSON.stringify(shared.error)).toBe(true);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		const heard: KernelEventV2[] = [];
+		kernel.subscribe((event) => heard.push(event));
+		const client = await connect(await serve(workspace), mode);
+		const project = shared.data?.id as string;
+		const updated = await client.call(
+			'project-update',
+			{ project, access: { mode: 'restricted', members: ['local'] } },
+			{ 'dev.loam/scope': { workspace: 'personal', project } }
+		);
+		expect(updated.success, JSON.stringify(updated)).toBe(true);
+		// The person may no longer enter it, and still hears that it changed.
+		expect(heard.map((event) => event.command)).toEqual(['project-update']);
 	});
 
 	it("never moves a person's active scope: a server's call has no active scope", async () => {

@@ -430,8 +430,8 @@ export interface Editors {
 	 */
 	dirty(project: string | undefined, tab: string): boolean;
 	setDirty(project: string | undefined, tab: string, dirty: boolean): void;
-	/** A tab of `document` holding an unsaved change, in any scope's record, or undefined. */
-	unsaved(document: string): string | undefined;
+	/** A tab of `document` holding an unsaved change, in any scope's record, and whether it is open. */
+	unsaved(document: string): { tab: string; open: boolean } | undefined;
 	/** The selection an editor reported, for the inspector; null when none. */
 	selection(project: string | undefined, tab: string): unknown;
 	setSelection(project: string | undefined, tab: string, selection: unknown): void;
@@ -487,7 +487,11 @@ export function createEditors(viewState: ViewStateRegistry): Editors {
 			else if (!value) dirty.delete(key(project, tab));
 		},
 		unsaved(document) {
-			for (const [held, shows] of dirty) if (shows === document) return held.split(' ')[1];
+			for (const [held, shows] of dirty) {
+				if (shows !== document) continue;
+				const [id, tab] = held.split(' ') as [string, string];
+				return { tab, open: !!findTab(records.get(id) as EditorStateV1, tab) };
+			}
 		},
 		selection: (project, tab) => selections.get(key(project, tab)) ?? null,
 		setSelection(project, tab, selection) {

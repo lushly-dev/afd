@@ -11,6 +11,7 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
+import type { ScopeV1 } from '../scope/records.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type { AppSummaryV2, KernelEventV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
@@ -215,6 +216,11 @@ export async function createLateParts(
 			middleware: [
 				async (command, _input, context, next) => {
 					const trace = context.traceId as string;
+					// Before and after: a call that takes the page's actor out of a scope is heard too.
+					const before = deps.scope.allows(
+						sessionActor(deps.auth),
+						(context as { scope?: ScopeV1 }).scope ?? { workspace: deps.scope.workspace.id }
+					);
 					deps.scope.seen.set(trace, {});
 					const result = await next();
 					const seen = deps.scope.seen.get(trace);
@@ -223,7 +229,7 @@ export async function createLateParts(
 					if (
 						result.success &&
 						deps.isMutation(command) &&
-						(!seen?.scope || deps.scope.allows(sessionActor(deps.auth), seen.scope))
+						(before || !seen?.scope || deps.scope.allows(sessionActor(deps.auth), seen.scope))
 					) {
 						const event = {
 							command,

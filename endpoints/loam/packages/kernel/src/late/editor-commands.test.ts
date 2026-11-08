@@ -134,7 +134,7 @@ describe('P2-D5: the editor commands', () => {
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
 
-	it('P2-D5: a dirty tab refuses a close, naming its type’s save and discard: true; a first edit promotes a preview; a reload forgets dirty', async () => {
+	it('P2-D5: a dirty tab refuses a close, saying the person has unsaved changes and naming discard: true; a first edit promotes a preview; a reload forgets dirty', async () => {
 		const workspace = await documents();
 		const { kernel } = workspace;
 		const a = await probe(workspace, 'Alpha');
@@ -150,7 +150,9 @@ describe('P2-D5: the editor commands', () => {
 		});
 		const refused = await kernel.call('editor-close', { tab: 't1' });
 		expect(refused.error?.code).toBe('EDITOR_TAB_DIRTY');
-		expect(refused.error?.suggestion).toContain('probe-content-set');
+		expect(refused.error?.message).toBe('The person has unsaved changes in tab t1');
+		expect(refused.error?.suggestion).toContain('Retry once they save');
+		expect(refused.error?.suggestion).not.toContain('probe-content-set');
 		expect(refused.error?.suggestion).toContain('discard: true');
 		await workspace.resetSession();
 		expect((await editor(workspace)).groups[0]?.tabs[0]?.dirty).toBe(false);
@@ -297,14 +299,14 @@ describe('P2-D5: the editor commands', () => {
 		// An agent's trash and move are refused, naming the type's save and an editor-close that saves first.
 		const trashed = await kernel.agent.call('document-trash', { document: a });
 		expect(trashed.error?.code).toBe('EDITOR_TAB_DIRTY');
-		expect(trashed.error?.suggestion).toContain('probe-content-set');
+		expect(trashed.error?.suggestion).toContain('Retry once they save');
 		expect(trashed.error?.suggestion).toContain('editor-close { tab: "t1", discard: true }');
 		const moved = await kernel.agent.call('document-move', { document: a, project: 'atlas' });
 		expect(moved.error?.code).toBe('EDITOR_TAB_DIRTY');
 		// Nor may it mark the tab saved, which would let them through: only the person's page does.
 		const marked = await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: false });
 		expect(marked.error?.code).toBe('EDITOR_TAB_DIRTY');
-		expect(marked.error?.suggestion).toContain('probe-content-set');
+		expect(marked.error?.suggestion).toContain('Retry once they save');
 		expect((await editor(workspace)).groups[0]?.tabs[0]?.dirty).toBe(true);
 		expect((await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: true })).success).toBe(
 			true
@@ -319,8 +321,11 @@ describe('P2-D5: the editor commands', () => {
 			true
 		);
 		expect(documentsOf(await editor(workspace))).toEqual([[]]);
-		expect((await kernel.agent.call('document-trash', { document: a })).error?.code).toBe(
-			'EDITOR_TAB_DIRTY'
+		const waiting = await kernel.agent.call('document-trash', { document: a });
+		expect(waiting.error?.code).toBe('EDITOR_TAB_DIRTY');
+		// Its tab is gone, so the suggestion names no editor-close.
+		expect(waiting.error?.suggestion).toBe(
+			'Its tab is closed and its editor is saving them; retry once it has'
 		);
 		expect(
 			(await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: false })).error?.code
@@ -331,6 +336,26 @@ describe('P2-D5: the editor commands', () => {
 			'EDITOR_TAB_UNKNOWN'
 		);
 		expect((await kernel.agent.call('document-trash', { document: a })).success).toBe(true);
+	});
+
+	it('P2-D5: the person marking a tab unsaved in the same tick as an agent’s trash ends with the trash refused, the tab kept', async () => {
+		const workspace = await documents();
+		const { kernel } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		await kernel.call('document-open', { document: a });
+		const [marked, trashed] = await Promise.all([
+			kernel.call('editor-dirty-set', { tab: 't1', dirty: true }),
+			kernel.agent.call('document-trash', { document: a }),
+		]);
+		expect(marked.success).toBe(true);
+		expect(trashed.error?.code).toBe('EDITOR_TAB_DIRTY');
+		expect((await editor(workspace)).groups[0]?.tabs[0]).toMatchObject({
+			document: a,
+			dirty: true,
+		});
+		expect(
+			(await kernel.call<{ status: string }>('document-get', { document: a })).data?.status
+		).toBe('active');
 	});
 
 	it("P2-D5: holds a selection in the binding's shape, unjournaled, and refuses another shape", async () => {

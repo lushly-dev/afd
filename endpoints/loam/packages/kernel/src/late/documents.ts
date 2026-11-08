@@ -29,8 +29,11 @@ export interface DocumentCommandDeps {
 	 * them holds an unsaved change (Status deviation 16).
 	 */
 	editor?: {
-		unsaved(record: DocumentRecordV1): CommandResult<never> | undefined;
-		closeDocument(document: string, at: ScopeV1, context: CommandContext): Promise<void>;
+		closeDocument(
+			document: string,
+			at: ScopeV1,
+			context: CommandContext
+		): Promise<CommandResult<never> | undefined>;
 	};
 	/** The kernel's `run`, for `document-export`'s nested query (11.1). */
 	run<T>(
@@ -518,11 +521,10 @@ export function createDocumentCommands(
 			const from = record.scope;
 			const back = { document: record.id, project: from.project ?? null };
 			if (sameScope(from, to)) return success(record);
-			// Refused while a tab of it is unsaved, so no draft is lost; then its tabs in the scope it leaves
-			// close, none of them unsaved (4.1, Status deviation 16).
-			const unsaved = deps.editor?.unsaved(record);
+			// Its tabs in the scope it leaves close, or it is refused while one of them is unsaved, so no draft
+			// is lost (4.1, Status deviation 16).
+			const unsaved = await deps.editor?.closeDocument(record.id, from, context);
 			if (unsaved) return unsaved;
-			await deps.editor?.closeDocument(record.id, from, context);
 			const next: DocumentRecordV1 = {
 				...record,
 				scope: to,
@@ -570,11 +572,10 @@ export function createDocumentCommands(
 			if (isRefusal(record)) return record;
 			// Already in the trash: nothing changes, so nothing is there to undo.
 			if (record.status === 'trashed') return success(record);
-			// Refused while a tab of it is unsaved, so no draft is lost; then its tabs close, as `app-switch` closes
-			// a surface, none of them unsaved (4.1, Status deviation 16).
-			const unsaved = deps.editor?.unsaved(record);
+			// Its tabs close, as `app-switch` closes a surface, or it is refused while one of them is unsaved, so
+			// no draft is lost (4.1, Status deviation 16).
+			const unsaved = await deps.editor?.closeDocument(record.id, record.scope, context);
 			if (unsaved) return unsaved;
-			await deps.editor?.closeDocument(record.id, record.scope, context);
 			// The status it had, so a restore brings an archived document back archived.
 			return change(
 				record,

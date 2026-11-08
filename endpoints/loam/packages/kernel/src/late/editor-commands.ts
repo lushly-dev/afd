@@ -68,12 +68,15 @@ export interface EditorParts {
 	 */
 	settle(name: string, call: CommandContext): Promise<void>;
 	/**
-	 * `EDITOR_TAB_DIRTY` while a tab of `record` holds an unsaved change, in any scope's record, so a trash
-	 * or a move waits for its save (Status deviation 16); undefined otherwise.
+	 * Close every tab of a trashed or moved document in its scope's record (4.1), or answer
+	 * `EDITOR_TAB_DIRTY` while a tab of it holds an unsaved change, in any scope's record, so the trash or the
+	 * move waits for its save (Status deviation 16). Checked and closed in one step.
 	 */
-	unsaved(record: DocumentRecordV1): CommandResult<never> | undefined;
-	/** Close every tab of a trashed or moved document in its scope's record, none of them unsaved (4.1). */
-	closeDocument(document: string, at: ScopeV1, context: CommandContext): Promise<void>;
+	closeDocument(
+		document: string,
+		at: ScopeV1,
+		context: CommandContext
+	): Promise<CommandResult<never> | undefined>;
 	/** `section-get`, with a document's id as the documents section's path: the active tab's (5.1). */
 	sectionGet(boot: ZodCommandDefinition): ZodCommandDefinition;
 	/** Register and read `project`'s record, or the workspace's: stage B's for the active scope (6). */
@@ -179,18 +182,18 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 	const here = (context: CommandContext) => callScope(context);
 	const caller = (context: CommandContext) => (context as KernelFieldContext).caller;
 
-	/** `EDITOR_TAB_DIRTY` for `tab`, its suggestion naming its type's save (5.4). */
-	const unsavedTab = (tab: string, type: string | undefined): CommandResult<never> => {
-		const save = check
-			.types()
-			.types.get(type as string)
-			?.instanceCommands.find((name) => deps.isMutation(name));
-		return kernelFailure(
+	/**
+	 * `EDITOR_TAB_DIRTY` for `tab`: the person's changes, which only their editor can save, so the suggestion
+	 * names no type's save; an open tab's names the close that saves their editor first (5.4).
+	 */
+	const unsavedTab = (tab: string, open: boolean): CommandResult<never> =>
+		kernelFailure(
 			'EDITOR_TAB_DIRTY',
-			`Tab ${tab} has unsaved changes`,
-			`${save ? `Save it with ${save}, or close` : 'Close'} it with editor-close { tab: "${tab}", discard: true }, which saves first; then retry`
+			`The person has unsaved changes in tab ${tab}`,
+			open
+				? `Retry once they save, or close it with editor-close { tab: "${tab}", discard: true }, which saves their editor first`
+				: 'Its tab is closed and its editor is saving them; retry once it has'
 		);
-	};
 	/** The person's own page, the chrome's calls among it: never an agent's or a server's call. */
 	const person = (context: CommandContext) =>
 		marked(context) && (context as { interface?: string }).interface === 'palette';
@@ -459,7 +462,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			const before = await read(context);
 			const project = here(context).project;
 			if (editors.dirty(project, input.tab) && input.discard !== true) {
-				return unsavedTab(input.tab, (await recordOf(before, input.tab, here(context)))?.type);
+				return unsavedTab(input.tab, true);
 			}
 			const done = apply(context, before, closeTab(before, input.tab), 'replace');
 			if (isRefusal(done)) return done;
@@ -536,14 +539,16 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		async handler(input, context) {
 			const before = await read(context);
 			const project = here(context).project;
-			// A tab another's call closed keeps its mark, which the chrome's save clears.
-			if (!findTab(before, input.tab) && (input.dirty || !editors.dirty(project, input.tab))) {
+			// A tab another's call closed keeps its mark, which the person's page clears, the chrome's save or its
+			// leaving frame, as it may a closed tab's that holds none.
+			const open = !!findTab(before, input.tab);
+			if (!open && (input.dirty || !(person(context) || editors.dirty(project, input.tab)))) {
 				return refusal(unknownTab(input.tab));
 			}
 			// THE OWNER'S DECISION (Status deviation 16): only the person's page marks an unsaved tab saved, as its
 			// editor reports. To let an agent or a server do it too, delete this check; nothing else depends on it.
 			if (!input.dirty && editors.dirty(project, input.tab) && !person(context)) {
-				return unsavedTab(input.tab, (await recordOf(before, input.tab, here(context)))?.type);
+				return unsavedTab(input.tab, open);
 			}
 			editors.setDirty(project, input.tab, input.dirty);
 			// A first edit promotes a preview tab (5.3).
@@ -590,10 +595,6 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			select,
 		] as unknown as ZodCommandDefinition[],
 		ensure,
-		unsaved(record) {
-			const tab = editors.unsaved(record.id);
-			return tab === undefined ? undefined : unsavedTab(tab, record.type);
-		},
 		reset: () => editors.reset(),
 		owner,
 		async settle(name, call) {
@@ -608,6 +609,10 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		},
 		async closeDocument(document, at, context) {
 			await ensure(at.project);
+			// After the last wait and before the close, with nothing between, so a mark set meanwhile refuses the
+			// trash or the move rather than being lost with its tab (Status deviation 16).
+			const marked = editors.unsaved(document);
+			if (marked) return unsavedTab(marked.tab, marked.open);
 			// Trashed or moved, it is no longer this scope's to trust (6).
 			trusted.get(at.project ?? '')?.delete(document);
 			const before = editors.peek(at.project) as EditorStateV1;
@@ -615,10 +620,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			if (!after) return;
 			for (const group of before.groups)
 				for (const tab of group.tabs)
-					if (tab.document === document) {
-						editors.setDirty(at.project, tab.id, false);
-						editors.setSelection(at.project, tab.id, null);
-					}
+					if (tab.document === document) editors.setSelection(at.project, tab.id, null);
 			editors.put(at.project, after);
 			// Its closed tab moves the URL, as `editor-close` does (6.3).
 			if (showing(at) && activeTab(before)?.document === document) {
