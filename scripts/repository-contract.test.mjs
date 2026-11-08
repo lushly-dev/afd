@@ -464,6 +464,40 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	assert.match(umbel, /actions\/upload-artifact@[0-9a-f]{40} # v/);
 });
 
+test("Umbel's test identity provider is a private, route-less, test-only unit", async () => {
+	const { assertAdmission, discoverDistributions, loadInventory } = await import(
+		'./release/control.mjs'
+	);
+	const inventory = loadInventory(repoRoot);
+	const unit = inventory.units.find((entry) => entry.id === 'umbel-testkit-idp');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest, entry.format, entry.private]),
+		[['umbel-testkit-idp', 'endpoints/umbel/testkit-idp/Cargo.toml', 'rust', true]]
+	);
+	assert.ok(!discoverDistributions(repoRoot, inventory).some((entry) => entry.unit === unit.id));
+	for (const route of ['crates-tag', 'npm-main'])
+		assert.throws(
+			() => assertAdmission({ root: repoRoot, inventory, unit: unit.id, route }),
+			/not admitted|route/,
+			route
+		);
+	const manifest = read('endpoints/umbel/testkit-idp/Cargo.toml');
+	assert.match(manifest, /^publish = false$/m);
+	assert.doesNotMatch(manifest, /^\[\[bin\]\]/m);
+	// Phase 5 specification, section 1: the host names it only as a dev-dependency
+	// (`tests/no_auth_server.rs` checks every workspace crate through `cargo metadata`).
+	const sections = read('endpoints/umbel/Cargo.toml').split(/\n(?=\[)/);
+	const linked = sections.filter((section) =>
+		/^\[(dependencies|build-dependencies|target\.[^\]]+\.(dependencies|build-dependencies))(\.[^\]]+)?\]/.test(
+			section
+		)
+	);
+	assert.ok(linked.some((section) => section.startsWith('[dependencies]')));
+	for (const section of linked) assert.doesNotMatch(section, /testkit-idp/);
+});
+
 test('every published package type-checks its tests', () => {
 	const packages = publishedPackageDirectories();
 	assert.ok(packages.includes('packages/core'), 'expected to find the published packages');

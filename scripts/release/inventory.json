@@ -1135,6 +1135,27 @@
 					"private": true
 				}
 			]
+		},
+		{
+			"id": "umbel-testkit-idp",
+			"family": "umbel",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "ce831b883edffb8bda8f90a740851cd4dbc8e13e",
+			"authority": "none: new test-only crate (a credential-free identity provider, authorization server, gateway signer and certificate authority for Umbel's auth tests, used from dev-dependencies only) authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["umbel.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "umbel-testkit-idp",
+					"registry": "crates",
+					"manifest": "endpoints/umbel/testkit-idp/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
 		}
 	]
 }
