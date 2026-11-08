@@ -154,6 +154,13 @@ test('files map to owning packages, unit roots and shared inputs', (t) => {
 	assert.deepEqual(scope(['foundations/violet/packages/runtime/src/a.ts']).affected, [
 		'@x/violet-runtime',
 	]);
+	// A unit's own docs/ reach none of its packages, unlike its other root files.
+	assert.deepEqual(scope(['foundations/violet/docs/STATUS.md']).affected, []);
+	assert.deepEqual(scope(['foundations/violet/docs/phases/0/spec.md']).affected, []);
+	assert.deepEqual(scope(['foundations/violet/README.md']).affected, [
+		'@x/violet-core',
+		'@x/violet-runtime',
+	]);
 	// Non-workspace units, documentation and other languages select nothing.
 	assert.deepEqual(scope(['packages/rust/src/lib.rs', 'docs/a.md', 'AGENTS.md']).affected, []);
 	assert.equal(scope(['tsconfig.json']).mode, 'all');

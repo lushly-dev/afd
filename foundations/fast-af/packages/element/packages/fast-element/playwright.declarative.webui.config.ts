@@ -13,7 +13,7 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: "npm run test-server:declarative:webui",
+        command: "pnpm run test-server:declarative:webui",
         port: 5174,
         reuseExistingServer: true,
     },
