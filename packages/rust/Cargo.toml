@@ -109,7 +109,7 @@ getrandom = { version = ">=0.3, <0.5", optional = true }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"], optional = true }
 # `server-auth` feature: strict unpadded base64url for the JWS parts, the JWK members and the
 # certificate thumbprint.
-base64 = { version = "0.22", optional = true }
+base64 = { version = "0.23", optional = true }
 # `server-auth` feature: the bearer layer is a `tower` layer over the HTTP service, and buffers a
 # capped request body to decide scopes before dispatch.
 bytes = { version = "1", optional = true }
