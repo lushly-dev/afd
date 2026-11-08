@@ -20,6 +20,7 @@
 use afd::{CommandContext, CommandError};
 use umbel_store::ReaderFilter;
 
+use crate::auth::Scope;
 use crate::principal::{CLAIM_GROUPS_KEY, Principal};
 use crate::provenance::effective_principal;
 use crate::workspace::{Config, ReaderEntry, SpaceConfig};
@@ -105,8 +106,9 @@ fn group_holds(
             })
 }
 
-/// Whether `principal`, with the claim groups of its token, may read the space `space`: it, or
-/// a legacy principal it stands for, matches an entry of `readers`.
+/// Whether `principal`, with the claim groups of its token, may read the space `space` by its
+/// `readers`: it, or a legacy principal it stands for, matches an entry. No token narrows this
+/// answer; [`Caller::reads`] adds the narrowing.
 #[must_use]
 pub fn may_read_space(
     config: &Config,
@@ -114,7 +116,15 @@ pub fn may_read_space(
     principal: Option<&str>,
     claim_groups: &[String],
 ) -> bool {
-    let identities = identities(config, principal);
+    readers_admit(config, space, &identities(config, principal), claim_groups)
+}
+
+fn readers_admit(
+    config: &Config,
+    space: &SpaceConfig,
+    identities: &[String],
+    claim_groups: &[String],
+) -> bool {
     space
         .readers
         .iter()
@@ -122,11 +132,13 @@ pub fn may_read_space(
         .any(|entry| match entry {
             ReaderEntry::Anyone => true,
             ReaderEntry::Principal(text) => identities.contains(&text),
-            ReaderEntry::Group(group) => group_holds(config, &group, &identities, claim_groups),
+            ReaderEntry::Group(group) => group_holds(config, &group, identities, claim_groups),
         })
 }
 
-/// `SPACE_NOT_READABLE` for `space`.
+/// `SPACE_NOT_READABLE` for `space`, as mode `none` and the operator get it: the space is named.
+/// A hosted caller who is not the operator gets [`space_unavailable`] instead, which names
+/// nothing (phase 5 section 5.4).
 #[must_use]
 pub fn not_readable(space: &str) -> CommandError {
     CommandError::new(
@@ -137,6 +149,23 @@ pub fn not_readable(space: &str) -> CommandError {
         "Ask the deployer to add your principal or one of your groups to the space's readers in umbel.toml, or use a space you may read.",
     )
     .with_retryable(false)
+}
+
+/// The message of section 5.4's one answer.
+pub const SPACE_UNAVAILABLE_MESSAGE: &str = "The space does not exist or you may not read it";
+
+/// Section 5.4's one answer, for an undeclared space and for one the caller may not read (by
+/// `readers`) or that its token grants no verb in, alike: `SPACE_NOT_READABLE` with one fixed
+/// message and suggestion, no space named (the caller may not even have named it: the default
+/// space is resolved for it) and no details, so the two can be told apart by nothing. Every hosted
+/// caller but the operator gets it, on every surface.
+#[must_use]
+pub fn space_unavailable() -> CommandError {
+    CommandError::new(SPACE_NOT_READABLE, SPACE_UNAVAILABLE_MESSAGE)
+        .with_suggestion(
+            "Call space-list for the spaces you may read; to read another, ask the deployer for access, and for a token that grants it.",
+        )
+        .with_retryable(false)
 }
 
 /// Whether `context` is the operator's: the CLI, with the CLI interface, transport `cli` and
@@ -153,65 +182,254 @@ pub fn is_operator(context: &CommandContext) -> bool {
         })
 }
 
+/// What narrows a caller to some spaces (phase 5 sections 4.3 and 5.3): nothing, or the Umbel
+/// scopes of its token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Narrowing {
+    /// No token: the CLI, stdio, the library, a loopback caller. Nothing narrows.
+    None,
+    /// The Umbel scopes of a verified token (5.1), under the configured prefix; the others are
+    /// ignored. A space is granted when some scope implies `read` there.
+    Token(Vec<Scope>),
+}
+
+impl Narrowing {
+    /// Whether this narrowing leaves `space` open: always without a token; with one, when a
+    /// scope implies `read:<space>` (5.1: every verb on a space implies `read` there, and an
+    /// unqualified verb implies it on every space).
+    #[must_use]
+    pub fn grants(&self, space: &str) -> bool {
+        match self {
+            Self::None => true,
+            Self::Token(scopes) => crate::auth::scopes::grants_a_verb(scopes, space),
+        }
+    }
+
+    /// The Umbel scopes of a token, `None` without one.
+    #[must_use]
+    pub fn scopes(&self) -> Option<&[Scope]> {
+        match self {
+            Self::None => None,
+            Self::Token(scopes) => Some(scopes),
+        }
+    }
+}
+
+/// Who a call reads as, for every reader filter the host builds (phase 5 section 5.4,
+/// `reader_filter(config, space, &Caller)`): the effective principal and every legacy principal
+/// it stands for (4.6), the groups its token's claims make it a member of (4.5), what its token
+/// narrows it to (5.3), and whether it is the operator (4.7).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Caller {
+    /// The effective principal; `None` for an anonymous caller.
+    principal: Option<String>,
+    /// The principal, then the legacy principals `[principal.equivalents]` maps to it.
+    identities: Vec<String>,
+    /// The claim groups of the caller's own token; none when reading as another principal.
+    claim_groups: Vec<String>,
+    /// What the token narrows the caller to.
+    narrowing: Narrowing,
+    /// The token's scopes as sent, from the same source as `narrowing`, for static `scopes`.
+    scope_text: Vec<String>,
+    /// Whether the call is the operator's (the CLI).
+    operator: bool,
+    /// Whether the workspace is hosted (`auth.mode` not `none`).
+    hosted: bool,
+}
+
+impl Caller {
+    /// The caller of `context`: its effective principal and claim groups as the surface set them,
+    /// narrowed by the Umbel scopes of its token. A principal the hook made from a verified token
+    /// or a gateway assertion carries them in `scopes` (`None` there narrows to nothing); any other
+    /// call that still carries AFD's admitted credentials is narrowed by those; anything else is
+    /// not narrowed.
+    #[must_use]
+    pub fn of(config: &Config, context: &CommandContext) -> Self {
+        use crate::principal::Authentication;
+        let prefix = config.auth.scope_prefix.as_str();
+        let principal = Principal::from_context(context);
+        let parse = |scopes: &[String]| -> Vec<Scope> {
+            scopes
+                .iter()
+                .filter_map(|scope| Scope::parse(prefix, scope))
+                .collect()
+        };
+        let (narrowing, scope_text) = match &principal {
+            Some(p)
+                if matches!(
+                    p.authentication,
+                    Authentication::Verified | Authentication::Gateway
+                ) =>
+            {
+                let text = p.scopes.clone().unwrap_or_default();
+                (Narrowing::Token(parse(&text)), text)
+            }
+            _ => match context.credentials.as_deref() {
+                Some(credentials) => (
+                    Narrowing::Token(parse(&credentials.scopes)),
+                    credentials.scopes.clone(),
+                ),
+                None => (Narrowing::None, Vec::new()),
+            },
+        };
+        let effective = principal.and_then(|p| effective_principal(&p.actor));
+        let mut caller = Self::new(
+            config,
+            effective,
+            claim_groups_of(context),
+            narrowing,
+            is_operator(context),
+        );
+        caller.scope_text = scope_text;
+        caller
+    }
+
+    /// A caller from its parts.
+    #[must_use]
+    pub fn new(
+        config: &Config,
+        principal: Option<String>,
+        claim_groups: Vec<String>,
+        narrowing: Narrowing,
+        operator: bool,
+    ) -> Self {
+        Self {
+            identities: identities(config, principal.as_deref()),
+            principal,
+            claim_groups,
+            narrowing,
+            scope_text: Vec::new(),
+            operator,
+            hosted: config.auth.mode.is_hosted(),
+        }
+    }
+
+    /// This caller reading as `principal` (a plugin's `as_reader`): that principal and its
+    /// equivalents, no claim groups (a token's claims name only its own holder), and this call's
+    /// narrowing and standing, so a read as another principal is never wider than this call.
+    #[must_use]
+    pub fn reading_as(&self, config: &Config, principal: Option<String>) -> Self {
+        Self {
+            identities: identities(config, principal.as_deref()),
+            principal,
+            claim_groups: Vec::new(),
+            narrowing: self.narrowing.clone(),
+            scope_text: self.scope_text.clone(),
+            operator: self.operator,
+            hosted: self.hosted,
+        }
+    }
+
+    /// The effective principal.
+    #[must_use]
+    pub fn principal(&self) -> Option<&str> {
+        self.principal.as_deref()
+    }
+
+    /// The claim groups.
+    #[must_use]
+    pub fn claim_groups(&self) -> &[String] {
+        &self.claim_groups
+    }
+
+    /// What the token narrows the caller to.
+    #[must_use]
+    pub fn narrowing(&self) -> &Narrowing {
+        &self.narrowing
+    }
+
+    /// The token's scopes as sent (empty without a token), from the source of
+    /// [`Self::narrowing`].
+    #[must_use]
+    pub fn scope_text(&self) -> &[String] {
+        &self.scope_text
+    }
+
+    /// Whether the caller is the operator.
+    #[must_use]
+    pub fn is_operator(&self) -> bool {
+        self.operator
+    }
+
+    /// Whether this caller gets section 5.4's one answer: a hosted caller who is not the
+    /// operator. The operator, and every caller in mode `none` (phases 2 to 4, kept unchanged
+    /// locally by section 14's point 10), keep `SPACE_NOT_FOUND` and the named
+    /// `SPACE_NOT_READABLE`.
+    #[must_use]
+    pub fn gets_one_answer(&self) -> bool {
+        self.hosted && !self.operator
+    }
+
+    /// Whether the caller may read `space` by its `readers` (with equivalents and claim groups),
+    /// and its token, if any, grants a verb there. A scope never makes an unreadable space
+    /// readable (5.3).
+    #[must_use]
+    pub fn reads(&self, config: &Config, space: &SpaceConfig) -> bool {
+        self.narrowing.grants(space.id.as_str())
+            && readers_admit(config, space, &self.identities, &self.claim_groups)
+    }
+
+    /// The refusal of `space` for this caller: section 5.4's one answer, or the named
+    /// `SPACE_NOT_READABLE` of mode `none` and the operator.
+    #[must_use]
+    pub fn refusal(&self, space: &str) -> CommandError {
+        if self.gets_one_answer() {
+            space_unavailable()
+        } else {
+            not_readable(space)
+        }
+    }
+}
+
 /// The spaces a host built-in may name to `context`'s caller (phase 5 sections 9.4 and 4.7):
 /// `None`, meaning every declared space, in mode `none` (phases 2 to 4 list every space to every
-/// caller) and to the operator; otherwise the ids of the spaces the caller reads, in declaration
-/// order. A verified caller's are its principal's `spaces` (the spaces it reads that its token
-/// grants a verb in); any other caller's (stdio, the library, a call with no principal) are the
-/// spaces its effective principal, with its claim groups, may read.
+/// caller) and to the operator; otherwise the ids of the spaces the caller reads and its token,
+/// if any, grants a verb in ([`Caller::reads`]), in declaration order.
 #[must_use]
 pub fn listed_spaces(config: &Config, context: &CommandContext) -> Option<Vec<String>> {
-    if !config.auth.mode.is_hosted() || is_operator(context) {
+    listed_for(config, &Caller::of(config, context))
+}
+
+/// [`listed_spaces`] for `caller`.
+#[must_use]
+pub fn listed_for(config: &Config, caller: &Caller) -> Option<Vec<String>> {
+    if !caller.gets_one_answer() {
         return None;
     }
-    let principal = Principal::from_context(context);
-    if let Some(granted) = principal.as_ref().and_then(|p| p.spaces.as_ref()) {
-        return Some(
-            config
-                .spaces
-                .iter()
-                .map(|space| space.id.as_str().to_owned())
-                .filter(|space| granted.contains_key(space))
-                .collect(),
-        );
-    }
-    let effective = principal.and_then(|p| effective_principal(&p.actor));
-    let claim_groups = claim_groups_of(context);
     Some(
         config
             .spaces
             .iter()
-            .filter(|space| may_read_space(config, space, effective.as_deref(), &claim_groups))
+            .filter(|space| caller.reads(config, space))
             .map(|space| space.id.as_str().to_owned())
             .collect(),
     )
 }
 
-/// The reader filter of `principal`, with the claim groups of its token, in `space`: `space`,
-/// `principal:` for the principal and each legacy principal it stands for, and `group:` for each
-/// group that holds it.
+/// The reader filter of `caller` in `space` (phase 5 section 5.4): `space`, `principal:` for the
+/// principal and each legacy principal it stands for, and `group:` for each group that holds it.
 ///
 /// # Errors
-/// `SPACE_NOT_READABLE` when the principal matches no entry of the space's `readers`, or the
-/// space is not declared.
+/// `SPACE_NOT_READABLE` when the space is not declared, when the caller matches no entry of its
+/// `readers`, or when its token grants no verb there: [`Caller::refusal`], so a hosted caller who
+/// is not the operator cannot tell the three apart.
 pub fn reader_filter(
     config: &Config,
     space: &str,
-    principal: Option<&str>,
-    claim_groups: &[String],
+    caller: &Caller,
 ) -> Result<ReaderFilter, CommandError> {
     let declared = config
         .spaces
         .iter()
         .find(|candidate| candidate.id.as_str() == space)
-        .ok_or_else(|| not_readable(space))?;
-    if !may_read_space(config, declared, principal, claim_groups) {
-        return Err(not_readable(space));
+        .ok_or_else(|| caller.refusal(space))?;
+    if !caller.reads(config, declared) {
+        return Err(caller.refusal(space));
     }
-    let identities = identities(config, principal);
     let mut tokens = vec!["space".to_owned()];
     tokens.extend(
-        identities
+        caller
+            .identities
             .iter()
             .map(|identity| format!("principal:{identity}")),
     );
@@ -220,16 +438,23 @@ pub fn reader_filter(
             .access
             .groups
             .iter()
-            .filter(|group| group_holds(config, &group.id, &identities, claim_groups))
+            .filter(|group| {
+                group_holds(config, &group.id, &caller.identities, &caller.claim_groups)
+            })
             .map(|group| format!("group:{}", group.id)),
     );
     ReaderFilter::tokens(tokens).map_err(|error| {
-        CommandError::new(
-            SPACE_NOT_READABLE,
-            format!("The caller's access tokens are not valid: {error}"),
-        )
-        .with_suggestion("Check the principal and the [access.groups] members in umbel.toml.")
-        .with_retryable(false)
+        tracing::error!(target: "umbel::access", %error, "a caller's access tokens are not valid");
+        if caller.gets_one_answer() {
+            space_unavailable()
+        } else {
+            CommandError::new(
+                SPACE_NOT_READABLE,
+                format!("The caller's access tokens are not valid: {error}"),
+            )
+            .with_suggestion("Check the principal and the [access.groups] members in umbel.toml.")
+            .with_retryable(false)
+        }
     })
 }
 
@@ -238,6 +463,22 @@ mod tests {
     use super::*;
     use crate::workspace::ConfigFile;
     use std::path::Path;
+
+    fn filter_of(
+        config: &Config,
+        space: &str,
+        principal: Option<&str>,
+        claim_groups: &[String],
+    ) -> Result<ReaderFilter, CommandError> {
+        let caller = Caller::new(
+            config,
+            principal.map(str::to_owned),
+            claim_groups.to_vec(),
+            Narrowing::None,
+            false,
+        );
+        reader_filter(config, space, &caller)
+    }
 
     fn config(text: &str) -> Config {
         ConfigFile::parse(text)
@@ -260,17 +501,15 @@ members = ["*"]
     #[test]
     fn readers_match_everyone_a_principal_or_a_group() {
         let config = config(TEXT);
-        assert!(reader_filter(&config, "main", None, &[]).is_ok());
-        assert!(reader_filter(&config, "hidden", Some("human:ada"), &[]).is_ok());
-        assert!(reader_filter(&config, "hidden", Some("agent:ci"), &[]).is_ok());
+        assert!(filter_of(&config, "main", None, &[]).is_ok());
+        assert!(filter_of(&config, "hidden", Some("human:ada"), &[]).is_ok());
+        assert!(filter_of(&config, "hidden", Some("agent:ci"), &[]).is_ok());
         for refused in [None, Some("human:bob"), Some("agent:loopback")] {
-            let error = reader_filter(&config, "hidden", refused, &[]).unwrap_err();
+            let error = filter_of(&config, "hidden", refused, &[]).unwrap_err();
             assert_eq!(error.code, SPACE_NOT_READABLE);
         }
         assert_eq!(
-            reader_filter(&config, "nowhere", None, &[])
-                .unwrap_err()
-                .code,
+            filter_of(&config, "nowhere", None, &[]).unwrap_err().code,
             SPACE_NOT_READABLE
         );
     }
@@ -278,7 +517,7 @@ members = ["*"]
     #[test]
     fn tokens_are_the_space_the_principal_and_its_groups() {
         let config = config(TEXT);
-        let filter = reader_filter(&config, "main", Some("agent:ci"), &[]).unwrap();
+        let filter = filter_of(&config, "main", Some("agent:ci"), &[]).unwrap();
         assert_eq!(
             filter.token_list().unwrap(),
             [
@@ -288,7 +527,7 @@ members = ["*"]
                 "space"
             ]
         );
-        let anonymous = reader_filter(&config, "main", None, &[]).unwrap();
+        let anonymous = filter_of(&config, "main", None, &[]).unwrap();
         assert_eq!(anonymous.token_list().unwrap(), ["group:everyone", "space"]);
     }
 
@@ -317,7 +556,7 @@ members = []
     #[test]
     fn equivalents_map_legacy_principals_one_way() {
         let config = config(HOSTED);
-        let namespaced = reader_filter(&config, "legacy", Some("human:corp/ada"), &[]).unwrap();
+        let namespaced = filter_of(&config, "legacy", Some("human:corp/ada"), &[]).unwrap();
         assert_eq!(
             namespaced.token_list().unwrap(),
             [
@@ -328,22 +567,22 @@ members = []
                 "space"
             ]
         );
-        assert!(reader_filter(&config, "eng", Some("human:corp/ada"), &[]).is_ok());
+        assert!(filter_of(&config, "eng", Some("human:corp/ada"), &[]).is_ok());
         // One way: the legacy principal gains nothing from the namespaced one.
-        let legacy = reader_filter(&config, "main", Some("human:ada"), &[]).unwrap();
+        let legacy = filter_of(&config, "main", Some("human:ada"), &[]).unwrap();
         assert_eq!(
             legacy.token_list().unwrap(),
             ["group:eng", "principal:human:ada", "space"]
         );
-        assert!(reader_filter(&config, "legacy", Some("human:corp/bo"), &[]).is_err());
+        assert!(filter_of(&config, "legacy", Some("human:corp/bo"), &[]).is_err());
     }
 
     #[test]
     fn claim_groups_add_members_for_the_request() {
         let config = config(HOSTED);
-        assert!(reader_filter(&config, "eng", Some("human:corp/bo"), &[]).is_err());
+        assert!(filter_of(&config, "eng", Some("human:corp/bo"), &[]).is_err());
         let claimed = ["eng".to_owned(), "claimed".to_owned()];
-        let filter = reader_filter(&config, "eng", Some("human:corp/bo"), &claimed).unwrap();
+        let filter = filter_of(&config, "eng", Some("human:corp/bo"), &claimed).unwrap();
         assert_eq!(
             filter.token_list().unwrap(),
             [
@@ -363,5 +602,103 @@ members = []
         assert_eq!(claim_groups_reading(&context, false), ["eng", "ops"]);
         assert!(claim_groups_reading(&context, true).is_empty());
         assert!(claim_groups_of(&CommandContext::new()).is_empty());
+    }
+    const NARROWED: &str = r#"
+config_version = 5
+default_space = "main"
+[principal]
+local_id = "corp/ada"
+[http]
+public_url = "https://umbel.example.com/mcp"
+allowed_hosts = ["umbel.example.com"]
+[auth]
+mode = "oauth"
+[auth.namespaces.corp]
+[auth.issuers.as]
+issuer = "https://as.example.com"
+namespace = "corp"
+[spaces.main]
+[spaces.alpha]
+readers = ["human:corp/ada"]
+[spaces.private]
+readers = ["human:corp/bo"]
+"#;
+
+    fn token(config: &Config, scopes: &[&str]) -> Narrowing {
+        Narrowing::Token(
+            scopes
+                .iter()
+                .filter_map(|scope| Scope::parse(&config.auth.scope_prefix, scope))
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn a_token_narrows_and_never_widens_and_hosted_callers_get_one_answer() {
+        let config = config(NARROWED);
+        let ada = |narrowing: Narrowing, operator: bool| {
+            Caller::new(
+                &config,
+                Some("human:corp/ada".to_owned()),
+                Vec::new(),
+                narrowing,
+                operator,
+            )
+        };
+        let narrowed = ada(token(&config, &["umbel:read:main"]), false);
+        assert!(reader_filter(&config, "main", &narrowed).is_ok());
+        let alpha = reader_filter(&config, "alpha", &narrowed).unwrap_err();
+        let private = reader_filter(&config, "private", &narrowed).unwrap_err();
+        let ghost = reader_filter(&config, "ghost", &narrowed).unwrap_err();
+        for error in [&alpha, &private, &ghost] {
+            assert_eq!(
+                serde_json::to_value(error).unwrap(),
+                serde_json::to_value(space_unavailable()).unwrap()
+            );
+        }
+        // A scope never makes an unreadable space readable.
+        let wide = ada(token(&config, &["umbel:read:private", "umbel:read"]), false);
+        assert!(reader_filter(&config, "alpha", &wide).is_ok());
+        assert_eq!(
+            reader_filter(&config, "private", &wide)
+                .unwrap_err()
+                .message,
+            SPACE_UNAVAILABLE_MESSAGE
+        );
+        // The operator keeps the named answer, and is never narrowed by a token it has not got.
+        let operator = ada(Narrowing::None, true);
+        assert!(!operator.gets_one_answer());
+        assert!(
+            reader_filter(&config, "private", &operator)
+                .unwrap_err()
+                .message
+                .contains("private")
+        );
+        assert_eq!(listed_for(&config, &operator), None);
+        assert_eq!(
+            listed_for(&config, &narrowed),
+            Some(vec!["main".to_owned()])
+        );
+        // Reading as another principal keeps the call's narrowing and drops its claim groups.
+        let claimed = Caller::new(
+            &config,
+            Some("human:corp/ada".to_owned()),
+            vec!["eng".to_owned()],
+            token(&config, &["umbel:read:main"]),
+            false,
+        );
+        let other = claimed.reading_as(&config, Some("human:corp/bo".to_owned()));
+        assert!(other.claim_groups().is_empty());
+        assert!(reader_filter(&config, "private", &other).is_err());
+        // In mode none every caller keeps the named answer.
+        let none = self::config(TEXT);
+        let anonymous = Caller::new(&none, None, Vec::new(), Narrowing::None, false);
+        assert!(!anonymous.gets_one_answer());
+        assert!(
+            reader_filter(&none, "nowhere", &anonymous)
+                .unwrap_err()
+                .message
+                .contains("nowhere")
+        );
     }
 }

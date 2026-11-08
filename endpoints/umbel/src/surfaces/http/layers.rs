@@ -164,20 +164,32 @@ impl http_body::Body for CappedBody {
     }
 }
 
-// ─── Layer 3: the per-IP limit ───────────────────────────────────────────────────────────────
+// ─── Layers 3 and 6: the sliding limits ──────────────────────────────────────────────────────
 
-/// The window of `ip_requests_per_minute`.
+/// The window of `ip_requests_per_minute` and `calls_per_minute`.
 #[cfg(feature = "auth")]
 const MINUTE_MS: i64 = 60_000;
 /// The most keys whose refusal one process remembers.
 #[cfg(feature = "auth")]
 const REMEMBERED_REFUSALS: usize = 4096;
 
-/// Layer 3's configuration and state: the shared counters, the limit, one check at a time per
-/// process against the store, bounded by `store.lock_timeout_ms`, and the keys this process saw
-/// refused, until their window admits again.
+/// Why a sliding limit refused a request.
 #[cfg(feature = "auth")]
-pub(crate) struct IpLimit {
+pub(crate) enum Refusal {
+    /// Over the limit: retry after this many milliseconds.
+    TooMany(i64),
+    /// A shared store was held past `store.lock_timeout_ms`.
+    Busy(&'static str),
+    /// The check could not be made; logged.
+    Failed,
+}
+
+/// One per-minute limit on the shared counters (layers 3 and 6), its state in this process: the
+/// limit, one check at a time per process against the store, bounded by
+/// `store.lock_timeout_ms`, and the keys this process saw refused, until their window admits
+/// again.
+#[cfg(feature = "auth")]
+pub(crate) struct SlidingLimit {
     store: Arc<dyn LimitStore>,
     per_minute: u64,
     lock_timeout: Duration,
@@ -185,8 +197,12 @@ pub(crate) struct IpLimit {
     refused: std::sync::Mutex<std::collections::HashMap<String, i64>>,
 }
 
+/// Layer 3's limit.
 #[cfg(feature = "auth")]
-impl IpLimit {
+pub(crate) type IpLimit = SlidingLimit;
+
+#[cfg(feature = "auth")]
+impl SlidingLimit {
     pub(crate) fn new(store: Arc<dyn LimitStore>, per_minute: u64, lock_timeout: Duration) -> Self {
         Self {
             store,
@@ -237,6 +253,50 @@ impl IpLimit {
             refused.insert(key, until);
         }
     }
+
+    /// Count one request against `key`, or say why not. A key this process already saw refused
+    /// is answered from memory until its window admits again, without touching the store. The
+    /// check waits its turn no longer than the store's own lock timeout, so a flood queues here,
+    /// cheaply, rather than in the blocking pool.
+    pub(crate) async fn admit(&self, key: String) -> Result<(), Refusal> {
+        let now = Self::now_ms();
+        if let Some(left) = self.remembered(&key, now) {
+            return Err(Refusal::TooMany(left));
+        }
+        let Ok(Ok(turn)) =
+            tokio::time::timeout(self.lock_timeout, Arc::clone(&self.turn).acquire_owned()).await
+        else {
+            return Err(Refusal::Busy("limits"));
+        };
+        let store = Arc::clone(&self.store);
+        let per_minute = self.per_minute;
+        let checked = key.clone();
+        let decided = tokio::task::spawn_blocking(move || {
+            let decided = store.hit(&checked, per_minute, MINUTE_MS, now);
+            drop(turn);
+            decided
+        })
+        .await;
+        match decided {
+            Ok(Ok(Admission::Allowed)) => Ok(()),
+            Ok(Ok(Admission::Refused { retry_after_ms })) => {
+                self.remember(key, now.saturating_add(retry_after_ms), now);
+                Err(Refusal::TooMany(retry_after_ms))
+            }
+            Ok(Err(SharedError::Timeout { store })) => {
+                tracing::warn!(target: "umbel::http", store, "a shared store was held past store.lock_timeout_ms; refused");
+                Err(Refusal::Busy(store))
+            }
+            Ok(Err(SharedError::Failed { store, message })) => {
+                tracing::error!(target: "umbel::http", store, %message, "a shared store failed; refused");
+                Err(Refusal::Failed)
+            }
+            Err(error) => {
+                tracing::error!(target: "umbel::http", %error, "a limit's check did not finish; refused");
+                Err(Refusal::Failed)
+            }
+        }
+    }
 }
 
 /// The limit's key for a peer: an IPv4 address (an IPv4-mapped IPv6 address counts as its IPv4
@@ -278,45 +338,11 @@ pub(crate) async fn limit_ip(
         );
         return plain(StatusCode::INTERNAL_SERVER_ERROR, false);
     };
-    let key = ip_key(peer.ip());
-    let now = IpLimit::now_ms();
-    if let Some(left) = limit.remembered(&key, now) {
-        return too_many(left);
-    }
-    // One check at a time per process, waiting no longer than the store's own lock timeout: a
-    // flood queues here, cheaply, rather than in the blocking pool.
-    let Ok(Ok(turn)) =
-        tokio::time::timeout(limit.lock_timeout, Arc::clone(&limit.turn).acquire_owned()).await
-    else {
-        return shared_timeout("limits");
-    };
-    let store = Arc::clone(&limit.store);
-    let per_minute = limit.per_minute;
-    let checked = key.clone();
-    let decided = tokio::task::spawn_blocking(move || {
-        let decided = store.hit(&checked, per_minute, MINUTE_MS, now);
-        drop(turn);
-        decided
-    })
-    .await;
-    match decided {
-        Ok(Ok(Admission::Allowed)) => next.run(request).await,
-        Ok(Ok(Admission::Refused { retry_after_ms })) => {
-            limit.remember(key, now.saturating_add(retry_after_ms), now);
-            too_many(retry_after_ms)
-        }
-        Ok(Err(SharedError::Timeout { store })) => {
-            tracing::warn!(target: "umbel::http", store, "a shared store was held past store.lock_timeout_ms; refused");
-            shared_timeout(store)
-        }
-        Ok(Err(SharedError::Failed { store, message })) => {
-            tracing::error!(target: "umbel::http", store, %message, "a shared store failed; refused");
-            plain(StatusCode::INTERNAL_SERVER_ERROR, false)
-        }
-        Err(error) => {
-            tracing::error!(target: "umbel::http", %error, "the per-IP limit's check did not finish; refused");
-            plain(StatusCode::INTERNAL_SERVER_ERROR, false)
-        }
+    match limit.admit(ip_key(peer.ip())).await {
+        Ok(()) => next.run(request).await,
+        Err(Refusal::TooMany(left)) => too_many(left, "from this address"),
+        Err(Refusal::Busy(store)) => shared_timeout(store),
+        Err(Refusal::Failed) => plain(StatusCode::INTERNAL_SERVER_ERROR, false),
     }
 }
 
@@ -334,9 +360,10 @@ fn retry_later(status: StatusCode, seconds: i64, body: &serde_json::Value) -> Re
     response
 }
 
-/// 429: the limit's own answer names no limit and no caller, only when to retry.
+/// 429: the limit's own answer names no limit and no caller, only which limit it is (`whose`:
+/// "from this address", "with this token") and when to retry.
 #[cfg(feature = "auth")]
-fn too_many(retry_after_ms: i64) -> Response {
+fn too_many(retry_after_ms: i64, whose: &str) -> Response {
     let seconds = retry_after_ms.saturating_add(999) / 1000;
     let seconds = seconds.max(1);
     retry_later(
@@ -344,7 +371,7 @@ fn too_many(retry_after_ms: i64) -> Response {
         seconds,
         &serde_json::json!({
             "error": afd::error_codes::RATE_LIMITED,
-            "suggestion": format!("Too many requests from this address; retry after {seconds} seconds."),
+            "suggestion": format!("Too many requests {whose}; retry after {seconds} seconds."),
         }),
     )
 }
@@ -361,6 +388,183 @@ fn shared_timeout(store: &str) -> Response {
             "details": { "store": store },
         }),
     )
+}
+
+// ─── Layer 6: the token gate ─────────────────────────────────────────────────────────────────
+
+/// The body of every response between AFD's bearer layer and the MCP service.
+#[cfg(feature = "auth")]
+pub(crate) type GateBody = http_body_util::combinators::BoxBody<Bytes, std::convert::Infallible>;
+
+/// The name of a verified caller's per-token counter (section 11: the verified issuer, subject and
+/// client): their HMAC under the workspace's `state/keys/limits.key`, so the shared store holds
+/// no identifier a dictionary could recover.
+#[cfg(feature = "auth")]
+pub(crate) fn token_key(key: &[u8], credentials: &afd::Credentials) -> String {
+    crate::shared::keyed_name(
+        "token",
+        key,
+        &[
+            &credentials.issuer,
+            &credentials.subject,
+            &credentials.client_id,
+        ],
+    )
+}
+
+#[cfg(feature = "auth")]
+struct GateShared {
+    limit: SlidingLimit,
+    key: Vec<u8>,
+    metadata: afd::server::auth::ProtectedResource,
+    prefix: String,
+}
+
+/// Layer 6 (section 6.3), between AFD's bearer layer and the MCP service, on every request the
+/// bearer layer admitted:
+///
+/// 1. **Any Umbel scope.** A token holding no scope under `auth.scope_prefix` is refused with 403
+///    `insufficient_scope` naming `<prefix>:read`, whatever it asks for (section 5.2's space-less
+///    rows: listings, resources, the Skills methods and `initialize` included). The answer depends
+///    on the token alone.
+/// 2. **The per-token limit** (`limits.calls_per_minute`, section 11): at most that many requests
+///    in any minute per verified issuer, subject and client, counted on the shared counters; over
+///    it, 429 with `Retry-After`; a store held too long, 503 `WORKSPACE_SHARED_TIMEOUT`; any other
+///    store failure, 500. Each fails closed.
+///
+/// A request without admitted credentials passes untouched to the service, which refuses it
+/// (AFD's M1): nothing here can stand in for the bearer layer.
+#[cfg(feature = "auth")]
+#[derive(Clone)]
+pub(crate) struct TokenGate<S> {
+    inner: S,
+    shared: Arc<GateShared>,
+}
+
+#[cfg(feature = "auth")]
+impl<S> TokenGate<S> {
+    pub(crate) fn new(
+        inner: S,
+        limit: SlidingLimit,
+        key: Vec<u8>,
+        metadata: afd::server::auth::ProtectedResource,
+        prefix: &str,
+    ) -> Self {
+        Self {
+            inner,
+            shared: Arc::new(GateShared {
+                limit,
+                key,
+                metadata,
+                prefix: prefix.to_owned(),
+            }),
+        }
+    }
+}
+
+#[cfg(feature = "auth")]
+fn gate_response(
+    status: StatusCode,
+    body: &serde_json::Value,
+    headers: &[(header::HeaderName, String)],
+) -> axum::http::Response<GateBody> {
+    use http_body_util::BodyExt;
+    let mut response = axum::http::Response::new(
+        http_body_util::Full::new(Bytes::from(body.to_string()))
+            .map_err(|never: std::convert::Infallible| match never {})
+            .boxed(),
+    );
+    *response.status_mut() = status;
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    for (name, value) in headers {
+        if let Ok(value) = HeaderValue::from_str(value) {
+            response.headers_mut().insert(name.clone(), value);
+        }
+    }
+    response
+}
+
+#[cfg(feature = "auth")]
+impl<S> tower::Service<axum::http::Request<http_body_util::Full<Bytes>>> for TokenGate<S>
+where
+    S: tower::Service<
+            axum::http::Request<http_body_util::Full<Bytes>>,
+            Response = axum::http::Response<GateBody>,
+            Error = std::convert::Infallible,
+        > + Clone
+        + Send
+        + 'static,
+    S::Future: Send + 'static,
+{
+    type Response = axum::http::Response<GateBody>;
+    type Error = std::convert::Infallible;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: axum::http::Request<http_body_util::Full<Bytes>>) -> Self::Future {
+        // The inner service was readied for this call; keep a fresh clone for the next one.
+        let clone = self.inner.clone();
+        let mut inner = std::mem::replace(&mut self.inner, clone);
+        let shared = Arc::clone(&self.shared);
+        Box::pin(async move {
+            let Some(credentials) = request.extensions().get::<afd::Credentials>().cloned() else {
+                return inner.call(request).await;
+            };
+            let umbel = credentials
+                .scopes
+                .iter()
+                .any(|scope| crate::auth::Scope::parse(&shared.prefix, scope).is_some());
+            if !umbel {
+                let missing = [format!("{}:read", shared.prefix)];
+                return Ok(gate_response(
+                    StatusCode::FORBIDDEN,
+                    &shared.metadata.forbidden_body(&missing),
+                    &[(
+                        header::WWW_AUTHENTICATE,
+                        shared.metadata.forbidden_challenge(&missing),
+                    )],
+                ));
+            }
+            match shared
+                .limit
+                .admit(token_key(&shared.key, &credentials))
+                .await
+            {
+                Ok(()) => inner.call(request).await,
+                Err(Refusal::TooMany(left)) => {
+                    let seconds = (left.saturating_add(999) / 1000).max(1);
+                    Ok(gate_response(
+                        StatusCode::TOO_MANY_REQUESTS,
+                        &serde_json::json!({
+                            "error": afd::error_codes::RATE_LIMITED,
+                            "suggestion": format!("Too many requests with this token; retry after {seconds} seconds."),
+                        }),
+                        &[(header::RETRY_AFTER, seconds.to_string())],
+                    ))
+                }
+                Err(Refusal::Busy(store)) => Ok(gate_response(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    &serde_json::json!({
+                        "error": crate::shared::codes::WORKSPACE_SHARED_TIMEOUT,
+                        "suggestion": "The server's shared state is busy; retry in a moment.",
+                        "details": { "store": store },
+                    }),
+                    &[(header::RETRY_AFTER, "1".to_owned())],
+                )),
+                Err(Refusal::Failed) => Ok(gate_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    &serde_json::json!({}),
+                    &[],
+                )),
+            }
+        })
+    }
 }
 
 #[cfg(all(test, feature = "auth"))]
@@ -492,6 +696,14 @@ mod tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.answer.clone()
         }
+
+        fn bytes_admit(&self, _: &str, _: u64, _: i64, _: i64) -> Result<Admission, SharedError> {
+            self.answer.clone()
+        }
+
+        fn bytes_add(&self, _: &str, _: u64, _: i64, _: i64) -> Result<(), SharedError> {
+            Ok(())
+        }
     }
 
     fn limited(answer: Result<Admission, SharedError>) -> (Router, Arc<Fixed>, Arc<AtomicUsize>) {
@@ -597,6 +809,21 @@ mod tests {
     }
 
     #[test]
+    fn token_counters_are_named_under_the_workspaces_key() {
+        let one = afd::Credentials::new("https://as", "ada", "app", "https://r/mcp", 1, 2);
+        let renewed = afd::Credentials::new("https://as", "ada", "app", "https://r/mcp", 3, 4)
+            .with_scopes(["umbel:read"]);
+        let other = afd::Credentials::new("https://as", "bo", "app", "https://r/mcp", 1, 2);
+        let key = [7u8; 32];
+        // The issuer, subject and client name the counter, not the token.
+        assert_eq!(token_key(&key, &one), token_key(&key, &renewed));
+        assert_ne!(token_key(&key, &one), token_key(&key, &other));
+        // Another workspace's key names the same caller otherwise.
+        assert_ne!(token_key(&key, &one), token_key(&[8u8; 32], &one));
+        assert!(!token_key(&key, &one).contains("ada"));
+    }
+
+    #[test]
     fn peers_key_on_their_ipv4_address_or_ipv6_prefix() {
         assert_eq!(
             ip_key(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 5))),
@@ -617,7 +844,7 @@ mod tests {
     #[test]
     fn retry_after_rounds_up_to_whole_seconds() {
         for (ms, seconds) in [(1, "1"), (1_000, "1"), (1_001, "2"), (59_999, "60")] {
-            let response = too_many(ms);
+            let response = too_many(ms, "from this address");
             assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
             assert_eq!(
                 response

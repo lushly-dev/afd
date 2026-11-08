@@ -2,12 +2,17 @@
 //! section 10.2; D126), in `state/shared/`.
 //!
 //! Each store is behind a trait, so that phase 6 can put a networked backend behind the same
-//! calls. Phase 5 step 2a adds the first one, the limit counters the per-IP limit needs
-//! ([`limits`]); the nonce, person-decision and task stores arrive with the steps that use them.
-//! A wait past `store.lock_timeout_ms` is [`codes::WORKSPACE_SHARED_TIMEOUT`], retryable, and the
-//! request it served fails closed.
+//! calls. Phase 5 step 2a adds the limit counters the per-IP limit needs ([`limits`]); step 3
+//! adds their byte counters for the read limit ([`read_limit`]) and the nonce store
+//! ([`nonces`]: approval nonces and relay evidence now, gateway `jti`s in step 4 and spent person
+//! decisions in step 5). Person decisions (`person.sqlite3`, step 5) and tasks
+//! (`tasks.sqlite3`, step 8) arrive with the steps that use them, each behind a trait here, beside
+//! these. A wait past `store.lock_timeout_ms` is [`codes::WORKSPACE_SHARED_TIMEOUT`], retryable,
+//! and the request it served fails closed.
 
 pub(crate) mod limits;
+pub(crate) mod nonces;
+pub(crate) mod read_limit;
 
 use std::fs::{self, DirBuilder};
 use std::path::Path;
@@ -37,6 +42,42 @@ pub(crate) enum SharedError {
         /// What failed, for the log.
         message: String,
     },
+}
+
+/// HMAC-SHA256 (RFC 2104) of `message` under `key`.
+fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    const BLOCK: usize = 64;
+    let mut block = [0u8; BLOCK];
+    if key.len() > BLOCK {
+        block[..32].copy_from_slice(&Sha256::digest(key));
+    } else {
+        block[..key.len()].copy_from_slice(key);
+    }
+    let mut inner = Sha256::new();
+    inner.update(block.map(|byte| byte ^ 0x36));
+    inner.update(message);
+    let mut outer = Sha256::new();
+    outer.update(block.map(|byte| byte ^ 0x5c));
+    outer.update(inner.finalize());
+    outer.finalize().into()
+}
+
+/// `<label>:` and the lowercase hex HMAC-SHA256 under `key` of `parts`, each prefixed by its
+/// length: a limit counter's name, which identifies one caller to every process holding the
+/// workspace's key and to nothing else, so the shared store holds no identifier a dictionary
+/// could recover.
+pub(crate) fn keyed_name(label: &str, key: &[u8], parts: &[&str]) -> String {
+    let mut message = Vec::new();
+    for part in parts {
+        message.extend_from_slice(&(part.len() as u64).to_be_bytes());
+        message.extend_from_slice(part.as_bytes());
+    }
+    let hex: String = hmac_sha256(key, &message)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    format!("{label}:{hex}")
 }
 
 /// Create `state/shared/` (mode 0700 on Unix) when missing, and narrow it to 0700 when it is
@@ -86,4 +127,38 @@ fn restrict(path: &Path, mode: u32) -> Result<(), WorkspaceError> {
     #[cfg(not(unix))]
     let _ = (path, mode);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    #[test]
+    fn hmac_follows_rfc_4231() {
+        assert_eq!(
+            hex(&hmac_sha256(b"Jefe", b"what do ya want for nothing?")),
+            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+        );
+        // Test case 6: a key longer than the block.
+        assert_eq!(
+            hex(&hmac_sha256(
+                &[0xaa; 131],
+                b"Test Using Larger Than Block-Size Key - Hash Key First"
+            )),
+            "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"
+        );
+    }
+
+    #[test]
+    fn keyed_names_depend_on_the_key_and_on_how_the_parts_split() {
+        let one = keyed_name("t", b"k", &["ab", "c"]);
+        assert_eq!(one, keyed_name("t", b"k", &["ab", "c"]));
+        assert_ne!(one, keyed_name("t", b"j", &["ab", "c"]));
+        assert_ne!(one, keyed_name("t", b"k", &["a", "bc"]));
+        assert!(one.starts_with("t:") && one.len() == 2 + 64);
+    }
 }

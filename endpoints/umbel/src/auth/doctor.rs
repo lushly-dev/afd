@@ -62,6 +62,7 @@ pub(crate) fn checks(inputs: &Inputs<'_>) -> Vec<Check> {
         mode(inputs),
         public_url(config),
         tls(inputs),
+        trusted_proxies(config),
         ca_files(inputs),
         issuers(config, &probes),
         subjects(config, &probes),
@@ -164,7 +165,7 @@ fn mode(inputs: &Inputs<'_>) -> Check {
                     .fail("auth.mode is \"oauth\" with no issuer whose access tokens are accepted");
             } else if !inputs.environment.serve_oauth {
                 found.warn(format!(
-                    "auth.mode is \"oauth\" with {} token issuer(s) ({}); this build verifies and maps their tokens but does not serve oauth over HTTP until phase 5 steps 3 and 7 add the disclosure controls it waits for, so umbel serve --http refuses to start",
+                    "auth.mode is \"oauth\" with {} token issuer(s) ({}); this build verifies, maps and authorises their tokens but does not serve oauth over HTTP until phase 5 step 7 adds the exact filtering it waits for, so umbel serve --http refuses to start",
                     accepted.len(),
                     listed(&accepted)
                 ));
@@ -1223,6 +1224,53 @@ fn file_system(_path: &Path) -> FileSystem {
     FileSystem::Unknown("this platform's file system type is not read".to_owned())
 }
 
+// ── auth.trusted_proxies ────────────────────────────────────────────────────────────────────────
+
+/// `http.trusted_proxies` (amendment from phase 5 step 3): passes when unset, saying what the
+/// per-IP limit keys on; otherwise lists the trusted peers and warns on each that undermines the
+/// trust: a loopback address, from which any process on the host can connect and name any client
+/// address, and a non-loopback address while the bind is loopback, which can never connect.
+fn trusted_proxies(config: &Config) -> Check {
+    let http = &config.http;
+    let mut found = Findings::default();
+    if http.trusted_proxies.is_empty() {
+        return found.into_check(
+            "auth.trusted_proxies",
+            "http.trusted_proxies is not set: the per-IP limit keys on each connection's own peer address, so a proxy on this host is one peer; the per-token limit still keeps each verified caller's budget its own",
+            "",
+        );
+    }
+    let bound_loopback = http.bind.ip().is_loopback();
+    for proxy in &http.trusted_proxies {
+        if proxy.is_loopback() {
+            found.warn(format!(
+                "http.trusted_proxies lists {proxy}, a loopback address: any process on this host can connect from it and name any client address to the per-IP limit"
+            ));
+        } else if bound_loopback {
+            found.warn(format!(
+                "http.trusted_proxies lists {proxy}, but http.bind is a loopback address, so it can never connect"
+            ));
+        }
+    }
+    found.note(
+        "each listed peer must open every connection with a PROXY protocol version 2 header, and is trusted to name the client address for the per-IP limit only, never an identity",
+    );
+    let listed_proxies: Vec<String> = http
+        .trusted_proxies
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    found.into_check(
+        "auth.trusted_proxies",
+        format!(
+            "http.trusted_proxies lists {} peer(s) ({})",
+            listed_proxies.len(),
+            listed(&listed_proxies)
+        ),
+        "List only the proxies' own addresses, on a host where no untrusted user can connect from them; leave http.trusted_proxies unset when no proxy sends the PROXY protocol.",
+    )
+}
+
 // ── auth.confirmations ──────────────────────────────────────────────────────────────────────────
 
 fn confirmations(config: &Config) -> Check {
@@ -1310,6 +1358,46 @@ members = ["human:corp/bo"]
         let enforce = OAUTH.replace("confirmations = \"require-human\"", "");
         assert_eq!(confirmations(&config(&enforce)).status, CheckStatus::Fail);
         assert_eq!(confirmations(&config(OAUTH)).status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn trusted_proxies_pass_unset_and_warn_where_the_trust_does_not_hold() {
+        let unset = trusted_proxies(&config(OAUTH));
+        assert_eq!(unset.status, CheckStatus::Pass, "{}", unset.message);
+        assert!(unset.message.contains("not set"), "{}", unset.message);
+        let with = |bind: &str, proxies: &str| {
+            OAUTH.replace(
+                "[http]\n",
+                &format!("[http]\nbind = \"{bind}\"\ntrusted_proxies = [{proxies}]\n"),
+            )
+        };
+        // A same-host proxy on loopback: any local process could connect from it, so it warns,
+        // and says what the peer is trusted with.
+        let loopback = trusted_proxies(&config(&with("127.0.0.1:8443", "\"127.0.0.1\"")));
+        assert_eq!(loopback.status, CheckStatus::Warn, "{}", loopback.message);
+        assert!(
+            loopback.message.contains("loopback address"),
+            "{}",
+            loopback.message
+        );
+        assert!(
+            loopback.message.contains("PROXY protocol"),
+            "{}",
+            loopback.message
+        );
+        // A non-loopback proxy can never reach a loopback bind.
+        let unreachable = trusted_proxies(&config(&with("127.0.0.1:8443", "\"10.0.0.7\"")));
+        assert_eq!(
+            unreachable.status,
+            CheckStatus::Warn,
+            "{}",
+            unreachable.message
+        );
+        assert!(
+            unreachable.message.contains("can never connect"),
+            "{}",
+            unreachable.message
+        );
     }
 
     #[test]

@@ -3,11 +3,11 @@
 //! form of a namespaced principal id.
 //!
 //! Step 1 of the phase 5 plan adds these, and configuration version 5 parses with them. Step 2b
-//! adds token verification (`verifier`, with `keys`, `introspection` and `fetch`), the mapping of
-//! a verified token to a caller (`mapping`, `caller`) and the interim scope rule (`interim`).
-//! Step 2c adds the doctor's hosted profile (`doctor`, with `files` for the certificates, keys
-//! and CA files it reads, which the verifier's per-issuer `ca_file` shares). The resolver and
-//! the scope gate of section 5 arrive in step 3.
+//! adds token verification (`verifier`, with `keys`, `introspection` and `fetch`) and the mapping
+//! of a verified token to a caller (`mapping`, `caller`). Step 2c adds the doctor's hosted profile
+//! (`doctor`, with `files` for the certificates, keys and CA files it reads, which the verifier's
+//! per-issuer `ca_file` shares). Step 3 adds section 5's resolver (`scopes`) and scope gate
+//! (`scope_gate`), replacing step 2b's interim rule.
 
 use crate::workspace::SpaceId;
 
@@ -19,13 +19,13 @@ pub(crate) mod fetch;
 #[cfg(feature = "auth")]
 pub(crate) mod files;
 #[cfg(feature = "auth")]
-pub(crate) mod interim;
-#[cfg(feature = "auth")]
 pub(crate) mod introspection;
 #[cfg(feature = "auth")]
 pub(crate) mod keys;
 #[cfg(feature = "auth")]
 pub(crate) mod mapping;
+pub(crate) mod scope_gate;
+pub(crate) mod scopes;
 #[cfg(feature = "auth")]
 pub(crate) mod verifier;
 

@@ -914,13 +914,13 @@ async fn what_this_build_does_not_serve_refuses_to_start() {
     let kit = TestIdp::start().await.unwrap();
     // Mode oauth in a shipped build, with no test seam: since step 2b the host builds its own
     // verifier from [auth.issuers], and still refuses to serve until the disclosure controls of
-    // steps 3 and 7 exist (amendments from steps 2b and 2c; 2c's own are in).
+    // steps 2c, 3 and 7 all exist (amendments from steps 2b, 2c and 3; 2c's and 3's are in).
     let dir = support::workspace(&oauth_config(&kit, "", "", ""));
     let host = support::host(dir.path());
     let error = host.http_server().unwrap_err();
     assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID");
     assert!(error.message().contains("auth.mode"), "{}", error.message());
-    assert!(error.message().contains("step 3"), "{}", error.message());
+    assert!(error.message().contains("step 7"), "{}", error.message());
     assert_eq!(
         error
             .clone()

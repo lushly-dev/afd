@@ -252,6 +252,10 @@ pub struct HttpConfig {
     pub public_url: Option<String>,
     /// Version 5: in-process TLS, which a non-loopback bind needs.
     pub tls: Option<TlsConfig>,
+    /// Version 5, hosted modes: the peers whose connections must open with a PROXY protocol
+    /// version 2 header, which supplies the client address the per-IP limit keys on (amendment
+    /// from phase 5 step 3). Empty by default: every connection is keyed on its own peer address.
+    pub trusted_proxies: Vec<std::net::IpAddr>,
 }
 
 /// `[journal]`.
@@ -737,6 +741,13 @@ impl ConfigFile {
         } else {
             (None, None, super::AuthMode::None)
         };
+        let trusted_proxies = if self.version >= 5 {
+            let entries = reader.string_array("trusted_proxies")?.unwrap_or_default();
+            super::hosted::check_trusted_proxies(&entries, mode.is_hosted())
+                .map_err(|p| WorkspaceError::config_invalid("http.trusted_proxies", p))?
+        } else {
+            Vec::new()
+        };
         if let Some(url) = &public_url {
             check_public_url(url, &path, &allowed_hosts)
                 .map_err(|p| WorkspaceError::config_invalid("http.public_url", p))?;
@@ -759,6 +770,7 @@ impl ConfigFile {
             max_body_bytes,
             public_url,
             tls,
+            trusted_proxies,
         })
     }
 

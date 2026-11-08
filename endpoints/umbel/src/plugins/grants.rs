@@ -391,9 +391,26 @@ impl HostServices for CallServices {
         limit: u32,
     ) -> Result<Value, ServiceError> {
         self.require("events")?;
+        let config = self.shared.workspace.config();
+        let reader = crate::access::Caller::of(config, &self.context);
         let target = match space {
             None => self.space.clone(),
             Some(name) => {
+                // A hosted caller who is not the operator learns nothing of a space it may not
+                // read: undeclared and unreadable alike get section 5.4's one answer, before the
+                // instance's own spaces are consulted.
+                if reader.gets_one_answer()
+                    && !config
+                        .spaces
+                        .iter()
+                        .any(|space| space.id.as_str() == name && reader.reads(config, space))
+                {
+                    let refusal = crate::access::space_unavailable();
+                    return Err(ServiceError::NotGranted(format!(
+                        "{}: {}",
+                        refusal.code, refusal.message
+                    )));
+                }
                 let id = SpaceId::parse(name)
                     .ok()
                     .filter(|id| self.shared.workspace.has_space(id.as_str()))
@@ -423,7 +440,7 @@ impl HostServices for CallServices {
             after.map(str::to_owned),
             usize::try_from(limit).unwrap_or(usize::MAX),
             crate::commands::caller(&self.context),
-            crate::access::claim_groups_of(&self.context),
+            reader,
         )
         .map_err(|error| ServiceError::Invalid(format!("{}: {}", error.code, error.message)))
     }

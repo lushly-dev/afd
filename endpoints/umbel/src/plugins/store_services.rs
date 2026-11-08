@@ -17,7 +17,7 @@ use umbel_store::{
 };
 
 use super::grants::CallServices;
-use crate::access::{effective_principal_of, reader_filter};
+use crate::access::{Caller, effective_principal_of, reader_filter};
 use crate::store::{SpaceStores, codes, host_error};
 
 type Result<T> = std::result::Result<T, ServiceError>;
@@ -114,26 +114,18 @@ impl CallServices {
             .note_write(self.context.trace_id.as_deref().unwrap_or_default(), rev);
     }
 
-    /// The effective principal reads are filtered for: the `as_reader` principal, else the
-    /// caller's.
-    pub(super) fn reading_as(&self) -> Option<String> {
-        self.as_principal
-            .clone()
-            .or_else(|| effective_principal_of(&self.context))
-    }
-
     /// The reader filter of the caller in `space`; `SPACE_NOT_READABLE` is `NotGranted`.
     pub(super) fn filter(&self, space: &str) -> Result<ReaderFilter> {
-        // Claim groups are the caller's own: reading as another principal gets none.
-        let claim_groups =
-            crate::access::claim_groups_reading(&self.context, self.as_principal.is_some());
-        reader_filter(
-            self.shared.workspace.config(),
-            space,
-            self.reading_as().as_deref(),
-            &claim_groups,
-        )
-        .map_err(|error| ServiceError::NotGranted(format!("{}: {}", error.code, error.message)))
+        let config = self.shared.workspace.config();
+        let caller = Caller::of(config, &self.context);
+        // Claim groups are the caller's own: reading as another principal gets none, and keeps
+        // this call's narrowing (phase 5 section 5.4).
+        let caller = match &self.as_principal {
+            Some(principal) => caller.reading_as(config, Some(principal.clone())),
+            None => caller,
+        };
+        reader_filter(config, space, &caller)
+            .map_err(|error| ServiceError::NotGranted(format!("{}: {}", error.code, error.message)))
     }
 
     fn stores(&self, space: &str) -> Result<Arc<SpaceStores>> {

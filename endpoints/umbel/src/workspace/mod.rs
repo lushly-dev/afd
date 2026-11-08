@@ -223,6 +223,16 @@ impl Workspace {
         keys::read_key(&self.layout.confirmation_key())
     }
 
+    /// The key of the rate limits' counter names (32 bytes), created race-safe on first use and
+    /// shared by every process, so every process keys one caller alike.
+    ///
+    /// # Errors
+    /// `WORKSPACE_KEY_INVALID` for a key under 32 bytes; `WORKSPACE_STATE_UNWRITABLE` when it
+    /// cannot be created.
+    pub fn limits_key(&self) -> Result<Vec<u8>, WorkspaceError> {
+        keys::ensure_key(&self.layout.limits_key())
+    }
+
     /// The HTTP bearer token, created race-safe on first use.
     ///
     /// # Errors

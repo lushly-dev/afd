@@ -124,12 +124,26 @@ pub fn host(
     clock: Option<&ManualClock>,
     timeout: Option<Duration>,
 ) -> Host {
-    let mut builder = HostBuilder::open(dir)
-        .unwrap()
-        .with_auth_root_certificate(kit.ca().certificate_pem().as_bytes().to_vec())
-        .with_unfinished_oauth()
-        .register(whoami())
-        .register(touch());
+    host_with(dir, kit, clock, timeout, |builder| builder)
+}
+
+/// As [`host`], with the builder passed through `configure` too (more commands, a compiled
+/// plugin).
+pub fn host_with(
+    dir: &std::path::Path,
+    kit: &TestIdp,
+    clock: Option<&ManualClock>,
+    timeout: Option<Duration>,
+    configure: impl FnOnce(HostBuilder) -> HostBuilder,
+) -> Host {
+    let mut builder = configure(
+        HostBuilder::open(dir)
+            .unwrap()
+            .with_auth_root_certificate(kit.ca().certificate_pem().as_bytes().to_vec())
+            .with_unfinished_oauth()
+            .register(whoami())
+            .register(touch()),
+    );
     if let Some(clock) = clock {
         builder = builder.with_auth_clock(clock.clone());
     }
@@ -163,9 +177,39 @@ impl Running {
 
     /// Serve `setup`'s workspace over the running `kit`.
     pub async fn serve(kit: TestIdp, setup: &Setup<'_>, timeout: Option<Duration>) -> Self {
+        Self::serve_with(kit, setup, timeout, |builder| builder).await
+    }
+
+    /// Start a kit and serve `setup`'s workspace with `extra` commands registered.
+    pub async fn start_extra(setup: Setup<'_>, extra: Vec<afd::CommandDefinition>) -> Self {
+        Self::start_configured(setup, move |mut builder| {
+            for command in extra {
+                builder = builder.register(command);
+            }
+            builder
+        })
+        .await
+    }
+
+    /// Start a kit and serve `setup`'s workspace, its builder passed through `configure`.
+    pub async fn start_configured(
+        setup: Setup<'_>,
+        configure: impl FnOnce(HostBuilder) -> HostBuilder,
+    ) -> Self {
+        let kit = TestIdp::start().await.unwrap();
+        Self::serve_with(kit, &setup, None, configure).await
+    }
+
+    /// As [`Self::serve`], with the builder passed through `configure`.
+    pub async fn serve_with(
+        kit: TestIdp,
+        setup: &Setup<'_>,
+        timeout: Option<Duration>,
+        configure: impl FnOnce(HostBuilder) -> HostBuilder,
+    ) -> Self {
         let dir = super::workspace(&config(&kit, setup));
         let clock = afd::fixed_clock(now_ms());
-        let host = host(dir.path(), &kit, Some(&clock), timeout);
+        let host = host_with(dir.path(), &kit, Some(&clock), timeout, configure);
         let served = Served::start(&host).await;
         let client = Client::plain(served.address);
         Self {
