@@ -210,6 +210,37 @@ describe('P2-D5: the editor area, native half', () => {
 		await page.keyboard.press('Enter');
 		await editorIdle(page);
 		expect((await focusedOn(page)).tag).toBe('textarea');
+		// The pointer's close and menu buttons: hidden, out of the Tab order, and never focused by a press. The
+		// tab says how the keyboard reaches both, and Tab from it goes to the editor, past them.
+		const buttons = await page.evaluate(() =>
+			[
+				...(document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector('loam-main')
+					?.querySelector('loam-editor-group')
+					?.shadowRoot?.querySelectorAll('.close, .more') ?? []),
+			].map((button) => [button.getAttribute('tabindex'), button.getAttribute('aria-hidden')])
+		);
+		expect(buttons).toHaveLength(6);
+		expect(new Set(buttons.map((pair) => pair.join()))).toEqual(new Set(['-1,true']));
+		const described = await tabOf(page, 'Three').evaluate((tab) => {
+			const root = tab.getRootNode() as ShadowRoot;
+			return [
+				tab.getAttribute('aria-keyshortcuts'),
+				root.getElementById(tab.getAttribute('aria-describedby') ?? '')?.textContent,
+			];
+		});
+		expect(described).toEqual([
+			'Delete Shift+F10',
+			'Delete closes the tab. Shift+F10 opens its menu.',
+		]);
+		await tabOf(page, 'Three').focus();
+		await page.keyboard.press('Tab');
+		expect((await focusedOn(page)).tag).toBe('textarea');
+		await page.locator('loam-editor-group .item[data-tab="t3"] .more').click();
+		expect((await focusedOn(page)).role).toBe('menuitem');
+		await page.keyboard.press('Escape');
+		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Three' });
 		await tabOf(page, 'Three').focus();
 		await page.keyboard.press('Delete');
 		await editorIdle(page);

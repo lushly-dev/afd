@@ -61,7 +61,6 @@ import type {
 	KernelOptionsV0,
 	ShellInfoV2,
 } from '../types.js';
-import { isEditorStateId } from './editor-state.js';
 
 export interface ShellCommandDeps {
 	viewState: ViewStateRegistry;
@@ -232,7 +231,13 @@ function guardViewStateSet(
 				state: Record<string, unknown>;
 				replace?: boolean;
 			};
-			if (id === APPS_VIEW_STATE_ID || id === SCOPE_VIEW_STATE_ID || isEditorStateId(id)) {
+			// `loam.editor` and `loam.editor@<project>`, whose state is the `late-editor` chunk's, by their name here so
+			// `late` imports nothing of that chunk.
+			if (
+				id === APPS_VIEW_STATE_ID ||
+				id === SCOPE_VIEW_STATE_ID ||
+				/^loam\.editor(@|$)/.test(id)
+			) {
 				return kernelFailure(
 					'VIEW_STATE_READ_ONLY',
 					`'${id}' cannot be written through view-state-set`,

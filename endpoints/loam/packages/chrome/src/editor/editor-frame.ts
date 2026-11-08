@@ -82,7 +82,8 @@ const styles = css`
 		font-size: var(--type-body-md-size);
 		line-height: var(--type-body-md-line);
 	}
-	.failed {
+	/* Not on [hidden], which the same specificity would otherwise lose to: a working frame shows no Close. */
+	.failed:not([hidden]) {
 		display: grid;
 		justify-items: start;
 		gap: var(--space-stack-md);

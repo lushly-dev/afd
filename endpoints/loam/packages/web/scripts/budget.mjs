@@ -64,13 +64,16 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `documents` row (58), each measured as the closure with it less without it, with no slack. The parts are
  * approximate, since the minifier's renaming interacts with what is removed; the total is exact. First
  * paint 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,860, `apps` 384,233.
- * Step 10 adds `editorMinified`, the editor area's chunk, loaded on the first document opened, restored or
- * routed to, charged after the surfaces as `sections` is: 24,720 against the documents specification's
- * first estimate of 40,000 (12), at 62%, so lowered by phase 0's rule to its measurement plus 10%, 27,192.
- * It records `notes`' bundle, as `tasks`' is. First paint 285,444 and 88,024 gzip, within step 10's
- * allowance of 150 and 100; the kernel alone 111,543; `late` 70,916, with the editor's state and commands;
- * `late-documents` 12,105; `url-sync` 4,802; `apps` 384,077, as the port's callable list moved to `late`;
- * `surfaces` 83,946, with `host()`.
+ * Step 10 adds `editorMinified`, the editor area's chunk, loaded on the first document opened, restored
+ * or routed to, charged after the surfaces as `sections` is: first measured at 24,720 against the documents
+ * specification's first estimate of 40,000 (12), at 62%, so lowered by phase 0's rule to its measurement
+ * plus 10%, 27,192; 25,531 at the step's head. It records `notes`' bundle, as `tasks`' is. The editor's state
+ * and commands are a chunk of their own, `late-editor`, loaded inside `loadLate` beside `late-documents`,
+ * with a row of its own, `lateEditorMinified`, 13,111, so 14,423, its measurement plus 10% (an amendment to
+ * 2.4 the coordinator decided, 2026-11-07): `late`'s closure leaves both out. First paint 285,444 and 88,024
+ * gzip, within step 10's allowance of 150 and 100; the kernel alone 111,543; `late` 57,632, +772 over step
+ * 9's; `late-documents` 12,105; `url-sync` 4,806; `apps` 384,077, as the port's callable list moved to
+ * `late`; `surfaces` 83,946, with `host()`.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -79,6 +82,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
+	lateEditorMinified: 14_423,
 	urlMinified: 5_091,
 	appsMinified: 384_253,
 	surfacesMinified: 85_000,
@@ -236,14 +240,23 @@ async function measurePage() {
 	};
 	// In the order a page loads them, so a shared chunk, classic Zod's among them, is charged to the first.
 	// `late-documents` is a chunk of its own, with a row of its own, so `late` leaves it out (2.4, step 9).
-	const late = closure(/^assets\/late-(?!documents-)/, initial);
+	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07).
+	const late = closure(/^assets\/late-(?!documents-|editor-)/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
 	if (lateDocuments.size === 0) {
 		throw new Error('budget: the build has no `late-documents` chunk to measure');
 	}
-	const afterLate = new Set([...initial, ...late, ...lateDocuments]);
+	// Awaited beside it in `loadLate`, so charged after `late` and `late-documents`, before `apps`.
+	const lateEditor = closure(
+		/^assets\/late-editor-/,
+		new Set([...initial, ...late, ...lateDocuments])
+	);
+	if (lateEditor.size === 0) {
+		throw new Error('budget: the build has no `late-editor` chunk to measure');
+	}
+	const afterLate = new Set([...initial, ...late, ...lateDocuments, ...lateEditor]);
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -303,6 +316,7 @@ async function measurePage() {
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		lateMinified: sizeOf(late),
 		lateDocumentsMinified: sizeOf(lateDocuments),
+		lateEditorMinified: sizeOf(lateEditor),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -377,6 +391,7 @@ const ROWS = [
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
+	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],

@@ -1,7 +1,7 @@
 /**
  * @fileoverview The editor area's state, version 1, and its one validator (documents specification, 5.2;
- * D80), in the `late` chunk: one view-state record per scope, `loam.editor` at workspace level and
- * `loam.editor@<project id>` in a project, registered on first use and read from the store before anything
+ * D80), in the `late-editor` chunk with the commands that change it, importing types alone: one view-state
+ * record per scope, `loam.editor` at workspace level and `loam.editor@<project id>` in a project, registered on first use and read from the store before anything
  * writes it, as a project's layout record is. Stage A's `hydrate` drops a record with no handler, so these
  * register in stage B (6). Dirty tabs and selections are in memory only: a reload loses an unsaved change,
  * so nothing persists a claim that cannot be true.

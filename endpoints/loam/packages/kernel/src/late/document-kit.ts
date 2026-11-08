@@ -1,6 +1,6 @@
 /**
- * @fileoverview What the `late-documents` chunk uses at run time, handed to it by `late` (phase 2
- * specification, 2.4). `documents.ts` imports types alone: a module first paint or `late` also imports,
+ * @fileoverview What the `late-documents` and `late-editor` chunks use at run time, handed to them by `late`
+ * (phase 2 specification, 2.4). `documents.ts` and `editor-commands.ts` import types alone: a module first paint or `late` also imports,
  * imported statically by that chunk too, would be parted by the bundler into a chunk of its own, and first
  * paint would load more chunks, each an import line and its gzip overhead (measured at 255 bytes and 653
  * gzip on step 9's first build). So every shared function reaches it here.
@@ -35,7 +35,7 @@ import {
 	markOversized,
 	sameScope,
 } from './document-types.js';
-import { archivedRefusal } from './main-state.js';
+import { archivedRefusal, setMain } from './main-state.js';
 
 export const DOCUMENT_KIT = Object.freeze({
 	define: defineCommandWithSchema,
@@ -44,6 +44,7 @@ export const DOCUMENT_KIT = Object.freeze({
 	actorKey,
 	projectNotFound,
 	archivedRefusal,
+	setMain,
 	documentContentKey,
 	scopeKeyOf,
 	storeRecordId,

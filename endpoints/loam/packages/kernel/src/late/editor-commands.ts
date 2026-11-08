@@ -1,6 +1,9 @@
 /**
  * @fileoverview `document-open` and the `editor-*` commands (documents specification, 5.1 to 5.4; D80), in
- * the `late` chunk with the editor's state. Each reads and writes `context.scope`'s record, `loam.editor` or
+ * a chunk of their own, `late-editor`, with the editor's state, which `loadLate` imports with `late-documents`
+ * before stage B's last `setAppCommands` (scope and projects specification, 2.4). It imports types alone, as
+ * `late-documents` does: `late` hands it what it runs with (`DOCUMENT_KIT`), since a module first paint or
+ * `late` holds, imported here too, would part their chunks. Each reads and writes `context.scope`'s record, `loam.editor` or
  * `loam.editor@<project>`, not the active scope's, so a replay finds the same one; the scope middleware
  * decides that scope first (scope and projects specification, 3.4). `document-open` names a document, so
  * 4.2's check runs on it, and a document in another scope switches the scope first, by the switch's rules.
@@ -9,34 +12,27 @@
  */
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
-import {
-	defineCommandWithSchema,
-	type JsonSchema,
-	success,
-	type ZodCommandDefinition,
-} from '@lushly-dev/afd-server/define';
+import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { DocumentRecordV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
-import * as z from 'zod/mini';
 import type { AppsRuntime } from '../apps-runtime.js';
-import { callScope, EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
-import { kernelFailure } from '../errors.js';
 import type { OverlayStore } from '../overlays.js';
 import type { LateScope } from '../scope/middleware.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
-import { DOCUMENT_TABLE, type DocumentCheck, sameScope } from './document-types.js';
+import type { DocumentKit } from './document-kit.js';
+import type { DocumentCheck } from './document-types.js';
 import {
 	activateTab,
 	activeTab,
 	closeDocument,
 	closeTab,
+	createEditors,
 	type EditorChange,
 	type EditorStateV1,
-	type Editors,
 	findTab,
 	moveTab,
 	openDocument,
@@ -44,7 +40,6 @@ import {
 	promoteTab,
 	unknownTab,
 } from './editor-state.js';
-import { setMain } from './main-state.js';
 
 export interface EditorCommandDeps {
 	scope: ScopeRuntime;
@@ -55,7 +50,6 @@ export interface EditorCommandDeps {
 	apps(): AppsRuntime;
 	lateScope: LateScope;
 	check: DocumentCheck;
-	editors: Editors;
 	isMutation(name: string): boolean;
 }
 
@@ -76,41 +70,11 @@ export interface EditorParts {
 	closeDocument(document: string, at: ScopeV1, context: CommandContext): Promise<void>;
 	/** `section-get`, with a document's id as the documents section's path: the active tab's (5.1). */
 	sectionGet(boot: ZodCommandDefinition): ZodCommandDefinition;
+	/** Register and read `project`'s record, or the workspace's: stage B's for the active scope (6). */
+	ensure(project: string | undefined): Promise<unknown>;
+	/** Forget the dirty tabs and selections, which live in memory, as a reload does (5.2). */
+	reset(): void;
 }
-
-const id = z.string().check(z.minLength(1), z.maxLength(128));
-const ID_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 128 };
-const tabInput = z.strictObject({ tab: id });
-const TAB_JSON: JsonSchema = {
-	type: 'object',
-	properties: { tab: ID_JSON },
-	required: ['tab'],
-	additionalProperties: false,
-};
-const openInput = z.strictObject({
-	document: id,
-	group: z.optional(z.enum(['active', 'beside'])),
-	preview: z.optional(z.boolean()),
-});
-const closeInput = z.strictObject({ tab: id, discard: z.optional(z.boolean()) });
-const pinInput = z.strictObject({ tab: id, pinned: z.boolean() });
-const moveInput = z.strictObject({ tab: id, group: id });
-const dirtyInput = z.strictObject({ tab: id, dirty: z.boolean() });
-const selectionInput = z.strictObject({ tab: id, selection: z.unknown() });
-
-/** A tab-and-flag input's JSON Schema. */
-const tabWith = (property: string, schema: JsonSchema, required: boolean): JsonSchema => ({
-	type: 'object',
-	properties: { tab: ID_JSON, [property]: schema },
-	required: required ? ['tab', property] : ['tab'],
-	additionalProperties: false,
-});
-
-/** An operation's refusal as a kernel failure. */
-const refusal = (change: EditorChange<unknown>): CommandResult<never> =>
-	'code' in change
-		? kernelFailure(change.code, change.message, change.suggestion)
-		: (undefined as never);
 
 const isRefusal = (value: unknown): value is CommandResult<never> =>
 	typeof value === 'object' && value !== null && 'success' in value;
@@ -141,8 +105,63 @@ function selectionFits(selection: unknown, shape: string): boolean {
 	);
 }
 
-export function createEditorParts(deps: EditorCommandDeps): EditorParts {
-	const { scope, state, store, editors, check } = deps;
+export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): EditorParts {
+	const { scope, state, store, check } = deps;
+	const { kernelFailure, success, sameScope, setMain, table: DOCUMENT_TABLE } = kit;
+	const {
+		strictObject,
+		string,
+		minLength,
+		maxLength,
+		optional,
+		boolean,
+		unknown,
+		enum: choice,
+	} = kit.z;
+	const editors = createEditors(deps.viewState);
+	/** Every definition here is the `editor` category's, a mutation and instant unless it says otherwise. */
+	const defineCommandWithSchema: DocumentKit['define'] = (definition) =>
+		kit.define({ category: 'editor', executionTime: 'instant', mutation: true, ...definition });
+	const callScope = (context: CommandContext) => (context as KernelFieldContext).scope as ScopeV1;
+	const emptyInput = strictObject({});
+	const EMPTY_INPUT_JSON: JsonSchema = {
+		type: 'object',
+		properties: {},
+		additionalProperties: false,
+	};
+	const id = string().check(minLength(1), maxLength(128));
+	const ID_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 128 };
+	const tabInput = strictObject({ tab: id });
+	const TAB_JSON: JsonSchema = {
+		type: 'object',
+		properties: { tab: ID_JSON },
+		required: ['tab'],
+		additionalProperties: false,
+	};
+	const openInput = strictObject({
+		document: id,
+		group: optional(choice(['active', 'beside'])),
+		preview: optional(boolean()),
+	});
+	const closeInput = strictObject({ tab: id, discard: optional(boolean()) });
+	const pinInput = strictObject({ tab: id, pinned: boolean() });
+	const moveInput = strictObject({ tab: id, group: id });
+	const dirtyInput = strictObject({ tab: id, dirty: boolean() });
+	const selectionInput = strictObject({ tab: id, selection: unknown() });
+
+	/** A tab-and-flag input's JSON Schema. */
+	const tabWith = (property: string, schema: JsonSchema, required: boolean): JsonSchema => ({
+		type: 'object',
+		properties: { tab: ID_JSON, [property]: schema },
+		required: required ? ['tab', property] : ['tab'],
+		additionalProperties: false,
+	});
+
+	/** An operation's refusal as a kernel failure. */
+	const refusal = (change: EditorChange<unknown>): CommandResult<never> =>
+		'code' in change
+			? kernelFailure(change.code, change.message, change.suggestion)
+			: (undefined as never);
 	const here = (context: CommandContext) => callScope(context);
 	const caller = (context: CommandContext) => (context as KernelFieldContext).caller;
 
@@ -210,9 +229,7 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 		description:
 			'Open a document in the editor area, in the active group or beside it; a document in another scope switches to it first',
 		category: 'document',
-		mutation: true,
 		undoable: true,
-		executionTime: 'instant',
 		input: openInput,
 		jsonSchema: {
 			type: 'object',
@@ -271,9 +288,7 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 	const get = defineCommandWithSchema<typeof emptyInput, EditorStateV1>({
 		name: 'editor-get',
 		description: "Get the editor area of the call's scope: its groups and tabs, each with dirty",
-		category: 'editor',
 		mutation: false,
-		executionTime: 'instant',
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler(_input, context) {
@@ -296,10 +311,7 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 		name: 'editor-activate',
 		title: 'Activate a tab',
 		description: 'Make a tab, and its group, the active one',
-		category: 'editor',
-		mutation: true,
 		undoable: true,
-		executionTime: 'instant',
 		input: tabInput,
 		jsonSchema: TAB_JSON,
 		async handler(input, context) {
@@ -323,10 +335,7 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 		title: 'Close a tab',
 		description:
 			'Close a tab; one with unsaved changes needs discard: true, or its save from its type first',
-		category: 'editor',
-		mutation: true,
 		undoable: true,
-		executionTime: 'instant',
 		input: closeInput,
 		jsonSchema: tabWith('discard', { type: 'boolean' }, false),
 		async handler(input, context) {
@@ -360,10 +369,7 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 		name: 'editor-pin',
 		title: 'Pin a tab',
 		description: 'Pin a tab, so nothing replaces it and Close others keeps it, or unpin it',
-		category: 'editor',
-		mutation: true,
 		undoable: true,
-		executionTime: 'instant',
 		input: pinInput,
 		jsonSchema: tabWith('pinned', { type: 'boolean' }, true),
 		async handler(input, context) {
@@ -382,10 +388,7 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 		name: 'editor-move',
 		title: 'Move a tab',
 		description: "Move a tab to another group, or to a new one with group 'new'",
-		category: 'editor',
-		mutation: true,
 		undoable: true,
-		executionTime: 'instant',
 		input: moveInput,
 		jsonSchema: {
 			type: 'object',
@@ -413,9 +416,6 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 		name: 'editor-dirty-set',
 		description:
 			"The chrome's, from an editor's dirty event: mark a tab as holding unsaved changes or not",
-		category: 'editor',
-		mutation: true,
-		executionTime: 'instant',
 		input: dirtyInput,
 		jsonSchema: tabWith('dirty', { type: 'boolean' }, true),
 		async handler(input, context) {
@@ -433,9 +433,7 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 		name: 'editor-selection-set',
 		description:
 			"The chrome's, from an editor's selection event: hold the selection, in the binding's shape, for the inspector",
-		category: 'editor',
 		mutation: false,
-		executionTime: 'instant',
 		input: selectionInput,
 		jsonSchema: tabWith('selection', {} as JsonSchema, true),
 		async handler(input, context) {
@@ -469,6 +467,8 @@ export function createEditorParts(deps: EditorCommandDeps): EditorParts {
 			dirty,
 			select,
 		] as unknown as ZodCommandDefinition[],
+		ensure: (project) => editors.ensure(project),
+		reset: () => editors.reset(),
 		owner,
 		async settle(name, call) {
 			const seen = scope.seen.get(call.traceId as string);

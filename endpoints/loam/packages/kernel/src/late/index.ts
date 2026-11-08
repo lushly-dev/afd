@@ -16,8 +16,7 @@ import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
-import { createEditorParts, type EditorParts } from './editor-commands.js';
-import { createEditors } from './editor-state.js';
+import type { EditorParts } from './editor-commands.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
@@ -145,7 +144,12 @@ export async function createLateParts(
 	// The port reads its list from here, so `apps` does not hold it (2.4); `late` loads before any app.
 	deps.scope.callable = appCallable;
 	const documents = createDocumentCheck(deps);
-	const editors = createEditors(deps.viewState);
+	// Both chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
+	// either failing fails the late load whole (documents specification, Status, deviations 9 and 14).
+	const [{ createDocumentCommands, trashBefore }, { createEditorParts }] = await Promise.all([
+		import('./documents.js'),
+		import('./editor-commands.js'),
+	]);
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
 	// the scope it needs.
 	let editor: EditorParts | undefined;
@@ -154,11 +158,10 @@ export async function createLateParts(
 		documents,
 		settle: (name, call) => editor?.settle(name, call),
 	});
-	editor = createEditorParts({ ...deps, lateScope, check: documents, editors });
-	const { createDocumentCommands, trashBefore } = await import('./documents.js');
+	editor = createEditorParts({ ...deps, lateScope, check: documents }, DOCUMENT_KIT);
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
 	// stage A's `hydrate` drops a record with no handler.
-	await editors.ensure(deps.scope.active().project);
+	await editor.ensure(deps.scope.active().project);
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);
@@ -251,7 +254,7 @@ export async function createLateParts(
 			await deps.auth.signOut();
 			lateScope.forgetActor();
 			// Dirty tabs and selections are memory alone, lost as an unsaved change is (5.2).
-			editors.reset();
+			editor?.reset();
 		},
 	};
 	return parts;

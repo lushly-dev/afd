@@ -6,7 +6,8 @@
  * are siblings of it, with `tabindex="-1"` and `aria-hidden`: a button inside a `tablist` fails axe's
  * `aria-required-children`, and inside a `tab` its `nested-interactive`, so the keyboard reaches both
  * actions from the tab itself, Delete closing it and Shift+F10 or the context-menu key opening its menu,
- * which `aria-keyshortcuts` names. Arrow keys, Home and End move and activate, focus staying in the strip;
+ * which `aria-keyshortcuts` names and the tab's description says; a press on either keeps focus where it
+ * was. Arrow keys, Home and End move and activate, focus staying in the strip;
  * Enter or Space activates and moves focus to the editor. A press is an event, and the editor area runs the
  * command. The tabs are built with the DOM API, by id, so a tab keeps its button and its focus across
  * renders, and FAST's `repeat` stays out of this chunk, where it would part a shared chunk (2.4).
@@ -40,6 +41,7 @@ export const tabName = (tab: EditorTabView): string =>
 	`${tab.title}${tab.preview ? ' (preview)' : ''}${tab.pinned ? ', pinned' : ''}${tab.dirty ? ', unsaved' : ''}`;
 
 const template = html<LoamEditorGroup>`
+	<span id="keys" class="hint">Delete closes the tab. Shift+F10 opens its menu.</span>
 	<div class="strip">
 		<div class="tabs" role="tablist" aria-label="${(x) => x.label}"></div>
 	</div>
@@ -54,7 +56,6 @@ const template = html<LoamEditorGroup>`
 	</div>
 	<div class="menu" role="menu" popover="auto" aria-label="Tab actions"
 		@keydown="${(x, c) => x.menuKeydown(c.event as KeyboardEvent)}"
-		@toggle="${(x, c) => x.menuToggled(c.event as ToggleEvent)}"
 	>
 		<button type="button" role="menuitem" tabindex="-1" data-action="pin" @click="${(x) => x.choose('pin')}">
 			${(x) => (x.menuTab?.pinned ? 'Unpin' : 'Pin')}
@@ -80,6 +81,7 @@ const template = html<LoamEditorGroup>`
 
 const styles = css`
 	:host {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		min-inline-size: 0;
@@ -89,6 +91,15 @@ const styles = css`
 	:host([hidden]),
 	[hidden] {
 		display: none;
+	}
+	/* The tabs' description, read by assistive technology: how a keyboard reaches close and the menu. */
+	.hint {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	.strip {
 		flex: none;
@@ -249,6 +260,28 @@ export class LoamEditorGroup extends FASTElement {
 	override connectedCallback(): void {
 		super.connectedCallback();
 		this.#renderTabs();
+		// A light dismiss, a press outside the menu: focus goes back to its tab, as Escape takes it.
+		this.menu.addEventListener('toggle', this.#onToggle);
+	}
+
+	override disconnectedCallback(): void {
+		this.menu?.removeEventListener('toggle', this.#onToggle);
+		super.disconnectedCallback();
+	}
+
+	#onToggle = (event: Event): void => {
+		if ((event as ToggleEvent).newState !== 'closed' || this.#menuFor === null) return;
+		const active = this.shadowRoot?.activeElement;
+		if (!active || this.menu.contains(active)) this.#closeMenu();
+		else this.#menuFor = null;
+	};
+
+	/** Close the menu, and focus goes back to the tab it opened from (5.8). */
+	#closeMenu(): void {
+		const tab = this.#menuFor;
+		this.#menuFor = null;
+		if (this.menu.matches(':popover-open')) this.menu.hidePopover();
+		if (tab !== null) this.tabButton(tab)?.focus();
 	}
 
 	/** Each tab's item, made once by id and updated in place, in the state's order. */
@@ -287,11 +320,15 @@ export class LoamEditorGroup extends FASTElement {
 				dirty.className = 'dirty';
 				dirty.textContent = '●';
 				main.append(title, dirty);
+				main.setAttribute('aria-describedby', 'keys');
 				const close = button('close', '×');
 				const more = button('more', '⋯');
 				for (const each of [close, more]) {
+					// For the pointer alone: hidden from assistive technology, out of the Tab order, and never
+					// focused, as a press on a `tabindex="-1"` button would otherwise focus it.
 					each.tabIndex = -1;
 					each.setAttribute('aria-hidden', 'true');
+					each.addEventListener('mousedown', (event) => event.preventDefault());
 				}
 				const id = tab.id;
 				const current = () => this.tabs.find((each) => each.id === id) as EditorTabView;
@@ -404,15 +441,6 @@ export class LoamEditorGroup extends FASTElement {
 		return false;
 	}
 
-	menuToggled(event: ToggleEvent): void {
-		if (event.newState !== 'closed' || this.#menuFor === null) return;
-		const tab = this.#menuFor;
-		this.#menuFor = null;
-		// Focus goes back to the tab it opened from, unless a choice took it elsewhere.
-		const active = this.shadowRoot?.activeElement;
-		if (!active || this.menu.contains(active)) this.tabButton(tab)?.focus();
-	}
-
 	#items(): HTMLButtonElement[] {
 		return [...this.menu.querySelectorAll<HTMLButtonElement>('button')].filter(
 			(item) => !item.hidden
@@ -427,14 +455,19 @@ export class LoamEditorGroup extends FASTElement {
 		else if (event.key === 'ArrowUp') move(at - 1);
 		else if (event.key === 'Home') move(0);
 		else if (event.key === 'End') move(items.length - 1);
-		else if (event.key === 'Tab') this.menu.hidePopover();
-		else return true;
+		else if (event.key === 'Escape') this.#closeMenu();
+		else if (event.key === 'Tab') {
+			// Focus goes where Tab takes it.
+			this.#menuFor = null;
+			this.menu.hidePopover();
+			return true;
+		} else return true;
 		return false;
 	}
 
 	choose(action: 'pin' | 'close' | 'close-others' | 'beside' | 'new-group'): void {
 		const tab = this.menuTab;
-		this.menu.hidePopover();
+		this.#closeMenu();
 		if (!tab) return;
 		this.press({ action: action === 'pin' && tab.pinned ? 'unpin' : action, tab: tab.id });
 	}

@@ -4,6 +4,7 @@
  * agent's calls, a surface's port, a reload's `resetSession` and a replay.
  */
 
+import { readFileSync } from 'node:fs';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -321,5 +322,28 @@ describe('P2-D5: the editor commands', () => {
 		});
 		expect(refused.error?.code).toBe('VIEW_STATE_READ_ONLY');
 		expect(refused.error?.suggestion).toContain('editor-*');
+	});
+
+	it('P2-D5: the late-editor chunk imports types alone, but its own state module, which imports types alone', () => {
+		// A runtime import of what first paint or `late` holds would part their chunks (scope and projects
+		// specification, 2.4): `late` hands the chunk what it runs with, in `DOCUMENT_KIT`.
+		const imports = (file: string) =>
+			readFileSync(new URL(file, import.meta.url), 'utf8').match(/^import\s[^;]*;/gm) ?? [];
+		const entry = imports('./editor-commands.ts');
+		expect(entry.length).toBeGreaterThan(0);
+		expect(
+			entry.filter(
+				(statement) =>
+					!/^import type\s/.test(statement) && !statement.includes("'./editor-state.js'")
+			)
+		).toEqual([]);
+		expect(
+			imports('./editor-state.ts').filter((statement) => !/^import type\s/.test(statement))
+		).toEqual([]);
+		for (const file of ['./editor-commands.ts', './editor-state.ts']) {
+			expect(readFileSync(new URL(file, import.meta.url), 'utf8')).not.toMatch(
+				/\bimport\s*\(|^export\s+(\*|\{[^}]*\})\s+from\s/m
+			);
+		}
 	});
 });
