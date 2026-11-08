@@ -348,28 +348,35 @@ export class EditorController implements FrameListener {
 	 * and no close of the person's behind it holds nothing, and its mark goes, from the person's page.
 	 */
 	#unmark(tabs: EditorReadV1['groups'][number]['tabs']): Promise<unknown>[] {
-		const at = this.#at;
 		return tabs
 			.filter((tab) => {
 				if (!tab.dirty || this.#closing.has(`${this.#visit} ${tab.id}`)) return false;
+				if (this.#held(tab.id, tab.document)) return false;
 				// An editor ready, clean and of this visit says there is nothing unsaved, whoever marked it.
 				const frame = this.#frames.get(tab.id);
 				if (frame) return frame.state === 'ready' && !frame.dirty && this.#here(frame);
-				// A leaving one of this scope, of any visit, still saves its draft: a return here keeps its mark.
-				return (
-					!this.#parking.has(tab.id) &&
-					![...this.#leaving].some(
-						(each) =>
-							each.tab === tab.id &&
-							(this.#here(each) ||
-								(each.record?.scope.workspace === at?.workspace &&
-									each.record?.scope.project === at?.project))
-					)
-				);
+				return !this.#parking.has(tab.id);
 			})
 			.map((tab) =>
 				this.#kernel.call('editor-dirty-set', { tab: tab.id, dirty: false }, { scope: this.#at })
 			);
+	}
+
+	/**
+	 * Whether another frame of `tab` and the scope rendered, of any visit, still leaves or parks with `document`'s
+	 * draft: its tab keeps its mark until that leave's own end clears it, whatever a newer editor of the tab says.
+	 */
+	#held(tab: string, document: string, but?: LoamEditorFrame): boolean {
+		const at = this.#at;
+		return [...this.#leaving].some(
+			(each) =>
+				each !== but &&
+				each.tab === tab &&
+				each.document === document &&
+				(this.#here(each) ||
+					(each.record?.scope.workspace === at?.workspace &&
+						each.record?.scope.project === at?.project))
+		);
 	}
 
 	/** The active tab's frame, made and opened once, and the group's oldest parked ones over ten dropped. */
@@ -615,6 +622,10 @@ export class EditorController implements FrameListener {
 		if (frame && frame.tab === tab && (this.#frames.get(tab) ?? this.#parking.get(tab)) === frame) {
 			this.#stopTimer(frame);
 			await this.#move(frame, 'disposed');
+		} else if (frame?.tab === tab && this.#leaving.has(frame) && this.#here(frame)) {
+			// Still leaving under this tab, another's close having taken it: the person's Discard holds, so a save
+			// that rejects brings nothing back. One already under way may still write; it began before.
+			(this.#lives.get(frame) as Life).discarded = true;
 		}
 		const closed = await this.#kernel.call<{ previous: { group: string } }>(
 			'editor-close',
@@ -671,6 +682,8 @@ export class EditorController implements FrameListener {
 		}
 		if (frame.dirty === dirty) return;
 		frame.dirty = dirty;
+		// A newer editor's clean report leaves the mark to an earlier one still saving the tab's draft.
+		if (!dirty && this.#held(frame.tab, frame.document, frame)) return;
 		void this.#kernel.call('editor-dirty-set', { tab: frame.tab, dirty });
 	}
 
@@ -760,7 +773,7 @@ export class EditorController implements FrameListener {
 		// A parked frame whose tab another's call closed meanwhile ends as a close's.
 		const closed = how === 'closed' || (how === 'parked' && !this.#tabOf(tab));
 		const away = life.place === 'parked' || life.place === 'leaving';
-		if (!saved && away && this.#here(frame) && this.#area.isConnected) {
+		if (!saved && away && !life.discarded && this.#here(frame) && this.#area.isConnected) {
 			if (closed) await this.#reopen(frame, shown);
 			else if (how === 'parked' && !this.#frames.has(tab)) this.#move(frame, 'shown');
 		}

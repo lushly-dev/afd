@@ -75,13 +75,16 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 6. a group shows at most one frame, its active tab's, and no leaving or parked frame shows;
  * 7. every key of `frames` and `parking` is a tab of the state rendered;
  * 8. every group's active tab has a frame in `frames`, unless its close or leave is under way;
- * 9. a frame in `frames` whose editor says unsaved has its tab marked unsaved.
+ * 9. a frame in `frames` whose editor says unsaved has its tab marked unsaved;
+ * 10. a tab of the active scope whose leaving frame of that scope, still saving its document unsaved, is
+ *     marked unsaved, whatever a newer editor of the tab says.
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
 	return page.evaluate(async () => {
 		type Frame = HTMLElement & {
 			tab: string;
+			document: string;
 			dirty: boolean;
 			record?: { scope: { workspace: string; project?: string } } | null;
 		};
@@ -180,10 +183,23 @@ export function frameViolations(page: Page): Promise<string[]> {
 				}
 			}
 		}
-		const read = await shell.kernel.call('editor-get');
-		const marked = new Map(
-			(read.data?.groups.flatMap((group) => group.tabs) ?? []).map((tab) => [tab.id, tab.dirty])
-		);
+		const read = (await shell.kernel.call('editor-get')) as {
+			data?: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean; document: string }> }> };
+		};
+		const listed = read.data?.groups.flatMap((group) => group.tabs) ?? [];
+		const marked = new Map(listed.map((tab) => [tab.id, tab.dirty]));
+		for (const frame of leaving) {
+			const own = lives.get(frame);
+			const tab = listed.find((each) => each.id === frame.tab && each.document === frame.document);
+			const ofScope =
+				frame.record?.scope.workspace === active?.workspace &&
+				frame.record?.scope.project === active?.project;
+			if (tab && own?.busy && frame.dirty && ofScope && !tab.dirty) {
+				broken.push(
+					`10: ${tab.id} has a leaving editor still saving it unsaved, and is not marked`
+				);
+			}
+		}
 		for (const [tab, dirty] of marked) {
 			if (!dirty || closingHere(tab)) continue;
 			if (!frames.has(tab) && !parking.has(tab) && !leavingHere(tab)) {

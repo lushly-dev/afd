@@ -106,7 +106,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 424), and the split of its helpers into `editor-parts.ts`, under the file-size limit (10). The re-check after it raised it by 199, to 31,281, approved by the coordinator,
  * 2026-11-08: a mark cleared when its tab's editor is ready and clean (65), a leaving editor of the scope
  * rendered keeping its tab's mark across a round trip (about 97), and the person's close disposing only a
- * frame still its tab's (37).
+ * frame still its tab's (37). The next raised it by 178, to 31,459, approved by the coordinator, 2026-11-08: a tab
+ * whose earlier editor still saves its draft keeping its mark, whatever a newer one says (about 95), and the
+ * person's Discard of an editor still leaving recorded on its life (83).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -126,7 +128,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 31_281,
+	editorMinified: 31_459,
 });
 
 /** Group a module id by the package it belongs to. */

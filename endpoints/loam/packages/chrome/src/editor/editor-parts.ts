@@ -85,7 +85,7 @@ export type Place = 'shown' | 'parked' | 'leaving' | 'disposed';
 export type How = 'closed' | 'parked' | 'left';
 /**
  * One frame's life: the visit of a scope it was made in, its one place, its editor's edits, a leave asked
- * again, and whether its leave's save or reopen is under way.
+ * again, whether its leave's save or reopen is under way, and whether the person discarded it meanwhile.
  */
 export interface Life {
 	visit: number;
@@ -93,6 +93,8 @@ export interface Life {
 	edits: number;
 	queued?: How;
 	busy?: boolean;
+	/** The person discarded its draft while it was leaving: a rejected save then brings nothing back. */
+	discarded?: boolean;
 }
 
 /** A tab's record, or why `document-get` gave none. */

@@ -291,6 +291,18 @@ const settleSaves = (page: Page, tab: string, how: 'pass' | 'fail') =>
 		{ tab, how }
 	);
 
+/** Settle only the oldest save held for `tab`. */
+const settleOldest = (page: Page, tab: string, how: 'pass' | 'fail') =>
+	page.evaluate(
+		({ tab, how }) => {
+			const held = window as FailedSaves;
+			const index = (held.heldSaves ?? []).findIndex((each) => each.tab === tab);
+			const [oldest] = index < 0 ? [] : (held.heldSaves ?? []).splice(index, 1);
+			oldest?.[how]();
+		},
+		{ tab, how }
+	);
+
 /** Whether the controller holds a frame for `tab` that is on the page, with its editor. */
 const frameDrawn = (page: Page, tab: string) =>
 	page.evaluate((tab) => {
@@ -1627,7 +1639,66 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	}, 120_000);
 
-	it.each([0x5eed10, 9, 1, 2, 0xdeadbeef, 42])(
+	it('P2-D5: a scope round trip keeps the mark when the tab is active on return and its new editor reads clean', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Held');
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		await kernelCall(page, 'scope-set', { project: null });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		// t1 is active again, in a new editor that read the stored text: clean, while "Held" still saves.
+		expect(
+			(
+				(await agentCall(page, 'document-trash', { document: alpha })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		await settleSaves(page, 't1', 'fail');
+		await editorIdle(page);
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: the person’s Discard of an editor another’s close took holds when its save rejects later', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Draft');
+		await tabOf(page, 'Alpha').focus();
+		await page.keyboard.press('Delete');
+		await expect
+			.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+			.toBeGreaterThan(0);
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await framesGone(page, ['t1']);
+		// Only the person's save rejects: the modal opens and they discard, while the leave's save is held.
+		await settleOldest(page, 't1', 'fail');
+		await page.locator('loam-modal button', { hasText: 'Discard' }).click();
+		await editorIdle(page);
+		// Then the leave's save rejects: nothing comes back, and its mark goes.
+		await settleSaves(page, 't1', 'fail');
+		await editorIdle(page);
+		const tabs = (
+			(await agentCall(page, 'editor-get')) as { data: { groups: Array<{ tabs: unknown[] }> } }
+		).data.groups.flatMap((group) => group.tabs);
+		expect(tabs).toEqual([]);
+		expect(
+			((await agentCall(page, 'document-trash', { document: alpha })) as { success: boolean })
+				.success
+		).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+
+	it.each([0x5eed10, 9, 12, 100, 1, 2, 0xdeadbeef, 42])(
 		'P2-D5: a seeded walk of 200 steps, seed %i, keeps the nine invariants after each',
 		async (start) => {
 			const opened = await openShell(browser, site.root);
@@ -1692,6 +1763,13 @@ describe('P2-D5: the editor area, native half', () => {
 				'stay',
 				'pagehide-reject',
 				'move-held',
+				'round-trip',
+				'type-held',
+				'rename',
+				'close-move',
+				'close-close',
+				'save-key',
+				'person-close-held',
 			] as const;
 			let project: string | undefined;
 			let app = false;
@@ -1801,6 +1879,48 @@ describe('P2-D5: the editor area, native half', () => {
 						window.dispatchEvent(new Event('pagehide'));
 						for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
 					});
+				} else if (kind === 'round-trip') {
+					// The other scope's documents, and back.
+					await kernelCall(page, 'scope-set', { project: project ? null : 'atlas' });
+					await kernelCall(page, 'section-open', { section: 'documents' });
+					await editorIdle(page).catch((cause) => {
+						throw new Error(
+							`Seed ${start}, step ${step} (${kind}, away): ${(cause as Error).message}. Steps: ${steps.join(', ')}`
+						);
+					});
+					await kernelCall(page, 'scope-set', { project: project ?? null });
+					await kernelCall(page, 'section-open', { section: 'documents' });
+				} else if (kind === 'type-held' || kind === 'save-key') {
+					const area = page
+						.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+						.first();
+					if ((await area.count()) > 0) {
+						await area.click({ timeout: 500 }).catch(() => undefined);
+						if (kind === 'type-held') await page.keyboard.type('h');
+						else await page.keyboard.press('ControlOrMeta+s');
+					}
+				} else if (kind === 'rename' && tabs.length > 0) {
+					await kernelCall(page, 'document-rename', {
+						document: some().document,
+						title: `Renamed ${step}`,
+					});
+				} else if (kind === 'close-move' && tabs.length > 1) {
+					await agentCall(page, 'editor-close', { tab: some().id, discard: true });
+					await agentCall(page, 'editor-move', { tab: some().id, group: 'new' });
+				} else if (kind === 'close-close' && tabs.length > 0) {
+					const tab = some().id;
+					await agentCall(page, 'editor-close', { tab, discard: true });
+					await agentCall(page, 'editor-close', { tab, discard: true });
+				} else if (kind === 'person-close-held') {
+					if (await page.evaluate(() => ((window as Walk).pending?.length ?? 0) > 0)) {
+						const tab = page
+							.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
+							.first();
+						if ((await tab.count()) > 0) {
+							await tab.focus().catch(() => undefined);
+							await page.keyboard.press('Delete');
+						}
+					}
 				} else if (kind === 'move-held' && tabs.length > 0) {
 					// A tab moved while a save is held, of its editor or another's.
 					if (await page.evaluate(() => ((window as Walk).pending?.length ?? 0) > 0)) {
