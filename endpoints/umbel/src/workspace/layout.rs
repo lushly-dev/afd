@@ -71,6 +71,16 @@ impl Layout {
         self.keys_dir().join("http.token")
     }
 
+    /// `state/shared/`: the stores every process behind one URL shares (phase 5 section 10.2).
+    pub fn shared_dir(&self) -> PathBuf {
+        self.state_dir().join("shared")
+    }
+
+    /// `state/shared/limits.sqlite3`: the rate limits' counters (phase 5 sections 10.2 and 11).
+    pub fn limits_store(&self) -> PathBuf {
+        self.shared_dir().join("limits.sqlite3")
+    }
+
     /// `state/spaces/`.
     pub fn space_states_dir(&self) -> PathBuf {
         self.state_dir().join("spaces")

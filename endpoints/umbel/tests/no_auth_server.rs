@@ -12,8 +12,11 @@
 //!   literal is covered by the probe instead.
 //! - **The router answers none of them.** Every OAuth path, with a credential the router admits,
 //!   gets a 404 or 405 and no OAuth document, and without one a refusal, from the router of every
-//!   auth mode the host serves. Step 2a adds its modes (`oauth`, `gateway`) to [`routers`], each
-//!   with an admitted credential.
+//!   auth mode the host serves: mode `none` in process with its loopback token, and mode `oauth`
+//!   (step 2a) over its TLS listener with a `umbel-testkit-idp` access token for
+//!   `http.public_url`, minted fresh for each request. Mode `gateway` refuses to start until step
+//!   4, which adds its router here with a fresh single-use assertion for each request's method
+//!   and URL (the per-request credential of [`Probe`]).
 //!
 //! The dependency walk reads `cargo metadata --no-deps` of the workspace, then of each path crate
 //! outside it that the walk reaches (the afd crate), so it works offline.
@@ -29,8 +32,13 @@ use std::process::Command;
 use axum::body::Body;
 use http::Request;
 use serde_json::Value;
-use support::mcp::Http;
+use support::hosted::{
+    Client, PUBLIC_URL, Served, kit_verifier, oauth_config, tls_table, write_tls,
+};
+use support::mcp::{Http, Reply};
 use support::*;
+use umbel::HostBuilder;
+use umbel_testkit_idp::TestIdp;
 
 const TESTKIT: &str = "umbel-testkit-idp";
 
@@ -440,28 +448,160 @@ fn no_routing_call_in_any_workspace_crate_names_an_oauth_path() {
     assert!(routes.iter().any(|route| route == "/health"), "{routes:?}");
 }
 
+/// The `Authorization` value for one request, from its method and path.
+type Credential = Box<dyn Fn(&str, &str) -> String + Send + Sync>;
+
+/// How a probe reaches one router.
+enum Probe {
+    /// `Host::http_router()` in process, with the loopback token.
+    InProcess(Http),
+    /// The listener over TLS. `credential` makes the `Authorization` value for one request from
+    /// its method and path, fresh each time, so a single-use credential (step 4's gateway
+    /// assertion) works as well as a reusable one.
+    Hosted {
+        client: Client,
+        credential: Credential,
+        _served: Box<Served>,
+        _kit: Box<TestIdp>,
+    },
+}
+
 /// One router to probe: the auth mode it serves, its workspace, and a driver whose credential
 /// the router's authentication layer admits, so that the probe reaches the routes behind it.
 struct Probed {
     mode: &'static str,
     _workspace: tempfile::TempDir,
-    http: Http,
+    probe: Probe,
 }
 
 /// Every HTTP router the host builds, one per auth mode it serves. Mode `none` admits the
-/// workspace's bearer token. Phase 5 step 2a adds `oauth` (with a `umbel-testkit-idp` access
-/// token for `http.public_url`) and `gateway` (with a kit assertion over the pinned channel), each
-/// with a credential its layer admits, so that a 404 or 405 proves no route matched rather than
-/// that the layer refused.
-fn routers() -> Vec<Probed> {
+/// workspace's bearer token. Mode `oauth` (step 2a) admits a `umbel-testkit-idp` access token for
+/// `http.public_url`, verified by AFD's verifier in the token verifier slot. Mode `gateway` is
+/// refused at start until step 4 ([`the_gateway_mode_serves_no_router_until_step_4`]), which adds
+/// it here with a kit assertion over the pinned channel, minted per request.
+async fn routers() -> Vec<Probed> {
     let dir = minimal();
     let host = host(dir.path());
     let http = Http::new(&host);
-    vec![Probed {
+    let none = Probed {
         mode: "none",
         _workspace: dir,
-        http,
-    }]
+        probe: Probe::InProcess(http),
+    };
+
+    let kit = TestIdp::start().await.unwrap();
+    let dir = workspace(&oauth_config(&kit, "", "", &tls_table("none")));
+    write_tls(dir.path(), &kit);
+    let host = HostBuilder::open(dir.path())
+        .unwrap()
+        .with_token_verifier(kit_verifier(&kit, false))
+        .seal()
+        .unwrap();
+    let served = Served::start(&host).await;
+    let client = Client::tls(served.address, kit.ca().certificate_pem(), None);
+    let minting = kit.authorization_server().clone();
+    let oauth = Probed {
+        mode: "oauth",
+        _workspace: dir,
+        probe: Probe::Hosted {
+            client,
+            credential: Box::new(move |_method, _path| {
+                let token = minting
+                    .access_token(PUBLIC_URL)
+                    .subject("ada")
+                    .scopes(["umbel:read"])
+                    .sign();
+                format!("Bearer {token}")
+            }),
+            _served: Box::new(served),
+            _kit: Box::new(kit),
+        },
+    };
+    vec![none, oauth]
+}
+
+impl Probe {
+    /// Send `request` with the probe's credential when `with_credential`.
+    async fn send(&self, method: &str, path: &str, form: bool, with_credential: bool) -> Reply {
+        let body = if form {
+            "grant_type=client_credentials&token=x&client_id=x&response_type=code"
+        } else {
+            ""
+        };
+        match self {
+            Self::InProcess(http) => {
+                let http = if with_credential {
+                    http.clone()
+                } else {
+                    http.clone().with_token(None)
+                };
+                let mut request = Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header("host", "localhost");
+                if form {
+                    request = request.header("content-type", "application/x-www-form-urlencoded");
+                }
+                if let Some(token) = http.token() {
+                    request = request.header("authorization", format!("Bearer {token}"));
+                }
+                http.send(request.body(Body::from(body)).unwrap()).await
+            }
+            Self::Hosted {
+                client, credential, ..
+            } => {
+                let authorization = credential(method, path);
+                let mut headers: Vec<(&str, &str)> = Vec::new();
+                if form {
+                    headers.push(("content-type", "application/x-www-form-urlencoded"));
+                }
+                if with_credential {
+                    headers.push(("authorization", &authorization));
+                }
+                client
+                    .send(client.request(method, path, &headers, body))
+                    .await
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_gateway_mode_serves_no_router_until_step_4() {
+    let kit = TestIdp::start().await.unwrap();
+    let text = format!(
+        r#"config_version = 5
+
+[principal]
+local_id = "corp/ada"
+
+[http]
+public_url = "https://127.0.0.1/mcp"
+allowed_hosts = ["127.0.0.1"]
+
+[auth]
+mode = "gateway"
+
+[auth.namespaces.corp]
+
+[auth.gateway]
+alias = "edge"
+namespace = "corp"
+issuer = "{issuer}"
+keys = "gateway/jwks.json"
+client_cert_sha256 = ["{pin}"]
+max_scopes = ["umbel:read"]
+"#,
+        issuer = kit.gateway().issuer(),
+        pin = kit.gateway().certificate().sha256_hex(),
+    );
+    let dir = workspace(&text);
+    let host = host(dir.path());
+    assert_eq!(
+        host.http_server().unwrap_err().code(),
+        "WORKSPACE_CONFIG_INVALID"
+    );
+    assert!(host.http_router().is_err());
 }
 
 const PROBES: &[&str] = &[
@@ -500,31 +640,22 @@ const OAUTH_MEMBERS: &[&str] = &[
     "active",
 ];
 
-/// Send GET and POST to `path`, with the driver's bearer credential if it holds one.
-async fn get_and_post(http: &Http, path: &str) -> [(&'static str, umbel::testkit::mcp::Reply); 2] {
-    let mut post = Request::post(path)
-        .header("host", "localhost")
-        .header("content-type", "application/x-www-form-urlencoded");
-    if let Some(token) = http.token() {
-        post = post.header("authorization", format!("Bearer {token}"));
-    }
-    let post = post
-        .body(Body::from(
-            "grant_type=client_credentials&token=x&client_id=x&response_type=code",
-        ))
-        .unwrap();
+/// Send GET and POST (a form body) to `path`, with the probe's credential or without one.
+async fn get_and_post(
+    probe: &Probe,
+    path: &str,
+    with_credential: bool,
+) -> [(&'static str, Reply); 2] {
     [
-        ("GET", http.get(path).await),
-        ("POST", http.send(post).await),
+        ("GET", probe.send("GET", path, false, with_credential).await),
+        (
+            "POST",
+            probe.send("POST", path, true, with_credential).await,
+        ),
     ]
 }
 
-fn assert_no_oauth_member(
-    mode: &str,
-    method: &str,
-    path: &str,
-    reply: &umbel::testkit::mcp::Reply,
-) {
+fn assert_no_oauth_member(mode: &str, method: &str, path: &str, reply: &Reply) {
     if let Value::Object(members) = reply.json() {
         for member in OAUTH_MEMBERS {
             assert!(
@@ -537,11 +668,22 @@ fn assert_no_oauth_member(
 
 #[tokio::test]
 async fn no_router_answers_an_oauth_request() {
-    for probed in routers() {
+    let probed = routers().await;
+    assert_eq!(
+        probed.iter().map(|probed| probed.mode).collect::<Vec<_>>(),
+        ["none", "oauth"]
+    );
+    for probed in probed {
         let mode = probed.mode;
+        // The credential is admitted: the MCP path answers past the authentication layer, which
+        // refuses the same request without it.
+        let admitted = probed.probe.send("GET", "/mcp", false, true).await;
+        assert_ne!(admitted.status, 401, "{mode}: {}", admitted.text);
+        let refused = probed.probe.send("GET", "/mcp", false, false).await;
+        assert_eq!(refused.status, 401, "{mode}: {}", refused.text);
         for path in PROBES {
             // With an admitted credential the request reaches the routes, and none matches.
-            for (method, reply) in get_and_post(&probed.http, path).await {
+            for (method, reply) in get_and_post(&probed.probe, path, true).await {
                 assert!(
                     matches!(reply.status, 404 | 405),
                     "{mode}: {method} {path} answered {}",
@@ -550,8 +692,7 @@ async fn no_router_answers_an_oauth_request() {
                 assert_no_oauth_member(mode, method, path, &reply);
             }
             // Without one, it is refused, and still serves nothing OAuth.
-            let anonymous = probed.http.clone().with_token(None);
-            for (method, reply) in get_and_post(&anonymous, path).await {
+            for (method, reply) in get_and_post(&probed.probe, path, false).await {
                 assert!(
                     reply.status >= 400,
                     "{mode}: anonymous {method} {path} answered {}",

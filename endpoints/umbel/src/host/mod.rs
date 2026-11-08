@@ -56,6 +56,8 @@ pub struct HostBuilder {
     compiled: Vec<Arc<dyn CompiledPlugin>>,
     clock: Option<Arc<dyn Clock>>,
     mount_roots: Vec<Vec<u8>>,
+    #[cfg(feature = "auth")]
+    token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
 }
 
 impl HostBuilder {
@@ -76,6 +78,8 @@ impl HostBuilder {
             compiled: Vec::new(),
             clock: None,
             mount_roots: Vec::new(),
+            #[cfg(feature = "auth")]
+            token_verifier: None,
         }
     }
 
@@ -113,6 +117,21 @@ impl HostBuilder {
     #[must_use]
     pub fn with_clock(mut self, clock: impl Clock + 'static) -> Self {
         self.clock = Some(Arc::new(clock));
+        self
+    }
+
+    /// Fill the HTTP surface's token verifier slot (phase 5 section 3.3) with `verifier`, for the
+    /// tests of the hosted listener. **Test seam** (`testkit` only): until phase 5 step 2b
+    /// builds the verifier from `[auth.issuers]`, the slot is empty in a shipped build, and mode
+    /// `oauth` refuses to start rather than serve requests it cannot verify. Even with a verifier,
+    /// the context hook refuses every call until step 2b maps credentials to a principal.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_token_verifier(
+        mut self,
+        verifier: impl afd::server::auth::TokenVerifier + 'static,
+    ) -> Self {
+        self.token_verifier = Some(Arc::new(verifier));
         self
     }
 
@@ -271,6 +290,8 @@ impl HostBuilder {
             server,
             clock: self.clock,
             loaded,
+            #[cfg(feature = "auth")]
+            token_verifier: self.token_verifier,
         })
     }
 }
@@ -481,6 +502,8 @@ pub struct Host {
     server: McpServer,
     clock: Option<Arc<dyn Clock>>,
     loaded: Arc<LoadedPlugins>,
+    #[cfg(feature = "auth")]
+    token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
 }
 
 impl Host {
@@ -556,23 +579,50 @@ impl Host {
     }
 
     /// The configured MCP server (hybrid strategy, the first-class tools, confirmations signed
-    /// with the workspace's shared key, the context hook of version 0). It serves stdio and
-    /// Streamable HTTP; the hook tells them apart by whether the request has HTTP parts.
+    /// with the workspace's shared key, the context hook of phase 5 section 4.2). It serves stdio and
+    /// Streamable HTTP; the hook tells them apart by whether the request has HTTP parts. In a hosted
+    /// mode it carries an authorization that admits no HTTP caller (phase 5 section 6.3): serve
+    /// HTTP with [`Self::http_server`], stdio with `serve_stdio`, and mark any other transport
+    /// trusted (`with_trusted_transport`) only when the process boundary vouches for its peer.
     /// Cloning is cheap, but a stdio connection needs a server of its own
     /// ([`McpServer::serve_stdio`] makes one).
     pub fn mcp_server(&self) -> McpServer {
         self.server.clone()
     }
 
-    /// The HTTP router: the MCP endpoint at `http.path` and `GET /health`, every request behind
-    /// the bearer layer. The token is read from `state/keys/http.token`, created race-safe with
-    /// mode 0600 when missing; to rotate it, delete the file and build a new router.
+    /// The HTTP router of mode `none` without TLS: the MCP endpoint at `http.path` and
+    /// `GET /health`, every request behind the bearer layer, behind the body size limit. The
+    /// token is read from `state/keys/http.token`, created race-safe with mode 0600 when missing;
+    /// to rotate it, delete the file and build a new router. For an embedder serving it its own
+    /// way, and for in-process drivers; `umbel serve --http` uses [`Self::http_server`].
     ///
     /// # Errors
-    /// `WORKSPACE_KEY_INVALID` for a malformed token, `WORKSPACE_STATE_UNWRITABLE` when it
-    /// cannot be created.
+    /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` or `http.tls` for a hosted mode or
+    /// `[http.tls]`, which only [`Self::http_server`]'s listener serves; `WORKSPACE_KEY_INVALID`
+    /// for a malformed token, `WORKSPACE_STATE_UNWRITABLE` when it cannot be created.
     pub fn http_router(&self) -> Result<axum::Router, HostError> {
-        surfaces::http::router(&self.server, &self.workspace)
+        surfaces::http::plain_router(&self.server, &self.workspace)
+    }
+
+    /// The HTTP surface `umbel.toml` configures, ready to serve on a listener
+    /// ([`HttpServer::serve`](crate::HttpServer::serve)): TLS per `[http.tls]`, and the layers of
+    /// phase 5 section 6.3 in order. Mode `none` serves phase 0's token layer. Mode `oauth` serves
+    /// the body limit, the per-IP limit, `/health` and the protected-resource metadata in public,
+    /// and AFD's bearer layer around the MCP service; until phase 5 step 2b it refuses to start
+    /// without a token verifier. Mode `gateway` refuses to start until phase 5 step 4.
+    ///
+    /// # Errors
+    /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, or the
+    /// `[http.tls]` key whose file is missing or invalid; the errors of [`Self::http_router`]
+    /// in mode `none`; `WORKSPACE_STATE_UNWRITABLE` when `state/shared/limits.sqlite3` cannot be
+    /// opened.
+    pub fn http_server(&self) -> Result<crate::HttpServer, HostError> {
+        surfaces::http::server(
+            &self.server,
+            &self.workspace,
+            #[cfg(feature = "auth")]
+            self.token_verifier.clone(),
+        )
     }
 
     /// A context for a library call: `actor`, a new trace id, and the principal under

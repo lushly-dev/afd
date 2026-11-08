@@ -24,6 +24,8 @@ mod host;
 #[cfg(feature = "cli")]
 mod logging;
 mod middleware;
+#[cfg(feature = "auth")]
+mod shared;
 mod store;
 mod surfaces;
 mod templates;
@@ -37,6 +39,7 @@ pub use plugins::{
     MANIFEST_VERSION, MANIFEST_VERSIONS, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD,
 };
 pub use store::{STORE_GRANTS, codes as store_codes};
+pub use surfaces::http::HttpServer;
 pub use versions::{
     BUNDLE_VERSION, CAPTURE_VERSION, CURATOR_VERSION, CURSOR_VERSION, CURSOR_VERSIONS,
     DOCUMENT_VERSION, ENVELOPE_VERSIONS, EVENT_VERSION, EVENT_VERSIONS, LOCATOR_VERSION,
