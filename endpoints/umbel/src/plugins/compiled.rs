@@ -199,6 +199,7 @@ pub(super) fn call_context(
             .unwrap_or_default(),
         pipeline: services.pipeline(),
         person: services.person(),
+        equivalents: services.equivalents(),
     }
 }
 

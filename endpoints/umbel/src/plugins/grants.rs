@@ -265,6 +265,18 @@ impl CallServices {
         crate::authority::caller_is_person(&self.context, self.command.as_deref(), prompts)
     }
 
+    /// The legacy principals the caller's effective principal stands for (phase 5 section 4.6),
+    /// which `CallContext.equivalents` carries to every compiled plugin's command.
+    pub fn equivalents(&self) -> Vec<String> {
+        let principal = crate::access::effective_principal_of(&self.context);
+        let mut identities =
+            crate::access::identities(self.shared.workspace.config(), principal.as_deref());
+        if !identities.is_empty() {
+            identities.remove(0);
+        }
+        identities
+    }
+
     /// Whether the grant `name` is held (declared and not denied).
     #[cfg_attr(not(feature = "component"), allow(dead_code))]
     pub(crate) fn holds(&self, name: &str) -> bool {
@@ -411,6 +423,7 @@ impl HostServices for CallServices {
             after.map(str::to_owned),
             usize::try_from(limit).unwrap_or(usize::MAX),
             crate::commands::caller(&self.context),
+            crate::access::claim_groups_of(&self.context),
         )
         .map_err(|error| ServiceError::Invalid(format!("{}: {}", error.code, error.message)))
     }

@@ -337,6 +337,9 @@ pub struct Config {
     pub limits: RateLimits,
     /// `[usage]`, version 5.
     pub usage: UsageConfig,
+    /// The principal projection's `policyVersion` (phase 5 section 2.1): `sha256:` and the hex
+    /// SHA-256 of the canonical JSON of the `[auth]` and `[access]` tables as read.
+    pub policy_version: String,
 }
 
 /// Values that override the file: flags first, then environment variables.
@@ -601,7 +604,18 @@ impl ConfigFile {
             auth: rest.auth,
             limits: rest.limits,
             usage: rest.usage,
+            policy_version: self.policy_version(),
         })
+    }
+
+    /// `policyVersion`: the `[auth]` and `[access]` tables as read, canonically hashed.
+    fn policy_version(&self) -> String {
+        let table = |name: &str| {
+            self.table
+                .get(name)
+                .and_then(|value| serde_json::to_value(value).ok())
+        };
+        crate::principal::policy_version_of(table("auth").as_ref(), table("access").as_ref())
     }
 
     /// Every rule outside `[spaces]`, `[http]` and `[plugins]`, which the doctor checks apart.

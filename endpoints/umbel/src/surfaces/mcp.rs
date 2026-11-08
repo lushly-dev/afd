@@ -38,7 +38,7 @@ pub(crate) fn build_server(
     let mut server = McpServer::new(Arc::clone(registry), "umbel", env!("CARGO_PKG_VERSION"))
         .with_tool_strategy(ToolStrategy::Hybrid)
         .with_context_hook(principal::hook(
-            &workspace.config().principal,
+            Arc::new(workspace.config().clone()),
             principal::HttpAuth::new(
                 &workspace.config().auth,
                 workspace.config().http.public_url.as_deref(),

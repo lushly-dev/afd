@@ -59,7 +59,7 @@ fn every_version_constant_names_a_schema_file() {
     assert_eq!(umbel::CURSOR_VERSIONS, [0, 1]);
     assert_eq!(umbel::LOCATOR_VERSIONS, [1, 2]);
     // The versions this host writes stay where they were until the step that writes the next.
-    assert_eq!(umbel::PRINCIPAL_VERSION, 0);
+    assert_eq!(umbel::PRINCIPAL_VERSION, 1);
     assert_eq!(umbel::PROVENANCE_VERSION, 2);
     assert_eq!(umbel::EVENT_VERSION, 2);
     assert_eq!(umbel::PROPOSAL_VERSION, 2);

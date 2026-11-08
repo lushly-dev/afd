@@ -58,6 +58,8 @@ pub struct HostBuilder {
     mount_roots: Vec<Vec<u8>>,
     #[cfg(feature = "auth")]
     token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
+    #[cfg(feature = "auth")]
+    auth_environment: crate::auth::fetch::AuthEnvironment,
 }
 
 impl HostBuilder {
@@ -80,6 +82,8 @@ impl HostBuilder {
             mount_roots: Vec::new(),
             #[cfg(feature = "auth")]
             token_verifier: None,
+            #[cfg(feature = "auth")]
+            auth_environment: crate::auth::fetch::AuthEnvironment::default(),
         }
     }
 
@@ -120,11 +124,10 @@ impl HostBuilder {
         self
     }
 
-    /// Fill the HTTP surface's token verifier slot (phase 5 section 3.3) with `verifier`, for the
-    /// tests of the hosted listener. **Test seam** (`testkit` only): until phase 5 step 2b
-    /// builds the verifier from `[auth.issuers]`, the slot is empty in a shipped build, and mode
-    /// `oauth` refuses to start rather than serve requests it cannot verify. Even with a verifier,
-    /// the context hook refuses every call until step 2b maps credentials to a principal.
+    /// Replace the host's token verifier (phase 5 section 3.3) with `verifier`, for the tests of
+    /// the hosted listener. **Test seam** (`testkit` only): a shipped build always verifies with
+    /// the verifier it builds from `[auth.issuers]`. A verifier other than the host's maps no
+    /// caller, so the context hook refuses every call it admits.
     #[cfg(all(feature = "auth", feature = "testkit"))]
     #[must_use]
     pub fn with_token_verifier(
@@ -132,6 +135,57 @@ impl HostBuilder {
         verifier: impl afd::server::auth::TokenVerifier + 'static,
     ) -> Self {
         self.token_verifier = Some(Arc::new(verifier));
+        self
+    }
+
+    /// Trust one more root certificate (PEM) when token verification fetches an issuer's
+    /// metadata and keys or calls its introspection endpoint. **Test seam** (`testkit` only), for
+    /// an identity provider with a test certificate authority.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_root_certificate(mut self, pem: impl Into<Vec<u8>>) -> Self {
+        self.auth_environment.roots.push(pem.into());
+        self
+    }
+
+    /// Read token times, and age the key and introspection caches, on `clock`. **Test seam**
+    /// (`testkit` only): a shipped build verifies on the system clock, never on the clock of
+    /// [`Self::with_clock`], so a replay clock cannot keep an expired token or key alive.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_clock(mut self, clock: impl Clock + 'static) -> Self {
+        self.auth_environment.clock = Arc::new(clock);
+        self
+    }
+
+    /// Serve mode `oauth` with the host's own verifier although the disclosure controls it needs
+    /// (section 5.4's one answer, section 9's listings and exact filtering, `workspace-show`'s
+    /// hosted answer) do not exist yet. **Test seam** (`testkit` only): a shipped build refuses to
+    /// serve `oauth` until the steps that build them (amendment from phase 5 step 2b).
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_unfinished_oauth(mut self) -> Self {
+        self.auth_environment.serve_oauth = true;
+        self
+    }
+
+    /// Read the environment variable `name` as `value` when token verification needs a secret
+    /// (an introspection client's). **Test seam** (`testkit` only): tests cannot set a variable.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_secret(mut self, name: &str, value: &str) -> Self {
+        self.auth_environment
+            .secrets
+            .insert(name.to_owned(), value.to_owned());
+        self
+    }
+
+    /// Give each outbound fetch of token verification `timeout` instead of 10 seconds. **Test
+    /// seam** (`testkit` only).
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_fetch_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.auth_environment.timeout = timeout;
         self
     }
 
@@ -292,6 +346,8 @@ impl HostBuilder {
             loaded,
             #[cfg(feature = "auth")]
             token_verifier: self.token_verifier,
+            #[cfg(feature = "auth")]
+            auth_environment: self.auth_environment,
         })
     }
 }
@@ -504,6 +560,8 @@ pub struct Host {
     loaded: Arc<LoadedPlugins>,
     #[cfg(feature = "auth")]
     token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
+    #[cfg(feature = "auth")]
+    auth_environment: crate::auth::fetch::AuthEnvironment,
 }
 
 impl Host {
@@ -608,12 +666,15 @@ impl Host {
     /// ([`HttpServer::serve`](crate::HttpServer::serve)): TLS per `[http.tls]`, and the layers of
     /// phase 5 section 6.3 in order. Mode `none` serves phase 0's token layer. Mode `oauth` serves
     /// the body limit, the per-IP limit, `/health` and the protected-resource metadata in public,
-    /// and AFD's bearer layer around the MCP service; until phase 5 step 2b it refuses to start
-    /// without a token verifier. Mode `gateway` refuses to start until phase 5 step 4.
+    /// and AFD's bearer layer around the MCP service, verifying tokens with the verifier it
+    /// builds from `[auth.issuers]` (phase 5 step 2b); a shipped build still refuses to serve it
+    /// until the disclosure controls of phase 5 steps 2c, 3 and 7 exist. Mode `gateway` refuses
+    /// to start until phase 5 step 4.
     ///
     /// # Errors
-    /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, or the
-    /// `[http.tls]` key whose file is missing or invalid; the errors of [`Self::http_router`]
+    /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, the
+    /// `[auth]` key the verifier cannot be built from, or the `[http.tls]` key whose file is
+    /// missing or invalid; the errors of [`Self::http_router`]
     /// in mode `none`; `WORKSPACE_STATE_UNWRITABLE` when `state/shared/limits.sqlite3` cannot be
     /// opened.
     pub fn http_server(&self) -> Result<crate::HttpServer, HostError> {
@@ -621,7 +682,11 @@ impl Host {
             &self.server,
             &self.workspace,
             #[cfg(feature = "auth")]
+            &self.registry,
+            #[cfg(feature = "auth")]
             self.token_verifier.clone(),
+            #[cfg(feature = "auth")]
+            &self.auth_environment,
         )
     }
 
@@ -629,7 +694,9 @@ impl Host {
     /// `extra["dev.umbel/principal"]` with transport `library` and authentication `embedder`.
     pub fn context(&self, actor: Actor) -> CommandContext {
         let mut context = CommandContext::new().with_trace_id(new_trace_id());
-        Principal::new(actor, Transport::Library, Authentication::Embedder).apply(&mut context);
+        Principal::new(actor, Transport::Library, Authentication::Embedder)
+            .with_policy_version(self.workspace.config().policy_version.clone())
+            .apply(&mut context);
         self.apply_clock(&mut context);
         context
     }
@@ -653,7 +720,9 @@ impl Host {
         let actor =
             Actor::new(afd::ActorKind::Human).with_id(&self.workspace.config().principal.local_id);
         let mut context = CommandContext::new().with_trace_id(new_trace_id());
-        Principal::new(actor, Transport::Cli, Authentication::Process).apply(&mut context);
+        Principal::new(actor, Transport::Cli, Authentication::Process)
+            .with_policy_version(self.workspace.config().policy_version.clone())
+            .apply(&mut context);
         self.apply_clock(&mut context);
         context
     }

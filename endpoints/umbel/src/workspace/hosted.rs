@@ -5,9 +5,10 @@
 //! are read with the rest of that table, in `plugins_config.rs`.
 //!
 //! This module parses, validates and stores them, with every rule section 2.2 checks at open,
-//! each a `WORKSPACE_CONFIG_INVALID` naming the key. Nothing acts on them yet: the listener, the
-//! verifier, the gateway, the person page, the limits and usage arrive in steps 2a to 9. The
-//! doctor's `auth.*` checks, which need the network, the files or the environment, are step 2c's.
+//! each a `WORKSPACE_CONFIG_INVALID` naming the key. The listener (step 2a) and the verifier and
+//! mapping (step 2b, `crate::auth`) act on them; the gateway, the person page, the remaining
+//! limits and usage arrive in steps 3 to 9. The doctor's `auth.*` checks, which need the network,
+//! the files or the environment, are step 2c's.
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;

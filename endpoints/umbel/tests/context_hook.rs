@@ -1,4 +1,5 @@
-//! The context hook, version 0 (specification sections 4 and 10; AFD's
+//! The context hook, version 1 for local callers (specification sections 4 and 10; phase 5
+//! section 4.2; AFD's
 //! `server_context_hook.rs`): the principal per transport, nothing taken from the request, and
 //! what the journal keeps.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
@@ -17,7 +18,7 @@ use support::*;
 use umbel::HostBuilder;
 
 fn principal_schema() -> Validator {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas/principal.v0.json");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas/principal.v1.json");
     let schema: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     jsonschema::validator_for(&schema).unwrap()
 }
@@ -47,7 +48,7 @@ fn whoami_host(config: &str) -> (tempfile::TempDir, umbel::Host) {
 fn expect_valid(validator: &Validator, principal: &Value) {
     assert!(
         validator.is_valid(principal),
-        "principal.v0.json refuses {principal}"
+        "principal.v1.json refuses {principal}"
     );
 }
 
@@ -64,16 +65,28 @@ async fn stdio_calls_are_the_local_agent_with_process_authentication() {
         assert_eq!(
             data["principal"],
             json!({
-                "version": 0,
+                "version": 1,
                 "actor": { "kind": "agent", "id": "local" },
                 "transport": "stdio",
                 "authentication": "process",
+                "namespace": null,
+                "issuer": null,
+                "delegationChain": [],
+                "tokenBinding": null,
+                "humanPresent": null,
+                "scopes": null,
+                "spaces": null,
+                "policyDecision": { "decision": "allow", "policy": "auth", "reason": null },
+                "policyVersion": host.workspace().config().policy_version,
             })
         );
         expect_valid(&validator, &data["principal"]);
         assert_eq!(data["interface"], "mcp");
-        // The principal is the only key the hook adds.
-        assert_eq!(data["extraKeys"], json!(["dev.umbel/principal"]));
+        // The principal and the (here empty) claim groups are the only keys the hook adds.
+        assert_eq!(
+            data["extraKeys"],
+            json!(["dev.umbel/claim-groups", "dev.umbel/principal"])
+        );
     }
 }
 
@@ -106,14 +119,26 @@ async fn http_calls_are_the_loopback_agent_with_no_authentication() {
         assert_eq!(
             data["principal"],
             json!({
-                "version": 0,
+                "version": 1,
                 "actor": { "kind": "agent", "id": "loopback" },
                 "transport": "http",
                 "authentication": "none",
+                "namespace": null,
+                "issuer": null,
+                "delegationChain": [],
+                "tokenBinding": null,
+                "humanPresent": null,
+                "scopes": null,
+                "spaces": null,
+                "policyDecision": { "decision": "allow", "policy": "auth", "reason": null },
+                "policyVersion": host.workspace().config().policy_version,
             })
         );
         expect_valid(&validator, &data["principal"]);
-        assert_eq!(data["extraKeys"], json!(["dev.umbel/principal"]));
+        assert_eq!(
+            data["extraKeys"],
+            json!(["dev.umbel/claim-groups", "dev.umbel/principal"])
+        );
     }
 }
 
@@ -254,7 +279,7 @@ async fn the_journal_keeps_the_expected_actor_and_a_digest_of_the_expected_conte
         // The digest covers the actor, the interface, the trace id and the *names* of the other
         // context keys: here the defaults the server fills and the principal key.
         let principal = json!({
-            "version": 0,
+            "version": 1,
             "actor": serde_json::to_value(&actor).unwrap(),
             "transport": principal_transport,
             "authentication": authentication,
@@ -265,7 +290,8 @@ async fn the_journal_keeps_the_expected_actor_and_a_digest_of_the_expected_conte
             .with_trace_id(entry.trace_id.clone().expect("a trace id"))
             .with_clock(SYSTEM_CLOCK)
             .with_random(SYSTEM_RANDOM)
-            .with_extra("dev.umbel/principal", principal);
+            .with_extra("dev.umbel/principal", principal)
+            .with_extra("dev.umbel/claim-groups", json!([]));
         assert_eq!(
             entry.context_digest.hash,
             create_context_digest(&expected).hash,

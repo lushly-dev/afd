@@ -160,6 +160,35 @@ pub(crate) fn readable(caller: &Caller<'_>, id: &str) -> Result<(Proposal, Recor
     Ok((proposal, record))
 }
 
+/// Whether a caller with the effective `principal`, the legacy principals it stands for
+/// (`equivalents`, phase 5 section 4.6) and the actor text `actor` wrote one of `authors`
+/// (D102): one person's namespaced and legacy principals are one author.
+fn is_author(
+    authors: &std::collections::BTreeSet<String>,
+    principal: &str,
+    equivalents: &[String],
+    actor: &str,
+) -> bool {
+    authors.contains(principal)
+        || equivalents.iter().any(|legacy| authors.contains(legacy))
+        || authors.contains(actor)
+}
+
+/// Whether `caller`, as `own` (its effective principal, or its actor for a proposer), wrote one
+/// of `authors`, its legacy principals (`CallContext::equivalents`) included.
+fn caller_wrote(
+    authors: &std::collections::BTreeSet<String>,
+    caller: &Caller<'_>,
+    own: &str,
+) -> bool {
+    is_author(
+        authors,
+        own,
+        &caller.cx.call().equivalents,
+        &caller.actor.text(),
+    )
+}
+
 /// The checks every decision shares: a person, approve's reader rules ([`readable`]), the area's
 /// approvers.
 fn gate(caller: &Caller<'_>, id: &str) -> Result<Gate, Outcome> {
@@ -233,11 +262,12 @@ fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
     // target's readers, then each source.
     let self_approval = if proposal.drafter.is_some() {
         let authors = checks::recheck(caller, &proposal)?;
-        authors.contains(&caller.principal) || authors.contains(&caller.actor.text())
+        caller_wrote(&authors, caller, &caller.principal)
     } else {
         // A verification is the approver's own attestation, not a change someone else wrote
         // (decision D63): applying one's own is not self-approval.
-        caller.actor.text() == proposal.proposer.actor.text() && proposal.change.op != Op::Verify
+        let proposer = std::collections::BTreeSet::from([proposal.proposer.actor.text()]);
+        caller_wrote(&proposer, caller, &caller.actor.text()) && proposal.change.op != Op::Verify
     };
     let exception = if self_approval {
         if !area.allow_self_approval {
@@ -702,4 +732,63 @@ pub(crate) fn apply_own(
     area: &Area,
 ) -> Result<Outcome, Outcome> {
     apply(caller, proposal, record, area, None, Decider::Person)
+}
+
+#[cfg(test)]
+mod author_tests {
+    use super::{caller_wrote, is_author};
+    use crate::proposal::common::Caller;
+    use crate::proposal::model::ActorRef;
+    use std::collections::BTreeSet;
+    use umbel_sdk::{CallContext, Cx};
+
+    #[test]
+    fn the_approving_caller_is_the_author_of_its_legacy_principals_drafts() {
+        let call = |equivalents: Vec<String>| CallContext {
+            actor_kind: "human".into(),
+            actor_id: Some("corp/ada".into()),
+            equivalents,
+            ..CallContext::default()
+        };
+        let legacy = BTreeSet::from(["human:ada".to_owned()]);
+        for (equivalents, expected) in [(vec!["human:ada".to_owned()], true), (Vec::new(), false)] {
+            let cx = Cx::without_grants(call(equivalents));
+            let caller = Caller {
+                cx: &cx,
+                space: "main".into(),
+                now: String::new(),
+                now_ms: 0,
+                actor: ActorRef {
+                    kind: "human".into(),
+                    id: Some("corp/ada".into()),
+                    on_behalf_of: None,
+                },
+                principal: "human:corp/ada".into(),
+            };
+            assert_eq!(caller_wrote(&legacy, &caller, "human:corp/ada"), expected);
+        }
+    }
+
+    #[test]
+    fn a_legacy_principal_is_the_same_author_one_way() {
+        let legacy = BTreeSet::from(["human:ada".to_owned()]);
+        let equivalents = ["human:ada".to_owned()];
+        assert!(is_author(
+            &legacy,
+            "human:corp/ada",
+            &equivalents,
+            "human:corp/ada"
+        ));
+        assert!(!is_author(&legacy, "human:corp/ada", &[], "human:corp/ada"));
+        // One way: the legacy principal is not the namespaced one's author.
+        let namespaced = BTreeSet::from(["human:corp/ada".to_owned()]);
+        assert!(!is_author(&namespaced, "human:ada", &[], "human:ada"));
+        assert!(is_author(&namespaced, "human:corp/ada", &[], "agent:x"));
+        assert!(is_author(
+            &BTreeSet::from(["agent:x".to_owned()]),
+            "human:corp/ada",
+            &[],
+            "agent:x"
+        ));
+    }
 }

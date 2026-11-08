@@ -766,3 +766,56 @@ async fn a_failed_digest_call_keeps_no_input_value() {
         Some("INVALID")
     );
 }
+
+#[tokio::test]
+async fn a_namespaced_principal_owns_its_legacy_records_through_equivalents() {
+    // Phase 5 section 4.6: `human:corp/ada` is the person `human:ada` was, one way. Agents act
+    // here, since a person is a sharing writer of every record they can read.
+    let text = config(
+        "writers = [\"group:sharers\"]\nagents_may_share = true",
+        "\n[principal.equivalents]\n\"human:ada\" = \"human:corp/ada\"\n",
+    )
+    .replace("config_version = 4", "config_version = 5")
+        + "\n[auth.namespaces.corp]\n\n[access.groups.sharers]\nmembers = [\"human:carol\"]\n";
+    let (_dir, host) = make(&text);
+    let change = |op: &str, args: Value| {
+        let mut args = args;
+        args["op"] = json!(op);
+        args
+    };
+    let private = remember(&host, agent_for("a0", "ada"), json!({ "n": 1 })).await;
+    let shared = remember(
+        &host,
+        agent_for("c0", "carol"),
+        json!({ "n": 2, "share": "space" }),
+    )
+    .await;
+    // The namespaced person reads the legacy private record and may change it.
+    let outcome = run(
+        &host,
+        agent_for("a1", "corp/ada"),
+        "mem-change",
+        change("invalidate", json!({ "id": private })),
+    )
+    .await;
+    assert!(outcome.success, "{outcome:?}");
+    // Without the equivalent, another person's readable record is not owned.
+    let outcome = run(
+        &host,
+        agent_for("a2", "corp/bo"),
+        "mem-change",
+        change("invalidate", json!({ "id": shared })),
+    )
+    .await;
+    assert!(refusal(&outcome).1.contains("MEMORY_NOT_OWNED"));
+    // One way: the legacy principal does not reach the namespaced person's record.
+    let namespaced = remember(&host, agent_for("a1", "corp/ada"), json!({ "n": 3 })).await;
+    let outcome = run(
+        &host,
+        agent_for("a3", "ada"),
+        "mem-change",
+        change("invalidate", json!({ "id": namespaced })),
+    )
+    .await;
+    assert!(!outcome.success, "{outcome:?}");
+}

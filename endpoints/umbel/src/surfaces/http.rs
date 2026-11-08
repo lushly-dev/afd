@@ -14,7 +14,10 @@
 //!    verification work;
 //! 4. the public routes: `/health` and the protected-resource metadata at both well-known paths;
 //! 5. AFD's bearer layer, built with the MCP service from one server
-//!    ([`McpServer::authorized_http_service`]);
+//!    ([`McpServer::authorized_http_service`]), with the host's token verifier
+//!    ([`crate::auth::verifier`]) built from `[auth.issuers]`, which maps each verified token to a
+//!    caller (section 4.1) in the request's caller slot, and the interim scope rule
+//!    ([`crate::auth::interim`]) until step 3;
 //! 6. the per-token limit, phase 5 step 3's;
 //! 7. AFD's host and origin checks, then the MCP service, where the context hook runs.
 //!
@@ -128,21 +131,26 @@ impl HttpServer {
 }
 
 /// The surface `workspace` configures, over `server`: mode `none` (with TLS when `[http.tls]` is
-/// set) or mode `oauth` with `verifier`.
+/// set) or mode `oauth`, with the host's verifier built from `[auth]` (phase 5 step 2b) unless a
+/// test filled the slot with `verifier`.
 ///
-/// Until phase 5 step 2b wires verification from `[auth.issuers]`, the verifier slot is empty in a
-/// shipped build, so mode `oauth` refuses to start rather than serve requests it cannot verify.
-/// Mode `gateway` refuses until step 4.
+/// Mode `oauth` with the host's verifier is served only when the `testkit` seam asks for it,
+/// until the disclosure controls of steps 2c, 3 and 7 exist (amendment from step 2b). Mode
+/// `gateway` refuses until step 4.
 ///
 /// # Errors
 /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, naming the
-/// `[http.tls]` key whose file is missing or invalid, or naming `mcp.first_class_tools` when the
-/// server's surface is invalid; the errors of reading `state/keys/http.token` in mode `none`, and
-/// of opening `state/shared/limits.sqlite3` in mode `oauth`.
+/// `[http.tls]` key whose file is missing or invalid, naming the `[auth]` key the verifier cannot
+/// be built from (an introspection secret unset, for example), or naming
+/// `mcp.first_class_tools` when the server's surface is invalid; the errors of reading
+/// `state/keys/http.token` in mode `none`, and of opening `state/shared/limits.sqlite3` in mode
+/// `oauth`.
 pub(crate) fn server(
     server: &McpServer,
     workspace: &Workspace,
+    #[cfg(feature = "auth")] registry: &Arc<afd::CommandRegistry>,
     #[cfg(feature = "auth")] verifier: Option<Arc<dyn TokenVerifier>>,
+    #[cfg(feature = "auth")] environment: &crate::auth::fetch::AuthEnvironment,
 ) -> Result<HttpServer, HostError> {
     #[cfg(not(feature = "auth"))]
     {
@@ -157,13 +165,22 @@ pub(crate) fn server(
         let router = match config.auth.mode {
             AuthMode::None => router(server, workspace)?,
             AuthMode::Oauth => {
-                let Some(verifier) = verifier else {
-                    return Err(not_served(
-                        "auth.mode",
-                        "is \"oauth\", which this build reads but does not serve yet: token verification from [auth.issuers] arrives in phase 5 step 2b, and until then no request could be verified",
-                    ));
+                let verifier: Arc<dyn TokenVerifier> = match verifier {
+                    Some(verifier) => verifier,
+                    None => {
+                        // Built first, so that a configuration it cannot serve is named.
+                        let verifier =
+                            crate::auth::verifier::HostVerifier::from_config(config, environment)?;
+                        if !environment.serve_oauth {
+                            return Err(not_served(
+                                "auth.mode",
+                                "is \"oauth\", which this build verifies and maps (phase 5 step 2b) but does not serve yet: until section 5.4's one answer and the space listings of section 9.4 (step 3), the exact filtering of sections 9.1 to 9.3 (step 7) and workspace-show's hosted answer (step 2c) exist, a verified caller could learn which spaces exist and what they hold",
+                            ));
+                        }
+                        Arc::new(verifier)
+                    }
                 };
-                oauth_router(server, workspace, verifier)?
+                oauth_router(server, workspace, registry, verifier)?
             }
             AuthMode::Gateway => {
                 return Err(not_served(
@@ -363,6 +380,7 @@ pub(crate) fn base_authorization(
 fn oauth_router(
     server: &McpServer,
     workspace: &Workspace,
+    registry: &Arc<afd::CommandRegistry>,
     verifier: Arc<dyn TokenVerifier>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
@@ -378,6 +396,19 @@ fn oauth_router(
             ))
         })?
         .with_filter_tools_by_scope(config.auth.filter_tools_by_scope)
+        .with_resolver(crate::auth::interim::InterimScopes::new(
+            &config.auth.scope_prefix,
+            Arc::clone(registry),
+        ))
+        // Until step 3, every request (listings, resources and the Skills methods included, which
+        // no resolver sees) needs `<prefix>:read` itself.
+        .with_required_scopes([format!("{}:read", config.auth.scope_prefix)])
+        .map_err(|message| {
+            HostError::from(WorkspaceError::config_invalid(
+                "auth.scope_prefix",
+                format!("cannot be required: {message}"),
+            ))
+        })?
         .with_max_body_bytes(max_body_bytes(workspace));
     // The hosted surface admits only the configured public names: no loopback name is implied,
     // so a request must name the host `http.public_url` and `allowed_hosts` publish. An empty
@@ -399,9 +430,14 @@ fn oauth_router(
         .with_authorization(authorization)
         .authorized_http_service(options)
         .map_err(invalid_surface)?;
-    let mcp = tower::service_fn(move |request: Request| {
+    let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
         let at_path = routed.iter().any(|path| path == request.uri().path());
+        // A fresh slot for the caller the verifier maps, replacing anything already there; the
+        // context hook trusts it only beside the credentials AFD admits for the same request.
+        request
+            .extensions_mut()
+            .insert(crate::auth::caller::CallerSlot::default());
         async move {
             if !at_path {
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());

@@ -62,6 +62,15 @@ pub struct CallContext {
     /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
     /// a mounted server always see `false`.
     pub person: bool,
+    /// The legacy principal strings the caller's effective principal stands for (phase 5
+    /// specification, section 4.6, `[principal.equivalents]`, one way): every principal
+    /// comparison a plugin makes consults them beside the effective principal, so a person's
+    /// namespaced principal is never a different person from their legacy one. Empty when none
+    /// maps to it.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see none.
+    pub equivalents: Vec<String>,
 }
 
 /// Who ran a pipeline step, as the host attests it (phase 4 specification, section 10.1): the

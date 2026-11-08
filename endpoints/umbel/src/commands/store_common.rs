@@ -5,7 +5,7 @@ use afd::{CommandContext, CommandError, CommandInterface};
 use serde_json::{Value, json};
 use umbel_store::ReaderFilter;
 
-use crate::access::{effective_principal_of, reader_filter};
+use crate::access::{claim_groups_of, effective_principal_of, reader_filter};
 use crate::workspace::{SpaceId, Workspace};
 
 /// The input property every `store-*` command takes.
@@ -31,6 +31,7 @@ pub(super) fn view(
         workspace.config(),
         space.as_str(),
         effective_principal_of(context).as_deref(),
+        &claim_groups_of(context),
     )?;
     Ok((space, filter))
 }

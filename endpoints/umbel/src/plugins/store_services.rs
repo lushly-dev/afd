@@ -124,10 +124,14 @@ impl CallServices {
 
     /// The reader filter of the caller in `space`; `SPACE_NOT_READABLE` is `NotGranted`.
     pub(super) fn filter(&self, space: &str) -> Result<ReaderFilter> {
+        // Claim groups are the caller's own: reading as another principal gets none.
+        let claim_groups =
+            crate::access::claim_groups_reading(&self.context, self.as_principal.is_some());
         reader_filter(
             self.shared.workspace.config(),
             space,
             self.reading_as().as_deref(),
+            &claim_groups,
         )
         .map_err(|error| ServiceError::NotGranted(format!("{}: {}", error.code, error.message)))
     }
