@@ -182,6 +182,48 @@ describe('P2-D4: changes to one document record at once', () => {
 		expect((await recordOf(workspace, a))?.title).toBe('Renamed');
 	});
 
+	it('P2-D4: an instance save held across a move lands in the new scope or is refused, and leaves no row in the old', async () => {
+		// The app's write of its content waits on a gate, as a slow store would, while a move is asked for.
+		let hold = false;
+		let held = false;
+		let release: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		class HeldWrites extends MemoryAdapter {
+			override async batch(...args: Parameters<MemoryAdapter['batch']>) {
+				if (hold && args[0].some((operation) => operation.path.startsWith('/app-probe/'))) {
+					hold = false;
+					held = true;
+					await gate;
+				}
+				return super.batch(...args);
+			}
+		}
+		const workspace = await documents({ store: new HeldWrites() });
+		const { kernel, scopes } = workspace;
+		const a = await probe(workspace, 'Alpha');
+		await kernel.call('probe-content-set', { document: a, text: 'v1' });
+		hold = true;
+		const saving = kernel.agent.call('probe-content-set', { document: a, text: 'v2-saved' });
+		while (!held) await new Promise((resolve) => setTimeout(resolve, 0));
+		const moving = kernel.call('document-move', { document: a, project: 'atlas' });
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		release();
+		const [saved, moved] = await Promise.all([saving, moving]);
+		expect(moved.success).toBe(true);
+		const there = await kernel.call<{ content: { text: string } | null }>(
+			'probe-content-get',
+			{ document: a },
+			{ scope: scopes.atlas }
+		);
+		if (saved.success) expect(there.data?.content?.text).toBe('v2-saved');
+		const rows = (await workspace.store.list<{ scope: { project?: string } }>('app-probe')).data;
+		expect(
+			rows.filter((row) => JSON.stringify(row).includes(a) && row.scope.project === undefined)
+		).toEqual([]);
+	});
+
 	it.each([false, true])(
 		'P2-D4: an update and a rename both land, reversed %s',
 		async (reversed) => {

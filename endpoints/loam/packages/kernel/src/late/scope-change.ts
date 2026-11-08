@@ -287,6 +287,9 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 					call.scope = { workspace: requested.workspace };
 					scope.note(call.traceId, { scope: call.scope });
 				}
+			}
+			const rest = async () => {
+				if (owner === undefined) return next();
 				// Line 5: a type's instance command names a document in this scope, of its type, under 256 KiB
 				// (documents specification, 4.2 and 4.4); then a store key in another scope.
 				const mismatch =
@@ -298,9 +301,17 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				const project = at === undefined ? undefined : scope.projects.get(at);
 				if (project?.status === 'archived' && deps.isMutation(name))
 					return archivedRefusal(project);
-			}
-			const result = await next();
-			if (owner !== undefined) await deps.documents?.after(name, call, result.success);
+				const done = await next();
+				await deps.documents?.after(name, call, done.success);
+				return done;
+			};
+			// An instance mutation's check, write and stamp run in its document's chain, so a move or a trash of
+			// it waits, or it waits for theirs and is checked against what they left (documents specification,
+			// Status, deviation 18). A nested mutation is refused at the port, and nothing chained waits on itself.
+			const documents = owner === undefined ? undefined : deps.documents;
+			const chained = documents?.chained(name, input);
+			const result =
+				documents && chained !== undefined ? await documents.serial(chained, rest) : await rest();
 			await deps.settle?.(name, call);
 			if (
 				result.success &&

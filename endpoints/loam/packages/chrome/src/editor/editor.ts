@@ -157,6 +157,8 @@ export class EditorController implements FrameListener {
 	#types = new Map<string, DocumentTypeV1>();
 	/** The tab to focus once the strip renders, and whether focus then goes into its editor. */
 	#focus: { tab: string; editor: boolean } | null = null;
+	/** By tab, the parked frames still saving, which a tab shown again meanwhile takes back with their drafts. */
+	readonly #parking = new Map<string, LoamEditorFrame>();
 	/** By document, the frames waiting for their document's new tab, after their saves rejected (5.5). */
 	readonly #adopt = new Map<string, LoamEditorFrame>();
 	/** A render once the app surfaces have registered `ICONS_V1`, when one ran before them. */
@@ -383,9 +385,14 @@ export class EditorController implements FrameListener {
 		ids: ReadonlySet<string>
 	): void {
 		let frame = this.#frames.get(tab.id);
-		// A frame whose save rejected after another's close, with its draft, taken by its document's new tab.
+		// A frame whose save rejected after another's close, with its draft, taken by its document's new tab;
+		// or one parked and still saving, taken back by its own tab.
 		const adopted = this.#adopt.get(tab.document);
-		if (!frame && adopted) {
+		const parking = this.#parking.get(tab.id);
+		if (!frame && parking) {
+			this.#parking.delete(tab.id);
+			frame = this.#take(parking, tab.id, group);
+		} else if (!frame && adopted) {
 			this.#adopt.delete(tab.document);
 			frame = this.#take(adopted, tab.id, group);
 		}
@@ -666,9 +673,12 @@ export class EditorController implements FrameListener {
 		void this.#kernel.call('editor-selection-set', { tab: frame.tab, selection });
 	}
 
-	/** Whether `frame` is the one now held for its tab: tab ids repeat across scopes, and a retired frame is gone. */
+	/**
+	 * Whether `frame` is the one now held for its tab, or parked and still saving: tab ids repeat across scopes,
+	 * and a retired frame is gone.
+	 */
 	#live(frame: LoamEditorFrame): boolean {
-		return this.#frames.get(frame.tab) === frame;
+		return this.#frames.get(frame.tab) === frame || this.#parking.get(frame.tab) === frame;
 	}
 
 	/**
@@ -690,6 +700,7 @@ export class EditorController implements FrameListener {
 		// A closed tab's frame was showing when its tab was the active one.
 		const shown = !frame.hidden;
 		let kept = false;
+		if (how === 'parked') this.#parking.set(tab, frame);
 		try {
 			const saved = !dirty || (await this.#save(frame));
 			if (!saved && key === this.#scopeKey && this.#area.isConnected) {
@@ -708,7 +719,9 @@ export class EditorController implements FrameListener {
 			)
 				await this.#kernel.call('editor-dirty-set', { tab, dirty: false }, { scope });
 		} finally {
-			if (!kept) await frame.dispose();
+			if (this.#parking.get(tab) === frame) this.#parking.delete(tab);
+			// Taken back by its tab while it saved, it is that tab's frame now.
+			if (!kept && this.#frames.get(tab) !== frame) await frame.dispose();
 		}
 	}
 
@@ -848,6 +861,7 @@ export class EditorController implements FrameListener {
 		const frames = [...this.#frames.values()];
 		this.#frames.clear();
 		this.#shown.clear();
+		this.#parking.clear();
 		this.#records.clear();
 		for (const group of this.#groups.values()) group.remove();
 		this.#groups.clear();

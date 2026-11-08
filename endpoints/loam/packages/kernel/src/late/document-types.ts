@@ -166,6 +166,12 @@ export interface DocumentCheck {
 	 * it waits on another change to the same record, so it cannot wait on itself.
 	 */
 	serial<T>(document: string, run: () => Promise<T>): Promise<T>;
+	/**
+	 * The document a type's instance mutation names, whose chain its check, its handler's write and its stamp
+	 * run in together, so a move or a trash never lands between them; undefined for anything else, an instance
+	 * query among them, which runs unchained.
+	 */
+	chained(name: string, input: unknown): string | undefined;
 }
 
 /** Leave the call without its input in the journal, and answered from its record in a replay (4.4). */
@@ -301,6 +307,12 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 
 	return {
 		serial,
+		chained(name, input) {
+			const document = (input as { document?: unknown } | null)?.document;
+			return typeOfCommand(name) && deps.isMutation(name) && typeof document === 'string'
+				? document
+				: undefined;
+		},
 		types,
 		find,
 		put,
@@ -335,13 +347,12 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			const id = checked.get(call);
 			checked.delete(call);
 			if (id === undefined || !succeeded || !deps.isMutation(name)) return;
-			await serial(id, async () => {
-				const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id);
-				if (!record) return;
-				// So `document-list`'s recents are right however the content changes (3).
-				await put({ ...record, updatedAt: callNow(call), updatedBy: actorKey(call) });
-				scope.note(call.traceId, { document: record.id });
-			});
+			// In the document's chain already, with the check and the write (`chained`).
+			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id);
+			if (!record) return;
+			// So `document-list`'s recents are right however the content changes (3).
+			await put({ ...record, updatedAt: callNow(call), updatedBy: actorKey(call) });
+			scope.note(call.traceId, { document: record.id });
 		},
 	};
 }

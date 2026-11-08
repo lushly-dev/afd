@@ -1085,6 +1085,25 @@ describe('P2-D5: the editor area, native half', () => {
 		await opened.context.close();
 	});
 
+	it('P2-D5: a parked editor still saving is taken back, with its draft, when the person shows its tab again', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await open(page, await createNote(page, 'First'));
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'parked draft');
+		// Ten more park it, its save held; the person shows it again while it saves, and then the save rejects.
+		for (let index = 2; index <= 11; index++)
+			await open(page, await createNote(page, `Note ${index}`));
+		await framesGone(page, ['t1']);
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await failAll(page);
+		await editorIdle(page);
+		await expect.poll(() => draftOf(page, 't1')).toBe('parked draft');
+		expect((await editorView(page))?.[0]?.editors.find((each) => !each.hidden)?.tab).toBe('t1');
+		await opened.context.close();
+	});
+
 	it('P2-D5: a tab’s type icon is blank until the app surfaces register the icons, then drawn', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
