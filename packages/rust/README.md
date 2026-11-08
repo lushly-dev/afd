@@ -522,8 +522,11 @@ the handler then, at its next `.await`.
 `context.report_progress("indexing")` sets the task's `statusMessage`. The default store is in
 memory, for one process, and bounded (32 tasks per owner, 256 in all, dropping finished tasks to
 make room; at most 64 running per process); a host with several processes supplies a shared
-`TaskStore`. Over HTTP the owner check needs authorization or a context hook that maps callers to
-actors: without either, every caller is one owner and a task id is the only guard.
+`TaskStore`. A server creates tasks only for callers it can tell apart: over stdio always, over
+HTTP only with authorization (`server-auth`) or with
+`TaskOptions::with_callers_identified_by_hook()` and a context hook that maps every distinct
+caller to a distinct actor. Otherwise it does not declare the extension, `Optional` runs inline
+and `Required` fails with `UNAUTHORIZED`.
 
 ```rust,ignore
 use afd::server::{InMemoryTaskStore, McpServer, TaskOptions};

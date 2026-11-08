@@ -128,7 +128,9 @@ not delivered; `TASK_TOKEN_EXPIRED`'s retryable value is "Varies", `false` for a
 handler started; a handler that returned before a `tasks/cancel` took effect keeps its result; the
 unknown-task answer is `-32602`, and the server checks the owner and the TTL again whatever the store
 returned; on an authorized server the owner must still hold what the task's command needs to read or
-update it, but not to cancel it; a server that cannot tell its callers apart gives them one owner;
+update it, but not to cancel it; a server that cannot tell its callers apart (HTTP without credentials
+or a host's declaration that its hook identifies callers) creates no task, declares no extension, runs
+an `optional` command inline and refuses a `required` one with `UNAUTHORIZED`;
 and the default store is bounded, dropping finished tasks to make room before a full store fails the
 call with `RATE_LIMITED`, with a limit on the tasks one process runs.
 

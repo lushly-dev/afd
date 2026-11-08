@@ -154,6 +154,18 @@ pub(crate) fn execution_check(
     None
 }
 
+/// Whether the server has authorization, so every HTTP request it serves carries verified
+/// credentials.
+#[cfg(feature = "server-auth")]
+pub(crate) fn configured(server: &McpServer) -> bool {
+    server.inner.auth.is_some()
+}
+
+#[cfg(not(feature = "server-auth"))]
+pub(crate) fn configured(_server: &McpServer) -> bool {
+    false
+}
+
 /// Whether `tools/list` varies by authorization, so its `cacheScope` is `private`.
 #[cfg(feature = "server-auth")]
 pub(crate) fn filters_listing(server: &McpServer) -> bool {

@@ -2197,15 +2197,14 @@ on another local branch and push to that remote name.
   retryable for a mutation that may have run; finished tasks make room in a full store; at most 64 tasks run per
   process; `TaskOptions` clamps behind getters; `with_ttl_capped_at_token_expiry(grace_ms)` lets a host end a task's
   TTL at its token's `exp` (12.2); the in-server fail-closed check on `tasks/*` is tested; and a server that cannot tell
-  its HTTP callers apart is documented as giving them one owner (a question for the owner, below). Choices are in the
+  its HTTP callers apart creates no task (settled by the strictest reading: no extension declared, `optional` inline,
+  `required` refused with `UNAUTHORIZED`; tasks over HTTP need verified credentials or
+  `TaskOptions::with_callers_identified_by_hook()` with a hook). Choices are in the
   specification's [Amendments from step 0e](phases/5-auth-hosted/spec.md#amendments-from-step-0e).
 - **Not done:** every step of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan) after 0e, 1 to 12.
 - **Next:** steps 1 and 1b may run now (1 needs only 0a); 5 needs 3 as well as 0c and 0d; 8 needs 0e and 3. Heavy
   steps follow the plan's build note.
-- **Waiting on the owner:** one question from step 0e, which blocks nothing in Umbel (its HTTP surface always
-  verifies tokens or maps callers): should an AFD server that cannot tell its HTTP callers apart (no authorization,
-  and no context hook mapping callers to actor ids) refuse tasks rather than give every caller one owner? Step 0e
-  documents the shared owner and does not refuse. Every other phase 5 decision is final.
+- **Waiting on the owner:** nothing. Every phase 5 decision is final.
 - **Follow-ups:** the [specification's list](phases/5-auth-hosted/spec.md#follow-ups).
 
 ## Follow-ups not yet issues

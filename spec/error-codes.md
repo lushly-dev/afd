@@ -130,7 +130,7 @@ budget code, the authorization code and the task code.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `UNAUTHORIZED` | The caller is not signed in | No | Application; the auth package's middleware |
+| `UNAUTHORIZED` | The caller is not signed in. Also a call to a command that runs only as a task on a server that cannot tell its HTTP callers apart ([Tasks](./command-metadata.md#tasks)): the suggestion says the server needs authorization or a hook that identifies callers | No | Application; the auth package's middleware; server engine (Tasks) |
 | `FORBIDDEN` | The caller is signed in but not allowed | No | Application |
 | `TOKEN_EXPIRED` | The caller's session expired; sign in or refresh first | No | Application; the auth package |
 

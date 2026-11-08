@@ -207,6 +207,8 @@ struct Inner {
     /// `with_trusted_transport`): an authorized server serves it without credentials.
     #[cfg_attr(not(feature = "server-auth"), allow(dead_code))]
     trusted_transport: bool,
+    /// Served by [`McpServer::streamable_http_service`]: every request is an HTTP request.
+    serves_http: bool,
     /// The task store, options and running tasks (`spec/command-metadata.md`, "Tasks"), shared
     /// by every clone.
     tasks: Arc<tasks::TaskRuntime>,
@@ -256,6 +258,7 @@ impl McpServer {
                 legacy_back_channel: true,
                 auth: Default::default(),
                 trusted_transport: false,
+                serves_http: false,
                 tasks: Arc::new(tasks::TaskRuntime::default()),
             }),
             session: Some(ContextStack::new()),
@@ -284,6 +287,7 @@ impl McpServer {
             legacy_back_channel: shared.legacy_back_channel,
             auth: shared.auth.clone(),
             trusted_transport: shared.trusted_transport,
+            serves_http: shared.serves_http,
             tasks: Arc::clone(&shared.tasks),
         });
         change(&mut inner);
@@ -858,7 +862,10 @@ impl McpServer {
         let config = config.enforce_origin_validation_if_empty();
         // Stateless HTTP: a 2025 request cannot receive server-sent requests, and has no session
         // to hold a context stack.
-        let mut server = self.clone().with(|inner| inner.legacy_back_channel = false);
+        let mut server = self.clone().with(|inner| {
+            inner.legacy_back_channel = false;
+            inner.serves_http = true;
+        });
         server.session = None;
         Ok(StreamableHttpService::new(
             move || Ok(server.clone()),
@@ -915,9 +922,12 @@ fn internal(error: impl std::fmt::Display) -> ErrorData {
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder().enable_tools();
-        // The Tasks extension (SEP-2663), when an MCP-exposed command may run as a task. `rmcp`
-        // reads this declaration to route `tasks/get`, `tasks/update` and `tasks/cancel`.
-        if self.serves_tasks() {
+        // The Tasks extension (SEP-2663), when an MCP-exposed command may run as a task and the
+        // server can tell its callers apart: never on the Streamable HTTP service without
+        // authorization or the hook's declaration (see `tasks`). `rmcp` reads this declaration to
+        // route `tasks/get`, `tasks/update` and `tasks/cancel`; `discover` and `initialize` also
+        // decide it per request.
+        if self.serves_tasks() && (!self.inner.serves_http || self.identifies_http_callers()) {
             capabilities = capabilities.enable_tasks();
         }
         // The Skills extension (S1): `{}`, or `{ "directoryRead": true }`. `rmcp` reads this
@@ -995,7 +1005,11 @@ impl ServerHandler for McpServer {
     ) -> Result<InitializeResult, ErrorData> {
         authz::check_request(self, &context)?;
         context.peer.set_peer_info(request.clone());
-        self.negotiate_initialize(&request)
+        let mut result = self.negotiate_initialize(&request)?;
+        if !self.declares_tasks_to(&context) {
+            tasks::without_tasks(&mut result.capabilities);
+        }
+        Ok(result)
     }
 
     async fn discover(
@@ -1004,12 +1018,14 @@ impl ServerHandler for McpServer {
     ) -> Result<DiscoverResult, ErrorData> {
         authz::check_request(self, &context)?;
         self.validate_strategy().map_err(internal)?;
-        let mut result = DiscoverResult::from_server_info(
-            self.supported_protocol_versions().into_owned(),
-            self.get_info(),
-        )
-        .with_ttl_ms(self.tools_list_ttl_ms())
-        .with_cache_scope(CacheScope::Public);
+        let mut info = self.get_info();
+        if !self.declares_tasks_to(&context) {
+            tasks::without_tasks(&mut info.capabilities);
+        }
+        let mut result =
+            DiscoverResult::from_server_info(self.supported_protocol_versions().into_owned(), info)
+                .with_ttl_ms(self.tools_list_ttl_ms())
+                .with_cache_scope(CacheScope::Public);
         // The declared context fields (`spec/context-fields.md`, "Discovery"), next to the
         // `serverInfo` that `from_server_info` puts in `_meta`. Not in `initialize`, as in
         // TypeScript.

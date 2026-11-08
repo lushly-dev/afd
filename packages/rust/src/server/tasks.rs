@@ -60,15 +60,26 @@
 //! task in another process through the store's `cancelRequested` flag, which the runner reads
 //! every [`TaskOptions::with_check_interval_ms`].
 //!
-//! # Callers the server cannot tell apart
+//! # Callers the server must tell apart
 //!
-//! The owner check is only as good as the principal binding. Over Streamable HTTP without
-//! authorization (the `server-auth` feature) and without a context hook that maps each caller to
-//! an actor id, every caller binds the same owner: anyone who learns a task id (the `Mcp-Name`
-//! header carries it, and proxies and access logs may record it) can read or cancel the task,
-//! and every caller shares one owner's limit. Use authorization, or map callers to actors in
-//! [`McpServer::with_context_hook`](super::McpServer::with_context_hook), on any server more than
-//! one party can reach. stdio has one client, so its single owner is that client.
+//! A task's owner is only as good as the principal binding, so the server creates a task only
+//! for a caller it can tell apart from every other:
+//!
+//! - **Without an HTTP request** (stdio, or a transport marked trusted), there is one client per
+//!   connection: tasks work as described.
+//! - **Over HTTP**, the call must carry verified credentials (authorization, the `server-auth`
+//!   feature), or the host must declare that its context hook identifies callers
+//!   ([`TaskOptions::with_callers_identified_by_hook`], counted only while a hook is installed).
+//!
+//! Otherwise the server cannot tell its HTTP callers apart, and it behaves as a server without the
+//! extension: it does not declare it (`server/discover`, `initialize`), `tasks/get`,
+//! `tasks/update` and `tasks/cancel` are `-32601`, and an `optional` command runs inline. A
+//! `required` command, which cannot run inline, fails with an `UNAUTHORIZED` result whose
+//! suggestion names the two configurations, before anything runs, whether or not the request
+//! declared the extension. This is decided per request, from the configuration and the request,
+//! not at registration or startup: a `required` command registers on any server, since
+//! authorization may be configured later, and a host that serves the server on its own HTTP stack
+//! is held to the same rule.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -81,7 +92,9 @@ use serde_json::{Map, Value};
 pub use rmcp::model::TASKS_EXTENSION_ID;
 
 mod runtime;
-pub(crate) use runtime::{declares_tasks, missing_capability, TaskRuntime};
+pub(crate) use runtime::{
+    declares_tasks, missing_capability, unidentified_callers, without_tasks, TaskRuntime,
+};
 
 /// A task's default `ttlMs`: one hour, as Umbel's tasks (its section 12.2).
 pub const DEFAULT_TASK_TTL_MS: u64 = 3_600_000;
@@ -629,6 +642,7 @@ pub struct TaskOptions {
     max_result_bytes: usize,
     max_running: usize,
     token_expiry_grace_ms: Option<u64>,
+    callers_identified_by_hook: bool,
 }
 
 impl Default for TaskOptions {
@@ -640,6 +654,7 @@ impl Default for TaskOptions {
             max_result_bytes: DEFAULT_MAX_TASK_RESULT_BYTES,
             max_running: DEFAULT_MAX_RUNNING_TASKS,
             token_expiry_grace_ms: None,
+            callers_identified_by_hook: false,
         }
     }
 }
@@ -697,6 +712,27 @@ impl TaskOptions {
     pub fn with_ttl_capped_at_token_expiry(mut self, grace_ms: u64) -> Self {
         self.token_expiry_grace_ms = Some(grace_ms.min(i64::MAX as u64));
         self
+    }
+
+    /// Declare that the server's context hook
+    /// ([`McpServer::with_context_hook`](super::McpServer::with_context_hook)) identifies every
+    /// HTTP caller, so tasks may run over HTTP without authorization (see
+    /// [the module docs](self#callers-the-server-must-tell-apart)).
+    ///
+    /// **This is a security declaration.** A task's owner is the principal binding of the actor
+    /// the hook leaves, so every distinct caller must map to a distinct actor (`kind`, `id` and
+    /// `onBehalfOf`), from something a layer in front of the service verified, never from a
+    /// header a caller can choose. Two callers the hook maps to one actor can read and cancel each
+    /// other's tasks. It counts only while a context hook is installed; prefer authorization
+    /// (`server-auth`), under which verified credentials identify callers without it.
+    pub fn with_callers_identified_by_hook(mut self) -> Self {
+        self.callers_identified_by_hook = true;
+        self
+    }
+
+    /// Whether [`Self::with_callers_identified_by_hook`] was declared.
+    pub fn callers_identified_by_hook(&self) -> bool {
+        self.callers_identified_by_hook
     }
 
     /// Every task's `ttlMs`, before any cap at the token's expiry.

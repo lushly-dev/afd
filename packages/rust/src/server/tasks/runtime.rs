@@ -8,8 +8,10 @@ use std::time::Duration;
 use futures_util::future::{select, Either};
 use futures_util::FutureExt;
 use rmcp::model::{
-    CallToolResponse, CancelTaskParams, ClientCapabilities, CreateTaskResult, DetailedTask,
-    GetTaskParams, GetTaskResult, Task, TaskPayload, TaskStatus, UpdateTaskParams,
+    CallToolResponse, CancelTaskMethod, CancelTaskParams, ClientCapabilities, ConstString,
+    CreateTaskResult, DetailedTask, GetTaskMethod, GetTaskParams, GetTaskResult,
+    ServerCapabilities, Task, TaskPayload, TaskStatus, UpdateTaskMethod, UpdateTaskParams,
+    TASKS_EXTENSION_ID,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData, RoleServer};
@@ -269,14 +271,72 @@ impl Drop for Registered {
     }
 }
 
+/// The refusal of a `required` command on a server that cannot tell its HTTP callers apart: it
+/// cannot run inline, and no task is created without an owner that tells callers apart.
+pub(crate) fn unidentified_callers(command: &str) -> CommandError {
+    CommandError::new(
+        error_codes::UNAUTHORIZED,
+        format!(
+            "Command '{}' runs only as a task, and this server cannot tell its callers apart, so it starts no task",
+            crate::commands::truncate_name(command)
+        ),
+    )
+    .with_suggestion(
+        "Nothing ran. The server's operator must configure authorization, or declare that the server's context hook identifies every caller; calling again will not help until then.",
+    )
+    .with_retryable(false)
+}
+
+/// Remove the Tasks extension from `capabilities`.
+pub(crate) fn without_tasks(capabilities: &mut ServerCapabilities) {
+    if let Some(extensions) = capabilities.extensions.as_mut() {
+        extensions.remove(TASKS_EXTENSION_ID);
+        if extensions.is_empty() {
+            capabilities.extensions = None;
+        }
+    }
+}
+
 impl McpServer {
-    /// Whether an MCP-exposed command may run as a task, so the server declares the extension.
+    /// Whether an MCP-exposed command may run as a task.
     pub(crate) fn serves_tasks(&self) -> bool {
         self.inner
             .registry
             .list()
             .iter()
             .any(|command| command.expose.mcp && command.task_support().allows_task())
+    }
+
+    /// Whether the configuration identifies every HTTP caller: authorization, or the declaration
+    /// that the context hook does, while a hook is installed.
+    pub(crate) fn identifies_http_callers(&self) -> bool {
+        authz::configured(self) || self.hook_identifies_callers()
+    }
+
+    /// The host declared that its context hook identifies every caller, and a hook is installed.
+    fn hook_identifies_callers(&self) -> bool {
+        self.inner.tasks.options.callers_identified_by_hook() && self.inner.context_hook.is_some()
+    }
+
+    /// Whether the server declares the extension to the request `context`: a task command, and a
+    /// caller it can tell apart from the configuration (a request without HTTP, or a server that
+    /// identifies its HTTP callers).
+    pub(crate) fn declares_tasks_to(&self, context: &RequestContext<RoleServer>) -> bool {
+        self.serves_tasks()
+            && (context.extensions.get::<http::request::Parts>().is_none()
+                || self.identifies_http_callers())
+    }
+
+    /// Whether a task may be created for, or answered to, this caller: a request without HTTP
+    /// (one client per connection), verified credentials, or the hook's declaration.
+    pub(crate) fn identifies_caller(
+        &self,
+        context: &RequestContext<RoleServer>,
+        credentials: Option<&Credentials>,
+    ) -> bool {
+        context.extensions.get::<http::request::Parts>().is_none()
+            || credentials.is_some()
+            || self.hook_identifies_callers()
     }
 
     /// The clock tasks are timed by: the server's ([`McpServer::with_clock`]).
@@ -376,16 +436,22 @@ impl McpServer {
 
     /// Authorize a `tasks/*` request as a `tools/call` that names no command, run the context
     /// hook, and bind the caller (`spec/command-metadata.md`, "Tasks").
-    async fn task_caller(
+    async fn task_caller<M: ConstString>(
         &self,
-        method: &str,
         context: &RequestContext<RoleServer>,
     ) -> Result<Caller, ErrorData> {
+        let method = M::VALUE;
+        // A server that cannot tell its HTTP callers apart has no tasks: the answer of a server
+        // without the extension, whatever the request declared.
+        if !self.declares_tasks_to(context) {
+            return Err(ErrorData::method_not_found::<M>());
+        }
         // `rmcp` refuses a request that does not declare the extension; a 2025 request is
         // refused here too, since the extension is not defined for it.
         if !declares_tasks(context) {
             return Err(missing_capability());
         }
+        // With authorization, the request reached here only with verified credentials.
         let credentials = authz::check_request(self, context)?;
         let mut base = self.base_context().with_trace_id(router::trace_id("task"));
         let mut defaults = self.inner.context_defaults.clone();
@@ -462,7 +528,7 @@ impl McpServer {
         params: GetTaskParams,
         context: &RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, ErrorData> {
-        let caller = self.task_caller("tasks/get", context).await?;
+        let caller = self.task_caller::<GetTaskMethod>(context).await?;
         let record = self.find_task(&caller, &params.task_id, true).await?;
         Ok(GetTaskResult::new(detailed(&record)))
     }
@@ -474,7 +540,7 @@ impl McpServer {
         params: UpdateTaskParams,
         context: &RequestContext<RoleServer>,
     ) -> Result<(), ErrorData> {
-        let caller = self.task_caller("tasks/update", context).await?;
+        let caller = self.task_caller::<UpdateTaskMethod>(context).await?;
         self.find_task(&caller, &params.task_id, true).await?;
         Ok(())
     }
@@ -486,7 +552,7 @@ impl McpServer {
         params: CancelTaskParams,
         context: &RequestContext<RoleServer>,
     ) -> Result<(), ErrorData> {
-        let caller = self.task_caller("tasks/cancel", context).await?;
+        let caller = self.task_caller::<CancelTaskMethod>(context).await?;
         let record = self.find_task(&caller, &params.task_id, false).await?;
         if record.status.is_terminal() {
             return Ok(());

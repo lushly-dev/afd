@@ -411,7 +411,9 @@ Confirmation and approval-relay `requestState`
 ([host-verified confirmation](./command-metadata.md#host-verified-confirmation)) and task owners
 ([tasks](./command-metadata.md#tasks)) bind it. Two calls share a binding only when their actor and
 their token's issuer, subject and client are the same: a different client of the same person is a
-different principal.
+different principal. Over HTTP without credentials, every caller binds alike unless a hook maps
+each to its own actor, so a server creates no task there unless the host declares that its hook
+does ([tasks](./command-metadata.md#tasks)).
 
 ## Options
 

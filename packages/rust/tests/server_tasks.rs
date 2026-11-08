@@ -191,15 +191,53 @@ fn fixture() -> Fixture {
     }
 }
 
-fn options() -> TaskOptions {
+/// The test options, without the hook declaration.
+fn plain_options() -> TaskOptions {
     TaskOptions::new()
         .with_ttl_ms(TTL_MS)
         .with_poll_interval_ms(250)
         .with_check_interval_ms(2)
 }
 
+/// The test options, declaring that the context hook identifies callers. The declaration counts
+/// only on a server with a hook, so [`Fixture::bare`] still cannot tell its HTTP callers apart.
+fn options() -> TaskOptions {
+    plain_options().with_callers_identified_by_hook()
+}
+
+/// Add the identifying context hook: it maps `x-actor` (id), `x-kind` (`human`), `x-for`
+/// (`onBehalfOf`) and `x-label` to the actor, refuses `x-deny`, and records each `tool` it sees.
+fn identifying(server: McpServer, seen: Arc<Mutex<Vec<String>>>) -> McpServer {
+    server.with_context_hook(move |request, context| {
+        let seen = Arc::clone(&seen);
+        async move {
+            seen.lock().unwrap().push(request.tool.clone());
+            if request.header("x-deny").is_some() {
+                return Err(CommandError::new("UNAUTHORIZED", "Not you").with_suggestion("Sign in"));
+            }
+            let kind = match request.header("x-kind") {
+                Some("human") => ActorKind::Human,
+                _ => ActorKind::Agent,
+            };
+            let mut actor = Actor::new(kind);
+            if let Some(id) = request.header("x-actor") {
+                actor = actor.with_id(id);
+            }
+            if let Some(principal) = request.header("x-for") {
+                actor = actor.with_on_behalf_of(principal);
+            }
+            if let Some(label) = request.header("x-label") {
+                actor = actor.with_label(label);
+            }
+            Ok(context.with_actor(actor))
+        }
+    })
+}
+
 impl Fixture {
-    fn server(&self, strategy: ToolStrategy) -> McpServer {
+    /// A server with no context hook: over HTTP it cannot tell its callers apart unless it has
+    /// authorization (its options declare the hook, which does not count without one).
+    fn bare(&self, strategy: ToolStrategy) -> McpServer {
         let server = McpServer::new(Arc::clone(&self.registry), "jobs", "1.0.0")
             .with_tool_strategy(strategy)
             .with_clock(self.clock.clone())
@@ -211,41 +249,18 @@ impl Fixture {
         }
     }
 
-    /// An individual-strategy server whose context hook maps `x-actor` (id), `x-kind`
-    /// (`human`), `x-for` (`onBehalfOf`) and `x-label` to the actor, and refuses `x-deny`.
+    /// A server whose context hook identifies callers, as its options declare.
+    fn server(&self, strategy: ToolStrategy) -> McpServer {
+        identifying(self.bare(strategy), Arc::new(Mutex::new(Vec::new())))
+    }
+
+    /// The individual-strategy [`Self::server`].
     fn hooked(&self) -> McpServer {
-        let seen = Arc::new(Mutex::new(Vec::new()));
-        self.hooked_seeing(seen)
+        self.server(ToolStrategy::Individual)
     }
 
     fn hooked_seeing(&self, seen: Arc<Mutex<Vec<String>>>) -> McpServer {
-        self.server(ToolStrategy::Individual)
-            .with_context_hook(move |request, context| {
-                let seen = Arc::clone(&seen);
-                async move {
-                    seen.lock().unwrap().push(request.tool.clone());
-                    if request.header("x-deny").is_some() {
-                        return Err(
-                            CommandError::new("UNAUTHORIZED", "Not you").with_suggestion("Sign in")
-                        );
-                    }
-                    let kind = match request.header("x-kind") {
-                        Some("human") => ActorKind::Human,
-                        _ => ActorKind::Agent,
-                    };
-                    let mut actor = Actor::new(kind);
-                    if let Some(id) = request.header("x-actor") {
-                        actor = actor.with_id(id);
-                    }
-                    if let Some(principal) = request.header("x-for") {
-                        actor = actor.with_on_behalf_of(principal);
-                    }
-                    if let Some(label) = request.header("x-label") {
-                        actor = actor.with_label(label);
-                    }
-                    Ok(context.with_actor(actor))
-                }
-            })
+        identifying(self.bare(ToolStrategy::Individual), seen)
     }
 }
 
@@ -1075,10 +1090,13 @@ async fn cancel_reaches_a_task_running_in_another_process_through_the_store() {
         .server(ToolStrategy::Individual)
         .with_task_store(Arc::clone(&store));
     // Another process: its own runtime, the same store.
-    let second = McpServer::new(registry(&Arc::new(Runs::default())), "jobs", "1.0.0")
-        .with_clock(fixture.clock.clone())
-        .with_task_options(options())
-        .with_task_store(Arc::clone(&store));
+    let second = identifying(
+        McpServer::new(registry(&Arc::new(Runs::default())), "jobs", "1.0.0")
+            .with_clock(fixture.clock.clone())
+            .with_task_options(options())
+            .with_task_store(Arc::clone(&store)),
+        Arc::new(Mutex::new(Vec::new())),
+    );
     let id = created(&send(&first, "tools/call", call("job-wait", json!({})), true, &[]).await);
     let runs = Arc::clone(&fixture.runs);
     eventually(|| Runs::count(&runs.started) == 1).await;
@@ -1565,36 +1583,214 @@ async fn one_process_runs_at_most_max_running_tasks() {
     created(&answer);
 }
 
+/// What a server that cannot tell its HTTP callers apart answers: no extension, `optional`
+/// inline, `required` refused before anything runs, `tasks/*` as on a server with no task.
+async fn assert_no_tasks(server: &McpServer, runs: &Arc<Runs>) {
+    let discovered = send(server, "server/discover", json!({}), false, &[]).await;
+    assert!(
+        discovered.body["result"]["capabilities"]["extensions"]
+            .get(TASKS_EXTENSION_ID)
+            .is_none(),
+        "{}",
+        discovered.text
+    );
+    let echoes = Runs::count(&runs.echo);
+    let inline = send(server, "tools/call", call("job-echo", json!({})), true, &[]).await;
+    assert_eq!(
+        inline.body["result"]["resultType"], "complete",
+        "{}",
+        inline.text
+    );
+    assert_eq!(
+        inline.body["result"]["structuredContent"]["data"]["task"],
+        false
+    );
+    for declared in [true, false] {
+        let refused = send(
+            server,
+            "tools/call",
+            call("job-must", json!({})),
+            declared,
+            &[],
+        )
+        .await;
+        assert_eq!(refused.status, 200, "{}", refused.text);
+        assert_eq!(refused.body["result"]["isError"], true, "{}", refused.text);
+        let error = &refused.body["result"]["structuredContent"]["error"];
+        assert_eq!(error["code"], "UNAUTHORIZED");
+        assert_eq!(error["retryable"], false);
+        let suggestion = error["suggestion"].as_str().unwrap();
+        assert!(suggestion.contains("authorization") && suggestion.contains("context hook"));
+    }
+    // Only the inline `optional` call ran.
+    assert_eq!(Runs::count(&runs.echo), echoes + 1);
+    // An `optional` command that waits runs inline too: release it first, since the call
+    // answers only when it returns.
+    let runs_before = Runs::count(&runs.started);
+    runs.release.notify_one();
+    let inline = send(server, "tools/call", call("job-wait", json!({})), true, &[]).await;
+    assert_eq!(
+        inline.body["result"]["structuredContent"]["data"]["waited"],
+        true
+    );
+    assert_eq!(Runs::count(&runs.started), runs_before + 1);
+    for (method, declared) in [
+        ("tasks/get", true),
+        ("tasks/get", false),
+        ("tasks/update", true),
+        ("tasks/cancel", true),
+    ] {
+        let mut params = task(&"a".repeat(26));
+        if method == "tasks/update" {
+            params["inputResponses"] = json!({});
+        }
+        let answer = send(server, method, params, declared, &[]).await;
+        assert_eq!(answer.status, 404, "{method}: {}", answer.text);
+        assert_eq!(
+            answer.body["error"],
+            json!({ "code": -32601, "message": method })
+        );
+    }
+}
+
 #[tokio::test]
-async fn without_authorization_or_a_hook_every_http_caller_is_one_owner() {
-    // Documented, not refused: such a server cannot tell its callers apart, so a task id is the
-    // only guard (`afd::server::tasks`, "Callers the server cannot tell apart").
+async fn over_http_without_identified_callers_there_are_no_tasks() {
+    // No hook (the options' declaration does not count without one) and no authorization.
+    let fixture = fixture();
+    let server = fixture.bare(ToolStrategy::Individual);
+    assert_no_tasks(&server, &fixture.runs).await;
+    // A 2025 `initialize` declares no extension either.
+    let initialize = json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-11-25",
+            "capabilities": { "extensions": { TASKS_EXTENSION_ID: {} } },
+            "clientInfo": { "name": "legacy", "version": "0" }
+        }
+    });
+    let (status, body) = common::http_post(&server, initialize, &[]).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body["result"]["capabilities"]["extensions"]
+        .get(TASKS_EXTENSION_ID)
+        .is_none());
+}
+
+#[tokio::test]
+async fn a_hook_without_the_declaration_does_not_identify_callers() {
+    let fixture = fixture();
+    let server = identifying(
+        fixture
+            .bare(ToolStrategy::Individual)
+            .with_task_options(plain_options()),
+        Arc::new(Mutex::new(Vec::new())),
+    );
+    assert_no_tasks(&server, &fixture.runs).await;
+}
+
+#[tokio::test]
+async fn the_declaration_with_a_hook_identifies_callers() {
     let fixture = fixture();
     let server = fixture.server(ToolStrategy::Individual);
+    let discovered = send(&server, "server/discover", json!({}), false, &[]).await;
+    assert_eq!(
+        discovered.body["result"]["capabilities"]["extensions"][TASKS_EXTENSION_ID],
+        json!({}),
+        "{}",
+        discovered.text
+    );
     let id = created(
         &send(
             &server,
             "tools/call",
-            call("job-echo", json!({})),
+            call("job-must", json!({})),
             true,
             &[],
         )
         .await,
     );
-    let other = send(
-        &server,
-        "tasks/get",
-        task(&id),
-        true,
-        &[("x-forwarded-for", "10.0.0.9")],
+    assert_eq!(
+        settle_over_http(&server, &id, &[]).await["result"]["status"],
+        "completed"
+    );
+}
+
+/// A host serving the server on its own Streamable HTTP stack, not through
+/// `streamable_http_service`: the server decides per request, so the same rule holds.
+#[tokio::test]
+async fn the_rule_holds_on_a_host_s_own_http_stack() {
+    use rmcp::transport::streamable_http_server::{
+        session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+    };
+    let fixture = fixture();
+    let server = fixture.bare(ToolStrategy::Individual);
+    let service = || {
+        let server = server.clone();
+        let config = StreamableHttpServerConfig::default()
+            .with_legacy_session_mode(false)
+            .with_json_response(true);
+        StreamableHttpService::new(
+            move || Ok(server.clone()),
+            Arc::new(LocalSessionManager::default()),
+            config,
+        )
+    };
+    let discovered = answer_of(service(), request("server/discover", json!({}), false, &[])).await;
+    assert!(
+        discovered.body["result"]["capabilities"]["extensions"]
+            .get(TASKS_EXTENSION_ID)
+            .is_none(),
+        "{}",
+        discovered.text
+    );
+    let refused = answer_of(
+        service(),
+        request("tools/call", call("job-must", json!({})), true, &[]),
     )
     .await;
     assert_eq!(
-        other.body["result"]["taskId"],
-        id.as_str(),
+        refused.body["result"]["structuredContent"]["error"]["code"], "UNAUTHORIZED",
         "{}",
-        other.text
+        refused.text
     );
+    let inline = answer_of(
+        service(),
+        request("tools/call", call("job-echo", json!({})), true, &[]),
+    )
+    .await;
+    assert_eq!(
+        inline.body["result"]["structuredContent"]["data"]["task"],
+        false
+    );
+    let answer = answer_of(
+        service(),
+        request("tasks/get", task(&"a".repeat(26)), true, &[]),
+    )
+    .await;
+    assert_eq!(answer.body["error"]["code"], -32601, "{}", answer.text);
+    // A 2025 `initialize` there declares no extension either.
+    let initialize = json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "clientInfo": { "name": "legacy", "version": "0" }
+        }
+    });
+    let request = http::Request::post("/mcp")
+        .header("host", "localhost")
+        .header("content-type", "application/json")
+        .header("accept", "application/json, text/event-stream")
+        .body(Full::new(bytes::Bytes::from(initialize.to_string())))
+        .unwrap();
+    let answer = answer_of(service(), request).await;
+    assert_eq!(
+        answer.body["result"]["protocolVersion"], "2025-11-25",
+        "{}",
+        answer.text
+    );
+    assert!(answer.body["result"]["capabilities"]["extensions"]
+        .get(TASKS_EXTENSION_ID)
+        .is_none());
 }
 
 /// A store that answers with the owner's other task, whatever id it is asked for: the server must
@@ -1862,7 +2058,16 @@ fn stdio_params(params: Value, tasks: bool) -> Value {
 #[tokio::test]
 async fn tasks_run_end_to_end_over_stdio() {
     let fixture = fixture();
-    let mut client = Stdio::connect_modern(fixture.server(ToolStrategy::Individual));
+    // No hook and no authorization: one client per connection identifies the caller.
+    let mut client = Stdio::connect_modern(fixture.bare(ToolStrategy::Individual));
+    let discovered = client
+        .request("server/discover", stdio_params(json!({}), false))
+        .await;
+    assert_eq!(
+        discovered["result"]["capabilities"]["extensions"][TASKS_EXTENSION_ID],
+        json!({}),
+        "{discovered}"
+    );
     let answer = client
         .request(
             "tools/call",
@@ -2062,8 +2267,36 @@ mod authorized {
 
     fn authorized(fixture: &Fixture, auth: &Authorization) -> McpServer {
         fixture
-            .server(ToolStrategy::Individual)
+            .bare(ToolStrategy::Individual)
             .with_authorization(auth.clone())
+    }
+
+    #[tokio::test]
+    async fn verified_credentials_identify_callers_without_a_hook() {
+        let fixture = fixture();
+        let auth = authorization();
+        let server = authorized(&fixture, &auth);
+        let discovered = admitted(&server, &auth, base(), "server/discover", json!({})).await;
+        assert_eq!(
+            discovered.body["result"]["capabilities"]["extensions"][TASKS_EXTENSION_ID],
+            json!({}),
+            "{}",
+            discovered.text
+        );
+        let id = created(
+            &admitted(
+                &server,
+                &auth,
+                base(),
+                "tools/call",
+                call("job-must", json!({})),
+            )
+            .await,
+        );
+        assert_eq!(
+            settle_admitted(&server, &auth, &base(), &id).await["result"]["status"],
+            "completed"
+        );
     }
 
     #[tokio::test]

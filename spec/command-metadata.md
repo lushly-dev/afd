@@ -437,6 +437,23 @@ A request declares it in its own `_meta` client capabilities on MCP 2026-07-28; 
 never does, whatever its session declared at `initialize` (the extension is not defined for
 2025-11-25), so it is treated as not declaring it, `tasks/*` included (`-32021`).
 
+**Only for callers the server can tell apart.** A task's owner protects it only if the server can
+tell its callers apart, so a server creates no task otherwise:
+- without an HTTP request (stdio, or another transport with one client per connection), callers
+  are told apart by their connection, and tasks work as this section says;
+- over HTTP, the call must carry verified credentials ([authorization](./authorization.md)), or
+  the host must declare that its per-request hook identifies every caller (Rust:
+  `TaskOptions::with_callers_identified_by_hook`, which counts only while a hook is installed).
+  The declaration is a promise that every distinct caller maps to a distinct actor.
+
+A server that cannot tell its HTTP callers apart behaves as a server without the extension: it
+does not declare it, `tasks/get`, `tasks/update` and `tasks/cancel` answer `-32601`, and an
+`optional` command runs inline. A `required` command, which cannot run inline, fails before
+anything runs with `UNAUTHORIZED` (`retryable: false`), whose suggestion says to configure
+authorization or the hook declaration, whether or not the request declared the extension. This is
+decided per request, from the configuration and the request: a `required` command is never
+refused at registration, since authorization may be configured later.
+
 **Creating one.** Everything an inline call meets before dispatch happens first: the HTTP layer's
 403 ([authorization, M6](./authorization.md#m6-scopes)), the context hook and the scope check.
 Then:
@@ -474,12 +491,9 @@ itself, whatever the store returned. On an authorized server the owner must also
 call of the task's command needs, as far as it is known without the input, to read or update it: the
 command's `scopes`, or under a resolver its `visible` (else the request is refused with
 `INSUFFICIENT_SCOPE`, as a request that names no command is for its required scopes). `tasks/cancel`
-does not ask that, since stopping a task only takes authority away. The check is only as good as the
-binding: a server that cannot tell its callers apart (HTTP with neither authorization nor a hook
-that maps callers to actors) gives them all one owner, and a task id is then their only guard.
-`tasks/update` finds no task waiting for input, and answers as the extension says for that.
-`tasks/cancel` requests cooperative cancellation; a finished task is unchanged. `Mcp-Name` carries
-the task id on Streamable HTTP.
+does not ask that, since stopping a task only takes authority away. `tasks/update` finds no task
+waiting for input, and answers as the extension says for that. `tasks/cancel` requests cooperative
+cancellation; a finished task is unchanged. `Mcp-Name` carries the task id on Streamable HTTP.
 
 **The store.**
 

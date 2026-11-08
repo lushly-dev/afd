@@ -379,9 +379,10 @@ impl Call<'_> {
     }
 
     /// Run the one command this call routes to, once every check before dispatch passed: as a
-    /// task when it may be one and the request declares the Tasks extension
-    /// (`spec/command-metadata.md`, "Tasks"); JSON-RPC `-32021` for a `required` command when
-    /// the request does not; inline otherwise.
+    /// task when it may be one, the server can tell the caller apart, and the request declares
+    /// the Tasks extension (`spec/command-metadata.md`, "Tasks"); for a `required` command,
+    /// `UNAUTHORIZED` when the server cannot tell the caller apart and JSON-RPC `-32021` when the
+    /// request does not declare the extension; inline otherwise.
     async fn dispatch(
         &self,
         command: &CommandDefinition,
@@ -390,6 +391,17 @@ impl Call<'_> {
     ) -> Result<CallToolResponse, ErrorData> {
         let support = command.task_support();
         if support.allows_task() {
+            // No task without an owner that tells callers apart: an `optional` command runs
+            // inline, and a `required` one, which cannot, is refused before anything runs.
+            if !self
+                .server
+                .identifies_caller(self.context, self.base.credentials.as_deref())
+            {
+                if support == TaskSupport::Required {
+                    return refused(tasks::unidentified_callers(&command.name));
+                }
+                return self.execute_asking(&command.name, input, round).await;
+            }
             if tasks::declares_tasks(self.context) {
                 return self
                     .server
