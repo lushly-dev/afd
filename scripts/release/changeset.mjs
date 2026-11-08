@@ -20,9 +20,7 @@ function validateArguments(args) {
 		);
 	const values = command === 'add' ? ['--since', '--message', '-m'] : ['--since', '--output', '-o'];
 	const booleans =
-		command === 'add'
-			? ['--empty', '--open', '--help', '-h']
-			: ['--verbose', '-v', '--since-master', '--help', '-h'];
+		command === 'add' ? ['--empty', '--open', '--help', '-h'] : ['--verbose', '-v', '--help', '-h'];
 	let output;
 	for (let index = args[0] === command ? 1 : 0; index < args.length; index++) {
 		const [flag, ...inline] = args[index].split('=');
@@ -39,6 +37,7 @@ function validateArguments(args) {
 export function runChangeset({
 	root = process.cwd(),
 	args = [],
+	env = process.env,
 	execute = (args, root) =>
 		execFileSync(process.execPath, [require.resolve('@changesets/cli'), ...args], {
 			cwd: root,
@@ -46,6 +45,9 @@ export function runChangeset({
 		}),
 } = {}) {
 	const { command, output } = validateArguments(args);
+	// Changesets 3 also reads an output path from CHANGESETS_OUTPUT, past the check below.
+	if (env.CHANGESETS_OUTPUT !== undefined)
+		reject('Unset CHANGESETS_OUTPUT and pass --output, so the report path is checked');
 	const inventory = loadInventory(root);
 	const storages = inventory.storages ?? [{ path: '.changeset', protocol: 'npm-changesets' }];
 	const npmStorage = storages.filter((storage) => storage.protocol === 'npm-changesets');

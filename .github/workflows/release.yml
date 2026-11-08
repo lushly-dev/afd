@@ -226,14 +226,17 @@ jobs:
       - name: Create selected release PR
         if: steps.selection.outputs.selectable == 'true'
         id: changesets
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        # v2 defaults to pushing through the GitHub API and to pushing git tags; keep v1's git
+        # push, and leave every tag to scripts/release-finalize.mjs.
         with:
-          version: pnpm version-packages
-          createGithubReleases: false
-          title: 'chore: release packages'
-          commit: 'chore: release packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version-script: pnpm version-packages
+          create-github-releases: false
+          push-git-tags: false
+          push-with-git-cli: true
+          pr-title: 'chore: release packages'
+          commit-message: 'chore: release packages'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   recover:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
