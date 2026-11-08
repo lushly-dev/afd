@@ -96,17 +96,25 @@ export function versionSelected({
 		const baseline = new Map(tree(candidate, '', { allowRepositoryMirror: true }));
 		const channel = releaseChannel(inventory, plan.selectedUnits);
 		const preState = join(candidate, '.changeset/pre.json');
+		const preApplied = join(candidate, '.changeset/pre');
 		// Changesets' prerelease mode, entered for this run only: each version's own prerelease
 		// number is the state, so the next preview counts on from the published one.
-		if (channel.route === 'npm-prerelease')
-			writeFileSync(
-				preState,
-				`${JSON.stringify({ mode: 'pre', tag: channel.distTag, initialVersions: {}, changesets: [] })}\n`
-			);
+		if (channel.route === 'npm-prerelease') {
+			if (existsSync(preApplied))
+				throw new Error('Changesets prerelease state already exists: .changeset/pre');
+			writeFileSync(preState, `${JSON.stringify({ mode: 'pre', tag: channel.distTag })}\n`);
+		}
 		invoke(candidate);
 		if (channel.route === 'npm-prerelease') {
 			rmSync(preState);
-			// Prerelease mode keeps the fragments it applied; this release has consumed them.
+			// Prerelease mode keeps the fragments it applied, moved to .changeset/pre; this release
+			// has consumed them, and only them.
+			const selected = new Set([...fragments].map((file) => file.replace(/^\.changeset\//, '')));
+			for (const [file] of existsSync(preApplied) ? tree(candidate, '.changeset/pre') : []) {
+				if (!selected.has(file.replace(/^\.changeset\/pre\//, '')))
+					throw new Error(`Changesets applied an unselected fragment: ${file}`);
+			}
+			rmSync(preApplied, { recursive: true, force: true });
 			for (const file of fragments) rmSync(join(candidate, file), { force: true });
 		}
 		const after = new Map(tree(candidate, '', { allowRepositoryMirror: true }));

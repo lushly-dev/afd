@@ -20,9 +20,7 @@ function validateArguments(args) {
 		);
 	const values = command === 'add' ? ['--since', '--message', '-m'] : ['--since', '--output', '-o'];
 	const booleans =
-		command === 'add'
-			? ['--empty', '--open', '--help', '-h']
-			: ['--verbose', '-v', '--since-master', '--help', '-h'];
+		command === 'add' ? ['--empty', '--open', '--help', '-h'] : ['--verbose', '-v', '--help', '-h'];
 	let output;
 	for (let index = args[0] === command ? 1 : 0; index < args.length; index++) {
 		const [flag, ...inline] = args[index].split('=');

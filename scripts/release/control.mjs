@@ -253,6 +253,10 @@ export function parseFragments(root, inventory = loadInventory(root)) {
 			if (['README.md', 'config.json'].includes(file) && storage.protocol === 'npm-changesets')
 				continue;
 			const path = `${storage.path}/${file}`;
+			// Changesets 3 keeps prerelease state in .changeset/pre; the release scripts enter
+			// prerelease mode for one run only, so committed state of any kind is refused.
+			if (lstatSync(join(dir, file)).isDirectory())
+				fail(`Unexpected directory in release fragment storage: ${path}`);
 			const text = read(root, path);
 			const packages = [];
 			if (storage.protocol === 'npm-changesets') {
