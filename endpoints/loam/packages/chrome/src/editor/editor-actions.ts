@@ -89,3 +89,19 @@ export function hearModals(
 		modals.delete(overlayId);
 	});
 }
+
+/** The frames whose save a request is running, so a view asking again meanwhile is not heard. */
+const asking = new WeakSet<LoamEditorFrame>();
+
+/** One save at a time per editor for Mod+S, in the page or from a view's frame, said when it lands. */
+export function saveOnce(
+	frame: LoamEditorFrame,
+	save: () => Promise<boolean>,
+	shell: LoamShell
+): void {
+	if (asking.has(frame)) return;
+	asking.add(frame);
+	void save()
+		.then((saved) => saved && announce(shell, frame))
+		.finally(() => asking.delete(frame));
+}

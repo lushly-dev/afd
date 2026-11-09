@@ -7,6 +7,7 @@
  * document, its links among them, as `documentChanged`, and goes when its tab stops being the active one.
  */
 
+import { css } from '@lushly-dev/fast-element';
 import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type {
 	DocumentRecordV1,
@@ -21,10 +22,28 @@ import type { LoamShell } from '../elements/shell.js';
 interface Held {
 	key: string;
 	mount: LoamMount | null;
+	/** The inspector's plugin, whose own calls its events name as `caller`. */
+	instance: string;
 	document: string;
 }
 
 const held = new WeakMap<LoamShell, Held>();
+
+/** The inspector part and its resize handle, hidden while the active type has no inspector (A-S3). */
+const hiddenPart = css`
+	:host([data-no-inspector]) loam-inspector,
+	:host([data-no-inspector]) [data-resizes='inspector'] {
+		display: none;
+	}
+`;
+
+function hidePart(shell: LoamShell, hide: boolean): void {
+	if (hide && !shell.dataset.inspectorStyled) {
+		shell.dataset.inspectorStyled = '';
+		shell.$fastController.addStyles(hiddenPart);
+	}
+	shell.toggleAttribute('data-no-inspector', hide);
+}
 const heard = new WeakSet<LoamShell>();
 
 /** The active group's active tab's document, from `editor-get`, or undefined with none. */
@@ -100,15 +119,14 @@ export async function syncInspector(
 	drop(shell, part);
 	if (!part || !record || !type || element === undefined) {
 		if (focused && part) focusAfter(shell, part);
-		// No inspector for the active type: an open part would be a landmark with nothing in it, beside a toggle
-		// that says the section has none, so it closes (A-S3).
-		if (shows && shell.presentation.inspector !== 'closed')
-			await kernel.call('layout-set', { inspector: { open: false } });
+		// No inspector for the active type: the part is hidden, never closed, so the person's layout is theirs and
+		// a note shows it again as they left it; the toggle says the section has none (A-S3, the coordinator's call).
+		hidePart(shell, shows);
 		return false;
 	}
 	const host = (shell.apps as { host?(): SurfaceHostV1 } | null)?.host?.();
 	if (!host) return false;
-	const mine: Held = { key, mount: null, document: record.id };
+	const mine: Held = { key, mount: null, document: record.id, instance: type.instance };
 	held.set(shell, mine);
 	try {
 		await host.ensureActivated(type.instance);
@@ -131,6 +149,7 @@ export async function syncInspector(
 		scope: record.scope,
 		document: reference,
 	});
+	hidePart(shell, false);
 	part.setAttribute('heading', `${type.title} details`);
 	const empty = part.querySelector<HTMLElement>('loam-empty-state');
 	if (empty) empty.hidden = true;
@@ -177,7 +196,13 @@ function hear(shell: LoamShell, event: KernelEventV2, resync: () => void): void 
 	const surface = now?.mount?.surface as LoamEditorElementV1 | null | undefined;
 	// A mutation's, never a query's: the inspector's own reads are queries, and would read again forever.
 	if (!event.success || !event.mutation) return;
-	if (event.command === 'document-open' && now?.mount?.matches(':focus-within')) opened = true;
+	// Only the inspector's own open, from its surface while it holds focus: an agent's never moves focus.
+	if (
+		event.command === 'document-open' &&
+		(event as { caller?: string }).caller === now?.instance &&
+		now?.mount?.matches(':focus-within')
+	)
+		opened = true;
 	if (surface && (event.document === now?.document || /^document-/.test(event.command))) {
 		try {
 			surface.documentChanged?.({

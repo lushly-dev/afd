@@ -41,6 +41,9 @@ import {
 /** The link table (9.3). */
 export const LINK_TABLE = 'document-link';
 
+/** How many removed links' ids an undo may name again, the newest kept. */
+export const LINK_UNDO_MAX = 1_000;
+
 /** A link's anchor, as JSON, is at most this many bytes (9.3). */
 export const LINK_ANCHOR_MAX_BYTES = 1024;
 
@@ -79,7 +82,10 @@ export function createDocumentIndex(store: DataAdapter): DocumentIndex {
 	const from = new Map<string, Map<string, DocumentLinkV1>>();
 	const to = new Map<string, Map<string, DocumentLinkV1>>();
 	let built: Promise<void> | undefined;
-	/** The ids `document-link-remove` removed, which its undo may name. */
+	/**
+	 * The ids of links removed, by `document-link-remove` or by expiry, which only a remove's undo names again;
+	 * the newest {@link LINK_UNDO_MAX}, in memory, so an undo after a reload answers as a missing document.
+	 */
 	const gone = new Set<string>();
 	let chain: Promise<unknown> = Promise.resolve();
 	const add = (link: DocumentLinkV1) => {
@@ -119,6 +125,8 @@ export function createDocumentIndex(store: DataAdapter): DocumentIndex {
 			from.get(link.from)?.delete(link.id);
 			to.get(link.to)?.delete(link.id);
 			gone.add(link.id);
+			// Bounded: the oldest removed id goes first.
+			if (gone.size > LINK_UNDO_MAX) gone.delete(gone.values().next().value as string);
 		},
 		undone: (id) => gone.has(id),
 		serial(run) {

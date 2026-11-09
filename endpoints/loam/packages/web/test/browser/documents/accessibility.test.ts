@@ -315,4 +315,46 @@ describe('P2-D10: the editor area under axe', () => {
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	}, 120_000);
+
+	it('P2-D10: an embed’s depth and cycle stops, its Not available, and the link picker with nothing found have no violation', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const notes: string[] = [];
+		for (const title of ['Top', 'Two', 'Three', 'Four', 'Five'])
+			notes.push(await createNote(page, title));
+		const [a, b, c, d, e] = notes as [string, string, string, string, string];
+		const write = (document: string, embeds: string[]) =>
+			agentCall(page, 'notes-content-set', { document, text: 'Text', embeds });
+		await write(a, [b, a, 'doc_nowhere00000']);
+		await write(b, [c]);
+		await write(c, [d]);
+		await write(d, [e]);
+		await kernelCall(page, 'document-open', { document: a });
+		await editorIdle(page);
+		await expect
+			.poll(() =>
+				page.evaluate(() => {
+					const states: string[] = [];
+					const walk = (root: ParentNode | null | undefined) => {
+						for (const element of root?.querySelectorAll('*') ?? []) {
+							if (element.localName === 'loam-embed')
+								states.push((element as unknown as { state: string }).state);
+							walk(element.shadowRoot);
+						}
+					};
+					walk(document.querySelector('loam-shell')?.shadowRoot);
+					return states.sort();
+				})
+			)
+			.toEqual(['deep', 'deep', 'ready', 'ready', 'ready', 'unavailable']);
+		expect(await settledAxe(page), 'a depth stop, a cycle stop and Not available').toEqual([]);
+		await page.locator('loam-editor-frame:not([hidden]) violet-button.link').click();
+		await page.locator('loam-editor-frame:not([hidden]) .filter input').fill('zzzz nothing');
+		await expect
+			.poll(() => page.locator('loam-editor-frame:not([hidden]) .none').isVisible())
+			.toBe(true);
+		expect(await settledAxe(page), 'the link picker with nothing found').toEqual([]);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 120_000);
 });

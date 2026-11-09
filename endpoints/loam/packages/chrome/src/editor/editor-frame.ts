@@ -181,6 +181,12 @@ export class LoamEditorFrame extends FASTElement {
 		this.addEventListener('loam-editor-save', this.#onSave);
 	}
 
+	/**
+	 * Moved by `moveBefore`, it keeps its state: without this, the move falls back to a disconnect and a
+	 * connect, which would end its view (5.6; the re-check's N-B1).
+	 */
+	connectedMoveCallback(): void {}
+
 	override disconnectedCallback(): void {
 		this.removeEventListener(EDITOR_DIRTY_EVENT, this.#onDirty);
 		this.removeEventListener(EDITOR_SELECTION_EVENT, this.#onSelection);

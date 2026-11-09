@@ -214,8 +214,10 @@ export async function connectView(info?: {
 	if (reference && !reference.readOnly) {
 		window.addEventListener('keydown', (event: Event) => {
 			const key = event as KeyboardEvent;
-			if (key.code !== 'KeyS' || !(key.metaKey || key.ctrlKey) || key.altKey || key.shiftKey)
-				return;
+			// The shell's own rule for Mod+S: Command on macOS, Control elsewhere, never both, by physical key.
+			const mac = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
+			const mod = mac ? key.metaKey && !key.ctrlKey : key.ctrlKey && !key.metaKey;
+			if (key.code !== 'KeyS' || !mod || key.altKey || key.shiftKey) return;
 			key.preventDefault();
 			if (!key.repeat) peer.notify('dev.loam/editor-save-request');
 		});

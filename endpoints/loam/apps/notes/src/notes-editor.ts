@@ -467,7 +467,6 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 		this.#report();
 	}
 
-	/** Remove an embed; focus goes to the next Remove, else the previous, else `Embed` (A-B2). */
 	/** The embeds' titles, read through the `documents` grant as the list changes. */
 	embedsChanged(): void {
 		const documents = this.context?.documents;
@@ -479,6 +478,7 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 		});
 	}
 
+	/** Remove an embed; focus goes to the next Remove, else the previous, else `Embed` (A-B2). */
 	unembed(id: string): void {
 		const at = this.embeds.indexOf(id);
 		this.embeds = this.embeds.filter((each) => each !== id);

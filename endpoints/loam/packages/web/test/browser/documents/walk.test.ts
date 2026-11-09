@@ -231,7 +231,9 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
 				return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 			};
-			const viewKinds = ['sheet', 'sheet-type', 'sheet-type', 'embed'] as const;
+			const viewKinds = ['sheet', 'sheet-type', 'sheet-type', 'embed', 'sheet-move'] as const;
+			// The sheets the walk made, which its view moves pick from.
+			const sheets = new Set<string>();
 			let project: string | undefined;
 			let app = false;
 			const steps: string[] = [];
@@ -490,6 +492,7 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 						})) as { data?: { id: string } };
 						if (created.data) {
 							documents.push(created.data.id);
+							sheets.add(created.data.id);
 							await kernelCall(page, 'document-open', { document: created.data.id });
 						}
 					} else if (view === 'sheet-type') {
@@ -503,6 +506,19 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 							.locator('#text')
 							.pressSequentially('y', { timeout: 1_000 })
 							.catch(() => undefined);
+					} else if (view === 'sheet-move') {
+						// An agent moves a view editor's tab: with `moveBefore` its frame keeps its window and draft;
+						// without, as seed 77 walks, it is moved back unsaved (5.6; the re-check's N-B1).
+						const held = tabs.filter((tab) => sheets.has(tab.document));
+						const tab = held[Math.floor(viewRandom() * held.length)];
+						if (tab)
+							await agentCall(page, 'editor-move', {
+								tab: tab.id,
+								group:
+									viewRandom() < 0.5
+										? 'new'
+										: (groups[Math.floor(viewRandom() * groups.length)]?.id ?? 'new'),
+							});
 					} else if (tabs.length > 1) {
 						// An agent embeds one open document in another, which a note shows read-only.
 						await agentCall(page, 'notes-content-set', {

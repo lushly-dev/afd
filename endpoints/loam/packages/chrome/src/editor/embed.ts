@@ -153,6 +153,12 @@ export class LoamEmbed extends FASTElement {
 		void this.#render();
 	}
 
+	/**
+	 * Moved by `moveBefore`, it keeps its state: without this, the move falls back to a disconnect and a
+	 * connect, which would end its view (5.6; the re-check's N-B1).
+	 */
+	connectedMoveCallback(): void {}
+
 	override disconnectedCallback(): void {
 		super.disconnectedCallback();
 		// A render still reading finds it stale, and mounts nothing (G-S3).

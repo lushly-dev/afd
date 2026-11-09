@@ -104,8 +104,10 @@ export interface Life {
 	kept?: number;
 	/** A view's editor saving before a move, where the browser has no `moveBefore`, held where it is meanwhile. */
 	moving?: boolean;
-	/** Its move back was refused: it is not held or asked again. */
+	/** Its move back was refused: the next move goes through, and a later one is asked about again. */
 	refused?: boolean;
+	/** How often its view reloaded on purpose, saved first, moved where the browser has no `moveBefore`. */
+	reloads?: number;
 }
 
 /**
@@ -376,3 +378,6 @@ export const tabIn = (state: EditorReadV1 | null, tab: string) =>
 /** The active group's active tab. */
 export const activeTab = (state: EditorReadV1 | null): string | null | undefined =>
 	state?.groups.find((each) => each.id === state.activeGroup)?.active;
+
+/** Whether the area holds main: connected, and not hidden while an app shows. */
+export const shows = (area: HTMLElement): boolean => area.isConnected && !area.hidden;

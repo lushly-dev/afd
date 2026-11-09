@@ -15,7 +15,7 @@ import { type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
-import { announce, hearModals, keyFrame, saveAll, settleFocus } from './editor-actions.js';
+import { hearModals, keyFrame, saveAll, saveOnce, settleFocus } from './editor-actions.js';
 import { editorAreaDefinition, type LoamEditorArea } from './editor-area.js';
 import { editorFrameDefinition, type FrameListener, type LoamEditorFrame } from './editor-frame.js';
 import {
@@ -51,6 +51,7 @@ import {
 	type ScopeOf,
 	same,
 	savesToMove,
+	shows,
 	tabIn,
 } from './editor-parts.js';
 
@@ -125,7 +126,7 @@ export class EditorController implements FrameListener {
 	/** The groups kept, hidden, while a view editor in them still saves (5.6). */
 	readonly #holding = new Set<LoamEditorGroup>();
 	/** The tab the person's own move names, until the render that moves it. */
-	#moved: string | undefined;
+	#moved = false;
 	/** A render once the app surfaces have registered `ICONS_V1`, when one ran before them. */
 	#icons: Promise<void> | undefined;
 
@@ -190,8 +191,8 @@ export class EditorController implements FrameListener {
 		this.#at = state.scope.project
 			? { workspace: state.workspace.id, project: state.scope.project }
 			: { workspace: state.workspace.id };
-		const shows = state.section === 'documents' && state.active === null;
-		if (!shows) {
+		const showing = state.section === 'documents' && state.active === null;
+		if (!showing) {
 			// No render while an app shows, yet a tab another's call closes leaves now, its editor saving at once,
 			// and the marks still follow the editors.
 			const read = await this.#kernel.call<EditorReadV1>('editor-get');
@@ -201,7 +202,7 @@ export class EditorController implements FrameListener {
 			}
 			void this.#reconcile();
 			// Hidden, never removed: a view editor's frame would end with it (5.6).
-			if (this.#shows()) {
+			if (shows(this.#area)) {
 				const hadFocus = this.#area.matches(':focus-within');
 				this.#area.hidden = true;
 				if (main.dataset.section === 'documents') delete main.dataset.section;
@@ -322,7 +323,7 @@ export class EditorController implements FrameListener {
 				this.#showFrame(element, group.id, active, records.get(active.document), ids);
 			}
 		});
-		this.#moved = undefined;
+		this.#moved = false;
 		for (const [at, { id }] of state.groups.entries())
 			this.#groups.get(id)?.toggleAttribute('data-lead', at === 0);
 		for (const element of gone) holdGroup(element, this.#holding);
@@ -367,7 +368,7 @@ export class EditorController implements FrameListener {
 
 	/** Once the documents area shows, or at once when it does; a change of scope ends the wait too. */
 	#whenShown(): Promise<void> {
-		return this.#shows() ? Promise.resolve() : new Promise((go) => this.#waiting.push(go));
+		return shows(this.#area) ? Promise.resolve() : new Promise((go) => this.#waiting.push(go));
 	}
 
 	/**
@@ -539,6 +540,8 @@ export class EditorController implements FrameListener {
 	// ─── What the kernel says ──────────────────────────────────────────────────────
 
 	#onEvent(event: KernelEventV2): void {
+		// The person's own move, from the tab's menu or an undo, may save a view editor before it (`editor-move.ts`).
+		if (event.command === 'editor-move') this.#moved = event.interface === 'palette';
 		// Another call changed a document: every open editor of it re-reads, its own calls included (5.7).
 		if (event.document !== undefined && event.success) {
 			for (const frame of this.#frames.values()) {
@@ -592,8 +595,6 @@ export class EditorController implements FrameListener {
 		} else {
 			// Focus stays on the tab, and follows it into its new group, from wherever the menu was opened.
 			this.#keepFocus(action.group, tab);
-			// The person's own move: a view editor with unsaved work may save before it (`editor-move.ts`).
-			this.#moved = tab;
 			if (act === 'new-group') await kernel.call('editor-move', { tab, group: 'new' });
 			else await kernel.call('editor-pin', { tab, pinned: act === 'pin' });
 		}
@@ -903,20 +904,19 @@ export class EditorController implements FrameListener {
 		return true;
 	}
 
-	/** Whether the area holds main. */
-	#shows(): boolean {
-		return this.#area.isConnected && !this.#area.hidden;
-	}
-
 	/** A view editor with unsaved work stays put rather than move where the browser has no `moveBefore` (`editor-move.ts`). */
 	#stays(frame: LoamEditorFrame, to: LoamEditorGroup): boolean {
 		const life = this.#lives.get(frame) as Life;
 		const from = frame.parentElement as LoamEditorGroup | null;
 		if (life.moving) return true;
-		if (life.refused) return false;
+		// Its move back was refused once: this move goes through, and a later one is asked about again.
+		if (life.refused) {
+			life.refused = false;
+			return false;
+		}
 		if (!from || !savesToMove(frame, from, to)) return false;
 		life.moving = true;
-		const person = this.#moved === frame.tab;
+		const person = this.#moved;
 		void import('./editor-move.js').then(({ moveAfterSave }) =>
 			moveAfterSave({
 				place,
@@ -961,16 +961,16 @@ export class EditorController implements FrameListener {
 		}
 	}
 
-	/** Every dirty editor's `save()`, and each kept draft's, not waited for, as on `pagehide` (5.5). */
+	/** Mod+S in the page: the editor `keyFrame` chooses saves (5.5). */
 	#onKeydown(event: KeyboardEvent): void {
-		const frame = keyFrame(event, this.#shell.mac, this.#shows(), this.#state, this.#frames);
+		const frame = keyFrame(event, this.#shell.mac, shows(this.#area), this.#state, this.#frames);
 		if (frame && !event.repeat) this.saveAsked(frame);
 	}
 
 	/** Mod+S, in the page or inside a view editor's frame (5.5, 5.6): its save, said politely when it lands. */
 	saveAsked(frame: LoamEditorFrame): void {
 		if (this.#frames.get(frame.tab) === frame)
-			void this.#save(frame).then((saved) => saved && announce(this.#shell, frame));
+			saveOnce(frame, () => this.#save(frame), this.#shell);
 	}
 
 	/** A change of scope: each dirty editor is asked to save, and every one goes (7.6). */

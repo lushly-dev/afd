@@ -163,6 +163,7 @@ describe('connectView', () => {
 			const add = held.addEventListener;
 			held.addEventListener = (type, listener) =>
 				type === 'keydown' ? keydowns.push(listener) : add(type, listener);
+			vi.stubGlobal('navigator', { platform: 'MacIntel' });
 			await connectView();
 			expect(keydowns.length).toBe(readOnly ? 0 : 1);
 			if (readOnly) continue;
@@ -173,10 +174,12 @@ describe('connectView', () => {
 			press({ repeat: true });
 			press({ altKey: true });
 			press({ code: 'KeyA' });
+			// On macOS, Control+S is not the chord, and neither is Command and Control together.
 			press({ metaKey: false, ctrlKey: true });
+			press({ ctrlKey: true });
 			const asked = posted.filter((message) => message.method === 'dev.loam/editor-save-request');
-			expect(asked.length).toBe(2);
-			expect(prevented).toBe(3);
+			expect(asked.length).toBe(1);
+			expect(prevented).toBe(2);
 		}
 	});
 

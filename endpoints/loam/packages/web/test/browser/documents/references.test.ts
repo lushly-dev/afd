@@ -899,3 +899,151 @@ describe('P2-D5: a view editor when another group goes', () => {
 		await opened.context.close();
 	}, 120_000);
 });
+
+describe('P2-D5: moves where the browser has moveBefore (the re-check’s N-B1)', () => {
+	it('P2-D5: the person’s move and an agent’s keep an unsaved view editor’s window, its draft and its mark', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		expect(await page.evaluate(() => 'moveBefore' in Element.prototype)).toBe(true);
+		const note = await createNote(page, 'Beside');
+		await open(page, note, { preview: false });
+		const { sheet, frame } = await draftSheet(page, 'Travels', 'Draft that travels', {
+			preview: false,
+		});
+		await frame.evaluate(() => {
+			(window as unknown as { marker: string }).marker = 'same window';
+		});
+		const same = async () => {
+			expect(await frame.evaluate(() => (window as unknown as { marker?: string }).marker)).toBe(
+				'same window'
+			);
+			expect(await frame.locator('#text').inputValue()).toBe('Draft that travels');
+			expect(await marked(page, 't2')).toBe(true);
+		};
+		await personMove(page, 'Travels');
+		await editorIdle(page);
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
+		await same();
+		await agentCall(page, 'editor-move', { tab: 't2', group: 'g1' });
+		await editorIdle(page);
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note, sheet]]);
+		await same();
+		expect(await storedAt(page, sheet)).toBe('');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: an agent’s move keeps a native editor, its draft and its mark', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const one = await createNote(page, 'One');
+		const two = await createNote(page, 'Two');
+		await open(page, one, { preview: false });
+		await open(page, two, { preview: false });
+		await page.locator('loam-editor-frame[data-tab="t2"] textarea').click();
+		await page.keyboard.type('Native draft');
+		const editorOf = () =>
+			page.evaluate(() => {
+				const frame = document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector('loam-editor-frame[data-tab="t2"]');
+				return frame
+					?.querySelector('loam-mount')
+					?.shadowRoot?.querySelector('notes-editor') as unknown as {
+					marker?: string;
+					draft: string;
+				};
+			});
+		await page.evaluate(() => {
+			const frame = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-editor-frame[data-tab="t2"]');
+			(
+				frame
+					?.querySelector('loam-mount')
+					?.shadowRoot?.querySelector('notes-editor') as unknown as { marker: string }
+			).marker = 'same';
+		});
+		await agentCall(page, 'editor-move', { tab: 't2', group: 'new' });
+		await editorIdle(page);
+		expect(await tabsByGroup(page)).toEqual([[one], [two]]);
+		const kept = await page.evaluate(() => {
+			const frame = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-editor-frame[data-tab="t2"]');
+			const editor = frame
+				?.querySelector('loam-mount')
+				?.shadowRoot?.querySelector('notes-editor') as unknown as {
+				marker?: string;
+				draft: string;
+			};
+			return [editor?.marker, editor?.draft];
+		});
+		void editorOf;
+		expect(kept).toEqual(['same', 'Native draft']);
+		expect(await marked(page, 't2')).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+});
+
+describe('P2-D5: what a view and an agent cannot do (the re-check)', () => {
+	it('P2-D5: forty save requests from a view while its save runs give one save', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { frame } = await draftSheet(page, 'Flooded', 'One save only');
+		await frame.evaluate(() => {
+			for (let index = 0; index < 40; index++)
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						code: 'KeyS',
+						key: 's',
+						metaKey: /Mac/.test(navigator.platform),
+						ctrlKey: !/Mac/.test(navigator.platform),
+					})
+				);
+		});
+		await expect.poll(() => marked(page, 't1')).toBe(false);
+		await editorIdle(page);
+		expect(
+			await frame.evaluate(() => (window as unknown as { sheet: { saves: number } }).sheet.saves)
+		).toBe(1);
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D10: an agent’s document-open moves no focus out of the inspector, and a type with none hides the part without writing the layout', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const a = await createNote(page, 'Inspected');
+		const b = await createNote(page, 'Linked');
+		await kernelCall(page, 'document-link-add', { from: a, to: b });
+		await open(page, a);
+		await kernelCall(page, 'layout-set', { inspector: { open: true } });
+		const row = page.locator('loam-inspector notes-inspector .open', { hasText: 'Linked' }).first();
+		await row.waitFor();
+		await row.focus();
+		await agentCall(page, 'document-open', { document: b, group: 'beside' });
+		await editorIdle(page);
+		expect((await focusedIn(page)).document).toBe(null);
+		// A sheet, whose type has no inspector: the part is hidden, and nothing writes the layout.
+		const before = (await entriesOf(page)).length;
+		const sheet = (
+			(await kernelCall(page, 'document-create', { type: 'sheet', title: 'No inspector' })) as {
+				data: { id: string };
+			}
+		).data.id;
+		await open(page, sheet);
+		const partShown = () =>
+			page.evaluate(() => {
+				const part = document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector('loam-inspector');
+				return !!part && getComputedStyle(part).display !== 'none';
+			});
+		await expect.poll(partShown).toBe(false);
+		await open(page, a);
+		await expect.poll(partShown).toBe(true);
+		expect(
+			(await entriesOf(page)).slice(before).some((entry) => entry.command === 'layout-set')
+		).toBe(false);
+		await opened.context.close();
+	}, 120_000);
+});

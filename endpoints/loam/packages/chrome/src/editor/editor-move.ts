@@ -43,8 +43,10 @@ export async function moveAfterSave(move: ViewMove): Promise<void> {
 	life.moving = false;
 	if (!move.live()) return;
 	const into = move.into();
-	if (saved && into) place(frame, into);
-	else if (!saved) {
+	if (saved && into) {
+		life.reloads = (life.reloads ?? 0) + 1;
+		place(frame, into);
+	} else if (!saved) {
 		await kernel.call(
 			'toast-show',
 			notSaved(
