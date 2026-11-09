@@ -37,6 +37,12 @@ import { createShellStores, type ShellStores } from './stores.js';
  */
 export const DOCUMENTS_LAYOUT = 'loam.layout.~documents';
 
+/** What a layout read shows of the inspector: whether it is open, and the compact class's drawer. */
+interface Presented {
+	inspector: { open: boolean };
+	compact: { drawer: string | null };
+}
+
 export { createOverlayStore } from '../overlays.js';
 export { withBootActions } from './boot-actions.js';
 
@@ -261,26 +267,43 @@ export async function createLateParts(
 		'document-create',
 		created.recording(byName.get('document-create') as ZodCommandDefinition)
 	);
-	// After stage B, `layout-get` answers an inspector `~documents` does not declare as closed, its drawer too,
-	// writing nothing: the shell then hides the part and closes its drawer as for any closed part, and the person's
-	// layout stays theirs, so a note shows the inspector again as they left it (5.1; step 12's re-check, B1).
-	const layoutGet = byName.get('layout-get') as ZodCommandDefinition;
-	byName.set('layout-get', {
-		...layoutGet,
-		async handler(input: unknown, context: CommandContext) {
-			const result = (await layoutGet.handler(input, context)) as CommandResult<{
-				inspector: { open: boolean };
-				compact: { drawer: string | null };
-			}>;
-			const layout = result.data;
-			if (!inspector && layout && deps.state.layoutId() === DOCUMENTS_LAYOUT) {
-				layout.inspector = { ...layout.inspector, open: false };
-				if (layout.compact.drawer === 'inspector')
-					layout.compact = { ...layout.compact, drawer: null };
-			}
-			return result;
-		},
-	} as ZodCommandDefinition);
+	// After stage B, every layout read an agent can make, `layout-get`, `layout-set`'s and `layout-reset`'s results and
+	// `view-state-get` of a layout record, answers an inspector `~documents` does not declare as closed, its drawer
+	// too, writing nothing: the shell then hides the part and closes its drawer as for any closed part, and the
+	// person's layout stays theirs, so a note shows the inspector again as they left it, and an undo, built from
+	// the record, applies as it was recorded (5.1; step 12's re-checks, B1 and S-2).
+	const presented = (layout: Presented): Presented =>
+		inspector
+			? layout
+			: {
+					...layout,
+					inspector: { ...layout.inspector, open: false },
+					compact:
+						layout.compact.drawer === 'inspector'
+							? { ...layout.compact, drawer: null }
+							: layout.compact,
+				};
+	for (const name of ['layout-get', 'layout-set', 'layout-reset', 'view-state-get']) {
+		const command = byName.get(name) as ZodCommandDefinition;
+		byName.set(name, {
+			...command,
+			async handler(input: unknown, context: CommandContext) {
+				const result = (await command.handler(input, context)) as CommandResult<
+					Presented | { id: string; state: Presented }
+				>;
+				const data = result.data;
+				const id = name === 'view-state-get' ? (input as { id: string }).id : 'loam.layout';
+				const documents =
+					id === DOCUMENTS_LAYOUT ||
+					(id === 'loam.layout' && deps.state.layoutId() === DOCUMENTS_LAYOUT);
+				if (!data || !documents) return result;
+				return {
+					...result,
+					data: 'state' in data ? { ...data, state: presented(data.state) } : presented(data),
+				};
+			},
+		} as ZodCommandDefinition);
+	}
 	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
