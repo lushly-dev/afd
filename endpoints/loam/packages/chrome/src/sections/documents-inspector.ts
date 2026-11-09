@@ -147,19 +147,21 @@ let opened = false;
  * Where focus goes once an inspector that held it is replaced: into the active tab's editor after the inspector's
  * own open, as Enter on a tab does (5.8); else the new inspector's first control; else the part.
  */
-/** By shell, whether the inspector's drawer was open when the last call landed. */
-const drawers = new WeakMap<LoamShell, boolean>();
+/** The shells whose inspector drawer was seen open, until a sync sees it closed. */
+const drawers = new WeakSet<LoamShell>();
+
+const drawerOpen = (shell: LoamShell) => shell.presentation.inspector === 'drawer';
 
 /**
  * Focus lost to the page as the inspector's drawer closed, for the active type has none: the drawer hands focus
- * back to what opened it, which may be the page, so the active editor takes it (B1).
+ * back to what opened it, which may be the page, so the active editor takes it (B1). Seen open, by any call or
+ * sync, until a sync sees it closed: the shell's own read of the layout may close it before this sync runs.
  */
 export function refocus(shell: LoamShell): void {
 	const doc = shell.ownerDocument;
 	const part = shell.shadowRoot?.querySelector<HTMLElement>('loam-inspector');
-	const was = drawers.get(shell);
-	drawers.set(shell, shell.presentation.inspector === 'drawer');
-	if (was && !drawers.get(shell) && doc.activeElement === doc.body && part) focusAfter(shell, part);
+	if (drawerOpen(shell) || !drawers.delete(shell)) return;
+	if (part?.hidden && doc.activeElement === doc.body) focusAfter(shell, part);
 }
 
 function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): void {
@@ -192,8 +194,8 @@ function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): voi
 
 /** A change to the inspector's document or its links reaches it, as an editor's does (5.7). */
 function hear(shell: LoamShell, event: KernelEventV2, resync: () => void): void {
-	// Whether the inspector's drawer was open as this call landed, before the shell reads the layout again.
-	drawers.set(shell, shell.presentation.inspector === 'drawer');
+	// The inspector's drawer open as this call landed, before the shell reads the layout again.
+	if (drawerOpen(shell)) drawers.add(shell);
 	const now = held.get(shell);
 	const surface = now?.mount?.surface as LoamEditorElementV1 | null | undefined;
 	// A mutation's, never a query's: the inspector's own reads are queries, and would read again forever.
