@@ -183,10 +183,11 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 33_365,
+	editorMinified: 34_505,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
+	editorMoveMinified: 650,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -388,7 +389,18 @@ async function measurePage() {
 	// The editor area (documents specification, 5 and 12), loaded by the URL's chunk on the first document
 	// opened, restored or routed to: in "the rest" of 2.4's order, after the surfaces, which hold the app
 	// surfaces' `host()` its frames mount through.
-	const editor = closure(/^assets\/editor-/, afterSurfaces);
+	// Less `editor-move`, a chunk of its own with a row of its own, which loads only without `moveBefore`.
+	const editor = closure(/^assets\/editor-(?!move-)/, afterSurfaces);
+	// A view editor's move where the browser has no `moveBefore` (documents specification, 5.6): loaded by the
+	// editor area then alone, after it. Never first paint's, and charged to no other row.
+	const editorMove = closure(/^assets\/editor-move-/, new Set([...afterSurfaces, ...editor]));
+	if (editorMove.size === 0)
+		throw new Error('budget: the build has no `editor-move` chunk to measure');
+	for (const name of editorMove)
+		if (initial.has(name))
+			throw new Error(
+				`budget: \`${name}\` is in first paint, and must load only without \`moveBefore\``
+			);
 	if (editor.size === 0) throw new Error('budget: the build has no `editor` chunk to measure');
 	// The documents section (documents specification, 8 and 12), loaded by the URL's chunk beside the editor
 	// area's, with `loam-tree` and `violet-tree`, which an app's tree sidebar loads this chunk for: in "the
@@ -438,6 +450,7 @@ async function measurePage() {
 		documentsMinified: sizeOf(documents),
 		newMinified: sizeOf(newMenu),
 		embedMinified: sizeOf(embed),
+		editorMoveMinified: sizeOf(editorMove),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -516,6 +529,10 @@ const ROWS = [
 	['documentsMinified', 'The `documents` chunk, with `loam-tree` and `violet-tree`, minified'],
 	['newMinified', 'The `new` chunk, with `violet-menu`, minified'],
 	['embedMinified', 'The `embed` chunk, `loam-embed` and its link, minified'],
+	[
+		'editorMoveMinified',
+		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",
+	],
 ];
 
 export async function measure() {

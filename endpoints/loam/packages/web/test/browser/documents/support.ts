@@ -34,7 +34,7 @@ export interface GroupView {
 export function editorView(page: Page): Promise<GroupView[] | null> {
 	return page.evaluate(() => {
 		const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
-		const area = main?.querySelector('loam-editor-area');
+		const area = main?.querySelector('loam-editor-area:not([hidden])');
 		if (!area) return null;
 		return [...area.querySelectorAll('loam-editor-group')].map((group) => {
 			const list = group.shadowRoot?.querySelector('[role="tablist"]');
@@ -87,7 +87,8 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 13. no tab a leave still owes a mark has `wantsMark` false, but in a scope out of reach, and
  *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed;
  * 14. a view's editor in `frames` is its group's shown frame, or hidden and kept: its save rejected as its tab
- *     hid, it holds its draft, unsaved, with no edit since, until its tab shows again (5.6; step 12).
+ *     hid, it holds its draft, unsaved, with no edit since, until its tab shows again, or held where it is while
+ *     it saves before a move, where the browser has no `moveBefore` (5.6; step 12).
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -107,6 +108,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 			draft?: boolean;
 			edits?: number;
 			kept?: number;
+			moving?: boolean;
 		};
 		type State = {
 			groups: Array<{ id: string; active: string | null; tabs: Array<{ id: string }> }>;
@@ -143,7 +145,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 		const parked = new Set(parking.values());
 		const main = shell.shadowRoot?.querySelector('loam-main');
 		// An app's main keeps the editors off the page, with their drafts (Status, deviation 13).
-		const showing = !!main?.querySelector('loam-editor-area');
+		const showing = !!main?.querySelector('loam-editor-area:not([hidden])');
 		const tabs = new Set(
 			rendered?.groups.flatMap((group) => group.tabs.map((tab) => tab.id)) ?? []
 		);
@@ -315,6 +317,8 @@ export function frameViolations(page: Page): Promise<string[]> {
 		for (const [tab, frame] of frames) {
 			const own = lives.get(frame);
 			if (frame.kind !== 'view' || !frame.hidden) continue;
+			// Or held where it is while it saves before a move, in a browser with no `moveBefore`.
+			if (own?.moving) continue;
 			if (!frame.dirty || own?.kept === undefined || own.kept !== own.edits)
 				broken.push(`14: ${tab}'s view editor is hidden in frames, and not kept with its draft`);
 		}
@@ -353,7 +357,7 @@ export async function open(page: Page, id: string, options: Record<string, unkno
 		const area = document
 			.querySelector('loam-shell')
 			?.shadowRoot?.querySelector('loam-main')
-			?.querySelector('loam-editor-area');
+			?.querySelector('loam-editor-area:not([hidden])');
 		return [...(area?.querySelectorAll('loam-editor-frame:not([hidden])') ?? [])].every(
 			(frame) => (frame as unknown as { state: string }).state !== 'loading'
 		);

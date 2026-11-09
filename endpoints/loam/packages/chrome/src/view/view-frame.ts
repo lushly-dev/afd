@@ -248,6 +248,9 @@ export class LoamViewFrame extends FASTElement {
 		super.disconnectedCallback();
 		clearTimeout(this.#readyTimer);
 		this.#close();
+		// Moved where the browser has no `moveBefore`, it starts again when it reconnects (documents 5.6).
+		this.#started = false;
+		this.state = 'loading';
 	}
 
 	async #start(options: ViewFrameOptions): Promise<void> {

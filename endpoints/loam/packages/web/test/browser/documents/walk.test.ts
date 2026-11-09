@@ -70,6 +70,13 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 		async (start, length, views) => {
 			const opened = await openShell(browser, site.root);
 			const { page } = opened;
+			// Seed 77 walks a browser with no `moveBefore`, across its reloads too: a view editor with unsaved work
+			// then saves before an agent's move, which it refuses when that save rejects (5.6, step 12).
+			if (start === 77) {
+				const strip = () => delete (Element.prototype as { moveBefore?: unknown }).moveBefore;
+				await opened.context.addInitScript(strip);
+				await page.evaluate(strip);
+			}
 			// mulberry32: the same steps for the same seed every run.
 			let seed = start;
 			const random = () => {

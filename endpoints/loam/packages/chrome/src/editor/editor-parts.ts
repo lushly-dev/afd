@@ -102,6 +102,8 @@ export interface Life {
 	opened?: string;
 	/** A view's editor whose teardown's save rejected: its edits then, so it is not torn down again unedited (5.6). */
 	kept?: number;
+	/** A view's editor saving before a move, where the browser has no `moveBefore`, held where it is meanwhile. */
+	moving?: boolean;
 }
 
 /**
@@ -314,3 +316,33 @@ export async function confirmDiscard(
 	);
 	return result === 'confirm';
 }
+
+/**
+ * A group leaving the area goes, unless it holds a view editor with unsaved work, which its frame's removal
+ * would end: it stays, hidden, in `holding` until that editor's leave or move settles (5.6).
+ */
+export function holdGroup(group: HTMLElement, holding: Set<HTMLElement>): void {
+	const unsaved = [...group.children].some(
+		(each) => (each as LoamEditorFrame).kind === 'view' && (each as LoamEditorFrame).dirty
+	);
+	if (!unsaved) {
+		group.remove();
+		return;
+	}
+	group.hidden = true;
+	group.dataset.held = '';
+	holding.add(group);
+}
+
+/** Each held group whose frames have all gone. */
+export function releaseGroups(holding: Set<HTMLElement>): void {
+	for (const group of holding) {
+		if (group.querySelector('loam-editor-frame')) continue;
+		group.remove();
+		holding.delete(group);
+	}
+}
+
+/** Whether `frame` must save before it leaves `from` for `to`: a view editor with unsaved work, which moving would reload where the browser has no `moveBefore` (5.6). */
+export const savesToMove = (frame: LoamEditorFrame, from: HTMLElement, to: HTMLElement): boolean =>
+	frame.kind === 'view' && frame.dirty && from !== to && !('moveBefore' in Element.prototype);

@@ -564,3 +564,161 @@ async function projectId(page: Page, slug: string): Promise<string | undefined> 
 	return ((await kernelCall(page, 'project-get', { project: slug })) as { data?: { id: string } })
 		.data?.id;
 }
+
+/** A sheet's stored text, read by an agent at the workspace, whatever scope is active. */
+const storedAt = (page: Page, document: string) =>
+	page.evaluate(async (document) => {
+		const shell = window.document.querySelector('loam-shell') as unknown as {
+			kernel: {
+				agent: {
+					call(
+						name: string,
+						input: unknown,
+						options: unknown
+					): Promise<{ data?: { text?: string } }>;
+				};
+			};
+		};
+		return (
+			await shell.kernel.agent.call(
+				'sheet-read',
+				{ document },
+				{ scope: { workspace: 'personal' } }
+			)
+		).data?.text;
+	}, document);
+
+/** A new sheet, open, with `text` typed into its view as a person types. */
+async function draftSheet(
+	page: Page,
+	title: string,
+	text: string,
+	options: Record<string, unknown> = {}
+) {
+	const sheet = (
+		(await kernelCall(page, 'document-create', { type: 'sheet', title })) as {
+			data: { id: string };
+		}
+	).data.id;
+	await open(page, sheet, options);
+	const frame = await sheetFrame(page, title);
+	await frame.locator('#text').fill(text);
+	await expect
+		.poll(async () =>
+			(await editorView(page))
+				?.flatMap((group) => group.tabs)
+				.some((tab) => tab.name.includes('unsaved'))
+		)
+		.toBe(true);
+	return { sheet, frame };
+}
+
+const tabsByGroup = async (page: Page) =>
+	(
+		(await kernelCall(page, 'editor-get')) as {
+			data: { groups: Array<{ tabs: Array<{ id: string; document: string; dirty: boolean }> }> };
+		}
+	).data.groups.map((group) => group.tabs.map((tab) => tab.document));
+
+describe('P2-D5: a view editor that cannot move with its draft, where the browser has no moveBefore', () => {
+	it('P2-D5: saves an unsaved view editor before another’s move takes it to a new group, and its view shows what it saved', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
+		const note = await createNote(page, 'Beside it');
+		await open(page, note, { preview: false });
+		const { sheet } = await draftSheet(page, 'Moved', 'Moved draft', { preview: false });
+		await agentCall(page, 'editor-move', { tab: 't2', group: 'new' });
+		await expect.poll(() => storedAt(page, sheet)).toBe('Moved draft');
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
+		await editorIdle(page);
+		// Moved, its view reloaded, showing the text it saved first.
+		const frame = await sheetFrame(page, 'Moved');
+		await expect.poll(() => frame.locator('#text').inputValue()).toBe('Moved draft');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: refuses the move when that save rejects: the tab comes back, its draft and its mark kept in the same view, with a danger toast', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
+		const note = await createNote(page, 'Left alone');
+		await open(page, note, { preview: false });
+		// The sheet alone in its group, which goes with it when an agent moves it.
+		const { sheet, frame } = await draftSheet(page, 'Refused', 'please reject this', {
+			group: 'beside',
+		});
+		await agentCall(page, 'editor-move', { tab: 't2', group: 'g1' });
+		await expect
+			.poll(async () =>
+				(await entriesOf(page)).some(
+					(entry) =>
+						entry.command === 'toast-show' &&
+						String((entry.input as { message?: string }).message).includes('stays in its group')
+				)
+			)
+			.toBe(true);
+		await editorIdle(page);
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
+		// The same view, never reloaded, with the draft; the tab still unsaved, so a trash waits.
+		expect(await frame.locator('#text').inputValue()).toBe('please reject this');
+		expect(await marked(page, 't2')).toBe(true);
+		expect(
+			(
+				(await agentCall(page, 'document-trash', { document: sheet })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		expect(await storedAt(page, sheet)).toBe('');
+		await opened.context.close();
+	}, 120_000);
+});
+
+describe('P2-D5: a view editor across an app and a change of scope', () => {
+	it('P2-D5: keeps a view editor and its draft while an app shows, and shows the same view on the return', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { frame } = await draftSheet(page, 'Kept away', 'Draft kept');
+		await kernelCall(page, 'app-open', { instance: 'hello' });
+		await editorIdle(page);
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		// The same frame, alive, its draft and mark kept.
+		expect(await frame.locator('#text').inputValue()).toBe('Draft kept');
+		expect((await sheetOf(frame)).ready).toBe(true);
+		expect(await marked(page, 't1')).toBe(true);
+		await frame.locator('#text').fill('Draft kept, then more');
+		await expect.poll(() => marked(page, 't1')).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: saves an unsaved view editor in its own scope when the person changes scope, as its frame stays until it answers', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const { sheet } = await draftSheet(page, 'Left behind', 'Saved on the way out');
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		// Well within the 10 seconds a view has to answer: its frame was not removed before it could.
+		await expect.poll(() => storedAt(page, sheet), { timeout: 5_000 }).toBe('Saved on the way out');
+		await editorIdle(page);
+		expect(
+			(await entriesOf(page)).some(
+				(entry) =>
+					entry.command === 'toast-show' &&
+					String((entry.input as { message?: string }).message).includes('not saved')
+			)
+		).toBe(false);
+		// Nothing of the workspace stays on the page under Atlas once it has saved.
+		await expect
+			.poll(() =>
+				page.evaluate(
+					() =>
+						document.querySelector('loam-shell')?.shadowRoot?.querySelectorAll('loam-view-frame')
+							.length
+				)
+			)
+			.toBe(0);
+		await opened.context.close();
+	}, 120_000);
+});
