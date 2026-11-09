@@ -318,6 +318,15 @@ const settleOldest = (page: Page, tab: string, how: 'pass' | 'fail') =>
 		{ tab, how }
 	);
 
+/** The tabs the controller owes a mark's clear, as `<scope> <tab>`. */
+const owedOf = (page: Page) =>
+	page.evaluate(() => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			editor: { lifecycle: readonly unknown[] };
+		};
+		return [...(shell.editor.lifecycle[8] as Map<string, unknown>).keys()];
+	});
+
 /** Whether the controller holds a frame for `tab` that is on the page, with its editor. */
 const frameDrawn = (page: Page, tab: string) =>
 	page.evaluate((tab) => {
@@ -1984,10 +1993,8 @@ describe('P2-D5: the editor area, native half', () => {
 			await editorIdle(page);
 			await settleSaves(page, 't1', 'pass');
 			await editorIdle(page);
-			expect(
-				((await agentCall(page, 'document-trash', { document: secret })) as { success: boolean })
-					.success
-			).toBe(false);
+			// Out of reach, Vault's t1 is still owed its clear.
+			expect((await owedOf(page)).filter((key) => key.endsWith(' t1'))).toHaveLength(1);
 			// Signed in again: a sync reads Vault, and what the leave owed is cleared, before any return.
 			await kernelCall(page, 'auth-sign-in', {
 				method: 'credentials',
@@ -1995,6 +2002,7 @@ describe('P2-D5: the editor area, native half', () => {
 				password: 'x',
 			});
 			await editorIdle(page);
+			expect(await owedOf(page)).toEqual([]);
 			if (how === 'open') {
 				const vault = await page.evaluate(async () => {
 					const shell = document.querySelector('loam-shell') as unknown as {
@@ -2063,6 +2071,151 @@ describe('P2-D5: the editor area, native half', () => {
 		},
 		120_000
 	);
+
+	it.each<[string]>([['passes'], ['rejects']])(
+		'P2-D5: a draft kept while an app shows is saved again when the person changes scope first, and its save %s',
+		async (how) => {
+			const opened = await openShell(browser, site.root);
+			const { page } = opened;
+			await kernelCall(page, 'project-create', { name: 'Atlas' });
+			const alpha = await createNote(page, 'Alpha');
+			await open(page, alpha);
+			await failSaves(page, ['t1']);
+			await typeInto(page, 't1', 'Draft');
+			await kernelCall(page, 'app-open', { instance: 'hello' });
+			await editorIdle(page);
+			await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+			await framesGone(page, ['t1']);
+			// Rejected: kept, marked, waiting for the documents area; the person goes to Atlas first.
+			await settleSaves(page, 't1', 'fail');
+			await editorIdle(page);
+			const toasts = async () =>
+				(JSON.stringify(await kernelCall(page, 'overlay-list')).match(/was not saved/g) ?? [])
+					.length;
+			const before = await toasts();
+			// To pass, the retried save is the editor's own, which writes.
+			if (how === 'passes') {
+				await page.evaluate(() => {
+					const shell = document.querySelector('loam-shell') as unknown as {
+						editor: { lifecycle: readonly unknown[] };
+					};
+					for (const frame of shell.editor.lifecycle[3] as Set<{ save?: unknown }>)
+						delete frame.save;
+				});
+			}
+			await kernelCall(page, 'scope-set', { project: 'atlas' });
+			await editorIdle(page);
+			// Its save is tried once more, in its own scope.
+			if (how === 'rejects') {
+				await expect
+					.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+					.toBeGreaterThan(0);
+				await settleSaves(page, 't1', 'fail');
+				await editorIdle(page);
+				await expect.poll(toasts).toBe(before + 1);
+			}
+			await kernelCall(page, 'scope-set', { project: null });
+			await editorIdle(page);
+			expect(await owedOf(page)).toEqual([]);
+			// Stored, or lost after its toast; either way its mark went, so a trash runs.
+			expect(await stored(page, alpha)).toBe(how === 'passes' ? 'Draft' : '');
+			expect(
+				((await agentCall(page, 'document-trash', { document: alpha })) as { success: boolean })
+					.success
+			).toBe(true);
+			await opened.context.close();
+		},
+		120_000
+	);
+
+	it('P2-D5: a clear the kernel refuses keeps what a leave owes, and a later sync clears it', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const alpha = await createNote(page, 'Alpha');
+		await open(page, alpha);
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Draft');
+		await agentCall(page, 'editor-close', { tab: 't1', discard: true });
+		await framesGone(page, ['t1']);
+		// The first clear of t1 is refused, though the read of its scope succeeds.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input?: unknown, ...rest: unknown[]): Promise<unknown> };
+			};
+			const call = shell.kernel.call.bind(shell.kernel);
+			let once = true;
+			shell.kernel.call = async (name: string, input?: unknown, ...rest: unknown[]) => {
+				const asked = input as { tab?: string; dirty?: boolean } | undefined;
+				if (name === 'editor-dirty-set' && asked?.tab === 't1' && asked.dirty === false && once) {
+					once = false;
+					return {
+						success: false,
+						error: { code: 'TEST_REFUSED', message: 'Refused by the test' },
+					};
+				}
+				return call(name, input, ...rest);
+			};
+		});
+		await settleSaves(page, 't1', 'pass');
+		await editorIdle(page);
+		expect((await owedOf(page)).filter((key) => key.endsWith(' t1'))).toHaveLength(1);
+		expect(
+			(
+				(await agentCall(page, 'document-trash', { document: alpha })) as {
+					error?: { code: string };
+				}
+			).error?.code
+		).toBe('EDITOR_TAB_DIRTY');
+		// A later sync, any change of the editor area, clears it.
+		await open(page, await createNote(page, 'Beta'));
+		await editorIdle(page);
+		expect(await owedOf(page)).toEqual([]);
+		expect(
+			((await agentCall(page, 'document-trash', { document: alpha })) as { success: boolean })
+				.success
+		).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: the person’s close whose modal the kernel cancels, as a sign-out moves the scope, ends and holds no mark', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await kernelCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		await kernelCall(page, 'project-create', {
+			name: 'Vault',
+			access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+		});
+		await kernelCall(page, 'scope-set', { project: 'vault' });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await open(page, await createNote(page, 'Secret', 'vault'));
+		await failSaves(page, ['t1']);
+		await typeInto(page, 't1', 'Draft');
+		// The person closes it; its save rejects, and the modal asks.
+		await tabOf(page, 'Secret').focus();
+		await page.keyboard.press('Delete');
+		await expect
+			.poll(() => page.evaluate(() => (window as FailedSaves).heldSaves?.length ?? 0))
+			.toBeGreaterThan(0);
+		await settleOldest(page, 't1', 'fail');
+		await page.locator('loam-modal button', { hasText: 'Discard' }).waitFor();
+		// An agent signs the person out: the scope moves, and the kernel cancels the shell's modal.
+		await agentCall(page, 'auth-sign-out');
+		await editorIdle(page);
+		await settleSaves(page, 't1', 'fail');
+		await editorIdle(page);
+		const asking = await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				editor: { lifecycle: readonly unknown[] };
+			};
+			return [...(shell.editor.lifecycle[7] as Set<string>)];
+		});
+		expect(asking).toEqual([]);
+		await opened.context.close();
+	}, 120_000);
 
 	it('P2-D5: a tab’s type icon is blank until the app surfaces register the icons, then drawn', async () => {
 		const opened = await openShell(browser, site.root);

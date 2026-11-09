@@ -34,6 +34,7 @@ import {
 	isSave,
 	keyOf,
 	type Life,
+	lostModals,
 	MODAL_RESULT_EVENT,
 	mainWithEditor,
 	notSaved,
@@ -88,8 +89,11 @@ export class EditorController implements FrameListener {
 	readonly #asking = new Set<string>();
 	/** By `<scope> <tab>`, the tabs a leave may still owe a mark to, a closed one's among them, which no read lists. */
 	readonly #owed = new Map<string, [ScopeOf, string]>();
-	/** The leaves of drafts kept while the area was away, waiting for it to show again. */
+	/** The frames whose drafts are kept while the area is away, and the leaves waiting for it to show again. */
+	readonly #kept = new Set<LoamEditorFrame>();
 	readonly #waiting: Array<() => void> = [];
+	/** The scopes the last pass could not reach, its read or a clear refused, which wait for a later sync. */
+	readonly #stalled = new Set<string>();
 	/** The pass of `#marks` queued and not yet begun, which any later change shares. */
 	#marking: Promise<void> | undefined;
 	readonly #modals = new Map<string, (result: 'confirm' | 'cancel') => void>();
@@ -146,7 +150,7 @@ export class EditorController implements FrameListener {
 	/**
 	 * What a test reads, and its check of the frames' invariants, in this order: the visit rendered, `#frames`,
 	 * `#parking`, the leaving frames, each frame's life, the tabs the person is closing, the state rendered, and
-	 * the tabs whose close is saving or asking, and the tabs a leave may still owe a mark.
+	 * the tabs whose close is saving or asking, the tabs a leave may still owe a mark, and the scopes out of reach.
 	 */
 	get lifecycle() {
 		return [
@@ -159,6 +163,7 @@ export class EditorController implements FrameListener {
 			this.#state,
 			this.#asking,
 			this.#owed,
+			this.#stalled,
 		] as const;
 	}
 
@@ -424,7 +429,8 @@ export class EditorController implements FrameListener {
 		const clears: [ScopeOf, string, string?][] = [];
 		// By `<scope> <tab>`, the tabs whose mark is known gone: read unmarked, or cleared by this pass.
 		const settled = new Set<string>();
-		const unreachable = new Set<string>();
+		const unreachable = this.#stalled;
+		unreachable.clear();
 		for (const [key, scope] of scopes) {
 			const read = await this.#kernel.call<EditorReadV1>('editor-get', {}, { scope });
 			// A scope it cannot read, the person signed out or no longer a member, keeps what it owes for a later
@@ -532,6 +538,9 @@ export class EditorController implements FrameListener {
 				});
 			}
 		}
+		// A modal the kernel closed, as a change of scope cancels the shell's, answers Keep editing.
+		if (this.#modals.size && (event.scopeChanged || event.command === 'overlay-dismiss'))
+			void lostModals(this.#kernel, this.#modals);
 		if (!event.scopeChanged && !(event.success && event.mutation)) return;
 		// A record's title, status or scope may have changed: each is read again.
 		if (event.command.startsWith('document-')) this.#records.clear();
@@ -808,11 +817,15 @@ export class EditorController implements FrameListener {
 		const away = life.place === 'parked' || life.place === 'leaving';
 		if (!saved && away && !this.#discarded(frame) && this.#here(frame)) {
 			// Rejected while an app or another section shows: kept, it waits for the documents area.
+			this.#kept.add(frame);
 			await this.#whenShown();
-			if (this.#here(frame) && !this.#discarded(frame)) {
-				if (closed) await this.#reopen(frame, shown);
-				else if (how === 'parked' && !this.#frames.has(tab)) this.#move(frame, 'shown');
-			}
+			this.#kept.delete(frame);
+			// Discarded meanwhile, nothing comes back. Its scope gone first, its save is tried once more, in its own
+			// scope; rejected, after its toast, the draft is lost (7.6).
+			if (this.#discarded(frame)) life.draft = false;
+			else if (!this.#here(frame)) await this.#save(frame);
+			else if (closed) await this.#reopen(frame, shown);
+			else if (how === 'parked' && !this.#frames.has(tab)) this.#move(frame, 'shown');
 		}
 		// Kept, or gone after its toast, a draft that could not be kept taking its mark with it.
 		life.busy = life.draft = false;
@@ -928,9 +941,9 @@ export class EditorController implements FrameListener {
 		}
 	}
 
-	/** Every dirty editor's `save()`, not waited for, as on `pagehide` (5.5). */
+	/** Every dirty editor's `save()`, and each kept draft's, not waited for, as on `pagehide` (5.5). */
 	#saveAll(): void {
-		for (const frame of this.#frames.values())
+		for (const frame of [...this.#frames.values(), ...this.#kept])
 			if (frame.dirty) void frame.save().catch(reportError);
 	}
 

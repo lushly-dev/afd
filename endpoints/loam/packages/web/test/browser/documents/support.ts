@@ -73,7 +73,8 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 5. every tab the active scope marks unsaved has a frame in a map, a leave under way, or the person's own
  *    close running, or saving or asking, of any visit;
  * 6. a group shows at most one frame, its active tab's, and no leaving or parked frame shows;
- * 7. every key of `frames` and `parking` is a tab of the state rendered;
+ * 7. every key of `frames` and `parking` is a tab of the state rendered, and of the kernel's own read, but for
+ *    a close of the person's under way;
  * 8. every group's active tab has a frame in `frames`, unless its close or leave is under way;
  * 9. a frame in `frames` whose editor says unsaved has its tab marked unsaved;
  * 10. a tab of the active scope whose leaving frame of that scope, still saving its document unsaved, is
@@ -83,7 +84,7 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 12. for the active scope, each tab's mark is `wantsMark`: its editor, shown or parked, says unsaved, a leave of
  *     that tab, document and scope still holds its draft, or the person's close of it saves or asks. 5, 9, 10
  *     and 11 follow from it, and stay as diagnostics;
- * 13. no tab a leave still owes a mark has `wantsMark` false, but in a scope the person cannot read, and
+ * 13. no tab a leave still owes a mark has `wantsMark` false, but in a scope out of reach, and
  *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed.
  * Empty when they hold, or before the editor area has loaded.
  */
@@ -120,12 +121,14 @@ export function frameViolations(page: Page): Promise<string[]> {
 					State | null,
 					Set<string>,
 					Map<string, [{ workspace: string; project?: string }, string]>,
+					Set<string>,
 				];
 			};
 		};
 		const lifecycle = shell.editor?.lifecycle;
 		if (!lifecycle) return [];
-		const [visit, frames, parking, leaving, lives, closing, rendered, asking, owed] = lifecycle;
+		const [visit, frames, parking, leaving, lives, closing, rendered, asking, owed, stalled] =
+			lifecycle;
 		const broken: string[] = [];
 		const parked = new Set(parking.values());
 		const main = shell.shadowRoot?.querySelector('loam-main');
@@ -199,6 +202,16 @@ export function frameViolations(page: Page): Promise<string[]> {
 			data?: { groups: Array<{ tabs: Array<{ id: string; dirty: boolean; document: string }> }> };
 		};
 		const listed = read.data?.groups.flatMap((group) => group.tabs) ?? [];
+		// The state rendered goes stale while an app shows; the kernel's read does not.
+		for (const [name, map] of [
+			['frames', frames],
+			['parking', parking],
+		] as const) {
+			for (const tab of map.keys()) {
+				if (!listed.some((each) => each.id === tab) && !closingHere(tab))
+					broken.push(`7: ${name} ${tab} is no tab the kernel lists`);
+			}
+		}
 		type Scope = { workspace?: string; project?: string | null } | undefined;
 		const keyOf = (scope: Scope) => `${scope?.workspace} ${scope?.project ?? ''}`;
 		const key = keyOf(active);
@@ -266,7 +279,8 @@ export function frameViolations(page: Page): Promise<string[]> {
 		for (const [scopeKey, scope] of inFlight)
 			reads.set(scopeKey, (await shell.kernel.call('editor-get', {}, { scope })) as typeof read);
 		for (const [owedKey, [scope, tab]] of owed) {
-			// A scope the person cannot read, signed out, keeps what it owes until they can (Status, deviation 16).
+			// A scope out of reach, its read or a clear refused, keeps what it owes until a later sync (deviation 16).
+			if (stalled.has(keyOf(scope))) continue;
 			if (!(reads.get(keyOf(scope)) as { success?: boolean } | undefined)?.success) continue;
 			if (!wantsOf(scope, tab)) broken.push(`13: ${owedKey} is owed, and wantsMark is false`);
 		}

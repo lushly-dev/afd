@@ -45,7 +45,7 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 		[9, 200],
 		[12, 200],
 		[20, 200],
-		[32, 200],
+		[32, 300],
 		[43, 300],
 		[100, 200],
 		[1, 200],
@@ -130,7 +130,19 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				reopens += taken;
 				reopenOpens += opens;
 			};
+			// Signed in, with Vault restricted to the person: a sign-out takes it out of reach.
+			const signIn = () =>
+				kernelCall(page, 'auth-sign-in', {
+					method: 'credentials',
+					email: 'person@example.com',
+					password: 'x',
+				});
+			await signIn();
 			await kernelCall(page, 'project-create', { name: 'Atlas' });
+			await kernelCall(page, 'project-create', {
+				name: 'Vault',
+				access: { mode: 'restricted', members: ['mock-user-person@example.com'] },
+			});
 			// Every document the walk makes, for its last check.
 			const documents: string[] = [];
 			const note = async (title: string, project?: string) => {
@@ -187,6 +199,9 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				'type-close-reject',
 				'type-close-reject',
 				'modal',
+				'vault',
+				'sign-out',
+				'sign-in',
 			] as const;
 			let project: string | undefined;
 			let app = false;
@@ -347,6 +362,14 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 							await page.keyboard.press('Delete');
 						}
 					}
+				} else if (kind === 'vault') {
+					project = 'vault';
+					await kernelCall(page, 'scope-set', { project: 'vault' });
+					await kernelCall(page, 'section-open', { section: 'documents' });
+				} else if (kind === 'sign-out') {
+					await agentCall(page, 'auth-sign-out');
+				} else if (kind === 'sign-in') {
+					await signIn();
 				} else if (kind === 'gate') {
 					await page.evaluate(() => {
 						(window as Walk).gate = true;
@@ -414,7 +437,8 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 			// Everything settles: gates open, held saves reject, and every modal a close opens is answered Discard,
 			// until nothing is held.
 			for (let round = 0; round < 10; round++) {
-				// The documents area, where a draft kept while it was away comes back.
+				// Signed in, so Vault can be read, and the documents area, where a kept draft comes back.
+				await signIn();
 				await kernelCall(page, 'section-open', { section: 'documents' });
 				await page.evaluate(() => {
 					for (const release of (window as Walk).gates?.splice(0) ?? []) release();
@@ -429,13 +453,25 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 						.click({ timeout: 1000 })
 						.catch(() => undefined);
 				await editorIdle(page);
-				const held = await page.evaluate(() => (window as Walk).pending?.length ?? 0);
-				if (!asked && held === 0) break;
+				// Settled once nothing is held, asked, leaving or closing.
+				const busy = await page.evaluate(() => {
+					const shell = document.querySelector('loam-shell') as unknown as {
+						editor?: { lifecycle: readonly unknown[] };
+					};
+					const life = shell.editor?.lifecycle;
+					return (
+						((window as Walk).pending?.length ?? 0) +
+						((life?.[3] as Set<unknown> | undefined)?.size ?? 0) +
+						((life?.[7] as Set<unknown> | undefined)?.size ?? 0)
+					);
+				});
+				if (!asked && busy === 0) break;
+				await page.waitForTimeout(200);
 			}
 			expect(await frameViolations(page)).toEqual([]);
-			// Both scopes: every tab's mark is the rule's answer, and a trash of every document the walk made
+			// Every scope: every tab's mark is the rule's answer, and a trash of every document the walk made
 			// meets EDITOR_TAB_DIRTY only for an open tab the rule marks.
-			const marks = await marksOf(page, [null, 'atlas']);
+			const marks = await marksOf(page, [null, 'atlas', 'vault']);
 			expect(
 				marks.filter((each) => each.dirty !== each.wants),
 				`Seed ${start}: marks the rule does not give. Steps: ${steps.join(', ')}`
@@ -446,9 +482,25 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				};
 				if (trash.error?.code !== 'EDITOR_TAB_DIRTY') continue;
 				const tab = /tab (t\d+)/.exec(trash.error.message ?? '')?.[1];
+				const held = marks.some((each) => each.tab === tab && each.document === id && each.wants);
+				const state = held
+					? ''
+					: await page.evaluate(() => {
+							const shell = document.querySelector('loam-shell') as unknown as {
+								editor?: { lifecycle: readonly unknown[] };
+							};
+							const life = shell.editor?.lifecycle;
+							if (!life) return 'no editor area loaded';
+							return JSON.stringify({
+								leaving: [...(life[3] as Set<{ tab: string }>)].map((each) => each.tab),
+								asking: [...(life[7] as Set<string>)],
+								owed: [...(life[8] as Map<string, unknown>).keys()],
+								stalled: [...(life[9] as Set<string>)],
+							});
+						});
 				expect(
-					marks.some((each) => each.tab === tab && each.document === id && each.wants),
-					`Seed ${start}: ${id} is refused for ${tab}, which is no open tab the rule marks. Steps: ${steps.join(', ')}`
+					held,
+					`Seed ${start}: ${id} is refused for ${tab}, which is no open tab the rule marks: ${(trash.error as { suggestion?: string }).suggestion} ${state} ${JSON.stringify(marks)}. Steps: ${steps.join(', ')}`
 				).toBe(true);
 			}
 			await counted();

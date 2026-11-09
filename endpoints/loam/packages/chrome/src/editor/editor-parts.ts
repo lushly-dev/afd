@@ -231,3 +231,17 @@ export async function hostOf(shell: LoamShell): Promise<SurfaceHostV1 | undefine
 	while (!shell.apps && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 50));
 	return (shell.apps as { host?(): SurfaceHostV1 } | null)?.host?.();
 }
+
+/** Each modal of `modals` no longer open, closed by the kernel with no answer, answered `cancel`. */
+export async function lostModals(
+	kernel: LoamKernelV2,
+	modals: Map<string, (result: 'confirm' | 'cancel') => void>
+): Promise<void> {
+	const open = (await kernel.call<{ overlays: Array<{ overlayId: string }> }>('overlay-list')).data
+		?.overlays;
+	for (const [id, answer] of modals) {
+		if (open?.some((each) => each.overlayId === id)) continue;
+		modals.delete(id);
+		answer('cancel');
+	}
+}

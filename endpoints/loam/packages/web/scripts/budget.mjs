@@ -122,7 +122,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * it by 353, to 33,016, approved by the coordinator, 2026-11-08: a draft rejected while the area is away kept
  * until it shows (161), a tab closed while an app shows leaving at once (117), and the prune they share, the
  * clear's result, a sign-in's sync and `hostOf` moved to `editor-parts.ts` (115), less 40 that settling only on
- * a read or a clear that succeeded saved.
+ * a read or a clear that succeeded saved. The last round's raised it by 349, to 33,365, approved by the
+ * coordinator, 2026-11-08: a modal the kernel closed with no answer taken as Keep editing (228), a kept draft's
+ * save tried once more when its scope goes first, and on `pagehide` (90), and the scopes out of reach (31).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -142,7 +144,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 33_016,
+	editorMinified: 33_365,
 });
 
 /** Group a module id by the package it belongs to. */
