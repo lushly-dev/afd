@@ -4,7 +4,8 @@
 owning agent refreshes the rows it depends on before writing its
 specification. Dates are the sources' own; "reserved" means Loam keeps a
 seam for it without implementing a draft. Source IDs refer to the
-[ledger](sources.md).
+[ledger](sources.md). **Refreshed 2026-11-09** for the [phase 3 specification](phases/3-identity/spec.md#trajectory-refresh): W12,
+R10 and R14 re-checked, W31 to W33 added (S80 to S87).
 
 ## Eight movements
 
@@ -78,11 +79,11 @@ seam for it without implementing a draft. Source IDs refer to the
 | R7 | Native apps as self-contained ES modules; no bundler coupling in the contract. Revised 2026-11-01 by D60: an import map is a seam, not the contract, since an inline one needs a CSP hash | 3 | App manifest; phase 1 |
 | R8 | A personal, reorderable sidebar and rail, persisted as view-state | 4 | Layout engine; phase 4, moved 2026-11-02 by D75, with `bandFor`'s comparator as the seam |
 | R9 | A kernel behind the SDK interface, so Rust WebAssembly modules, a Rust-rendered chrome or a WebAssembly-component app kind can attach later without a contract change | 5 | Architecture sections 5 and 6; phases 0 and 6 |
-| R10 | Workspaces bound to provider organizations; a reserved tenant field; experiments with audiences | 6 | Data model; D32; phase 3 |
+| R10 | Workspaces bound to provider organizations; a reserved tenant field; experiments with audiences | 6 | Data model; D32; phase 3, which binds through `[identity] organization` (proposed D85, 2026-11-09) |
 | R11 | A copilot runtime adapter so the SDK can change, with agents, delegations, runs and sessions as Loam's records above it and AG-UI as the stream so another runtime can attach | 1 | Architecture sections 4 and 5; D27; phase 5 |
 | R12 | Document types as contributions with one model and many editors, so a document can later be served as an MCP Apps view or driven by any agent through its instance commands | 1 | Architecture sections 4, 5 and 7; phase 2 |
 | R13 | The registry projected outward: WebMCP tools in the browser, an MCP bundle for platform registries, AppFunctions and App Intents through Tauri mobile, all as projections of `expose` | 7 | D39; phase 5 and later |
-| R14 | Agent members with sponsors, project scope, delegation and guidance, on AFD's actor and `onBehalfOf` | 8 | D40; phases 3 and 5 |
+| R14 | Agent members with sponsors, project scope, delegation and guidance, on AFD's actor and `onBehalfOf` | 8 | D40; phases 3 and 5. Refreshed 2026-11-09: no agent-identity standard to adopt; the IETF on-behalf-of draft expired unadopted (S87), so AFD's actor stays the wire form (proposed D90, D91) |
 | R15 | Autonomy policy in settings with approval-health metrics, and untrusted labels on tool results | 8 | D41; phases 4 and 5 |
 | R16 | Runs as shell resources with isolation, artifacts, scheduling and shared visibility | 8 | D42; phase 5 records |
 | R17 | A2UI rendered from the kit as the second agent-UI path, and agent packs in the Agent Skills and plugin-directory shapes | 1, 8 | D43 and D44; phase 5 |
@@ -103,7 +104,10 @@ seam for it without implementing a draft. Source IDs refer to the
 | W9 | Rust frontends and web components | No support found in Dioxus or Leptos sources | Unknown | A Rust-rendered chrome stays reserved |
 | W10 | Module Federation 2.0 versus import maps | Both viable; the contract avoids bundler coupling | Ongoing | Nothing unless a consumer needs federation |
 | W11 | MCP Events, SEP-3415 | Open, no sponsor, as Umbel's watch records | Unknown | `event-list` and notifications on the hosted server gain a protocol projection |
-| W12 | Better Auth sessions and cookie cache | 1.4 stateless sessions reported; revocation delayed by the cookie cache | Unknown | Session revocation shown with its caveat; verify in phase 3 |
+| W12 | Better Auth sessions and cookie cache | 1.4 stateless sessions reported; revocation delayed by the cookie cache. Refreshed 2026-11-09: confirmed by Better Auth's own page, with `disableCookieCache` per request and session list and revocation APIs (S80); 1.7.18 current, 1.8.0 in beta (S81) | Each minor | Verified for phase 3: Loam turns the cookie cache off and probes with `disableCookieCache`, so a revoked session is refused at once rather than shown with a caveat |
+| W31 | Better Auth passkey plugin | Added 2026-11-09: `@better-auth/passkey` 1.7.18 on SimpleWebAuthn, with autofill, add, list, rename and delete (S81, S82) | Each minor | The adapter's passkey method and the account's passkeys (phase 3) |
+| W32 | WebAuthn Level 3 | Added 2026-11-09: a W3C Recommendation on 2026-08-25, with the signal methods and related origins (S83) | Browser support for the signal methods | Signals after a passkey is removed, feature-detected; related origins unused, since the shell and its auth share an origin |
+| W33 | MCP Authorization and the issuer | Added 2026-11-09: MCP 2026-07-28 requires audience validation, RFC 9728 metadata and no token passthrough, prefers Client ID Metadata Documents (S85); AFD's `spec/authorization.md` is implemented in Rust, not yet TypeScript; Better Auth's OAuth provider issues resource-bound JWTs (S86) | The next MCP revision | Phase 3 builds AFD's TypeScript layer first, and Better Auth issues the hosted server's tokens |
 | W13 | Agent Skills in shells | VS Code contributes `chatSkills`; the format moved to the Agentic AI Foundation on 2026-10-22 | Unknown | Skills delivered to the copilot follow the format |
 | W14 | Platform migration cutover of FAST-AF and Violet | Both quarantined; nothing publishes | Per the migration status | Whether the chrome consumes workspace units or published packages |
 | W15 | TanStack AI after 1.0 | Core stable since 2026-10-23; `@tanstack/ai-harness` experimental at 0.x; web components undocumented | Each minor | The runtime adapter pins a version; the spike that opens the phase 5 specification settles the web-component panel |
@@ -138,7 +142,7 @@ model gateway of Loam's own.
 ## Sources
 
 The dated sources for the movements above are rows S01 to S34, S43 to S53
-and S55 to S78 of the [ledger](sources.md). Umbel's [trajectory
+and S55 to S78 of the [ledger](sources.md), and S80 to S87 for the rows refreshed on 2026-11-09. Umbel's [trajectory
 watch](../../umbel/docs/trajectory.md) covers the protocol, harness and
 enterprise-context movements Loam depends on through Umbel, in particular
 MCP Events, Tasks, agent identity and Skills over MCP, and is not repeated
