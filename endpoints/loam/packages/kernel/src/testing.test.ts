@@ -246,6 +246,18 @@ describe('createReferenceWorkspace (D37)', () => {
 		expect(diffJournals(recorded.entries, again.entries).equal).toBe(true);
 	});
 
+	it('gives its documents the type the caller names, and needs one when there are documents', () => {
+		const documentType = { type: 'reference', instance: 'reference-a' };
+		const workspace = createReferenceWorkspace({ seed: 'x', size: 1, documents: 3, documentType });
+		expect(workspace.documents.map(({ type, instance }) => ({ type, instance }))).toEqual(
+			Array(3).fill(documentType)
+		);
+		expect(createReferenceWorkspace({ seed: 'x', size: 1, links: 5 }).documents).toEqual([]);
+		expect(() => createReferenceWorkspace({ seed: 'x', size: 1, documents: 3 })).toThrow(
+			/documentType/
+		);
+	});
+
 	it('seeds a random source in [0, 1)', () => {
 		const random = createSeededRandom('x');
 		const values = Array.from({ length: 1000 }, random);

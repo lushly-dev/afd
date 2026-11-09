@@ -34,6 +34,7 @@ import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV2 } from './types.j
 export { createDocumentIndex, type DocumentIndex, LINK_TABLE } from './late/links.js';
 export {
 	createReferenceWorkspace,
+	type ReferenceDocumentType,
 	type ReferenceWorkspace,
 	type ReferenceWorkspaceOptions,
 } from './reference-workspace.js';

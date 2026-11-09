@@ -47,6 +47,7 @@ async function measure() {
 		seed: 'phase-2',
 		size: 1,
 		documents: 2_000,
+		documentType: { type: 'notes', instance: 'notes' },
 		links: 20_000,
 	});
 	// Over IndexedDB, as the host keeps its store, the bound's reading; and over memory, a second reading.

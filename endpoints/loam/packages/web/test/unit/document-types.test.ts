@@ -13,8 +13,11 @@ import { describe, expect, it } from 'vitest';
 const PACKAGES = fileURLToPath(new URL('../../../', import.meta.url));
 const SCANNED = ['kernel', 'chrome', 'web/src'];
 
-/** `notes-`, any command, element or package of notes; and `checklist` in any case: id, title, code or name. */
-const NAMED = /notes-|checklist/i;
+/**
+ * `notes-`, any command, element or package of notes; `notes` quoted, as an id is written in code, with
+ * single, double or back quotes; and `checklist` in any case: id, title, code or name.
+ */
+const NAMED = /notes-|['"`]notes['"`]|checklist/i;
 
 /**
  * The only lines let through, each by its file and its whole text, so a new line in either file still fails:
@@ -55,7 +58,7 @@ function offenders(files: Record<string, string>): string[] {
 }
 
 describe('the shell names no document type', () => {
-	it('P2-D2: names `notes-` and `checklist`, in any case, nowhere in kernel, chrome or web/src', () => {
+	it('P2-D2: names `notes-`, a quoted `notes` and `checklist`, in any case, nowhere in kernel, chrome or web/src', () => {
 		const files = Object.fromEntries(
 			SCANNED.flatMap((directory) => sources(join(PACKAGES, directory))).map((path) => [
 				relative(PACKAGES, path),
@@ -76,10 +79,15 @@ describe('the shell names no document type', () => {
 			'CHECKLIST_ITEM_EXISTS',
 			'checklist-item-add',
 			'apps/checklist',
+			"type: 'notes'",
+			'instance: "notes"',
+			'type: `notes`',
+			"['Notes', 'NOTES']",
 		]) {
 			expect(offenders({ 'kernel/src/planted.ts': text }), text).toHaveLength(1);
 		}
-		expect(offenders({ 'kernel/src/planted.ts': 'notes, a type' })).toEqual([]);
+		for (const text of ['notes, a type', 'the notes type', "a person's notes", 'notesCount'])
+			expect(offenders({ 'kernel/src/planted.ts': text }), text).toEqual([]);
 		// An allowed line passes only in its own file, and a changed line in that file fails.
 		const [first] = ALLOWED as [{ file: string; line: string }];
 		expect(offenders({ [first.file]: first.line })).toEqual([]);

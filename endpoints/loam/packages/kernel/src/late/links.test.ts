@@ -292,10 +292,13 @@ describe('P2-D9: references', () => {
 	});
 
 	it('A4 at its smallest: an index over the reference workspace’s links answers each document’s', async () => {
+		// Any type: the index reads links alone, and the kernel's source names no document type (D2).
+		const documentType = { type: 'reference', instance: 'reference' };
 		const reference = createReferenceWorkspace({
 			seed: 'phase-2',
 			size: 1,
 			documents: 200,
+			documentType,
 			links: 2_000,
 		});
 		expect(reference.documents.length).toBe(200);
@@ -315,7 +318,13 @@ describe('P2-D9: references', () => {
 		expect(held.in.length).toBe(reference.links.filter((link) => link.to === first).length);
 		// Deterministic for a seed.
 		expect(
-			createReferenceWorkspace({ seed: 'phase-2', size: 1, documents: 200, links: 2_000 }).links
+			createReferenceWorkspace({
+				seed: 'phase-2',
+				size: 1,
+				documents: 200,
+				documentType,
+				links: 2_000,
+			}).links
 		).toEqual(reference.links);
 	});
 
