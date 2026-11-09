@@ -320,8 +320,9 @@ export function frameViolations(page: Page): Promise<string[]> {
 		for (const [tab, frame] of frames) {
 			const own = lives.get(frame);
 			if (frame.kind !== 'view' || !frame.hidden) continue;
-			// Or held where it is while it saves before a move, in a browser with no `moveBefore`.
-			if (own?.moving) continue;
+			// Or held where it is while it saves before a move, in a browser with no `moveBefore`, or after its move
+			// back was refused, until another move.
+			if (own?.moving || (own as { refused?: boolean } | undefined)?.refused) continue;
 			if (!frame.dirty || own?.kept === undefined || own.kept !== own.edits)
 				broken.push(`14: ${tab}'s view editor is hidden in frames, and not kept with its draft`);
 		}
@@ -335,9 +336,14 @@ export function frameViolations(page: Page): Promise<string[]> {
 		for (const frame of mounted) {
 			const iframe = frame.querySelector('loam-view-frame')?.shadowRoot?.querySelector('iframe');
 			if (!iframe?.isConnected || !iframe.contentWindow) continue;
-			const reloads = (lives.get(frame) as { reloads?: number } | undefined)?.reloads ?? 0;
+			const own = lives.get(frame) as
+				| { reloads?: number; edits?: number; savedEdits?: number }
+				| undefined;
+			const reloads = own?.reloads ?? 0;
 			const known = windows.get(frame);
-			if (known?.dirty && known.window !== iframe.contentWindow && known.reloads === reloads)
+			// Exempt only a reload the controller made with every edit saved: none typed during its save (S3).
+			const verified = known?.reloads !== reloads && own?.savedEdits === own?.edits;
+			if (known?.dirty && known.window !== iframe.contentWindow && !verified)
 				broken.push(`15: ${frame.tab}'s view editor has a new window, its unsaved work gone`);
 			windows.set(frame, { window: iframe.contentWindow, dirty: frame.dirty, reloads });
 		}

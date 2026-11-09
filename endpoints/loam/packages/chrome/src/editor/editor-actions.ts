@@ -90,18 +90,28 @@ export function hearModals(
 	});
 }
 
-/** The frames whose save a request is running, so a view asking again meanwhile is not heard. */
+/** The frames whose save a request is running, and those asked again meanwhile. */
 const asking = new WeakSet<LoamEditorFrame>();
+const again = new WeakSet<LoamEditorFrame>();
 
-/** One save at a time per editor for Mod+S, in the page or from a view's frame, said when it lands. */
+/**
+ * One save at a time per editor for Mod+S, in the page or from a view's frame, said when it lands; any requests
+ * during it become one more save after it, so a Mod+S after a new edit always saves, and a view cannot flood.
+ */
 export function saveOnce(
 	frame: LoamEditorFrame,
 	save: () => Promise<boolean>,
 	shell: LoamShell
 ): void {
-	if (asking.has(frame)) return;
+	if (asking.has(frame)) {
+		again.add(frame);
+		return;
+	}
 	asking.add(frame);
 	void save()
 		.then((saved) => saved && announce(shell, frame))
-		.finally(() => asking.delete(frame));
+		.finally(() => {
+			asking.delete(frame);
+			if (again.delete(frame)) saveOnce(frame, save, shell);
+		});
 }

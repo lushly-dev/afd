@@ -17,7 +17,7 @@ import {
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
 import type { LoamKernelV2 } from '../types.js';
-import { createDocumentIndex, LINK_TABLE } from './links.js';
+import { createDocumentIndex, LINK_TABLE, LINK_UNDO_MAX } from './links.js';
 
 const kernels: LoamKernelV2[] = [];
 afterEach(async () => {
@@ -232,6 +232,24 @@ describe('P2-D9: references', () => {
 		expect((await store.get<DocumentLinkV1>(LINK_TABLE, first.data?.id as string))?.from).toBe(
 			a.id
 		);
+	});
+
+	it('P2-D9: keeps the newest removed link ids an undo may name, the oldest dropped past LINK_UNDO_MAX', async () => {
+		const index = createDocumentIndex(new MemoryAdapter());
+		const link = (n: number) => ({
+			id: `lnk_${String(n).padStart(12, '0')}`,
+			workspace: 'personal',
+			from: 'doc_a',
+			to: 'doc_b',
+			anchor: null,
+			kind: 'reference',
+			createdAt: n,
+			createdBy: 'local',
+		});
+		for (let n = 0; n <= LINK_UNDO_MAX; n++) index.removed(link(n));
+		expect(index.undone(link(0).id)).toBe(false);
+		expect(index.undone(link(1).id)).toBe(true);
+		expect(index.undone(link(LINK_UNDO_MAX).id)).toBe(true);
 	});
 
 	it('refuses an anchor over 1 KiB and a kind off its pattern', async () => {

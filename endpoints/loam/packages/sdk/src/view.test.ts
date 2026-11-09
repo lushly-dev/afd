@@ -163,7 +163,8 @@ describe('connectView', () => {
 			const add = held.addEventListener;
 			held.addEventListener = (type, listener) =>
 				type === 'keydown' ? keydowns.push(listener) : add(type, listener);
-			vi.stubGlobal('navigator', { platform: 'MacIntel' });
+			// An iPad that says so only in its user agent, as the shell reads it too.
+			vi.stubGlobal('navigator', { platform: '', userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0)' });
 			await connectView();
 			expect(keydowns.length).toBe(readOnly ? 0 : 1);
 			if (readOnly) continue;

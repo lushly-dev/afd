@@ -104,10 +104,12 @@ export interface Life {
 	kept?: number;
 	/** A view's editor saving before a move, where the browser has no `moveBefore`, held where it is meanwhile. */
 	moving?: boolean;
-	/** Its move back was refused: the next move goes through, and a later one is asked about again. */
+	/** Its move back was refused: it stays where it is until another move, which saves first or is refused. */
 	refused?: boolean;
 	/** How often its view reloaded on purpose, saved first, moved where the browser has no `moveBefore`. */
 	reloads?: number;
+	/** Its edits that the save before that reload covered, all of them. */
+	savedEdits?: number;
 }
 
 /**

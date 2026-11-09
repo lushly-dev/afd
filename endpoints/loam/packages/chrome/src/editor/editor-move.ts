@@ -39,12 +39,20 @@ export interface ViewMove {
 
 export async function moveAfterSave(move: ViewMove): Promise<void> {
 	const { frame, from, life, kernel, place, notSaved } = move;
-	const saved = await move.save();
+	// Saved again while an edit landed during the save, so the move never reloads what no save wrote (S3).
+	let before = life.edits;
+	let saved = await move.save();
+	while (saved && life.edits !== before && move.live()) {
+		before = life.edits;
+		saved = await move.save();
+	}
 	life.moving = false;
 	if (!move.live()) return;
 	const into = move.into();
 	if (saved && into) {
+		// A reload the controller makes on purpose, with every edit saved: invariant 15 knows it by these two.
 		life.reloads = (life.reloads ?? 0) + 1;
+		life.savedEdits = before;
 		place(frame, into);
 	} else if (!saved) {
 		await kernel.call(
@@ -64,8 +72,8 @@ export async function moveAfterSave(move: ViewMove): Promise<void> {
 			{ tab: frame.tab, group: kept ? from.group : 'new' },
 			{ scope: frame.record?.scope }
 		);
-		// A move back refused leaves the tab where it is, held no longer: the next render moves it, and nothing
-		// asks again, since `moving` is clear and the save above already failed once.
+		// A move back refused: the frame stays where it is, its draft kept, until another move, which saves first
+		// or is refused again; never moved unsaved (N2).
 		if (!back.success) {
 			life.refused = true;
 			return;

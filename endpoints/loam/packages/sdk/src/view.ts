@@ -214,8 +214,10 @@ export async function connectView(info?: {
 	if (reference && !reference.readOnly) {
 		window.addEventListener('keydown', (event: Event) => {
 			const key = event as KeyboardEvent;
-			// The shell's own rule for Mod+S: Command on macOS, Control elsewhere, never both, by physical key.
-			const mac = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
+			// The shell's own rule for Mod+S (`isMacPlatform`, `isSave`): Command on Apple platforms, read from the
+			// platform or the user agent, Control elsewhere, never both, by physical key.
+			const nav = globalThis.navigator;
+			const mac = /Mac|iPhone|iPad|iPod/.test(`${nav?.platform ?? ''} ${nav?.userAgent ?? ''}`);
 			const mod = mac ? key.metaKey && !key.ctrlKey : key.ctrlKey && !key.metaKey;
 			if (key.code !== 'KeyS' || !mod || key.altKey || key.shiftKey) return;
 			key.preventDefault();

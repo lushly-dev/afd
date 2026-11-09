@@ -305,7 +305,7 @@ export class EditorController implements FrameListener {
 			for (const tab of group.tabs) {
 				const frame = this.#frames.get(tab.id);
 				const life = frame && (this.#lives.get(frame) as Life);
-				frame?.show(tab.id === active?.id && !life?.moving);
+				frame?.show(tab.id === active?.id && !life?.moving && !life?.refused);
 				// A view's editor is torn down with its tab hidden, its save first, never parked; one whose save
 				// rejected stays, hidden with its draft, until an edit or its tab shown again (5.6).
 				if (
@@ -541,7 +541,10 @@ export class EditorController implements FrameListener {
 
 	#onEvent(event: KernelEventV2): void {
 		// The person's own move, from the tab's menu or an undo, may save a view editor before it (`editor-move.ts`).
-		if (event.command === 'editor-move') this.#moved = event.interface === 'palette';
+		if (event.command === 'editor-move' && event.success) {
+			this.#moved = event.interface === 'palette';
+			for (const frame of this.#frames.values()) (this.#lives.get(frame) as Life).refused = false;
+		}
 		// Another call changed a document: every open editor of it re-reads, its own calls included (5.7).
 		if (event.document !== undefined && event.success) {
 			for (const frame of this.#frames.values()) {
@@ -908,12 +911,8 @@ export class EditorController implements FrameListener {
 	#stays(frame: LoamEditorFrame, to: LoamEditorGroup): boolean {
 		const life = this.#lives.get(frame) as Life;
 		const from = frame.parentElement as LoamEditorGroup | null;
-		if (life.moving) return true;
-		// Its move back was refused once: this move goes through, and a later one is asked about again.
-		if (life.refused) {
-			life.refused = false;
-			return false;
-		}
+		// Held while it saves, or after its move back was refused, until another move (N2).
+		if (life.moving || life.refused) return true;
 		if (!from || !savesToMove(frame, from, to)) return false;
 		life.moving = true;
 		const person = this.#moved;
