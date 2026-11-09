@@ -1,8 +1,8 @@
 /**
  * D2 (documents specification, 14 and section 1): a second document type lands with no shell change, so no
- * file of the kernel, the chrome or the web host's source names either type. The scan reads those packages
- * from here, as this package's own test; `scripts/affected/scope.mjs` names them as its inputs, so a change
- * there runs it.
+ * file of the kernel, the chrome or the web host's source names either type. A unit of the web host, outside
+ * `src`, which step 13 leaves unchanged: `web` depends on the kernel and the chrome, so a change in any of the
+ * three runs it. Beside `src/shell-independence.test.ts`, which holds the same for the project-scoped app.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const PACKAGES = fileURLToPath(new URL('../../../packages/', import.meta.url));
+const PACKAGES = fileURLToPath(new URL('../../../', import.meta.url));
 const SCANNED = ['kernel', 'chrome', 'web/src'];
 
 /**

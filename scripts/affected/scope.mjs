@@ -43,12 +43,6 @@ export const EXTRA_INPUTS = [
 	// Loam's profile is checked against the plugin manifest core, and records the contract version.
 	{ prefix: 'spec/plugin-manifest', packages: ['@lushly-dev/loam-manifest'] },
 	{ prefix: 'spec/VERSION', packages: ['@lushly-dev/loam-manifest'] },
-	// Checklist's D2 scan reads the shell's source for the document types' names (Loam's documents
-	// specification, 14), so a change there runs it.
-	...['kernel/', 'chrome/', 'web/src/'].map((path) => ({
-		prefix: `endpoints/loam/packages/${path}`,
-		packages: ['@lushly-dev/loam-app-checklist'],
-	})),
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];
