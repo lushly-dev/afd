@@ -30,8 +30,12 @@ pub use query::{
     MAX_MEMORY_QUERY_CHARS, MAX_MEMORY_QUERY_TERMS, MemoryQuery, Occur, QueryTerm, TermField,
 };
 
-/// `memory-record.v1.json`'s version.
+/// `memory-record.v1.json`'s version: a record version whose envelope is version 2.
 pub const MEMORY_RECORD_VERSION: u32 = 1;
+/// `memory-record.v2.json`'s version (phase 5 section 2.4): a record version whose envelope is
+/// version 3, which every version written from phase 5 step 5 on has. A version written before
+/// stays version 1.
+pub const MEMORY_RECORD_VERSION_2: u32 = 2;
 /// The longest `subject`, in characters.
 pub const MAX_MEMORY_SUBJECT_CHARS: usize = 256;
 /// The largest `text` the store takes, in bytes (capture and import; remember's 16 KiB is the
@@ -258,7 +262,11 @@ impl MemoryRecord {
     pub fn to_json(&self) -> Value {
         let instant = |ms: Option<Millis>| ms.map(format_instant);
         json!({
-            "version": MEMORY_RECORD_VERSION,
+            "version": if self.provenance.version >= 3 {
+                MEMORY_RECORD_VERSION_2
+            } else {
+                MEMORY_RECORD_VERSION
+            },
             "id": self.id,
             "recordVersion": self.record_version,
             "class": self.class.as_str(),
@@ -551,6 +559,9 @@ pub struct Confirm {
     pub content_hash: String,
     /// The call's trace id.
     pub trace_id: Option<String>,
+    /// How the confirming person was proven (phase 5 sections 2.4 and 7.1), filled only by the
+    /// host; the confirmation's version 3 envelope requires it.
+    pub assurance: Option<crate::envelope::Assurance>,
 }
 
 /// `invalidate`'s and `confirm`'s answer.
@@ -1470,8 +1481,8 @@ impl MemoryWrite {
             )))
         };
         let e = &self.envelope;
-        if e.version != 2 {
-            return refuse("a memory write uses envelope version 2");
+        if e.version != crate::envelope::MEMORY_ENVELOPE_VERSION {
+            return refuse("a memory write uses envelope version 3");
         }
         let access = e.check(space)?;
         let Some(authority) = e.authority.as_deref() else {

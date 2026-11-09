@@ -1,8 +1,12 @@
-//! Provenance envelope, versions 1 and 2 (phase 2 specification section 2.1, phase 3
-//! specification section 2.1), as the store sees it.
+//! Provenance envelope, versions 1 to 3 (phase 2 specification section 2.1, phase 3
+//! specification section 2.1, phase 5 section 2.4), as the store sees it.
 //!
 //! Version 2 closes `authority`, gives `redactions` its meaning and adds `constraints` and
-//! `confirmation`. A row written in version 1 is read, and written back out, in version 1.
+//! `confirmation`. Version 3 gives `delegationChain` its meaning (the writing principal's chain)
+//! and adds `assurance` to `confirmation` (how the confirming person was proven). A row written in
+//! an earlier version is read, and written back out, in its own version. Memory writes use version
+//! 3 ([`MEMORY_ENVELOPE_VERSION`]); documents keep version 2 ([`ENVELOPE_VERSION`]), since an
+//! applied document's decision trace is its proposal.
 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize, Serializer};
@@ -10,8 +14,14 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::access::AccessSet;
 use crate::error::{Result, StoreError};
 
-/// The envelope version this crate writes.
+/// The envelope version documents and records are written in.
 pub const ENVELOPE_VERSION: u32 = 2;
+/// The envelope version memory writes use (phase 5 section 2.4): memory record version 2.
+pub const MEMORY_ENVELOPE_VERSION: u32 = 3;
+/// The newest envelope version this crate reads.
+pub const LATEST_ENVELOPE_VERSION: u32 = 3;
+/// The longest `delegationChain` (phase 5 section 2.1).
+pub const MAX_DELEGATION_CHAIN: usize = 8;
 
 /// Most `sources` and `derivedFrom` entries an envelope may list.
 pub const MAX_ENVELOPE_LIST: usize = 64;
@@ -113,6 +123,88 @@ pub struct Confirmation {
     pub at: String,
     /// The authority the record had before.
     pub prior_authority: Authority,
+    /// Version 3: how the person was proven (phase 5 sections 2.4 and 7.1). Required in version
+    /// 3, absent before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assurance: Option<Assurance>,
+}
+
+/// How a person was proven for one decision (phase 5 sections 2.4 and 7.1, owner decision 6):
+/// `terminal` (the CLI's check, `cli-terminal`) records its level and method alone; `verified`
+/// (the person page, `person-page`) also the namespace, the login's `authTime` and its `acr`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Assurance {
+    /// `terminal` or `verified`.
+    pub level: String,
+    /// `cli-terminal` or `person-page`.
+    pub method: String,
+    /// The identity namespace, for `verified`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// The login's `auth_time`, ISO 8601 UTC, for `verified`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_time: Option<String>,
+    /// The login's `acr`, for `verified`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acr: Option<String>,
+}
+
+impl Assurance {
+    /// The CLI's terminal check.
+    #[must_use]
+    pub fn terminal() -> Self {
+        Self {
+            level: "terminal".to_owned(),
+            method: "cli-terminal".to_owned(),
+            namespace: None,
+            auth_time: None,
+            acr: None,
+        }
+    }
+
+    /// A decision on the person page.
+    #[must_use]
+    pub fn verified(namespace: &str, auth_time: &str, acr: &str) -> Self {
+        Self {
+            level: "verified".to_owned(),
+            method: "person-page".to_owned(),
+            namespace: Some(namespace.to_owned()),
+            auth_time: Some(auth_time.to_owned()),
+            acr: Some(acr.to_owned()),
+        }
+    }
+
+    /// Whether it is one of the two shapes, each field well formed.
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        let text = |value: &Option<String>| {
+            value.as_deref().is_some_and(|text| {
+                (1..=255).contains(&text.chars().count())
+                    && !text.chars().any(|c| c.is_control() || c.is_whitespace())
+            })
+        };
+        match (self.level.as_str(), self.method.as_str()) {
+            ("terminal", "cli-terminal") => {
+                self.namespace.is_none() && self.auth_time.is_none() && self.acr.is_none()
+            }
+            ("verified", "person-page") => {
+                text(&self.namespace) && text(&self.auth_time) && text(&self.acr)
+            }
+            _ => false,
+        }
+    }
+}
+
+/// One entry of `delegationChain` (version 3): a client or an RFC 8693 actor, `agent` or
+/// `service`, with its namespaced id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainLink {
+    /// `agent` or `service`.
+    pub kind: String,
+    /// `<namespace>/<mapped id>`.
+    pub id: String,
 }
 
 /// How a record came to be.
@@ -275,12 +367,21 @@ pub struct Envelope {
     /// Version 2: filled only by the host, for `memory-confirm`.
     #[serde(default)]
     pub confirmation: Option<Confirmation>,
+    /// Version 3: the writing principal's delegation chain, outermost first, at most
+    /// [`MAX_DELEGATION_CHAIN`]; empty without a token or assertion. Filled only by the host.
+    #[serde(default)]
+    pub delegation_chain: Option<Vec<ChainLink>>,
 }
 
 impl Serialize for Envelope {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let v2 = self.version >= 2;
-        let mut map = serializer.serialize_map(Some(if v2 { 22 } else { 19 }))?;
+        let v3 = self.version >= 3;
+        let mut map = serializer.serialize_map(Some(match (v2, v3) {
+            (_, true) => 23,
+            (true, false) => 22,
+            _ => 19,
+        }))?;
         map.serialize_entry("version", &self.version)?;
         map.serialize_entry("origin", &self.origin)?;
         map.serialize_entry("space", &self.space)?;
@@ -304,6 +405,13 @@ impl Serialize for Envelope {
             map.serialize_entry("redactions", &self.redactions)?;
             map.serialize_entry("constraints", &self.constraints)?;
             map.serialize_entry("confirmation", &self.confirmation)?;
+        }
+        if v3 {
+            let none: Vec<ChainLink> = Vec::new();
+            map.serialize_entry(
+                "delegationChain",
+                self.delegation_chain.as_ref().unwrap_or(&none),
+            )?;
         }
         map.end()
     }
@@ -332,10 +440,11 @@ impl Envelope {
     /// [`StoreError::Invalid`] naming the first rule broken.
     pub fn check(&self, space: &str) -> Result<AccessSet> {
         let refuse = |rule: &str| Err(StoreError::invalid(format!("provenance envelope: {rule}")));
-        if !(1..=ENVELOPE_VERSION).contains(&self.version) {
-            return refuse("version must be 1 or 2");
+        if !(1..=LATEST_ENVELOPE_VERSION).contains(&self.version) {
+            return refuse("version must be 1, 2 or 3");
         }
         self.check_version_2_fields()?;
+        self.check_version_3_fields()?;
         if self.origin == Origin::Unspecified {
             return refuse("origin must not be `unspecified`");
         }
@@ -381,6 +490,52 @@ impl Envelope {
             }
         }
         AccessSet::new(self.access.iter().cloned())
+    }
+
+    /// The fields version 3 adds: absent before it; in version 3 a `delegationChain` (possibly
+    /// empty) of at most 8 `agent` or `service` entries with namespaced ids, and an `assurance` on
+    /// every `confirmation`.
+    fn check_version_3_fields(&self) -> Result<()> {
+        let refuse = |rule: &str| Err(StoreError::invalid(format!("provenance envelope: {rule}")));
+        let assured = self
+            .confirmation
+            .as_ref()
+            .is_some_and(|confirmation| confirmation.assurance.is_some());
+        if self.version < 3 {
+            if self.delegation_chain.is_some() || assured {
+                return refuse("delegationChain and a confirmation's assurance need version 3");
+            }
+            return Ok(());
+        }
+        let Some(chain) = &self.delegation_chain else {
+            return refuse("delegationChain is required in version 3 (empty without a token)");
+        };
+        if chain.len() > MAX_DELEGATION_CHAIN {
+            return refuse("delegationChain holds at most 8 entries");
+        }
+        let well_formed = chain.iter().all(|link| {
+            matches!(link.kind.as_str(), "agent" | "service")
+                && link
+                    .id
+                    .split_once('/')
+                    .is_some_and(|(ns, id)| !ns.is_empty() && !id.is_empty())
+                && link.id.chars().count() <= 128
+                && !link.id.chars().any(char::is_control)
+        });
+        if !well_formed {
+            return refuse(
+                "each delegationChain entry is an agent or a service with a namespaced id",
+            );
+        }
+        if let Some(confirmation) = &self.confirmation
+            && !confirmation
+                .assurance
+                .as_ref()
+                .is_some_and(Assurance::is_valid)
+        {
+            return refuse("a version 3 confirmation needs a valid assurance");
+        }
+        Ok(())
     }
 
     /// The fields version 2 adds or closes: absent from version 1, well formed in version 2.

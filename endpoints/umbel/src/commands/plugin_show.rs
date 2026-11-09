@@ -201,7 +201,7 @@ fn mount_summary(mount: &MountReport) -> Value {
 }
 
 /// `instance` in full, to a caller listed `listed` (`None`: every space).
-fn show(instance: &InstanceReport, listed: Option<&[String]>) -> Value {
+fn show(instance: &InstanceReport, listed: Option<&[String]>, hosted: bool) -> Value {
     let shown = |space: &str| listed.is_none_or(|listed| listed.iter().any(|s| s == space));
     let mut data = Map::new();
     let mut about = summary(instance);
@@ -251,7 +251,7 @@ fn show(instance: &InstanceReport, listed: Option<&[String]>) -> Value {
                 "mutation": command.mutation(),
                 "firstClass": command.first_class,
                 "expose": {
-                    "mcp": command.mcp_exposed(),
+                    "mcp": crate::plugins::loader::mcp_registered(command, hosted),
                     "agent": command.expose.agent,
                     "cli": command.expose.cli,
                     "palette": command.expose.palette,
@@ -318,7 +318,11 @@ impl CommandHandler for Handler {
             .instance(id)
             .filter(|instance| super::plugin_list::visible_instance(instance, listed.as_deref()))
         {
-            Some(instance) => success(show(instance, listed.as_deref())),
+            Some(instance) => success(show(
+                instance,
+                listed.as_deref(),
+                self.workspace.config().auth.mode.is_hosted(),
+            )),
             None => failure(
                 afd::CommandError::new(
                     crate::plugins::codes::PLUGIN_NOT_FOUND,

@@ -132,6 +132,16 @@ impl SqliteMemoryStore {
                     )
                     .into());
                 }
+                let Some(assurance) = req
+                    .assurance
+                    .clone()
+                    .filter(umbel_store::Assurance::is_valid)
+                else {
+                    return Err(StoreError::invalid(
+                        "memory-confirm: the host records how the person was proven (assurance)",
+                    )
+                    .into());
+                };
                 let body = rec.body(&self.space, key)?;
                 if !content_hash_prefix_matches(&body.content_hash, &req.content_hash) {
                     return Err(StoreError::Conflict { current: None }.into());
@@ -147,11 +157,20 @@ impl SqliteMemoryStore {
                     recorded,
                     req.trace_id.clone(),
                     |v| {
+                        // A confirmation records how its person was proven (envelope version 3,
+                        // memory record version 2). The version keeps its writer's principal,
+                        // agent and chain; a version written before version 3 recorded no chain,
+                        // so its confirmed version carries an empty one.
                         v.envelope.authority = Some(Authority::Person.as_str().to_owned());
+                        v.envelope.version = umbel_store::MEMORY_ENVELOPE_VERSION;
+                        if v.envelope.delegation_chain.is_none() {
+                            v.envelope.delegation_chain = Some(Vec::new());
+                        }
                         v.envelope.confirmation = Some(Confirmation {
                             by: req.by.clone(),
                             at: format_instant(recorded),
                             prior_authority: prior,
+                            assurance: Some(assurance.clone()),
                         });
                     },
                 )?;

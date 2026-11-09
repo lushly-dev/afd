@@ -11,6 +11,7 @@
 mod args;
 mod output;
 mod parse;
+mod person;
 mod preview;
 mod prompt;
 mod serve;
@@ -524,6 +525,17 @@ async fn run_command(
             Err(error) => return writers.exit_for(&afd::failure(*error)),
         },
     };
+    // `person.cli = "verified"` (phase 5 section 7.1): the person decides on the person page,
+    // never at this terminal; the CLI prints the link and waits.
+    if host
+        .person_decl(command)
+        .is_some_and(|person| person.cli == crate::plugins::Assurance::Verified)
+    {
+        let started = Instant::now();
+        let result = person::run(host, command, input, environment).await;
+        logging::log_call(command, None, started.elapsed().as_millis(), result.success);
+        return writers.exit_for(&result);
+    }
     // Whether a person is at the terminal (phase 3 section 3.3): stdin and stderr are terminals,
     // the input is not `@-`, neither `--yes` nor `--approve`, and no agent variable is set.
     let agent = crate::authority::agent_env_set(

@@ -339,6 +339,7 @@ mod tests {
                 redactions: None,
                 constraints: None,
                 confirmation: None,
+                delegation_chain: None,
             },
         }
     }

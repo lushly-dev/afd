@@ -23,7 +23,7 @@ fn seal_with_fixtures(dir: &std::path::Path) -> umbel::Host {
 async fn events_only_for_successful_mutations_in_the_right_stream() {
     let dir = two_spaces();
     let host = seal_with_fixtures(dir.path());
-    let validator = schema_validator("event.v2");
+    let validator = schema_validator("event.v3");
     let actor = agent("local");
 
     let first = call(&host, actor.clone(), "note-remember", json!({"text": "a"})).await;
@@ -88,8 +88,9 @@ async fn events_only_for_successful_mutations_in_the_right_stream() {
         main[0]["provenance"]["agent"],
         json!({"kind": "agent", "id": "local"})
     );
-    assert_eq!(main[0]["version"], 2);
-    assert_eq!(main[0]["provenance"]["version"], 2);
+    assert_eq!(main[0]["version"], 3);
+    assert_eq!(main[0]["provenance"]["version"], 3);
+    assert_eq!(main[0]["provenance"]["delegationChain"], json!([]));
     assert_eq!(main[0]["provenance"]["principal"], "agent:local");
     assert_eq!(main[0]["provenance"]["plugin"], Value::Null);
     assert_eq!(main[0]["provenance"]["access"], json!(["space"]));
@@ -117,7 +118,7 @@ async fn record_and_provenance_come_from_the_result_metadata() {
     .await;
     assert!(result.success);
     let event = &events(dir.path(), "main")[0];
-    assert_event_valid(&schema_validator("event.v2"), event);
+    assert_event_valid(&schema_validator("event.v3"), event);
     let provenance = &event["provenance"];
     assert_eq!(provenance["origin"], "user-stated");
     assert_eq!(provenance["confidence"], 0.8);
@@ -151,7 +152,7 @@ async fn a_bare_execute_without_a_principal_is_still_projected() {
         .execute("note-remember", json!({"text": "x"}), None)
         .await;
     let event = &events(dir.path(), "main")[0];
-    assert_event_valid(&schema_validator("event.v2"), event);
+    assert_event_valid(&schema_validator("event.v3"), event);
     assert!(event.get("actor").is_none());
     assert!(event.get("traceId").is_none());
     assert_eq!(event["provenance"]["traceId"], Value::Null);
@@ -456,7 +457,7 @@ mod over_mcp {
     async fn mutations_over_mcp_are_journaled_and_projected_with_the_transports_actor() {
         let dir = minimal();
         let host = seal_with_fixtures(dir.path());
-        let validator = schema_validator("event.v2");
+        let validator = schema_validator("event.v3");
         for mut client in Client::lanes(&host).await {
             let label = client.label();
             let result = client
@@ -553,7 +554,7 @@ async fn an_entry_projects_in_the_version_the_host_that_journaled_it_wrote() {
     // The marker says an event may be missing, so the first seal projects the journal.
     fs::write(dir.path().join("state/projection.pending"), "").unwrap();
     let host = seal_with_fixtures(dir.path());
-    // The host stamps what it journals from here on: version 2.
+    // The host stamps what it journals from here on: version 3.
     call(
         &host,
         agent("local"),
@@ -564,10 +565,10 @@ async fn an_entry_projects_in_the_version_the_host_that_journaled_it_wrote() {
 
     let stream = events(dir.path(), "main");
     assert_eq!(stream.len(), 4, "{stream:?}");
-    let (v0, v1, v2) = (
+    let (v0, v1, v3) = (
         schema_validator("event.v0"),
         schema_validator("event.v1"),
-        schema_validator("event.v2"),
+        schema_validator("event.v3"),
     );
     assert_eq!(stream[0]["version"], 0);
     assert_eq!(stream[0]["provenance"]["version"], 0);
@@ -612,9 +613,9 @@ async fn an_entry_projects_in_the_version_the_host_that_journaled_it_wrote() {
     assert_eq!(stream[2]["provenance"]["sensitivity"], "internal");
     assert_eq!(stream[2]["provenance"]["contentHash"], Value::Null);
 
-    assert_eq!(stream[3]["version"], 2);
-    assert_event_valid(&v2, &stream[3]);
-    assert_eq!(stream[3]["provenance"]["version"], 2);
+    assert_eq!(stream[3]["version"], 3);
+    assert_event_valid(&v3, &stream[3]);
+    assert_eq!(stream[3]["provenance"]["version"], 3);
     assert_eq!(stream[3]["provenance"]["confirmation"], Value::Null);
 
     // `event-rebuild` writes each in the version its journal entry supports, and event-list
@@ -630,7 +631,7 @@ async fn an_entry_projects_in_the_version_the_host_that_journaled_it_wrote() {
             .iter()
             .map(|e| e["version"].clone())
             .collect::<Vec<_>>(),
-        [json!(0), json!(1), json!(1), json!(2)]
+        [json!(0), json!(1), json!(1), json!(3)]
     );
     let listed = call(
         &host,
@@ -648,7 +649,7 @@ async fn an_entry_projects_in_the_version_the_host_that_journaled_it_wrote() {
         .collect();
     assert_eq!(
         versions,
-        [json!(0), json!(1), json!(1), json!(2)],
+        [json!(0), json!(1), json!(1), json!(3)],
         "{listed}"
     );
 }

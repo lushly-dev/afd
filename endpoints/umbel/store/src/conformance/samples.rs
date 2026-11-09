@@ -45,6 +45,7 @@ pub fn envelope(access: &[&str], trace: &str, at: &str) -> Envelope {
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     }
 }
 

@@ -314,7 +314,7 @@ pub fn mapped_id(ns: &str, id: &str) -> String {
 }
 
 /// RFC 4648 base32, lowercase, unpadded.
-fn base32(bytes: &[u8]) -> String {
+pub(crate) fn base32(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
     let mut out = String::with_capacity(bytes.len().div_ceil(5) * 8);
     let mut buffer: u32 = 0;

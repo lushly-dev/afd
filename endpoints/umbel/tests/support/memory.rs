@@ -416,6 +416,7 @@ fn confirm(cx: &Cx, space: &str, args: &Value) -> Outcome {
             by: "human:forged".to_owned(),
             content_hash: hash,
             trace_id: None,
+            assurance: Some(umbel_store::Assurance::terminal()),
         },
     ) {
         Ok(meta) => success(json!({ "result": meta.record_version })),

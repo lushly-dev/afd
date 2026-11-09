@@ -467,11 +467,11 @@ impl CommandDecl {
         self.effects.iter().any(|effect| effect.mutation())
     }
 
-    /// Whether the host registers the command for MCP. A `require-human` command whose `person`
-    /// names `mcp` may declare `expose.mcp = true` from manifest version 5, but it is served over
-    /// MCP only in a hosted mode, to callers whose namespace has a valid person login (phase 5
-    /// section 7.1), which phase 5 step 5 builds; until then it stays off MCP, as in versions 2
-    /// to 4.
+    /// Whether the command is exposed to MCP in every mode. A `require-human` command whose
+    /// `person` names `mcp` may declare `expose.mcp = true` from manifest version 5, but it is
+    /// registered for MCP only in a hosted mode (the loader's `mcp_registered`), host-verified, and
+    /// served only to callers whose namespace has a valid person login (phase 5 section 7.1); in
+    /// mode `none` it stays off MCP, as in versions 2 to 4.
     pub fn mcp_exposed(&self) -> bool {
         self.expose.mcp && !self.require_human
     }

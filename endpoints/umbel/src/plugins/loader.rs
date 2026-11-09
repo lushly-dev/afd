@@ -27,7 +27,7 @@ use super::config;
 use super::files::{AssetFiles, DirFiles, PluginFiles};
 use super::grants::{ALLOW_REQUIRED, CommandPolicy, Services, Shared, needs_allow};
 use super::manifest::{
-    Assurance, CommandDecl, Effect, JournalMode, Manifest, PluginKind, TaskMode, Transport,
+    CommandDecl, Effect, JournalMode, Manifest, PluginKind, TaskMode, Transport,
 };
 #[cfg(feature = "mounted")]
 use super::mounted;
@@ -157,10 +157,12 @@ pub(crate) struct GateEntry {
     pub spaces_command: bool,
     /// `confirm = "require-human"` (manifest version 2): only a person at a terminal may run it.
     pub require_human: bool,
-    /// `person.cli = "verified"` (manifest version 5) on the command or pipeline: a person proven
-    /// on the person page, which phase 5 step 5 builds. Until then the gate refuses the call with
-    /// `PERSON_VERIFICATION_UNAVAILABLE` rather than accept the terminal check in its place.
-    pub person_verified: bool,
+    /// `person` (manifest version 5) on a `require-human` command or pipeline: the least
+    /// assurance per surface the plugin gate accepts (phase 5 section 7.1): the terminal check at
+    /// the CLI, or a decision on the person page (`verified`) at the CLI or over MCP.
+    pub person: Option<crate::plugins::PersonDecl>,
+    /// `confirm_preview` (manifest version 4): the preview a person decision renders.
+    pub preview: Option<String>,
     /// Whether the command is a pipeline. Its steps are journaled and projected as the calls
     /// they are, so the pipeline itself is not projected as a second event.
     pub pipeline: bool,
@@ -404,7 +406,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
                 schema.clone(),
             )?;
             let mut entry = gate_entry(&id, kind, &prepared.spaces, schema, true, false);
-            entry.person_verified = decl.person.is_some_and(|person| person.needs_preview());
+            entry.person = decl.person;
             entry.digest = plan.digest.then(Vec::new);
             entry.authority_prompt = plan.authority_prompt.clone();
             entry.steps = decl.steps.iter().map(|step| step.command.clone()).collect();
@@ -434,7 +436,8 @@ fn gate_entry(
         space_command: has_space_property(schema),
         spaces_command: has_spaces_property(schema),
         require_human,
-        person_verified: false,
+        person: None,
+        preview: None,
         pipeline,
         memory_writer: false,
         digest: None,
@@ -725,6 +728,7 @@ fn prepare(
     let manifest = &resolved.manifest;
     let workspace = inputs.workspace;
     let files = resolved.files.as_ref() as &dyn PluginFiles;
+    let hosted = workspace.config().auth.mode.is_hosted();
 
     // 3. The instance configuration.
     let configuration = config::resolve(&instance.id, manifest, files, &instance.config)?;
@@ -905,7 +909,7 @@ fn prepare(
                     CommandPolicy {
                         store_write: command.effects.contains(&Effect::StoreWrite),
                         cli_only: command.expose.cli
-                            && !command.mcp_exposed()
+                            && !mcp_registered(command, hosted)
                             && !command.expose.agent,
                     },
                 )
@@ -944,7 +948,14 @@ fn prepare(
     let skills = check_skill_names(instance, skills, shipped)?;
 
     // 8 (prepared). The definitions; registration itself is the caller's.
-    let definitions = definitions(&instance.id, manifest, &schemas, returns, implementations)?;
+    let definitions = definitions(
+        &instance.id,
+        manifest,
+        &schemas,
+        returns,
+        implementations,
+        hosted,
+    )?;
     let space_names: Vec<String> = spaces
         .iter()
         .map(|space| space.as_str().to_owned())
@@ -964,9 +975,8 @@ fn prepare(
                     command.require_human,
                 );
                 entry.memory_writer = memory_writer;
-                entry.person_verified = command
-                    .person
-                    .is_some_and(|person| person.cli == Assurance::Verified);
+                entry.person = command.person;
+                entry.preview = command.confirm_preview.clone();
                 entry.digest = command
                     .journal
                     .as_ref()
@@ -981,7 +991,7 @@ fn prepare(
     let suggestions = manifest
         .commands
         .iter()
-        .filter(|command| command.first_class && command.mcp_exposed())
+        .filter(|command| command.first_class && mcp_registered(command, hosted))
         .map(|command| command.name.clone())
         .collect();
     Ok(Prepared {
@@ -1233,12 +1243,25 @@ fn origin(instance: &str, manifest: &Manifest, command: &CommandDecl) -> Value {
     })
 }
 
-/// The command's exposure as registered: a `require-human` command stays off MCP until phase 5
-/// step 5 serves it to verified persons ([`CommandDecl::mcp_exposed`]).
-fn expose(command: &CommandDecl) -> ExposeOptions {
+/// Whether the command is registered for MCP: as [`CommandDecl::mcp_exposed`] says, and, in a
+/// hosted mode only, a `require-human` command whose `person` names `mcp` and which declares
+/// `expose.mcp` (phase 5 section 7.1). Such a command is host-verified ([`definitions`]), and the
+/// scope resolver lists and serves it only to callers whose namespace serves verified commands;
+/// mode `none` keeps it off MCP, as phases 2 to 4 did.
+pub(crate) fn mcp_registered(command: &CommandDecl, hosted: bool) -> bool {
+    command.mcp_exposed() || (hosted && person_mcp(command) && command.expose.mcp)
+}
+
+/// Whether the command's `person` names MCP.
+fn person_mcp(command: &CommandDecl) -> bool {
+    command.require_human && command.person.is_some_and(|person| person.mcp.is_some())
+}
+
+/// The command's exposure as registered ([`mcp_registered`]).
+fn expose(command: &CommandDecl, hosted: bool) -> ExposeOptions {
     ExposeOptions::new()
         .with_palette(command.expose.palette)
-        .with_mcp(command.mcp_exposed())
+        .with_mcp(mcp_registered(command, hosted))
         .with_agent(command.expose.agent)
         .with_cli(command.expose.cli)
 }
@@ -1258,6 +1281,7 @@ fn definitions(
     schemas: &[Value],
     returns: Vec<Option<Value>>,
     implementations: Vec<PluginCommand>,
+    hosted: bool,
 ) -> Result<Vec<(CommandDefinition, Value)>, PluginError> {
     let bad =
         |key: String, problem: String| PluginError::manifest_invalid(&manifest.file, &key, problem);
@@ -1359,8 +1383,15 @@ fn definitions(
             }
         };
         let mut definition = definition
-            .with_expose(expose(command))
+            .with_expose(expose(command, hosted))
             .with_tool_meta(ORIGIN_KEY, origin(instance, manifest, command));
+        // A command a person decides over MCP is confirmed by the host alone (step 1's
+        // amendment): AFD never sends it a form nor takes an acknowledgement, whatever
+        // `mcp.confirmations` says, and only Umbel's relay can confirm it.
+        if person_mcp(command) {
+            definition =
+                definition.with_confirmation_mode(afd::CommandConfirmationMode::HostVerified);
+        }
         // The budget the manifest declares (version 2, compiled plugins only): AFD checks it in
         // the innermost link of the middleware chain and the handler fits its result to it.
         if let Some(budget) = command.output_budget {

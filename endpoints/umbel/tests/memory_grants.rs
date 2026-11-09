@@ -667,7 +667,7 @@ async fn a_non_memory_command_claiming_an_authority_gets_null() {
     assert!(metadata(&outcome).get("dev.umbel/authority").is_none());
     let events = support::events(dir.path(), "main");
     assert_eq!(events.len(), 1, "{events:?}");
-    assert_eq!(events[0]["version"], 2);
+    assert_eq!(events[0]["version"], 3);
     assert_eq!(events[0]["provenance"]["origin"], "user-stated");
     assert!(
         events[0]["provenance"]["authority"].is_null(),

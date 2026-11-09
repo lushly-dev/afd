@@ -180,6 +180,7 @@ fn confirm(m: &dyn MemoryStore, n: u64) -> Result<(), StoreError> {
             content_hash: "sha256:".into(),
             at: NOW,
             trace_id: None,
+            assurance: Some(umbel_store::Assurance::terminal()),
         },
         &ada(),
     )

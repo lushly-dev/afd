@@ -314,6 +314,7 @@ fn confirm(env: &MemoryEnv<'_>) -> CaseResult {
         by: by.to_owned(),
         content_hash: hash.to_owned(),
         trace_id: None,
+        assurance: Some(crate::Assurance::terminal()),
     };
     expect_err(
         m.confirm(request(ADA, &format!("sha256:{}", "0".repeat(16))), &ada()),

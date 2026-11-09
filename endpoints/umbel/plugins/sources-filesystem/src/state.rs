@@ -85,6 +85,7 @@ fn bookkeeping(sensitivity: Sensitivity, now: &str) -> Envelope {
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     }
 }
 

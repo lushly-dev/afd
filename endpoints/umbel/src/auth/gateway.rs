@@ -354,7 +354,7 @@ impl PinnedKeys {
 
 /// AFD's signing algorithms, as `jsonwebtoken` names them (`none`, `HS*`, `ES512` and Ed448
 /// are not among them).
-fn signing_algorithm(name: &str) -> Option<(Algorithm, &'static str)> {
+pub(crate) fn signing_algorithm(name: &str) -> Option<(Algorithm, &'static str)> {
     Some(match name {
         "RS256" => (Algorithm::RS256, "RS256"),
         "RS384" => (Algorithm::RS384, "RS384"),
@@ -378,7 +378,7 @@ const RSA_MODULUS_BITS: std::ops::RangeInclusive<usize> = 2048..=8192;
 /// exponent below 3, an EC point of the wrong length or off its curve, or an Ed25519 key that
 /// does not parse. The EC and Ed25519 material is parsed by `aws-lc-rs` itself, the library that
 /// verifies the signatures.
-fn decoding_key(alg: Algorithm, jwk: &Value) -> Option<DecodingKey> {
+pub(crate) fn decoding_key(alg: Algorithm, jwk: &Value) -> Option<DecodingKey> {
     use aws_lc_rs::signature::{self, ParsedPublicKey};
     let member = |name: &str| {
         jwk.get(name)
@@ -859,7 +859,7 @@ fn pin_of(der: &[u8]) -> String {
 }
 
 /// A claim text: a string of 1 to 255 characters with no control character.
-fn claim_text(value: Option<&Value>) -> Option<&str> {
+pub(crate) fn claim_text(value: Option<&Value>) -> Option<&str> {
     let text = value?.as_str()?;
     (!text.is_empty()
         && text.chars().count() <= MAX_CLAIM_CHARS
@@ -889,7 +889,7 @@ fn carries_128_bits(jti: &str) -> bool {
 
 /// The three parts of a compact JWS: three base64url parts, the first two non-empty, as AFD
 /// reads a JWS's shape (an empty signature is then refused by the rules, `alg: none` as `alg`).
-fn compact_parts(token: &str) -> Option<[&str; 3]> {
+pub(crate) fn compact_parts(token: &str) -> Option<[&str; 3]> {
     let mut parts = token.split('.');
     let parts = [parts.next()?, parts.next()?, parts.next()?];
     if token.matches('.').count() != 2 {
@@ -904,7 +904,7 @@ fn compact_parts(token: &str) -> Option<[&str; 3]> {
 }
 
 /// A base64url part decoded to a JSON object with unique member names at every depth.
-fn decode_part(part: &str) -> Option<Map<String, Value>> {
+pub(crate) fn decode_part(part: &str) -> Option<Map<String, Value>> {
     strict_object(&URL_SAFE_NO_PAD.decode(part).ok()?)
 }
 

@@ -143,6 +143,7 @@ pub(crate) fn envelope(caller: &Caller<'_>, parts: Parts) -> Envelope {
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     }
 }
 

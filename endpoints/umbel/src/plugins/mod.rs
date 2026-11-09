@@ -18,7 +18,7 @@ mod error;
 mod files;
 mod grants;
 mod ledger;
-mod loader;
+pub(crate) mod loader;
 mod manifest;
 #[cfg(feature = "store-embedded")]
 mod memory_services;

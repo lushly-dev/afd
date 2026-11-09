@@ -94,6 +94,9 @@ pub struct HttpServer {
     router: Router,
     #[cfg(feature = "auth")]
     tls: Option<tokio_rustls::TlsAcceptor>,
+    /// The person page's service, whose logins are checked when serving starts.
+    #[cfg(feature = "auth")]
+    person: Option<Arc<crate::person::service::PersonService>>,
     /// `http.trusted_proxies`: the peers whose connections open with a PROXY protocol header.
     proxies: Arc<[IpAddr]>,
 }
@@ -134,6 +137,13 @@ impl HttpServer {
         let tls = self.tls;
         #[cfg(not(feature = "auth"))]
         let tls = None;
+        // Each person login's provider is checked at start (step 2c's follow-up), so its
+        // namespace's verified commands are served as soon as it passes, and again before its
+        // cache ends.
+        #[cfg(feature = "auth")]
+        if let Some(person) = self.person {
+            tokio::spawn(async move { person.check_logins().await });
+        }
         listener::serve(listener, self.router, tls, self.proxies, shutdown).await;
         Ok(())
     }
@@ -157,6 +167,7 @@ pub(crate) fn server(
     #[cfg(feature = "auth")] policy: &Arc<crate::auth::scopes::ScopePolicy>,
     #[cfg(feature = "auth")] verifier: Option<Arc<dyn TokenVerifier>>,
     #[cfg(feature = "auth")] environment: &crate::auth::fetch::AuthEnvironment,
+    #[cfg(feature = "auth")] person: Option<&Arc<crate::person::service::PersonService>>,
 ) -> Result<HttpServer, HostError> {
     #[cfg(not(feature = "auth"))]
     {
@@ -186,9 +197,9 @@ pub(crate) fn server(
                         Arc::new(verifier)
                     }
                 };
-                oauth_router(server, workspace, policy, verifier)?
+                oauth_router(server, workspace, policy, verifier, person)?
             }
-            AuthMode::Gateway => gateway::router(server, workspace, policy, environment)?,
+            AuthMode::Gateway => gateway::router(server, workspace, policy, environment, person)?,
         };
         let tls = config
             .http
@@ -199,6 +210,7 @@ pub(crate) fn server(
         Ok(HttpServer {
             router,
             tls,
+            person: person.filter(|_| config.auth.mode.is_hosted()).cloned(),
             proxies: Arc::from(config.http.trusted_proxies.clone()),
         })
     }
@@ -388,6 +400,7 @@ fn oauth_router(
     workspace: &Workspace,
     policy: &Arc<crate::auth::scopes::ScopePolicy>,
     verifier: Arc<dyn TokenVerifier>,
+    person: Option<&Arc<crate::person::service::PersonService>>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
     let metadata = protected_resource(workspace)?;
@@ -450,16 +463,25 @@ fn oauth_router(
         &config.auth.scope_prefix,
     );
     let service = tower::Layer::layer(&bearer, gated);
+    let page = person_page(person, &config.http.path);
     let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
+        // The person page's routes, beside the MCP path and never behind the bearer layer (6.3,
+        // layer 4): they authenticate by their own login.
+        let page = page
+            .clone()
+            .filter(|page| page.serves(request.uri().path()));
         let at_path = routed.iter().any(|path| path == request.uri().path());
         // A fresh slot for the caller the verifier maps, replacing anything already there; the
         // context hook trusts it only beside the credentials AFD admits for the same request, and
         // the resolver finds it in the book while the request is in flight.
         let slot = crate::auth::caller::CallerSlot::default();
         request.extensions_mut().insert(slot.clone());
-        let entry = book.enter(slot);
+        let entry = page.is_none().then(|| book.enter(slot));
         async move {
+            if let Some(page) = page {
+                return Ok::<Response, Infallible>(page.handle(request).await);
+            }
             if !at_path {
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());
             }
@@ -490,6 +512,15 @@ fn oauth_router(
             max_body_bytes(workspace),
             layers::cap_body,
         )))
+}
+
+/// The person page's routes under `path`, in a hosted mode with a person service.
+#[cfg(feature = "auth")]
+pub(crate) fn person_page(
+    person: Option<&Arc<crate::person::service::PersonService>>,
+    path: &str,
+) -> Option<crate::person::page::PersonPage> {
+    person.and_then(|service| crate::person::page::PersonPage::new(Arc::clone(service), path))
 }
 
 async fn health() -> Response {

@@ -348,6 +348,7 @@ impl Fx {
                     by: by.to_owned(),
                     content_hash: hash.as_str().to_owned(),
                     trace_id: None,
+                    assurance: Some(umbel_store::Assurance::terminal()),
                 },
                 &reader,
             )

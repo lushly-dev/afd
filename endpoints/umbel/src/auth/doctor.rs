@@ -23,7 +23,7 @@ use serde_json::{Map, Value, json};
 use super::fetch::{AuthEnvironment, FetchError, Fetcher, for_issuer};
 use super::files::{self, Secrecy, Validity};
 use super::keys::{DiscoveryError, discover, key_set, metadata_url};
-use super::{UV_AMR_METHODS, split_namespaced};
+use super::split_namespaced;
 use crate::doctor::Check;
 use crate::workspace::{
     AccessToken, AuthMode, Config, Confirmations, IssuerConfig, Layout, ReaderEntry, TokenCheck,
@@ -944,14 +944,6 @@ fn principals(config: &Config) -> Check {
 
 // ── auth.person ─────────────────────────────────────────────────────────────────────────────────
 
-fn strings(value: Option<&Value>) -> Option<Option<Vec<&str>>> {
-    match value {
-        None => None,
-        Some(Value::Array(items)) => Some(items.iter().map(Value::as_str).collect()),
-        Some(_) => Some(None),
-    }
-}
-
 fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
     let auth = &inputs.config.auth;
     let mut found = Findings::default();
@@ -973,76 +965,34 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
             continue;
         };
         let failures = found.failures.len();
-        if login.acr_values.is_empty() {
-            found.fail(format!(
-                "namespace {ns}: its person login's acr_values is empty"
-            ));
-        }
-        if login.uv_amr.is_empty() {
-            found.fail(format!(
-                "namespace {ns}: its person login's uv_amr is empty"
-            ));
-        }
-        if let Some(other) = login
-            .uv_amr
-            .iter()
-            .find(|method| !UV_AMR_METHODS.contains(&method.as_str()))
-        {
-            found.fail(format!(
-                "namespace {ns}: uv_amr names {other}, which is not an RFC 8176 user-verification method"
-            ));
-        }
+        // The same function the person page runs at serve time, so the doctor passes exactly
+        // the namespaces whose verified commands are served (step 2c's follow-up).
         match identity_document(probe_of(probes, &login.issuer)) {
             Ok((document, _)) => {
-                let at = &login.issuer;
-                match strings(document.get("acr_values_supported")) {
-                    Some(Some(supported)) => {
-                        let missing: Vec<&str> = login
-                            .acr_values
-                            .iter()
-                            .map(String::as_str)
-                            .filter(|acr| !supported.contains(acr))
-                            .collect();
-                        if !missing.is_empty() {
-                            found.fail(format!(
-                                "namespace {ns}: {at}'s acr_values_supported lacks {}, so a login asking for it is not user-verified",
-                                missing.join(", ")
-                            ));
-                        }
-                    }
-                    Some(None) => found.fail(format!(
-                        "namespace {ns}: {at}'s acr_values_supported is not a list of strings"
-                    )),
-                    None => found.warn(format!(
-                        "namespace {ns}: {at} publishes no acr_values_supported, so whether it supports {} cannot be confirmed before a login",
-                        login.acr_values.join(", ")
-                    )),
+                let (failed, warned) =
+                    crate::person::oidc::login_findings(ns, &login.issuer, login, document);
+                for failure in failed {
+                    found.fail(failure);
                 }
-                match strings(document.get("claims_supported")) {
-                    Some(Some(claims)) => {
-                        let missing: Vec<&str> = ["acr", "amr"]
-                            .into_iter()
-                            .filter(|claim| !claims.contains(claim))
-                            .collect();
-                        if !missing.is_empty() {
-                            found.fail(format!(
-                                "namespace {ns}: {at}'s claims_supported lacks {}, so an ID token cannot prove user verification",
-                                missing.join(" and ")
-                            ));
-                        }
-                    }
-                    Some(None) => found.fail(format!(
-                        "namespace {ns}: {at}'s claims_supported is not a list of strings"
-                    )),
-                    None => found.warn(format!(
-                        "namespace {ns}: {at} publishes no claims_supported, so whether its ID tokens carry acr and amr cannot be confirmed before a login"
-                    )),
+                for warning in warned {
+                    found.warn(warning);
                 }
             }
-            Err(problem) => found.fail(format!(
-                "namespace {ns}: its person login at {} cannot be confirmed, since that issuer's metadata cannot be read: {problem}",
-                login.issuer
-            )),
+            Err(problem) => {
+                let (failed, _) = crate::person::oidc::login_findings(
+                    ns,
+                    &login.issuer,
+                    login,
+                    &serde_json::Map::new(),
+                );
+                for failure in failed {
+                    found.fail(failure);
+                }
+                found.fail(format!(
+                    "namespace {ns}: its person login at {} cannot be confirmed, since that issuer's metadata cannot be read: {problem}",
+                    login.issuer
+                ));
+            }
         }
         if found.failures.len() == failures {
             valid.push(ns.clone());

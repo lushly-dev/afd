@@ -419,6 +419,7 @@ fn envelope_refusals(env: &MemoryEnv<'_>) -> CaseResult {
                 by: ADA.into(),
                 at: crate::memory::format_instant(T0),
                 prior_authority: Authority::Agent,
+                assurance: None,
             });
         }),
     ];
