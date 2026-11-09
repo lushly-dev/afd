@@ -253,11 +253,16 @@ export class LoamNewMenu extends FASTElement {
 			this.#skip = this.#pressClosed;
 			this.#pressClosed = false;
 		});
-		button.addEventListener('pointerup', () => {
-			setTimeout(() => {
-				this.#pressClosed = false;
-			});
-		});
+		// A pointerup off the button is not the button's: heard on the window, in capture.
+		(button.ownerDocument.defaultView ?? window).addEventListener(
+			'pointerup',
+			() => {
+				setTimeout(() => {
+					this.#pressClosed = false;
+				});
+			},
+			{ capture: true }
+		);
 	}
 
 	/** Read what New offers here, render it, and open with focus on the first item, or the last for ArrowUp. */
