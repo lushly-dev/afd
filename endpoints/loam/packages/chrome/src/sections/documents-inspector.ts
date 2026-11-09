@@ -183,7 +183,12 @@ function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): voi
 			shell.shadowRoot?.querySelector<HTMLElement & { focusEditor(): void }>(
 				`loam-main loam-editor-frame[data-tab="${active}"]`
 			);
-		if (frame) return frame.focusEditor();
+		const doc = shell.ownerDocument;
+		// A view still loading takes no focus: main does then.
+		if (frame) {
+			frame.focusEditor();
+			if (doc.activeElement !== doc.body) return;
+		}
 		if ((mount?.surface as (HTMLElement & { focusFirst?(): boolean }) | null)?.focusFirst?.())
 			return;
 		const target = mount ? part : shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
