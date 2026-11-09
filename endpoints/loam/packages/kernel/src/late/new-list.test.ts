@@ -474,8 +474,13 @@ describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's 
 		const branchy = (extra: object) => ({
 			type: 'object',
 			properties: { a: { type: 'string' }, b: { type: 'string' } },
-			additionalProperties: false,
 			...extra,
+		});
+		// A branch's `required` counts only with the branch's `type`, which the manifest's rule asks for.
+		const requires = (name: string) => ({
+			type: 'object',
+			properties: { [name]: { type: 'string' } },
+			required: [name],
 		});
 		const manifest = structuredClone(TASKS_WITH_NEW) as unknown as {
 			commands: Array<Record<string, unknown>>;
@@ -486,7 +491,7 @@ describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's 
 				title: 'Either',
 				description: 'One of two.',
 				effects: ['inspect'],
-				input_schema: branchy({ anyOf: [{ required: ['a'] }, { required: ['b'] }] }),
+				input_schema: branchy({ anyOf: [requires('a'), requires('b')] }),
 			},
 			{
 				name: 'tasks-some',
@@ -497,11 +502,11 @@ describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's 
 			},
 			{
 				// Only the validator's parse sees it: the `apps` chunk's answer, on the command's owner.
-				name: 'tasks-fixed',
-				title: 'Fixed',
-				description: 'One value alone.',
+				name: 'tasks-twice',
+				title: 'Twice',
+				description: 'Two branches that every input meets.',
 				effects: ['inspect'],
-				input_schema: branchy({ const: { a: 'x' } }),
+				input_schema: branchy({ oneOf: [{ type: 'object' }, { type: 'object' }] }),
 			}
 		);
 		const held = await createScopedWorkspace({
@@ -526,7 +531,7 @@ describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's 
 		);
 		expect(flags.get('tasks-either')).toBe(true);
 		expect(flags.get('tasks-some')).toBe(true);
-		expect(flags.get('tasks-fixed')).toBe(true);
+		expect(flags.get('tasks-twice')).toBe(true);
 		expect(flags.get('tasks-list')).toBe(false);
 		expect(flags.get('tasks-add')).toBe(true);
 	});

@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { AFD_CONTRACT } from './_generated/facts.js';
 import { needsInputShape } from './needs-input.js';
+import { unfaithful } from './schema-fidelity.js';
 import type { ManifestRefusalCode } from './types.js';
 import { validateSchemaShape } from './validate-shape.generated.js';
 import type { GeneratedValidator } from './validator-errors.js';
@@ -105,10 +106,10 @@ const isObject = (value: unknown): value is Json =>
 
 /**
  * Whether a command needs input: its schema's shape says so (`needsInputShape`, the kernel's own), which
- * catches `required` and `minProperties` at the root and in `allOf`, `anyOf` and `oneOf` branches; or the
- * parse the kernel runs on an app's input refuses `{}`, which catches a root `const` or `enum` the shape cannot
- * see. A path, read later by `app check`, or a schema the checker refuses, which `input-schema` reports,
- * says no.
+ * catches `required` and `minProperties` at the root and in `allOf`, `anyOf` and `oneOf` branches, which
+ * `input-schema` accepts only with the branch's `type`, where the kernel's validator reads them; or the parse
+ * the kernel runs on an app's input refuses `{}`, which catches what the shape cannot see, such as a `oneOf`
+ * that `{}` meets twice. A path, read later by `app check`, or a schema `input-schema` refuses, says no.
  */
 export function needsInput(schema: unknown): boolean {
 	if (!isObject(schema)) return false;
@@ -125,9 +126,18 @@ export function inputSchemaProblem(schema: unknown): string | undefined {
 	// A path is read once the file system is at hand, by `app check`.
 	if (typeof schema === 'string') return undefined;
 	if (!isObject(schema) || schema.type !== 'object') return 'it must be a `type: object` schema';
+	return checkerProblem(schema);
+}
+
+/** The shape, then Loam's AFD checker, then what that checker would accept and not honour. */
+function checkerProblem(schema: Json): string | undefined {
 	if (!validSchema(schema)) return 'it is not a valid JSON Schema';
 	if (!zodAccepts(schema)) return "it uses a keyword Loam's AFD checker refuses";
-	return undefined;
+	try {
+		return unfaithful(schema);
+	} catch {
+		return 'it is not a valid JSON Schema';
+	}
 }
 
 function configSchemaProblem(schema: unknown): string | undefined {
@@ -135,9 +145,7 @@ function configSchemaProblem(schema: unknown): string | undefined {
 	if (!isObject(schema) || schema.type !== 'object') return 'it must be a `type: object` schema';
 	if (schema.additionalProperties !== false)
 		return 'it must be closed at its root, with `additionalProperties: false`';
-	if (!validSchema(schema)) return 'it is not a valid JSON Schema';
-	if (!zodAccepts(schema)) return "it uses a keyword Loam's AFD checker refuses";
-	return undefined;
+	return checkerProblem(schema);
 }
 
 function textFindings(manifest: CoreView, found: Finding[]): void {
@@ -273,7 +281,7 @@ export function coreRules(manifest: CoreView): { refusals: Finding[]; warnings: 
 				'MANIFEST_INPUT_SCHEMA_INVALID',
 				`/commands/${index}/input_schema`,
 				`This \`input_schema\` is refused: ${problem}.`,
-				'Declare a `type: object` schema with properties an AFD form and Zod can read.'
+				'Declare a `type: object` schema with properties an AFD form and Zod can read: give each branch its `type`, or require top-level properties told apart by an `enum`.'
 			);
 		}
 		const budget = command.output_budget;

@@ -139,6 +139,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Its narrow re-check raised `urlMinified` by its measured cost, 156, to 5,247, approved by the coordinator,
  * 2026-11-09: a `documents` chunk that does not load, with a tab open, says so in the sidebar and leaves main
  * to the editor, where with no tab main's landing says it (5,038 before).
+ * The input-schema rule's fix raised `appsMinified` by its measured cost, 2,672, to 387,786, keeping the 159
+ * bytes left before it, approved by the coordinator, 2026-11-09: the manifest's reader refuses a schema Zod
+ * would accept and not honour (the documents specification's Follow-ups), measured as the closure with it
+ * less without it (387,627 less 384,955). Parts: the schema walker and its table of keywords (about 2,500),
+ * the suggestion's words on restructuring (86) and the check's place in the input, config and content rules
+ * (about 90). First paint and the kernel alone are unchanged: "needs input" keeps its own branch recursion.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -149,7 +155,7 @@ export const CEILINGS = Object.freeze({
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	urlMinified: 5_247,
-	appsMinified: 385_114,
+	appsMinified: 387_786,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,

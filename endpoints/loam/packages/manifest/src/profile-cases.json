@@ -1421,13 +1421,24 @@
 					},
 					"anyOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						},
 						{
+							"type": "object",
+							"properties": {
+								"b": {
+									"type": "string"
+								}
+							},
 							"required": ["b"]
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -1459,13 +1470,24 @@
 					},
 					"oneOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						},
 						{
+							"type": "object",
+							"properties": {
+								"b": {
+									"type": "string"
+								}
+							},
 							"required": ["b"]
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -1494,10 +1516,15 @@
 					},
 					"allOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -1526,13 +1553,18 @@
 					},
 					"anyOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						},
 						{
-							"properties": {}
+							"type": "object"
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -5469,6 +5501,355 @@
 			"key": "commands[0].input_schema"
 		},
 		{
+			"id": "input-schema-any-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"anyOf": [
+						{
+							"required": ["name"]
+						},
+						{
+							"required": ["nickname"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-one-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"oneOf": [
+						{
+							"required": ["name"]
+						},
+						{
+							"required": ["nickname"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-all-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"allOf": [
+						{
+							"required": ["name"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-all-of-min-properties-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"allOf": [
+						{
+							"minProperties": 1
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-nested-any-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"who": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"nickname": {
+									"type": "string"
+								}
+							},
+							"anyOf": [
+								{
+									"required": ["name"]
+								}
+							]
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-required-undeclared",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {},
+					"required": ["name"]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-required-default",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"default": "you"
+						}
+					},
+					"required": ["name"]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-closed-beside-branch",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"additionalProperties": false,
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": ["name"]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"nickname": {
+									"type": "string"
+								}
+							},
+							"required": ["nickname"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-enum-beside-keyword",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"enum": ["a", "bb"],
+							"minLength": 2
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-ref-beside-keyword",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"$defs": {
+						"name": {
+							"type": "string"
+						}
+					},
+					"properties": {
+						"name": {
+							"$ref": "#/$defs/name",
+							"maxLength": 8
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-format",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"email": {
+							"type": "string",
+							"format": "email"
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-pattern-unicode-escape",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"pattern": "^\\p{L}+$"
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "its `type`"
+		},
+		{
+			"id": "input-schema-typed-branches",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"enum": ["name", "nickname"]
+						},
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"required": ["kind"],
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "name"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": ["kind", "name"]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "nickname"
+								},
+								"nickname": {
+									"type": "string"
+								}
+							},
+							"required": ["kind", "nickname"]
+						}
+					]
+				}
+			},
+			"accepted": true
+		},
+		{
 			"id": "config-schema-open",
 			"base": "native",
 			"set": {
@@ -5480,6 +5861,29 @@
 			"code": "MANIFEST_CONFIG_SCHEMA_INVALID",
 			"key": "config.schema",
 			"suggestion": "additionalProperties"
+		},
+		{
+			"id": "config-schema-untyped-branch",
+			"base": "native",
+			"set": {
+				"/config/schema": {
+					"type": "object",
+					"properties": {
+						"default_name": {
+							"type": "string"
+						}
+					},
+					"additionalProperties": false,
+					"anyOf": [
+						{
+							"required": ["default_name"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_CONFIG_SCHEMA_INVALID",
+			"key": "config.schema"
 		},
 		{
 			"id": "config-schema-zod-refuses",
