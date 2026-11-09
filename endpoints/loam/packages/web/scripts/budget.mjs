@@ -166,6 +166,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * saves (about 500), the area hidden rather than removed and a group kept while an unsaved view editor in it
  * saves (about 300), and the tab actions and Mod+S moved to `editor-actions.ts` under the file-size limit (about
  * 316).
+ * Step 12's review raised `editorMinified` by that round's measured cost, 613, to 35,118, and `editorMoveMinified`
+ * by 134, to 784, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate, the total exact:
+ * groups placed among live ones, by `moveBefore` where it exists (about 210, G-B1); Mod+S from inside a view
+ * editor's frame (about 150, S7); an embed's editor events kept out of its tab (about 110, T-S1); only the
+ * person's own move saves (about 80, T-S2); the first live group's border (about 70, G-N7); a refused move back
+ * not asked again (about 25, G-N6); less about 30 that G-S4's restructure saved: the action host's ten closures
+ * gone (about 270) against the plain functions the file-size limit then needed (about 240). `editor-move`: the
+ * two toasts and the refusal's stop. `late` rose by 36, to 67,011, for the link id taken only from an undo and a
+ * failed first list retried, approved within its 75,000.
  * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
  * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
  * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
@@ -190,11 +199,11 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 34_505,
+	editorMinified: 35_118,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	editorMoveMinified: 650,
+	editorMoveMinified: 784,
 });
 
 /** Group a module id by the package it belongs to. */

@@ -148,6 +148,38 @@ describe('connectView', () => {
 		expect(saves).toBe(2);
 	});
 
+	it('P2-D5: asks the host for its own save on Mod+S, only in an editor, not on a repeat or another chord', async () => {
+		for (const readOnly of [false, true]) {
+			const { posted } = installWindow({
+				'ui/initialize': () => ({
+					protocolVersion: '2026-01-26',
+					hostContext: { ...HOST_CONTEXT, 'dev.loam/document': { id: 'doc_a', readOnly } },
+				}),
+			});
+			const keydowns: Array<(event: unknown) => void> = [];
+			const held = window as unknown as {
+				addEventListener(type: string, listener: (event: unknown) => void): void;
+			};
+			const add = held.addEventListener;
+			held.addEventListener = (type, listener) =>
+				type === 'keydown' ? keydowns.push(listener) : add(type, listener);
+			await connectView();
+			expect(keydowns.length).toBe(readOnly ? 0 : 1);
+			if (readOnly) continue;
+			let prevented = 0;
+			const press = (extra: Record<string, unknown>) =>
+				keydowns[0]?.({ code: 'KeyS', metaKey: true, preventDefault: () => prevented++, ...extra });
+			press({});
+			press({ repeat: true });
+			press({ altKey: true });
+			press({ code: 'KeyA' });
+			press({ metaKey: false, ctrlKey: true });
+			const asked = posted.filter((message) => message.method === 'dev.loam/editor-save-request');
+			expect(asked.length).toBe(2);
+			expect(prevented).toBe(3);
+		}
+	});
+
 	it('takes a command result from a tool call', async () => {
 		const result = success({ greeting: 'Hello, Ada!' });
 		const { posted } = installWindow({
