@@ -132,6 +132,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `documents` holds `violet-tree` and `violet-tree-item` (about 16,000), the section, its sidebar, the tree,
  * their styles and sync (about 33,000) and `cards` (1,969, shared with `sections`); `new` holds `violet-menu`
  * and its item (about 9,000) and `loam-new-menu` with `readNew` and `runNew` (about 6,800).
+ * Step 11's reviews raised `appsMinified` by their measured cost, 861, to 385,114, approved by the
+ * coordinator, 2026-11-09: `ui.new`'s rules as a rule of their own, run for every manifest, with the mounted
+ * and levels refusals (652), "needs input" decided by the kernel's own parse of `{}` (75), bidirectional
+ * formatting characters refused in Loam's display text (68), and `ui.new` titles in that rule (66).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -142,7 +146,7 @@ export const CEILINGS = Object.freeze({
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	urlMinified: 5_091,
-	appsMinified: 384_253,
+	appsMinified: 385_114,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,

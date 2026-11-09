@@ -230,7 +230,11 @@ holds the sidebar part with tabs or without.
   in the `documents` chunk alone; a second lazy importer parts a `ref` chunk
   out of first paint, which `budget` catches.
 - A row's actions follow a tab's: a pointer's More button, `aria-hidden` and
-  `tabindex="-1"`, and Shift+F10 on the row.
+  `tabindex="-1"`, and Shift+F10 on the row, only on rows with actions. A
+  focused row that leaves hands focus to its neighbour, and what removed it
+  is said in a polite line.
+- A form's Enter is the form's: make Save `type="submit"`, never a keydown
+  that saves whatever is focused, Cancel included.
 - The section's fields and buttons are native, on the field and action
   tokens; a checkbox beside a picker is a 24 px target in both densities.
 - What re-reads on kernel events hears mutations alone: a query's own event

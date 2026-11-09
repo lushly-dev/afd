@@ -1318,7 +1318,165 @@
 			"accepted": false,
 			"code": "MANIFEST_COMMAND_NEEDS_INPUT",
 			"key": "ui.new[1].command",
-			"suggestion": "requires nothing"
+			"suggestion": "accepts `{}`"
+		},
+		{
+			"id": "ui-new-no-surfaces-unknown",
+			"base": "native",
+			"remove": ["/ui/surfaces", "/ui/compositions"],
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "tasks-add"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.new[0].command",
+			"suggestion": "Declare it in `commands`"
+		},
+		{
+			"id": "ui-new-no-surfaces-needs-input",
+			"base": "native",
+			"remove": ["/ui/surfaces", "/ui/compositions"],
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-greet"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_NEEDS_INPUT",
+			"key": "ui.new[0].command",
+			"suggestion": "accepts `{}`"
+		},
+		{
+			"id": "ui-new-shell-command",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "auth-sign-out"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.new[0].command",
+			"suggestion": "Declare it in `commands`"
+		},
+		{
+			"id": "ui-new-needs-input-min-properties",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/1/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						}
+					},
+					"minProperties": 1,
+					"additionalProperties": false
+				},
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_NEEDS_INPUT",
+			"key": "ui.new[0].command",
+			"suggestion": "accepts `{}`"
+		},
+		{
+			"id": "ui-new-mounted",
+			"base": "mounted",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-greet"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_SURFACE_KIND",
+			"key": "ui.new",
+			"suggestion": "Remove `ui.new`"
+		},
+		{
+			"id": "ui-new-scope-levels",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list",
+						"scope_levels": ["project"]
+					}
+				],
+				"/app/scope_levels": ["workspace"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INVALID",
+			"key": "ui.new[0].scope_levels",
+			"suggestion": "Use only workspace"
+		},
+		{
+			"id": "ui-new-title-control",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greet\u0007",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.new[0].title",
+			"suggestion": "control character"
+		},
+		{
+			"id": "ui-new-title-bidi",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greet\u202e",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.new[0].title",
+			"suggestion": "control character"
 		},
 		{
 			"id": "version-keys-each-once",

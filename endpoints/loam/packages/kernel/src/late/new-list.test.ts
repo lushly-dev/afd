@@ -1,10 +1,11 @@
 /**
  * New and the palette's document rows (documents specification, 7 and 8.2; step 11): `new-list` by scope,
- * with recents first, `loam.new.recent` read-only and persisted, a restricted project's answer the same as
+ * with recents first, kept per person in `loam.new.recent~<actor>`, read-only and persisted, a restricted project's answer the same as
  * a missing one's, the palette's titles filtered for the actor at query time, and the editor owner's
  * commands first. D8's Chromium half is `web/test/browser/documents/new.test.ts`.
  */
 
+import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { DocumentRecordV1, NewItemV1 } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
@@ -20,6 +21,7 @@ import {
 import { PROBE_DOCUMENTS_DEFINITION, PROBE_DOCUMENTS_MANIFEST } from '../testing-documents.js';
 import { createFixturePorts } from '../testing-probe.js';
 import type { LoamKernelV2 } from '../types.js';
+import { createNewParts, newRecentId } from './new-list.js';
 
 const kernels: LoamKernelV2[] = [];
 afterEach(async () => {
@@ -35,20 +37,33 @@ const TASKS_WITH_NEW = {
 	},
 } as unknown as ManifestV2;
 
-const ports = () =>
+/** `probe` with six templates of its own type, for the recents' bound. */
+const PROBE_SIX = (() => {
+	const manifest = structuredClone(PROBE_DOCUMENTS_MANIFEST) as unknown as {
+		ui: { documents: Array<{ templates: Array<{ id: string; title: string; content: unknown }> }> };
+	};
+	const [probe] = manifest.ui.documents;
+	if (probe) {
+		for (const n of [3, 4, 5, 6])
+			probe.templates.push({ id: `t${n}`, title: `T${n}`, content: { text: '' } });
+	}
+	return manifest as unknown as ManifestV2;
+})();
+
+const ports = (probe: ManifestV2 = PROBE_DOCUMENTS_MANIFEST) =>
 	createFixturePorts({
 		...scopedPackages(),
 		'fixtures/tasks/': { manifest: TASKS_WITH_NEW, definition: TASKS_DEFINITION },
-		'fixtures/probe/': {
-			manifest: PROBE_DOCUMENTS_MANIFEST,
-			definition: PROBE_DOCUMENTS_DEFINITION,
-		},
+		'fixtures/probe/': { manifest: probe, definition: PROBE_DOCUMENTS_DEFINITION },
 	});
 
-async function workspace(options: ScopedWorkspaceOptions = {}): Promise<ScopedWorkspace> {
+async function workspace(
+	options: ScopedWorkspaceOptions = {},
+	probe?: ManifestV2
+): Promise<ScopedWorkspace> {
 	const held = await createScopedWorkspace({
 		deployment: documentsDeployment(),
-		ports: ports(),
+		ports: ports(probe),
 		...options,
 	});
 	kernels.push(held.kernel);
@@ -132,7 +147,7 @@ describe('P2-D8 (kernel unit): new-list by scope, recents first', () => {
 		await create({ type: 'probe', recent: true }, WORKSPACE);
 		expect(labels(await items(held))).toEqual(['probe/blank*', 'probe/greeting*']);
 		const record = await kernel.call<{ state: { items: unknown[] } }>('view-state-get', {
-			id: 'loam.new.recent',
+			id: newRecentId('local'),
 		});
 		expect(record.data?.state.items).toEqual([
 			{ type: 'probe', template: 'blank' },
@@ -154,7 +169,7 @@ describe('P2-D8 (kernel unit): new-list by scope, recents first', () => {
 		] as const) {
 			await kernel.call('document-create', { type, template, recent: true }, { scope });
 		}
-		const before = await kernel.call('view-state-get', { id: 'loam.new.recent' });
+		const before = await kernel.call('view-state-get', { id: newRecentId('local') });
 		expect((before.data as { state: { items: unknown[] } }).state.items).toHaveLength(3);
 		await kernel.dispose();
 		const again = await workspace({ store });
@@ -166,10 +181,10 @@ describe('P2-D8 (kernel unit): new-list by scope, recents first', () => {
 		]);
 	});
 
-	it('refuses view-state-set of loam.new.recent, naming document-create', async () => {
+	it("refuses view-state-set of a person's recents, naming document-create", async () => {
 		const held = await workspace();
 		const result = await held.kernel.call('view-state-set', {
-			id: 'loam.new.recent',
+			id: newRecentId('local'),
 			state: { items: [] },
 		});
 		expect(result.error?.code).toBe('VIEW_STATE_READ_ONLY');
@@ -280,5 +295,176 @@ describe("P2-D8 (kernel unit): the palette's document rows (8.2)", () => {
 		// An app opened takes the palette back.
 		await kernel.call('app-open', { instance: 'dual' });
 		expect((await names('probe')).some((name) => name.startsWith('probe-'))).toBe(false);
+	});
+});
+
+describe('P2-D8 (kernel unit): recents per person, bounded at five (7, G-S2, T-N2)', () => {
+	it('keeps five: a sixth evicts the oldest, and creating one again moves it first with no copy', async () => {
+		const held = await workspace({}, PROBE_SIX);
+		const { kernel } = held;
+		const recentOf = async () =>
+			(
+				(await kernel.call('view-state-get', { id: newRecentId('local') })).data as {
+					state: { items: Array<{ template: string }> };
+				}
+			).state.items.map((item) => item.template);
+		for (const template of ['blank', 'greeting', 't3', 't4', 't5']) {
+			await kernel.call('document-create', { type: 'probe', template, recent: true });
+		}
+		expect(await recentOf()).toEqual(['t5', 't4', 't3', 'greeting', 'blank']);
+		await kernel.call('document-create', { type: 'probe', template: 't6', recent: true });
+		expect(await recentOf()).toEqual(['t6', 't5', 't4', 't3', 'greeting']);
+		await kernel.call('document-create', { type: 'probe', template: 't3', recent: true });
+		expect(await recentOf()).toEqual(['t3', 't6', 't5', 't4', 'greeting']);
+		expect(labels(await items(held)).slice(0, 5)).toEqual([
+			'probe/t3*',
+			'probe/t6*',
+			'probe/t5*',
+			'probe/t4*',
+			'probe/greeting*',
+		]);
+	});
+
+	it("shows each person their own recents, and no one else's record, signed out among them", async () => {
+		const held = await workspace();
+		const { kernel } = held;
+		await kernel.call('document-create', { type: 'probe', template: 'greeting', recent: true });
+		expect(labels(await items(held))).toEqual(['probe/greeting*', 'probe/blank']);
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'someone@example.com',
+			password: 'x',
+		});
+		// Someone else: none of the signed-out person's, and not their record.
+		expect(labels(await items(held))).toEqual(['probe/blank', 'probe/greeting']);
+		const theirs = await kernel.call('view-state-get', { id: newRecentId('local') });
+		expect(theirs.error?.code).toBe('VIEW_STATE_NOT_FOUND');
+		const listed = (await kernel.call<{ states: Array<{ id: string }> }>('view-state-list')).data;
+		expect(listed?.states.map((state) => state.id)).not.toContain(newRecentId('local'));
+		await kernel.call('document-create', { type: 'probe', template: 'blank', recent: true });
+		expect(labels(await items(held))).toEqual(['probe/blank*', 'probe/greeting']);
+		await kernel.call('auth-sign-out');
+		expect(labels(await items(held))).toEqual(['probe/greeting*', 'probe/blank']);
+		const someone = await kernel.call('view-state-get', {
+			id: newRecentId('mock-user-someone@example.com'),
+		});
+		expect(someone.error?.code).toBe('VIEW_STATE_NOT_FOUND');
+	});
+});
+
+describe("P2-D8 (kernel unit): a creator only runs its own app's command (T-B1)", () => {
+	it('lists a ui.new entry only when its app owns the command, whatever the manifest says', async () => {
+		const summary = {
+			instance: 'own',
+			app: 'own',
+			order: 1,
+			state: 'ready',
+			scopeLevels: ['workspace'],
+		};
+		const parts = createNewParts({
+			viewState: new ViewStateRegistry(),
+			scope: {
+				workspaceApps: new Map(),
+				opensIn: () => true,
+			} as never,
+			check: {
+				types: () => ({ types: new Map(), conflicts: new Map() }),
+				opens: () => undefined,
+			} as never,
+			apps: () =>
+				({
+					summaries: () => [summary],
+					owners: new Map([
+						['own-blank', { instance: 'own' }],
+						['auth-sign-out', { instance: 'shell' }],
+						['other-make', { instance: 'other' }],
+					]),
+					port: () => ({
+						manifest: {
+							ui: {
+								new: [
+									{ title: 'Mine', icon: 'system/document', command: 'own-blank' },
+									{ title: 'Sign out', icon: 'system/document', command: 'auth-sign-out' },
+									{ title: 'Theirs', icon: 'system/document', command: 'other-make' },
+									{ title: 'Nobody', icon: 'system/document', command: 'nobody-make' },
+								],
+							},
+						},
+					}),
+				}) as never,
+		});
+		const result = (await parts.command.handler({}, {
+			scope: { workspace: 'personal' },
+		} as never)) as {
+			data: { items: Array<{ command?: string }> };
+		};
+		expect(result.data.items.map((item) => item.command)).toEqual(['own-blank']);
+	});
+});
+
+describe("P2-D8 (kernel unit): the palette's rows after a write during a build", () => {
+	it('builds again when a record is written while the index is being read, so an old title never shows', async () => {
+		let gate: (() => void) | undefined;
+		let holding = false;
+		class GatedAdapter extends MemoryAdapter {
+			override async list<T>(table: string, params?: Parameters<MemoryAdapter['list']>[1]) {
+				const result = await super.list<T>(table, params);
+				if (holding && table === 'document') {
+					holding = false;
+					await new Promise<void>((resolve) => {
+						gate = resolve;
+					});
+				}
+				return result;
+			}
+		}
+		const held = await workspace({ store: new GatedAdapter() });
+		const { kernel } = held;
+		const record = (
+			await kernel.call<DocumentRecordV1>('document-create', { type: 'probe', title: 'Before' })
+		).data as DocumentRecordV1;
+		holding = true;
+		const searching = search(held, 'before');
+		await expect.poll(() => gate !== undefined).toBe(true);
+		await kernel.call('document-rename', { document: record.id, title: 'After' });
+		gate?.();
+		expect(documentRows(await searching)).toEqual([]);
+		expect(documentRows(await search(held, 'after'))).toEqual([
+			'After: Probe note in the workspace',
+		]);
+	});
+});
+
+describe('P2-D8 (kernel unit): loam.layout.~documents (5.1, G-S3)', () => {
+	it('is the documents section’s layout, declaring the sidebar alone, kept apart from the no-app record and across a reload', async () => {
+		const store = new MemoryAdapter();
+		const held = await workspace({ store });
+		const { kernel } = held;
+		await kernel.call('section-open', { section: 'documents' });
+		const layout = await kernel.call<{ sidebar: { open: boolean; width: number } }>('layout-get');
+		expect(layout.data?.sidebar).toEqual({ open: true, width: 260 });
+		expect((await kernel.call('layout-set', { inspector: { open: true } })).error?.code).toBe(
+			'LAYOUT_PART_UNDECLARED'
+		);
+		expect((await kernel.call('layout-set', { panel: { open: true } })).error?.code).toBe(
+			'LAYOUT_PART_UNDECLARED'
+		);
+		expect((await kernel.call('layout-set', { sidebar: { width: 320 } })).success).toBe(true);
+		const ids = (await kernel.call<{ states: Array<{ id: string }> }>('view-state-list')).data;
+		expect(ids?.states.map((state) => state.id)).toContain('loam.layout.~documents');
+		// The no-app record keeps its own width, and the projects section its own.
+		await kernel.call('app-close');
+		const width = async () =>
+			(await kernel.call<{ sidebar: { width: number } }>('layout-get')).data?.sidebar.width;
+		expect(await width()).toBe(260);
+		await kernel.call('section-open', { section: 'documents' });
+		expect(await width()).toBe(320);
+		await kernel.flush();
+		await kernel.dispose();
+		const again = await workspace({ store });
+		await again.kernel.call('section-open', { section: 'documents' });
+		expect(
+			(await again.kernel.call<{ sidebar: { width: number } }>('layout-get')).data?.sidebar.width
+		).toBe(320);
 	});
 });

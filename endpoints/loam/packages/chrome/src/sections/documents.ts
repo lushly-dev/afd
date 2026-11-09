@@ -142,12 +142,6 @@ async function sync(shell: LoamShell): Promise<void> {
 		}
 		section.base = shell.base;
 		section.workspace = state.workspace.id;
-		const listed = await kernel.call<{
-			projects: Array<{ id: string; slug: string; name: string }>;
-		}>('project-list', { status: 'all' });
-		section.projects = new Map(
-			(listed.data?.projects ?? []).map((row) => [row.id, { slug: row.slug, name: row.name }])
-		);
 		const entering = !held;
 		await section.read();
 		if (entering && main.matches(':focus')) {

@@ -646,7 +646,9 @@ const section =
 		view: 'list' | 'home',
 		projects: unknown[],
 		prepare?: (element: LoamProjectsSection) => Promise<void>,
-		summaries: unknown[] = SECTION_SUMMARIES
+		summaries: unknown[] = SECTION_SUMMARIES,
+		/** What other reads answer, by command: the home's Documents card's, for one. */
+		answers: Record<string, unknown> = {}
 	) =>
 	async (wrapper: HTMLElement) => {
 		if (!customElements.get(projectsSectionDefinition.name)) {
@@ -656,18 +658,20 @@ const section =
 		element.kernel = {
 			subscribe: () => () => {},
 			call: async (name: string): Promise<CommandResult> =>
-				name === 'project-list'
-					? { success: true, data: { projects, total: projects.length } }
-					: name === 'project-summary-get'
-						? { success: true, data: { project: projects[0], summaries } }
-						: {
-								success: false,
-								error: {
-									code: 'PROJECT_SLUG_TAKEN',
-									message: "A project already has the slug 'atlas'",
-									suggestion: 'Choose another slug; a slug cannot change once created',
+				name in answers
+					? { success: true, data: answers[name] }
+					: name === 'project-list'
+						? { success: true, data: { projects, total: projects.length } }
+						: name === 'project-summary-get'
+							? { success: true, data: { project: projects[0], summaries } }
+							: {
+									success: false,
+									error: {
+										code: 'PROJECT_SLUG_TAKEN',
+										message: "A project already has the slug 'atlas'",
+										suggestion: 'Choose another slug; a slug cannot change once created',
+									},
 								},
-							},
 		} as never;
 		element.base = 'https://loam.example/';
 		wrapper.append(element);
@@ -729,6 +733,31 @@ const SECTION_LONG = [
 		summary: { counts: [{ label: 'مفتوح', value: 3 }], recent: [{ title: 'مراجعة الخطة' }] },
 	},
 ];
+/** A home's Documents card, the shell's own after the apps' summaries (documents specification, 8.3). */
+export const [ProjectsSectionDocuments, ProjectsSectionDocumentsCompact] = both(
+	'loam-projects-section',
+	section('home', SECTION_PROJECTS, undefined, SECTION_SUMMARIES, {
+		'document-type-list': {
+			types: [
+				{
+					id: 'jots',
+					title: 'Jot',
+					icon: 'system/document',
+					scopeLevels: ['project'],
+					templates: [],
+				},
+			],
+		},
+		'document-list': {
+			documents: [
+				{ id: 'doc_plan', title: 'Plan', scope: ATLAS_SCOPE, updatedAt: AT },
+				{ id: 'doc_risk', title: '<b>Risks</b>', scope: ATLAS_SCOPE, updatedAt: AT },
+			],
+			total: 7,
+		},
+	}),
+	SECTION_BOX
+);
 export const [ProjectsSectionLong, ProjectsSectionLongCompact] = both(
 	'loam-projects-section',
 	section('home', SECTION_PROJECTS, undefined, SECTION_LONG),

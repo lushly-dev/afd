@@ -13,8 +13,8 @@ import { css, FASTElement, html, observable, Updates } from '@lushly-dev/fast-el
 import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import { trapTab } from '../elements/focus.js';
-import { dateOf, el } from './cards.js';
 import { documentsStyles } from './documents-styles.js';
+import { changesDocuments, dateOf, el } from './dom.js';
 import {
 	type LoamTree,
 	type LoamTreeNode,
@@ -43,13 +43,19 @@ interface LinkRow {
 
 const template = html<LoamDocumentsSidebar>`
 	<loam-tree label="Documents" empty-message="No documents yet"></loam-tree>
+	<p class="said" role="status">${(x) => x.said}</p>
 	<dialog
 		aria-labelledby="dialog-heading"
 		@keydown="${(x, c) => x.dialogKey(c.event as KeyboardEvent)}"
 		@close="${(x) => x.dialogClosed()}"
 	>
 		<h2 id="dialog-heading">${(x) => x.dialogTitle}</h2>
-		<form data-ref="rename" ?hidden="${(x) => x.dialogKind !== 'rename'}" @submit="${(x, c) => x.submitRename(c.event)}">
+		<form
+			id="rename"
+			data-ref="rename"
+			?hidden="${(x) => x.dialogKind !== 'rename'}"
+			@submit="${(x, c) => x.submitRename(c.event)}"
+		>
 			<label
 				>Title
 				<input
@@ -60,20 +66,19 @@ const template = html<LoamDocumentsSidebar>`
 					aria-invalid="${(x) => String(x.error !== '')}"
 					aria-describedby="title-help"
 			/></label>
-			<p id="title-help" class="${(x) => (x.error ? 'failure' : 'muted')}">
-				${(x) => x.error || '1 to 200 characters.'}
-			</p>
+			<p id="title-help" class="muted">1 to 200 characters.</p>
+			<p class="failure" role="alert">${(x) => (x.dialogKind === 'rename' ? x.error : '')}</p>
 		</form>
 		<div ?hidden="${(x) => x.dialogKind !== 'links'}">
-			<p class="muted" ?hidden="${(x) => x.error === ''}" role="alert">${(x) => x.error}</p>
+			<p class="failure" role="alert">${(x) => (x.dialogKind === 'links' ? x.error : '')}</p>
 			<table data-ref="links" aria-labelledby="dialog-heading"></table>
 		</div>
 		<div class="actions">
 			<button
-				type="button"
+				type="submit"
+				form="rename"
 				class="button primary"
 				?hidden="${(x) => x.dialogKind !== 'rename'}"
-				@click="${(x) => x.rename()}"
 			>
 				Save
 			</button>
@@ -132,6 +137,8 @@ export class LoamDocumentsSidebar extends FASTElement {
 	declare dialogKind: 'rename' | 'links' | null;
 	declare dialogTitle: string;
 	declare error: string;
+	/** What a row's action did, said politely, since its row may leave the tree (A-B2). */
+	declare said: string;
 	#scopeKey: string | null = null;
 	#types: DocumentTypeV1[] = [];
 	/** By type, how many of its documents its branch shows. */
@@ -140,7 +147,7 @@ export class LoamDocumentsSidebar extends FASTElement {
 	readonly #rows = new Map<string, Shown>();
 	#queue: Promise<void> = Promise.resolve();
 	#unsubscribe: (() => void) | null = null;
-	/** The row a press last opened as a preview, which a second press keeps (5.3). */
+	/** The document a press last opened as a preview, which a second press keeps (5.3). */
 	#pressed: string | null = null;
 	/** The record the dialog is for, and the row focus goes back to. */
 	#dialogFor: { record: DocumentRecordV1; row: string } | null = null;
@@ -150,6 +157,7 @@ export class LoamDocumentsSidebar extends FASTElement {
 		this.dialogKind = null;
 		this.dialogTitle = '';
 		this.error = '';
+		this.said = '';
 	}
 
 	get tree(): LoamTree {
@@ -188,12 +196,7 @@ export class LoamDocumentsSidebar extends FASTElement {
 		}
 		this.#unsubscribe ??=
 			this.kernel?.subscribe((event) => {
-				if (
-					event.success &&
-					event.mutation &&
-					/^(document-(?!open$)|workspace-app-set$|auth-)/.test(event.command)
-				)
-					this.read();
+				if (changesDocuments(event)) this.read();
 			}) ?? null;
 	}
 
@@ -309,8 +312,9 @@ export class LoamDocumentsSidebar extends FASTElement {
 		}
 		if (shown.record.status === 'trashed') return;
 		// A press opens a preview; a second press on the same row, or Enter, keeps it (5.3).
-		const preview = how === 'press' && this.#pressed !== id;
-		this.#pressed = id;
+		// Per document, not per row: Recent's row and its type's are the same document.
+		const preview = how === 'press' && this.#pressed !== shown.record.id;
+		this.#pressed = shown.record.id;
 		await this.kernel?.call('document-open', { document: shown.record.id, preview });
 	}
 
@@ -350,6 +354,10 @@ export class LoamDocumentsSidebar extends FASTElement {
 				: await kernel.call(action === 'trash' ? 'document-trash' : 'document-restore', {
 						document: record.id,
 					});
+		if (result.success && action !== 'beside') {
+			this.said =
+				action === 'trash' ? `${record.title} moved to Trash` : `${record.title} restored`;
+		}
 		if (!result.success) {
 			const error = result.error;
 			void kernel.call('toast-show', {
@@ -442,16 +450,18 @@ export class LoamDocumentsSidebar extends FASTElement {
 		const title = this.#ref<HTMLInputElement>('title')?.value ?? '';
 		if (!target || !kernel) return;
 		const result = await kernel.call('document-rename', { document: target.record.id, title });
-		if (result.success) this.closeDialog();
-		else this.error = result.error?.message ?? 'The title was not changed';
+		if (result.success) {
+			this.closeDialog();
+			return;
+		}
+		// Said at once in the dialog's alert, and focus goes back to the field to correct it (A-S2).
+		this.error = `The title was not changed: ${result.error?.message ?? 'it failed'}`;
+		this.#ref<HTMLInputElement>('title')?.focus();
 	}
 
+	/** Tab stays in the dialog; Enter is the form's own, so it submits from the field and presses a button. */
 	dialogKey(event: KeyboardEvent): boolean {
 		trapTab(event, this.#dialog);
-		if (event.key === 'Enter' && this.dialogKind === 'rename' && !event.shiftKey) {
-			void this.rename();
-			return false;
-		}
 		return true;
 	}
 
@@ -471,6 +481,7 @@ export class LoamDocumentsSidebar extends FASTElement {
 observable(LoamDocumentsSidebar.prototype, 'dialogKind');
 observable(LoamDocumentsSidebar.prototype, 'dialogTitle');
 observable(LoamDocumentsSidebar.prototype, 'error');
+observable(LoamDocumentsSidebar.prototype, 'said');
 
 export const documentsSidebarDefinition = {
 	name: 'loam-documents-sidebar' as const,

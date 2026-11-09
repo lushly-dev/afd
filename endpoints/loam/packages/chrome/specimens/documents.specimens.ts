@@ -265,6 +265,18 @@ export const [DocumentsSectionTrash, DocumentsSectionTrashCompact] = both(
 	MAIN
 );
 
+/** While its first read is under way: "Loading…" (A-N3). */
+export const [DocumentsSectionLoading, DocumentsSectionLoadingCompact] = both(
+	'loam-documents-section',
+	(wrapper) => {
+		const element = document.createElement(documentsSectionDefinition.name) as LoamDocumentsSection;
+		element.kernel = { subscribe: () => () => {}, call: () => new Promise(() => {}) } as never;
+		wrapper.append(element);
+		void element.read();
+	},
+	MAIN
+);
+
 /** Nothing yet: what New creates, inline. */
 export const [DocumentsSectionEmpty, DocumentsSectionEmptyCompact] = both(
 	'loam-documents-section',

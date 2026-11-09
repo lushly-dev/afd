@@ -177,9 +177,9 @@ export async function createLateParts(
 	editor = createEditorParts({ ...deps, lateScope, check: documents }, DOCUMENT_KIT);
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
 	// stage A's `hydrate` drops a record with no handler.
-	// `loam.new.recent` too, registered with the late commands and read before `document-create` writes it (7).
+	// Each person's `loam.new.recent~<actor>` registers on their first use, read before anything writes it (7).
 	const created = createNewParts({ ...deps, check: documents });
-	await Promise.all([editor.ensure(deps.scope.active().project), created.read]);
+	await editor.ensure(deps.scope.active().project);
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);

@@ -9,8 +9,10 @@
  *
  * Its rows are built with the DOM API, by id, and updated in place, so a re-read keeps focus; every title is
  * text, never markup. A choice is `LIST_SELECT_EVENT`, as a list's, with how it was made: a press, or Enter.
- * With `menu` set, each row has actions: a pointer's `More` button, which is for the pointer alone, and
- * Shift+F10 or the context-menu key on the row, which `aria-keyshortcuts` names; a choice is
+ * With `menu` set, each row it gives actions has a pointer's `More` button, which is for the pointer alone, and
+ * Shift+F10 or the context-menu key on the row, which `aria-keyshortcuts` names; Tab in the menu closes it
+ * and moves on; a row that leaves while focused hands focus to the next, else the previous, else its
+ * branch. A choice is
  * `TREE_ACTION_EVENT`. Its chunk is the `documents` chunk's, which an app's tree sidebar loads too.
  */
 
@@ -63,7 +65,6 @@ const template = html<LoamTree>`
 			?hidden="${(x) => x.failure !== null || x.items.length === 0}"
 		></violet-tree>
 		<div class="menu" role="menu" popover="auto" aria-label="${(x) => x.menuLabel}"></div>
-		<span id="keys" hidden>Shift+F10 opens its actions.</span>
 	</div>
 `;
 
@@ -393,15 +394,41 @@ export class LoamTree extends FASTElement {
 		this.#rendering = true;
 		try {
 			const focused = this.shadowRoot?.activeElement as HTMLElement | null;
+			// The rows a person could reach before, in order, so a focused row that leaves hands focus on (A-B2).
+			const before = this.#visible();
+			const at = focused?.localName === 'violet-tree-item' ? before.indexOf(focused) : -1;
 			this.#renderLevel(this.tree, this.items);
 			this.tree.value = this.selected ?? '';
 			if (focused?.isConnected && this.shadowRoot?.activeElement !== focused) {
 				focused.focus({ preventScroll: true });
+			} else if (at >= 0 && !focused?.isConnected) {
+				// The next row that stays, else the previous, else the branch it was in.
+				const stays = (row: HTMLElement | undefined) =>
+					row?.isConnected && this.#visible().includes(row);
+				const next =
+					before.slice(at + 1).find(stays) ??
+					before.slice(0, at).reverse().find(stays) ??
+					this.#item((focused as HTMLElement & { dataset: DOMStringMap }).dataset.parent ?? '');
+				next?.focus({ preventScroll: true });
 			}
 		} finally {
 			this.#rendering = false;
 		}
 		void Updates.next().then(() => this.tree.handleSlotChange());
+	}
+
+	/** The rows reachable now: every row whose branches above it are open, in order. */
+	#visible(): HTMLElement[] {
+		const rows: HTMLElement[] = [];
+		const walk = (parent: Element) => {
+			for (const child of parent.children) {
+				if (child.localName !== 'violet-tree-item') continue;
+				rows.push(child as HTMLElement);
+				if ((child as VioletTreeItem).expanded) walk(child);
+			}
+		};
+		walk(this.tree);
+		return rows;
 	}
 
 	#renderLevel(parent: Element, nodes: readonly LoamTreeNode[]): void {
@@ -429,6 +456,7 @@ export class LoamTree extends FASTElement {
 			if (!item) {
 				item = doc.createElement('violet-tree-item') as VioletTreeItem;
 				item.dataset.id = node.id;
+				if (parent !== this.tree) item.dataset.parent = (parent as HTMLElement).dataset.id ?? '';
 				item.value = node.id;
 				const label = doc.createElement('span');
 				label.className = 'label';
@@ -436,7 +464,8 @@ export class LoamTree extends FASTElement {
 				meta.className = 'meta';
 				meta.slot = 'meta';
 				item.append(label, meta);
-				if (this.menu) {
+				// Only a row with actions has the menu's button and its keys (A-S1).
+				if ((this.menu?.(node.id).length ?? 0) > 0) {
 					// For the pointer alone: hidden from assistive technology, out of the Tab order, never focused.
 					const more = doc.createElement('button');
 					more.type = 'button';
@@ -452,7 +481,6 @@ export class LoamTree extends FASTElement {
 					});
 					item.append(more);
 					item.setAttribute('aria-keyshortcuts', 'Shift+F10');
-					item.setAttribute('aria-describedby', 'keys');
 					item.addEventListener('contextmenu', (event) => {
 						if (event.target !== item && !item?.contains(event.target as Node)) return;
 						event.preventDefault();
@@ -549,9 +577,15 @@ export class LoamTree extends FASTElement {
 			case 'Escape':
 				this.#closeMenu();
 				break;
-			case 'Tab':
+			case 'Tab': {
+				// APG's menu: Tab closes it and moves on, from the row it opened on, so focus leaves the tree in
+				// the Tab order rather than landing on the page.
+				const id = this.#menuFor;
+				this.#menuFor = null;
 				this.#menu.hidePopover();
+				if (id !== null) this.#item(id)?.focus();
 				return;
+			}
 			default:
 				return;
 		}

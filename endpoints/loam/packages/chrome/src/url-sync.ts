@@ -267,10 +267,11 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 				({ syncEditor }) => syncEditor(host as unknown as LoamShell),
 				failed
 			);
-			// Then the section's tree and, with no tab, its list, from a chunk of their own (8).
+			// Then the section's tree and, with no tab, its list, from a chunk of their own (8). Its failure is
+			// reported and its own: the editor area, its chunk and main's hold are left as they are.
 			void import('./sections/documents.js').then(
 				({ syncDocuments }) => syncDocuments(host as unknown as LoamShell),
-				failed
+				reportError
 			);
 		}
 		// Main held busy for a persisted documents section that the route then left shows what it shows (6).

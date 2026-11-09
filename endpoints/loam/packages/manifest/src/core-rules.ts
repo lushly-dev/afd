@@ -102,6 +102,21 @@ function zodAccepts(schema: object): boolean {
 const isObject = (value: unknown): value is Json =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
+/**
+ * Whether a command needs input: its schema refuses `{}`, by the parse the kernel runs on an app's input,
+ * so `required`, `minProperties`, `anyOf` and the rest all count. A path, read later by `app check`, or a
+ * schema the checker refuses, which `input-schema` reports, says no.
+ */
+export function needsInput(schema: unknown): boolean {
+	if (!isObject(schema)) return false;
+	try {
+		return !z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]).safeParse({})
+			.success;
+	} catch {
+		return false;
+	}
+}
+
 export function inputSchemaProblem(schema: unknown): string | undefined {
 	// A path is read once the file system is at hand, by `app check`.
 	if (typeof schema === 'string') return undefined;

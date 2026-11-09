@@ -475,6 +475,18 @@
 			"exportName": "ProjectsSectionHomeCompact"
 		},
 		{
+			"id": "app-projects-section-documents",
+			"title": "Loam/Apps/ProjectsSectionDocuments",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionDocuments"
+		},
+		{
+			"id": "app-projects-section-documents-compact",
+			"title": "Loam/Apps/ProjectsSectionDocumentsCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ProjectsSectionDocumentsCompact"
+		},
+		{
 			"id": "app-projects-section-long",
 			"title": "Loam/Apps/ProjectsSectionLong",
 			"module": "./apps.specimens.ts",
@@ -605,6 +617,18 @@
 			"title": "Loam/Documents/DocumentsSectionTrashCompact",
 			"module": "./documents.specimens.ts",
 			"exportName": "DocumentsSectionTrashCompact"
+		},
+		{
+			"id": "documents-section-loading",
+			"title": "Loam/Documents/DocumentsSectionLoading",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSectionLoading"
+		},
+		{
+			"id": "documents-section-loading-compact",
+			"title": "Loam/Documents/DocumentsSectionLoadingCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSectionLoadingCompact"
 		},
 		{
 			"id": "documents-section-empty",

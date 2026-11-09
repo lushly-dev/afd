@@ -9,7 +9,7 @@ import {
 	SERVED_GRANTS_V2,
 	SHELL_RESERVED_CHORDS_V1,
 } from './catalogs.js';
-import type { Finding } from './core-rules.js';
+import { type Finding, needsInput } from './core-rules.js';
 import { documentRules } from './document-rules.js';
 import { keyOf, valueAt } from './pointers.js';
 import type { ManifestRefusalCode, ManifestV2 } from './types.js';
@@ -18,7 +18,8 @@ type Ui = NonNullable<ManifestV2['ui']>;
 type Surfaces = NonNullable<Ui['surfaces']>;
 
 const SERVED_GRANTS = SERVED_GRANTS_V2;
-const CONTROL = /\p{Cc}/u;
+/** A control character, or a bidirectional formatting one, which can reorder what a person reads. */
+const CONTROL = /[\p{Cc}\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
 /** Reserved by the HTML standard, though each has a hyphen. */
 const RESERVED_ELEMENTS = new Set([
 	'annotation-xml',
@@ -393,7 +394,7 @@ function elementRules(surfaces: Surfaces, found: Findings): void {
 }
 
 function commandRules(manifest: ManifestV2, surfaces: Surfaces, found: Findings): void {
-	const declared = new Map((manifest.commands ?? []).map((command) => [command.name, command]));
+	const declared = new Set((manifest.commands ?? []).map((command) => command.name));
 	const check = (command: string | undefined, pointer: string): void => {
 		if (command !== undefined && !declared.has(command)) {
 			found.refuse(
@@ -414,19 +415,6 @@ function commandRules(manifest: ManifestV2, surfaces: Surfaces, found: Findings)
 	});
 	(surfaces.keybindings ?? []).forEach((binding, index) => {
 		check(binding.command, `/ui/surfaces/keybindings/${index}/command`);
-	});
-	// A creator's command, which New calls with `{}` (documents specification, 2.1).
-	(manifest.ui?.new ?? []).forEach(({ command }, index) => {
-		const pointer = `/ui/new/${index}/command`;
-		check(command, pointer);
-		if ((declared.get(command)?.input_schema as { required?: [] } | undefined)?.required?.length) {
-			found.refuse(
-				'MANIFEST_COMMAND_NEEDS_INPUT',
-				pointer,
-				`\`${command}\` needs input.`,
-				'Name a command whose input requires nothing.'
-			);
-		}
 	});
 }
 
@@ -489,7 +477,7 @@ function textRules(manifest: ManifestV2, found: Findings): void {
 			found.refuse(
 				'MANIFEST_TEXT_INVALID',
 				pointer,
-				"It holds a control character, and it reaches a person's screen.",
+				"It holds a control or bidirectional formatting character, and it reaches a person's screen.",
 				'Remove the control character.'
 			);
 		}
@@ -510,6 +498,9 @@ function textRules(manifest: ManifestV2, found: Findings): void {
 	});
 	(manifest.ui?.resources ?? []).forEach((resource, index) => {
 		add(`/ui/resources/${index}/title`, resource.title);
+	});
+	(manifest.ui?.new ?? []).forEach((entry, index) => {
+		add(`/ui/new/${index}/title`, entry.title);
 	});
 	(manifest.ui?.documents ?? []).forEach((type, index) => {
 		add(`/ui/documents/${index}/title`, type.title);
@@ -603,6 +594,53 @@ function summaryRules(manifest: ManifestV2, found: Findings): void {
 	}
 }
 
+/**
+ * `ui.new` (documents specification, 2.1), for every manifest, with surfaces or none: each creator names a
+ * command of this manifest that needs no input, since New calls it with `{}` as the person, in levels the app
+ * takes. A mounted manifest declares none: its commands are unknown until discovery, as for its types.
+ */
+function newRules(manifest: ManifestV2, found: Findings): void {
+	const entries = manifest.ui?.new ?? [];
+	if (entries.length === 0) return;
+	if (manifest.plugin.kind === 'mounted') {
+		found.refuse(
+			'MANIFEST_SURFACE_KIND',
+			'/ui/new',
+			'A mounted app declares no creator: its commands are unknown until discovery.',
+			'Remove `ui.new`.'
+		);
+		return;
+	}
+	const levels = manifest.app?.scope_levels ?? ['workspace'];
+	entries.forEach(({ command, scope_levels }, index) => {
+		const pointer = `/ui/new/${index}/command`;
+		const declared = manifest.commands?.find((candidate) => candidate.name === command);
+		if (!declared) {
+			found.refuse(
+				'MANIFEST_COMMAND_UNKNOWN',
+				pointer,
+				`\`${command}\` is not a command this manifest declares.`,
+				'Declare it in `commands`, or name one that is.'
+			);
+		} else if (needsInput(declared.input_schema)) {
+			found.refuse(
+				'MANIFEST_COMMAND_NEEDS_INPUT',
+				pointer,
+				`\`${command}\` needs input.`,
+				'Name a command whose input schema accepts `{}`.'
+			);
+		}
+		if (scope_levels?.some((level) => !levels.includes(level))) {
+			found.refuse(
+				'MANIFEST_INVALID',
+				`/ui/new/${index}/scope_levels`,
+				"A creator's levels are a subset of `app.scope_levels`.",
+				`Use only ${levels.join(' and ')}, or widen \`app.scope_levels\`.`
+			);
+		}
+	});
+}
+
 /** Loam's rules, for a manifest that passed the schema. */
 export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
@@ -617,6 +655,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	compositionRules(manifest, found);
 	resourceKeyRules(manifest, found);
 	summaryRules(manifest, found);
+	newRules(manifest, found);
 	documentRules(manifest, found.refuse.bind(found), elementCheck(found));
 	textRules(manifest, found);
 	return found;

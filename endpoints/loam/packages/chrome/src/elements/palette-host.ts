@@ -74,19 +74,26 @@ export class ShellPalette {
 				: undefined,
 		]);
 		this.#rows = new Map();
-		const rows: PaletteResult[] = (made?.items ?? []).map((item, index) => {
-			const name = `new:${index}`;
-			this.#rows.set(name, { item });
-			return {
-				name,
-				title: `New: ${item.title}`,
-				description:
-					item.kind === 'creator'
-						? `Runs ${item.command}`
-						: `Creates a document from ${item.title}`,
-				disabled: false,
-			};
-		});
+		// `new note` lists New's items whose titles hold the rest of the query.
+		const rest = query
+			.replace(/^\s*new\b/i, '')
+			.trim()
+			.toLowerCase();
+		const rows: PaletteResult[] = (made?.items ?? [])
+			.filter((item) => item.title.toLowerCase().includes(rest))
+			.map((item, index) => {
+				const name = `new:${index}`;
+				this.#rows.set(name, { item });
+				return {
+					name,
+					title: `New: ${item.title}`,
+					description:
+						item.kind === 'creator'
+							? `Runs ${item.command}`
+							: `Creates a document from ${item.title}`,
+					disabled: false,
+				};
+			});
 		if (!result?.success) return rows;
 		// The rows' flags from the commands as they are now: stage B adds more.
 		const commands = new Map<string, CommandSummaryV0>(

@@ -157,6 +157,8 @@ const APP_CAPTURES: [string, string][] = [
 	['app-projects-section-form', 'Error: A project already has'],
 	['app-projects-section-empty', 'No projects yet'],
 	['app-projects-section-home', 'article "Slow"'],
+	// Phase 2's step 11: the home's Documents card, the shell's, after the apps' summaries.
+	['app-projects-section-documents', 'article "Documents"'],
 	['app-projects-section-long', 'article "دفتر"'],
 ].flatMap(([id, expected]) => [
 	[id, expected] as [string, string],
@@ -272,6 +274,7 @@ const DOCUMENTS_CAPTURES: [string, string[]][] = [
 		['heading "Documents" [level=1]', 'table "Documents"', 'link "<img src=x onerror=alert(1)>"'],
 	],
 	['documents-section-trash', ['heading "Trash" [level=1]', 'button "Restore Old plan"']],
+	['documents-section-loading', ['heading "Documents" [level=1]', 'Loading…']],
 	['documents-section-empty', ['No documents yet', 'button "New Blank jot"', 'button "New Chore"']],
 	['new-menu', ['menu "New"', 'group "Jots"', 'menuitem "Blank jot"', 'group "Chores"']],
 ].flatMap(([id, expected]) => [

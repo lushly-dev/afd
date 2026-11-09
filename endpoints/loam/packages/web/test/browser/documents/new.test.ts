@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+	agentCall,
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
@@ -468,18 +469,28 @@ describe('P2-D8: the documents section', () => {
 		await expect
 			.poll(async () => (await editorView(page))?.[0]?.tabs.map((tab) => tab.name))
 			.toEqual(['One', 'Two']);
-		// A mousedown lands on the row under it, and focus does not move another row there (#712).
-		await row(page, `notes:${one}`).focus();
-		const box = await row(page, `notes:${two}`).locator(':scope > .label').boundingBox();
-		if (!box) throw new Error('no row');
-		await page.mouse.move(box.x + 4, box.y + box.height / 2);
-		await page.mouse.down();
-		const after = await row(page, `notes:${two}`).boundingBox();
-		await page.mouse.up();
-		expect(after?.y).toBe((await row(page, `notes:${two}`).boundingBox())?.y);
+		// #712: a listbox's `handleFocus` moved its active row to the selected one as focus entered, so a press
+		// landed on another row than the one under the pointer. Here focus enters the tree from outside, with
+		// another row selected and active: the mousedown must focus the row under the pointer, not that one.
 		expect(
 			await tree(page).evaluate((element) => (element as unknown as { selected: string }).selected)
 		).toBe(`notes:${two}`);
+		await newButton(page).focus();
+		const box = await row(page, `notes:${one}`).locator(':scope > .label').boundingBox();
+		if (!box) throw new Error('no row');
+		await page.mouse.move(box.x + 4, box.y + box.height / 2);
+		await page.mouse.down();
+		expect(
+			await page.evaluate(() => {
+				let element: Element | null = document.activeElement;
+				while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+				return (element as HTMLElement | null)?.dataset.id;
+			})
+		).toBe(`notes:${one}`);
+		await page.mouse.up();
+		expect(
+			await tree(page).evaluate((element) => (element as unknown as { selected: string }).selected)
+		).toBe(`notes:${one}`);
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	});
@@ -492,6 +503,12 @@ describe('P2-D8: the documents section', () => {
 		await documentsSection(page);
 		const recent = row(page, `recent:${id}`);
 		expect(await recent.getAttribute('aria-keyshortcuts')).toBe('Shift+F10');
+		// A branch has no actions, so no button and no keys (A-S1); no row repeats the keys as a description.
+		for (const branch of ['recent', 'type:notes', 'trash']) {
+			expect(await row(page, branch).getAttribute('aria-keyshortcuts')).toBeNull();
+			expect(await row(page, branch).locator(':scope > button.more').count()).toBe(0);
+		}
+		expect(await recent.getAttribute('aria-describedby')).toBeNull();
 		await recent.focus();
 		await page.keyboard.press('Shift+F10');
 		const menu = tree(page).locator('.menu');
@@ -659,6 +676,252 @@ describe('P2-D8: the documents section', () => {
 		// New lists types and creators, never documents: nothing of the vault there either.
 		const listed = (await kernelCall(page, 'new-list')) as { data: { items: unknown[] } };
 		expect(JSON.stringify(listed.data.items)).not.toContain('Vault');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+});
+
+describe('P2-D8: the reviews of step 11', () => {
+	let site: DeploymentSite;
+	beforeAll(async () => {
+		site = await fullDeployment();
+	});
+	afterAll(async () => {
+		await site?.close();
+	});
+
+	const deepFocus = (page: Page) =>
+		page.evaluate(() => {
+			let element: Element | null = document.activeElement;
+			while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+			return {
+				tag: element?.localName ?? '',
+				id: (element as HTMLElement | null)?.dataset?.id ?? null,
+				label: element?.getAttribute('aria-label') ?? element?.textContent?.trim() ?? '',
+			};
+		});
+	const said = (page: Page) =>
+		page
+			.locator('loam-documents-sidebar')
+			.evaluate((element) => element.shadowRoot?.querySelector('.said')?.textContent ?? '');
+
+	it('A-B1, A-S2: Enter on Cancel cancels; a refused rename is said in an alert, with focus back on the field', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const id = await createNote(page, 'Kept');
+		await documentsSection(page);
+		const dialog = page.locator('loam-documents-sidebar dialog');
+		const openRename = async () => {
+			await row(page, `recent:${id}`).focus();
+			await page.keyboard.press('Shift+F10');
+			await tree(page).locator('.menu [data-action="rename"]').click();
+			await expect
+				.poll(() => dialog.evaluate((element) => (element as HTMLDialogElement).open))
+				.toBe(true);
+		};
+		await openRename();
+		await dialog.locator('input.field').fill('Changed');
+		await dialog.getByRole('button', { name: 'Cancel' }).focus();
+		await page.keyboard.press('Enter');
+		await expect
+			.poll(() => dialog.evaluate((element) => (element as HTMLDialogElement).open))
+			.toBe(false);
+		await settle(page);
+		expect(await row(page, `recent:${id}`).getAttribute('aria-label')).toBe('Kept, Note');
+		// Only spaces: refused, said at once, and focus back on the field.
+		await openRename();
+		await dialog.locator('input.field').fill('   ');
+		await page.keyboard.press('Enter');
+		await expect
+			.poll(() => dialog.locator('[role="alert"]').first().textContent())
+			.toContain('The title was not changed: A document title is 1 to 200 characters');
+		expect(await dialog.locator('input.field').getAttribute('aria-invalid')).toBe('true');
+		expect((await deepFocus(page)).tag).toBe('input');
+		expect(await dialog.evaluate((element) => (element as HTMLDialogElement).open)).toBe(true);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('A-B2: a trashed or restored row hands focus to the next row, and says what happened', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const first = await createNote(page, 'First');
+		const second = await createNote(page, 'Second');
+		await documentsSection(page);
+		// Recent: Second, then First. Trash Second: focus goes to First, and it is said.
+		await row(page, `recent:${second}`).focus();
+		await page.keyboard.press('Shift+F10');
+		await tree(page).locator('.menu [data-action="trash"]').click();
+		await expect.poll(() => row(page, `recent:${second}`).count()).toBe(0);
+		await expect.poll(async () => (await deepFocus(page)).id).toBe(`recent:${first}`);
+		await expect.poll(() => said(page)).toBe('Second moved to Trash');
+		// From the Trash branch, its last row restored: focus goes back up to the branch's row above it.
+		await row(page, 'trash').locator(':scope > .label').click();
+		await row(page, `trash:${second}`).waitFor();
+		await row(page, `trash:${second}`).focus();
+		await page.keyboard.press('Shift+F10');
+		await page.keyboard.press('Enter');
+		await expect.poll(() => row(page, `trash:${second}`).count()).toBe(0);
+		await expect.poll(async () => (await deepFocus(page)).id).not.toBeNull();
+		expect((await deepFocus(page)).tag).toBe('violet-tree-item');
+		await expect.poll(() => said(page)).toBe('Second restored');
+		// The list's Restore: focus goes to the next row's Restore, and with none left, to the heading.
+		await kernelCall(page, 'document-trash', { document: first });
+		await kernelCall(page, 'document-trash', { document: second });
+		const section = page.locator('loam-main loam-documents-section');
+		await section.locator('select[data-ref="status"]').selectOption('trashed');
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(2);
+		const [top] = await section.locator('tbody tr td:first-child').allTextContents();
+		const other = top === 'First' ? 'Second' : 'First';
+		await section.getByRole('button', { name: `Restore ${top}` }).click();
+		await expect.poll(async () => (await deepFocus(page)).label).toBe(`Restore ${other}`);
+		await page.keyboard.press('Enter');
+		await expect.poll(async () => (await deepFocus(page)).tag).toBe('h1');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it("A-S3: Tab in a row's menu closes it and moves on out of the tree", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const id = await createNote(page, 'Tabbed');
+		await documentsSection(page);
+		await row(page, `recent:${id}`).focus();
+		await page.keyboard.press('Shift+F10');
+		const menu = tree(page).locator('.menu');
+		await expect
+			.poll(() => menu.evaluate((element) => element.matches(':popover-open')))
+			.toBe(true);
+		await page.keyboard.press('Tab');
+		expect(await menu.evaluate((element) => element.matches(':popover-open'))).toBe(false);
+		// After the popover's own `toggle` event, which must not take focus back to the row.
+		await page.evaluate(
+			() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+		);
+		const now = await deepFocus(page);
+		expect(now.tag).not.toBe('body');
+		expect(now.tag).not.toBe('violet-tree-item');
+		expect(now.tag).not.toBe('button');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it("T-N1: a save reorders Recent and moves Updated, and a project's new name reaches the list", async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		const atlas = (await kernelCall(page, 'project-get', { project: 'atlas' })) as {
+			data: { id: string };
+		};
+		const older = await createNote(page, 'Older');
+		await createNote(page, 'Newer');
+		await createNote(page, 'In Atlas', atlas.data.id);
+		await documentsSection(page);
+		const recentOrder = () =>
+			tree(page)
+				.locator('violet-tree-item[data-id="recent"] > violet-tree-item')
+				.evaluateAll((items) => items.map((item) => (item as HTMLElement).dataset.id));
+		await expect.poll(async () => (await recentOrder())[0]).not.toBe(`recent:${older}`);
+		// An agent saves Older's text: an instance command, whose event carries its document.
+		await agentCall(page, 'notes-content-set', { document: older, text: 'Saved' });
+		await expect.poll(async () => (await recentOrder())[0]).toBe(`recent:${older}`);
+		const section = page.locator('loam-main loam-documents-section');
+		await expect
+			.poll(() => section.locator('tbody tr td:first-child').first().textContent())
+			.toBe('Older');
+		await section.locator('input[type="checkbox"]').check();
+		await expect.poll(() => section.locator('tbody').textContent()).toContain('Atlas');
+		await kernelCall(page, 'project-update', { project: 'atlas', name: 'Atlas Two' });
+		await expect.poll(() => section.locator('tbody').textContent()).toContain('Atlas Two');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('G-S4: the list shows 200 rows, then Show more, saying how many of how many', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input: unknown): Promise<unknown> };
+			};
+			for (let n = 0; n < 201; n++) {
+				await shell.kernel.call('document-create', { type: 'notes', title: `Note ${n}` });
+			}
+		});
+		await documentsSection(page);
+		const section = page.locator('loam-main loam-documents-section');
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(200);
+		expect(await section.locator('.more p').textContent()).toBe('Showing 200 of 201');
+		await section.getByRole('button', { name: 'Show more' }).click();
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(201);
+		expect(await section.locator('.more').isVisible()).toBe(false);
+		await expect.poll(() => section.locator('.said').textContent()).toBe('201 documents');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 120_000);
+
+	it('nits: a second press keeps a document whichever row it is pressed on, and New: rows follow the query', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const id = await createNote(page, 'Twice');
+		await documentsSection(page);
+		await row(page, `recent:${id}`).locator(':scope > .label').click();
+		await editorIdle(page);
+		await row(page, 'type:notes').locator(':scope > .label').click();
+		await row(page, `notes:${id}`).locator(':scope > .label').click();
+		await editorIdle(page);
+		await expect
+			.poll(async () => (await editorView(page))?.[0]?.tabs.map((tab) => tab.name))
+			.toEqual(['Twice']);
+		await page.evaluate(() =>
+			(
+				document.querySelector('loam-shell') as unknown as {
+					openPalette(q?: string): Promise<void>;
+				}
+			).openPalette()
+		);
+		const field = page.locator('loam-palette input.field');
+		await field.waitFor();
+		await field.fill('new broken');
+		await expect
+			.poll(() => page.locator('loam-palette violet-option .result-name').allTextContents())
+			.toEqual(expect.arrayContaining(['New: Broken memo']));
+		expect(
+			await page.locator('loam-palette violet-option .result-name').allTextContents()
+		).not.toContain('New: Blank note');
+		// A row's title and its description are heard apart (A-N1).
+		await field.fill('twice');
+		await expect
+			.poll(() => page.getByRole('option', { name: /^Twice ?, Note in the workspace$/ }).count())
+			.toBe(1);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('nit: a press dragged off the button that closed the menu leaves Enter on the button to open it', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const button = newButton(page);
+		await button.click();
+		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('true');
+		const box = await button.boundingBox();
+		if (!box) throw new Error('no button');
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(box.x + box.width / 2, box.y + 300);
+		await page.mouse.up();
+		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('false');
+		// No pointerdown to set the mark again: Enter on the button must open the menu.
+		await button.focus();
+		await page.keyboard.press('Enter');
+		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('true');
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	});

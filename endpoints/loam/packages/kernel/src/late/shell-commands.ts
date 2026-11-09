@@ -61,7 +61,7 @@ import type {
 	KernelOptionsV0,
 	ShellInfoV2,
 } from '../types.js';
-import { NEW_RECENT_ID } from './new-list.js';
+import { NEW_RECENT_ID, newRecentId } from './new-list.js';
 import type { DocumentRows } from './palette-documents.js';
 
 export interface ShellCommandDeps {
@@ -96,6 +96,8 @@ const projectOfId = (id: string): string | undefined => {
  * is resolved, which would register the record.
  */
 const mayRead = (id: string, context: CommandContext, deps: ShellCommandDeps): boolean => {
+	// A person's recents are theirs alone (documents specification, 7), as `newRecentId` names them.
+	if (id.startsWith(`${NEW_RECENT_ID}~`)) return id === newRecentId(actorKey(context));
 	const project = id === LAYOUT_VIEW_STATE_ID ? callScope(context).project : projectOfId(id);
 	return (
 		project === undefined ||
@@ -244,7 +246,7 @@ function guardViewStateSet(
 			if (
 				id === APPS_VIEW_STATE_ID ||
 				id === SCOPE_VIEW_STATE_ID ||
-				id === NEW_RECENT_ID ||
+				id.startsWith(`${NEW_RECENT_ID}~`) ||
 				/^loam\.editor(@|$)/.test(id)
 			) {
 				return kernelFailure(
@@ -254,7 +256,7 @@ function guardViewStateSet(
 						? 'Use scope-set, which also applies the switch rules'
 						: id === APPS_VIEW_STATE_ID
 							? 'Use app-open or app-close, which also apply the overlay and surface rules'
-							: id === NEW_RECENT_ID
+							: id.startsWith(NEW_RECENT_ID)
 								? 'Use document-create with recent: true'
 								: 'Use document-open and the editor-* commands, which keep its rules'
 				);

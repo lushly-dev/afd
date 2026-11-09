@@ -26,6 +26,8 @@ export function createDocumentRows(
 	titleOf: (type: string) => string | undefined
 ): DocumentRows {
 	let built: Promise<{ index: PaletteIndex; records: Map<string, DocumentRecordV1> }> | undefined;
+	/** Raised by every write: a build that began before one is not answered from. */
+	let generation = 0;
 	const build = async () => {
 		const records = new Map(
 			(await store.list<DocumentRecordV1>(DOCUMENT_TABLE)).data
@@ -41,16 +43,26 @@ export function createDocumentRows(
 	};
 	return {
 		changed() {
+			generation++;
 			built = undefined;
 		},
 		async search(query, actor, limit) {
 			if (query.trim() === '') return [];
-			// A failed read is tried again at the next query, rather than kept.
-			built ??= build().catch((cause) => {
-				built = undefined;
-				throw cause;
-			});
-			const { index, records } = await built;
+			// A failed read is tried again at the next query, rather than kept; a write during a build builds again,
+			// so a title just restricted, renamed or trashed never shows from the older read.
+			let index: PaletteIndex;
+			let records: Map<string, DocumentRecordV1>;
+			for (;;) {
+				const at = generation;
+				built ??= build().catch((cause) => {
+					built = undefined;
+					throw cause;
+				});
+				const held = built;
+				({ index, records } = await held);
+				if (at === generation) break;
+				if (built === held) built = undefined;
+			}
 			const rows: PaletteItem[] = [];
 			for (const item of index.search(query, index.size)) {
 				const record = records.get(item.name) as DocumentRecordV1;

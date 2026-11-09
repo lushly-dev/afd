@@ -211,6 +211,8 @@ export class LoamNewMenu extends FASTElement {
 	button: HTMLButtonElement | null = null;
 	/** A press of the button that closed the open menu, by light dismiss, opens nothing. */
 	#pressClosed = false;
+	/** The click that ended such a press: the open it asks for, which comes later, after the import, is skipped. */
+	#skip = false;
 	#opening: Promise<void> | null = null;
 
 	get menu(): VioletMenu {
@@ -222,7 +224,11 @@ export class LoamNewMenu extends FASTElement {
 		this.menu.addEventListener('open-change', (event) => {
 			const open = (event as CustomEvent<{ open: boolean }>).detail.open;
 			this.button?.setAttribute('aria-expanded', String(open));
-			if (open) return;
+			// Opened: no press closed it. Closed by a press's light dismiss, its click comes next and reads it.
+			if (open) {
+				this.#pressClosed = false;
+				return;
+			}
 			// Escape and a choice leave focus in the closed menu or on the page: it goes back to the button.
 			const active = this.ownerDocument.activeElement;
 			if (
@@ -241,12 +247,23 @@ export class LoamNewMenu extends FASTElement {
 		button.addEventListener('pointerdown', () => {
 			this.#pressClosed = this.menu?.open === true;
 		});
+		// The click, in the same task as its pointerup, takes the press's mark for the open it asks for; a press
+		// dragged off the button, with no click, leaves nothing behind.
+		button.addEventListener('click', () => {
+			this.#skip = this.#pressClosed;
+			this.#pressClosed = false;
+		});
+		button.addEventListener('pointerup', () => {
+			setTimeout(() => {
+				this.#pressClosed = false;
+			});
+		});
 	}
 
 	/** Read what New offers here, render it, and open with focus on the first item, or the last for ArrowUp. */
 	open(key = 'ArrowDown'): Promise<void> {
-		if (this.#pressClosed) {
-			this.#pressClosed = false;
+		if (this.#skip) {
+			this.#skip = false;
 			return Promise.resolve();
 		}
 		this.#opening ??= this.#open(key).finally(() => {

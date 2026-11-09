@@ -12,10 +12,12 @@ import { css, FASTElement, html, observable, Updates, when } from '@lushly-dev/f
 import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import { formatRoute } from '../route-format.js';
-import { dateOf, el, isoOf, numberOf } from './cards.js';
 import { documentsStyles } from './documents-styles.js';
+import { changesDocuments, dateOf, el, isoOf, numberOf } from './dom.js';
 
 const DAY_MS = 86_400_000;
+/** How many rows the list reads at a time. */
+const PAGE = 200;
 
 type Status = 'active' | 'archived' | 'trashed';
 
@@ -63,6 +65,7 @@ const template = html<LoamDocumentsSection>`
 				/>All projects</label
 			>
 		</div>
+		${when((x) => !x.loaded, html<LoamDocumentsSection>`<p class="muted">Loading…</p>`)}
 		${when(
 			(x) => x.loaded && x.documents.length === 0,
 			html<LoamDocumentsSection>`<p class="empty">${(x) => x.emptyText}</p>`
@@ -72,6 +75,10 @@ const template = html<LoamDocumentsSection>`
 			<thead data-ref="head"></thead>
 			<tbody data-ref="rows"></tbody>
 		</table>
+		<div class="more" ?hidden="${(x) => x.documents.length >= x.total}">
+			<p class="muted">${(x) => `Showing ${numberOf(x.documents.length)} of ${numberOf(x.total)}`}</p>
+			<button type="button" class="button" @click="${(x) => x.showMore()}">Show more</button>
+		</div>
 	</section>
 	<p class="failure read-failure" role="alert" ?hidden="${(x) => !x.failure}">${(x) => x.failure}</p>
 	<p class="said" role="status">${(x) => x.said}</p>
@@ -93,6 +100,8 @@ export class LoamDocumentsSection extends FASTElement {
 	/** Each project's slug and name by id, for the URLs and the project column. */
 	projects = new Map<string, { slug: string; name: string }>();
 	declare documents: DocumentRecordV1[];
+	/** How many match, of which `documents` holds the first `#limit` (G-S4). */
+	declare total: number;
 	declare loaded: boolean;
 	declare status: Status;
 	declare all: boolean;
@@ -110,10 +119,15 @@ export class LoamDocumentsSection extends FASTElement {
 	#unsubscribe: (() => void) | null = null;
 	/** The document a press last opened as a preview, which a second press keeps (5.3). */
 	#pressed: string | null = null;
+	/** How many rows a read asks for: 200 at a time, as the tree's branches (8.1). */
+	#limit = PAGE;
+	/** The row whose Restore was pressed, by its place, so focus goes on to the next once it leaves (A-B2). */
+	#refocus: number | null = null;
 
 	constructor() {
 		super();
 		this.documents = [];
+		this.total = 0;
 		this.loaded = false;
 		this.status = 'active';
 		this.all = false;
@@ -131,13 +145,7 @@ export class LoamDocumentsSection extends FASTElement {
 		this.#unsubscribe ??=
 			this.kernel?.subscribe((event) => {
 				// From anyone: a document or an app changed, or the actor did.
-				if (
-					event.success &&
-					event.mutation &&
-					/^(document-(?!open$)|workspace-app-set$|auth-)/.test(event.command)
-				) {
-					void this.read();
-				}
+				if (changesDocuments(event)) void this.read();
 			}) ?? null;
 	}
 
@@ -160,27 +168,68 @@ export class LoamDocumentsSection extends FASTElement {
 		this.shadowRoot?.querySelector<HTMLElement>('h1')?.focus();
 	}
 
+	/** The first `#limit` rows, 200 a read, as `document-list` bounds one (4.1). */
+	async #list(kernel: LoamKernelV2): Promise<{
+		success: boolean;
+		error?: { message?: string };
+		data?: { documents: DocumentRecordV1[]; total: number };
+	}> {
+		const documents: DocumentRecordV1[] = [];
+		let total = 0;
+		for (let offset = 0; offset < this.#limit; offset += PAGE) {
+			const page = await kernel.call<{ documents: DocumentRecordV1[]; total: number }>(
+				'document-list',
+				{
+					status: this.status,
+					sort: 'recent',
+					limit: PAGE,
+					offset,
+					...(this.#query ? { query: this.#query } : {}),
+					...(this.#type ? { type: this.#type } : {}),
+					...(this.#tag ? { tag: this.#tag } : {}),
+					...(this.all ? { project: 'all' } : {}),
+				}
+			);
+			if (!page.success || !page.data) return page;
+			documents.push(...page.data.documents);
+			total = page.data.total;
+			if (documents.length >= total) break;
+		}
+		return { success: true, data: { documents, total } };
+	}
+
+	/** The next 200 rows, said as how many show of how many (G-S4). */
+	showMore(): void {
+		this.#limit += PAGE;
+		void this.read(true);
+	}
+
 	setQuery(value: string): void {
 		clearTimeout(this.#timer);
 		this.#timer = setTimeout(() => {
 			this.#query = value.trim().slice(0, 200);
+			this.#limit = PAGE;
 			void this.read(true);
 		}, 300);
 	}
 	setType(value: string): void {
 		this.#type = value;
+		this.#limit = PAGE;
 		void this.read(true);
 	}
 	setTag(value: string): void {
 		this.#tag = value;
+		this.#limit = PAGE;
 		void this.read(true);
 	}
 	setStatus(value: Status): void {
 		this.status = value;
+		this.#limit = PAGE;
 		void this.read(true);
 	}
 	setAll(value: boolean): void {
 		this.all = value;
+		this.#limit = PAGE;
 		void this.read(true);
 	}
 
@@ -190,28 +239,36 @@ export class LoamDocumentsSection extends FASTElement {
 		if (!kernel) return;
 		const read = ++this.#reads;
 		try {
-			const [types, listed, workspace] = await Promise.all([
+			const [types, listed, workspace, projects] = await Promise.all([
 				kernel.call<{ types: DocumentTypeV1[] }>('document-type-list', { all: true }),
-				kernel.call<{ documents: DocumentRecordV1[]; total: number }>('document-list', {
-					status: this.status,
-					sort: 'recent',
-					limit: 200,
-					...(this.#query ? { query: this.#query } : {}),
-					...(this.#type ? { type: this.#type } : {}),
-					...(this.#tag ? { tag: this.#tag } : {}),
-					...(this.all ? { project: 'all' } : {}),
-				}),
+				this.#list(kernel),
 				kernel.call<{ trashDays?: number }>('workspace-get'),
+				// Read again with the rows, so a renamed project's column follows (T-N1).
+				kernel.call<{ projects: Array<{ id: string; slug: string; name: string }> }>(
+					'project-list',
+					{
+						status: 'all',
+					}
+				),
 			]);
 			if (read !== this.#reads) return;
 			if (!listed.success) throw new Error(listed.error?.message ?? 'document-list failed');
 			this.#types = new Map((types.data?.types ?? []).map((type) => [type.id, type]));
 			this.#trashDays = workspace.data?.trashDays ?? 30;
+			this.projects = new Map(
+				(projects.data?.projects ?? []).map((row) => [row.id, { slug: row.slug, name: row.name }])
+			);
 			this.documents = listed.data?.documents ?? [];
+			this.total = listed.data?.total ?? 0;
 			this.failure = '';
 			if (say) {
-				const total = listed.data?.total ?? 0;
-				this.said = total === 1 ? '1 document' : `${numberOf(total)} documents`;
+				const total = this.total;
+				this.said =
+					total > this.documents.length
+						? `Showing ${numberOf(this.documents.length)} of ${numberOf(total)}`
+						: total === 1
+							? '1 document'
+							: `${numberOf(total)} documents`;
 			}
 		} catch (cause) {
 			if (read !== this.#reads) return;
@@ -302,12 +359,22 @@ export class LoamDocumentsSection extends FASTElement {
 				return el('tr', {}, ...cells);
 			})
 		);
+		// A restored row has left: focus goes to the next row's Restore, else the last one's, else the heading.
+		if (this.#refocus !== null && trash) {
+			const buttons = [...(this.#ref('rows')?.querySelectorAll<HTMLElement>('button') ?? [])];
+			const to = buttons[Math.min(this.#refocus, buttons.length - 1)];
+			this.#refocus = null;
+			if (to) to.focus();
+			else this.focusHeading();
+		}
 		this.#paintFilters();
 		await this.#paintNew();
 	}
 
 	async #restore(record: DocumentRecordV1): Promise<void> {
+		const at = this.documents.findIndex((row) => row.id === record.id);
 		const result = await this.kernel?.call('document-restore', { document: record.id });
+		if (result?.success) this.#refocus = at;
 		this.said = result?.success
 			? `${record.title} restored`
 			: `${record.title} was not restored: ${result?.error?.message ?? 'it failed'}`;
@@ -371,6 +438,7 @@ export class LoamDocumentsSection extends FASTElement {
 	}
 }
 observable(LoamDocumentsSection.prototype, 'documents');
+observable(LoamDocumentsSection.prototype, 'total');
 observable(LoamDocumentsSection.prototype, 'loaded');
 observable(LoamDocumentsSection.prototype, 'status');
 observable(LoamDocumentsSection.prototype, 'all');
@@ -393,6 +461,12 @@ const own = css`
 	}
 	.read-failure:not([hidden]) {
 		margin-block-start: var(--space-stack-md);
+	}
+	.more:not([hidden]) {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-inline-md);
 	}
 	.new:not([hidden]) {
 		display: flex;
