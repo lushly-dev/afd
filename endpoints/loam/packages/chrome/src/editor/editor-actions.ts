@@ -97,6 +97,8 @@ const again = new WeakSet<LoamEditorFrame>();
 /**
  * One save at a time per editor for Mod+S, in the page or from a view's frame, said when it lands; any requests
  * during it become one more save after it, so a Mod+S after a new edit always saves, and a view cannot flood.
+ * That one asks again through the controller's `saveAsked`, which saves only the frame its tab still holds: a
+ * closed tab's frame, its listener gone, saves nothing more and is never said to be saved (N-2).
  */
 export function saveOnce(
 	frame: LoamEditorFrame,
@@ -112,6 +114,6 @@ export function saveOnce(
 		.then((saved) => saved && announce(shell, frame))
 		.finally(() => {
 			asking.delete(frame);
-			if (again.delete(frame)) saveOnce(frame, save, shell);
+			if (again.delete(frame)) frame.listener?.saveAsked(frame);
 		});
 }

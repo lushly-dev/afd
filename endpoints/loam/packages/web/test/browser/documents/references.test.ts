@@ -1323,6 +1323,70 @@ describe('P2-D5: a move’s save and a refused move back (the second re-check)',
 		await opened.context.close();
 	}, 120_000);
 
+	it('P2-D5: a save asked again during a held save is dropped once its tab closes, and nothing more is said saved', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { sheet, frame } = await draftSheet(page, 'Closed mid-save', 'Before');
+		// Each announcement the shell makes, as a screen reader would hear it.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as HTMLElement & { announcement: string };
+			let owner: object | null = shell;
+			let property: PropertyDescriptor | undefined;
+			while (owner && !property) {
+				property = Object.getOwnPropertyDescriptor(owner, 'announcement');
+				owner = Object.getPrototypeOf(owner);
+			}
+			const said: string[] = [];
+			(window as unknown as { said: string[] }).said = said;
+			Object.defineProperty(shell, 'announcement', {
+				configurable: true,
+				get() {
+					return property?.get?.call(this);
+				},
+				set(value: string) {
+					if (value) said.push(value);
+					property?.set?.call(this, value);
+				},
+			});
+		});
+		const chord = () =>
+			frame.evaluate(() =>
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						code: 'KeyS',
+						key: 's',
+						metaKey: /Mac/.test(navigator.platform),
+						ctrlKey: !/Mac/.test(navigator.platform),
+					})
+				)
+			);
+		await frame.evaluate(() => {
+			(window as unknown as { holdNext: boolean }).holdNext = true;
+		});
+		await chord();
+		await expect
+			.poll(() => frame.evaluate(() => typeof (window as unknown as { release?: unknown }).release))
+			.toBe('function');
+		await frame.evaluate(() => {
+			const area = document.getElementById('text') as HTMLTextAreaElement;
+			area.value += ' after';
+			area.dispatchEvent(new Event('input'));
+		});
+		await chord();
+		// The person closes the tab while the first save is held: the close saves the draft as its tab leaves, and the
+		// held save never lands, settling as its view goes, or at its 10 seconds, with a toast that it was not saved.
+		await kernelCall(page, 'editor-close', { tab: 't1', discard: true });
+		await editorIdle(page);
+		const toasts = async () =>
+			(await entriesOf(page)).filter((entry) => entry.command === 'toast-show').length;
+		await expect.poll(toasts, { timeout: 15_000 }).toBeGreaterThan(0);
+		await new Promise((done) => setTimeout(done, 500));
+		expect(await storedAt(page, sheet)).toBe('Before after');
+		const said = await page.evaluate(() => (window as unknown as { said: string[] }).said);
+		expect(said.filter((each) => each.endsWith(' saved'))).toEqual([]);
+		await opened.context.close();
+	}, 120_000);
+
 	it('P2-D5: an edit made while a move’s save runs is saved too before the view moves, so nothing is lost', async () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
