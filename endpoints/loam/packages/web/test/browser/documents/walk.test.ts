@@ -4,7 +4,8 @@
  * trash of every document. Since step 11 the person also opens from the documents section's tree; since step
  * 12 two seeds of their own also open the `sheet` fixture's view editors, type into their sandboxed frames,
  * which a hidden tab tears down, and have an agent embed one document in a note; every seed checks a
- * fourteenth invariant, for a kept view editor.
+ * fourteenth invariant, for a kept view editor. Since step 13 one seed of its own walks a deployment that also
+ * holds `checklist`, the second type, whose editors it opens, adds to and ticks in their sandboxed frames.
  * Its own CI job, `loam.yml`'s "Editor walk", runs it beside the Chromium suite.
  */
 
@@ -25,6 +26,8 @@ import { createNote, editorIdle, frameViolations, marksOf, open, type Walk } fro
 
 let browser: Browser;
 let site: DeploymentSite;
+/** The same with `checklist`, for the seed that walks the second type; the others keep `site`, and their paths. */
+let typesSite: DeploymentSite;
 
 beforeAll(async () => {
 	browser = await chromium.launch();
@@ -36,10 +39,20 @@ beforeAll(async () => {
 			deploymentEntry('sheet', await sheetPackage())
 		),
 	});
+	typesSite = await serveDeployment({
+		sandbox: true,
+		config: deploymentFile(
+			deploymentEntry('hello', await packApp('hello')),
+			deploymentEntry('notes', await packApp('notes')),
+			deploymentEntry('sheet', await sheetPackage()),
+			deploymentEntry('checklist', await packApp('checklist'))
+		),
+	});
 }, 120_000);
 
 afterAll(async () => {
 	await site?.close();
+	await typesSite?.close();
 	await browser?.close();
 });
 
@@ -67,10 +80,12 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 		[77, 200, 0.17],
 		// And one that also has an agent move view editors' tabs, with `moveBefore` (the re-check's N-B1).
 		[7, 200, 0.17, true],
+		// And one, step 13's, whose view steps also open, add to and tick checklists, the second type.
+		[13, 200, 0.17, false, true],
 	])(
-		'P2-D5: a seeded walk, seed %i, of %i steps with view steps at %d, keeps the fourteen invariants after each and reaches reopens',
-		async (start, length, views, moves = false) => {
-			const opened = await openShell(browser, site.root);
+		'P2-D5: a seeded walk, seed %i, of %i steps with view steps at %d, keeps the fifteen invariants after each and reaches reopens',
+		async (start, length, views, moves = false, checklists = false) => {
+			const opened = await openShell(browser, (checklists ? typesSite : site).root);
 			const { page } = opened;
 			// Seed 77 walks a browser with no `moveBefore`, across its reloads too: a view editor with unsaved work
 			// then saves before an agent's move, which it refuses when that save rejects (5.6, step 12).
@@ -233,9 +248,18 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
 				return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 			};
-			const viewKinds = moves
-				? (['sheet', 'sheet-type', 'sheet-type', 'embed', 'sheet-move'] as const)
-				: (['sheet', 'sheet-type', 'sheet-type', 'embed'] as const);
+			const viewKinds = checklists
+				? ([
+						'sheet',
+						'sheet-type',
+						'checklist',
+						'checklist-change',
+						'checklist-change',
+						'embed',
+					] as const)
+				: moves
+					? (['sheet', 'sheet-type', 'sheet-type', 'embed', 'sheet-move'] as const)
+					: (['sheet', 'sheet-type', 'sheet-type', 'embed'] as const);
 			// The sheets the walk made, which its view moves pick from.
 			const sheets = new Set<string>();
 			let project: string | undefined;
@@ -510,6 +534,34 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 							.locator('#text')
 							.pressSequentially('y', { timeout: 1_000 })
 							.catch(() => undefined);
+					} else if (view === 'checklist') {
+						// The second type's editor, a view that holds no draft: every change a command at once.
+						const created = (await kernelCall(page, 'document-create', {
+							type: 'checklist',
+							title: `Checklist ${step}`,
+							...(project ? { project } : {}),
+						})) as { data?: { id: string } };
+						if (created.data) {
+							documents.push(created.data.id);
+							await kernelCall(page, 'document-open', { document: created.data.id });
+						}
+					} else if (view === 'checklist-change') {
+						// Inside a checklist a person sees: tick its first item, or add one.
+						const inner = page
+							.frameLocator(
+								'loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) loam-view-frame iframe'
+							)
+							.first()
+							.frameLocator('iframe');
+						const first = inner.locator('#items button.item').first();
+						if (viewRandom() < 0.5 && (await first.count().catch(() => 0)) > 0)
+							await first.click({ timeout: 1_000 }).catch(() => undefined);
+						else
+							await inner
+								.locator('#new-item')
+								.fill(`Item ${step}`, { timeout: 1_000 })
+								.then(() => inner.locator('#new-item').press('Enter', { timeout: 1_000 }))
+								.catch(() => undefined);
 					} else if (view === 'sheet-move') {
 						// An agent moves a view editor's tab: with `moveBefore` its frame keeps its window and draft;
 						// without, as seed 77 walks, it is moved back unsaved (5.6; the re-check's N-B1).

@@ -606,6 +606,9 @@ importers:
       '@lushly-dev/afd-server':
         specifier: workspace:*
         version: link:../../../../packages/server
+      '@lushly-dev/loam-app-checklist':
+        specifier: workspace:*
+        version: link:../../apps/checklist
       '@lushly-dev/loam-app-hello':
         specifier: workspace:*
         version: link:../../apps/hello

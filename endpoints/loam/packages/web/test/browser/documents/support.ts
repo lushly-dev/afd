@@ -11,7 +11,8 @@ import {
 	createFixturePorts,
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
-import type { Page } from 'playwright';
+import type { Frame, Page } from 'playwright';
+import { expect } from 'vitest';
 import {
 	APPS,
 	type AxeViolation,
@@ -508,19 +509,35 @@ export function entriesOf(page: Page): Promise<JournalEntry[]> {
 	}) as Promise<JournalEntry[]>;
 }
 
-/** The ports a replay imports notes' real handlers through. */
+/**
+ * The ports a replay imports hello's, notes' and checklist's real handlers through: a native app's built
+ * entry, and for checklist, a view, the definition its handlers' frame serves (`src/app.ts`).
+ */
 async function replayPorts() {
-	const packages: Record<string, { manifest: unknown; definition: unknown }> = {};
-	for (const app of ['hello', 'notes'] as const) {
+	const packages: Record<
+		string,
+		{ manifest: unknown; definition: unknown; files?: Record<string, string> }
+	> = {};
+	for (const app of ['hello', 'notes', 'checklist'] as const) {
+		const manifest = JSON.parse(
+			await readFile(join(await packApp(app), 'app-manifest.json'), 'utf8')
+		) as { view?: { handlers?: string } };
+		const view = app === 'checklist';
 		packages[`apps/${app}/`] = {
-			manifest: JSON.parse(await readFile(join(await packApp(app), 'app-manifest.json'), 'utf8')),
-			definition: (await import(/* @vite-ignore */ join(APPS, app, 'dist/native.js'))).default,
+			manifest,
+			definition: (
+				await import(/* @vite-ignore */ join(APPS, app, view ? 'src/app.ts' : 'dist/native.js'))
+			).default,
+			// A view's handlers' page is read before its frame opens; the replay's frame runs the definition.
+			...(view && manifest.view?.handlers
+				? { files: { [manifest.view.handlers]: '<!doctype html>' } }
+				: {}),
 		};
 	}
 	return createFixturePorts(packages as never);
 }
 
-/** Replay the page's journal, and the entries that did not replay the same. */
+/** Replay the page's journal, and the entries that did not replay the same. A deployment may leave out checklist. */
 export async function replayDifferences(site: DeploymentSite, entries: JournalEntry[]) {
 	const { report } = await replayKernel(entries, {
 		environment: createFixedEnvironment(),
@@ -589,4 +606,28 @@ export async function settledAxe(page: Page, deadline = 5_000): Promise<AxeViola
 		}
 	}, deadline);
 	return axe(page);
+}
+
+/** The sandbox's inner frame of the checklist editor that shows `title`, once it has read its items. */
+export async function checklistFrame(page: Page, title: string): Promise<Frame> {
+	let found: Frame | undefined;
+	await expect
+		.poll(async () => {
+			for (const frame of page.frames()) {
+				const shown = await frame
+					.evaluate(() =>
+						document.documentElement.dataset.ready === 'true' && document.querySelector('#items')
+							? document.querySelector('h1')?.textContent
+							: undefined
+					)
+					.catch(() => undefined);
+				if (shown === title) {
+					found = frame;
+					return true;
+				}
+			}
+			return false;
+		})
+		.toBe(true);
+	return found as Frame;
 }
