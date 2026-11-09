@@ -48,12 +48,16 @@ pub enum ScopeDecision {
 /// resolver's mistake and left out of the challenge).
 pub trait ScopeResolver: Send + Sync {
     /// Decide a call of `command` with `input`: the arguments as sent before dispatch, the
-    /// validated input at execution (see [the two phases](ScopeResolver#two-phases)). For a tool
-    /// that names no command (`afd-discover`, `afd-detail`, a grouped call that resolves to no
-    /// command), `command` is the tool's own name and `input` its arguments; that is decided
-    /// before dispatch only. It is never asked about a command name that does not exist for the
-    /// caller (unknown, not exposed to MCP, or not [`known`](ScopeResolver::known)): such a call
-    /// needs the server's required scopes alone, and the registry answers it as an unknown name.
+    /// validated input at execution (see [the two phases](ScopeResolver#two-phases)). For a
+    /// meta-tool that names no command (`afd-discover`, `afd-detail`, or `afd-call`, `afd-batch`
+    /// and `afd-pipe` without a command for every step), `command` is the tool's own name and
+    /// `input` its arguments as sent, which may name any command, hidden ones included: decide
+    /// such a tool without asking whether a command its input names exists. That is decided
+    /// before dispatch only. It is never asked about a
+    /// command name that does not exist for the caller (unknown, not exposed to MCP, or not
+    /// [`known`](ScopeResolver::known)), nor about a grouped call that resolves to no single
+    /// command (whose tool name could be a hidden command's): such a call needs the server's
+    /// required scopes alone, and the router or the registry answers it as an unknown name.
     fn resolve(&self, command: &str, input: &Value, credentials: &Credentials) -> ScopeDecision;
 
     /// Whether the caller may see `command` on the listings (`tools/list`, `afd-discover`,
@@ -154,8 +158,12 @@ pub fn request_decision(decisions: &[ScopeDecision]) -> RequestDecision {
 pub(crate) enum Named {
     /// A command name (registered or not) and its input as sent.
     Command(String, Value),
-    /// A tool that names no command: its own name and its arguments.
+    /// A meta-tool that names no command: its own name and its arguments.
     Tool(String, Value),
+    /// A grouped call that resolves to no single command (no action for a group with a member
+    /// the caller is shown, or an unknown or ambiguous action): it runs nothing, and the router
+    /// answers it. Decided as a name that does not exist.
+    Unresolved,
 }
 
 fn input_or_empty(value: Option<&Value>) -> Value {
@@ -185,19 +193,26 @@ fn steps(list: Option<&Value>) -> Option<Vec<Named>> {
 /// The calls a `tools/call` of `tool` with `args` names, resolved as the router resolves them
 /// (`spec/authorization.md`, M6, "Which commands a request names").
 ///
-/// A grouped call that resolves to no single command (no action, an unknown or ambiguous one) is
-/// decided under the grouped tool's own name, as a tool that names no command, so it still needs
-/// the server's required scopes.
+/// In the grouped strategy, as the router decides: a call with an `action` is a grouped call
+/// whatever its tool (the router answers an action no member of the tool's group has as an
+/// unknown action), and a call without one is a grouped call when the tool's group has a member
+/// the caller is shown; otherwise it is a call of the command the tool names, which the router
+/// runs directly (a group named after a command whose members are all unlisted, say). A grouped
+/// call that resolves to no single command is [`Named::Unresolved`]: it runs nothing (the router
+/// answers an unknown or ambiguous action, or a missing one), so it needs the server's required
+/// scopes alone, and the resolver is never asked about its tool's name, which could be a hidden
+/// command's.
 ///
 /// `known` says which commands exist for the caller (`spec/authorization.md`, M6, "Hidden
 /// commands"): a grouped action naming one it does not is resolved as an unknown action, and a
 /// group whose every member it does not is a tool that does not exist, as the router answers
-/// them.
+/// them. `shown` says which the caller is shown (M6, "Listing"), as the router's listing filter.
 pub(crate) fn named_calls(
     server: &McpServer,
     tool: &str,
     args: &Map<String, Value>,
     known: &dyn Fn(&CommandDefinition) -> bool,
+    shown: &dyn Fn(&CommandDefinition) -> bool,
 ) -> Vec<Named> {
     let own = || vec![Named::Tool(tool.to_owned(), Value::Object(args.clone()))];
     match tool {
@@ -234,11 +249,13 @@ pub(crate) fn named_calls(
                             command.name.clone(),
                             input_or_empty(args.get("params")),
                         )],
-                        _ => own(),
+                        _ => vec![Named::Unresolved],
                     };
                 }
-                if !members.is_empty() {
-                    return own();
+                // Without an action the router answers a missing action only for a group with a
+                // member it shows; for any other tool it runs the command the tool names.
+                if members.iter().any(|command| shown(command)) {
+                    return vec![Named::Unresolved];
                 }
             }
             vec![Named::Command(tool.to_owned(), Value::Object(args.clone()))]
@@ -264,10 +281,11 @@ fn known_command(
 
 /// Decide one named call: the server's required scopes, then, for a command that exists for the
 /// caller, the resolver's decision when one is installed, else the command's own scopes; for a
-/// tool that names no command, the resolver's decision on the tool. A command name that does not
-/// exist for the caller (unknown, unexposed or hidden) is decided on the required scopes alone:
-/// the resolver is never asked about it, so no resolver can answer a hidden command otherwise
-/// than a name that does not exist.
+/// meta-tool that names no command, the resolver's decision on the tool. A command name that does
+/// not exist for the caller (unknown, unexposed or hidden), and a grouped call that resolves to
+/// no single command, are decided on the required scopes alone: the resolver is never asked
+/// about them, so no resolver can answer a hidden command otherwise than a name that does not
+/// exist.
 pub(crate) fn decide(
     server: &McpServer,
     auth: &Authorization,
@@ -291,6 +309,7 @@ pub(crate) fn decide(
             Some(resolver) => resolver.resolve(name, input, credentials),
             None => ScopeDecision::Allowed,
         },
+        Named::Unresolved => ScopeDecision::Allowed,
     };
     merge(required, decision)
 }
@@ -304,7 +323,11 @@ pub(crate) fn call_decision(
     credentials: &Credentials,
 ) -> RequestDecision {
     let known = |command: &CommandDefinition| knows(auth, &command.name, credentials);
-    let decisions: Vec<ScopeDecision> = named_calls(server, tool, args, &known)
+    // The router's listing filter: every command unless the server filters its listings.
+    let shown = |command: &CommandDefinition| {
+        !auth.filter_tools_by_scope || visible(auth, command, credentials)
+    };
+    let decisions: Vec<ScopeDecision> = named_calls(server, tool, args, &known, &shown)
         .iter()
         .map(|call| decide(server, auth, call, credentials))
         .collect();

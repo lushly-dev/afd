@@ -419,40 +419,39 @@ pub(crate) fn token_key(key: &[u8], credentials: &afd::Credentials) -> String {
     )
 }
 
-/// How layer 6 answers a request whose credentials hold no Umbel scope: as the mode's own
-/// 403 (section 3.3 for `oauth`, section 4.4's scheme for `gateway`).
+/// How layer 6 answers a request whose credentials hold no Umbel scope: exactly as the mode's
+/// 403 before dispatch answers (section 3.3 for `oauth`, section 4.4's scheme for `gateway`), the
+/// same body and challenge, so a name refused here (one that does not exist for the caller, or a
+/// method that names no command) and a command the decision before dispatch refused for the same
+/// missing scope answer alike, byte for byte.
 #[cfg(feature = "auth")]
 pub(crate) enum NoScope {
     /// Mode `oauth`: AFD's 403, `Bearer error="insufficient_scope"` with the metadata's URL.
     Bearer(afd::server::auth::ProtectedResource),
-    /// Mode `gateway`: no metadata is published, so the challenge is the gateway's scheme,
+    /// Mode `gateway`: AFD's body with the gateway's suggestion (the metadata's scope source),
+    /// and, since no metadata is published, the gateway's challenge
+    /// ([`crate::auth::gateway::scope_challenge`]):
     /// `Umbel-Gateway realm="umbel", error="insufficient_scope", scope="<prefix>:read"`.
-    Gateway,
+    Gateway {
+        metadata: afd::server::auth::ProtectedResource,
+        challenge: afd::server::auth::ScopeChallenge,
+    },
 }
 
 #[cfg(feature = "auth")]
 impl NoScope {
     fn body(&self, missing: &[String]) -> serde_json::Value {
         match self {
-            Self::Bearer(metadata) => metadata.forbidden_body(missing),
-            Self::Gateway => serde_json::json!({
-                "error": afd::error_codes::INSUFFICIENT_SCOPE,
-                "suggestion": format!(
-                    "The gateway's assertion grants no scope this server accepts within its ceiling; assert {}.",
-                    missing.join(" ")
-                ),
-            }),
+            Self::Bearer(metadata) | Self::Gateway { metadata, .. } => {
+                metadata.forbidden_body(missing)
+            }
         }
     }
 
     fn challenge(&self, missing: &[String]) -> String {
         match self {
             Self::Bearer(metadata) => metadata.forbidden_challenge(missing),
-            Self::Gateway => format!(
-                "{}, error=\"insufficient_scope\", scope=\"{}\"",
-                crate::auth::gateway::CHALLENGE,
-                missing.join(" ")
-            ),
+            Self::Gateway { challenge, .. } => challenge.header_value(missing),
         }
     }
 }

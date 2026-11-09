@@ -15,14 +15,16 @@
 //!    server's own authorization (AFD's `Authorization::admit`), so the context hook, the
 //!    resolver's `visible` and `known`, and the decisions after routing and at execution see it
 //!    as they see a verified token's. The assertion and any `Authorization` header are removed
-//!    before anything behind the layer runs.
+//!    before anything behind the layer runs. Then, with the body read, the layer runs AFD's own
+//!    decision before dispatch ([`afd::server::auth::PreDispatchCheck`], the one AFD's bearer
+//!    layer runs): a call missing a scope is section 5.2's 403 before dispatch, one for a whole
+//!    batch or pipeline, naming every missing scope in step order, with the gateway's challenge
+//!    ([`crate::auth::gateway::scope_challenge`]) and a suggestion naming a new assertion. A
+//!    hidden command is decided as a name that does not exist, as AFD decides it.
 //! 6. The token gate: credentials whose scopes, cut to the ceiling, hold no Umbel scope are 403;
 //!    then the per-token limit, keyed on the gateway's issuer, the subject and the client.
-//! 7. AFD's host and origin checks, then the MCP service.
-//!
-//! No bearer layer runs, so a call's missing scope is decided after routing, as AFD decides a
-//! call whose credentials a host's own layer admitted (step 0b's M6): an `INSUFFICIENT_SCOPE`
-//! result, not a 403 before dispatch.
+//! 7. AFD's host and origin checks, then the MCP service, where the decision after routing
+//!    (`INSUFFICIENT_SCOPE`) and at execution stay as the second and third lines.
 
 use std::convert::Infallible;
 use std::future::Future;
@@ -30,7 +32,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use afd::server::auth::{Authorization, ProtectedResource};
+use afd::server::auth::{Authorization, PreDispatch, PreDispatchCheck, ProtectedResource};
 use afd::server::{HttpOptions, McpServer};
 use axum::Router;
 use axum::body::{Body, Bytes};
@@ -108,6 +110,8 @@ struct Shared {
     verifier: GatewayVerifier,
     /// The served server's own authorization, whose `admit` marks the credentials it accepts.
     authorization: Authorization,
+    /// AFD's decision before dispatch, from the served server, with the gateway's challenge.
+    check: PreDispatchCheck,
 }
 
 /// Layer 5 in mode `gateway` (see the module's documentation), over layer 6.
@@ -199,6 +203,11 @@ where
                     return Ok(response);
                 }
             };
+            // 5.2: a missing scope is a 403 before dispatch, decided by AFD's bearer layer's own
+            // code on the credentials just admitted.
+            if let PreDispatch::Respond(response) = shared.check.decide(&parts, &bytes) {
+                return Ok(response.map(|body| body.map_err(|never| match never {}).boxed()));
+            }
             inner
                 .call(axum::http::Request::from_parts(parts, Full::new(bytes)))
                 .await
@@ -300,9 +309,20 @@ pub(crate) fn router(
         allowed_origins: config.http.allowed_origins.clone(),
         max_body_bytes: super::max_body_bytes(workspace),
     };
-    let service = server
-        .clone()
-        .with_authorization(authorization.clone())
+    let challenge = gateway::scope_challenge().map_err(|message| {
+        HostError::from(WorkspaceError::config_invalid(
+            "auth.mode",
+            format!("cannot be served: {message}"),
+        ))
+    })?;
+    // The check and the service from one authorized server, so the check decides exactly the
+    // credentials the service accepts.
+    let authorized = server.clone().with_authorization(authorization.clone());
+    let check = authorized
+        .pre_dispatch_check()
+        .map_err(super::invalid_surface)?
+        .with_challenge(challenge.clone());
+    let service = authorized
         .try_streamable_http_service(options)
         .map_err(super::invalid_surface)?;
     let limits: Arc<dyn crate::shared::limits::LimitStore> =
@@ -319,7 +339,10 @@ pub(crate) fn router(
             lock_timeout,
         ),
         workspace.limits_key()?,
-        layers::NoScope::Gateway,
+        layers::NoScope::Gateway {
+            metadata: authorization.metadata().clone(),
+            challenge,
+        },
         verifier.prefix(),
     );
     let service = GatewayService {
@@ -327,6 +350,7 @@ pub(crate) fn router(
         shared: Arc::new(Shared {
             verifier,
             authorization,
+            check,
         }),
     };
     let path = config.http.path.clone();
@@ -449,6 +473,16 @@ mod tests {
         store: Arc<Store>,
         seen: Arc<Mutex<Seen>>,
     ) -> (tempfile::TempDir, GatewayService<Inner>) {
+        layer_requiring(kit, store, seen, &[]).await
+    }
+
+    /// [`layer`], with a served server whose authorization requires `required`.
+    async fn layer_requiring(
+        kit: &TestIdp,
+        store: Arc<Store>,
+        seen: Arc<Mutex<Seen>>,
+        required: &[&str],
+    ) -> (tempfile::TempDir, GatewayService<Inner>) {
         let dir = tempfile::tempdir().unwrap();
         let mut jwks = kit.gateway().jwks();
         for key in jwks["keys"].as_array_mut().unwrap() {
@@ -472,10 +506,19 @@ mod tests {
             GatewayVerifier::from_config(&config, dir.path(), &AuthEnvironment::default(), store)
                 .unwrap();
         let authorization = Authorization::new(
-            ProtectedResource::new(PUBLIC_URL, [PUBLIC_URL]).unwrap(),
+            ProtectedResource::new(PUBLIC_URL, [PUBLIC_URL])
+                .unwrap()
+                .with_scope_source(crate::auth::GATEWAY_SCOPE_SOURCE),
             super::super::Unverifiable,
         )
+        .unwrap()
+        .with_required_scopes(required.iter().copied())
         .unwrap();
+        let check = McpServer::new(Arc::new(afd::CommandRegistry::new()), "t", "0")
+            .with_authorization(authorization.clone())
+            .pre_dispatch_check()
+            .unwrap()
+            .with_challenge(gateway::scope_challenge().unwrap());
         let inner = tower::service_fn(move |request: axum::http::Request<Full<Bytes>>| {
             let seen = Arc::clone(&seen);
             async move {
@@ -491,6 +534,7 @@ mod tests {
             shared: Arc::new(Shared {
                 verifier,
                 authorization,
+                check,
             }),
         };
         (dir, service)
@@ -536,6 +580,41 @@ mod tests {
         assert_eq!(caller.vouched, Vouched::Gateway);
         assert_eq!(caller.claim_groups, Vec::<String>::new());
         assert_eq!(store.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_missing_scope_is_refused_before_the_service_with_the_gateways_challenge() {
+        let kit = TestIdp::start().await.unwrap();
+        let seen = Arc::new(Mutex::new(Seen::default()));
+        let store = Store::new(None);
+        // The assertion grants `umbel:read`; the served server requires two scopes it lacks.
+        let (_dir, service) = layer_requiring(
+            &kit,
+            Arc::clone(&store),
+            Arc::clone(&seen),
+            &["umbel:read", "umbel:write", "umbel:approve"],
+        )
+        .await;
+        let slot = CallerSlot::default();
+        let response = service.oneshot(request(&kit, Some(&slot))).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert!(seen.lock().unwrap().headers.is_empty(), "nothing passed on");
+        assert_eq!(
+            response.headers()[header::WWW_AUTHENTICATE],
+            "Umbel-Gateway realm=\"umbel\", error=\"insufficient_scope\", scope=\"umbel:write umbel:approve\""
+        );
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+            serde_json::json!({
+                "error": "INSUFFICIENT_SCOPE",
+                "suggestion": "Obtain a new Umbel-Gateway-Assertion from the gateway, within its scope ceiling, that also grants umbel:write umbel:approve, then retry.",
+            })
+        );
+        // The caller was verified and its assertion spent: the refusal is a scope's, not a 401.
+        assert_eq!(store.calls.load(Ordering::SeqCst), 1);
+        assert!(slot.caller().is_some());
     }
 
     #[tokio::test]

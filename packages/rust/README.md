@@ -449,7 +449,10 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   `McpServer::authorized_http_service(HttpOptions)` builds the Streamable HTTP service behind its
   bearer layer, which serves the metadata, refuses requests with the exact 401 and 403 answers,
   decides every command a `tools/call` names before dispatch, and admits the verified
-  `Credentials` while stripping the token. A server with authorization fails closed on any
+  `Credentials` while stripping the token. A host whose own layer admits credentials instead
+  (`Authorization::admit`) runs the same decision before dispatch with
+  `McpServer::pre_dispatch_check`, optionally with its own challenge scheme (`ScopeChallenge`).
+  A server with authorization fails closed on any
   request whose credentials its own layer did not admit, and on any transport but stdio
   (`serve_stdio`) unless the host marks it trusted (`with_trusted_transport`). A resolver is asked
   again at execution on the validated input. Implies `server`; needs Rust 1.88. A command's
