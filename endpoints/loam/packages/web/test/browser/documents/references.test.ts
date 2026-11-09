@@ -1109,7 +1109,8 @@ describe('P2-D10: the inspector when the active type has none (the second re-che
 		await editorIdle(page);
 		// The documents sync reads the layout after the open: the drawer closes then.
 		await expect.poll(() => modalOpen(page), { timeout: 5_000 }).toBe(false);
-		expect((await deepFocus(page)).body).toBe(false);
+		// Focus the drawer handed back to the page moves on in the next frame, to the active editor.
+		await expect.poll(async () => (await deepFocus(page)).body).toBe(false);
 		// The page responds: a press on the note's tab activates it.
 		await page
 			.locator('loam-editor-group [role="tab"]', { hasText: 'Drawer note' })
