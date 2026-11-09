@@ -232,15 +232,17 @@ export async function hostOf(shell: LoamShell): Promise<SurfaceHostV1 | undefine
 	return (shell.apps as { host?(): SurfaceHostV1 } | null)?.host?.();
 }
 
-/** Each modal of `modals` no longer open, closed by the kernel with no answer, answered `cancel`. */
+/** Each modal of `modals` the kernel's list no longer holds, closed with no answer, answered `cancel`; a failed read answers none. */
 export async function lostModals(
 	kernel: LoamKernelV2,
 	modals: Map<string, (result: 'confirm' | 'cancel') => void>
 ): Promise<void> {
 	const open = (await kernel.call<{ overlays: Array<{ overlayId: string }> }>('overlay-list')).data
 		?.overlays;
+	// A read that failed proves nothing: every modal stays waiting for its answer.
+	if (!open) return;
 	for (const [id, answer] of modals) {
-		if (open?.some((each) => each.overlayId === id)) continue;
+		if (open.some((each) => each.overlayId === id)) continue;
 		modals.delete(id);
 		answer('cancel');
 	}
