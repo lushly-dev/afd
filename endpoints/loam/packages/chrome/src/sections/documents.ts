@@ -165,11 +165,8 @@ async function sync(shell: LoamShell): Promise<void> {
 		}
 	}
 	// The section declares the sidebar, and the inspector while the active tab's plugin has a type with one.
-	const drawer = shell.presentation.inspector === 'drawer';
 	await shell.readLayout();
-	// A drawer this read closed, as the active type has no inspector, may hand focus to the page (B1).
-	if (drawer && shell.presentation.inspector !== 'drawer') {
-		await Updates.next();
-		refocus(shell);
-	}
+	// A drawer that closed, as the active type has no inspector, may have handed focus to the page (B1).
+	await Updates.next();
+	if (tabs) refocus(shell);
 }
