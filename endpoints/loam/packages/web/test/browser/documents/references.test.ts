@@ -995,7 +995,7 @@ describe('P2-D5: moves where the browser has moveBefore (the re-check’s N-B1)'
 });
 
 describe('P2-D5: what a view and an agent cannot do (the re-check)', () => {
-	it('P2-D5: forty save requests from a view while its save runs give one save', async () => {
+	it('P2-D5: forty save requests from a view while its save runs give at most one more save', async () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
 		const { frame } = await draftSheet(page, 'Flooded', 'One save only');
@@ -1053,6 +1053,188 @@ describe('P2-D5: what a view and an agent cannot do (the re-check)', () => {
 		expect(
 			(await entriesOf(page)).slice(before).some((entry) => entry.command === 'layout-set')
 		).toBe(false);
+		await opened.context.close();
+	}, 120_000);
+});
+
+/** The element with focus, through every shadow root: its name, and whether it is the page's body. */
+const deepFocus = (page: Page) =>
+	page.evaluate(() => {
+		let at: Element | null = document.activeElement;
+		while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+		return { name: at?.localName ?? null, body: at === document.body };
+	});
+
+/** Whether any dialog in the shell's deep DOM is open as a modal. */
+const modalOpen = (page: Page) =>
+	page.evaluate(() => {
+		const walk = (root: ParentNode | null | undefined): boolean => {
+			for (const element of root?.querySelectorAll('*') ?? []) {
+				if (element instanceof HTMLDialogElement && element.open && element.matches(':modal'))
+					return true;
+				if (walk(element.shadowRoot)) return true;
+			}
+			return false;
+		};
+		return walk(document.querySelector('loam-shell')?.shadowRoot);
+	});
+
+describe('P2-D10: the inspector when the active type has none (the second re-check)', () => {
+	it('P2-D10: in the compact class, a sheet opened while the inspector’s drawer is open closes the drawer, leaving no modal and focus in the page', async () => {
+		const opened = await openShell(browser, viewSite.root, {
+			viewport: { width: 500, height: 800 },
+		});
+		const { page } = opened;
+		const a = await createNote(page, 'Drawer note');
+		const b = await createNote(page, 'Drawer link');
+		await kernelCall(page, 'document-link-add', { from: a, to: b });
+		await open(page, a);
+		await kernelCall(page, 'layout-set', {
+			inspector: { open: true },
+			compact: { drawer: 'inspector' },
+		});
+		await expect.poll(() => modalOpen(page)).toBe(true);
+		const sheet = (
+			(await kernelCall(page, 'document-create', {
+				type: 'sheet',
+				title: 'In the drawer’s place',
+			})) as {
+				data: { id: string };
+			}
+		).data.id;
+		await agentCall(page, 'document-open', { document: sheet });
+		await editorIdle(page);
+		await expect.poll(() => modalOpen(page)).toBe(false);
+		expect((await deepFocus(page)).body).toBe(false);
+		// The page responds: a press on the note's tab activates it.
+		await page
+			.locator('loam-editor-group [role="tab"]', { hasText: 'Drawer note' })
+			.click({ timeout: 2_000 });
+		await expect
+			.poll(async () => (await editorView(page))?.[0]?.tabs.find((tab) => tab.selected)?.title)
+			.toBe('Drawer note');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D10: F6 and Shift+F6 cycle the parts without sticking while a sheet is active, and an agent’s open leaves no focus on the body', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const a = await createNote(page, 'Cycled');
+		const b = await createNote(page, 'Cycled link');
+		await kernelCall(page, 'document-link-add', { from: a, to: b });
+		await open(page, a);
+		await kernelCall(page, 'layout-set', { inspector: { open: true } });
+		const row = page
+			.locator('loam-inspector notes-inspector .open', { hasText: 'Cycled link' })
+			.first();
+		await row.waitFor();
+		await row.focus();
+		const sheet = (
+			(await kernelCall(page, 'document-create', { type: 'sheet', title: 'Cycling' })) as {
+				data: { id: string };
+			}
+		).data.id;
+		await agentCall(page, 'document-open', { document: sheet });
+		await editorIdle(page);
+		await expect.poll(async () => (await deepFocus(page)).body).toBe(false);
+		const part = () =>
+			page.evaluate(() => {
+				let at: Element | null = document.activeElement;
+				const path: string[] = [];
+				while (at) {
+					path.push(at.localName);
+					at = at.shadowRoot?.activeElement ?? null;
+				}
+				return (
+					path.find((name) =>
+						/^loam-(main|sidebar|inspector|panel|rail|titlebar|statusbar)$/.test(name)
+					) ?? path.join('>')
+				);
+			});
+		for (const key of ['F6', 'Shift+F6']) {
+			const seen: string[] = [];
+			for (let press = 0; press < 4; press++) {
+				await page.keyboard.press(key);
+				seen.push(await part());
+			}
+			expect(seen, key).not.toContain('loam-inspector');
+			expect(new Set(seen).size, `${key} ${seen.join(' ')}`).toBeGreaterThan(1);
+		}
+		await opened.context.close();
+	}, 120_000);
+});
+
+describe('P2-D5: a move’s save and a refused move back (the second re-check)', () => {
+	it('P2-D5: an edit made while a move’s save runs is saved too before the view moves, so nothing is lost', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
+		const note = await createNote(page, 'Stays');
+		await open(page, note, { preview: false });
+		const { sheet, frame } = await draftSheet(page, 'Edited mid-save', 'First', { preview: false });
+		await frame.evaluate(() => {
+			(window as unknown as { holdNext: boolean }).holdNext = true;
+		});
+		await personMove(page, 'Edited mid-save');
+		await expect
+			.poll(() => frame.evaluate(() => typeof (window as unknown as { release?: unknown }).release))
+			.toBe('function');
+		await frame.evaluate(() => {
+			const area = document.getElementById('text') as HTMLTextAreaElement;
+			area.value += ' more';
+			area.dispatchEvent(new Event('input'));
+			(window as unknown as { release: () => void }).release();
+		});
+		await expect.poll(() => storedAt(page, sheet)).toBe('First more');
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
+		await viewReady(page, 't2');
+		await editorIdle(page);
+		const moved = await sheetFrame(page, 'Edited mid-save');
+		await expect.poll(() => moved.locator('#text').inputValue()).toBe('First more');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: after a refused move back, the next move of an unsaved view editor still keeps its draft, never moving it unsaved', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
+		const note = await createNote(page, 'Home');
+		await open(page, note, { preview: false });
+		const { sheet, frame } = await draftSheet(page, 'Twice moved', 'Kept through it all', {
+			preview: false,
+		});
+		await frame.evaluate(() => {
+			(window as unknown as { marker: string }).marker = 'same window';
+		});
+		// The chrome's own move back is refused once, as a full group would.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input?: unknown, options?: unknown): Promise<unknown> };
+			};
+			const call = shell.kernel.call.bind(shell.kernel);
+			let refuse = true;
+			shell.kernel.call = (name, input, options) => {
+				if (name === 'editor-move' && refuse) {
+					refuse = false;
+					return Promise.resolve({
+						success: false,
+						error: { code: 'EDITOR_TAB_LIMIT', message: 'Full' },
+					});
+				}
+				return call(name, input, options);
+			};
+		});
+		await agentCall(page, 'editor-move', { tab: 't2', group: 'new' });
+		await editorIdle(page);
+		await agentCall(page, 'editor-move', { tab: 't2', group: 'new' });
+		await editorIdle(page);
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note, sheet]]);
+		expect(await frame.evaluate(() => (window as unknown as { marker?: string }).marker)).toBe(
+			'same window'
+		);
+		expect(await frame.locator('#text').inputValue()).toBe('Kept through it all');
+		expect(await marked(page, 't2')).toBe(true);
+		expect(await storedAt(page, sheet)).toBe('');
 		await opened.context.close();
 	}, 120_000);
 });

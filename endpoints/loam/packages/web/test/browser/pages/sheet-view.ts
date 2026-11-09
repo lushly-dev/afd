@@ -76,6 +76,14 @@ async function start(): Promise<void> {
 	view.onSave(async () => {
 		sheet.saves += 1;
 		const text = area.value;
+		// A test holds one save, with what it began with, until it calls `release`.
+		const held = window as unknown as { holdNext?: boolean; release?: () => void };
+		if (held.holdNext) {
+			held.holdNext = false;
+			await new Promise<void>((resolve) => {
+				held.release = resolve;
+			});
+		}
 		if (text.includes('reject')) throw new Error('This sheet refuses that text');
 		const result = await view.client.call('sheet-write', { document: id, text });
 		if (!result.success) throw new Error(result.error?.message ?? 'Not saved');
