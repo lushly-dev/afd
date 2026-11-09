@@ -1220,10 +1220,11 @@ describe('P2-D5: a move’s save and a refused move back (the second re-check)',
 			area.dispatchEvent(new Event('input'));
 			(window as unknown as { release: () => void }).release();
 		});
-		await expect.poll(() => storedAt(page, sheet)).toBe('First more');
+		// Settled first, so invariant 15 sees any reload that lost an edit, then what was stored.
 		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
 		await viewReady(page, 't2');
 		await editorIdle(page);
+		await expect.poll(() => storedAt(page, sheet)).toBe('First more');
 		const moved = await sheetFrame(page, 'Edited mid-save');
 		await expect.poll(() => moved.locator('#text').inputValue()).toBe('First more');
 		await opened.context.close();
