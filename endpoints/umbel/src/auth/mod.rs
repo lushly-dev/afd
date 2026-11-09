@@ -77,8 +77,14 @@ pub const DEFAULT_PERSON_MAX_AGE_S: u64 = 300;
 pub const MAX_PERSON_MAX_AGE_S: u64 = 3_600;
 /// `[auth.gateway] max_assertion_age_s`'s default and largest value (amendment from step 1).
 pub const DEFAULT_MAX_ASSERTION_AGE_S: u64 = 60;
-/// The largest `max_assertion_age_s`.
-pub const MAX_ASSERTION_AGE_S: u64 = 300;
+/// The largest `max_assertion_age_s` (amendment from step 4): 60, as an assertion lives at most
+/// [`MAX_ASSERTION_LIFETIME_S`] after its `iat` and must not have expired, so a larger age could
+/// never admit one more assertion.
+pub const MAX_ASSERTION_AGE_S: u64 = 60;
+/// What a gateway's caller obtains to gain a scope, in a missing scope's suggestion (step 4): its
+/// scopes are the gateway's to assert, within `max_scopes`, never a token's.
+pub(crate) const GATEWAY_SCOPE_SOURCE: &str =
+    "a new Umbel-Gateway-Assertion from the gateway, within its scope ceiling,";
 /// How long after its `iat` a gateway assertion may expire (4.4).
 pub const MAX_ASSERTION_LIFETIME_S: u64 = 60;
 /// How long a person decision waits to be decided (7.2).

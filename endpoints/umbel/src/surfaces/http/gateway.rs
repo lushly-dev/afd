@@ -2,7 +2,9 @@
 //! around the MCP service, with the gateway layer in place of AFD's bearer layer.
 //!
 //! 1. TLS, with the client certificate per `client_auth` (the listener).
-//! 2. The body size limit, then 3. the per-IP limit, both before any verification work.
+//! 2. The body size limit, then 3. the per-IP limit, both before any verification work. A
+//!    connection presenting a pinned gateway certificate is authenticated at the channel and
+//!    skips the per-IP limit ([`limit_ip_unless_pinned`]); the per-caller limits govern it.
 //! 4. `/health` only: mode `gateway` publishes no protected-resource metadata (section 3.3), so
 //!    both well-known paths, like every path but `http.path`, are 404.
 //! 5. **The gateway layer** ([`GatewayService`]): the pinned channel, then the one assertion,
@@ -204,6 +206,28 @@ where
     }
 }
 
+/// Layer 3 in mode `gateway`: the per-IP limit, except for a connection whose TLS client
+/// certificate (verified in the handshake, never a header) is one the gateway's
+/// `client_cert_sha256` pins. Such a connection is the gateway itself, authenticated at the
+/// channel, carrying many callers from one address; the per-caller limits after verification
+/// (`calls_per_minute` and the read limit) govern it. Every other connection keeps the per-IP
+/// limit, before any verification work.
+struct IpGate {
+    limit: Arc<layers::IpLimit>,
+    pins: std::collections::BTreeSet<String>,
+}
+
+async fn limit_ip_unless_pinned(
+    axum::extract::State(gate): axum::extract::State<Arc<IpGate>>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> Response {
+    if gateway::certificate_pinned(&gate.pins, request.extensions()) {
+        return next.run(request).await;
+    }
+    layers::limit_ip(axum::extract::State(Arc::clone(&gate.limit)), request, next).await
+}
+
 /// The authorization the served server holds in mode `gateway`: never published (section 3.3),
 /// with a verifier that refuses every token, since only the gateway layer admits credentials;
 /// Umbel's scope resolver over `book`, and listings filtered as `auth.filter_tools_by_scope`
@@ -229,7 +253,8 @@ fn authorization(
         .as_ref()
         .map_or(resource, |gateway| gateway.issuer.as_str());
     let metadata = ProtectedResource::new(resource, [issuer])
-        .map_err(|message| invalid("http.public_url", message))?;
+        .map_err(|message| invalid("http.public_url", message))?
+        .with_scope_source(crate::auth::GATEWAY_SCOPE_SOURCE);
     Ok(Authorization::new(metadata, super::Unverifiable)
         .map_err(|message| invalid("auth.mode", message))?
         .with_filter_tools_by_scope(config.auth.filter_tools_by_scope)
@@ -327,11 +352,19 @@ pub(crate) fn router(
             response
         }
     });
-    let ip = Arc::new(layers::IpLimit::new(
-        limits,
-        config.limits.ip_requests_per_minute,
-        lock_timeout,
-    ));
+    let ip = Arc::new(IpGate {
+        limit: Arc::new(layers::IpLimit::new(
+            limits,
+            config.limits.ip_requests_per_minute,
+            lock_timeout,
+        )),
+        pins: config
+            .auth
+            .gateway
+            .iter()
+            .flat_map(|gateway| gateway.client_cert_sha256.iter().cloned())
+            .collect(),
+    });
     tracing::info!(
         target: "umbel::http",
         "auth.mode = \"gateway\": serving {} to the pinned gateway, with no metadata",
@@ -341,7 +374,7 @@ pub(crate) fn router(
     Ok(Router::new()
         .route("/health", get(super::health))
         .fallback_service(mcp)
-        .layer(from_fn_with_state(ip, layers::limit_ip))
+        .layer(from_fn_with_state(ip, limit_ip_unless_pinned))
         .layer(from_fn_with_state(
             super::max_body_bytes(workspace),
             layers::cap_body,
@@ -369,6 +402,8 @@ mod tests {
         calls: AtomicUsize,
         failure: Option<SharedError>,
         spent: Mutex<HashSet<String>>,
+        /// Each spend's key and the expiry it asked for.
+        expiries: Mutex<Vec<(String, i64)>>,
     }
 
     impl Store {
@@ -377,13 +412,18 @@ mod tests {
                 calls: AtomicUsize::new(0),
                 failure,
                 spent: Mutex::default(),
+                expiries: Mutex::default(),
             })
         }
     }
 
     impl NonceStore for Store {
-        fn consume(&self, key: &str, _: i64, _: i64) -> Result<bool, SharedError> {
+        fn consume(&self, key: &str, expires_ms: i64, _: i64) -> Result<bool, SharedError> {
             self.calls.fetch_add(1, Ordering::SeqCst);
+            self.expiries
+                .lock()
+                .unwrap()
+                .push((key.to_owned(), expires_ms));
             match &self.failure {
                 Some(failure) => Err(failure.clone()),
                 None => Ok(self.spent.lock().unwrap().insert(key.to_owned())),
@@ -457,7 +497,10 @@ mod tests {
     }
 
     fn request(kit: &TestIdp, slot: Option<&CallerSlot>) -> Request {
-        let assertion = kit.gateway().assertion(PUBLIC_URL, "POST").sign();
+        request_with(kit.gateway().assertion(PUBLIC_URL, "POST").sign(), slot)
+    }
+
+    fn request_with(assertion: String, slot: Option<&CallerSlot>) -> Request {
         let mut request = axum::http::Request::builder()
             .method("POST")
             .uri("/mcp")
@@ -541,5 +584,33 @@ mod tests {
                 assert!(text.contains("WORKSPACE_SHARED_TIMEOUT"), "{text}");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn a_spent_jti_is_kept_until_its_assertion_could_no_longer_be_accepted() {
+        let kit = TestIdp::start().await.unwrap();
+        let store = Store::new(None);
+        let seen = Arc::new(Mutex::new(Seen::default()));
+        let (_dir, service) = layer(&kit, Arc::clone(&store), seen).await;
+        // A 30-second assertion under the default 60-second age limit and 60-second skew: kept
+        // until the later of its `exp` and `iat` plus the age limit, plus the skew and a second.
+        let builder = kit.gateway().assertion(PUBLIC_URL, "POST").lifetime(30);
+        let iat = builder.claims()["iat"].as_i64().unwrap();
+        let exp = builder.claims()["exp"].as_i64().unwrap();
+        let jti = builder.claims()["jti"].as_str().unwrap().to_owned();
+        let slot = CallerSlot::default();
+        let response = service
+            .oneshot(request_with(builder.sign(), Some(&slot)))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let expiries = store.expiries.lock().unwrap().clone();
+        assert_eq!(
+            expiries,
+            [(
+                format!("gateway:{jti}"),
+                (exp.max(iat + 60) + 60 + 1) * 1000
+            )]
+        );
     }
 }

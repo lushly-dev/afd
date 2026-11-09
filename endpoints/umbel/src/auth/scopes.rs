@@ -494,14 +494,20 @@ impl UmbelScopes {
     }
 
     /// The access caller of the request in flight whose mapped caller holds `credentials`;
-    /// `None` when there is none, or more than one that differ.
+    /// `None` when there is none, more than one that differ, or one vouched for otherwise than
+    /// the workspace's `auth.mode` vouches (a token's caller in mode `gateway`, an assertion's in
+    /// mode `oauth`). Its claim groups are [`super::caller::VerifiedCaller::claim_groups`], so
+    /// never a gateway's.
     fn caller(&self, credentials: &afd::Credentials) -> Option<crate::access::Caller> {
         let verified = self.book.caller_for(credentials)?;
         let config = self.policy.workspace().config();
+        if !verified.vouched_for(config.auth.mode) {
+            return None;
+        }
         Some(crate::access::Caller::new(
             config,
             verified.effective_principal(),
-            verified.claim_groups.clone(),
+            verified.claim_groups().to_vec(),
             crate::access::Narrowing::Token(self.policy.umbel_scopes(&verified.scopes)),
             false,
         ))
@@ -633,11 +639,15 @@ mod tests {
     /// policy) and `x-plain` (an embedder's), `x-show` (a space-less built-in), `x-hidden` (not on
     /// MCP), and `afd-help`.
     fn policy(dir: &std::path::Path) -> ScopePolicy {
-        std::fs::write(
-            dir.join("umbel.toml"),
+        policy_with(
+            dir,
             "config_version = 3\ndefault_space = \"main\"\n[spaces.main]\n[spaces.alpha]\n[spaces.beta]\n",
         )
-        .unwrap();
+    }
+
+    /// [`policy`]'s commands over the workspace `text` configures.
+    fn policy_with(dir: &std::path::Path, text: &str) -> ScopePolicy {
+        std::fs::write(dir.join("umbel.toml"), text).unwrap();
         let workspace = Arc::new(Workspace::open(dir).unwrap());
         let registry = CommandRegistry::new();
         let mut gated = command("x-gated", false);
@@ -927,5 +937,62 @@ mod tests {
         assert!(!resolver.visible("x-show", &credentials));
         assert!(!resolver.known("p-read", &credentials));
         assert!(resolver.known("x-show", &credentials));
+    }
+
+    #[cfg(feature = "auth")]
+    #[test]
+    fn the_resolver_takes_no_group_from_a_gateway_and_no_caller_of_another_mode() {
+        use super::super::caller::{CallerBook, CallerSlot, TokenBinding, VerifiedCaller, Vouched};
+        use afd::server::auth::ScopeResolver;
+        let head = |mode: &str, auth: &str| {
+            format!(
+                "config_version = 5\ndefault_space = \"main\"\n[principal]\nlocal_id = \"corp/ada\"\n[http]\npublic_url = \"https://h.test/mcp\"\nallowed_hosts = [\"h.test\"]\n[auth]\nmode = \"{mode}\"\n[auth.namespaces.corp]\n{auth}\n[spaces.main]\nreaders = [\"group:eng\"]\n[spaces.alpha]\nreaders = [\"group:eng\"]\n[spaces.beta]\n"
+            )
+        };
+        let oauth = head(
+            "oauth",
+            "[auth.issuers.as]\nissuer = \"https://as.example.com\"\nnamespace = \"corp\"\n[access.groups.eng]\nmembers = []\nclaim = { issuer = \"as\", name = \"groups\", value = \"eng\" }\n",
+        );
+        let gateway = head(
+            "gateway",
+            "[auth.gateway]\nalias = \"edge\"\nnamespace = \"corp\"\nissuer = \"https://g.example.com\"\nkeys = \"k.json\"\nmax_scopes = [\"umbel:read\"]\n[access.groups.eng]\nmembers = []\n",
+        );
+        let credentials =
+            afd::Credentials::new("https://x", "ada", "app", "https://h.test/mcp", 1, 2)
+                .with_scopes(["umbel:read"]);
+        // A caller in flight whose `claim_groups` field says `eng`, vouched for as given.
+        let in_flight = |vouched: Vouched| {
+            let caller = VerifiedCaller {
+                credentials: credentials.clone(),
+                namespace: "corp".into(),
+                issuer: "x".into(),
+                actor: afd::Actor::new(afd::ActorKind::Agent)
+                    .with_id("corp/app")
+                    .with_on_behalf_of("corp/ada"),
+                chain: Vec::new(),
+                vouched,
+                scopes: vec!["umbel:read".into()],
+                claim_groups: vec!["eng".into()],
+            };
+            let book = CallerBook::default();
+            let slot = CallerSlot::default();
+            assert!(slot.fill(caller));
+            let entry = book.enter(slot);
+            (book, entry)
+        };
+        let token = Vouched::Token(TokenBinding::Bearer);
+        let sees = |text: &str, vouched: Vouched| {
+            let dir = tempfile::tempdir().unwrap();
+            let policy = Arc::new(policy_with(dir.path(), text));
+            let (book, _entry) = in_flight(vouched);
+            UmbelScopes::new(policy, book).visible("p-read", &credentials)
+        };
+        // The control: a token's groups count in mode oauth.
+        assert!(sees(&oauth, token.clone()));
+        // A gateway's caller never has groups, whatever its field holds.
+        assert!(!sees(&gateway, Vouched::Gateway));
+        // And a caller one mode made is no one in the other.
+        assert!(!sees(&oauth, Vouched::Gateway));
+        assert!(!sees(&gateway, token));
     }
 }

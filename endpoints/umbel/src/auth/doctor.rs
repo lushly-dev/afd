@@ -297,12 +297,11 @@ fn tls(inputs: &Inputs<'_>) -> Check {
     if !files::PERMISSIONS_CHECKED && (config.http.tls.is_some() || config.auth.gateway.is_some()) {
         found.warn("this platform's file permissions and owners are not checked");
     }
-    let mut passed = passed;
     if let Some(gateway) = &config.auth.gateway {
         // The gateway layer's own loading, so the doctor passes exactly the key sets it serves.
         match crate::auth::gateway::PinnedKeys::load(root, gateway) {
-            Ok(keys) => passed.push_str(&format!(
-                "; the gateway's pinned key set holds {} key(s)",
+            Ok(keys) => found.note(format!(
+                "the gateway's pinned key set holds {} key(s)",
                 keys.len()
             )),
             Err(problem) => found.fail(format!("auth.gateway.keys: {problem}")),
@@ -313,21 +312,20 @@ fn tls(inputs: &Inputs<'_>) -> Check {
             .as_ref()
             .is_some_and(|tls| tls.client_auth == crate::workspace::ClientAuth::Ca)
             && !gateway.client_cert_sha256.is_empty();
-        passed.push_str(&if pinned {
-            format!(
-                "; the gateway connects with one of {} pinned certificate(s) chaining to http.tls.client_ca",
+        if pinned {
+            found.note(format!(
+                "the gateway connects with one of {} pinned certificate(s) chaining to http.tls.client_ca, and its connections skip the per-IP limit",
                 gateway.client_cert_sha256.len()
-            )
+            ));
+        } else if gateway.client_cert_sha256.is_empty() {
+            found.warn(
+                "the gateway connects over loopback with no pinned certificate, so any process on this host is on the gateway's channel and shares its per-IP limit (limits.ip_requests_per_minute); pin the gateway's certificate (client_cert_sha256 with [http.tls] client_auth)",
+            );
         } else {
-            format!(
-                "; the gateway connects over loopback, on this host{}",
-                if gateway.client_cert_sha256.is_empty() {
-                    ""
-                } else {
-                    ", with a pinned certificate"
-                }
-            )
-        });
+            found.note(
+                "the gateway connects over loopback with a pinned certificate, and its connections skip the per-IP limit",
+            );
+        }
     }
     found.into_check(
         "auth.tls",

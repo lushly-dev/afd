@@ -44,7 +44,7 @@ testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
 # Linux and macOS, the file system type of `state/shared/` with `rustix`'s `statfs`; both were
 # already in the lock. The gateway mode (step 4) checks an assertion's signature with
 # `jsonwebtoken`, AFD's own version, also already in the lock.
-auth = ["afd/server-auth", "dep:base64", "dep:http-body-util", "dep:jsonwebtoken", "dep:reqwest", "dep:rusqlite", "dep:rustix", "dep:rustls-platform-verifier", "dep:rustls-pki-types", "dep:tokio-rustls", "dep:x509-parser"]
+auth = ["afd/server-auth", "dep:aws-lc-rs", "dep:base64", "dep:http-body-util", "dep:jsonwebtoken", "dep:reqwest", "dep:rusqlite", "dep:rustix", "dep:rustls-platform-verifier", "dep:rustls-pki-types", "dep:tokio-rustls", "dep:x509-parser"]
 # The mounted MCP server loader (specification section 6.3): rmcp's client over a child process's
 # stdio and Streamable HTTP, with rustls (rmcp's `reqwest` feature is what enables it). The child
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither
@@ -128,6 +128,10 @@ base64 = { version = "0.22", optional = true }
 # token's: `jsonwebtoken`'s `aws-lc-rs` provider called directly, never `decode` or a
 # `Validation`, so no library default applies. AFD's version, already in the lock.
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"], optional = true }
+# The gateway's pinned key set (step 4) is parsed with `aws-lc-rs` when it is read, so a key whose
+# material could never verify is refused at start and by the doctor. The test kit's version,
+# already in the lock (it backs `jsonwebtoken` and rustls too).
+aws-lc-rs = { version = "1.15", default-features = false, features = ["aws-lc-sys"], optional = true }
 
 # The outbound client's TLS: the platform's roots, on the `aws-lc-rs` provider passed explicitly.
 rustls-platform-verifier = { version = "0.7", optional = true }

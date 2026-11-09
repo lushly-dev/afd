@@ -1116,10 +1116,10 @@
 					}
 				},
 				"max_assertion_age_s": {
-					"description": "Default 60.",
+					"description": "Default 60, and at most 60: an assertion expires at most 60 seconds after its iat, so a larger age could admit nothing more.",
 					"type": "integer",
 					"minimum": 1,
-					"maximum": 300
+					"maximum": 60
 				},
 				"max_scopes": {
 					"description": "The scope ceiling, a meet in the scope order.",

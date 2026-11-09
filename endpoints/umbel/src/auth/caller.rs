@@ -71,11 +71,34 @@ pub(crate) struct VerifiedCaller {
     pub(crate) vouched: Vouched,
     /// The granted scopes under the configured prefix (5.1), in token order.
     pub(crate) scopes: Vec<String>,
-    /// The `[access.groups]` this token's claims make the caller a member of (4.5).
+    /// The `[access.groups]` this token's claims make the caller a member of (4.5). Read through
+    /// [`Self::claim_groups`], which gives none for a gateway's caller.
     pub(crate) claim_groups: Vec<String>,
 }
 
 impl VerifiedCaller {
+    /// The `[access.groups]` this caller's token makes it a member of (4.5). **Never any for a
+    /// gateway's caller**, whatever the field holds: groups are never taken from a gateway. Every
+    /// reader of a verified caller's groups reads them here.
+    pub(crate) fn claim_groups(&self) -> &[String] {
+        match self.vouched {
+            Vouched::Token(_) => &self.claim_groups,
+            Vouched::Gateway => &[],
+        }
+    }
+
+    /// Whether this caller was vouched for as `mode` vouches: a token in mode `oauth`, an
+    /// assertion in mode `gateway`, nothing in mode `none`. A caller one mode made never stands
+    /// in another, wherever a caller is read (the context hook and the scope resolver).
+    #[cfg_attr(not(feature = "auth"), allow(dead_code))]
+    pub(crate) fn vouched_for(&self, mode: crate::workspace::AuthMode) -> bool {
+        use crate::workspace::AuthMode;
+        matches!(
+            (mode, &self.vouched),
+            (AuthMode::Oauth, Vouched::Token(_)) | (AuthMode::Gateway, Vouched::Gateway)
+        )
+    }
+
     /// The effective principal: `human:<ns>/<subject>` for a person's client, the service itself
     /// for a service.
     pub(crate) fn effective_principal(&self) -> Option<String> {

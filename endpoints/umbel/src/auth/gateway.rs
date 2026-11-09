@@ -230,20 +230,22 @@ impl fmt::Debug for PinnedKeys {
 
 impl PinnedKeys {
     /// Read the gateway's `keys` file under `root`: a regular file of at most 1 MiB, writable by
-    /// no one but its owner (this user or root) in a directory others cannot write, holding a
-    /// pinned key set ([`Self::parse`]).
+    /// no one but its owner (this user or root) in a directory others cannot write, checked on the
+    /// file that was opened ([`files::read_trusted`]), holding a pinned key set ([`Self::parse`]).
     ///
     /// # Errors
     /// What is wrong, naming the path and never the file's contents.
     pub(crate) fn load(root: &Path, gateway: &GatewayConfig) -> Result<Self, String> {
         let path = root.join(&gateway.keys);
-        let bytes = files::read_limited(&path)?;
-        if let Some(problem) = files::too_open(&path, Secrecy::Public) {
-            return Err(format!(
-                "{} {problem}, so someone else could add a key the gateway's assertions are trusted under",
-                path.display()
-            ));
-        }
+        let bytes = files::read_trusted(&path, Secrecy::Public).map_err(|problem| {
+            if problem.contains("writable") || problem.contains("owned by") {
+                format!(
+                    "{problem}, so someone else could add a key the gateway's assertions are trusted under"
+                )
+            } else {
+                problem
+            }
+        })?;
         Self::parse(&bytes).map_err(|problem| format!("{}: {problem}", path.display()))
     }
 
@@ -301,7 +303,7 @@ impl PinnedKeys {
             check_key_fit(&header, Some(entry))
                 .map_err(|_| format!("{at} does not fit its alg (kty, crv, use or key_ops)"))?;
             let key = decoding_key(alg, entry)
-                .ok_or_else(|| format!("{at} holds key material that cannot verify"))?;
+                .ok_or_else(|| format!("{at} holds key material that cannot verify (an RSA modulus of 2048 to 8192 bits and an exponent of at least 3, or a point on its curve)"))?;
             keys.push(PinnedKey {
                 kid: kid.to_owned(),
                 alg,
@@ -350,9 +352,17 @@ fn signing_algorithm(name: &str) -> Option<(Algorithm, &'static str)> {
     })
 }
 
-/// The verification key of a JWK that fits `alg`, or `None` when its material is unusable (as
-/// AFD reads it: strict base64url, coordinates of the curve's length, Ed25519 only).
+/// The smallest and largest RSA modulus a pinned key may have, in bits (AFD's verifier, through
+/// `aws-lc-rs`, verifies nothing outside them).
+const RSA_MODULUS_BITS: std::ops::RangeInclusive<usize> = 2048..=8192;
+
+/// The verification key of a JWK that fits `alg`, or `None` when its material could never
+/// verify: base64url that is not strict, an RSA modulus outside 2048 to 8192 bits or an
+/// exponent below 3, an EC point of the wrong length or off its curve, or an Ed25519 key that
+/// does not parse. The EC and Ed25519 material is parsed by `aws-lc-rs` itself, the library that
+/// verifies the signatures.
 fn decoding_key(alg: Algorithm, jwk: &Value) -> Option<DecodingKey> {
+    use aws_lc_rs::signature::{self, ParsedPublicKey};
     let member = |name: &str| {
         jwk.get(name)
             .and_then(Value::as_str)
@@ -365,12 +375,18 @@ fn decoding_key(alg: Algorithm, jwk: &Value) -> Option<DecodingKey> {
         | Algorithm::RS512
         | Algorithm::PS256
         | Algorithm::PS384
-        | Algorithm::PS512 => Some(DecodingKey::from_rsa_raw_components(
-            &member("n")?,
-            &member("e")?,
-        )),
+        | Algorithm::PS512 => {
+            let (n, e) = (member("n")?, member("e")?);
+            (RSA_MODULUS_BITS.contains(&bit_length(&n)) && !below_3(&e))
+                .then(|| DecodingKey::from_rsa_raw_components(&n, &e))
+        }
         Algorithm::ES256 | Algorithm::ES384 => {
-            let size = if alg == Algorithm::ES256 { 32 } else { 48 };
+            let (size, curve): (usize, &'static dyn signature::VerificationAlgorithm) =
+                if alg == Algorithm::ES256 {
+                    (32, &signature::ECDSA_P256_SHA256_FIXED)
+                } else {
+                    (48, &signature::ECDSA_P384_SHA384_FIXED)
+                };
             let (x, y) = (member("x")?, member("y")?);
             if x.len() != size || y.len() != size {
                 return None;
@@ -379,6 +395,7 @@ fn decoding_key(alg: Algorithm, jwk: &Value) -> Option<DecodingKey> {
             point.push(0x04);
             point.extend_from_slice(&x);
             point.extend_from_slice(&y);
+            ParsedPublicKey::new(curve, &point).ok()?;
             Some(DecodingKey::from_ec_der(&point))
         }
         Algorithm::EdDSA => {
@@ -386,10 +403,27 @@ fn decoding_key(alg: Algorithm, jwk: &Value) -> Option<DecodingKey> {
                 return None;
             }
             let x = member("x")?;
-            (x.len() == 32).then(|| DecodingKey::from_ed_der(&x))
+            if x.len() != 32 {
+                return None;
+            }
+            ParsedPublicKey::new(&signature::ED25519, &x).ok()?;
+            Some(DecodingKey::from_ed_der(&x))
         }
         _ => None,
     }
+}
+
+/// The number of significant bits of a big-endian unsigned integer.
+fn bit_length(bytes: &[u8]) -> usize {
+    let Some(first) = bytes.iter().position(|byte| *byte != 0) else {
+        return 0;
+    };
+    (bytes.len() - first - 1) * 8 + (8 - bytes[first].leading_zeros() as usize)
+}
+
+/// Whether a big-endian unsigned integer is below 3.
+fn below_3(bytes: &[u8]) -> bool {
+    bit_length(bytes) <= 1 || (bit_length(bytes) == 2 && bytes[bytes.len() - 1] < 3)
 }
 
 /// The meet of `granted` and `ceiling` in the scope order (4.4, 5.1), exactly as section 4.4
@@ -760,12 +794,7 @@ fn channel_allows(
     pins: &BTreeSet<String>,
     extensions: &http::Extensions,
 ) -> bool {
-    let pinned = || {
-        extensions
-            .get::<ClientCertificate>()
-            .and_then(|certificate| sha256_hex(certificate.thumbprint()))
-            .is_some_and(|hex| pins.contains(&hex))
-    };
+    let pinned = || certificate_pinned(pins, extensions);
     if pinned_leg {
         return pinned();
     }
@@ -773,6 +802,16 @@ fn channel_allows(
         .get::<LocalAddr>()
         .is_some_and(|LocalAddr(local)| local.ip().to_canonical().is_loopback());
     loopback && (pins.is_empty() || pinned())
+}
+
+/// Whether the connection's TLS client certificate, which the handshake verified (the listener's
+/// `ClientCertificate`, never a header), is one of `pins`. Never with no pins.
+pub(crate) fn certificate_pinned(pins: &BTreeSet<String>, extensions: &http::Extensions) -> bool {
+    !pins.is_empty()
+        && extensions
+            .get::<ClientCertificate>()
+            .and_then(|certificate| sha256_hex(certificate.thumbprint()))
+            .is_some_and(|hex| pins.contains(&hex))
 }
 
 /// What an assertion that passed every rule but its spend says.
@@ -1041,6 +1080,57 @@ mod tests {
             "x": "MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4",
             "y": "4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM",
         })
+    }
+
+    fn rsa(modulus_bytes: usize, exponent: &[u8]) -> Value {
+        let mut n = vec![0xA5_u8; modulus_bytes];
+        n[0] = 0xC3;
+        json!({
+            "kty": "RSA", "kid": "r", "alg": "RS256",
+            "n": URL_SAFE_NO_PAD.encode(&n), "e": URL_SAFE_NO_PAD.encode(exponent),
+        })
+    }
+
+    #[test]
+    fn pinned_material_that_could_never_verify_is_refused() {
+        // RSA: 2048 to 8192 bits, an exponent of at least 3.
+        assert!(parse(&json!({ "keys": [rsa(256, &[1, 0, 1])] })).is_ok());
+        assert!(parse(&json!({ "keys": [rsa(1024, &[1, 0, 1])] })).is_ok());
+        for (label, key) in [
+            ("a 1024-bit modulus", rsa(128, &[1, 0, 1])),
+            ("an 8200-bit modulus", rsa(1025, &[1, 0, 1])),
+            ("an exponent of 1", rsa(256, &[1])),
+            ("an exponent of 2", rsa(256, &[0, 2])),
+        ] {
+            let error = parse(&json!({ "keys": [key] })).unwrap_err();
+            assert!(error.contains("cannot verify"), "{label}: {error}");
+        }
+        assert!(parse(&json!({ "keys": [rsa(256, &[3])] })).is_ok());
+        // EC: a point of the right length that is not on P-256.
+        let mut off_curve = p256("a");
+        off_curve["x"] = json!(URL_SAFE_NO_PAD.encode([1_u8; 32]));
+        off_curve["y"] = json!(URL_SAFE_NO_PAD.encode([1_u8; 32]));
+        let error = parse(&json!({ "keys": [off_curve] })).unwrap_err();
+        assert!(error.contains("cannot verify"), "{error}");
+        assert_eq!(bit_length(&[0, 0, 1]), 1);
+        assert_eq!(bit_length(&[0x80, 0]), 16);
+        assert_eq!(bit_length(&[]), 0);
+    }
+
+    #[test]
+    fn a_trust_file_is_checked_as_opened() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("jwks.json");
+        std::fs::write(&path, "{}").unwrap();
+        assert_eq!(files::read_trusted(&path, Secrecy::Public).unwrap(), b"{}");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o664)).unwrap();
+            let error = files::read_trusted(&path, Secrecy::Public).unwrap_err();
+            assert!(error.contains("writable by group or other"), "{error}");
+        }
+        assert!(files::read_trusted(dir.path(), Secrecy::Public).is_err());
     }
 
     fn parse(document: &Value) -> Result<PinnedKeys, String> {

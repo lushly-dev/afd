@@ -2474,13 +2474,26 @@ on another local branch and push to that remote name.
     resolver, so steps 3 and 7 apply unchanged: the scope gate, the one answer, filtered listings, hidden commands,
     the per-token and read limits, sealed positions. A call's missing scope is `INSUFFICIENT_SCOPE` after routing.
   - **The doctor**: `auth.mode` passes; `auth.tls` loads the key set with the layer's own loader and names the
-    channel; `auth.subjects` lists the gateway among its namespace's subject sources.
+    channel, warning on the loopback leg without pins; `auth.subjects` lists the gateway among its namespace's
+    subject sources.
+  - **Limits**: a connection presenting a pinned certificate is the gateway, authenticated at the channel, and skips
+    the per-IP limit; the per-caller limits after verification govern it. Every other connection keeps it.
+  - **One deviation**: a gateway caller's missing scope is `INSUFFICIENT_SCOPE` after routing (before the
+    confirmation gate and any person), not 5.2's 403 before dispatch, as AFD offers a host's own layer no
+    pre-dispatch decision; a follow-up to AFD. Its suggestion names a new assertion, never a token (AFD's additive
+    `ProtectedResource::with_scope_source`).
+  - **Review**: a mutation run removed each security check in turn (44 mutants, all killed). An independent security
+    review found no blocker, four improvements (pinned keys that could never verify, the `jti` retention untested,
+    the per-IP limit in gateway mode, two invariants kept at one call site) and five nits (the 403's shape and
+    wording, `max_assertion_age_s` capped at 60, boundary tests, a follow-up for step 8's tasks, the key file
+    checked as opened); all fixed with regression tests.
   - Tests: `tests/gateway_mode.rs` (accepted callers, every rule broken alone with its exact logged code, replay
     across two hosts on one workspace, the pinned and loopback channels, no identity header, no metadata, the key set
     at start, steps 3 and 7 for gateway callers, the per-token limit), the gateway router of `no_auth_server.rs`, the
     gateway cases of `doctor_auth.rs`, `config_v5.rs` and `auth_layers.rs`, and unit tests in `src/auth/gateway.rs`,
-    `src/surfaces/http/gateway.rs` and `src/principal.rs`. No plugin crate changed; `umbel-testkit-idp`'s
-    `GatewaySigner` is `Clone`. Choices are in the specification's
+    `src/surfaces/http/gateway.rs`, `src/principal.rs`, `src/auth/scopes.rs` and `src/auth/scope_gate.rs`. No
+    plugin crate changed; `umbel-testkit-idp`'s `GatewaySigner` is `Clone`; the afd crate gains
+    `ProtectedResource::with_scope_source`. Choices are in the specification's
     [Amendments from step 4](phases/5-auth-hosted/spec.md#amendments-from-step-4).
 - **Not done:** steps 5, 6 and 8 to 12 of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan).
 - **Next:** step 5 (it needs 3, 0c and 0d); 8 needs 0e and 3; 9 and 11 need 3. Heavy steps follow the plan's build

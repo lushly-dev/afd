@@ -263,8 +263,12 @@ fn granted_spaces(config: &Config, caller: &VerifiedCaller) -> BTreeMap<String, 
         .collect();
     let mut granted = BTreeMap::new();
     for space in &config.spaces {
-        if !crate::access::may_read_space(config, space, principal.as_deref(), &caller.claim_groups)
-        {
+        if !crate::access::may_read_space(
+            config,
+            space,
+            principal.as_deref(),
+            caller.claim_groups(),
+        ) {
             continue;
         }
         let verbs: Vec<String> = [
@@ -348,6 +352,15 @@ fn verified_caller(
     hosted_caller(slot, context.credentials.as_deref(), mode)
 }
 
+/// The principal of a hosted caller and the claim groups the hook stores beside it, never a
+/// gateway's (section 4.5): [`VerifiedCaller::claim_groups`].
+fn hosted_principal(config: &Config, caller: &VerifiedCaller) -> (Principal, Vec<String>) {
+    (
+        Principal::verified(config, caller),
+        caller.claim_groups().to_vec(),
+    )
+}
+
 /// The caller in `slot` when it was mapped for exactly `credentials` and vouched for as `mode`
 /// vouches; the reason logged otherwise.
 fn hosted_caller(
@@ -356,20 +369,11 @@ fn hosted_caller(
     mode: AuthMode,
 ) -> Result<Arc<VerifiedCaller>, &'static str> {
     let caller = caller_for(slot, credentials)?;
-    if vouched_as(mode, &caller.vouched) {
+    if caller.vouched_for(mode) {
         Ok(caller)
     } else {
         Err("refused a caller vouched for otherwise than this auth.mode vouches")
     }
-}
-
-/// Whether `vouched` is what `mode` vouches with: a token in mode `oauth`, an assertion in mode
-/// `gateway`, nothing in mode `none`.
-fn vouched_as(mode: AuthMode, vouched: &Vouched) -> bool {
-    matches!(
-        (mode, vouched),
-        (AuthMode::Oauth, Vouched::Token(_)) | (AuthMode::Gateway, Vouched::Gateway)
-    )
 }
 
 /// The caller in `slot` when it was mapped for exactly `credentials`; the reason logged
@@ -432,10 +436,9 @@ pub(crate) fn hook(
                 mode @ (AuthMode::Oauth | AuthMode::Gateway) => {
                     match verified_caller(&request, &context, mode) {
                         Ok(caller) => {
-                            // Never from a gateway: its callers' claim groups are always empty
-                            // (section 4.5).
-                            claim_groups.clone_from(&caller.claim_groups);
-                            Principal::verified(&config, &caller)
+                            let (principal, groups) = hosted_principal(&config, &caller);
+                            claim_groups = groups;
+                            principal
                         }
                         Err(reason) => {
                             tracing::error!(target: "umbel::auth", "{reason}");
@@ -567,13 +570,16 @@ mod tests {
 
     #[test]
     fn each_hosted_mode_trusts_only_its_own_kind_of_caller() {
-        let token = Vouched::Token(TokenBinding::Bearer);
-        assert!(vouched_as(AuthMode::Oauth, &token));
-        assert!(vouched_as(AuthMode::Gateway, &Vouched::Gateway));
-        assert!(!vouched_as(AuthMode::Oauth, &Vouched::Gateway));
-        assert!(!vouched_as(AuthMode::Gateway, &token));
-        assert!(!vouched_as(AuthMode::None, &token));
-        assert!(!vouched_as(AuthMode::None, &Vouched::Gateway));
+        let base = afd::Credentials::new("https://as.example.com", "u", "c", "https://r/mcp", 1, 2);
+        let token = caller(&base);
+        let mut asserted = caller(&base);
+        asserted.vouched = Vouched::Gateway;
+        assert!(token.vouched_for(AuthMode::Oauth));
+        assert!(asserted.vouched_for(AuthMode::Gateway));
+        assert!(!asserted.vouched_for(AuthMode::Oauth));
+        assert!(!token.vouched_for(AuthMode::Gateway));
+        assert!(!token.vouched_for(AuthMode::None));
+        assert!(!asserted.vouched_for(AuthMode::None));
         // Through the hook's own lookup: a token's caller is no one in mode gateway, and an
         // assertion's no one in mode oauth, though each sits beside its own credentials.
         let credentials = afd::Credentials::new(
@@ -610,7 +616,14 @@ mod tests {
             2,
         ));
         gateway.vouched = Vouched::Gateway;
-        let principal = Principal::verified(&config, &gateway);
+        // Groups are never taken from a gateway, whatever the caller's field holds: neither in
+        // what the hook stores beside the principal nor in the spaces it reads through them.
+        gateway.claim_groups = vec!["eng".into()];
+        let (principal, groups) = hosted_principal(&config, &gateway);
+        assert!(groups.is_empty());
+        let mut token = caller(&gateway.credentials);
+        token.claim_groups = vec!["eng".into()];
+        assert_eq!(hosted_principal(&config, &token).1, ["eng"]);
         assert_eq!(principal.authentication, Authentication::Gateway);
         assert_eq!(principal.token_binding, None);
         assert_eq!(principal.human_present, None);

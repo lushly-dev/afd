@@ -354,9 +354,15 @@ max_scopes = ["umbel:read"]
     let mode = report.expect("auth.mode", "pass");
     assert!(mode.contains("gateway edge"), "{mode}");
     assert!(mode.contains("no protected-resource metadata"), "{mode}");
-    let tls = report.expect("auth.tls", "pass");
+    // The loopback leg without a pin: any local process is on the channel and shares the per-IP
+    // limit, so the doctor warns (amendment from step 4).
+    let tls = report.expect("auth.tls", "warn");
     assert!(tls.contains("pinned key set holds 4 key(s)"), "{tls}");
-    assert!(tls.contains("over loopback"), "{tls}");
+    assert!(
+        tls.contains("over loopback with no pinned certificate"),
+        "{tls}"
+    );
+    assert!(tls.contains("per-IP limit"), "{tls}");
     // The gateway joins its namespace's subjects as an issuer does: the deployer's assertion.
     let subjects = report.check("auth.subjects").1;
     assert!(
@@ -430,11 +436,13 @@ max_scopes = ["umbel:read"]
         );
     std::fs::write(dir.path().join("umbel.toml"), text).unwrap();
     let report = doctor(dir.path(), &kit).await;
+    // Pinned: no warning, and its connections skip the per-IP limit.
     let tls = report.expect("auth.tls", "pass");
     assert!(
         tls.contains("one of 1 pinned certificate(s) chaining to http.tls.client_ca"),
         "{tls}"
     );
+    assert!(tls.contains("skip the per-IP limit"), "{tls}");
 }
 
 // ─── auth.public_url ─────────────────────────────────────────────────────────────────────────

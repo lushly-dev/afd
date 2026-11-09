@@ -880,6 +880,22 @@ fn a_gateway_is_mode_gateway_only_with_a_pinned_channel_off_loopback() {
     assert_eq!(edge.keys, "secrets/gateway/jwks.json");
     assert!(edge.client_cert_sha256.is_empty());
     assert_eq!(edge.max_assertion_age_s, 60);
+    // At most 60 (amendment from step 4): the lifetime bound makes a larger age admit nothing.
+    let sixty = open(&format!(
+        "{}max_assertion_age_s = 60\n",
+        gateway("127.0.0.1:8443", "", "")
+    ))
+    .unwrap();
+    assert_eq!(
+        sixty
+            .config()
+            .auth
+            .gateway
+            .as_ref()
+            .unwrap()
+            .max_assertion_age_s,
+        60
+    );
     assert_eq!(edge.max_scopes, ["umbel:read", "umbel:write:main"]);
     // Off loopback: TLS with client_auth = "ca" and the pins.
     let error = invalid(
@@ -984,7 +1000,7 @@ fn the_gateway_table_refuses_what_it_does_not_define() {
             "auth.gateway.max_assertion_age_s",
         ),
         (
-            format!("{base}max_assertion_age_s = 301\n"),
+            format!("{base}max_assertion_age_s = 61\n"),
             "auth.gateway.max_assertion_age_s",
         ),
         (

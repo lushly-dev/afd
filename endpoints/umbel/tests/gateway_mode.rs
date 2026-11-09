@@ -227,6 +227,7 @@ async fn the_ceiling_cuts_the_asserted_scopes_as_a_meet() {
             )
         );
         assert_eq!(reply.json()["error"], json!("INSUFFICIENT_SCOPE"));
+        assert!(!reply.text.contains("token"), "{}", reply.text);
         assert!(!reply.text.contains("resource_metadata"), "{}", reply.text);
     }
     // A mutation with a write scope the ceiling cut is decided after routing, as AFD decides
@@ -247,6 +248,12 @@ async fn the_ceiling_cuts_the_asserted_scopes_as_a_meet() {
         refused["error"]["details"]["scopes"],
         json!(["umbel:write:main"]),
         "{refused}"
+    );
+    // Its suggestion names what a gateway's caller obtains, never a token.
+    let suggestion = refused["error"]["suggestion"].as_str().unwrap();
+    assert!(
+        suggestion.contains("Umbel-Gateway-Assertion") && !suggestion.contains("token"),
+        "{suggestion}"
     );
     let touched = running
         .result(running.assertion(), "fixture-touch", json!({}))
@@ -533,6 +540,70 @@ async fn every_rule_broken_alone_is_refused_with_one_401_and_its_code_and_nothin
     assert!(!refusals("edge-rules").is_empty());
 }
 
+#[tokio::test]
+async fn the_time_rules_hold_exactly_at_their_boundaries() {
+    logs::install();
+    // An age limit of 20 seconds and the default skew of 60, on the host's fixed clock.
+    let running = Running::start(Setup {
+        alias: "edge-times",
+        gateway: "max_assertion_age_s = 20\n",
+        ..Setup::default()
+    })
+    .await;
+    let now = running.now_s();
+    let valid = || running.assertion();
+    for (label, builder) in [
+        (
+            "issued exactly the age limit ago",
+            valid().issued_at(now - 20).lifetime(60),
+        ),
+        (
+            "issued exactly the skew ahead",
+            valid().issued_at(now + 60).lifetime(60),
+        ),
+        ("nbf exactly the skew ahead", valid().not_before(now + 60)),
+        ("nbf within the skew", valid().not_before(now + 1)),
+        ("a lifetime of exactly 60", valid().lifetime(60)),
+        ("a lifetime of 1", valid().lifetime(1)),
+    ] {
+        let reply = running
+            .call(Some(&builder.sign()), "fixture-whoami", json!({}))
+            .await;
+        assert_eq!(reply.status, 200, "{label}: {}", reply.text);
+    }
+    for (label, builder, rule) in [
+        (
+            "exp exactly now",
+            valid().issued_at(now - 10).lifetime(10),
+            "expired",
+        ),
+        (
+            "issued a second past the age limit",
+            valid().issued_at(now - 21).lifetime(60),
+            "too-old",
+        ),
+        (
+            "issued a second past the skew",
+            valid().issued_at(now + 61).lifetime(60),
+            "not-yet-valid",
+        ),
+        (
+            "nbf a second past the skew",
+            valid().not_before(now + 61),
+            "not-yet-valid",
+        ),
+    ] {
+        let before = refusals("edge-times").len();
+        let reply = running
+            .call(Some(&builder.sign()), "fixture-whoami", json!({}))
+            .await;
+        assert_refused(&reply, label);
+        let codes = refusals("edge-times");
+        assert_eq!(codes.len(), before + 1, "{label}: {codes:?}");
+        assert_eq!(codes[before], rule, "{label}");
+    }
+}
+
 /// An assertion signed by a P-256 key the gateway made after the pinned file was written.
 fn unpinned(running: &Running) -> TokenBuilder {
     let kid = running.kit.gateway().keys().rotate(KeyKind::P256).unwrap();
@@ -575,6 +646,16 @@ async fn an_assertion_is_spent_once_across_hosts_sharing_the_workspace() {
     assert_eq!(call(&second, &b).await.status, 200);
     assert_refused(&call(&first.client, &b).await, "replayed back");
 
+    // A spent `jti` outlives later spends that purge expired rows: half a minute on, with another
+    // assertion spent (every write purges), the first is still refused on both hosts.
+    first.clock.advance(30_000);
+    let later = first.assertion().sign();
+    assert_eq!(call(&second, &later).await.status, 200);
+    assert_refused(&call(&first.client, &a).await, "replayed after a purge");
+    assert_refused(
+        &call(&second, &a).await,
+        "replayed after a purge, elsewhere",
+    );
     // A refused assertion spends nothing: the same `jti` on a valid assertion is accepted once.
     let jti = "a-jti-of-twenty-four-ch";
     let broken = first.assertion().jti(jti).claim("htm", json!("GET")).sign();
@@ -660,6 +741,73 @@ async fn the_pinned_channel_needs_the_pinned_certificate() {
     // The pinned certificate alone is no assertion.
     let reply = running.call(None, "fixture-whoami", json!({})).await;
     assert_refused(&reply, "the certificate without an assertion");
+}
+
+#[tokio::test]
+async fn the_pinned_gateway_skips_the_per_ip_limit_and_nothing_else_does() {
+    let running = Running::start(Setup {
+        channel: Channel::Pinned,
+        rest: "[limits]\nip_requests_per_minute = 2\n",
+        ..Setup::default()
+    })
+    .await;
+    // The pinned gateway carries many callers from one address: authenticated at the channel,
+    // it is limited per caller after verification, never per address.
+    for round in 0..5 {
+        let reply = running
+            .call(
+                Some(&running.assertion().sign()),
+                "fixture-whoami",
+                json!({}),
+            )
+            .await;
+        assert_eq!(reply.status, 200, "round {round}: {}", reply.text);
+    }
+    // Another certificate of the same CA, from the same address, keeps the per-IP limit.
+    let other = running
+        .kit
+        .ca()
+        .client_certificate("another client")
+        .unwrap();
+    let client = Client::tls(
+        running.served.address,
+        running.kit.ca().certificate_pem(),
+        Some(&other),
+    );
+    let mut statuses = Vec::new();
+    for _ in 0..3 {
+        statuses.push(
+            modern(
+                &client,
+                "tools/call",
+                json!({ "name": "fixture-whoami", "arguments": {} }),
+                &[(ASSERTION, &running.assertion().sign())],
+            )
+            .await
+            .status,
+        );
+    }
+    assert_eq!(statuses, [401, 401, 429]);
+    // So does the loopback leg without a pin.
+    let loopback = Running::start(Setup {
+        rest: "[limits]\nip_requests_per_minute = 2\n",
+        ..Setup::default()
+    })
+    .await;
+    let mut statuses = Vec::new();
+    for _ in 0..3 {
+        statuses.push(
+            loopback
+                .call(
+                    Some(&loopback.assertion().sign()),
+                    "fixture-whoami",
+                    json!({}),
+                )
+                .await
+                .status,
+        );
+    }
+    assert_eq!(statuses, [200, 200, 429]);
 }
 
 #[tokio::test]
