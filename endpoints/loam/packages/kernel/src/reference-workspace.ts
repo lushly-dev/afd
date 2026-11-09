@@ -18,8 +18,19 @@ export interface ReferenceWorkspaceOptions {
 	queries?: number;
 	/** Document records generated, half at workspace level and half in five projects (A4). Default 0. */
 	documents?: number;
+	/**
+	 * The type and instance those records name, which the caller chooses: the kernel names no document
+	 * type (D2). Required when `documents` is above 0.
+	 */
+	documentType?: ReferenceDocumentType;
 	/** Links generated among those documents, of both kinds, some to themselves (A4). Default 0. */
 	links?: number;
+}
+
+/** A document type and the instance of it the reference workspace's records belong to. */
+export interface ReferenceDocumentType {
+	type: string;
+	instance: string;
 }
 
 export interface ReferenceWorkspace {
@@ -34,7 +45,7 @@ export interface ReferenceWorkspace {
 	 * with {@link recordSession}.
 	 */
 	calls: SessionCall[];
-	/** `documents` records of the `notes` type, for the link index (A4; documents specification, 9.3). */
+	/** `documents` records of the caller's type, for the link index (A4; documents specification, 9.3). */
 	documents: DocumentRecordV1[];
 	/** `links` links among them, in the `document-link` table's shape. */
 	links: DocumentLinkV1[];
@@ -272,7 +283,17 @@ const REFERENCE_WORKSPACE = 'personal';
 const idOf = (prefix: string, random: () => number): string =>
 	`${prefix}_${`${random().toString(36).slice(2)}000000000000`.slice(0, 12)}`;
 
-function referenceDocuments(random: () => number, count: number): DocumentRecordV1[] {
+function referenceDocuments(
+	random: () => number,
+	count: number,
+	documentType: ReferenceDocumentType | undefined
+): DocumentRecordV1[] {
+	if (count === 0) return [];
+	if (documentType === undefined)
+		throw new Error(
+			'createReferenceWorkspace: `documentType` is required when `documents` is above 0'
+		);
+	const { type, instance } = documentType;
 	const at = Date.UTC(2026, 10, 1);
 	return Array.from({ length: count }, (_, index): DocumentRecordV1 => {
 		const project = index % 2 === 0 ? undefined : `prj_reference${index % 5}`;
@@ -283,8 +304,8 @@ function referenceDocuments(random: () => number, count: number): DocumentRecord
 		return {
 			id: idOf('doc', random),
 			workspace: REFERENCE_WORKSPACE,
-			type: 'notes',
-			instance: 'notes',
+			type,
+			instance,
 			title: sentence(random, 2 + Math.floor(random() * 4)),
 			scope,
 			scopeKey: project === undefined ? 'w' : `p:${project}`,
@@ -344,7 +365,7 @@ export function createReferenceWorkspace(options: ReferenceWorkspaceOptions): Re
 	const queries = referenceQueries(random, commands, options.queries ?? 200);
 	const signedIn = { value: false };
 	const calls = Array.from({ length: size }, () => referenceCall(random, signedIn));
-	const documents = referenceDocuments(random, options.documents ?? 0);
+	const documents = referenceDocuments(random, options.documents ?? 0, options.documentType);
 	const links = referenceLinks(random, documents, options.links ?? 0);
 	return { seed, size, commands, queries, calls, documents, links };
 }
