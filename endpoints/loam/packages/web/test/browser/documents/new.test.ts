@@ -107,6 +107,52 @@ async function memosApp(directory: string, creator = true): Promise<string> {
 	return at;
 }
 
+/** `outline`: a native app whose sidebar is a `tree`, three levels deep, its main the console. */
+async function outlineApp(directory: string): Promise<string> {
+	const manifest = {
+		manifest_version: 2,
+		protocol: 1,
+		afd_contract: '1.0',
+		plugin: {
+			id: 'outline',
+			title: 'Outline',
+			version: '0.1.0',
+			description: 'A tree sidebar fixture.',
+			kind: 'native',
+			domains: ['outline'],
+			license: 'MIT',
+		},
+		native: { entry: 'native.js' },
+		app: { scope_levels: ['workspace'] },
+		commands: [
+			{
+				name: 'outline-tree',
+				title: 'List the outline',
+				description: 'The outline, as a tree.',
+				effects: ['inspect'],
+				input_schema: { type: 'object', properties: {}, additionalProperties: false },
+			},
+		],
+		ui: {
+			surfaces: {
+				rail: { label: 'Outline', icon: 'system/folder', order: 10 },
+				sidebar: { shape: 'tree', command: 'outline-tree', title: 'Outline' },
+			},
+		},
+	};
+	const at = join(directory, 'outline');
+	await mkdir(at, { recursive: true });
+	await writeFile(join(at, 'app-manifest.json'), `${JSON.stringify(manifest, null, '\t')}\n`);
+	await writeFile(
+		join(at, 'native.js'),
+		`export default { sdk: 1, handlers: { 'outline-tree': async () => ({ success: true, data: { items: [
+			{ id: 'guides', title: 'Guides', children: [{ id: 'start', title: 'Getting started', children: [{ id: 'install', title: 'Install', description: 'Five minutes' }] }] },
+			{ id: 'reference', title: ${JSON.stringify(HOSTILE)} },
+		] } }) } };\n`
+	);
+	return at;
+}
+
 let browser: Browser;
 let fixtures: string;
 let memos: string;
@@ -604,6 +650,52 @@ describe('P2-D8: the documents section', () => {
 		expect(JSON.stringify(listed.data.items)).not.toContain('Vault');
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
+	});
+});
+
+describe("an app's tree sidebar", () => {
+	it("is loam-tree, nested, from the documents chunk, and a choice is the app's selection", async () => {
+		const site = await serveDeployment({
+			config: deploymentFile(deploymentEntry('outline', await outlineApp(fixtures))),
+		});
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		await kernelCall(page, 'app-open', { instance: 'outline' });
+		await surfacesIdle(page);
+		const sidebar = page.locator('loam-sidebar loam-tree');
+		await sidebar.locator('violet-tree-item[data-id="guides"]').waitFor();
+		expect(await page.locator('loam-sidebar loam-list').count()).toBe(0);
+		expect(await sidebar.locator('violet-tree').getAttribute('aria-label')).toBe('Outline');
+		// Nested, each level its own: Right opens a branch, Down enters it.
+		// Each opened branch's children render on FAST's next update, as a person's next key comes later.
+		const shown = (id: string) =>
+			expect
+				.poll(() => sidebar.locator(`violet-tree-item[data-id="${id}"]`).isVisible())
+				.toBe(true);
+		await sidebar.locator('violet-tree-item[data-id="guides"]').focus();
+		await page.keyboard.press('ArrowRight');
+		await shown('start');
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('ArrowRight');
+		await shown('install');
+		await page.keyboard.press('ArrowDown');
+		const install = sidebar.locator('violet-tree-item[data-id="install"]');
+		expect((await focusedOn(page)).text).toBe('InstallFive minutes');
+		expect(await install.getAttribute('aria-level')).toBe('3');
+		expect(await install.getAttribute('aria-label')).toBe('Install, Five minutes');
+		await page.keyboard.press('Enter');
+		await settle(page);
+		const selected = (await kernelCall(page, 'app-selection-get', { instance: 'outline' })) as {
+			data: { id: string | null };
+		};
+		expect(selected.data.id).toBe('install');
+		// A hostile title is text.
+		expect(await deepText(page, 'violet-tree-item > .label')).toContain(HOSTILE);
+		expect(await deepText(page, 'img')).toEqual([]);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+		await site.close();
 	});
 });
 
