@@ -176,7 +176,9 @@ function watchDrawer(shell: LoamShell): void {
 /**
  * Where focus goes once an inspector that held it is replaced or hidden: into the active tab's editor after the
  * inspector's own open, as Enter on a tab does (5.8), or when no inspector takes its place; else the new
- * inspector's first control; else the part, or main when the part is about to hide (S2).
+ * inspector's first control; else the part, or main when the part is about to hide (S2). Into a view's frame
+ * only after the inspector's own open: when an agent's or a server's call hid the part, focus inside a sandboxed
+ * frame would leave the shell's chords, F6 among them, out of the person's reach, so main takes it.
  */
 function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): void {
 	const open = opened;
@@ -194,12 +196,12 @@ function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): voi
 		const active = read?.data?.groups.find((group) => group.id === read.data?.activeGroup)?.active;
 		const frame =
 			active &&
-			shell.shadowRoot?.querySelector<HTMLElement & { focusEditor(): void }>(
-				`loam-main loam-editor-frame[data-tab="${active}"]`
-			);
+			shell.shadowRoot?.querySelector<
+				HTMLElement & { kind: 'native' | 'view'; focusEditor(): void }
+			>(`loam-main loam-editor-frame[data-tab="${active}"]`);
 		const doc = shell.ownerDocument;
 		// A view still loading takes no focus: main does then.
-		if (frame) {
+		if (frame && (open || frame.kind !== 'view')) {
 			frame.focusEditor();
 			if (doc.activeElement !== doc.body) return;
 		}

@@ -1306,7 +1306,13 @@ describe('P2-D10: the inspector when the active type has none (the second re-che
 		).data.id;
 		await agentCall(page, 'document-open', { document: sheet });
 		await editorIdle(page);
-		await expect.poll(async () => (await deepFocus(page)).body).toBe(false);
+		await sheetFrame(page, 'Cycling');
+		// Main takes focus from the inspector that went, never the view's frame, however soon the view loaded.
+		await expect.poll(() => deepFocus(page)).toEqual({ name: 'loam-main', body: false });
+		// The cycle starts from a known place in the shell: the sheet's tab.
+		const tab = page.locator('loam-editor-group [role="tab"][aria-selected="true"]');
+		await tab.focus();
+		expect(await tab.evaluate((element) => element.matches(':focus'))).toBe(true);
 		const part = () =>
 			page.evaluate(() => {
 				let at: Element | null = document.activeElement;
@@ -1330,6 +1336,47 @@ describe('P2-D10: the inspector when the active type has none (the second re-che
 			expect(seen, key).not.toContain('loam-inspector');
 			expect(new Set(seen).size, `${key} ${seen.join(' ')}`).toBeGreaterThan(1);
 		}
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D10: an agent’s open of a view tab whose view has loaded, while the inspector holds focus, leaves focus out of its frame', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const a = await createNote(page, 'Held');
+		const b = await createNote(page, 'Held link');
+		await kernelCall(page, 'document-link-add', { from: a, to: b });
+		const sheet = (
+			(await kernelCall(page, 'document-create', { type: 'sheet', title: 'Loaded' })) as {
+				data: { id: string };
+			}
+		).data.id;
+		// The sheet's view loaded in a second group, before the agent's open reaches it: no race to win.
+		await open(page, a);
+		await open(page, sheet, { group: 'beside' });
+		await sheetFrame(page, 'Loaded');
+		await page.locator('loam-editor-group').first().locator('[role="tab"]').first().click();
+		await editorIdle(page);
+		await kernelCall(page, 'layout-set', { inspector: { open: true } });
+		const row = page
+			.locator('loam-inspector notes-inspector .open', { hasText: 'Held link' })
+			.first();
+		await row.waitFor();
+		await row.focus();
+		expect(await row.evaluate((element) => element.matches(':focus-within'))).toBe(true);
+		// Beside the active group: the second, where the sheet's tab and its loaded view already are.
+		await agentCall(page, 'document-open', { document: sheet, group: 'beside' });
+		await editorIdle(page);
+		await expect
+			.poll(async () =>
+				(await editorView(page))?.map((group) => group.tabs.find((tab) => tab.selected)?.title)
+			)
+			.toEqual(['Held', 'Loaded']);
+		await expect.poll(() => deepFocus(page)).toEqual({ name: 'loam-main', body: false });
+		// And it stays there: nothing later hands it to the frame.
+		await page.evaluate(
+			() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+		);
+		expect(await deepFocus(page)).toEqual({ name: 'loam-main', body: false });
 		await opened.context.close();
 	}, 120_000);
 });
