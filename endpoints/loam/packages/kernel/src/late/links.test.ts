@@ -204,6 +204,36 @@ describe('P2-D9: references', () => {
 		expect(errorOf(gone)).toBe(errorOf(missing));
 	});
 
+	it('P2-D9: takes a named id only to undo a remove, never over an existing link, and builds again after a failed first list', async () => {
+		const store = new MemoryAdapter();
+		const list = store.list.bind(store);
+		let failing = true;
+		store.list = ((table: string, params?: never) => {
+			if (table === LINK_TABLE && failing) {
+				failing = false;
+				return Promise.reject(new Error('Offline'));
+			}
+			return list(table, params);
+		}) as DataAdapter['list'];
+		const workspace = await documents({ store });
+		const { kernel } = workspace;
+		const a = await created(workspace, 'A');
+		const b = await created(workspace, 'B');
+		// The first read's list fails; the next builds the index.
+		expect((await kernel.call('document-link-list', { document: a.id })).success).toBe(false);
+		const first = await kernel.call<DocumentLinkV1>('document-link-add', { from: a.id, to: b.id });
+		expect(first.success).toBe(true);
+		const missing = await kernel.call('document-get', { document: 'doc_nowhere00000' });
+		// A named id that no remove gave back, or one taken, answers as a missing document.
+		for (const id of ['lnk_000000000000', first.data?.id]) {
+			const named = await kernel.call('document-link-add', { from: b.id, to: a.id, id });
+			expect(errorOf(named), String(id)).toBe(errorOf(missing));
+		}
+		expect((await store.get<DocumentLinkV1>(LINK_TABLE, first.data?.id as string))?.from).toBe(
+			a.id
+		);
+	});
+
 	it('refuses an anchor over 1 KiB and a kind off its pattern', async () => {
 		const workspace = await documents();
 		const { kernel } = workspace;
@@ -342,13 +372,13 @@ describe('P2-D6: the link commands through a port', () => {
 		expect((await surface.call('document-link-remove', { link: made.data?.id })).success).toBe(
 			true
 		);
-		// An app never chooses a link's id.
+		// An app never chooses a link's id: it answers as a missing document, so nothing learns whether one exists.
 		const chosen = await surface.call('document-link-add', {
 			from: other.id,
 			to: atlas.id,
 			id: 'lnk_000000000000',
 		});
-		expect(chosen.error?.code).toBe('VALIDATION_ERROR');
+		expect(errorOf(chosen)).toBe(errorOf(missing));
 	});
 
 	it('refuses a handler’s link mutation as nested, lets it list, and refuses an app without the grant', async () => {

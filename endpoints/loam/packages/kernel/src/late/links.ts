@@ -53,6 +53,8 @@ export interface DocumentIndex {
 	/** After a write that landed: a link added, or one removed. */
 	added(link: DocumentLinkV1): void;
 	removed(link: DocumentLinkV1): void;
+	/** Whether `id` names a link `document-link-remove` removed, which only its undo adds again. */
+	undone(id: string): boolean;
 	/**
 	 * Run `run` after every earlier change to the table, so an add never misses a link another add is
 	 * writing, and expiry never deletes beside a write.
@@ -77,15 +79,24 @@ export function createDocumentIndex(store: DataAdapter): DocumentIndex {
 	const from = new Map<string, Map<string, DocumentLinkV1>>();
 	const to = new Map<string, Map<string, DocumentLinkV1>>();
 	let built: Promise<void> | undefined;
+	/** The ids `document-link-remove` removed, which its undo may name. */
+	const gone = new Set<string>();
 	let chain: Promise<unknown> = Promise.resolve();
 	const add = (link: DocumentLinkV1) => {
 		bucket(from, link.from).set(link.id, link);
 		bucket(to, link.to).set(link.id, link);
 	};
 	const build = (): Promise<void> =>
-		(built ??= store.list<DocumentLinkV1>(LINK_TABLE).then(({ data }) => {
-			for (const link of data) add(link);
-		}));
+		(built ??= store.list<DocumentLinkV1>(LINK_TABLE).then(
+			({ data }) => {
+				for (const link of data) add(link);
+			},
+			(cause) => {
+				// A first list that fails is tried again by the next read.
+				built = undefined;
+				throw cause;
+			}
+		));
 	return {
 		async of(document) {
 			await build();
@@ -107,7 +118,9 @@ export function createDocumentIndex(store: DataAdapter): DocumentIndex {
 		removed(link) {
 			from.get(link.from)?.delete(link.id);
 			to.get(link.to)?.delete(link.id);
+			gone.add(link.id);
 		},
+		undone: (id) => gone.has(id),
 		serial(run) {
 			const next = chain.then(run, run);
 			chain = next.catch(() => undefined);
@@ -262,16 +275,15 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 					createdAt: callNow(context),
 					createdBy: actorKey(context),
 				};
-				// Only an undo names an id, and never an app's, which would learn whether one is taken.
-				if (
-					input.id !== undefined &&
-					(callOf(context).caller !== undefined || (await store.get(LINK_TABLE, link.id)))
-				) {
-					return kernelFailure(
-						'VALIDATION_ERROR',
-						"A link's id is the shell's to choose",
-						'Call document-link-add without id'
-					);
+				// Only a remove's undo names an id, never an app's: any other, or one taken, is a missing document's
+				// answer, so nothing learns whether an id exists. No write lands over an existing id.
+				if (input.id !== undefined) {
+					if (callOf(context).caller !== undefined || !index.undone(input.id))
+						return documentNotFound();
+				}
+				for (let tries = 0; await store.get(LINK_TABLE, link.id); tries++) {
+					if (input.id !== undefined || tries === 3) return documentNotFound();
+					link.id = linkId(context);
 				}
 				const { summary } = await store.batch([
 					{ method: 'PUT', path: `/${LINK_TABLE}/${encodeURIComponent(link.id)}`, body: link },
@@ -300,11 +312,12 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 				const link = await store.get<DocumentLinkV1>(LINK_TABLE, input.link);
 				// A missing link answers in the bytes of a missing document, as a refused one does (4.2).
 				if (!link || link.workspace !== workspace) return documentNotFound();
-				// Both ends decided, either refusal the bytes of a missing id (4.2); `from` is the one changed.
-				const source = await check.find(link.from, 'document-link-remove', context);
-				if (isRefusal(source)) return source;
+				// Both ends decided, either refusal the bytes of a missing id (4.2): the read first, then `from`, the one
+				// changed, so a trashed source is said only once the reader may see both ends.
 				const target = await check.find(link.to, 'document-link-list', context);
 				if (isRefusal(target)) return target;
+				const source = await check.find(link.from, 'document-link-remove', context);
+				if (isRefusal(source)) return source;
 				const { summary } = await store.batch(linkDeletes([link]));
 				if (summary.failed > 0) throw new Error('The store could not remove the link');
 				index.removed(link);
