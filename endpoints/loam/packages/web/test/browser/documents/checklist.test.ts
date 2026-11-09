@@ -3,7 +3,9 @@
  * a view, packed from `apps/checklist` and named only by its `[apps.checklist]` entry in the deployment file
  * this suite writes, on a second origin: it appears in New, creates, opens in a real sandboxed frame beside a
  * note and works through its handler frame; and its document works with its view closed, by
- * `checklist-item-add` through the person's interface. With hello and notes, D8's `new-list` holds it at both
+ * `checklist-item-add` from an agent (`kernel.agent`) and through the person's palette interface, as the
+ * coordinator amended D2 on 2026-11-10: the palette runs only commands that need no input, and a prompt for
+ * one waits for phase 4. With hello and notes, D8's `new-list` holds it at both
  * levels. D10 for its view: axe inside its frame and on the page beside a note, in each theme and density and
  * under forced colors, with its keyboard and its states.
  */
@@ -283,7 +285,7 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 		await opened.context.close();
 	}, 120_000);
 
-	it('P2-D2: its document works with its view closed, through checklist-item-add from the person’s palette interface', async () => {
+	it('P2-D2: its document works with its view closed, through checklist-item-add from an agent and the person’s palette interface', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
 		await surfacesIdle(page);
@@ -293,7 +295,16 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 		})) as { data: { id: string } };
 		const checklist = created.data.id;
 		expect(await page.locator('body > iframe').count()).toBe(0);
-		// No view has opened: the call goes through the handler frame alone.
+		// No view has opened: each call goes through the handler frame alone. First an agent's.
+		const fromAgent = (await agentCall(page, 'checklist-item-add', {
+			document: checklist,
+			text: 'Map',
+		})) as { success: boolean; data?: { item: Item } };
+		expect(fromAgent.success).toBe(true);
+		expect(fromAgent.data?.item).toMatchObject({ text: 'Map', done: false });
+		expect(await stored(page, checklist)).toEqual(['[ ] Map']);
+		expect(await page.locator('loam-view-frame').count()).toBe(0);
+		// Then the person's, through the palette interface.
 		const added = (await kernelCall(page, 'checklist-item-add', {
 			document: checklist,
 			text: 'Tent',
@@ -309,11 +320,13 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 		const entries = (await journal(page)).filter((entry) =>
 			entry.command.startsWith('checklist-item-')
 		);
+		// The journal records who called each by its interface: the agent's, then the person's palette.
 		expect(entries.map((entry) => [entry.command, entry.interface, entry.success])).toEqual([
+			['checklist-item-add', 'agent', true],
 			['checklist-item-add', 'palette', true],
 			['checklist-item-toggle', 'palette', true],
 		]);
-		expect(await stored(page, checklist)).toEqual(['[x] Tent']);
+		expect(await stored(page, checklist)).toEqual(['[ ] Map', '[x] Tent']);
 		// The palette's own rows: with its view closed checklist is neither the active app nor the editor's owner,
 		// so its commands are not listed; with its tab active they are, needing a document and text, which the
 		// palette does not ask for (phase 0's "needs input").
@@ -329,7 +342,7 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 		// Opened afterwards, the view shows what was done with it closed.
 		await open(page, checklist, { preview: false });
 		const frame = await checklistFrame(page, 'Packing');
-		expect(await shownItems(frame)).toEqual(['[x] Tent']);
+		expect(await shownItems(frame)).toEqual(['[ ] Map', '[x] Tent']);
 		expect((await listed()).sort()).toEqual([
 			'checklist-get',
 			'checklist-item-add',
