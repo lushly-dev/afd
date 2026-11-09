@@ -116,7 +116,7 @@ jobs:
         working-directory: foundations/specimen/host
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
       - name: Chromium suite against the built shell (phase 0's E1 to E10, phase 1's so far, A1 to A3; the walk is its own job)
@@ -186,7 +186,7 @@ jobs:
         working-directory: endpoints/umbel
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: endpoints/umbel
       - name: Build the web host and its dependencies
