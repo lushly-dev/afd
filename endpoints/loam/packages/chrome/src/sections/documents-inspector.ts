@@ -147,6 +147,13 @@ let opened = false;
  * Where focus goes once an inspector that held it is replaced: into the active tab's editor after the inspector's
  * own open, as Enter on a tab does (5.8); else the new inspector's first control; else the part.
  */
+/** Focus lost to the page, as a drawer the layout closed hands it back to what opened it: the active editor's (B1). */
+export function refocus(shell: LoamShell): void {
+	const doc = shell.ownerDocument;
+	const part = shell.shadowRoot?.querySelector<HTMLElement>('loam-inspector');
+	if (doc.activeElement === doc.body && part) focusAfter(shell, part);
+}
+
 function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): void {
 	const open = opened;
 	opened = false;

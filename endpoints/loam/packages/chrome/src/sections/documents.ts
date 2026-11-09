@@ -11,7 +11,7 @@
 import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
-import { syncInspector } from './documents-inspector.js';
+import { refocus, syncInspector } from './documents-inspector.js';
 import { documentsSectionDefinition, LoamDocumentsSection } from './documents-section.js';
 import { documentsSidebarDefinition, LoamDocumentsSidebar } from './documents-sidebar.js';
 import { defineTree } from './tree.js';
@@ -164,6 +164,12 @@ async function sync(shell: LoamShell): Promise<void> {
 			section.focusHeading();
 		}
 	}
-	// The section declares the sidebar alone: `loam.layout.~documents`.
+	// The section declares the sidebar, and the inspector while the active tab's plugin has a type with one.
+	const drawer = shell.presentation.inspector === 'drawer';
 	await shell.readLayout();
+	// A drawer this read closed, as the active type has no inspector, may hand focus to the page (B1).
+	if (drawer && shell.presentation.inspector !== 'drawer') {
+		await Updates.next();
+		refocus(shell);
+	}
 }
