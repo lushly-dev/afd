@@ -202,6 +202,11 @@ export class LoamEditorFrame extends FASTElement {
 			null) as LoamEditorElementV1 | null;
 	}
 
+	/** A renamed document's view hears its new title (5.6). */
+	titleChanged(): void {
+		(this.#mount as LoamViewFrame | null)?.retitle?.(this.title);
+	}
+
 	/** A view type's editor (5.6): its frame, which the view chunk made, fixed to the document's scope. */
 	openView(view: LoamViewFrame): void {
 		this.kind = 'view';

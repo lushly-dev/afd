@@ -126,7 +126,8 @@ export async function syncInspector(
 function hear(shell: LoamShell, event: KernelEventV2, resync: () => void): void {
 	const now = held.get(shell);
 	const surface = now?.mount?.surface as LoamEditorElementV1 | null | undefined;
-	if (!event.success) return;
+	// A mutation's, never a query's: the inspector's own reads are queries, and would read again forever.
+	if (!event.success || !event.mutation) return;
 	if (surface && (event.document === now?.document || /^document-/.test(event.command))) {
 		try {
 			surface.documentChanged?.({

@@ -194,10 +194,11 @@ export class LoamViewFrame extends FASTElement {
 	}
 
 	/** A new title reaches a document's view as `host-context-changed` (documents specification, 5.6). */
-	set document(document: DocumentRefV1) {
-		if (!this.#options?.document || document.title === this.#options.document.title) return;
-		this.#options.document = document;
-		this.#host?.changeContext({ 'dev.loam/document': document });
+	retitle(title: string): void {
+		const options = this.#options;
+		if (!options?.document || title === options.document.title) return;
+		options.document = { ...options.document, title };
+		this.#host?.changeContext({ 'dev.loam/document': options.document });
 	}
 
 	/** A document's editor's `save()`: `dev.loam/editor-save`, rejecting on its error or after 10 seconds (5.6). */
