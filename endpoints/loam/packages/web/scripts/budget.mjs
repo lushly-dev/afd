@@ -194,6 +194,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * cannot take it yet (B1, S2), within its row.
  * First paint is unchanged, 286,084: `late` compares the documents layout's id as a literal, since importing it
  * made the first paint's `shell-state` chunk export one more binding (4 bytes).
+ * Step 12's final re-check raised `editorMoveMinified` by that round's measured cost, 3,338, to 4,205, approved by
+ * the coordinator on 2026-11-09: `loam-editor-held`, the placeholder a held view editor's tab shows after its move
+ * back is refused, with Move back and Save, its template, styles and words (S-1), and the move back shared by the
+ * two. `late` rose by 217, to 67,609, for one `presented` helper over every layout read (S-2), within its 75,000;
+ * `documents` by 80, to 54,922, the drawer's close watched on the shell's presentation (N-1), within its row;
+ * `editor` fell by 34, to 35,367. First paint is unchanged.
  * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
  * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
  * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
@@ -222,7 +228,7 @@ export const CEILINGS = Object.freeze({
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	editorMoveMinified: 867,
+	editorMoveMinified: 4_205,
 });
 
 /** Group a module id by the package it belongs to. */
