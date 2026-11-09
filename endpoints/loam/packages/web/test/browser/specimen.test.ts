@@ -167,7 +167,7 @@ const APP_CAPTURES: [string, string][] = [
 
 describe('P2-E13: E11: Specimen captures of what apps add', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
-		it(`P2-E12: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+		it(`P2-E12: P2-E13: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
 			for (const [id, expected] of APP_CAPTURES) {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);

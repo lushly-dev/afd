@@ -110,7 +110,7 @@ jobs:
       # E2's and E11's AFD side, whose titles ci.yml's log cannot show: lefthook prints only a summary.
       - name: AFD's lean path
         run: |
-          pnpm -F @lushly-dev/afd-server exec vitest run src/entry-points.test.ts --reporter=verbose
+          pnpm -F @lushly-dev/afd-server exec vitest run src/entry-points.test.ts --reporter=verbose --reporter=github-actions
           node --test --test-reporter=spec scripts/plugin-manifest.test.mjs
       - name: Theme contract against the tree
         run: pnpm -F @lushly-dev/loam-theme theme:check

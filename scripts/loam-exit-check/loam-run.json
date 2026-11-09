@@ -1,6 +1,8 @@
 {
 	"databaseId": 42700000001,
 	"workflowName": "Loam",
+	"path": ".github/workflows/loam.yml",
+	"repository": "lushly-dev/afd",
 	"event": "workflow_dispatch",
 	"headBranch": "main",
 	"headSha": "0123456789abcdef0123456789abcdef01234567",

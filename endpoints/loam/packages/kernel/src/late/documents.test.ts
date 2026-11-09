@@ -733,6 +733,52 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 			`app-probe/${storeRecordId(scopes.atlas, documentContentKey(record.id))}`,
 		]);
 	});
+
+	it('stamps the document it checked, whatever the handler does to its input', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		const { kernel } = workspace;
+		const checkedOne = await created(workspace, { type: 'probe', title: 'Checked' });
+		const other = await created(workspace, { type: 'probe', title: 'Other' });
+		const events: KernelEventV2[] = [];
+		kernel.subscribe((event) => events.push(event));
+		expect(
+			(await kernel.call('probe-content-swap', { document: checkedOne.id, other: other.id }))
+				.success
+		).toBe(true);
+		expect(events.filter((event) => event.document).map((event) => event.document)).toEqual([
+			checkedOne.id,
+		]);
+		const read = async (id: string) =>
+			(await kernel.call<DocumentRecordV1>('document-get', { document: id })).data?.updatedAt;
+		expect(await read(other.id)).toBe(other.updatedAt);
+		expect(await read(checkedOne.id)).toBeGreaterThan(checkedOne.updatedAt);
+	});
+
+	it('refuses an envelope that names no type, or another', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		for (const type of [undefined, 'probe-memo']) {
+			const refused = await workspace.kernel.call('document-import', {
+				type: 'probe',
+				envelope: { loam_document: 1, ...(type ? { type } : {}), content_version: 1, content: {} },
+			});
+			expect(refused.error?.code, String(type)).toBe('DOCUMENT_TYPE_MISMATCH');
+		}
+	});
+
+	it('refuses a mutation of a document in an archived project, and reads it', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		const { kernel, scopes } = workspace;
+		const record = await created(workspace, { type: 'probe' }, scopes.beacon);
+		await kernel.call('project-archive', { project: 'beacon' });
+		const at = { scope: scopes.beacon };
+		expect((await kernel.call('document-get', { document: record.id }, at)).success).toBe(true);
+		expect(
+			(await kernel.call('document-rename', { document: record.id, title: 'X' }, at)).error?.code
+		).toBe('PROJECT_ARCHIVED');
+		expect(
+			(await kernel.call('probe-content-set', { document: record.id, text: 'X' }, at)).error?.code
+		).toBe('PROJECT_ARCHIVED');
+	});
 });
 
 /**
@@ -1026,52 +1072,6 @@ describe('P2-D6: a cross-project mutation on a document', () => {
 		expect(
 			(await kernel.call('probe-content-get', { document: 'doc_nowhere00000' }, at)).error?.code
 		).toBe('DOCUMENT_NOT_FOUND');
-	});
-
-	it('stamps the document it checked, whatever the handler does to its input', async () => {
-		const workspace = await documents();
-		const { kernel } = workspace;
-		const checkedOne = await created(workspace, { type: 'probe', title: 'Checked' });
-		const other = await created(workspace, { type: 'probe', title: 'Other' });
-		const events: KernelEventV2[] = [];
-		kernel.subscribe((event) => events.push(event));
-		expect(
-			(await kernel.call('probe-content-swap', { document: checkedOne.id, other: other.id }))
-				.success
-		).toBe(true);
-		expect(events.filter((event) => event.document).map((event) => event.document)).toEqual([
-			checkedOne.id,
-		]);
-		const read = async (id: string) =>
-			(await kernel.call<DocumentRecordV1>('document-get', { document: id })).data?.updatedAt;
-		expect(await read(other.id)).toBe(other.updatedAt);
-		expect(await read(checkedOne.id)).toBeGreaterThan(checkedOne.updatedAt);
-	});
-
-	it('refuses an envelope that names no type, or another', async () => {
-		const workspace = await documents();
-		for (const type of [undefined, 'probe-memo']) {
-			const refused = await workspace.kernel.call('document-import', {
-				type: 'probe',
-				envelope: { loam_document: 1, ...(type ? { type } : {}), content_version: 1, content: {} },
-			});
-			expect(refused.error?.code, String(type)).toBe('DOCUMENT_TYPE_MISMATCH');
-		}
-	});
-
-	it('refuses a mutation of a document in an archived project, and reads it', async () => {
-		const workspace = await documents();
-		const { kernel, scopes } = workspace;
-		const record = await created(workspace, { type: 'probe' }, scopes.beacon);
-		await kernel.call('project-archive', { project: 'beacon' });
-		const at = { scope: scopes.beacon };
-		expect((await kernel.call('document-get', { document: record.id }, at)).success).toBe(true);
-		expect(
-			(await kernel.call('document-rename', { document: record.id, title: 'X' }, at)).error?.code
-		).toBe('PROJECT_ARCHIVED');
-		expect(
-			(await kernel.call('probe-content-set', { document: record.id, text: 'X' }, at)).error?.code
-		).toBe('PROJECT_ARCHIVED');
 	});
 });
 

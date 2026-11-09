@@ -6,19 +6,28 @@
  * runs `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`, which opens every gate, and then this. It
  * fails, naming what is wrong, unless:
  *
- * 1. by `gh run view <id> --json jobs`, every job of both runs says `success`, none `skipped` or
- *    `cancelled`, and each run holds exactly the jobs its workflow has, so a renamed or missing job fails;
+ * 1. both runs are of lushly-dev/afd, of `.github/workflows/loam.yml` and `ci.yml`, manual, on `main`, of
+ *    one commit, on their first attempt (`--allow-rerun` accepts a re-run), and a success; and by
+ *    `gh run view <id> --json jobs`, each holds exactly the jobs its workflow has, every one `success`;
  * 2. by `gh run view <loam id> --log`, each exit row's `P2-E<n>:` or `P2-D<n>:` title passes in the log of
- *    each job and step its row names, read from the log and not assumed from the job's success;
- * 3. no such title anywhere in that log is marked skipped, todo or failed.
+ *    each job and step its row names, read from the test reporters' result lines and not assumed from the
+ *    job's success, at least as often as loam-exit-check.minimums.json records;
+ * 3. no such title anywhere in that log is marked skipped, todo, failed, retried, an expected failure, or
+ *    with a mark the check does not know.
  *
- * It prints a short report for STATUS.md's exit line: each job's conclusion, and each row's passing titles
- * counted where its row names. `ci.yml`'s log cannot show a title, since lefthook prints only a summary,
- * so its jobs prove the whole workspace by their conclusions alone, and `loam.yml`'s "AFD's lean path" step
- * shows E2's and E11's AFD side.
+ * It prints a short report for STATUS.md's exit line: the repository, each run's attempt, URL and jobs, and
+ * each row's passing titles counted where its row names. `ci.yml`'s log cannot show a title, since lefthook
+ * prints only a summary, so its jobs prove the whole workspace by their conclusions alone, and `loam.yml`'s
+ * "AFD's lean path" step shows E2's and E11's AFD side. Vitest's `it.fails` and `retry` print as a plain
+ * pass, so scripts/repository-contract.test.mjs refuses them, and skips, in the tests these rows read.
+ *
+ * The minimums hold each count of a manual run, so an `exclude`, a skipped suite or a deleted file cannot
+ * pass unnoticed. When exit tests are added or removed on purpose, run the check on a run that has them with
+ * `--print-minimums` and copy the counts it prints into the file, in the same pull request.
  */
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPOSITORY = 'lushly-dev/afd';
@@ -114,36 +123,39 @@ export const BUDGET_ROWS = [
 // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escapes are what this strips.
 const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
 const TIMESTAMP = /^\uFEFF?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?/;
-const TITLE = /(?<![\w-])P2-([ED]\d+):/g;
-/** Vitest's verbose marks, then node's spec marks; node marks a todo as passing and says `# TODO`. */
-const MARK = /(?:^|\s)([✓✔×✖↓□﹣])\s/u;
-const STATUS = {
-	'✓': 'pass',
-	'✔': 'pass',
-	'×': 'fail',
-	'✖': 'fail',
-	'↓': 'skip',
-	'﹣': 'skip',
-	'□': 'todo',
-};
+/**
+ * A Vitest verbose result: pnpm's prefix in a recursive run, a mark, a browser project's name in browser
+ * mode, then `<path>.test.<ext> > ` and the title's segments. Console output never has this shape.
+ */
+const VITEST_RESULT =
+	/^(?:[\w./@-]+ [\w-]+(?::[\w-]+)*: )?\s*([^\w\s])\s+(?:\|[\w-]+\|\s+|[\w-]+\s+)?[\w./@-]+\.test\.[cm]?[jt]sx? > (.*)$/u;
+/** A node spec result, in the lean-path step only: a mark, the title, its duration, and any directive. */
+const NODE_RESULT = /^\s*([^\w\s])\s+(.*?) \(\d+(?:\.\d+)?ms\)(?: # (.+))?$/u;
+/** A row title starts a title segment: `P2-E2: `, or several, as `P2-E2: P2-D9: `. */
+const ROW_TITLE = /^(?:P2-[ED]\d+: )+/;
+const VITEST_STATUS = { '✓': 'pass', '×': 'fail', '↓': 'skip', '□': 'todo' };
+const NODE_STATUS = { '✔': 'pass', '✖': 'fail', '﹣': 'skip' };
+const RETRIED = /\(retry x\d+\)/;
 
 /**
- * The rows a test claims: those of its own title, else those of its nearest describe that names any. Vitest's
- * verbose line is `file > describe > ... > test`, so a describe that groups a scenario's tests does not claim
- * a row for a test that names its own; node's spec line is the test's title alone.
+ * The rows a test claims: those its own title starts with, else those of its nearest describe that starts
+ * with any. A describe that groups a scenario's tests does not claim a row for a test that names its own.
  */
-function claimedRows(title) {
-	const segments = title.split(' > ');
+function claimedRows(segments) {
 	for (let index = segments.length - 1; index >= 0; index -= 1) {
-		const rows = [...new Set([...segments[index].matchAll(TITLE)].map((match) => match[1]))];
-		if (rows.length > 0) return rows;
+		const prefix = ROW_TITLE.exec(segments[index]);
+		if (prefix)
+			return [...new Set(prefix[0].trim().split(/:\s*/).filter(Boolean))].map((id) => id.slice(3));
 	}
 	return [];
 }
 
 /**
- * Reads `gh run view --log`: each line is `<job>\t<step>\t<timestamp> <text>`. Returns each line that
- * carries a `P2-` title after a test's mark, with its job, step, status and rows.
+ * Reads `gh run view --log`: each line is `<job>\t<step>\t<timestamp> <text>`. Returns each test result
+ * whose title claims a row, with its job, step, status and rows. Only a result line counts: Vitest's verbose
+ * shape anywhere, node's spec shape in the lean-path step. A status is `pass` only for a passing mark with
+ * no retry and no node directive (`# SKIP`, `# TODO`, `# EXPECTED FAILURE`); an unknown mark is its own
+ * status, so a change of format fails closed.
  */
 export function readTitles(log) {
 	const titles = [];
@@ -151,15 +163,26 @@ export function readTitles(log) {
 		const [job, step, ...rest] = raw.split('\t');
 		if (rest.length === 0) continue;
 		const text = rest.join('\t').replace(ANSI, '').replace(TIMESTAMP, '').trimEnd();
-		const mark = MARK.exec(text);
-		if (!mark) continue;
-		const after = text.slice(mark.index + mark[0].length);
-		const rows = claimedRows(after);
+		let mark;
+		let segments;
+		let status;
+		const vitest = VITEST_RESULT.exec(text);
+		const node = vitest || step !== LOCATIONS.lean.step ? null : NODE_RESULT.exec(text);
+		if (vitest) {
+			[, mark] = vitest;
+			segments = vitest[2].split(' > ');
+			status = VITEST_STATUS[mark] ?? `unknown mark "${mark}"`;
+		} else if (node) {
+			[, mark] = node;
+			segments = [node[2]];
+			status = node[3]
+				? node[3].trim().toLowerCase()
+				: (NODE_STATUS[mark] ?? `unknown mark "${mark}"`);
+		} else continue;
+		const rows = claimedRows(segments);
 		if (rows.length === 0) continue;
-		let status = STATUS[mark[1]];
-		if (/ # SKIP\b/.test(after)) status = 'skip';
-		else if (/ # TODO\b/.test(after)) status = 'todo';
-		titles.push({ job, step, status, rows, text: after });
+		if (status === 'pass' && RETRIED.test(text)) status = 'retried';
+		titles.push({ job, step, status, rows, text: text.trim() });
 	}
 	return titles;
 }
@@ -199,10 +222,17 @@ export function readBudget(log, location = LOCATIONS.budget) {
 	return { problems, found };
 }
 
-/** Condition 1 for one run: the right workflow, a manual run on main, completed, every job a success. */
-export function checkRun(run, workflow) {
+/**
+ * Condition 1 for one run: this repository, the right workflow file, a manual run on main, completed and a
+ * success, on its first attempt unless `allowRerun`, and every job a success.
+ */
+export function checkRun(run, workflow, { allowRerun = false } = {}) {
 	const problems = [];
 	const where = `${workflow.file} run ${run.databaseId}`;
+	if (run.repository !== REPOSITORY)
+		problems.push(`${where} is in ${run.repository}, not ${REPOSITORY}`);
+	if (run.path !== `.github/workflows/${workflow.file}`)
+		problems.push(`${where} ran ${run.path}, not .github/workflows/${workflow.file}`);
 	if (run.workflowName !== workflow.name)
 		problems.push(`${where} is a run of "${run.workflowName}", not "${workflow.name}"`);
 	if (run.event !== 'workflow_dispatch')
@@ -211,6 +241,12 @@ export function checkRun(run, workflow) {
 		);
 	if (run.headBranch !== 'main') problems.push(`${where} ran on ${run.headBranch}, not main`);
 	if (run.status !== 'completed') problems.push(`${where} is ${run.status}, not completed`);
+	else if (run.conclusion !== 'success')
+		problems.push(`${where} concluded ${run.conclusion}, not success`);
+	if (run.attempt !== 1 && !allowRerun)
+		problems.push(
+			`${where} is attempt ${run.attempt}: a re-run can hide its first attempt's failure; pass --allow-rerun to accept it`
+		);
 	const names = run.jobs.map((job) => job.name);
 	for (const name of workflow.jobs)
 		if (!names.includes(name)) problems.push(`${where}: job "${name}" is missing`);
@@ -234,12 +270,23 @@ function checkStep(run, location) {
 	return [];
 }
 
+/** The committed minimum count of passing titles for each row and place (see the file's `about`). */
+export const MINIMUMS_FILE = 'loam-exit-check.minimums.json';
+export function readMinimums() {
+	return JSON.parse(
+		readFileSync(join(dirname(fileURLToPath(import.meta.url)), MINIMUMS_FILE), 'utf8')
+	).minimums;
+}
+
 /**
  * The whole check over the two runs and the Loam run's log. Returns the problems, each naming what is
- * wrong, and the report's lines.
+ * wrong, the report's lines, and the counts observed, in the minimums file's shape.
  */
-export function checkExit({ loam, ci, log }) {
-	const problems = [...checkRun(loam, WORKFLOWS.loam), ...checkRun(ci, WORKFLOWS.ci)];
+export function checkExit({ loam, ci, log, minimums = readMinimums(), allowRerun = false }) {
+	const problems = [
+		...checkRun(loam, WORKFLOWS.loam, { allowRerun }),
+		...checkRun(ci, WORKFLOWS.ci, { allowRerun }),
+	];
 	if (loam.headSha !== ci.headSha)
 		problems.push(
 			`the runs are of different commits: loam.yml ${loam.headSha}, ci.yml ${ci.headSha}`
@@ -257,6 +304,7 @@ export function checkExit({ loam, ci, log }) {
 
 	const budget = readBudget(log);
 	const report = [];
+	const observed = {};
 	for (const { row, in: places } of ROWS) {
 		if (places.length === 0) {
 			report.push(`P2-${row}: this check`);
@@ -275,20 +323,34 @@ export function checkExit({ loam, ci, log }) {
 					title.step === location.step &&
 					title.rows.includes(row)
 			).length;
+			observed[row] = { ...observed[row], [key]: passed };
+			const floor = minimums[row]?.[key];
 			if (passed === 0)
 				problems.push(
 					`P2-${row}: no passing title in ${location.label} ("${location.job}", step "${location.step}")`
+				);
+			else if (floor === undefined)
+				problems.push(`P2-${row}: ${MINIMUMS_FILE} records no minimum for ${location.label}`);
+			else if (passed < floor)
+				problems.push(
+					`P2-${row}: ${passed} passing titles in ${location.label}, fewer than the ${floor} ${MINIMUMS_FILE} records`
 				);
 			return `${location.label} ${passed}`;
 		});
 		report.push(`P2-${row}: ${counts.join('; ')}`);
 	}
 
-	const jobs = (run, workflow) =>
-		`${workflow.file} run ${run.databaseId} (${run.event} on ${run.headBranch} at ${String(run.headSha).slice(0, 8)}): ${run.jobs.map((job) => `${job.name} ${job.conclusion || job.status}`).join(', ')}`;
+	const header = (run, workflow) =>
+		`${workflow.file} run ${run.databaseId}, attempt ${run.attempt} (${run.event} on ${run.headBranch} at ${String(run.headSha).slice(0, 8)}), ${run.url}: ${run.jobs.map((job) => `${job.name} ${job.conclusion || job.status}`).join(', ')}`;
 	return {
 		problems,
-		report: [jobs(loam, WORKFLOWS.loam), jobs(ci, WORKFLOWS.ci), ...report],
+		observed,
+		report: [
+			`Repository ${REPOSITORY}`,
+			header(loam, WORKFLOWS.loam),
+			header(ci, WORKFLOWS.ci),
+			...report,
+		],
 	};
 }
 
@@ -299,27 +361,48 @@ function gh(args) {
 	return execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024 });
 }
 
-export function fetchRuns(loamId, ciId, repository = REPOSITORY) {
-	const view = (id) =>
-		JSON.parse(gh(['run', 'view', id, '--repo', repository, '--json', RUN_FIELDS]));
+/** A run as `gh run view` gives it, with its repository and workflow file from the Actions API. */
+export function fetchRun(id) {
+	const run = JSON.parse(gh(['run', 'view', id, '--repo', REPOSITORY, '--json', RUN_FIELDS]));
+	const api = JSON.parse(
+		gh([
+			'api',
+			`repos/${REPOSITORY}/actions/runs/${id}`,
+			'--jq',
+			'{path: .path, repository: .repository.full_name}',
+		])
+	);
+	return { ...run, path: api.path.replace(/@.*$/, ''), repository: api.repository };
+}
+
+export function fetchRuns(loamId, ciId) {
 	return {
-		loam: view(loamId),
-		ci: view(ciId),
-		log: gh(['run', 'view', loamId, '--repo', repository, '--log']),
+		loam: fetchRun(loamId),
+		ci: fetchRun(ciId),
+		log: gh(['run', 'view', loamId, '--repo', REPOSITORY, '--log']),
 	};
 }
 
+const USAGE =
+	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--allow-rerun] [--print-minimums]';
+
 function main(argv) {
 	const args = argv.filter((arg) => !arg.startsWith('--'));
-	const repository = argv.find((arg) => arg.startsWith('--repo='))?.slice('--repo='.length);
-	if (args.length !== 2 || args.some((arg) => !/^\d+$/.test(arg))) {
-		console.error(
-			'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--repo=owner/name]'
-		);
+	const flags = argv.filter((arg) => arg.startsWith('--'));
+	const unknown = flags.filter((flag) => !['--allow-rerun', '--print-minimums'].includes(flag));
+	if (args.length !== 2 || args.some((arg) => !/^\d+$/.test(arg)) || unknown.length > 0) {
+		console.error(USAGE);
 		return 2;
 	}
-	const { problems, report } = checkExit(fetchRuns(args[0], args[1], repository));
+	const { problems, report, observed } = checkExit({
+		...fetchRuns(args[0], args[1]),
+		allowRerun: flags.includes('--allow-rerun'),
+	});
 	console.log(report.join('\n'));
+	if (flags.includes('--print-minimums'))
+		console.log(
+			`\nThe counts observed, for ${MINIMUMS_FILE}:\n${JSON.stringify(observed, null, '\t')}`
+		);
 	if (problems.length > 0) {
 		console.error(`\nThe exit check fails, ${problems.length} problem(s):`);
 		for (const problem of problems) console.error(`- ${problem}`);

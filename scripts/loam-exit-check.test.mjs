@@ -1,7 +1,8 @@
 /**
  * P2-E14: the exit check over recorded runs. The fixtures in loam-exit-check/ are a manual run of each
- * workflow on one commit, every job a success, and the Loam run's log in `gh run view --log`'s layout, with
- * Vitest's verbose and node's spec reporters as each step prints them, colour included.
+ * workflow on one commit, every job a success, the Loam run's log in `gh run view --log`'s layout, with
+ * Vitest's verbose and node's spec reporters as each step prints them, colour included, and the minimum
+ * counts that log meets exactly.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,8 +11,10 @@ import test from 'node:test';
 import {
 	checkExit,
 	LOCATIONS,
+	MINIMUMS_FILE,
 	ROWS,
 	readBudget,
+	readMinimums,
 	readTitles,
 	WORKFLOWS,
 } from './loam-exit-check.mjs';
@@ -22,27 +25,39 @@ const runs = () => ({
 	loam: JSON.parse(fixture('loam-run.json')),
 	ci: JSON.parse(fixture('ci-run.json')),
 	log: fixture('loam-run-log.txt'),
+	minimums: JSON.parse(fixture('minimums.json')),
 });
 const E = '\u001b';
 const line = (location, text) =>
 	`${location.job}\t${location.step}\t2026-11-10T09:30:00.0000000Z ${text}`;
+const unit = (text) => line(LOCATIONS.units, `endpoints/loam/packages/kernel test:    ${text}`);
 const problemsOf = (input) => checkExit(input).problems;
 const job = (run, name) => run.jobs.find((entry) => entry.name === name);
+const without = (log, text) =>
+	log
+		.split('\n')
+		.filter((entry) => !entry.includes(text))
+		.join('\n');
 
-test('P2-E14: all green passes, reporting each job and each row where it ran', () => {
-	const { problems, report } = checkExit(runs());
+test('P2-E14: all green passes, reporting the repository, each run and each row where it ran', () => {
+	const { problems, report, observed } = checkExit(runs());
 	assert.deepEqual(problems, []);
-	assert.match(report[0], /^loam\.yml run 42700000001 \(workflow_dispatch on main at 01234567\): /);
-	assert.match(report[0], /Mounted against Umbel success/);
-	assert.match(report[1], /TypeScript \(Node 22\.x\) success/);
-	assert.ok(report.includes('P2-E13: Chromium 2; Mounted 1; Units 1'));
+	assert.equal(report[0], 'Repository lushly-dev/afd');
+	assert.match(
+		report[1],
+		/^loam\.yml run 42700000001, attempt 1 \(workflow_dispatch on main at 01234567\), https:\/\/github\.com\/lushly-dev\/afd\/actions\/runs\/42700000001: /
+	);
+	assert.match(report[1], /Mounted against Umbel success/);
+	assert.match(report[2], /TypeScript \(Node 22\.x\) success/);
+	assert.ok(report.includes('P2-E13: Chromium 3; Mounted 1; Units 1'));
 	assert.ok(report.includes('P2-D5: Units 1; Chromium 1; Editor walk 1'));
 	assert.ok(report.includes('P2-E14: this check'));
 	assert.match(
 		report.find((entry) => entry.startsWith('P2-E2:')),
 		/^P2-E2: Bundle budget JavaScript, minified 286084 of 300000, JavaScript, gzip 88196 of 91000; Chromium 1; AFD's lean path 2$/
 	);
-	assert.equal(report.length, 2 + ROWS.length);
+	assert.equal(report.length, 3 + ROWS.length);
+	assert.deepEqual(observed, runs().minimums);
 });
 
 test('P2-E14: a skipped job fails, by name', () => {
@@ -75,15 +90,60 @@ test('P2-E14: a missing or renamed job fails', () => {
 	);
 });
 
+test('P2-E14: a run that did not conclude success fails, whatever its jobs say', () => {
+	const input = runs();
+	input.loam.conclusion = 'failure';
+	assert.deepEqual(problemsOf(input), ['loam.yml run 42700000001 concluded failure, not success']);
+});
+
+test('P2-E14: a re-run fails unless --allow-rerun accepts it', () => {
+	const input = runs();
+	input.ci.attempt = 2;
+	assert.deepEqual(problemsOf(input), [
+		"ci.yml run 42700000002 is attempt 2: a re-run can hide its first attempt's failure; pass --allow-rerun to accept it",
+	]);
+	assert.deepEqual(problemsOf({ ...input, allowRerun: true }), []);
+	assert.match(checkExit({ ...input, allowRerun: true }).report[2], /, attempt 2 /);
+});
+
+test('P2-E14: a run of another repository or another workflow file fails', () => {
+	const input = runs();
+	input.loam.repository = 'someone/afd';
+	input.ci.path = '.github/workflows/ci-copy.yml';
+	assert.deepEqual(problemsOf(input), [
+		'loam.yml run 42700000001 is in someone/afd, not lushly-dev/afd',
+		'ci.yml run 42700000002 ran .github/workflows/ci-copy.yml, not .github/workflows/ci.yml',
+	]);
+});
+
 test('P2-E14: a row with no passing title fails, naming the row and where it was looked for', () => {
 	const input = runs();
-	input.log = input.log
-		.split('\n')
-		.filter((entry) => !entry.includes('P2-E5:'))
-		.join('\n');
+	input.log = without(input.log, 'P2-E5:');
 	assert.deepEqual(problemsOf(input), [
 		'P2-E5: no passing title in Units ("Build, unit and Chromium", step "Unit suites with coverage")',
 	]);
+});
+
+test('P2-E14: a count below its committed minimum fails, and so does a place with none recorded', () => {
+	const input = runs();
+	input.minimums.E5.units = 3;
+	delete input.minimums.D7;
+	assert.deepEqual(problemsOf(input), [
+		`P2-E5: 2 passing titles in Units, fewer than the 3 ${MINIMUMS_FILE} records`,
+		`P2-D7: ${MINIMUMS_FILE} records no minimum for Chromium`,
+	]);
+});
+
+test('P2-E14: the committed minimums name every row and place the table does, each at least 1', () => {
+	const minimums = readMinimums();
+	for (const { row, in: places } of ROWS)
+		for (const key of places)
+			if (LOCATIONS[key].evidence !== 'budget')
+				assert.ok(minimums[row]?.[key] >= 1, `P2-${row} ${key}: ${minimums[row]?.[key]}`);
+	assert.deepEqual(
+		Object.keys(minimums),
+		ROWS.filter(({ in: places }) => places.length > 0).map(({ row }) => row)
+	);
 });
 
 test('P2-E14: a title passing only in the wrong job does not count', () => {
@@ -110,9 +170,26 @@ test('P2-E14: a row that names two steps of one job needs a pass in each', () =>
 	]);
 });
 
+test('P2-E14: only a result line counts, and only a title that starts a title segment', () => {
+	const input = runs();
+	input.log = `${without(input.log, 'P2-E5:')}\n${[
+		// Console output, a test's stdout header, a mark with no test file, and a mention mid-title.
+		unit('P2-E5: the scope over MCP passed ✓'),
+		unit('stdout | src/mcp-scope.test.ts > P2-E5: the scope over MCP > lists the tools'),
+		unit('✓ P2-E5: the scope over MCP 12ms'),
+		unit('✓ src/mcp-scope.test.ts > the scope, as P2-E5: says > lists the tools 12ms'),
+		// node's shape counts in the lean-path step alone.
+		line(LOCATIONS.units, `${E}[32m✔ P2-E5: the scope over MCP (0.4ms)${E}[39m`),
+	].join('\n')}`;
+	assert.deepEqual(problemsOf(input), [
+		'P2-E5: no passing title in Units ("Build, unit and Chromium", step "Unit suites with coverage")',
+	]);
+});
+
 test('P2-E14: a skipped title fails, from Vitest and from node', () => {
 	const input = runs();
 	input.log += [
+		'',
 		line(
 			LOCATIONS.chromium,
 			`   ${E}[33m↓${E}[39m test/browser/scope/rail.test.ts > P2-E3: two projects > P2-E3: keeps focus`
@@ -137,7 +214,8 @@ test('P2-E14: a skipped title fails, from Vitest and from node', () => {
 test('P2-E14: a todo title fails, though node marks it as passing', () => {
 	const input = runs();
 	input.log += [
-		line(LOCATIONS.units, `endpoints/loam/packages/kernel test:    □ src/a.test.ts > P2-D4: later`),
+		'',
+		unit('□ src/a.test.ts > P2-D4: later'),
 		line(LOCATIONS.lean, `${E}[32m✔ P2-E11: a todo (0.04ms) # TODO${E}[39m`),
 	].join('\n');
 	const problems = problemsOf(input);
@@ -146,12 +224,44 @@ test('P2-E14: a todo title fails, though node marks it as passing', () => {
 	assert.match(problems[1], /^P2-E11 is marked todo/);
 });
 
-test('P2-E14: a failed title fails, though a retry let its job pass', () => {
+test("P2-E14: node's expected failure fails, though it prints a pass mark", () => {
 	const input = runs();
-	input.log += line(LOCATIONS.chromium, `   ${E}[31m×${E}[39m test/x.test.ts > P2-D7: one model`);
+	input.log += `\n${line(LOCATIONS.lean, `${E}[32m✔ P2-E11: expected (0.24ms) # EXPECTED FAILURE${E}[39m`)}`;
+	assert.deepEqual(
+		problemsOf(input).map((entry) => entry.slice(0, 40)),
+		['P2-E11 is marked expected failure in "Bu']
+	);
+});
+
+test('P2-E14: a title that passed only on a retry fails, as Vitest prints it', () => {
+	const input = runs();
+	// Vitest's verbose line for a test that failed, then passed on its retry.
+	input.log += `\n${line(LOCATIONS.chromium, `   ${E}[32m✓${E}[39m test/browser/x.test.ts > P2-D7: one model${E}[2m 1503${E}[22m${E}[2mms${E}[22m${E}[33m (retry x1)${E}[39m`)}`;
+	assert.deepEqual(
+		problemsOf(input).map((entry) => entry.slice(0, 22)),
+		['P2-D7 is marked retrie']
+	);
+});
+
+test('P2-E14: a failed title fails, though its job passed', () => {
+	const input = runs();
+	input.log += `\n${line(LOCATIONS.chromium, `   ${E}[31m×${E}[39m test/x.test.ts > P2-D7: one model 12ms`)}`;
 	assert.deepEqual(
 		problemsOf(input).map((entry) => entry.slice(0, 22)),
 		['P2-D7 is marked fail i']
+	);
+});
+
+test('P2-E14: a result line with a mark the check does not know fails, so a new format fails closed', () => {
+	const input = runs();
+	input.log += [
+		'',
+		unit('✗ src/a.test.ts > P2-E4: a new mark 3ms'),
+		line(LOCATIONS.lean, '★ P2-E11: a new mark (0.5ms)'),
+	].join('\n');
+	assert.deepEqual(
+		problemsOf(input).map((entry) => entry.slice(0, 32)),
+		['P2-E4 is marked unknown mark "✗"', 'P2-E11 is marked unknown mark "★']
 	);
 });
 
@@ -208,20 +318,21 @@ test('P2-E14: the budget rows are read from the budget step: present, at their c
 	]);
 });
 
-test("P2-E14: a title is read only after a test's mark, wherever the log puts it", () => {
+test("P2-E14: a test claims its own title's rows, else its nearest describe's", () => {
 	const titles = readTitles(fixture('loam-run-log.txt'));
-	// Console lines that name a row, and a summary line, are not titles.
+	// Console lines that name a row are not results.
 	assert.ok(!titles.some((title) => /grew the journal|first-contentful-paint/.test(title.text)));
-	const budget = titles.find((title) => title.text.includes('A1 to A3'));
-	// A test's own title claims its rows; its describe, phase 0's E9, claims none for it.
-	assert.deepEqual(budget.rows, ['E2', 'D9']);
-	const conformance = titles.find((title) => title.text.includes('IndexedDbAdapter'));
-	// A test with no row of its own takes its nearest describe's.
-	assert.deepEqual(conformance.rows, ['E13']);
+	// Its own title claims its rows; its describe, phase 0's E9, claims none for it.
+	assert.deepEqual(titles.find((title) => title.text.includes('A1 to A3')).rows, [
+		'E2',
+		'D9',
+		'E13',
+	]);
+	// A test with no row of its own takes its nearest describe's, here in a browser project's line.
+	assert.deepEqual(titles.find((title) => title.text.includes('IndexedDbAdapter')).rows, ['E13']);
 	assert.deepEqual(
-		readTitles(
-			line(LOCATIONS.chromium, '✓ a.test.ts > P2-E3: a scenario > P2-E11: loads both versions 1ms')
-		)[0].rows,
+		readTitles(unit('✓ src/a.test.ts > P2-E3: a scenario > P2-E11: loads both versions 1ms'))[0]
+			.rows,
 		['E11']
 	);
 	assert.ok(titles.every((title) => title.status === 'pass'));
@@ -244,6 +355,7 @@ test("P2-E14: the row table is the specifications' Job columns", () => {
 			[/\bChromium\b/, 'chromium'],
 			[/AFD's lean path/, 'lean'],
 			[/\bMounted\b/, 'mounted'],
+			[/Editor walk/, 'walk'],
 		])
 			if (pattern.test(jobs)) places.push(key);
 		return [id.slice(2), places.sort()];
