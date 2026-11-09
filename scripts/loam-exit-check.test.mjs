@@ -21,7 +21,7 @@ const fixture = (name) => readFileSync(join(import.meta.dirname, 'loam-exit-chec
 const runs = () => ({
 	loam: JSON.parse(fixture('loam-run.json')),
 	ci: JSON.parse(fixture('ci-run.json')),
-	log: fixture('loam.log'),
+	log: fixture('loam-run-log.txt'),
 });
 const E = '\u001b';
 const line = (location, text) =>
@@ -209,7 +209,7 @@ test('P2-E14: the budget rows are read from the budget step: present, at their c
 });
 
 test("P2-E14: a title is read only after a test's mark, wherever the log puts it", () => {
-	const titles = readTitles(fixture('loam.log'));
+	const titles = readTitles(fixture('loam-run-log.txt'));
 	// Console lines that name a row, and a summary line, are not titles.
 	assert.ok(!titles.some((title) => /grew the journal|first-contentful-paint/.test(title.text)));
 	const budget = titles.find((title) => title.text.includes('A1 to A3'));
