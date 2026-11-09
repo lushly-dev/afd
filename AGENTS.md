@@ -76,7 +76,7 @@ endpoints/violet-server/    # @lushly-dev/violet-server — `violet-mcp`, MCP se
 endpoints/health/           # lushly-health (tentative) — explicit-target repository audits, versioned report schema, opt-in Botcore plugin; stdlib-only core; quarantined
 endpoints/health-dashboard/ # @lushly-dev/health-dashboard — static FAST-AF page for Health report-1.2 files; local-only, private, quarantined, no route
 endpoints/umbel/            # AFD Umbel — Rust host for capability plugins over MCP and CLI; host skeleton; quarantined; read docs/STATUS.md first
-endpoints/loam/             # AFD Loam — application shell; private, quarantined packages in packages/ (manifest, sdk, testing, cli, theme, kernel, console, chrome, web) and apps in apps/ (hello, tally, tasks); read docs/STATUS.md first
+endpoints/loam/             # AFD Loam — application shell; private, quarantined packages in packages/ (manifest, sdk, testing, cli, theme, kernel, console, chrome, web) and apps in apps/ (hello, tally, tasks, notes, checklist); read docs/STATUS.md first
 ```
 
 ## Key Conventions

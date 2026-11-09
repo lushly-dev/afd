@@ -66,6 +66,8 @@ export const EDITOR_STYLES = css`
 
 	input {
 		box-sizing: border-box;
+		min-inline-size: 0;
+		inline-size: 100%;
 		min-block-size: var(--size-target-natural);
 		padding-inline: var(--size-space-md);
 		border: 1px solid var(--color-field-border);

@@ -74,15 +74,22 @@ async function write(
 	return checklist;
 }
 
-/** A new item's id, `itm_` and 10 characters from the call's random, not already in `taken`. */
-export function newItemId(random: () => number, taken: ReadonlySet<string>): string {
-	for (;;) {
+/** How many ids `newItemId` draws before it gives up: a free one is all but certain in the first. */
+export const ID_ATTEMPTS = 32;
+
+/**
+ * A new item's id, `itm_` and 10 characters from the call's random, not already in `taken`; or undefined
+ * when `ID_ATTEMPTS` draws all collide, as only a random that repeats itself makes them.
+ */
+export function newItemId(random: () => number, taken: ReadonlySet<string>): string | undefined {
+	for (let attempt = 0; attempt < ID_ATTEMPTS; attempt += 1) {
 		let id = 'itm_';
 		for (let at = 0; at < 10; at += 1) {
 			id += ID_ALPHABET[Math.floor(random() * ID_ALPHABET.length) % ID_ALPHABET.length];
 		}
 		if (!taken.has(id)) return id;
 	}
+	return undefined;
 }
 
 /** What every command answers: the items in order, and how many are done. */
@@ -137,9 +144,16 @@ export const handlers = {
 				suggestion: 'Declare the `random` grant in the manifest',
 			});
 		}
-		const random = context.random as () => number;
+		const id = input.item ?? newItemId(context.random as () => number, taken);
+		if (id === undefined) {
+			return failure({
+				code: 'CHECKLIST_ITEM_ID_UNAVAILABLE',
+				message: `No free item id was found in ${ID_ATTEMPTS} tries`,
+				suggestion: 'Call checklist-item-add again; a new call draws new ids',
+			});
+		}
 		const item: ChecklistItemV1 = {
-			id: input.item ?? newItemId(random, taken),
+			id,
 			text,
 			done: input.done === true,
 		};

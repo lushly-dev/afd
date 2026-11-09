@@ -4,7 +4,7 @@
  * this suite writes, on a second origin: it appears in New, creates, opens in a real sandboxed frame beside a
  * note and works through its handler frame; and its document works with its view closed, by
  * `checklist-item-add` from an agent (`kernel.agent`) and through the person's palette interface, as the
- * coordinator amended D2 on 2026-11-10: the palette runs only commands that need no input, and a prompt for
+ * coordinator amended D2 on 2026-11-09: the palette runs only commands that need no input, and a prompt for
  * one waits for phase 4. With hello and notes, D8's `new-list` holds it at both
  * levels. D10 for its view: axe inside its frame and on the page beside a note, in each theme and density and
  * under forced colors, with its keyboard and its states.
@@ -364,6 +364,98 @@ describe('P2-D2: a second document type lands with no shell change', () => {
 		expect(await option.textContent()).toContain('(needs input)');
 		await page.keyboard.press('Escape');
 		expect(await replayDifferences(site, await entriesOf(page))).toEqual([]);
+		expect(opened.violations).toEqual([]);
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 120_000);
+});
+
+/** A raw `tools/call` from inside a view's frame, as its own code would send it to the shell's broker. */
+function callFromView(frame: Frame, name: string, args: unknown): Promise<unknown> {
+	return frame.evaluate(
+		([name, args]) =>
+			new Promise<unknown>((resolve) => {
+				const id = `probe-${Math.random()}`;
+				const listen = (event: MessageEvent) => {
+					if (event.data?.id !== id) return;
+					removeEventListener('message', listen);
+					resolve(event.data.result ?? event.data.error);
+				};
+				addEventListener('message', listen);
+				parent.postMessage(
+					{ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } },
+					'*'
+				);
+			}),
+		[name, args] as const
+	);
+}
+
+/** An answer with what a clock or a counter decides taken out, so two answers compare by their bytes. */
+const settled = (answer: unknown) =>
+	JSON.stringify(answer)
+		.replace(/"executionTimeMs":\d+/g, '"executionTimeMs":0')
+		.replace(/"traceId":"[^"]*"/g, '"traceId":""');
+
+describe('P2-D2: the shell checks checklist’s calls first', () => {
+	it('P2-D2: refuses the wrong type and another project’s checklist from the person, and answers the view’s cross-project read as a missing id', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		await kernelCall(page, 'project-create', { name: 'Atlas' });
+		await kernelCall(page, 'project-create', { name: 'Beacon' });
+		const create = async (type: string, title: string, project: string) =>
+			(
+				(await kernelCall(page, 'document-create', { type, title, project })) as {
+					data: { id: string };
+				}
+			).data.id;
+		const here = await create('checklist', 'Here', 'atlas');
+		const note = await create('notes', 'A note', 'atlas');
+		const there = await create('checklist', 'There', 'beacon');
+		// Beacon's checklist holds an item, added in Beacon.
+		await kernelCall(page, 'scope-set', { project: 'beacon' });
+		await settle(page);
+		const secret = (await agentCall(page, 'checklist-item-add', {
+			document: there,
+			text: 'Secret',
+		})) as { success: boolean };
+		expect(secret.success).toBe(true);
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await settle(page);
+		// The wrong type: a note, named to checklist's command.
+		const wrong = (await kernelCall(page, 'checklist-get', { document: note })) as {
+			success: boolean;
+			error?: { code: string };
+		};
+		expect(wrong.success).toBe(false);
+		expect(wrong.error?.code).toBe('DOCUMENT_TYPE_MISMATCH');
+		// Another project: the person in Atlas, Beacon's checklist.
+		const across = (await kernelCall(page, 'checklist-item-add', {
+			document: there,
+			text: 'From Atlas',
+		})) as { success: boolean; error?: { code: string; message: string } };
+		expect(across.success).toBe(false);
+		expect(across.error?.code).toBe('SCOPE_MISMATCH');
+		expect(across.error?.message).toContain('Beacon');
+		// Nothing was written there, as Beacon reads it.
+		await kernelCall(page, 'scope-set', { project: 'beacon' });
+		await settle(page);
+		expect(await stored(page, there)).toEqual(['[ ] Secret']);
+		await kernelCall(page, 'scope-set', { project: 'atlas' });
+		await settle(page);
+		// From its view in Atlas, Beacon's checklist answers the same bytes as an id that does not exist.
+		await open(page, here, { preview: false });
+		const frame = await checklistFrame(page, 'Here');
+		const beacon = await callFromView(frame, 'checklist-get', { document: there });
+		const missing = await callFromView(frame, 'checklist-get', { document: 'doc_000000000000' });
+		expect(settled(beacon)).not.toContain('Secret');
+		expect(settled(beacon)).toBe(settled(missing));
+		expect(settled(beacon)).toContain('DOCUMENT_NOT_FOUND');
+		const journaled = (await journal(page)).filter(
+			(entry) => entry.command === 'checklist-item-add' && !entry.success
+		);
+		expect(journaled.map((entry) => entry.error?.code)).toEqual(['SCOPE_MISMATCH']);
 		expect(opened.violations).toEqual([]);
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();

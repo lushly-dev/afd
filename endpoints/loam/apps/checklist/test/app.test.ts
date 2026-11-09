@@ -8,7 +8,13 @@ import { fileURLToPath } from 'node:url';
 import { appCheck, readAppManifest } from '@lushly-dev/loam-cli';
 import { createAppTestKernel } from '@lushly-dev/loam-testing';
 import { describe, expect, it } from 'vitest';
-import { type ChecklistItemV1, MAX_ITEMS, newItemId } from '../src/handlers.js';
+import {
+	type ChecklistItemV1,
+	handlers,
+	ID_ATTEMPTS,
+	MAX_ITEMS,
+	newItemId,
+} from '../src/handlers.js';
 import { focusAfterRemoval, summaryOf } from '../src/list.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -126,22 +132,24 @@ describe('checklist', () => {
 		expect(full.error?.suggestion).toContain('checklist-item-remove');
 	});
 
-	it('is checked by the shell first: another type, the trash and another project refuse', async () => {
+	// Another type and another project are refused in Chromium, where the shell has both
+	// (`web/test/browser/documents/checklist.test.ts`); the test kit deploys this app alone, in one scope.
+	it('is checked by the shell first: a missing document and one in the trash refuse, and a restore keeps its items', async () => {
 		const { kernel } = await kernelIn('atlas');
 		const document = await create(kernel, 'Packing');
 		await kernel.call('checklist-item-add', { document, text: 'Tent' });
 		const unknown = await kernel.call('checklist-get', { document: 'doc_missing00000' });
-		expect(unknown.success).toBe(false);
+		expect(unknown.error?.code).toBe('DOCUMENT_NOT_FOUND');
 		await kernel.call('document-trash', { document });
 		const trashed = await kernel.call('checklist-item-add', { document, text: 'Stove' });
-		expect(trashed.success).toBe(false);
+		expect(trashed.error?.code).toBe('DOCUMENT_TRASHED');
 		await kernel.call('document-restore', { document });
 		expect(
 			(await kernel.call<Read>('checklist-get', { document })).data?.items.map(({ text }) => text)
 		).toEqual(['Tent']);
 	});
 
-	it('needs the `random` grant for a new id, and the `store` grant for any', async () => {
+	it('needs the `random` grant for a new id', async () => {
 		const { kernel } = await kernelIn(undefined, ['store']);
 		const document = await create(kernel);
 		const unrandom = await kernel.call('checklist-item-add', { document, text: 'Milk' });
@@ -154,6 +162,37 @@ describe('checklist', () => {
 		const random = () => values.shift() ?? 0.99;
 		const id = newItemId(random, new Set(['itm_aaaaaaaaaa']));
 		expect(id).toBe('itm_ssssssssss');
+	});
+
+	it(`gives up after ${ID_ATTEMPTS} draws that all collide, and the add refuses with a clear code`, async () => {
+		let draws = 0;
+		const stuck = () => {
+			draws += 1;
+			return 0;
+		};
+		expect(newItemId(stuck, new Set(['itm_aaaaaaaaaa']))).toBeUndefined();
+		expect(draws).toBe(ID_ATTEMPTS * 10);
+		const held = new Map<string, unknown>([
+			['doc/doc_000000000001', { items: [{ id: 'itm_aaaaaaaaaa', text: 'Taken', done: false }] }],
+		]);
+		const store = {
+			get: async <T>(key: string) => held.get(key) as T | undefined,
+			put: async (key: string, value: unknown) => {
+				held.set(key, value);
+			},
+			delete: async (key: string) => {
+				held.delete(key);
+			},
+			list: async () => [],
+		};
+		const refused = await handlers['checklist-item-add'](
+			{ document: 'doc_000000000001', text: 'Another' },
+			{ store, random: () => 0 } as never
+		);
+		expect(refused.success).toBe(false);
+		expect(refused.error?.code).toBe('CHECKLIST_ITEM_ID_UNAVAILABLE');
+		expect(refused.error?.suggestion).toContain('checklist-item-add');
+		expect((held.get('doc/doc_000000000001') as { items: unknown[] }).items).toHaveLength(1);
 	});
 
 	it('passes app check, sandboxed, with its pages one file each', async () => {
