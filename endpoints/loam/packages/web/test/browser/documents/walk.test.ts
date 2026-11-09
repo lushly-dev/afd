@@ -65,9 +65,11 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 		[42, 200, 0],
 		[5, 200, 0.17],
 		[77, 200, 0.17],
+		// And one that also has an agent move view editors' tabs, with `moveBefore` (the re-check's N-B1).
+		[7, 200, 0.17, true],
 	])(
 		'P2-D5: a seeded walk, seed %i, of %i steps with view steps at %d, keeps the fourteen invariants after each and reaches reopens',
-		async (start, length, views) => {
+		async (start, length, views, moves = false) => {
 			const opened = await openShell(browser, site.root);
 			const { page } = opened;
 			// Seed 77 walks a browser with no `moveBefore`, across its reloads too: a view editor with unsaved work
@@ -231,7 +233,9 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
 				return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 			};
-			const viewKinds = ['sheet', 'sheet-type', 'sheet-type', 'embed', 'sheet-move'] as const;
+			const viewKinds = moves
+				? (['sheet', 'sheet-type', 'sheet-type', 'embed', 'sheet-move'] as const)
+				: (['sheet', 'sheet-type', 'sheet-type', 'embed'] as const);
 			// The sheets the walk made, which its view moves pick from.
 			const sheets = new Set<string>();
 			let project: string | undefined;

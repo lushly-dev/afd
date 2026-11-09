@@ -175,6 +175,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * gone (about 270) against the plain functions the file-size limit then needed (about 240). `editor-move`: the
  * two toasts and the refusal's stop. `late` rose by 36, to 67,011, for the link id taken only from an undo and a
  * failed first list retried, approved within its 75,000.
+ * Step 12's re-check raised `editorMinified` by that round's measured cost, 196, to 35,314, and `viewMinified` by
+ * 25, to 25,105, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate, the total exact: a
+ * frame's and a group's `connectedMoveCallback`, so `moveBefore` keeps them (about 60, N-B1); the person's move
+ * read from the event, an undo's among them (about 60); a view's save requests one at a time (about 40); a
+ * refused move back cleared once it settles (about 20); the area's check as a function (about 15). `view`: its
+ * own `connectedMoveCallback`. `late` rose by 46, to 67,057, for the bound on the removed link ids;
+ * `documents` by 256, to 54,795, the inspector hidden rather than closed and focus only for its own open;
+ * `embed` by 25, to 6,072, its `connectedMoveCallback`; `editor-move` by 27, to 752, the reload count; each
+ * within its row.
  * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
  * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
  * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
@@ -192,14 +201,14 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 5_247,
 	appsMinified: 394_094,
 	surfacesMinified: 85_000,
-	viewMinified: 25_080,
+	viewMinified: 25_105,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 35_118,
+	editorMinified: 35_314,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
