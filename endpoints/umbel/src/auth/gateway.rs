@@ -60,6 +60,23 @@ pub(crate) const ASSERTION_TYP: &str = "umbel-gw+jwt";
 pub(crate) const MAX_ASSERTION_BYTES: usize = 4096;
 /// The 401's `WWW-Authenticate` value (4.4).
 pub(crate) const CHALLENGE: &str = "Umbel-Gateway realm=\"umbel\"";
+/// The scheme of every challenge in mode `gateway` (4.4).
+pub(crate) const SCHEME: &str = "Umbel-Gateway";
+/// The `realm` of every challenge in mode `gateway` (4.4).
+pub(crate) const REALM: &str = "umbel";
+
+/// The challenge of every 403 in mode `gateway`, before dispatch (5.2) and at layer 6 alike:
+/// `Umbel-Gateway realm="umbel", error="insufficient_scope", scope="<missing>"`. It is 4.4's
+/// scheme and realm, since a gateway's caller holds no OAuth token to step up, with 3.3's
+/// `error` and `scope` and no `resource_metadata`, since mode `gateway` publishes no metadata
+/// (3.3). AFD renders it ([`afd::server::auth::ScopeChallenge`]), so `scope` names only scope
+/// tokens and is left out rather than sent empty, as M5 says.
+///
+/// # Errors
+/// Never for these constants; AFD's checks on a scheme and a parameter, should they change.
+pub(crate) fn scope_challenge() -> Result<afd::server::auth::ScopeChallenge, String> {
+    afd::server::auth::ScopeChallenge::new(SCHEME)?.with_param("realm", REALM)
+}
 /// The 401 body's suggestion (4.4).
 pub(crate) const SUGGESTION: &str = "The gateway must connect with its pinned certificate and send a valid Umbel-Gateway-Assertion.";
 /// The key prefix of a spent `jti` in the shared nonce store (section 10.2).
@@ -984,6 +1001,21 @@ mod tests {
 
     fn scopes(texts: &[&str]) -> Vec<Scope> {
         texts.iter().map(|text| scope(text)).collect()
+    }
+
+    #[test]
+    fn every_gateway_challenge_shares_one_scheme_and_realm() {
+        assert_eq!(CHALLENGE, format!("{SCHEME} realm=\"{REALM}\""));
+        let challenge = scope_challenge().unwrap();
+        assert_eq!(
+            challenge.header_value(&["umbel:write:alpha".to_owned(), "umbel:approve".to_owned()]),
+            "Umbel-Gateway realm=\"umbel\", error=\"insufficient_scope\", scope=\"umbel:write:alpha umbel:approve\""
+        );
+        // A refusal naming no scope token sends no empty `scope`, and nothing points to metadata.
+        assert_eq!(
+            challenge.header_value(&[]),
+            "Umbel-Gateway realm=\"umbel\", error=\"insufficient_scope\""
+        );
     }
 
     fn texts(scopes: &[Scope]) -> Vec<String> {

@@ -16,6 +16,11 @@
 //! - **Steps 3 and 7 hold for gateway callers:** the scope resolver and gate, the one answer for
 //!   an absent or unreadable space, filtered listings, hidden instances answered as unknown
 //!   names, sealed positions, `auth-show` and the per-token limit.
+//! - **A missing scope is section 5.2's 403 before dispatch,** decided by AFD's bearer layer's
+//!   own code (`PreDispatchCheck`): one for a whole batch or pipeline, naming every missing scope
+//!   once in step order, in the gateway's scheme (`Umbel-Gateway realm="umbel",
+//!   error="insufficient_scope", scope=...`), with a suggestion naming a new assertion; nothing
+//!   runs. A hidden command and a name that does not exist answer alike, byte for byte.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 #[path = "support/logs.rs"]
@@ -61,6 +66,44 @@ fn counted(runs: Arc<AtomicUsize>) -> afd::CommandDefinition {
         runs.fetch_add(1, Ordering::SeqCst);
         afd::success(json!(true))
     })
+}
+
+/// Section 5.2's 403 before dispatch in mode `gateway`, naming `scopes` (space-separated):
+/// exactly the gateway's challenge, AFD's body with the gateway's suggestion, and nothing else.
+fn assert_scope_refused(reply: &Reply, scopes: &str, label: &str) {
+    assert_eq!(reply.status, 403, "{label}: {}", reply.text);
+    assert_eq!(
+        reply
+            .headers
+            .get("www-authenticate")
+            .and_then(|value| value.to_str().ok()),
+        Some(
+            format!(
+                "Umbel-Gateway realm=\"umbel\", error=\"insufficient_scope\", scope=\"{scopes}\""
+            )
+            .as_str()
+        ),
+        "{label}"
+    );
+    assert_eq!(
+        reply
+            .headers
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
+        Some("application/json"),
+        "{label}"
+    );
+    assert_eq!(
+        reply.text,
+        json!({
+            "error": "INSUFFICIENT_SCOPE",
+            "suggestion": format!(
+                "Obtain a new Umbel-Gateway-Assertion from the gateway, within its scope ceiling, that also grants {scopes}, then retry."
+            ),
+        })
+        .to_string(),
+        "{label}"
+    );
 }
 
 // ─── Accepted ────────────────────────────────────────────────────────────────────────────────
@@ -216,45 +259,35 @@ async fn the_ceiling_cuts_the_asserted_scopes_as_a_meet() {
                 json!({}),
             )
             .await;
-        assert_eq!(reply.status, 403, "{scopes:?}: {}", reply.text);
-        assert_eq!(
-            reply
-                .headers
-                .get("www-authenticate")
-                .and_then(|value| value.to_str().ok()),
-            Some(
-                "Umbel-Gateway realm=\"umbel\", error=\"insufficient_scope\", scope=\"umbel:read\""
-            )
-        );
-        assert_eq!(reply.json()["error"], json!("INSUFFICIENT_SCOPE"));
+        assert_scope_refused(&reply, "umbel:read", &format!("{scopes:?}"));
         assert!(!reply.text.contains("token"), "{}", reply.text);
         assert!(!reply.text.contains("resource_metadata"), "{}", reply.text);
+        // A method that names no command passes the decision before dispatch (no scope is
+        // required of every request) and meets layer 6, which answers with the same 403.
+        let listed = modern(
+            &running.client,
+            "tools/list",
+            json!({}),
+            &[(
+                ASSERTION,
+                &running.assertion().scopes(scopes.iter().copied()).sign(),
+            )],
+        )
+        .await;
+        assert_scope_refused(&listed, "umbel:read", &format!("tools/list {scopes:?}"));
     }
-    // A mutation with a write scope the ceiling cut is decided after routing, as AFD decides
-    // a call a host's own layer admitted: INSUFFICIENT_SCOPE naming what is missing.
+    // A mutation with a write scope the ceiling cut is section 5.2's 403 before dispatch, in the
+    // gateway's scheme, naming what is missing; its suggestion names what a gateway's caller
+    // obtains, never a token.
     let refused = running
-        .result(
-            running.assertion().scopes(["umbel:read"]),
+        .call(
+            Some(&running.assertion().scopes(["umbel:read"]).sign()),
             "fixture-touch",
             json!({}),
         )
         .await;
-    assert_eq!(
-        refused["error"]["code"],
-        json!("INSUFFICIENT_SCOPE"),
-        "{refused}"
-    );
-    assert_eq!(
-        refused["error"]["details"]["scopes"],
-        json!(["umbel:write:main"]),
-        "{refused}"
-    );
-    // Its suggestion names what a gateway's caller obtains, never a token.
-    let suggestion = refused["error"]["suggestion"].as_str().unwrap();
-    assert!(
-        suggestion.contains("Umbel-Gateway-Assertion") && !suggestion.contains("token"),
-        "{suggestion}"
-    );
+    assert_scope_refused(&refused, "umbel:write:main", "fixture-touch");
+    assert!(!refused.text.contains("token"), "{}", refused.text);
     let touched = running
         .result(running.assertion(), "fixture-touch", json!({}))
         .await;
@@ -1130,23 +1163,15 @@ async fn scopes_one_answer_hidden_commands_and_exact_filtering_hold_for_gateway_
     .await;
     assert_eq!(stable(&narrowed), stable(&absent));
 
-    // The scope gate: a mutation in alpha with read alone names the scope it lacks.
+    // The resolver: a mutation in alpha with read alone is a 403 before dispatch naming the scope
+    // it lacks.
     let refused = call(
         as_person("ada", &["umbel:read:alpha"]),
         "probe-note",
         json!({ "space": "alpha", "text": "x" }),
     )
     .await;
-    assert!(
-        refused.text.contains("INSUFFICIENT_SCOPE"),
-        "{}",
-        refused.text
-    );
-    assert!(
-        refused.text.contains("umbel:write:alpha"),
-        "{}",
-        refused.text
-    );
+    assert_scope_refused(&refused, "umbel:write:alpha", "probe-note");
     let noted = call(
         as_person("ada", &["umbel:read:alpha", "umbel:write:alpha"]),
         "probe-note",
@@ -1251,6 +1276,172 @@ async fn scopes_one_answer_hidden_commands_and_exact_filtering_hold_for_gateway_
         .map(|space| space["id"].as_str().unwrap())
         .collect();
     assert_eq!(ids, ["alpha"]);
+}
+
+#[tokio::test]
+async fn a_missing_scope_is_one_403_before_dispatch_and_hidden_names_answer_as_absent_ones() {
+    let runs = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&runs);
+    let running = Running::start_configured(
+        Setup {
+            rest: REST,
+            ..Setup::default()
+        },
+        move |builder| {
+            let mut count = counted(counter);
+            count.mutation = true;
+            configure(builder).register(count)
+        },
+    )
+    .await;
+    let as_person = |subject: &str, scopes: &[&str]| {
+        running
+            .assertion()
+            .subject(subject)
+            .scopes(scopes.iter().copied())
+            .sign()
+    };
+    let read = || as_person("ada", &["umbel:read"]);
+    let note =
+        |space: &str| json!({ "command": "probe-note", "input": { "space": space, "text": "x" } });
+
+    // Every route that names a command: its first-class tool and afd-call.
+    for (tool, arguments) in [
+        ("fixture-touch", json!({})),
+        (
+            "afd-call",
+            json!({ "command": "fixture-count", "input": {} }),
+        ),
+    ] {
+        let reply = running.call(Some(&read()), tool, arguments).await;
+        assert_scope_refused(&reply, "umbel:write:main", tool);
+    }
+    // A batch or a pipeline with several missing scopes is one 403, each scope once, in step
+    // order; no step runs, the readable ones included.
+    let steps = json!([
+        note("alpha"),
+        { "command": "fixture-count", "input": {} },
+        { "command": "event-list", "input": {} },
+        { "command": "fixture-touch", "input": {} },
+        note("alpha"),
+    ]);
+    let batch = running
+        .call(Some(&read()), "afd-batch", json!({ "commands": steps }))
+        .await;
+    assert_scope_refused(&batch, "umbel:write:alpha umbel:write:main", "afd-batch");
+    let pipe = running
+        .call(Some(&read()), "afd-pipe", json!({ "steps": steps }))
+        .await;
+    assert_scope_refused(&pipe, "umbel:write:alpha umbel:write:main", "afd-pipe");
+    assert_eq!(runs.load(Ordering::SeqCst), 0);
+    // With the scopes, the same batch runs.
+    let granted = running
+        .result(
+            running.assertion().scopes(["umbel:read", "umbel:write"]),
+            "afd-batch",
+            json!({ "commands": steps }),
+        )
+        .await;
+    assert_eq!(granted["success"], json!(true), "{granted}");
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+    // A hidden command (cy reads none of the probe's spaces) and a name that does not exist answer
+    // alike, byte for byte: on their own, and as a batch's step beside a missing scope, where the
+    // 403 names only the other step's scope.
+    let cy = || as_person("cy", &["umbel:read"]);
+    for (tool, hidden, absent) in [
+        (
+            "afd-call",
+            json!({ "command": "probe-note", "input": { "space": "main", "text": "x" } }),
+            json!({ "command": "probe-gone", "input": { "space": "main", "text": "x" } }),
+        ),
+        (
+            "afd-batch",
+            json!({ "commands": [
+                { "command": "probe-note", "input": { "space": "main", "text": "x" } },
+                { "command": "fixture-touch", "input": {} },
+            ] }),
+            json!({ "commands": [
+                { "command": "probe-gone", "input": { "space": "main", "text": "x" } },
+                { "command": "fixture-touch", "input": {} },
+            ] }),
+        ),
+        (
+            "afd-pipe",
+            json!({ "steps": [{ "command": "probe-note" }, { "command": "fixture-count" }] }),
+            json!({ "steps": [{ "command": "probe-gone" }, { "command": "fixture-count" }] }),
+        ),
+        (
+            "probe-note",
+            json!({ "space": "main" }),
+            json!({ "space": "main" }),
+        ),
+    ] {
+        let hidden_reply = running.call(Some(&cy()), tool, hidden).await;
+        let absent_tool = if tool == "probe-note" {
+            "probe-gone"
+        } else {
+            tool
+        };
+        let absent_reply = running.call(Some(&cy()), absent_tool, absent).await;
+        assert_eq!(
+            stable(&hidden_reply).replace("probe-note", "probe-gone"),
+            stable(&absent_reply),
+            "{tool}"
+        );
+        assert_eq!(
+            hidden_reply.headers.get("www-authenticate"),
+            absent_reply.headers.get("www-authenticate"),
+            "{tool}"
+        );
+        if tool == "afd-batch" || tool == "afd-pipe" {
+            assert_scope_refused(&hidden_reply, "umbel:write:main", tool);
+        } else {
+            assert_eq!(hidden_reply.status, 200, "{tool}: {}", hidden_reply.text);
+            assert!(
+                hidden_reply.text.contains("COMMAND_NOT_FOUND"),
+                "{tool}: {}",
+                hidden_reply.text
+            );
+        }
+    }
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
+
+    // An assertion that keeps no Umbel scope gets one 403 for everything: a command that exists
+    // (refused before dispatch), a hidden one and a name that does not exist (both passed on and
+    // refused at layer 6), a batch of them, and a method that names no command, byte for byte.
+    for subject in ["ada", "cy"] {
+        let none = || as_person(subject, &["other:admin"]);
+        for (tool, arguments) in [
+            ("fixture-whoami", json!({})),
+            ("fixture-touch", json!({})),
+            ("probe-note", json!({ "space": "alpha" })),
+            ("probe-gone", json!({ "space": "alpha" })),
+            ("afd-call", note("alpha")),
+            ("afd-call", json!({ "command": "probe-gone" })),
+            ("afd-call", json!({ "command": "fixture-count" })),
+            (
+                "afd-batch",
+                json!({ "commands": [note("alpha"), { "command": "fixture-count" }] }),
+            ),
+        ] {
+            let reply = running.call(Some(&none()), tool, arguments.clone()).await;
+            assert_scope_refused(
+                &reply,
+                "umbel:read",
+                &format!("{subject} {tool} {arguments}"),
+            );
+        }
+        let listed = modern(
+            &running.client,
+            "tools/list",
+            json!({}),
+            &[(ASSERTION, &none())],
+        )
+        .await;
+        assert_scope_refused(&listed, "umbel:read", &format!("{subject} tools/list"));
+    }
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

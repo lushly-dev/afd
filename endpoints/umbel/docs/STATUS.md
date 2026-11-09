@@ -2060,7 +2060,8 @@ on another local branch and push to that remote name.
   doctor and introspection); **step 3 done 2026-11-08** (the host's scopes, access, shared state and limits),
   with its follow-up to AFD (hidden commands) **done 2026-11-08**; **step 7 done 2026-11-08** (the stores' exact
   filtering; **a shipped build serves `oauth`**); **step 4 done 2026-11-08** (the host's gateway mode; **a shipped
-  build serves `gateway`**); **step 5 next**. Last
+  build serves `gateway`**), with its follow-up to AFD (the decision before dispatch for a host's own layer) **done
+  2026-11-08**; **step 5 next**. Last
   verified 2026-11-03 against `main` at `e5b4e43c` (the specification's Status lists every file and line read; no Rust
   built), and for step 0a on 2026-11-07 against `main` at `ceefba8c` (below).
 - **Done:** [the specification](phases/5-auth-hosted/spec.md), with D106 to D130 decided and the architecture amendments they
@@ -2472,7 +2473,8 @@ on another local branch and push to that remote name.
   - **The surface** (`src/surfaces/http/gateway.rs`): section 6.3's layers with the gateway layer at 5, `/health`
     the only public route (no metadata), and AFD's admission (`Authorization::admit`) into a server holding Umbel's
     resolver, so steps 3 and 7 apply unchanged: the scope gate, the one answer, filtered listings, hidden commands,
-    the per-token and read limits, sealed positions. A call's missing scope is `INSUFFICIENT_SCOPE` after routing.
+    the per-token and read limits, sealed positions. A call's missing scope is `INSUFFICIENT_SCOPE` after routing
+    (superseded 2026-11-08 by the 403 before dispatch; see the follow-up's entry below).
   - **The doctor**: `auth.mode` passes; `auth.tls` loads the key set with the layer's own loader and names the
     channel, warning on the loopback leg without pins; `auth.subjects` lists the gateway among its namespace's
     subject sources.
@@ -2480,7 +2482,7 @@ on another local branch and push to that remote name.
     the per-IP limit; the per-caller limits after verification govern it. Every other connection keeps it.
   - **One deviation**: a gateway caller's missing scope is `INSUFFICIENT_SCOPE` after routing (before the
     confirmation gate and any person), not 5.2's 403 before dispatch, as AFD offers a host's own layer no
-    pre-dispatch decision; a follow-up to AFD. Its suggestion names a new assertion, never a token (AFD's additive
+    pre-dispatch decision; a follow-up to AFD. **Closed 2026-11-08** by the follow-up's entry below. Its suggestion names a new assertion, never a token (AFD's additive
     `ProtectedResource::with_scope_source`).
   - **Review**: a mutation run removed each security check in turn (44 mutants, all killed). An independent security
     review found no blocker, four improvements (pinned keys that could never verify, the `jti` retention untested,
@@ -2495,6 +2497,23 @@ on another local branch and push to that remote name.
     plugin crate changed; `umbel-testkit-idp`'s `GatewaySigner` is `Clone`; the afd crate gains
     `ProtectedResource::with_scope_source`. Choices are in the specification's
     [Amendments from step 4](phases/5-auth-hosted/spec.md#amendments-from-step-4).
+- **Done:** step 4's follow-up to AFD, the decision before dispatch for a host's own layer, 2026-11-08, on
+  `lush/afd-predispatch-scope-decision`: `spec/authorization.md` M6 specifies "A host's own layer", and AFD's Rust
+  server exposes the bearer layer's own decision as `McpServer::pre_dispatch_check` (`PreDispatchCheck::decide`,
+  `PreDispatch`, and `ScopeChallenge` for a host's own scheme); `BearerLayer` runs the same value. Umbel's gateway
+  layer runs it after admitting the caller, so a gateway caller's missing scope is 5.2's 403 before dispatch,
+  `WWW-Authenticate: Umbel-Gateway realm="umbel", error="insufficient_scope", scope="<missing>"`, with AFD's body and
+  the gateway's suggestion; layer 6's 403 in mode `gateway` is now the same body and challenge, so an assertion with
+  no Umbel scope gets one answer for every name. The parity tests found that AFD asked the resolver about a grouped
+  call's tool name even when it was a hidden command's; AFD now decides a grouped call that resolves to no command on
+  the required scopes alone. An independent review found one blocker, fixed: a call without an `action` of a tool
+  that is both a group and a command, whose members the caller was shown none of, was decided as a group while the
+  router ran the command (without its scopes under the static rule with filtered listings); AFD now names it as the
+  router does. Its three improvements and two nits are fixed too. Tests: AFD's `tests/server_auth_pre_dispatch.rs` (every request of a matrix through the
+  bearer layer and a host layer, byte for byte, in every strategy, under the static rule and a scope-naming resolver
+  that hides commands), `tests/gateway_mode.rs`, and unit tests in `src/surfaces/http/gateway.rs` and
+  `src/auth/gateway.rs`. Choices are in the specification's
+  [Amendments from AFD's pre-dispatch decision](phases/5-auth-hosted/spec.md#amendments-from-afds-pre-dispatch-decision).
 - **Not done:** steps 5, 6 and 8 to 12 of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan).
 - **Next:** step 5 (it needs 3, 0c and 0d); 8 needs 0e and 3; 9 and 11 need 3. Heavy steps follow the plan's build
   note. Steps 5 to 12 take `umbel-testkit-idp` from `[dev-dependencies]`. A gateway user is proven only on the
@@ -2668,3 +2687,4 @@ on another local branch and push to that remote name.
 | 2026-11-08 | Phase 5 step 2c | The host's doctor and introspection: every `auth.*` check of section 6.1 (with `auth.ca_files`), run as the verifier would ask each issuer and never printing a secret, token, key or remote value; `workspace-doctor` the operator's alone in a hosted mode; `auth-show` with exactly section 10.3's members; `workspace-show`'s hosted answer (no name or path, only readable spaces); `[auth.issuers.<alias>] ca_file`, trusted for its issuer alone and only while its roots are valid; the test kit's `TestCa::valid_between` and `TestIdp::start_with_ca`. An independent security review found one blocker and eight improvements, all fixed with regression tests. Serving `oauth` stays refused until steps 3 and 7. Committed locally on `lush/umbel-p5-2c-doctor`, not pushed |
 | 2026-11-08 | Phase 5 step 3 | The host's scopes, access, shared state and limits: section 5.2's policy for Umbel's `ScopeResolver` and the scope gate (space-qualified verbs, every verb implying `read` in its space, unqualified needs for space-less commands, a token with no Umbel scope refused everywhere), section 5.4's one answer with `Caller` in `reader_filter` on every surface, the listings of 9.4 with the plugin listings, the shared nonce store in approvals, the per-token and read limits, and `http.trusted_proxies` (PROXY protocol version 2 from listed peers only); `oauth` still not served until step 7 |
 | 2026-11-08 | Phase 5 step 4 | The host's gateway mode: the pinned channel (a pinned certificate on a `ca` channel, or the connection's own loopback address), a verified, URL- and method-bound assertion spent once in the shared nonce store, section 4.1's mapping with `authentication` `gateway`, the scope ceiling's meet, no metadata, the doctor's gateway checks, and the gateway's own 401 and 403; a shipped build now serves `gateway`, and steps 3 and 7 apply to its callers |
+| 2026-11-08 | Phase 5 step 4 follow-up | The decision before dispatch for a host's own layer: AFD's `McpServer::pre_dispatch_check` (the bearer layer's own `PreDispatchCheck`, with `ScopeChallenge` for a host's scheme), specified in `spec/authorization.md` M6; Umbel's gateway layer runs it, so mode `gateway` answers 5.2's 403 before dispatch in the gateway's scheme, and layer 6 answers with the same 403. AFD decides a grouped call that resolves to no command on the required scopes alone |

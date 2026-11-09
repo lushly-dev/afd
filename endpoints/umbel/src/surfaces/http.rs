@@ -25,7 +25,8 @@
 //!
 //! **Mode `gateway`** (phase 5 step 4, section 4.4) serves the same layers with the gateway layer
 //! ([`gateway`]) in place of AFD's bearer layer at 5: the pinned channel and a verified,
-//! single-use assertion per request, and no protected-resource metadata.
+//! single-use assertion per request, no protected-resource metadata, and the bearer layer's own
+//! decision before dispatch (AFD's `PreDispatchCheck`), whose 403 is in the gateway's scheme.
 
 #[cfg(feature = "auth")]
 pub(crate) mod gateway;
