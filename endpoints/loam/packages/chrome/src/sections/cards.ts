@@ -143,3 +143,45 @@ export function cardOf({ row, url, recent, links }: CardView): HTMLElement {
 	// An `article`, not a `section`: six apps add no six landmarks.
 	return el('article', { class: 'card', 'aria-labelledby': id }, ...parts);
 }
+
+/** The project home's `Documents` card (documents specification, 8.3): per type, its count and five most recent. */
+export interface DocumentsCardView {
+	types: Array<{
+		title: string;
+		icon: string;
+		total: number;
+		recent: Array<LinkView & { updated: string; iso: string }>;
+	}>;
+}
+
+/** The shell's own card, after the apps' summaries: a heading per type with its count, and its recent ones. */
+export function documentsCardOf({ types }: DocumentsCardView): HTMLElement {
+	return el(
+		'article',
+		{ class: 'card', 'aria-labelledby': 'card-documents' },
+		el(
+			'h2',
+			{ id: 'card-documents' },
+			el('violet-icon', { icon: 'system/document', decorative: '' }),
+			'Documents'
+		),
+		...types.flatMap((type) => [
+			el('h3', { dir: 'auto' }, `${type.title}: ${numberOf(type.total)}`),
+			type.recent.length === 0
+				? el('p', { class: 'muted' }, 'None yet')
+				: el(
+						'ul',
+						{ class: 'recent' },
+						...type.recent.map((item) =>
+							el(
+								'li',
+								{},
+								linkOrText(item),
+								el('span', { class: 'muted', 'aria-hidden': 'true' }, ' · '),
+								el('time', { class: 'muted', datetime: item.iso }, item.updated)
+							)
+						)
+					),
+		])
+	);
+}

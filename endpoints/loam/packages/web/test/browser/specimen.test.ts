@@ -136,7 +136,8 @@ const APP_CAPTURES: [string, string][] = [
 	['app-rail-tooltip', 'button "Tracker"'],
 	['app-project-switcher-list', 'listbox "Projects"'],
 	['app-project-switcher-dialog', 'aria-label="Choose a project"'],
-	['app-list-tree', 'level 3, in Getting started'],
+	// Phase 2's step 11: an app's `tree` sidebar is `loam-tree`, nested, in place of the list's indented rows.
+	['app-tree', 'treeitem "Install, Five minutes"'],
 	['app-list-dual', 'region "In Atlas"'],
 	['app-part-header-crumbs', 'navigation "Location"'],
 	['app-status-action', 'button "Total 3"'],
@@ -192,7 +193,6 @@ const EDITOR_CAPTURES: [string, string[]][] = [
 			'button "Close"',
 		],
 	],
-	['editor-area-empty', ['region "Documents"', 'No documents are open']],
 	['editor-group', ['tablist "Documents"', 'tab "Plan, pinned"', 'tabpanel', 'Opening Roadmap']],
 	[
 		'editor-menu',
@@ -242,6 +242,51 @@ describe('P2-D10: Specimen captures of the editor area', () => {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+			}
+		}, 300_000);
+});
+
+/**
+ * The documents specification's D10 so far (step 11): the documents section's sidebar, with its row menu, its
+ * list, trash and empty state, and the New menu, comfortable and compact. A hostile title is text (D8).
+ */
+const DOCUMENTS_CAPTURES: [string, string[]][] = [
+	[
+		'documents-tree',
+		[
+			'tree "Documents"',
+			'treeitem "Recent" [expanded]',
+			'treeitem "Notes" [expanded]',
+			'treeitem "Roadmap" [selected]',
+			'treeitem "Trash" [expanded]',
+			'Old plan, Trashed',
+		],
+	],
+	[
+		'documents-tree-menu',
+		['menu "Actions for Roadmap"', 'menuitem "Open beside"', 'menuitem "Trash"'],
+	],
+	[
+		'documents-section',
+		['heading "Documents" [level=1]', 'table "Documents"', 'link "<img src=x onerror=alert(1)>"'],
+	],
+	['documents-section-trash', ['heading "Trash" [level=1]', 'button "Restore Old plan"']],
+	['documents-section-empty', ['No documents yet', 'button "New Blank note"', 'button "New Task"']],
+	['new-menu', ['menu "New"', 'group "Notes"', 'menuitem "Blank note"', 'group "Tasks"']],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string[]],
+	[`${id}-compact`, expected] as [string, string[]],
+]);
+
+describe('P2-D10: Specimen captures of the documents section and New', () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+			for (const [id, expected] of DOCUMENTS_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+				// A hostile title is text, never markup (D8).
+				expect(observation.channels.dom.normalized, id).not.toContain('<img src="x"');
 			}
 		}, 300_000);
 });

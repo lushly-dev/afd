@@ -12,19 +12,23 @@ const chain = (depth: number): unknown => {
 };
 
 describe('readTree', () => {
-	it('reads a tree depth first, with each row’s depth', () => {
+	it('reads a tree, each node with only the fields it may hold', () => {
 		expect(
 			readTree({
 				items: [
-					{ id: 'a', title: 'A', children: [{ id: 'a1', title: 'A1', description: 'one' }] },
+					{
+						id: 'a',
+						title: 'A',
+						extra: 'dropped',
+						children: [{ id: 'a1', title: 'A1', description: 'one' }],
+					},
 					{ id: 'b', title: 'B' },
 				],
 			})
 		).toEqual({
 			items: [
-				{ id: 'a', title: 'A', depth: 0 },
-				{ id: 'a1', title: 'A1', description: 'one', depth: 1, parent: 'A' },
-				{ id: 'b', title: 'B', depth: 0 },
+				{ id: 'a', title: 'A', children: [{ id: 'a1', title: 'A1', description: 'one' }] },
+				{ id: 'b', title: 'B' },
 			],
 		});
 	});
@@ -50,7 +54,7 @@ describe('readTree', () => {
 				.failure
 		).toBeDefined();
 		expect(readTree({ items: [{ id: 'x', title: '<img src=x>' }] })).toEqual({
-			items: [{ id: 'x', title: '<img src=x>', depth: 0 }],
+			items: [{ id: 'x', title: '<img src=x>' }],
 		});
 	});
 });

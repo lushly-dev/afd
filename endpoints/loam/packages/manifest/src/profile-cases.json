@@ -1265,7 +1265,7 @@
 			"key": "ui.project_summary"
 		},
 		{
-			"id": "not-yet-served-ui-new",
+			"id": "ui-new-served",
 			"base": "native",
 			"set": {
 				"/manifest_version": 2,
@@ -1277,10 +1277,48 @@
 					}
 				]
 			},
+			"accepted": true
+		},
+		{
+			"id": "ui-new-command-unknown",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-nowhere"
+					}
+				]
+			},
 			"accepted": false,
-			"code": "MANIFEST_SURFACE_UNAVAILABLE",
-			"key": "ui.new",
-			"suggestion": "until phase 2 serves it"
+			"code": "MANIFEST_COMMAND_UNKNOWN",
+			"key": "ui.new[0].command",
+			"suggestion": "Declare it in `commands`"
+		},
+		{
+			"id": "ui-new-needs-input",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					},
+					{
+						"title": "Greet",
+						"icon": "system/document",
+						"command": "hello-greet"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_NEEDS_INPUT",
+			"key": "ui.new[1].command",
+			"suggestion": "requires nothing"
 		},
 		{
 			"id": "version-keys-each-once",

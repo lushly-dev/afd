@@ -145,6 +145,8 @@ export const CEILINGS = Object.freeze({
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
 	editorMinified: 33_365,
+	documentsMinified: 45_000,
+	newMinified: 12_000,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -348,6 +350,16 @@ async function measurePage() {
 	// surfaces' `host()` its frames mount through.
 	const editor = closure(/^assets\/editor-/, afterSurfaces);
 	if (editor.size === 0) throw new Error('budget: the build has no `editor` chunk to measure');
+	// The documents section (documents specification, 8 and 12), loaded by the URL's chunk beside the editor
+	// area's, with `loam-tree` and `violet-tree`, which an app's tree sidebar loads this chunk for: in "the
+	// rest" of 2.4's order, after the surfaces.
+	const documents = closure(/^assets\/documents-/, afterSurfaces);
+	if (documents.size === 0)
+		throw new Error('budget: the build has no `documents` chunk to measure');
+	// The New menu with `violet-menu` (documents specification, 7 and 12), loaded on the New button's first
+	// press or the palette's first `new` query, after the surfaces as the rest are.
+	const newMenu = closure(/^assets\/new-menu-/, afterSurfaces);
+	if (newMenu.size === 0) throw new Error('budget: the build has no `new` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -379,6 +391,8 @@ async function measurePage() {
 		tooltipMinified: sizeOf(tooltip),
 		sectionsMinified: sizeOf(sections),
 		editorMinified: sizeOf(editor),
+		documentsMinified: sizeOf(documents),
+		newMinified: sizeOf(newMenu),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -454,6 +468,8 @@ const ROWS = [
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
 	['sectionsMinified', "The `sections` chunk, with the kernel's summary rows, minified"],
 	['editorMinified', "The chrome's `editor` chunk and its imports, minified"],
+	['documentsMinified', 'The `documents` chunk, with `loam-tree` and `violet-tree`, minified'],
+	['newMinified', 'The `new` chunk, with `violet-menu`, minified'],
 ];
 
 export async function measure() {

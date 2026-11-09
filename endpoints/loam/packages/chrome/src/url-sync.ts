@@ -257,14 +257,20 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		// area owns it, and a restored session shows no landing on the way (6).
 		if (editor || (state.section === 'documents' && state.active === null)) {
 			editor = true;
+			const failed = (cause: unknown) => {
+				editor = false;
+				(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
+				host.releaseMain?.(true);
+				reportError(cause);
+			};
 			await import('./editor/editor.js').then(
 				({ syncEditor }) => syncEditor(host as unknown as LoamShell),
-				(cause) => {
-					editor = false;
-					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
-					host.releaseMain?.(true);
-					reportError(cause);
-				}
+				failed
+			);
+			// Then the section's tree and, with no tab, its list, from a chunk of their own (8).
+			void import('./sections/documents.js').then(
+				({ syncDocuments }) => syncDocuments(host as unknown as LoamShell),
+				failed
 			);
 		}
 		// Main held busy for a persisted documents section that the route then left shows what it shows (6).

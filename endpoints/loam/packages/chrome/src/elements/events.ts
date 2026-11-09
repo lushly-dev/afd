@@ -5,6 +5,8 @@
 
 export type ChromeAction =
 	| { action: 'palette-open' }
+	/** The New button: its menu, with focus on its first item (documents specification, 7). */
+	| { action: 'new' }
 	| { action: 'toggle'; part: 'sidebar' | 'inspector' | 'panel' }
 	| { action: 'close'; part: 'sidebar' | 'inspector' | 'panel' }
 	| { action: 'maximize'; maximized: boolean }

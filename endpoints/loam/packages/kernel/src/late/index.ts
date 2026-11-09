@@ -18,7 +18,9 @@ import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
+import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
+import { createDocumentRows, type DocumentRows } from './palette-documents.js';
 import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
@@ -147,7 +149,14 @@ export async function createLateParts(
 	boot: readonly ZodCommandDefinition[],
 	deps: LateCommandDeps
 ): Promise<LateParts> {
-	const documents = createDocumentCheck(deps);
+	// The palette's titles are read again after any record is written (documents specification, 8.2).
+	let rows: DocumentRows | undefined;
+	const documents = createDocumentCheck({ ...deps, changed: () => rows?.changed() });
+	rows = createDocumentRows(
+		deps.store,
+		deps.scope,
+		(type) => documents.types().types.get(type)?.title
+	);
 	// Both chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
 	// either failing fails the late load whole (documents specification, Status, deviations 9 and 14).
 	const [{ createDocumentCommands, trashBefore }, { createEditorParts }] = await Promise.all([
@@ -168,7 +177,9 @@ export async function createLateParts(
 	editor = createEditorParts({ ...deps, lateScope, check: documents }, DOCUMENT_KIT);
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
 	// stage A's `hydrate` drops a record with no handler.
-	await editor.ensure(deps.scope.active().project);
+	// `loam.new.recent` too, registered with the late commands and read before `document-create` writes it (7).
+	const created = createNewParts({ ...deps, check: documents });
+	await Promise.all([editor.ensure(deps.scope.active().project), created.read]);
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);
@@ -181,7 +192,17 @@ export async function createLateParts(
 	const byName = new Map(
 		[
 			...boot,
-			...createShellCommands(deps),
+			...createShellCommands({
+				...deps,
+				editorOwner: editor.owner,
+				documentRows: rows,
+				instanceCommands: (instance) =>
+					new Set(
+						[...documents.types().types.values()].flatMap((type) =>
+							type.instance === instance ? type.instanceCommands : []
+						)
+					),
+			}),
 			...createAuthMutationCommands(deps.auth),
 			...createAppCommands({
 				...deps,
@@ -196,7 +217,13 @@ export async function createLateParts(
 			createProjectSummaryCommand(deps),
 			...createDocumentCommands({ ...deps, check: documents, editor }, DOCUMENT_KIT),
 			...editor.commands,
+			created.command,
 		].map((command) => [command.name, command])
+	);
+	// The New menu's `document-create { recent: true }` keeps its type and template first (documents specification, 7).
+	byName.set(
+		'document-create',
+		created.recording(byName.get('document-create') as ZodCommandDefinition)
 	);
 	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));

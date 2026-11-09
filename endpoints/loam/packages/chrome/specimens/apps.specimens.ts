@@ -278,19 +278,6 @@ export const [ProjectSwitcherDialog, ProjectSwitcherDialogCompact] = both(
 	},
 	{ inline: '390px', block: '480px' }
 );
-export const [ListTree, ListTreeCompact] = both(
-	'loam-list',
-	list((element) => {
-		// A `tree` sidebar's rows until `loam-tree`: one step per level, and each names its level and parent.
-		element.items = [
-			{ id: 'guides', title: 'Guides', depth: 0 },
-			{ id: 'start', title: 'Getting started', depth: 1, parent: 'Guides' },
-			{ id: 'install', title: 'Install', depth: 2, parent: 'Getting started' },
-			{ id: 'deep', title: 'Eighth level', depth: 7, parent: 'Seventh level' },
-		];
-	}),
-	{ inline: '260px', block: 'auto' }
-);
 export const [ListDual, ListDualCompact] = both(
 	'loam-list',
 	(wrapper) => {

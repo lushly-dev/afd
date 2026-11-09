@@ -811,6 +811,10 @@ export class LoamShell extends FASTElement {
 			case 'palette-open':
 				void this.openPalette();
 				break;
+			case 'new':
+				// The menu is a chunk of its own, loaded on the first press (documents specification, 7).
+				void import('../new/new-menu.js').then(({ openNew }) => openNew(this));
+				break;
 			case 'toggle':
 				void this.toggle(detail.part);
 				break;

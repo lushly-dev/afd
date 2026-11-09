@@ -138,6 +138,8 @@ export function createDocumentCommands(
 		template: optional(id),
 		title: optional(string()),
 		project,
+		// The New menu's: `loam.new.recent` keeps its type and template first (7), which `late` writes.
+		recent: optional(boolean()),
 	});
 	const listInput = strictObject({
 		type: optional(id),
@@ -329,9 +331,16 @@ export function createDocumentCommands(
 			"Create a document of a type from one of its templates, in the call's scope or a named project",
 		...UNDOABLE,
 		input: createInput,
-		jsonSchema: object({ type: ID_JSON, template: ID_JSON, title: STRING, project: PROJECT_JSON }, [
-			'type',
-		]),
+		jsonSchema: object(
+			{
+				type: ID_JSON,
+				template: ID_JSON,
+				title: STRING,
+				project: PROJECT_JSON,
+				recent: { type: 'boolean' },
+			},
+			['type']
+		),
 		async handler(input, context) {
 			const at = target(input.project, context);
 			if (isRefusal(at)) return at;

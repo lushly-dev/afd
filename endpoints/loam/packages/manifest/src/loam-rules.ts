@@ -72,21 +72,6 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/new' },
 ];
 
-/**
- * The version 2 keys no step has served yet, each refused as `MANIFEST_SURFACE_UNAVAILABLE` under
- * `manifest_version = 2`. **Delete the one line of the step that serves a key**, in the pull request
- * of that step, with the `not-yet-served-*` cases in `profile-cases.json` that name it (phase 2
- * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
- * that step. Step 4 served `app.resource_keys` (`resourceKeyRules`), with kernel interface 2, which
- * holds a `ManifestV2`, so nothing narrows a manifest any longer. Step 6 served the `tree` sidebar, whose
- * one rule, a `command`, the schema holds. Step 7 served `ui.project_summary` (`summaryRules`). Step 9
- * served `ui.documents` (`documentRules`, the documents specification's 2.1).
- */
-export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
-	// Step 11 serves `ui.new`. Its rules: `MANIFEST_COMMAND_UNKNOWN`, `MANIFEST_COMMAND_NEEDS_INPUT`.
-	{ pointer: '/ui/new' },
-];
-
 const holds = (document: unknown, key: VersionKey): boolean => {
 	const found = valueAt(document, key.pointer);
 	return key.value === undefined ? found !== undefined : found === key.value;
@@ -112,20 +97,13 @@ export function versionKeyFindings(document: unknown): Finding[] {
 	}));
 }
 
+/**
+ * A version 1 manifest's version 2 keys. Each version 2 key was refused as `MANIFEST_SURFACE_UNAVAILABLE`
+ * until the step that served it (phase 2 specification, 16, step 3); step 11 served the last, `ui.new`, and
+ * took that list and its loop away with it, so a later key arrives with a manifest version of its own.
+ */
 function versionRules(manifest: ManifestV2, found: Findings): void {
 	found.refusals.push(...versionKeyFindings(manifest));
-	// A version 1 manifest is told one thing at a time: the version first.
-	if (manifest.manifest_version === 1) return;
-	for (const key of NOT_YET_SERVED) {
-		if (holds(manifest, key)) {
-			found.refuse(
-				'MANIFEST_SURFACE_UNAVAILABLE',
-				key.pointer,
-				`${describeKey(key)} is part of phase 2, and no build serves it yet.`,
-				key.instead ?? `Remove ${describeKey(key)} until phase 2 serves it.`
-			);
-		}
-	}
 }
 
 function packedRules(manifest: ManifestV2, found: Findings): void {
@@ -415,7 +393,7 @@ function elementRules(surfaces: Surfaces, found: Findings): void {
 }
 
 function commandRules(manifest: ManifestV2, surfaces: Surfaces, found: Findings): void {
-	const declared = new Set((manifest.commands ?? []).map((command) => command.name));
+	const declared = new Map((manifest.commands ?? []).map((command) => [command.name, command]));
 	const check = (command: string | undefined, pointer: string): void => {
 		if (command !== undefined && !declared.has(command)) {
 			found.refuse(
@@ -436,6 +414,19 @@ function commandRules(manifest: ManifestV2, surfaces: Surfaces, found: Findings)
 	});
 	(surfaces.keybindings ?? []).forEach((binding, index) => {
 		check(binding.command, `/ui/surfaces/keybindings/${index}/command`);
+	});
+	// A creator's command, which New calls with `{}` (documents specification, 2.1).
+	(manifest.ui?.new ?? []).forEach(({ command }, index) => {
+		const pointer = `/ui/new/${index}/command`;
+		check(command, pointer);
+		if ((declared.get(command)?.input_schema as { required?: [] } | undefined)?.required?.length) {
+			found.refuse(
+				'MANIFEST_COMMAND_NEEDS_INPUT',
+				pointer,
+				`\`${command}\` needs input.`,
+				'Name a command whose input requires nothing.'
+			);
+		}
 	});
 }
 

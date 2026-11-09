@@ -178,6 +178,21 @@ export interface DocumentTypeV1 {
 	editorKind: 'native' | 'view';
 }
 
+/**
+ * One row of `new-list` (documents specification, 7): a type's template, created by `document-create`, or an
+ * app's `ui.new` creator, whose command needs no input.
+ */
+export type NewItemV1 =
+	| {
+			kind: 'document';
+			type: string;
+			template: string;
+			title: string;
+			icon: string;
+			recent: boolean;
+	  }
+	| { kind: 'creator'; instance: string; command: string; title: string; icon: string };
+
 /** The store key of a document's content, in its type's `store` (documents specification, 3). */
 export function documentContentKey(document: string): string {
 	return `doc/${document}`;

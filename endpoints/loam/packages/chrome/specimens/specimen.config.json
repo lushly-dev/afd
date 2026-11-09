@@ -271,18 +271,6 @@
 			"exportName": "ProjectSwitcherDialogCompact"
 		},
 		{
-			"id": "app-list-tree",
-			"title": "Loam/Apps/ListTree",
-			"module": "./apps.specimens.ts",
-			"exportName": "ListTree"
-		},
-		{
-			"id": "app-list-tree-compact",
-			"title": "Loam/Apps/ListTreeCompact",
-			"module": "./apps.specimens.ts",
-			"exportName": "ListTreeCompact"
-		},
-		{
 			"id": "app-list-dual",
 			"title": "Loam/Apps/ListDual",
 			"module": "./apps.specimens.ts",
@@ -511,18 +499,6 @@
 			"exportName": "EditorAreaCompact"
 		},
 		{
-			"id": "editor-area-empty",
-			"title": "Loam/Editor/AreaEmpty",
-			"module": "./editor.specimens.ts",
-			"exportName": "EditorAreaEmpty"
-		},
-		{
-			"id": "editor-area-empty-compact",
-			"title": "Loam/Editor/AreaEmptyCompact",
-			"module": "./editor.specimens.ts",
-			"exportName": "EditorAreaEmptyCompact"
-		},
-		{
 			"id": "editor-group",
 			"title": "Loam/Editor/Group",
 			"module": "./editor.specimens.ts",
@@ -569,6 +545,90 @@
 			"title": "Loam/Editor/FrameFailedCompact",
 			"module": "./editor.specimens.ts",
 			"exportName": "EditorFrameFailedCompact"
+		},
+		{
+			"id": "documents-tree",
+			"title": "Loam/Documents/DocumentsTree",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTree"
+		},
+		{
+			"id": "documents-tree-compact",
+			"title": "Loam/Documents/DocumentsTreeCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTreeCompact"
+		},
+		{
+			"id": "documents-tree-menu",
+			"title": "Loam/Documents/DocumentsTreeMenu",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTreeMenu"
+		},
+		{
+			"id": "documents-tree-menu-compact",
+			"title": "Loam/Documents/DocumentsTreeMenuCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTreeMenuCompact"
+		},
+		{
+			"id": "app-tree",
+			"title": "Loam/Documents/AppTree",
+			"module": "./documents.specimens.ts",
+			"exportName": "AppTree"
+		},
+		{
+			"id": "app-tree-compact",
+			"title": "Loam/Documents/AppTreeCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "AppTreeCompact"
+		},
+		{
+			"id": "documents-section",
+			"title": "Loam/Documents/DocumentsSection",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSection"
+		},
+		{
+			"id": "documents-section-compact",
+			"title": "Loam/Documents/DocumentsSectionCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSectionCompact"
+		},
+		{
+			"id": "documents-section-trash",
+			"title": "Loam/Documents/DocumentsSectionTrash",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSectionTrash"
+		},
+		{
+			"id": "documents-section-trash-compact",
+			"title": "Loam/Documents/DocumentsSectionTrashCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSectionTrashCompact"
+		},
+		{
+			"id": "documents-section-empty",
+			"title": "Loam/Documents/DocumentsSectionEmpty",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSectionEmpty"
+		},
+		{
+			"id": "documents-section-empty-compact",
+			"title": "Loam/Documents/DocumentsSectionEmptyCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsSectionEmptyCompact"
+		},
+		{
+			"id": "new-menu",
+			"title": "Loam/Documents/NewMenu",
+			"module": "./documents.specimens.ts",
+			"exportName": "NewMenu"
+		},
+		{
+			"id": "new-menu-compact",
+			"title": "Loam/Documents/NewMenuCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "NewMenuCompact"
 		}
 	]
 }
