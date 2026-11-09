@@ -454,9 +454,9 @@ describe('P2-D9: references and embed', () => {
 							state: 'ready',
 							heading: 'C',
 							text: 'C text',
-							inner: [{ state: 'ready', heading: 'D', text: 'D text', inner: [deep('Document')] }],
+							inner: [{ state: 'ready', heading: 'D', text: 'D text', inner: [deep('E')] }],
 						},
-						deep('Document'),
+						deep('A'),
 					],
 				},
 				{ state: 'ready', heading: 'Vaulted', text: 'Secret text', inner: [] },
@@ -621,14 +621,14 @@ const tabsByGroup = async (page: Page) =>
 	).data.groups.map((group) => group.tabs.map((tab) => tab.document));
 
 describe('P2-D5: a view editor that cannot move with its draft, where the browser has no moveBefore', () => {
-	it('P2-D5: saves an unsaved view editor before another’s move takes it to a new group, and its view shows what it saved', async () => {
+	it('P2-D5: saves an unsaved view editor before the person’s own move takes it to a new group, and its view shows what it saved', async () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
 		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
 		const note = await createNote(page, 'Beside it');
 		await open(page, note, { preview: false });
 		const { sheet } = await draftSheet(page, 'Moved', 'Moved draft', { preview: false });
-		await agentCall(page, 'editor-move', { tab: 't2', group: 'new' });
+		await personMove(page, 'Moved');
 		await expect.poll(() => storedAt(page, sheet)).toBe('Moved draft');
 		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
 		await editorIdle(page);
@@ -638,14 +638,14 @@ describe('P2-D5: a view editor that cannot move with its draft, where the browse
 		await opened.context.close();
 	}, 120_000);
 
-	it('P2-D5: refuses the move when that save rejects: the tab comes back, its draft and its mark kept in the same view, with a danger toast', async () => {
+	it('P2-D5: refuses an agent’s move with no save: the tab comes back, to a new group as its own went, its draft and its mark kept in the same view, with a danger toast', async () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
 		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
 		const note = await createNote(page, 'Left alone');
 		await open(page, note, { preview: false });
 		// The sheet alone in its group, which goes with it when an agent moves it.
-		const { sheet, frame } = await draftSheet(page, 'Refused', 'please reject this', {
+		const { sheet, frame } = await draftSheet(page, 'Refused', 'An agent may not save this', {
 			group: 'beside',
 		});
 		await agentCall(page, 'editor-move', { tab: 't2', group: 'g1' });
@@ -661,8 +661,12 @@ describe('P2-D5: a view editor that cannot move with its draft, where the browse
 		await editorIdle(page);
 		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
 		// The same view, never reloaded, with the draft; the tab still unsaved, so a trash waits.
-		expect(await frame.locator('#text').inputValue()).toBe('please reject this');
+		expect(await frame.locator('#text').inputValue()).toBe('An agent may not save this');
 		expect(await marked(page, 't2')).toBe(true);
+		// Another's move saves nothing of the person's (T-S2).
+		expect(
+			await frame.evaluate(() => (window as unknown as { sheet: { saves: number } }).sheet.saves)
+		).toBe(0);
 		expect(
 			(
 				(await agentCall(page, 'document-trash', { document: sheet })) as {
@@ -671,6 +675,157 @@ describe('P2-D5: a view editor that cannot move with its draft, where the browse
 			).error?.code
 		).toBe('EDITOR_TAB_DIRTY');
 		expect(await storedAt(page, sheet)).toBe('');
+		await opened.context.close();
+	}, 120_000);
+	it('P2-D5: refuses the person’s own move when its save rejects, keeping the tab in its group with its draft', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
+		const note = await createNote(page, 'Neighbour');
+		await open(page, note, { preview: false });
+		const { sheet, frame } = await draftSheet(page, 'Rejected', 'please reject this', {
+			preview: false,
+		});
+		await personMove(page, 'Rejected');
+		await expect
+			.poll(async () =>
+				(await entriesOf(page)).some(
+					(entry) =>
+						entry.command === 'toast-show' &&
+						String((entry.input as { message?: string }).message).includes('stays in its group')
+				)
+			)
+			.toBe(true);
+		await editorIdle(page);
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note, sheet]]);
+		expect(await frame.locator('#text').inputValue()).toBe('please reject this');
+		expect(await marked(page, 't2')).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+});
+
+/** The person's own `Move to a new group`, from the tab's menu by the keyboard. */
+async function personMove(page: Page, title: string): Promise<void> {
+	await page.locator('loam-editor-group [role="tab"]', { hasText: title }).focus();
+	await page.keyboard.press('Shift+F10');
+	await page
+		.locator('loam-editor-group [role="menuitem"]', { hasText: 'Move to a new group' })
+		.click();
+}
+
+/** The element that has focus, through every shadow root, and the editor frame's document around it. */
+const focusedIn = (page: Page) =>
+	page.evaluate(() => {
+		let at: Element | null = document.activeElement;
+		const classes: string[] = [];
+		while (at?.shadowRoot?.activeElement) {
+			classes.push((at as HTMLElement).className);
+			at = at.shadowRoot.activeElement;
+		}
+		classes.push((at as HTMLElement | null)?.className ?? '');
+		let node: Node | null = at;
+		while (node && (node as Element).localName !== 'loam-editor-frame')
+			node =
+				node.parentNode instanceof ShadowRoot ? node.parentNode.host : (node.parentNode ?? null);
+		return {
+			tag: at?.localName ?? null,
+			className: classes.join(' '),
+			document: (node as unknown as { document?: string } | null)?.document ?? null,
+		};
+	});
+
+describe('P2-D10: focus in links and embeds', () => {
+	it('P2-D10: Enter on an inspector row opens its document beside and focuses its editor', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const a = await createNote(page, 'Holder');
+		const b = await createNote(page, 'Target');
+		await kernelCall(page, 'document-link-add', { from: a, to: b });
+		await open(page, a);
+		await kernelCall(page, 'layout-set', { inspector: { open: true } });
+		const row = page.locator('loam-inspector notes-inspector .open', { hasText: 'Target' }).first();
+		await row.waitFor();
+		await row.focus();
+		await page.keyboard.press('Enter');
+		await expect.poll(async () => (await focusedIn(page)).document).toBe(b);
+		expect((await focusedIn(page)).tag).toBe('textarea');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D10: removing an embed focuses the next Remove, else the previous, else Embed, each named after its document', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const a = await createNote(page, 'Outer');
+		const b = await createNote(page, 'Beta');
+		const c = await createNote(page, 'Gamma');
+		await agentCall(page, 'notes-content-set', { document: a, text: 'Two embeds', embeds: [b, c] });
+		await open(page, a);
+		const remove = page.locator('loam-editor-frame:not([hidden]) violet-button.unembed');
+		await expect.poll(() => remove.first().getAttribute('aria-label')).toBe('Remove embed: Beta');
+		await remove.first().click();
+		await expect.poll(async () => (await focusedIn(page)).className).toContain('unembed');
+		await expect.poll(() => remove.first().getAttribute('aria-label')).toBe('Remove embed: Gamma');
+		await remove.first().click();
+		await expect.poll(async () => (await focusedIn(page)).className).toMatch(/\bembed\b/);
+		expect(await remove.count()).toBe(0);
+		await opened.context.close();
+	}, 120_000);
+});
+
+describe('P2-D9: an embed is its own', () => {
+	it('P2-D9: an embedded editor’s dirty and selection events never reach the embedding tab, and an embed removed mid-render mounts nothing', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const a = await createNote(page, 'Embedding');
+		const b = await createNote(page, 'Embedded');
+		await agentCall(page, 'notes-content-set', { document: a, text: 'Holds', embeds: [b] });
+		await open(page, a);
+		const events = await heard(page);
+		const sent = await page.evaluate(() => {
+			const frame = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-editor-frame:not([hidden])');
+			const editor = frame?.querySelector('loam-mount')?.shadowRoot?.querySelector('notes-editor');
+			const inner = editor?.shadowRoot
+				?.querySelector('loam-embed')
+				?.shadowRoot?.querySelector('loam-mount')
+				?.shadowRoot?.querySelector('notes-embed');
+			if (!inner) return false;
+			const send = (type: string, detail: unknown) =>
+				inner.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
+			send('loam-editor-dirty', { dirty: true });
+			send('loam-editor-selection', { kind: 'text-range', start: 0, end: 1 });
+			return true;
+		});
+		expect(sent).toBe(true);
+		await editorIdle(page);
+		expect(await marked(page, 't1')).toBe(false);
+		expect((await events()).some((event) => event.command === 'editor-selection-set')).toBe(false);
+		// An embed taken off the page while it still reads mounts nothing (G-S3).
+		const left = await page.evaluate(async (document) => {
+			const main = window.document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-main');
+			const embed = window.document.createElement('loam-embed') as HTMLElement & {
+				document: string;
+			};
+			embed.document = document;
+			main?.append(embed);
+			embed.remove();
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			return embed.shadowRoot?.querySelectorAll('loam-mount, loam-view-frame').length ?? 0;
+		}, b);
+		expect(left).toBe(0);
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: Mod+S inside a view editor’s frame saves it, and its tab goes clean', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { sheet, frame } = await draftSheet(page, 'Saved inside', 'Saved by its own chord');
+		await frame.locator('#text').press('ControlOrMeta+s');
+		await expect.poll(() => storedAt(page, sheet)).toBe('Saved by its own chord');
+		await expect.poll(() => marked(page, 't1')).toBe(false);
 		await opened.context.close();
 	}, 120_000);
 });

@@ -30,20 +30,30 @@ export const EMBED_DEPTH_MAX = 3;
 type State = 'loading' | 'ready' | 'link' | 'unavailable' | 'deep';
 
 const template = html<LoamEmbed>`
-	<div class="embed" role="group" aria-label="${(x) => `Embedded: ${x.heading}`}">
+	<div
+		class="embed"
+		role="group"
+		aria-label="${(x) => `Embedded: ${x.heading}`}"
+		aria-description="Read-only"
+	>
 		<p class="head" ?hidden="${(x) => x.state !== 'ready' && x.state !== 'link'}">
-			<violet-icon class="icon" name="${(x) => x.icon}" aria-hidden="true"></violet-icon>
+			<violet-icon class="icon" icon="${(x) => x.icon}" decorative></violet-icon>
 			${(x) =>
 				x.url
 					? html<LoamEmbed>`<a href="${(y) => y.url}">${(y) => y.heading}</a>`
 					: html<LoamEmbed>`<span>${(y) => y.heading}</span>`}
 		</p>
-		<p class="note" ?hidden="${(x) => x.state === 'ready' || x.state === 'link'}">
+		<p
+			class="note"
+			role="status"
+			data-code="${(x) => (x.state === 'deep' ? 'EMBED_DEPTH_EXCEEDED' : '')}"
+			?hidden="${(x) => x.state === 'ready' || x.state === 'link'}"
+		>
 			${(x) =>
 				x.state === 'loading'
 					? 'Loading…'
 					: x.state === 'deep'
-						? 'Embedded too deeply to show (EMBED_DEPTH_EXCEEDED)'
+						? `${x.heading} is embedded too deeply, or in itself, to show here`
 						: 'Not available'}
 		</p>
 		<div class="body"></div>
@@ -81,6 +91,9 @@ const styles = css`
 		color: var(--color-text-secondary);
 	}
 	a {
+		display: inline-flex;
+		align-items: center;
+		min-block-size: var(--size-target-compact);
 		color: var(--color-text-primary);
 	}
 	a:focus-visible {
@@ -187,10 +200,10 @@ export class LoamEmbed extends FASTElement {
 		}
 	}
 
-	#fail(state: State): void {
+	#fail(state: State, heading = 'Document'): void {
 		this.#drop();
 		this.url = '';
-		this.heading = 'Document';
+		this.heading = heading;
 		this.state = state;
 	}
 
@@ -198,8 +211,15 @@ export class LoamEmbed extends FASTElement {
 	async #render(): Promise<void> {
 		const turn = ++this.#rendering;
 		const { documents, embeds } = this.#around();
-		if (embeds + 1 > EMBED_DEPTH_MAX || documents.includes(this.document))
-			return this.#fail('deep');
+		// A stop names its document only once the reader may read it, so it says nothing of a refused one.
+		if (embeds + 1 > EMBED_DEPTH_MAX || documents.includes(this.document)) {
+			const kernel = this.#shell?.kernel as LoamKernelV2 | undefined;
+			const read = await kernel?.call<DocumentRecordV1>('document-get', {
+				document: this.document,
+			});
+			if (turn === this.#rendering) this.#fail('deep', read?.data?.title ?? 'This document');
+			return;
+		}
 		const kernel = this.#shell?.kernel as LoamKernelV2 | undefined;
 		if (!kernel) return this.#fail('unavailable');
 		this.#stop ??= kernel.subscribe((event) => this.#heard(event));

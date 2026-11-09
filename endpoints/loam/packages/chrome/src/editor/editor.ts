@@ -323,6 +323,8 @@ export class EditorController implements FrameListener {
 			}
 		});
 		this.#moved = undefined;
+		for (const [at, { id }] of state.groups.entries())
+			this.#groups.get(id)?.toggleAttribute('data-lead', at === 0);
 		for (const element of gone) holdGroup(element, this.#holding);
 		releaseGroups(this.#holding);
 		void this.#reconcile();

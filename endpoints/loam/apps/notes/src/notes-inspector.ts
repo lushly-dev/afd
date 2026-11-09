@@ -30,7 +30,7 @@ const STATUS: Readonly<Record<string, string>> = {
 
 const list = (heading: string, rows: (x: NotesInspector) => Row[]) => html<NotesInspector>`
 	<section aria-label="${heading}">
-		<h2>${heading}</h2>
+		<h3>${heading}</h3>
 		<p class="none" ?hidden="${(x) => rows(x).length > 0}">None</p>
 		<ul ?hidden="${(x) => rows(x).length === 0}">
 			${repeat(
@@ -63,7 +63,7 @@ const styles = css`
 	.failed:empty {
 		display: none;
 	}
-	h2 {
+	h3 {
 		margin: 0 0 var(--space-stack-xs);
 		font-size: var(--type-label-sm-size);
 		line-height: var(--type-label-sm-line);
@@ -143,6 +143,13 @@ export class NotesInspector extends FASTElement implements LoamEditorElementV1 {
 		} catch (cause) {
 			this.failure = cause instanceof Error ? cause.message : String(cause);
 		}
+	}
+
+	/** Its first control takes focus, as the shell asks when it replaces an inspector that had it (A-B1). */
+	focusFirst(): boolean {
+		const first = this.shadowRoot?.querySelector<HTMLElement>('.open');
+		first?.focus();
+		return !!first;
 	}
 
 	documentChanged(_change: DocumentChangeV1): void {

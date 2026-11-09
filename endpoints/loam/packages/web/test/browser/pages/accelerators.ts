@@ -12,7 +12,8 @@ import {
 	recordSession,
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
-import { MemoryAdapter } from '@lushly-dev/local-db';
+import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
+import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 
 const percentile = (values: number[], p: number) => {
 	const sorted = [...values].sort((a, b) => a - b);
@@ -48,30 +49,35 @@ async function measure() {
 		documents: 2_000,
 		links: 20_000,
 	});
-	const store = new MemoryAdapter();
-	await store.batch([
-		...linked.documents.map((record) => ({
-			method: 'PUT' as const,
-			path: `/document/${record.id}`,
-			body: record,
-		})),
-		...linked.links.map((link) => ({
-			method: 'PUT' as const,
-			path: `/${LINK_TABLE}/${link.id}`,
-			body: link,
-		})),
-	]);
+	// Over IndexedDB, as the host keeps its store, the bound's reading; and over memory, a second reading.
+	const timed = async (store: DataAdapter) => {
+		await store.batch([
+			...linked.documents.map((record) => ({
+				method: 'PUT' as const,
+				path: `/document/${record.id}`,
+				body: record,
+			})),
+			...linked.links.map((link) => ({
+				method: 'PUT' as const,
+				path: `/${LINK_TABLE}/${link.id}`,
+				body: link,
+			})),
+		]);
+		const began = performance.now();
+		const found = await createDocumentIndex(store).of(linked.documents[0]?.id as string);
+		return { ms: performance.now() - began, found: found.out.length + found.in.length };
+	};
 	const linkedFirst = linked.documents[0]?.id as string;
-	start = performance.now();
-	const held = await createDocumentIndex(store).of(linkedFirst);
-	const indexMs = performance.now() - start;
+	const indexed = await timed(new IndexedDbAdapter({ name: `loam-a4-${Date.now()}` }));
+	const memory = await timed(new MemoryAdapter());
 
 	return {
 		a4: {
 			documents: linked.documents.length,
 			links: linked.links.length,
-			totalMs: indexMs,
-			found: held.out.length + held.in.length,
+			totalMs: indexed.ms,
+			memoryMs: memory.ms,
+			found: indexed.found,
 			expected:
 				linked.links.filter((link) => link.from === linkedFirst || link.to === linkedFirst).length +
 				linked.links.filter((link) => link.from === linkedFirst && link.to === linkedFirst).length,

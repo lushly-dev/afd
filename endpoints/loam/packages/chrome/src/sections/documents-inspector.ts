@@ -42,10 +42,14 @@ async function activeDocument(kernel: LoamKernelV2): Promise<string | undefined>
 	return group?.tabs.find((tab) => tab.id === group.active)?.document;
 }
 
-function drop(shell: LoamShell): void {
+function drop(shell: LoamShell, part?: HTMLElement | null): void {
 	const was = held.get(shell);
 	held.delete(shell);
 	if (!was?.mount) return;
+	// The part's own heading and empty state again, once nothing of a type shows there (A-S3).
+	part?.setAttribute('heading', 'Inspector');
+	const empty = part?.querySelector<HTMLElement>('loam-empty-state');
+	if (empty) empty.hidden = false;
 	try {
 		void (was.mount.surface as LoamEditorElementV1 | null)?.dispose?.();
 	} catch (cause) {
@@ -90,8 +94,18 @@ export async function syncInspector(
 			: '';
 	const was = held.get(shell);
 	if (was?.key === key) return !!was.mount;
-	drop(shell);
-	if (!part || !record || !type || element === undefined) return false;
+	// Focus in the inspector it replaces goes with the person: into the editor its open made active, else into
+	// the new inspector, else onto the part (5.8; A-B1).
+	const focused = !!was?.mount?.matches(':focus-within');
+	drop(shell, part);
+	if (!part || !record || !type || element === undefined) {
+		if (focused && part) focusAfter(shell, part);
+		// No inspector for the active type: an open part would be a landmark with nothing in it, beside a toggle
+		// that says the section has none, so it closes (A-S3).
+		if (shows && shell.presentation.inspector !== 'closed')
+			await kernel.call('layout-set', { inspector: { open: false } });
+		return false;
+	}
 	const host = (shell.apps as { host?(): SurfaceHostV1 } | null)?.host?.();
 	if (!host) return false;
 	const mine: Held = { key, mount: null, document: record.id };
@@ -118,8 +132,43 @@ export async function syncInspector(
 		document: reference,
 	});
 	part.setAttribute('heading', `${type.title} details`);
+	const empty = part.querySelector<HTMLElement>('loam-empty-state');
+	if (empty) empty.hidden = true;
 	part.prepend(mine.mount);
+	if (focused) focusAfter(shell, part, mine.mount);
 	return true;
+}
+
+/** Whether the inspector's own `document-open` came while it held focus, which then follows the document (A-B1). */
+let opened = false;
+
+/**
+ * Where focus goes once an inspector that held it is replaced: into the active tab's editor after the inspector's
+ * own open, as Enter on a tab does (5.8); else the new inspector's first control; else the part.
+ */
+function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): void {
+	const open = opened;
+	opened = false;
+	const kernel = shell.kernel as LoamKernelV2;
+	requestAnimationFrame(async () => {
+		const read = open
+			? await kernel.call<{
+					activeGroup: string;
+					groups: Array<{ id: string; active: string | null }>;
+				}>('editor-get')
+			: undefined;
+		const active = read?.data?.groups.find((group) => group.id === read.data?.activeGroup)?.active;
+		const frame =
+			active &&
+			shell.shadowRoot?.querySelector<HTMLElement & { focusEditor(): void }>(
+				`loam-main loam-editor-frame[data-tab="${active}"]`
+			);
+		if (frame) return frame.focusEditor();
+		if ((mount?.surface as (HTMLElement & { focusFirst?(): boolean }) | null)?.focusFirst?.())
+			return;
+		part.setAttribute('tabindex', '-1');
+		part.focus();
+	});
 }
 
 /** A change to the inspector's document or its links reaches it, as an editor's does (5.7). */
@@ -128,6 +177,7 @@ function hear(shell: LoamShell, event: KernelEventV2, resync: () => void): void 
 	const surface = now?.mount?.surface as LoamEditorElementV1 | null | undefined;
 	// A mutation's, never a query's: the inspector's own reads are queries, and would read again forever.
 	if (!event.success || !event.mutation) return;
+	if (event.command === 'document-open' && now?.mount?.matches(':focus-within')) opened = true;
 	if (surface && (event.document === now?.document || /^document-/.test(event.command))) {
 		try {
 			surface.documentChanged?.({

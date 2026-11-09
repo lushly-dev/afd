@@ -81,7 +81,8 @@ const template = html<NotesEditor>`
 			label="Find a document"
 			@input="${(x) => x.find()}"
 		></violet-text-field>
-		<ul class="found" aria-label="Documents">
+		<p class="count" role="status">${(x) => x.counted}</p>
+		<ul class="found" aria-label="Documents" ?hidden="${(x) => x.found.length === 0}">
 			${repeat(
 				(x) => x.found,
 				html<Found, NotesEditor>`<li>
@@ -99,7 +100,10 @@ const template = html<NotesEditor>`
 			(x) => x.embeds,
 			html<string, NotesEditor>`<li>
 				<loam-embed :document="${(id) => id}"></loam-embed>
-				<violet-button class="unembed" @click="${(id, c) => c.parent.unembed(id)}"
+				<violet-button
+					class="unembed"
+					aria-label="${(id, c) => `Remove embed: ${c.parent.titles[id] ?? 'document'}`}"
+					@click="${(id, c) => c.parent.unembed(id)}"
 					>Remove embed</violet-button
 				>
 			</li>`
@@ -163,8 +167,17 @@ const styles = css`
 	.picker[hidden],
 	.tools[hidden],
 	.embeds[hidden],
-	.none[hidden] {
+	.none[hidden],
+	.found[hidden] {
 		display: none;
+	}
+	.count {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	ul {
 		display: grid;
@@ -228,6 +241,10 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 	/** The picker open, for a link or an embed, or null. */
 	declare picking: 'link' | 'embed' | null;
 	declare found: Found[];
+	/** The picker's count of what it found, read out as it changes. */
+	declare counted: string;
+	/** Each embedded document's title, for its Remove button's name. */
+	declare titles: Record<string, string>;
 	/** The text as last read or saved: the draft is dirty when it differs. */
 	#saved = '';
 	/** The embeds as last read or saved, as a key. */
@@ -251,6 +268,8 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 		this.embeds = [];
 		this.picking = null;
 		this.found = [];
+		this.counted = '';
+		this.titles = {};
 	}
 
 	override connectedCallback(): void {
@@ -430,6 +449,8 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 			(await this.context?.documents?.list({ ...(query ? { query } : {}), limit: 20 })) ?? [];
 		if (turn !== this.#finding) return;
 		this.found = found.map(({ id, title }) => ({ id, title }));
+		// Said politely, as the list changes under the field (A-S5).
+		this.counted = found.length === 1 ? '1 document' : `${found.length} documents`;
 	}
 
 	/** A link's token inserted at the caret, or an embed added, and the picker closed. */
@@ -446,9 +467,30 @@ export class NotesEditor extends FASTElement implements LoamEditorElementV1 {
 		this.#report();
 	}
 
+	/** Remove an embed; focus goes to the next Remove, else the previous, else `Embed` (A-B2). */
+	/** The embeds' titles, read through the `documents` grant as the list changes. */
+	embedsChanged(): void {
+		const documents = this.context?.documents;
+		if (!documents || !this.embeds) return;
+		void Promise.all(
+			this.embeds.map(async (id) => [id, (await documents.get(id))?.title ?? 'document'] as const)
+		).then((pairs) => {
+			this.titles = Object.fromEntries(pairs);
+		});
+	}
+
 	unembed(id: string): void {
+		const at = this.embeds.indexOf(id);
 		this.embeds = this.embeds.filter((each) => each !== id);
 		this.#report();
+		void Updates.next().then(() => {
+			const buttons = [...(this.shadowRoot?.querySelectorAll<HTMLElement>('.unembed') ?? [])];
+			(
+				buttons[at] ??
+				buttons[at - 1] ??
+				this.shadowRoot?.querySelector<HTMLElement>('.embed')
+			)?.focus();
+		});
 	}
 
 	/** Escape closes the picker and gives focus back to the text. */
@@ -499,6 +541,8 @@ observable(NotesEditor.prototype, 'status');
 observable(NotesEditor.prototype, 'embeds');
 observable(NotesEditor.prototype, 'picking');
 observable(NotesEditor.prototype, 'found');
+observable(NotesEditor.prototype, 'counted');
+observable(NotesEditor.prototype, 'titles');
 
 /** The type's editor, inspector and embed, each in the app's registry with its shadow root on it. */
 export async function defineNotesElements(context: AppContextV1): Promise<void> {
