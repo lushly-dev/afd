@@ -224,3 +224,10 @@ export async function openFrame(
 	};
 	await frame.open(host, type.instance, element, reference);
 }
+
+/** The app surfaces' way in, once they have loaded beside stage B. */
+export async function hostOf(shell: LoamShell): Promise<SurfaceHostV1 | undefined> {
+	const until = Date.now() + SURFACES_WAIT_MS;
+	while (!shell.apps && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 50));
+	return (shell.apps as { host?(): SurfaceHostV1 } | null)?.host?.();
+}

@@ -511,7 +511,7 @@ describe('P2-D5: the editor commands', () => {
 		expect(waiting.error?.code).toBe('EDITOR_TAB_DIRTY');
 		// Its tab is gone, so the suggestion names no editor-close.
 		expect(waiting.error?.suggestion).toBe(
-			'Its tab is closed and its editor is saving them; retry once it has'
+			'Its tab is closed: retry once its editor saves them or reopens them in a tab'
 		);
 		expect(
 			(await kernel.agent.call('editor-dirty-set', { tab: 't1', dirty: false })).error?.code

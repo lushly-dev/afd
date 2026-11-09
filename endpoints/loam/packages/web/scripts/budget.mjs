@@ -118,7 +118,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * a reopen has given to another tab (122); and the reopen's check of the tab it opened (67 over its 127). The
  * final re-check raised it by 242, to 32,663, approved by the coordinator, 2026-11-08: a closed tab a leave owed
  * kept until its mark is known gone (151), the state the immediate set trusts kept true to what was sent (46),
- * and an editor's mark only for its own document (36), with about 9 between them.
+ * and an editor's mark only for its own document (36), with about 9 between them. The re-check after it raised
+ * it by 353, to 33,016, approved by the coordinator, 2026-11-08: a draft rejected while the area is away kept
+ * until it shows (161), a tab closed while an app shows leaving at once (117), and the prune they share, the
+ * clear's result, a sign-in's sync and `hostOf` moved to `editor-parts.ts` (115), less 40 that settling only on
+ * a read or a clear that succeeded saved.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -138,7 +142,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 32_663,
+	editorMinified: 33_016,
 });
 
 /** Group a module id by the package it belongs to. */

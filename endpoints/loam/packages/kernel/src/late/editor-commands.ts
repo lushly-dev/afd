@@ -193,7 +193,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 			`The person has unsaved changes in tab ${tab}`,
 			open
 				? `Ask the person to save it, then retry; or close it with editor-close { tab: "${tab}", discard: true }, which saves their editor first, and if that save rejects, brings their draft back in a tab`
-				: 'Its tab is closed and its editor is saving them; retry once it has'
+				: 'Its tab is closed: retry once its editor saves them or reopens them in a tab'
 		);
 	/**
 	 * The person's own page, the chrome's calls among it: never an agent's or a server's call, an app's

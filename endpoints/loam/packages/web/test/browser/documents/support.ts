@@ -83,8 +83,8 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  * 12. for the active scope, each tab's mark is `wantsMark`: its editor, shown or parked, says unsaved, a leave of
  *     that tab, document and scope still holds its draft, or the person's close of it saves or asks. 5, 9, 10
  *     and 11 follow from it, and stay as diagnostics;
- * 13. no tab a leave still owes a mark has `wantsMark` false, and every tab marked in a scope with a leave in
- *     flight has `wantsMark` true or is owed.
+ * 13. no tab a leave still owes a mark has `wantsMark` false, but in a scope the person cannot read, and
+ *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed.
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -259,15 +259,19 @@ export function frameViolations(page: Page): Promise<string[]> {
 				broken.push(`12: ${tab.id} is marked ${tab.dirty}, wantsMark ${wants}`);
 		}
 		const inFlight = new Map<string, Scope>();
-		for (const [owedKey, [scope, tab]] of owed) {
-			if (!wantsOf(scope, tab)) broken.push(`13: ${owedKey} is owed, and wantsMark is false`);
-			inFlight.set(keyOf(scope), scope);
-		}
+		for (const [, [scope]] of owed) inFlight.set(keyOf(scope), scope);
 		for (const each of leaving)
 			if (each.record) inFlight.set(keyOf(each.record.scope), each.record.scope);
+		const reads = new Map<string, typeof read>();
+		for (const [scopeKey, scope] of inFlight)
+			reads.set(scopeKey, (await shell.kernel.call('editor-get', {}, { scope })) as typeof read);
+		for (const [owedKey, [scope, tab]] of owed) {
+			// A scope the person cannot read, signed out, keeps what it owes until they can (Status, deviation 16).
+			if (!(reads.get(keyOf(scope)) as { success?: boolean } | undefined)?.success) continue;
+			if (!wantsOf(scope, tab)) broken.push(`13: ${owedKey} is owed, and wantsMark is false`);
+		}
 		for (const [scopeKey, scope] of inFlight) {
-			const each = (await shell.kernel.call('editor-get', {}, { scope })) as typeof read;
-			for (const tab of each.data?.groups.flatMap((group) => group.tabs) ?? []) {
+			for (const tab of reads.get(scopeKey)?.data?.groups.flatMap((group) => group.tabs) ?? []) {
 				if (
 					tab.dirty &&
 					!wantsOf(scope, tab.id, tab.document) &&
@@ -309,6 +313,114 @@ export async function editorIdle(page: Page): Promise<void> {
 	const broken = await frameViolations(page);
 	if (broken.length > 0)
 		throw new Error(`The editor's frames broke an invariant: ${broken.join('; ')}`);
+}
+
+/** Open `document` and wait for its editor. */
+export async function open(page: Page, id: string, options: Record<string, unknown> = {}) {
+	await kernelCall(page, 'document-open', { document: id, ...options });
+	await editorIdle(page);
+	await page.waitForFunction(() => {
+		const area = document
+			.querySelector('loam-shell')
+			?.shadowRoot?.querySelector('loam-main')
+			?.querySelector('loam-editor-area');
+		return [...(area?.querySelectorAll('loam-editor-frame:not([hidden])') ?? [])].every(
+			(frame) => (frame as unknown as { state: string }).state !== 'loading'
+		);
+	});
+}
+
+/** What the seeded walk, and the tests that hold every save, leave on the page. */
+export type Walk = Window & {
+	pending?: Array<{ resolve: () => void; reject: () => void }>;
+	reopens?: number;
+	reopenOpens?: number;
+	gate?: boolean;
+	gates?: Array<() => void>;
+};
+
+/** One tab of a scope, its mark, and whether `wantsMark` holds for it. */
+export interface TabMark {
+	scope: string;
+	tab: string;
+	document: string;
+	dirty: boolean;
+	wants: boolean;
+}
+
+/**
+ * Every tab of each project named by slug (null for the workspace), with the kernel's mark and the rule's
+ * answer as the documents specification states it: its editor, shown or parked, of its document, says
+ * unsaved; a leave of that tab, document and scope holds its draft; or the person's close of it saves or asks.
+ */
+export function marksOf(page: Page, projects: Array<string | null>): Promise<TabMark[]> {
+	return page.evaluate(async (projects) => {
+		type Scope = { workspace?: string; project?: string | null } | undefined;
+		type Frame = HTMLElement & {
+			tab: string;
+			document: string;
+			dirty: boolean;
+			record?: { scope: Scope } | null;
+		};
+		const shell = document.querySelector('loam-shell') as unknown as {
+			kernel: { call(name: string, input?: unknown, options?: unknown): Promise<unknown> };
+			editor?: { lifecycle: readonly unknown[] };
+		};
+		const keyOf = (scope: Scope) => `${scope?.workspace} ${scope?.project ?? ''}`;
+		const active = ((await shell.kernel.call('scope-get')) as { data?: { scope?: Scope } }).data
+			?.scope;
+		const list = (
+			(await shell.kernel.call('project-list')) as {
+				data?: { projects?: Array<{ id: string; slug: string }> };
+			}
+		).data?.projects;
+		const [, frames, parking, leaving, lives, , , asking] = (shell.editor?.lifecycle ?? []) as [
+			number,
+			Map<string, Frame>,
+			Map<string, Frame>,
+			Set<Frame>,
+			WeakMap<Frame, { draft?: boolean }>,
+			unknown,
+			unknown,
+			Set<string>,
+		];
+		const wantsOf = (scope: Scope, tab: string, document: string) => {
+			const frame =
+				keyOf(scope) === keyOf(active) ? (frames?.get(tab) ?? parking?.get(tab)) : undefined;
+			return (
+				(!!frame?.dirty && frame.document === document) ||
+				!!asking?.has(`${keyOf(scope)} ${tab}`) ||
+				[...(leaving ?? [])].some(
+					(each) =>
+						each.tab === tab &&
+						each.document === document &&
+						!!lives?.get(each)?.draft &&
+						keyOf(each.record?.scope) === keyOf(scope)
+				)
+			);
+		};
+		const marks: TabMark[] = [];
+		for (const slug of projects) {
+			const project = slug === null ? undefined : list?.find((each) => each.slug === slug)?.id;
+			if (slug !== null && !project) continue;
+			const scope = project
+				? { workspace: active?.workspace, project }
+				: { workspace: active?.workspace };
+			const read = (await shell.kernel.call('editor-get', {}, { scope })) as {
+				data?: { groups: Array<{ tabs: Array<{ id: string; document: string; dirty: boolean }> }> };
+			};
+			for (const group of read.data?.groups ?? [])
+				for (const tab of group.tabs)
+					marks.push({
+						scope: keyOf(scope),
+						tab: tab.id,
+						document: tab.document,
+						dirty: tab.dirty,
+						wants: wantsOf(scope, tab.id, tab.document),
+					});
+		}
+		return marks;
+	}, projects);
 }
 
 /** Type into the `notes-editor` of a tab, as a person does: its text area takes focus, then keys. */
