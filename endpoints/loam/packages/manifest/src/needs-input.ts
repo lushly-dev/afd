@@ -15,7 +15,10 @@ type Shape = {
 
 /**
  * True when `{}` cannot meet the schema's shape: a `required` property or `minProperties` above 0 at its
- * root, in any `allOf` branch, or in every branch of an `anyOf` or `oneOf`, at any depth.
+ * root, in any `allOf` branch, or in every branch of an `anyOf` or `oneOf`, at any depth. An app's manifest
+ * holds these in a branch only beside the branch's `type`, since the kernel's validator ignores them without
+ * one, and `schema-fidelity.test.ts` holds this answer to that validator's on every schema the input-schema
+ * rule accepts there; a mounted server's schema meets no such rule, so this stays the cautious answer.
  */
 export const needsInputShape = (schema: unknown): boolean => {
 	const shape = schema as Shape | null;

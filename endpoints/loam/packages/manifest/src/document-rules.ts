@@ -70,13 +70,13 @@ export function documentRules(
 			);
 		}
 		ids.add(type.id);
-		const problem = inputSchemaProblem(type.content_schema);
+		const [problem, remedy] = inputSchemaProblem(type.content_schema) ?? [];
 		if (problem) {
 			refuse(
 				'MANIFEST_INPUT_SCHEMA_INVALID',
 				`${at}/content_schema`,
 				`This \`content_schema\` is refused: ${problem}.`,
-				'Declare a `type: object` schema Zod can read.'
+				remedy ?? 'Declare a `type: object` schema Zod can read.'
 			);
 		}
 		const command = (name: string | undefined, pointer: string, ok: boolean, rule: string) => {

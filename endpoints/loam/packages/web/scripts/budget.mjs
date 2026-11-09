@@ -139,6 +139,26 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Its narrow re-check raised `urlMinified` by its measured cost, 156, to 5,247, approved by the coordinator,
  * 2026-11-09: a `documents` chunk that does not load, with a tab open, says so in the sidebar and leaves main
  * to the editor, where with no tab main's landing says it (5,038 before).
+ * The input-schema rule's fix raised `appsMinified` by its measured cost, 2,672, to 387,786, keeping the 159
+ * bytes left before it, approved by the coordinator, 2026-11-09: the manifest's reader refuses a schema Zod
+ * would accept and not honour (the documents specification's Follow-ups), measured as the closure with it
+ * less without it (387,627 less 384,955). Parts: the schema walker and its table of keywords (about 2,500),
+ * the suggestion's words on restructuring (86) and the check's place in the input, config and content rules
+ * (about 90). First paint and the kernel alone are unchanged: "needs input" keeps its own branch recursion.
+ * Its independent review raised it by that round's measured cost, 5,423, to 393,209, keeping the 159 bytes
+ * left, approved by the coordinator, 2026-11-09 (393,050 less 387,627): each refusal's reason and remedy in one
+ * table, used at the input, pipeline, content and config sites (about 2,950 over the messages it replaced),
+ * the rules the review and its fuzz found (about 2,400: `minItems` and `maxItems` with no `items`, a tuple Zod
+ * pads, a value Zod lets go missing through branches, `patternProperties` keys, `$ref`'s forms and cycles, and
+ * defaults at the root and in `prefixItems`), and the sites' remedy (about 50). First paint and the kernel
+ * alone are unchanged.
+ * Its re-check raised it by that round's measured cost, 885, to 394,094, keeping the 159 bytes left, approved
+ * by the coordinator, 2026-11-09 (393,935 less 393,050), each part the closure with it less without it: a
+ * closed object a join reaches through `$ref` or nested branches (574), names `Object.prototype` holds (346),
+ * and cycles through a typed node's branches with the order that says two branch keywords first (-35, as the
+ * cycle walk is simpler). First paint's code is unchanged: its gzip is one byte more only for the `apps`
+ * chunk's new hash in its name, and with the old name it is equal. The third re-check's last nit, refusing a
+ * declared `__proto__` too, shrank the closure by 17, to 393,918, under the same ceiling, 176 bytes left.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -149,7 +169,7 @@ export const CEILINGS = Object.freeze({
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	urlMinified: 5_247,
-	appsMinified: 385_114,
+	appsMinified: 394_094,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,

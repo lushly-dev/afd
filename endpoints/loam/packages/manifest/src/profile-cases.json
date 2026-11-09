@@ -1421,13 +1421,24 @@
 					},
 					"anyOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						},
 						{
+							"type": "object",
+							"properties": {
+								"b": {
+									"type": "string"
+								}
+							},
 							"required": ["b"]
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -1459,13 +1470,24 @@
 					},
 					"oneOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						},
 						{
+							"type": "object",
+							"properties": {
+								"b": {
+									"type": "string"
+								}
+							},
 							"required": ["b"]
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -1494,10 +1516,15 @@
 					},
 					"allOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -1526,13 +1553,18 @@
 					},
 					"anyOf": [
 						{
+							"type": "object",
+							"properties": {
+								"a": {
+									"type": "string"
+								}
+							},
 							"required": ["a"]
 						},
 						{
-							"properties": {}
+							"type": "object"
 						}
-					],
-					"additionalProperties": false
+					]
 				},
 				"/ui/new": [
 					{
@@ -2474,6 +2506,90 @@
 			"accepted": false,
 			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
 			"key": "ui.documents[0].content_schema"
+		},
+		{
+			"id": "documents-content-schema-untyped-branch",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/3": {
+					"name": "hello-read",
+					"title": "Read a greeting",
+					"description": "Read one greeting document.",
+					"effects": ["inspect"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							}
+						},
+						"required": ["document"],
+						"additionalProperties": false
+					}
+				},
+				"/commands/4": {
+					"name": "hello-load",
+					"title": "Load a greeting",
+					"description": "Write a greeting document's content.",
+					"effects": ["store-write"],
+					"input_schema": {
+						"type": "object",
+						"properties": {
+							"document": {
+								"type": "string"
+							},
+							"content": {}
+						},
+						"required": ["document", "content"],
+						"additionalProperties": false
+					}
+				},
+				"/ui/documents": [
+					{
+						"id": "hello",
+						"title": "Greeting",
+						"icon": "system/document",
+						"content_schema": {
+							"type": "object",
+							"properties": {
+								"text": {
+									"type": "string"
+								}
+							},
+							"anyOf": [
+								{
+									"required": ["text"]
+								}
+							]
+						},
+						"content_version": 1,
+						"editor": {
+							"element": "hello-editor"
+						},
+						"binding": {
+							"model": "command",
+							"selection": "none",
+							"locator": "none",
+							"conflict": "last-writer-wins"
+						},
+						"templates": [
+							{
+								"id": "blank",
+								"title": "Blank",
+								"content": {
+									"text": ""
+								}
+							}
+						],
+						"instance_commands": ["hello-read"]
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "ui.documents[0].content_schema",
+			"suggestion": "Give this branch `type: object`"
 		},
 		{
 			"id": "documents-content-schema-not-packed",
@@ -5469,6 +5585,427 @@
 			"key": "commands[0].input_schema"
 		},
 		{
+			"id": "input-schema-any-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"anyOf": [
+						{
+							"required": ["name"]
+						},
+						{
+							"required": ["nickname"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Give this branch `type: object`"
+		},
+		{
+			"id": "input-schema-one-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"oneOf": [
+						{
+							"required": ["name"]
+						},
+						{
+							"required": ["nickname"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Give this branch `type: object`"
+		},
+		{
+			"id": "input-schema-all-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"allOf": [
+						{
+							"required": ["name"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Give this branch `type: object`"
+		},
+		{
+			"id": "input-schema-all-of-min-properties-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"allOf": [
+						{
+							"minProperties": 1
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Give this branch `type: object`"
+		},
+		{
+			"id": "input-schema-nested-any-of-required-untyped",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"who": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"nickname": {
+									"type": "string"
+								}
+							},
+							"anyOf": [
+								{
+									"required": ["name"]
+								}
+							]
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Give this branch `type: object`"
+		},
+		{
+			"id": "input-schema-required-undeclared",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {},
+					"required": ["name"]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "remove it from `required`"
+		},
+		{
+			"id": "input-schema-required-default",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"default": "you"
+						}
+					},
+					"required": ["name"]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "from `required`"
+		},
+		{
+			"id": "input-schema-closed-beside-branch",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"additionalProperties": false,
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": ["name"]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"nickname": {
+									"type": "string"
+								}
+							},
+							"required": ["nickname"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Declare every branch's properties on one object"
+		},
+		{
+			"id": "input-schema-enum-beside-keyword",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"enum": ["a", "bb"],
+							"minLength": 2
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "list only the values it allows"
+		},
+		{
+			"id": "input-schema-ref-beside-keyword",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"$defs": {
+						"name": {
+							"type": "string"
+						}
+					},
+					"properties": {
+						"name": {
+							"$ref": "#/$defs/name",
+							"maxLength": 8
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "into the `$defs` entry"
+		},
+		{
+			"id": "input-schema-format",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"email": {
+							"type": "string",
+							"format": "email"
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "state the form with `pattern`"
+		},
+		{
+			"id": "input-schema-pattern-unicode-escape",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"pattern": "^\\p{L}+$"
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "valid with and without the `u` flag"
+		},
+		{
+			"id": "input-schema-min-items-without-items",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"tags": {
+							"type": "array",
+							"minItems": 1
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Add `items: true`"
+		},
+		{
+			"id": "input-schema-ref-below-defs-entry",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"$defs": {
+						"who": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"properties": {
+						"name": {
+							"$ref": "#/$defs/who/properties/name"
+						}
+					}
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "as `#/$defs/<name>`"
+		},
+		{
+			"id": "input-schema-required-missing-through-branches",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"tags": {
+							"anyOf": [
+								{},
+								{
+									"type": "array",
+									"uniqueItems": true
+								}
+							]
+						}
+					},
+					"required": ["tags"]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_INPUT_SCHEMA_INVALID",
+			"key": "commands[0].input_schema",
+			"suggestion": "Remove the branch that accepts anything"
+		},
+		{
+			"id": "input-schema-typed-branches",
+			"base": "native",
+			"set": {
+				"/commands/0/input_schema": {
+					"type": "object",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"enum": ["name", "nickname"]
+						},
+						"name": {
+							"type": "string"
+						},
+						"nickname": {
+							"type": "string"
+						}
+					},
+					"required": ["kind"],
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "name"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": ["kind", "name"]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"const": "nickname"
+								},
+								"nickname": {
+									"type": "string"
+								}
+							},
+							"required": ["kind", "nickname"]
+						}
+					]
+				}
+			},
+			"accepted": true
+		},
+		{
 			"id": "config-schema-open",
 			"base": "native",
 			"set": {
@@ -5480,6 +6017,30 @@
 			"code": "MANIFEST_CONFIG_SCHEMA_INVALID",
 			"key": "config.schema",
 			"suggestion": "additionalProperties"
+		},
+		{
+			"id": "config-schema-untyped-branch",
+			"base": "native",
+			"set": {
+				"/config/schema": {
+					"type": "object",
+					"properties": {
+						"default_name": {
+							"type": "string"
+						}
+					},
+					"additionalProperties": false,
+					"anyOf": [
+						{
+							"required": ["default_name"]
+						}
+					]
+				}
+			},
+			"accepted": false,
+			"code": "MANIFEST_CONFIG_SCHEMA_INVALID",
+			"key": "config.schema",
+			"suggestion": "Declare every branch's properties on one object"
 		},
 		{
 			"id": "config-schema-zod-refuses",
