@@ -17,8 +17,9 @@
 //!
 //! Also: the TLS client certificate's thumbprint reaches the verifier from the handshake only,
 //! never from a header; removing an authenticating layer fails closed; stdio and the CLI are
-//! unaffected; a shipped build serves `oauth` (since step 7), and what the build does not serve
-//! (`gateway`, until step 4) refuses to start.
+//! unaffected; a shipped build serves `oauth` (since step 7) and `gateway` (since step 4), and a
+//! gateway whose pinned key set cannot be used refuses to start. `gateway_mode.rs` holds the
+//! gateway layer itself.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -661,7 +662,7 @@ fn mcp_request(method: &str, bearer: &str) -> http::Request<Body> {
 
 /// `server` served as Streamable HTTP with no bearer layer in front, as a composition that lost
 /// layer 5 would serve it. With `admit`, a stand-in for a layer that verified the caller puts
-/// admitted credentials on every request (as step 4's gateway layer will), so the request
+/// admitted credentials on every request (as step 4's gateway layer does), so the request
 /// reaches the context hook.
 async fn without_the_bearer_layer(
     server: McpServer,
@@ -705,7 +706,7 @@ fn test_authorization(kit: &TestIdp) -> Authorization {
     Authorization::new(metadata, kit_verifier(kit, false)).unwrap()
 }
 
-/// A mode `gateway` workspace: refused by the HTTP surface until step 4, but it opens.
+/// A mode `gateway` workspace on the loopback channel.
 fn gateway_config(kit: &TestIdp) -> String {
     format!(
         r#"config_version = 5
@@ -727,11 +728,9 @@ alias = "edge"
 namespace = "corp"
 issuer = "{issuer}"
 keys = "gateway/jwks.json"
-client_cert_sha256 = ["{pin}"]
 max_scopes = ["umbel:read"]
 "#,
         issuer = kit.gateway().issuer(),
-        pin = kit.gateway().certificate().sha256_hex(),
     )
 }
 
@@ -783,8 +782,9 @@ async fn removing_an_authenticating_layer_fails_closed() {
 #[tokio::test]
 async fn the_hooks_own_check_refuses_admitted_callers_in_both_hosted_modes() {
     // Credentials admitted by some layer reach the context hook, which refuses them: in mode
-    // oauth because the host's verifier mapped no caller for them, in mode gateway until step
-    // 4. Without the hook's check the command would run as the credentials' default actor.
+    // oauth because the host's verifier mapped no caller for them, in mode gateway because the
+    // gateway layer did not. Without the hook's check the command would run as the credentials'
+    // default actor.
     let kit = TestIdp::start().await.unwrap();
     let oauth = support::workspace(&oauth_config(&kit, "", "", ""));
     let gateway = support::workspace(&gateway_config(&kit));
@@ -908,10 +908,10 @@ async fn stdio_and_the_cli_are_unaffected_in_mode_oauth() {
     assert_eq!(run.json()["success"], json!(true), "{}", run.stdout);
 }
 
-// ─── What this build does not serve refuses to start ───────────────────────────────────────────
+// ─── A shipped build serves both hosted modes ──────────────────────────────────────────────────
 
 #[tokio::test]
-async fn a_shipped_build_serves_oauth_and_refuses_what_it_does_not_serve() {
+async fn a_shipped_build_serves_oauth_and_gateway() {
     let kit = TestIdp::start().await.unwrap();
     // Mode oauth in a shipped build, with no test seam: the host builds its own verifier from
     // [auth.issuers] and, since phase 5 step 7 brought the last disclosure control it waited for
@@ -939,42 +939,37 @@ async fn a_shipped_build_serves_oauth_and_refuses_what_it_does_not_serve() {
         "WORKSPACE_CONFIG_INVALID"
     );
 
-    // Mode gateway, with a verifier or not, until step 4.
-    let gateway = format!(
-        r#"config_version = 5
-
-[principal]
-local_id = "corp/ada"
-
-[http]
-public_url = "{PUBLIC_URL}"
-allowed_hosts = ["127.0.0.1"]
-
-[auth]
-mode = "gateway"
-
-[auth.namespaces.corp]
-
-[auth.gateway]
-alias = "edge"
-namespace = "corp"
-issuer = "{issuer}"
-keys = "gateway/jwks.json"
-client_cert_sha256 = ["{pin}"]
-max_scopes = ["umbel:read"]
-"#,
-        issuer = kit.gateway().issuer(),
-        pin = kit.gateway().certificate().sha256_hex(),
-    );
-    let dir = support::workspace(&gateway);
+    // Mode gateway in a shipped build (phase 5 step 4): served once its pinned key set is usable,
+    // a verifier in the token slot or not, and refused to start naming the key set otherwise.
+    let dir = support::workspace(&gateway_config(&kit));
     let host = HostBuilder::open(dir.path())
         .unwrap()
         .with_token_verifier(kit_verifier(&kit, false))
         .seal()
         .unwrap();
     let error = host.http_server().unwrap_err();
-    assert!(error.message().contains("auth.mode"), "{}", error.message());
-    assert!(error.message().contains("step 4"), "{}", error.message());
+    assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID");
+    assert!(
+        error.message().contains("auth.gateway.keys"),
+        "{}",
+        error.message()
+    );
+    support::gateway::write_keys(dir.path(), &kit);
+    let served = Served::start(&host).await;
+    let client = Client::plain(served.address);
+    // A request without an assertion gets the gateway's 401, never AFD's bearer challenge, and
+    // no metadata is published.
+    let reply = support::oauth::modern(&client, "tools/list", json!({}), None).await;
+    support::gateway::assert_refused(&reply, "no assertion");
+    let reply = client
+        .send(client.request("GET", METADATA_PATHS[0], &[], String::new()))
+        .await;
+    assert_eq!(reply.status, 404, "{}", reply.text);
+    served.stop().await;
+    assert_eq!(
+        host.http_router().unwrap_err().code(),
+        "WORKSPACE_CONFIG_INVALID"
+    );
 }
 
 #[tokio::test]

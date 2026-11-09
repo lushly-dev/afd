@@ -13,7 +13,9 @@ use crate::token::{TokenBuilder, TokenKind};
 use crate::{now, random_token};
 
 /// The gateway signer. It serves nothing: Umbel reads its keys from the pinned file
-/// ([`Self::jwks`]) and the assertion from the request header.
+/// ([`Self::jwks`]) and the assertion from the request header. A clone signs with the same keys,
+/// so a test can mint assertions after the kit has moved.
+#[derive(Clone)]
 pub struct GatewaySigner {
     issuer: String,
     keys: Arc<KeySet>,

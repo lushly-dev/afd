@@ -26,6 +26,13 @@ use crate::shared::limits::{Admission, LimitStore};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PeerAddr(pub(crate) std::net::SocketAddr);
 
+/// The local address of the connection a request came on: the socket's own address, as the
+/// operating system reports it for the accepted connection. Only the listener inserts it; the
+/// gateway's loopback channel (phase 5 section 4.4) requires it to be loopback, whatever
+/// listener an embedder serves on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LocalAddr(pub(crate) std::net::SocketAddr);
+
 /// An empty response with `status`, closing the connection when asked.
 fn plain(status: StatusCode, close: bool) -> Response {
     let mut response = Response::new(Body::empty());
@@ -412,21 +419,60 @@ pub(crate) fn token_key(key: &[u8], credentials: &afd::Credentials) -> String {
     )
 }
 
+/// How layer 6 answers a request whose credentials hold no Umbel scope: as the mode's own
+/// 403 (section 3.3 for `oauth`, section 4.4's scheme for `gateway`).
+#[cfg(feature = "auth")]
+pub(crate) enum NoScope {
+    /// Mode `oauth`: AFD's 403, `Bearer error="insufficient_scope"` with the metadata's URL.
+    Bearer(afd::server::auth::ProtectedResource),
+    /// Mode `gateway`: no metadata is published, so the challenge is the gateway's scheme,
+    /// `Umbel-Gateway realm="umbel", error="insufficient_scope", scope="<prefix>:read"`.
+    Gateway,
+}
+
+#[cfg(feature = "auth")]
+impl NoScope {
+    fn body(&self, missing: &[String]) -> serde_json::Value {
+        match self {
+            Self::Bearer(metadata) => metadata.forbidden_body(missing),
+            Self::Gateway => serde_json::json!({
+                "error": afd::error_codes::INSUFFICIENT_SCOPE,
+                "suggestion": format!(
+                    "The gateway's assertion grants no scope this server accepts within its ceiling; assert {}.",
+                    missing.join(" ")
+                ),
+            }),
+        }
+    }
+
+    fn challenge(&self, missing: &[String]) -> String {
+        match self {
+            Self::Bearer(metadata) => metadata.forbidden_challenge(missing),
+            Self::Gateway => format!(
+                "{}, error=\"insufficient_scope\", scope=\"{}\"",
+                crate::auth::gateway::CHALLENGE,
+                missing.join(" ")
+            ),
+        }
+    }
+}
+
 #[cfg(feature = "auth")]
 struct GateShared {
     limit: SlidingLimit,
     key: Vec<u8>,
-    metadata: afd::server::auth::ProtectedResource,
+    no_scope: NoScope,
     prefix: String,
 }
 
-/// Layer 6 (section 6.3), between AFD's bearer layer and the MCP service, on every request the
-/// bearer layer admitted:
+/// Layer 6 (section 6.3), between AFD's bearer layer (or, in mode `gateway`, the gateway layer)
+/// and the MCP service, on every request that layer admitted:
 ///
-/// 1. **Any Umbel scope.** A token holding no scope under `auth.scope_prefix` is refused with 403
+/// 1. **Any Umbel scope.** A token holding no scope under `auth.scope_prefix` (or an assertion
+///    whose scopes, cut to the gateway's ceiling, hold none) is refused with 403
 ///    `insufficient_scope` naming `<prefix>:read`, whatever it asks for (section 5.2's space-less
-///    rows: listings, resources, the Skills methods and `initialize` included). The answer depends
-///    on the token alone.
+///    rows: listings, resources, the Skills methods and `initialize` included), in the mode's own
+///    challenge ([`NoScope`]). The answer depends on the credentials alone.
 /// 2. **The per-token limit** (`limits.calls_per_minute`, section 11): at most that many requests
 ///    in any minute per verified issuer, subject and client, counted on the shared counters; over
 ///    it, 429 with `Retry-After`; a store held too long, 503 `WORKSPACE_SHARED_TIMEOUT`; any other
@@ -447,7 +493,7 @@ impl<S> TokenGate<S> {
         inner: S,
         limit: SlidingLimit,
         key: Vec<u8>,
-        metadata: afd::server::auth::ProtectedResource,
+        no_scope: NoScope,
         prefix: &str,
     ) -> Self {
         Self {
@@ -455,7 +501,7 @@ impl<S> TokenGate<S> {
             shared: Arc::new(GateShared {
                 limit,
                 key,
-                metadata,
+                no_scope,
                 prefix: prefix.to_owned(),
             }),
         }
@@ -524,10 +570,10 @@ where
                 let missing = [format!("{}:read", shared.prefix)];
                 return Ok(gate_response(
                     StatusCode::FORBIDDEN,
-                    &shared.metadata.forbidden_body(&missing),
+                    &shared.no_scope.body(&missing),
                     &[(
                         header::WWW_AUTHENTICATE,
-                        shared.metadata.forbidden_challenge(&missing),
+                        shared.no_scope.challenge(&missing),
                     )],
                 ));
             }

@@ -274,6 +274,51 @@ pub(crate) fn too_open(path: &Path, secrecy: Secrecy) -> Option<String> {
     }
 }
 
+/// The bytes of the trust file at `path`, as [`read_limited`] reads a file, checked for
+/// `secrecy` on the file that was opened (its own `fstat`, so a file renamed into place after the
+/// check cannot be read in its stead) and on the directories holding it, as [`too_open`] checks
+/// them.
+///
+/// # Errors
+/// What is wrong, naming the path: it cannot be read, is not a regular file, is too large, or may
+/// be rewritten or replaced by someone else.
+pub(crate) fn read_trusted(path: &Path, secrecy: Secrecy) -> Result<Vec<u8>, String> {
+    let cannot =
+        |error: std::io::Error| format!("{} cannot be read: {}", path.display(), error.kind());
+    let file = std::fs::File::open(path).map_err(cannot)?;
+    let metadata = file.metadata().map_err(cannot)?;
+    if !metadata.is_file() {
+        return Err(format!("{} is not a regular file", path.display()));
+    }
+    let too_large = || format!("{} is larger than 1 MiB", path.display());
+    if metadata.len() > MAX_FILE_BYTES {
+        return Err(too_large());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let me = rustix::process::geteuid().as_raw();
+        let problems: Vec<String> = mode_problem(metadata.mode(), secrecy)
+            .into_iter()
+            .chain(owner_problem(metadata.uid(), me))
+            .collect();
+        if !problems.is_empty() {
+            return Err(format!("{} {}", path.display(), problems.join(" and ")));
+        }
+    }
+    if let Some(problem) = too_open(path, secrecy) {
+        return Err(problem);
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(cannot)?;
+    if bytes.len() as u64 > MAX_FILE_BYTES {
+        return Err(too_large());
+    }
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

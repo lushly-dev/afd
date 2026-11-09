@@ -23,8 +23,12 @@
 //! 7. AFD's host and origin checks, then the MCP service built from the same server, where the
 //!    context hook runs.
 //!
-//! **Mode `gateway`** is phase 5 step 4's, and refuses to start until then.
+//! **Mode `gateway`** (phase 5 step 4, section 4.4) serves the same layers with the gateway layer
+//! ([`gateway`]) in place of AFD's bearer layer at 5: the pinned channel and a verified,
+//! single-use assertion per request, and no protected-resource metadata.
 
+#[cfg(feature = "auth")]
+pub(crate) mod gateway;
 pub(crate) mod layers;
 pub(crate) mod listener;
 #[cfg(feature = "auth")]
@@ -135,20 +139,17 @@ impl HttpServer {
 }
 
 /// The surface `workspace` configures, over `server`: mode `none` (with TLS when `[http.tls]` is
-/// set) or mode `oauth`, with the host's verifier built from `[auth]` (phase 5 step 2b) unless a
-/// test filled the slot with `verifier`.
-///
-/// Mode `oauth` with the host's verifier is served only when the `testkit` seam asks for it,
-/// until the disclosure controls of steps 3 and 7 exist (amendments from steps 2b and 2c). Mode
-/// `gateway` refuses until step 4.
+/// set), mode `oauth`, with the host's verifier built from `[auth]` (phase 5 step 2b) unless a
+/// test filled the slot with `verifier`, or mode `gateway`, with the gateway layer built from
+/// `[auth.gateway]` (phase 5 step 4).
 ///
 /// # Errors
 /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, naming the
 /// `[http.tls]` key whose file is missing or invalid, naming the `[auth]` key the verifier cannot
-/// be built from (an introspection secret unset, for example), or naming
-/// `mcp.first_class_tools` when the server's surface is invalid; the errors of reading
-/// `state/keys/http.token` in mode `none`, and of opening `state/shared/limits.sqlite3` in mode
-/// `oauth`.
+/// be built from (an introspection secret unset, for example), naming `auth.gateway.keys` when
+/// the gateway's pinned key set cannot be used, or naming `mcp.first_class_tools` when the
+/// server's surface is invalid; the errors of reading `state/keys/http.token` in mode `none`,
+/// and of opening `state/shared/limits.sqlite3` in the hosted modes.
 pub(crate) fn server(
     server: &McpServer,
     workspace: &Workspace,
@@ -186,12 +187,7 @@ pub(crate) fn server(
                 };
                 oauth_router(server, workspace, policy, verifier)?
             }
-            AuthMode::Gateway => {
-                return Err(not_served(
-                    "auth.mode",
-                    "is \"gateway\", which this build reads but does not serve yet: the gateway layer arrives in phase 5 step 4",
-                ));
-            }
+            AuthMode::Gateway => gateway::router(server, workspace, policy, environment)?,
         };
         let tls = config
             .http
@@ -353,7 +349,8 @@ impl TokenVerifier for Unverifiable {
 /// without its bearer layer, serves no method, listings and `initialize` included. stdio through
 /// `serve_stdio` is unaffected; another transport must be marked trusted. `None` in mode `none`.
 /// Mode `gateway` publishes no metadata, so its resource names only the public URL; nothing
-/// serves it.
+/// serves it, and the listener serves a server with an authorization of its own
+/// ([`gateway::router`]).
 #[cfg(feature = "auth")]
 pub(crate) fn base_authorization(
     workspace: &Workspace,
@@ -448,7 +445,7 @@ fn oauth_router(
             lock_timeout,
         ),
         workspace.limits_key()?,
-        metadata,
+        layers::NoScope::Bearer(metadata),
         &config.auth.scope_prefix,
     );
     let service = tower::Layer::layer(&bearer, gated);

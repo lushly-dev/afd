@@ -1,11 +1,12 @@
 //! The HTTP listener: accepts connections, terminates TLS when configured (layer 1 of phase 5
 //! section 6.3), and serves HTTP/1.1 on each with the router.
 //!
-//! It is `axum::serve` with two additions, which is why it is not `axum::serve`: every request
-//! gets the connection's peer address ([`PeerAddr`]), which the per-IP limit keys on, and, when
-//! the client presented a certificate in the TLS handshake, AFD's [`ClientCertificate`] made from
-//! it, which the token verifier binds tokens to (RFC 8705). Both come from the connection alone;
-//! the request's headers never stand in for either.
+//! It is `axum::serve` with three additions, which is why it is not `axum::serve`: every request
+//! gets the connection's peer address ([`PeerAddr`]), which the per-IP limit keys on, its local
+//! address ([`LocalAddr`]), which the gateway's loopback channel checks, and, when the client
+//! presented a certificate in the TLS handshake, AFD's [`ClientCertificate`] made from it, which
+//! the token verifier binds tokens to (RFC 8705) and the gateway's pinned channel matches. All
+//! come from the connection alone; the request's headers never stand in for any of them.
 //!
 //! **Trusted proxies** (`http.trusted_proxies`, amendment from phase 5 step 3). A connection whose
 //! peer is a listed address must open with a PROXY protocol version 2 header (a `PROXY` command
@@ -32,7 +33,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Semaphore;
 use tower::ServiceExt;
 
-use super::layers::PeerAddr;
+use super::layers::{LocalAddr, PeerAddr};
 
 /// How long a client has to finish the TLS handshake.
 #[cfg(feature = "auth")]
@@ -152,6 +153,9 @@ pub(crate) async fn serve(
             },
             () = &mut shutdown => break,
         };
+        // The socket's own address; a connection whose local address cannot be read has none,
+        // and the gateway's loopback channel refuses it.
+        let local = stream.local_addr().ok();
         let router = router.clone();
         #[allow(clippy::clone_on_copy)] // `Option<Infallible>` without the `auth` feature.
         let tls = tls.clone();
@@ -159,7 +163,7 @@ pub(crate) async fn serve(
         let proxies = Arc::clone(&proxies);
         tokio::spawn(async move {
             let _ = stream.set_nodelay(true);
-            connection(stream, peer, router, tls, &proxies, watcher).await;
+            connection(stream, peer, local, router, tls, &proxies, watcher).await;
             drop(slot);
         });
     }
@@ -186,6 +190,7 @@ fn is_connection_error(error: &std::io::Error) -> bool {
 async fn connection(
     mut stream: TcpStream,
     peer: std::net::SocketAddr,
+    local: Option<std::net::SocketAddr>,
     router: Router,
     tls: Tls,
     proxies: &[std::net::IpAddr],
@@ -227,14 +232,22 @@ async fn connection(
             .peer_certificates()
             .and_then(|chain| chain.first())
             .map(|der| afd::server::auth::ClientCertificate::from_der(der));
-        http(TokioIo::new(stream), peer, router, certificate, watcher).await;
+        http(
+            TokioIo::new(stream),
+            peer,
+            local,
+            router,
+            certificate,
+            watcher,
+        )
+        .await;
         return;
     }
     #[cfg(not(feature = "auth"))]
     if let Some(never) = tls {
         match never {}
     }
-    http(TokioIo::new(stream), peer, router, None, watcher).await;
+    http(TokioIo::new(stream), peer, local, router, None, watcher).await;
 }
 
 #[cfg(feature = "auth")]
@@ -242,10 +255,12 @@ type Certificate = Option<afd::server::auth::ClientCertificate>;
 #[cfg(not(feature = "auth"))]
 type Certificate = Option<Infallible>;
 
-/// HTTP/1.1 on one connection, each request carrying the connection's peer and certificate.
+/// HTTP/1.1 on one connection, each request carrying the connection's peer, its local address
+/// and its certificate.
 async fn http<I>(
     io: I,
     peer: std::net::SocketAddr,
+    local: Option<std::net::SocketAddr>,
     router: Router,
     certificate: Certificate,
     watcher: hyper_util::server::graceful::Watcher,
@@ -256,6 +271,9 @@ async fn http<I>(
         let router = router.clone();
         let extensions = request.extensions_mut();
         extensions.insert(PeerAddr(peer));
+        if let Some(local) = local {
+            extensions.insert(LocalAddr(local));
+        }
         #[cfg(feature = "auth")]
         if let Some(certificate) = &certificate {
             extensions.insert(certificate.clone());

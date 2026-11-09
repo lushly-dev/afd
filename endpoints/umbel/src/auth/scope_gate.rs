@@ -20,15 +20,26 @@ use serde_json::{Value, json};
 
 use super::scopes::{ScopePolicy, Verdict};
 use crate::access::{Caller, Narrowing};
+use crate::workspace::{AuthMode, Config};
 
-/// `INSUFFICIENT_SCOPE` naming `missing` (section 10.5: `details.scopes`), as AFD words it.
-pub(crate) fn insufficient_scope(resource: Option<&str>, missing: &[String]) -> CommandError {
-    let resource = resource.unwrap_or("this server");
-    let suggestion = if missing.is_empty() {
-        format!("Obtain a token for {resource} that grants the scopes this call needs, then retry.")
+/// `INSUFFICIENT_SCOPE` naming `missing` (section 10.5: `details.scopes`), as AFD words it, its
+/// suggestion naming what this workspace's callers obtain to gain a scope: a token for
+/// `http.public_url`, or in mode `gateway` a new assertion from the gateway (AFD's
+/// `ProtectedResource::with_scope_source`, as the served server holds it there).
+pub(crate) fn insufficient_scope(config: &Config, missing: &[String]) -> CommandError {
+    let source = if config.auth.mode == AuthMode::Gateway {
+        super::GATEWAY_SCOPE_SOURCE.to_owned()
     } else {
         format!(
-            "Obtain a token for {resource} that also grants {}, then retry.",
+            "a token for {}",
+            config.http.public_url.as_deref().unwrap_or("this server")
+        )
+    };
+    let suggestion = if missing.is_empty() {
+        format!("Obtain {source} that grants the scopes this call needs, then retry.")
+    } else {
+        format!(
+            "Obtain {source} that also grants {}, then retry.",
             missing.join(" ")
         )
     };
@@ -72,7 +83,7 @@ pub(crate) fn scope_gate(policy: Arc<ScopePolicy>) -> CommandMiddleware {
                     Box::pin(async move { failure(error) })
                 }
                 Verdict::Missing(missing) => {
-                    let error = insufficient_scope(config.http.public_url.as_deref(), &missing);
+                    let error = insufficient_scope(config, &missing);
                     Box::pin(async move { failure(error) })
                 }
                 // The space and access checks refuse these first; should one get here, it is
@@ -130,4 +141,39 @@ pub(crate) fn hidden_check(policy: Arc<ScopePolicy>) -> CommandMiddleware {
             Box::pin(async move { failure(error) })
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    fn config(text: &str) -> Config {
+        crate::workspace::ConfigFile::parse(text)
+            .and_then(|file| file.into_config(std::path::Path::new("/w")))
+            .unwrap()
+    }
+
+    #[test]
+    fn the_suggestion_names_what_the_modes_callers_obtain() {
+        let missing = ["umbel:write:main".to_owned()];
+        let none = insufficient_scope(&config("config_version = 5\n"), &missing);
+        assert!(
+            none.suggestion
+                .as_deref()
+                .unwrap()
+                .starts_with("Obtain a token for"),
+            "{none:?}"
+        );
+        let gateway = config(
+            "config_version = 5\n[principal]\nlocal_id = \"corp/ada\"\n[http]\npublic_url = \"https://h.test/mcp\"\nallowed_hosts = [\"h.test\"]\n[auth]\nmode = \"gateway\"\n[auth.namespaces.corp]\n[auth.gateway]\nalias = \"edge\"\nnamespace = \"corp\"\nissuer = \"https://g.example.com\"\nkeys = \"k.json\"\nmax_scopes = [\"umbel:read\"]\n",
+        );
+        let error = insufficient_scope(&gateway, &missing);
+        let suggestion = error.suggestion.as_deref().unwrap();
+        assert!(
+            suggestion.contains("Umbel-Gateway-Assertion") && !suggestion.contains("token"),
+            "{suggestion}"
+        );
+        assert!(suggestion.contains("umbel:write:main"), "{suggestion}");
+    }
 }

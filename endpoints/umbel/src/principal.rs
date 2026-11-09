@@ -4,14 +4,16 @@
 //! `CommandContext.extra["dev.umbel/principal"]`: the CLI, [`Host::context`](crate::Host::context)
 //! and the MCP context hook. Nothing is ever read from a request's headers or query, nor the HTTP
 //! bearer token: over HTTP in mode `oauth` the hook reads only the caller the host's token
-//! verifier mapped (section 4.1), beside the credentials AFD's server admitted (section 4.2). A
+//! verifier mapped (section 4.1), and in mode `gateway` the caller the gateway layer mapped from
+//! its verified assertion (section 4.4), beside the credentials AFD's server admitted (section
+//! 4.2). A
 //! command takes the caller's identity **only** from this key, through
 //! [`Principal::from_context`], never from `context.actor` alone. Version 0 principals are read
 //! only from journal entries already written; every surface writes version 1.
 
 use std::collections::BTreeMap;
 
-use crate::auth::caller::{CallerSlot, VerifiedCaller};
+use crate::auth::caller::{CallerSlot, VerifiedCaller, Vouched};
 use crate::auth::{ChainEntry, SCOPE_VERBS, Scope, ScopeVerb, TokenBinding};
 use crate::workspace::{AuthConfig, AuthMode, Config};
 use afd::server::ContextHookRequest;
@@ -206,19 +208,21 @@ impl Principal {
         self
     }
 
-    /// The principal of a verified caller (2.1, 4.1): its actor, namespace, issuer, chain,
-    /// binding and scopes, and per readable space the verbs those scopes grant there.
+    /// The principal of a verified caller (2.1, 4.1, 4.4): its actor, namespace, issuer (the
+    /// issuer's or the gateway's alias), chain, binding and scopes, and per readable space the
+    /// verbs those scopes grant there. A token's caller is `verified` with its binding; a gateway
+    /// assertion's is `gateway` with none.
     pub(crate) fn verified(config: &Config, caller: &VerifiedCaller) -> Self {
-        let mut principal = Self::new(
-            caller.actor.clone(),
-            Transport::Http,
-            Authentication::Verified,
-        )
-        .with_policy_version(config.policy_version.clone());
+        let (authentication, binding) = match &caller.vouched {
+            Vouched::Token(binding) => (Authentication::Verified, Some(binding.clone())),
+            Vouched::Gateway => (Authentication::Gateway, None),
+        };
+        let mut principal = Self::new(caller.actor.clone(), Transport::Http, authentication)
+            .with_policy_version(config.policy_version.clone());
         principal.namespace = Some(caller.namespace.clone());
         principal.issuer = Some(caller.issuer.clone());
         principal.delegation_chain = caller.chain.clone();
-        principal.token_binding = Some(caller.binding.clone());
+        principal.token_binding = binding;
         principal.scopes = Some(caller.scopes.clone());
         principal.spaces = Some(granted_spaces(config, caller));
         principal
@@ -259,8 +263,12 @@ fn granted_spaces(config: &Config, caller: &VerifiedCaller) -> BTreeMap<String, 
         .collect();
     let mut granted = BTreeMap::new();
     for space in &config.spaces {
-        if !crate::access::may_read_space(config, space, principal.as_deref(), &caller.claim_groups)
-        {
+        if !crate::access::may_read_space(
+            config,
+            space,
+            principal.as_deref(),
+            caller.claim_groups(),
+        ) {
             continue;
         }
         let verbs: Vec<String> = [
@@ -327,18 +335,45 @@ impl HttpAuth {
     }
 }
 
-/// The verified caller of an HTTP request in mode `oauth`: the one the host's verifier left in
-/// the request's [`CallerSlot`], **only** when its credentials equal the ones AFD's server
-/// admitted for this request. Anything else (no credentials, no slot, an empty slot, a slot for
-/// other credentials) identifies no one.
+/// The verified caller of an HTTP request in a hosted mode: the one the host's verifier (mode
+/// `oauth`) or gateway layer (mode `gateway`) left in the request's [`CallerSlot`], **only**
+/// when its credentials equal the ones AFD's server admitted for this request and it was
+/// vouched for as `mode` vouches. Anything else (no credentials, no slot, an empty slot, a slot
+/// for other credentials, a token's caller in mode `gateway` or an assertion's in mode `oauth`)
+/// identifies no one.
 fn verified_caller(
     request: &ContextHookRequest,
     context: &CommandContext,
+    mode: AuthMode,
 ) -> Result<Arc<VerifiedCaller>, &'static str> {
     let slot = request
         .http_parts()
         .and_then(|parts| parts.extensions.get::<CallerSlot>());
-    caller_for(slot, context.credentials.as_deref())
+    hosted_caller(slot, context.credentials.as_deref(), mode)
+}
+
+/// The principal of a hosted caller and the claim groups the hook stores beside it, never a
+/// gateway's (section 4.5): [`VerifiedCaller::claim_groups`].
+fn hosted_principal(config: &Config, caller: &VerifiedCaller) -> (Principal, Vec<String>) {
+    (
+        Principal::verified(config, caller),
+        caller.claim_groups().to_vec(),
+    )
+}
+
+/// The caller in `slot` when it was mapped for exactly `credentials` and vouched for as `mode`
+/// vouches; the reason logged otherwise.
+fn hosted_caller(
+    slot: Option<&CallerSlot>,
+    credentials: Option<&afd::Credentials>,
+    mode: AuthMode,
+) -> Result<Arc<VerifiedCaller>, &'static str> {
+    let caller = caller_for(slot, credentials)?;
+    if caller.vouched_for(mode) {
+        Ok(caller)
+    } else {
+        Err("refused a caller vouched for otherwise than this auth.mode vouches")
+    }
 }
 
 /// The caller in `slot` when it was mapped for exactly `credentials`; the reason logged
@@ -356,7 +391,7 @@ fn caller_for(
         Some(caller) if caller.credentials == *credentials => Ok(Arc::clone(caller)),
         Some(_) => Err("refused a request whose mapped caller belongs to other credentials"),
         None => Err(
-            "refused verified credentials that the host's verifier did not map: its verifier is not installed",
+            "refused verified credentials that the host's verifier or gateway layer did not map: it is not installed",
         ),
     }
 }
@@ -369,14 +404,15 @@ fn caller_for(
 /// | stdio | any | an agent with `principal.local_id`, acting for `principal.on_behalf_of` when set | `process` |
 /// | Streamable HTTP | `none` | an agent with id `loopback` | `none` |
 /// | Streamable HTTP | `oauth` | section 4.1's mapping of the verified token | `verified` |
-/// | Streamable HTTP | `gateway` | refused with `UNAUTHORIZED` until step 4 | - |
+/// | Streamable HTTP | `gateway` | section 4.4's mapping of the verified assertion | `gateway` |
 ///
 /// A request that carries HTTP parts came over Streamable HTTP, and one that does not came over
 /// stdio; AFD sets the parts itself, so a caller cannot choose its transport. The hook **fails
-/// closed** in the hosted modes: an HTTP request without the caller the host's verifier mapped
-/// for the admitted credentials (a layer or the verifier missing) is refused. It reads nothing a
-/// caller sends: only AFD's admitted credentials and the request extension the host's own
-/// verifier filled. The CLI and the library set their principals elsewhere.
+/// closed** in the hosted modes: an HTTP request without the caller the host's verifier (or, in
+/// mode `gateway`, its gateway layer) mapped for the admitted credentials (a layer or the
+/// verifier missing) is refused. It reads nothing a caller sends: only AFD's admitted credentials
+/// and the request extension the host's own verifier or gateway layer filled. The CLI and the
+/// library set their principals elsewhere.
 pub(crate) fn hook(
     config: Arc<Config>,
     auth: HttpAuth,
@@ -397,22 +433,18 @@ pub(crate) fn hook(
                     Transport::Http,
                     Authentication::None,
                 ),
-                AuthMode::Oauth => match verified_caller(&request, &context) {
-                    Ok(caller) => {
-                        claim_groups.clone_from(&caller.claim_groups);
-                        Principal::verified(&config, &caller)
+                mode @ (AuthMode::Oauth | AuthMode::Gateway) => {
+                    match verified_caller(&request, &context, mode) {
+                        Ok(caller) => {
+                            let (principal, groups) = hosted_principal(&config, &caller);
+                            claim_groups = groups;
+                            principal
+                        }
+                        Err(reason) => {
+                            tracing::error!(target: "umbel::auth", "{reason}");
+                            return std::future::ready(Err(auth.unauthorized()));
+                        }
                     }
-                    Err(reason) => {
-                        tracing::error!(target: "umbel::auth", "{reason}");
-                        return std::future::ready(Err(auth.unauthorized()));
-                    }
-                },
-                AuthMode::Gateway => {
-                    tracing::error!(
-                        target: "umbel::auth",
-                        "refused an HTTP request in auth.mode = \"gateway\", which arrives in phase 5 step 4"
-                    );
-                    return std::future::ready(Err(auth.unauthorized()));
                 }
             }
         } else {
@@ -502,7 +534,7 @@ mod tests {
                 .with_id("corp/app")
                 .with_on_behalf_of("corp/ada"),
             chain: Vec::new(),
-            binding: TokenBinding::Bearer,
+            vouched: Vouched::Token(TokenBinding::Bearer),
             scopes: Vec::new(),
             claim_groups: Vec::new(),
         }
@@ -534,5 +566,70 @@ mod tests {
         assert!(caller_for(Some(&slot), None).is_err());
         assert!(caller_for(Some(&CallerSlot::default()), Some(&mine)).is_err());
         assert!(caller_for(None, Some(&mine)).is_err());
+    }
+
+    #[test]
+    fn each_hosted_mode_trusts_only_its_own_kind_of_caller() {
+        let base = afd::Credentials::new("https://as.example.com", "u", "c", "https://r/mcp", 1, 2);
+        let token = caller(&base);
+        let mut asserted = caller(&base);
+        asserted.vouched = Vouched::Gateway;
+        assert!(token.vouched_for(AuthMode::Oauth));
+        assert!(asserted.vouched_for(AuthMode::Gateway));
+        assert!(!asserted.vouched_for(AuthMode::Oauth));
+        assert!(!token.vouched_for(AuthMode::Gateway));
+        assert!(!token.vouched_for(AuthMode::None));
+        assert!(!asserted.vouched_for(AuthMode::None));
+        // Through the hook's own lookup: a token's caller is no one in mode gateway, and an
+        // assertion's no one in mode oauth, though each sits beside its own credentials.
+        let credentials = afd::Credentials::new(
+            "https://as.example.com",
+            "ada",
+            "app",
+            "https://r.example.com/mcp",
+            1,
+            2,
+        );
+        let token_slot = CallerSlot::default();
+        assert!(token_slot.fill(caller(&credentials)));
+        let mut asserted = caller(&credentials);
+        asserted.vouched = Vouched::Gateway;
+        let gateway_slot = CallerSlot::default();
+        assert!(gateway_slot.fill(asserted));
+        assert!(hosted_caller(Some(&token_slot), Some(&credentials), AuthMode::Oauth).is_ok());
+        assert!(hosted_caller(Some(&token_slot), Some(&credentials), AuthMode::Gateway).is_err());
+        assert!(hosted_caller(Some(&gateway_slot), Some(&credentials), AuthMode::Gateway).is_ok());
+        assert!(hosted_caller(Some(&gateway_slot), Some(&credentials), AuthMode::Oauth).is_err());
+    }
+
+    #[test]
+    fn a_gateway_caller_is_gateway_with_no_binding_and_no_person() {
+        let config = crate::workspace::ConfigFile::parse("config_version = 5\n")
+            .and_then(|file| file.into_config(std::path::Path::new("/w")))
+            .unwrap();
+        let mut gateway = caller(&afd::Credentials::new(
+            "https://gateway.example.com",
+            "ada",
+            "app",
+            "https://r.example.com/mcp",
+            1,
+            2,
+        ));
+        gateway.vouched = Vouched::Gateway;
+        // Groups are never taken from a gateway, whatever the caller's field holds: neither in
+        // what the hook stores beside the principal nor in the spaces it reads through them.
+        gateway.claim_groups = vec!["eng".into()];
+        let (principal, groups) = hosted_principal(&config, &gateway);
+        assert!(groups.is_empty());
+        let mut token = caller(&gateway.credentials);
+        token.claim_groups = vec!["eng".into()];
+        assert_eq!(hosted_principal(&config, &token).1, ["eng"]);
+        assert_eq!(principal.authentication, Authentication::Gateway);
+        assert_eq!(principal.token_binding, None);
+        assert_eq!(principal.human_present, None);
+        assert_eq!(principal.transport, Transport::Http);
+        let token = Principal::verified(&config, &caller(&gateway.credentials));
+        assert_eq!(token.authentication, Authentication::Verified);
+        assert_eq!(token.token_binding, Some(TokenBinding::Bearer));
     }
 }

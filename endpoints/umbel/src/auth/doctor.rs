@@ -170,20 +170,22 @@ fn mode(inputs: &Inputs<'_>) -> Check {
                 listed(&accepted)
             )
         }
-        AuthMode::Gateway => {
-            if auth.gateway.is_none() {
+        AuthMode::Gateway => match &auth.gateway {
+            None => {
                 found.fail("auth.mode is \"gateway\" without [auth.gateway]");
-            } else {
-                found.warn("auth.mode is \"gateway\", which this build reads but serves only from phase 5 step 4, so umbel serve --http refuses to start");
+                "auth.mode is \"gateway\"".to_owned()
             }
-            "auth.mode is \"gateway\"".to_owned()
-        }
+            Some(gateway) => format!(
+                "auth.mode is \"gateway\" with gateway {} (namespace {}), publishing no protected-resource metadata",
+                gateway.alias, gateway.namespace
+            ),
+        },
         AuthMode::None => "auth.mode is \"none\"".to_owned(),
     };
     found.into_check(
         "auth.mode",
         passed,
-        "Declare an issuer whose access tokens are accepted for auth.mode = \"oauth\", or [auth.gateway] for \"gateway\"; until this build serves the mode over HTTP, use stdio and the CLI.",
+        "Declare an issuer whose access tokens are accepted for auth.mode = \"oauth\", or [auth.gateway] for \"gateway\".",
     )
 }
 
@@ -296,36 +298,40 @@ fn tls(inputs: &Inputs<'_>) -> Check {
         found.warn("this platform's file permissions and owners are not checked");
     }
     if let Some(gateway) = &config.auth.gateway {
-        let path = root.join(&gateway.keys);
-        match read_key_set_file(&path) {
-            Ok(0) => found.fail(format!(
-                "auth.gateway.keys: {} holds no key with a kid",
-                path.display()
+        // The gateway layer's own loading, so the doctor passes exactly the key sets it serves.
+        match crate::auth::gateway::PinnedKeys::load(root, gateway) {
+            Ok(keys) => found.note(format!(
+                "the gateway's pinned key set holds {} key(s)",
+                keys.len()
             )),
-            Ok(_) => {}
             Err(problem) => found.fail(format!("auth.gateway.keys: {problem}")),
         }
-        if let Some(problem) = files::too_open(&path, Secrecy::Public) {
-            found.fail(format!("auth.gateway.keys: {problem}"));
+        let pinned = config
+            .http
+            .tls
+            .as_ref()
+            .is_some_and(|tls| tls.client_auth == crate::workspace::ClientAuth::Ca)
+            && !gateway.client_cert_sha256.is_empty();
+        if pinned {
+            found.note(format!(
+                "the gateway connects with one of {} pinned certificate(s) chaining to http.tls.client_ca, and its connections skip the per-IP limit",
+                gateway.client_cert_sha256.len()
+            ));
+        } else if gateway.client_cert_sha256.is_empty() {
+            found.warn(
+                "the gateway connects over loopback with no pinned certificate, so any process on this host is on the gateway's channel and shares its per-IP limit (limits.ip_requests_per_minute); pin the gateway's certificate (client_cert_sha256 with [http.tls] client_auth)",
+            );
+        } else {
+            found.note(
+                "the gateway connects over loopback with a pinned certificate, and its connections skip the per-IP limit",
+            );
         }
     }
     found.into_check(
         "auth.tls",
         passed,
-        "Serve a non-loopback bind with [http.tls]; renew a certificate before it expires; run chmod 600 on the key and chmod go-w on the certificate, CA and key set files.",
+        "Serve a non-loopback bind with [http.tls]; renew a certificate before it expires; run chmod 600 on the key and chmod go-w on the certificate, CA and key set files; pin the gateway's public keys, each with its kid and alg.",
     )
-}
-
-/// The usable keys of the JWKS file at `path`.
-fn read_key_set_file(path: &Path) -> Result<usize, String> {
-    let text = files::read_limited(path)?;
-    let document = match serde_json::from_slice::<Value>(&text) {
-        Ok(Value::Object(document)) => document,
-        _ => return Err(format!("{} is not a JWKS object", path.display())),
-    };
-    key_set(&document)
-        .map(|keys| keys.len())
-        .map_err(|_| format!("{} is not a key set this host can use", path.display()))
 }
 
 // ── auth.ca_files ───────────────────────────────────────────────────────────────────────────────
@@ -761,11 +767,18 @@ fn subjects(config: &Config, probes: &[Probe]) -> Check {
         }
     }
     for namespace in &auth.namespaces {
+        // A gateway asserting subjects into a namespace joins it as an issuer does (4.4).
         let joined: Vec<String> = auth
             .issuers
             .iter()
             .filter(|issuer| issuer.namespace == namespace.id)
             .map(|issuer| format!("{} ({})", issuer.alias, issuer.subject_claim))
+            .chain(
+                auth.gateway
+                    .iter()
+                    .filter(|gateway| gateway.namespace == namespace.id)
+                    .map(|gateway| format!("the gateway {} (its assertions' sub)", gateway.alias)),
+            )
             .collect();
         if joined.len() > 1 {
             found.note(format!(

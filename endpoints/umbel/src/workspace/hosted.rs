@@ -1489,7 +1489,8 @@ pub(super) fn check_hosted(
 }
 
 /// The gateway's pinned channel and bound tokens, against `[http]` (2.2): `gateway` needs
-/// `client_cert_sha256` and `client_auth = "ca"` unless the bind is loopback, and
+/// `client_cert_sha256` and `client_auth = "ca"` unless the bind is loopback; pins need a client
+/// certificate to match, so `client_auth` other than `none` (amendment from phase 5 step 4); and
 /// `require_bound_tokens` needs a client certificate. Checked again after a bind override.
 pub(super) fn check_channel(auth: &AuthConfig, http: &HttpConfig) -> Result<(), WorkspaceError> {
     let client_auth = http
@@ -1511,6 +1512,15 @@ pub(super) fn check_channel(auth: &AuthConfig, http: &HttpConfig) -> Result<(), 
                 "is required on a non-loopback bind: the SHA-256 of each certificate the gateway may present",
             ));
         }
+    }
+    if let Some(gateway) = &auth.gateway
+        && !gateway.client_cert_sha256.is_empty()
+        && client_auth == ClientAuth::None
+    {
+        return Err(WorkspaceError::config_invalid(
+            "auth.gateway.client_cert_sha256",
+            "pins certificates that cannot reach Umbel: they need [http.tls] with client_auth = \"ca\" (or \"any\" on a loopback bind)",
+        ));
     }
     if auth.require_bound_tokens && client_auth == ClientAuth::None {
         return Err(WorkspaceError::config_invalid(
