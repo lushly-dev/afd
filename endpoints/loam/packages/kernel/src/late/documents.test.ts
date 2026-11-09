@@ -555,7 +555,7 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 		expect(restored.data).toMatchObject({ status: 'archived', trashedAt: null, trashedFrom: null });
 	});
 
-	it('trashes and restores, each the undo of the other, and a trashed document refuses changes', async () => {
+	it('P2-D4: P2-D6: trashes and restores, each the undo of the other, and a trashed document refuses changes', async () => {
 		const workspace = await documents({ store: adapterOf() });
 		const { kernel } = workspace;
 		const record = await created(workspace);

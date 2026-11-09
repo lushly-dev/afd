@@ -2,7 +2,8 @@
  * P2-E1 (phase 2 specification, section 15): one first paint. Every deployment requests the same chunks
  * before the shell's mark `loam-stage-b`, byte for byte, with only `deployment.json` differing and no
  * manifest read; a frame paints with what stage B reads held; a boot record is display, and stage B
- * corrects one that lies. Step 5 adds a deep link and step 6 adds tasks.
+ * corrects one that lies. Step 5 adds a deep link and step 6 adds tasks. P2-E2's Chromium part is here too: Zod
+ * starts `jitless`, with no CSP violation, in the empty shell and after stage B.
  */
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -25,6 +26,7 @@ import {
 	packApp,
 	serveDeployment,
 	serveDist,
+	surfacesIdle,
 } from '../harness';
 
 let browser: Browser;
@@ -412,5 +414,56 @@ describe('P2-E1: one first paint', () => {
 		expect(list.data.apps[0]?.error?.message).not.toContain('secret');
 		await opened.context.close();
 		await site.close();
+	});
+});
+
+/** Zod's shared configuration, as the page holds it: `jitless` once the build has started it (2.4, #664). */
+const jitless = (page: Page) =>
+	page.evaluate(
+		() =>
+			(globalThis as { __zod_globalConfig?: { jitless?: boolean } }).__zod_globalConfig?.jitless ??
+			null
+	);
+
+/** Stage B's end: the kernel's `startApps` is the promise the shell started at the mark. */
+const stageBEnded = (page: Page) =>
+	page.evaluate(async () => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			kernel: { startApps(): Promise<void> };
+		};
+		await shell.kernel.startApps();
+	});
+
+describe('P2-E2: Zod starts jitless, with no CSP violation, in the empty shell and after stage B', () => {
+	it('P2-E2: __zod_globalConfig.jitless is true at the first paint and once stage B has ended, empty or with apps', async () => {
+		const empty = await serveDist();
+		const withApps = await serveDeployment({
+			config: deploymentFile(
+				deploymentEntry('hello', await packApp('hello')),
+				deploymentEntry('tally', await packApp('tally'))
+			),
+		});
+		for (const [site, apps] of [
+			[empty, false],
+			[withApps, true],
+		] as const) {
+			const opened = await openPage(browser, site.origin);
+			const { page } = opened;
+			// The first paint: the mark is taken, and Zod's core, in the kernel's first-paint chunks, has run.
+			await measureFirstPaint(page);
+			expect(await jitless(page), `${site.origin} at first paint`).toBe(true);
+			await stageBEnded(page);
+			if (apps) {
+				// The apps' chunks, classic Zod among them, load with stage B; their surfaces start once it ends.
+				await surfacesIdle(page);
+				expect(site.log.some(({ path }) => /\/assets\/apps-/.test(path))).toBe(true);
+			}
+			await expect.poll(() => site.log.some(({ path }) => /\/assets\/late-/.test(path))).toBe(true);
+			expect(await jitless(page), `${site.origin} after stage B`).toBe(true);
+			expect(opened.violations).toEqual([]);
+			expect(opened.errors).toEqual([]);
+			await opened.context.close();
+			await site.close();
+		}
 	});
 });
