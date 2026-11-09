@@ -54,7 +54,7 @@ function command(name: string, extra: Record<string, unknown> = {}): ZodCommandD
 	}) as unknown as ZodCommandDefinition;
 }
 
-describe('E8: the kernel refuses a bad name', () => {
+describe('P2-E13: E8: the kernel refuses a bad name', () => {
 	it('rejects createKernel({ commands: [doThing] }) with COMMAND_NAME_INVALID', async () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const doThing = command('doThing');
@@ -280,7 +280,7 @@ describe('the journal', () => {
 	});
 });
 
-describe('E1 (kernel unit): every layout change goes through the shared validator', () => {
+describe('P2-E13: E1 (kernel unit): every layout change goes through the shared validator', () => {
 	it('refuses view-state-set with an out-of-range width, and journals the refusal', async () => {
 		const { kernel: k, journal } = await kernel();
 		const result = await k.agent.call('view-state-set', {

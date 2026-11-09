@@ -24,8 +24,8 @@ afterAll(async () => {
 /** The budgets of 8.2, in milliseconds. */
 const BUDGETS = { a1P95: 8, a2Total: 2_000, a3Total: 500, a4Total: 500 };
 
-describe('E9: the accelerator operations A1 to A4', () => {
-	it('P2-D9: A1 to A3, and A4 for 2,000 documents and 20,000 links, stay within budget on the reference workspace', async () => {
+describe('P2-E13: E9: the accelerator operations A1 to A4', () => {
+	it('P2-E2: P2-D9: A1 to A3, and A4 for 2,000 documents and 20,000 links, stay within budget on the reference workspace', async () => {
 		const source = await bundlePage('accelerators');
 		const context = await browser.newContext();
 		const page = await context.newPage();

@@ -33,7 +33,7 @@ afterAll(async () => {
 	await site?.close();
 });
 
-describe('E1: hello loads native', () => {
+describe('P2-E13: E1: hello loads native', () => {
 	it('lists, opens and runs it, from main, the palette and an agent', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;

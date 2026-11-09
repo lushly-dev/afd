@@ -191,7 +191,7 @@ function rpc(frame: Frame, method: string, params: unknown = {}): Promise<RpcAns
 
 const logOf = (frame: Frame) => frame.evaluate(() => (window as unknown as { log: string[] }).log);
 
-describe('E2: a view in real frames', () => {
+describe('P2-E13: E2: a view in real frames', () => {
 	it('runs on the second origin, opaque inside, under the flags and the policy', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -365,7 +365,7 @@ describe('E2: a view in real frames', () => {
 	});
 });
 
-describe('E2: what a hostile view can reach', () => {
+describe('P2-E13: E2: what a hostile view can reach', () => {
 	it('cannot reach the shell, the network, a cookie or storage', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -841,7 +841,7 @@ describe('E2: what a hostile view can reach', () => {
 	});
 });
 
-describe('E2: the host context', () => {
+describe('P2-E13: E2: the host context', () => {
 	it('changes the view through host-context-changed when the theme and the size do', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -939,7 +939,7 @@ describe('E2: the host context', () => {
 	});
 });
 
-describe('E2: leaving a view', () => {
+describe('P2-E13: E2: leaving a view', () => {
 	it('sends teardown on a switch, and removes the frame', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -1003,7 +1003,7 @@ describe('E2: leaving a view', () => {
 	});
 });
 
-describe('E2: a view that fails', () => {
+describe('P2-E13: E2: a view that fails', () => {
 	it('shows VIEW_RESOURCE_UNAVAILABLE in main, and the rest of the shell works', async () => {
 		const missing = await serveDeployment({
 			sandbox: true,
@@ -1050,7 +1050,7 @@ describe('E2: a view that fails', () => {
 	}, 40_000);
 });
 
-describe('E2: conformance with @modelcontextprotocol/ext-apps', () => {
+describe('P2-E13: E2: conformance with @modelcontextprotocol/ext-apps', () => {
 	it('connects, reads its host context, calls a tool and receives teardown', async () => {
 		const main = `<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>Conformance</title></head><body><main><h1>Conformance</h1></main>${inlineScript(await bundlePage('ext-apps-view'))}</body></html>`;
 		const conformance = await serveDeployment({
@@ -1118,7 +1118,7 @@ describe('E2: conformance with @modelcontextprotocol/ext-apps', () => {
  */
 const AROUND_THE_FRAME = ['page-has-heading-one'];
 
-describe('E2: accessibility', () => {
+describe('P2-E13: E2: accessibility', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
 		for (const density of ['comfortable', 'compact'] as const)
 			it(`passes axe inside the frame and around it in ${theme}, ${density}`, async () => {

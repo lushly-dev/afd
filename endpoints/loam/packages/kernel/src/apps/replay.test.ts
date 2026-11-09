@@ -27,7 +27,7 @@ const probeOptions = () => ({
 	}),
 });
 
-describe('E9 (kernel unit): replay with apps', () => {
+describe('P2-E13: E9 (kernel unit): replay with apps', () => {
 	it('replays a scripted session over `probe` with zero differences', async () => {
 		const recorded = await recordSession(PROBE_SESSION, probeOptions());
 		const replayed = await replayKernel(recorded.entries, probeOptions());

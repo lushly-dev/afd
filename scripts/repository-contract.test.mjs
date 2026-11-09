@@ -395,6 +395,56 @@ test('a workflow reads the one output its affected.mjs gate writes', () => {
 	}
 });
 
+test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual run opens every gate", () => {
+	// scripts/loam-exit-check.mjs reads a manual run's jobs and log; a skipped job or a hidden title fails it.
+	const loam = read('.github/workflows/loam.yml');
+	for (const workflow of [loam, read('.github/workflows/ci.yml')]) {
+		assert.match(workflow, /^ {2}workflow_dispatch:$/m);
+		assert.match(
+			workflow,
+			/AFD_SCOPE: \$\{\{ \(github\.event_name == 'pull_request' \|\| github\.event_name == 'push'\) && 'affected' \|\| 'all' \}\}/
+		);
+	}
+	// Each job past the gate reads a gate output the scope job sets from a gate step's `run`.
+	for (const [job, output] of [
+		['loam', 'run'],
+		['walk', 'run'],
+		['mounted', 'mounted'],
+	]) {
+		const block = new RegExp(
+			`^ {2}${job}:\\n[\\s\\S]*?(?=^ {2}[\\w-]+:\\n|$(?![\\s\\S]))`,
+			'm'
+		).exec(loam)?.[0];
+		assert.ok(block, job);
+		assert.match(block, /^ {4}needs: scope$/m, job);
+		assert.match(block, new RegExp(`^ {4}if: needs\\.scope\\.outputs\\.${output} == 'true'$`, 'm'));
+		assert.match(
+			loam,
+			new RegExp(`^ {6}${output}: \\$\\{\\{ steps\\.[\\w-]+\\.outputs\\.run \\}\\}$`, 'm')
+		);
+	}
+	assert.match(
+		loam,
+		/- name: Unit suites with coverage\n {8}run: pnpm -F "\.\/endpoints\/loam\/packages\/\*" -F "\.\/endpoints\/loam\/apps\/\*" test --coverage --reporter=verbose\b/
+	);
+	assert.ok(
+		loam.includes(
+			"- name: AFD's lean path\n        run: |\n" +
+				'          pnpm -F @lushly-dev/afd-server exec vitest run src/entry-points.test.ts --reporter=verbose\n' +
+				'          node --test --test-reporter=spec scripts/plugin-manifest.test.mjs\n'
+		)
+	);
+	// test:browser chains two runs, so a flag would reach only the last: each config names the reporter.
+	for (const config of ['browser', 'conformance', 'mounted', 'walk'])
+		assert.match(
+			read(`endpoints/loam/packages/web/vitest.${config}.config.ts`),
+			/^\t\treporters: process\.env\.GITHUB_ACTIONS === 'true' \? \['verbose', 'github-actions'\] : \['verbose'\],$/m,
+			config
+		);
+	assert.match(read('packages/server/src/entry-points.test.ts'), /'P2-E2: /);
+	assert.match(read('scripts/plugin-manifest.test.mjs'), /test\("P2-E11: /);
+});
+
 test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'

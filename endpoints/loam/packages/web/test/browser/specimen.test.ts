@@ -56,7 +56,7 @@ function expectClean(observation: Observation, id = observation.manifest.specime
 	).toEqual([]);
 }
 
-describe('E2: a replayed journal reproduces the layout', () => {
+describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 	it('renders the live session and the replayed fixture identically', async () => {
 		const live = await bench.render({ id: 'session-live', context: CONTEXT });
 		const replay = await bench.render({ id: 'session-replay', context: CONTEXT });
@@ -165,9 +165,9 @@ const APP_CAPTURES: [string, string][] = [
 	[`${id}-compact`, expected] as [string, string],
 ]);
 
-describe('E11: Specimen captures of what apps add', () => {
+describe('P2-E13: E11: Specimen captures of what apps add', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
-		it(`captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+		it(`P2-E12: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
 			for (const [id, expected] of APP_CAPTURES) {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
@@ -310,7 +310,7 @@ describe('P2-D10: Specimen captures of the documents section and New', () => {
 		}, 300_000);
 });
 
-describe('E4: Specimen captures of each part and the whole shell', () => {
+describe('P2-E13: E4: Specimen captures of each part and the whole shell', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
 		it(`captures every fixture in ${theme}, each with an ARIA snapshot`, async () => {
 			for (const [id, expected] of CAPTURES) {

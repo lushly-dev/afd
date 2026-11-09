@@ -1041,7 +1041,7 @@ describe('what a hostile server cannot do with its size or its shape (9.9)', () 
 	});
 });
 
-describe('P2-E3 (kernel unit): an instance that lists projects opens only in them (7.1, 9.1)', () => {
+describe('P2-E3: (kernel unit) an instance that lists projects opens only in them (7.1, 9.1)', () => {
 	it('is unavailable elsewhere, refuses app-open there, journaled, and leaves on a switch into one', async () => {
 		const { kernel, journal } = await boot({ work: () => fakeTransport({}) }, [
 			work({ projects: ['atlas'] }),
@@ -1081,7 +1081,7 @@ describe('P2-E3 (kernel unit): an instance that lists projects opens only in the
 const commandCalls = (transport: ReturnType<typeof fakeTransport>) =>
 	transport.metas.filter(({ tool }) => !['afd-help', 'afd-detail'].includes(tool));
 
-describe('P2-E6 (kernel unit): a mounted call carries its scope, and stays in its projects (9.2)', () => {
+describe('P2-E6: (kernel unit) a mounted call carries its scope, and stays in its projects (9.2)', () => {
 	async function scoped(entry: Record<string, unknown>) {
 		const transport = fakeTransport(
 			{ 'hello-greet': { mutation: false }, 'hello-whisper': { mutation: false } },

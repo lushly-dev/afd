@@ -42,7 +42,7 @@ async function openPalette(page: Page) {
 const THEMES = ['light', 'dark', 'high-contrast'] as const;
 const DENSITIES = ['comfortable', 'compact'] as const;
 
-describe('E4: axe in every theme and density', () => {
+describe('P2-E13: E4: axe in every theme and density', () => {
 	for (const theme of THEMES)
 		for (const density of DENSITIES)
 			it(`has no violations in ${theme}, ${density}, with the palette closed and open`, async () => {

@@ -62,7 +62,7 @@ async function withOverlays(page: Page) {
 const THEMES = ['light', 'dark', 'high-contrast'] as const;
 const DENSITIES = ['comfortable', 'compact'] as const;
 
-describe('E11: axe with apps', () => {
+describe('P2-E13: E11: axe with apps', () => {
 	for (const theme of THEMES)
 		for (const density of DENSITIES)
 			it(`has no violations in ${theme}, ${density}, with hello open and with its overlays`, async () => {
@@ -145,7 +145,7 @@ describe('E11: axe with apps', () => {
 	});
 });
 
-describe('E11: the keyboard with apps', () => {
+describe('P2-E13: E11: the keyboard with apps', () => {
 	it("reaches and operates the rail's entries, and F6's order is unchanged", async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;

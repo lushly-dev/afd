@@ -97,8 +97,14 @@ export const SUITES = [
 			},
 			{
 				gate: 'run',
-				run: 'pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage',
+				run: 'pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" test --coverage --reporter=verbose',
 			},
+			// AFD's lean path, E2's and E11's AFD side.
+			{
+				gate: 'run',
+				run: 'pnpm -F @lushly-dev/afd-server exec vitest run src/entry-points.test.ts --reporter=verbose',
+			},
+			{ gate: 'run', run: 'node --test --test-reporter=spec scripts/plugin-manifest.test.mjs' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-theme theme:check' },
 			{
 				gate: 'run',

@@ -47,7 +47,7 @@ const modalOpen = (page: Page) =>
 		return walk(document);
 	});
 
-describe('E6: overlays and a switch', () => {
+describe('P2-E13: E6: overlays and a switch', () => {
 	it('leaves nothing of hello on screen, and restores what it parked', async () => {
 		const opened = await openShell(browser, site.origin, {
 			viewport: { width: 1280, height: 420 },

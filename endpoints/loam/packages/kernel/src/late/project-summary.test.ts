@@ -216,7 +216,7 @@ async function workspace(aborted: number[] = []) {
 const rowsOf = (result: { data?: unknown }) =>
 	(result.data as ProjectSummaryResultV1).summaries.map((row) => row.instance);
 
-describe('P2-E9 (kernel unit): project-summary-get', () => {
+describe('P2-E9: (kernel unit) project-summary-get', () => {
 	it('P2-D9: asks each app with a summary at the project, in the rail’s order, each failure its row alone, and drops an unknown link kind with a warning', async () => {
 		const aborted: number[] = [];
 		const { kernel, journal, atlas } = await workspace(aborted);
@@ -341,7 +341,7 @@ describe('P2-E9 (kernel unit): project-summary-get', () => {
 	});
 });
 
-describe('P2-E9 (kernel unit): readProjectSummary and readResourceLink', () => {
+describe('P2-E9: (kernel unit) readProjectSummary and readResourceLink', () => {
 	it('is undefined for what is no summary, so the row is PROJECT_SUMMARY_INVALID', () => {
 		for (const value of [null, 'text', 1, [], { counts: 'many' }, { recent: {} }, { links: 1 }]) {
 			expect(readProjectSummary(value), JSON.stringify(value)).toBeUndefined();
@@ -399,7 +399,7 @@ describe('P2-E9 (kernel unit): readProjectSummary and readResourceLink', () => {
 	});
 });
 
-describe('P2-E9 (kernel unit): loam.layout.~projects (7.6, 7.7)', () => {
+describe('P2-E9: (kernel unit) loam.layout.~projects (7.6, 7.7)', () => {
 	it('is the projects section’s layout, with main alone, kept apart from an app’s and the no-app record', async () => {
 		const { kernel } = await workspace();
 		const before = await kernel.call<LayoutStateV0>('layout-get');
@@ -423,7 +423,7 @@ describe('P2-E9 (kernel unit): loam.layout.~projects (7.6, 7.7)', () => {
 	});
 });
 
-describe('P2-E9 (kernel unit): the reviews of step 7 (T2, T6)', () => {
+describe('P2-E9: (kernel unit) the reviews of step 7 (T2, T6)', () => {
 	it("T2: runs each summary on the outer call's interface, so an agent cannot read one hidden from the model", async () => {
 		const { kernel, journal } = await workspace();
 		await kernel.call('workspace-app-set', { instance: 'slow', enabled: false });
@@ -476,7 +476,7 @@ describe('P2-E9 (kernel unit): the reviews of step 7 (T2, T6)', () => {
 	});
 });
 
-describe('P2-E9 (kernel unit): what the reader keeps of a time and of text (T1, T7)', () => {
+describe('P2-E9: (kernel unit) what the reader keeps of a time and of text (T1, T7)', () => {
 	it('keeps an updatedAt only as an integer within ±8.64e15, so no shown date can throw', () => {
 		const read = readProjectSummary({
 			recent: [
@@ -517,7 +517,7 @@ describe('P2-E9 (kernel unit): what the reader keeps of a time and of text (T1, 
 	});
 });
 
-describe('P2-E9 (kernel unit): the trust re-check of step 7 (N1, N5)', () => {
+describe('P2-E9: (kernel unit) the trust re-check of step 7 (N1, N5)', () => {
 	it('N1: a title of zero-width or filler characters alone is no title', () => {
 		for (const title of ['\u200b', '\ufeff', '\u2060', '\u3164', ' \u200b ', '\u200d']) {
 			expect(

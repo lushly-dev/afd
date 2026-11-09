@@ -397,8 +397,8 @@ const settled = (answer: unknown) =>
 		.replace(/"executionTimeMs":\d+/g, '"executionTimeMs":0')
 		.replace(/"traceId":"[^"]*"/g, '"traceId":""');
 
-describe('P2-D2: the shell checks checklist’s calls first', () => {
-	it('P2-D2: refuses the wrong type and another project’s checklist from the person, and answers the view’s cross-project read as a missing id', async () => {
+describe('P2-D6: the shell checks checklist’s calls first', () => {
+	it('P2-D6: refuses the wrong type and another project’s checklist from the person, and answers the view’s cross-project read as a missing id', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
 		await surfacesIdle(page);

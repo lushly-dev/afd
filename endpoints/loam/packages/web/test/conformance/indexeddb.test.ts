@@ -6,7 +6,7 @@ import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { runDataAdapterContract } from '@lushly-dev/local-db/testing';
 
 let database = 0;
-runDataAdapterContract('IndexedDbAdapter (Chromium)', () => {
+runDataAdapterContract('P2-E13: E10: IndexedDbAdapter (Chromium)', () => {
 	database += 1;
 	return new IndexedDbAdapter({ name: `loam-conformance-${Date.now()}-${database}` });
 });

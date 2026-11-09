@@ -15,7 +15,7 @@ import {
 	SESSION_50,
 } from './testing.js';
 
-describe('E2: a replayed journal reproduces the layout', () => {
+describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 	it('replays the scripted 50-call session over MemoryAdapter with zero differences', async () => {
 		expect(SESSION_50).toHaveLength(50);
 		const recorded = await recordSession(SESSION_50);

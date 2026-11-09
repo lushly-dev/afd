@@ -533,7 +533,7 @@ describe('P2-E4: replay with scope', () => {
 	});
 });
 
-describe('P2-E1 (kernel unit): stage B corrects a project layout stage A took from a boot record', () => {
+describe('P2-E1: (kernel unit) stage B corrects a project layout stage A took from a boot record', () => {
 	it("gives the manifest's first layout to a project record cloned from a lying boot record", async () => {
 		const store = new MemoryAdapter();
 		const first = await scoped({ store });
@@ -588,7 +588,7 @@ describe('P2-E1 (kernel unit): stage B corrects a project layout stage A took fr
 	});
 });
 
-describe('P2-E1 (kernel unit): a project layout a person wrote', () => {
+describe('P2-E1: (kernel unit) a project layout a person wrote', () => {
 	it('keeps what was written to a project record through stage B', async () => {
 		const store = new MemoryAdapter();
 		const first = await scoped({ store });
@@ -914,7 +914,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 	});
 });
 
-describe('P2-E3 (kernel unit): what the rail and the parts read in a project (7.1, 7.4, 7.6)', () => {
+describe('P2-E3: (kernel unit) what the rail and the parts read in a project (7.1, 7.4, 7.6)', () => {
 	it('keeps the level a selection was made at, defaulting to the call’s for an app that takes one', async () => {
 		const { kernel } = await scoped();
 		await kernel.call('scope-set', { project: 'atlas' });
@@ -988,7 +988,7 @@ describe('P2-E3 (kernel unit): what the rail and the parts read in a project (7.
 	});
 });
 
-describe('P2-E3 (kernel unit): a selection belongs to its scope and its app’s levels (7.4)', () => {
+describe('P2-E3: (kernel unit) a selection belongs to its scope and its app’s levels (7.4)', () => {
 	it('refuses a level the app does not take, and a project level with no project', async () => {
 		const { kernel } = await scoped();
 		expect(
@@ -1024,7 +1024,7 @@ describe('P2-E3 (kernel unit): a selection belongs to its scope and its app’s 
 	});
 });
 
-describe('P2-E3 (kernel unit): an app that cannot open here, through app-open or scope-set { app } (N3, N5)', () => {
+describe('P2-E3: (kernel unit) an app that cannot open here, through app-open or scope-set { app } (N3, N5)', () => {
 	it('refuses a project-only app with no project, and scope-set { app } to it changes nothing', async () => {
 		const { kernel } = await scoped();
 		await kernel.call('scope-set', { project: 'atlas' });
@@ -1115,7 +1115,7 @@ describe('P2-E3 (kernel unit): an app that cannot open here, through app-open or
 	});
 });
 
-describe('P2-E3 (kernel unit): a persisted active app that cannot open in the recorded scope is none at boot (F3)', () => {
+describe('P2-E3: (kernel unit) a persisted active app that cannot open in the recorded scope is none at boot (F3)', () => {
 	/** `dual` listing `projects`, at `generation`. */
 	const deployment = (generation: string, projects?: string[]) => {
 		const projection = scopedDeployment();
