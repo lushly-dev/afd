@@ -25,6 +25,7 @@ mod inspect;
 mod keys;
 mod points;
 mod pool;
+mod rank;
 mod read;
 mod rows;
 mod schema;
@@ -84,6 +85,9 @@ pub struct MemoryInfo {
 pub struct SqliteMemoryStore {
     space: String,
     pool: pool::MemoryPool,
+    /// The most readable matches a recall ranks: [`MAX_RECALL_MATCHES`], lowered only by the
+    /// `testkit` seam [`SqliteMemoryStore::with_recall_ceiling`].
+    recall_ceiling: u64,
 }
 
 impl SqliteMemoryStore {
@@ -106,7 +110,17 @@ impl SqliteMemoryStore {
                 space,
                 Duration::from_millis(options.lock_timeout_ms),
             ),
+            recall_ceiling: umbel_store::memory::MAX_RECALL_MATCHES,
         })
+    }
+
+    /// Lower the recall ceiling, for tests that show `MEMORY_QUERY_TOO_BROAD` without writing
+    /// fifty thousand records. A build without the `testkit` feature has no such seam.
+    #[cfg(feature = "testkit")]
+    #[must_use]
+    pub fn with_recall_ceiling(mut self, ceiling: u64) -> Self {
+        self.recall_ceiling = ceiling.min(umbel_store::memory::MAX_RECALL_MATCHES);
+        self
     }
 
     /// Keep memory's files out of machine backups (Time Machine) or not:

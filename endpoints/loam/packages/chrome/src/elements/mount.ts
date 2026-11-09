@@ -58,6 +58,8 @@ export interface MountOptions {
 	route?: string;
 	/** A title above the element, for a panel's view. */
 	label?: string;
+	/** An editor's document (documents specification, 5.6), assigned before it connects. */
+	document?: unknown;
 }
 
 /** The `@webcomponents` polyfill has no `customElementRegistry` option on `document.createElement`. */
@@ -96,8 +98,17 @@ export class LoamMount extends HTMLElement {
 
 	connectedCallback(): void {
 		if (this.shadowRoot || !this.#options) return;
-		const { registry, element, context, selection, selectionLevel, scope, route, label } =
-			this.#options;
+		const {
+			registry,
+			element,
+			context,
+			selection,
+			selectionLevel,
+			scope,
+			route,
+			label,
+			document: ref,
+		} = this.#options;
 		const root = this.attachShadow({
 			mode: 'open',
 			customElementRegistry: registry,
@@ -125,6 +136,7 @@ export class LoamMount extends HTMLElement {
 		// Before it connects, so it reads them when it is created (7.6).
 		if (scope) surface.scope = scope;
 		if (route !== undefined) surface.route = route;
+		if (ref !== undefined) (surface as { document?: unknown }).document = ref;
 		if (selectionLevel) surface.selectionLevel = selectionLevel;
 		surface.selection = selection ?? null;
 		this.#surface = surface;

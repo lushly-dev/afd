@@ -1,0 +1,281 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/person-decision.v1.json",
+	"title": "Umbel person decision, version 1",
+	"description": "One decision a person makes on the person page, in state/shared/person.sqlite3 (phase 5 section 7.2, D115). HumanRelay::begin over MCP, or the CLI, writes it pending; the page records the decision after a fresh login with user verification whose subject is for.subject in for.namespace; the retry spends it once and runs the call with humanPresent set when every field of for equals the retrying caller's and the input digest matches. It holds no text: only the preview's declared properties, which manifest version 5 requires to be in the gated command's journal.keep (ids), and the SHA-256 of the preview the page rendered from the live store. An expired decision keeps status pending past expires and is refused (PERSON_DECISION_EXPIRED at the CLI; over MCP the relay asks again); rows are purged an hour after expiry, with secure_delete. The URL https://<public host><path>/d/<id> holds no identity.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"for",
+		"command",
+		"inputDigest",
+		"properties",
+		"createdAt",
+		"expires",
+		"status",
+		"decidedAt",
+		"level",
+		"authTime",
+		"acr",
+		"previewHash"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"description": "128 random bits, unpadded lowercase base32: 26 characters.",
+			"type": "string",
+			"pattern": "^[a-z2-7]{26}$"
+		},
+		"for": {
+			"description": "Who the decision is for: from credentials over MCP (the issuer alias and the client id), or from the namespaced principal.local_id at the CLI (issuer and clientId null).",
+			"type": "object",
+			"required": ["actor", "clientId", "issuer", "namespace", "subject"],
+			"additionalProperties": false,
+			"properties": {
+				"actor": {
+					"$ref": "#/$defs/actor"
+				},
+				"clientId": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+						}
+					]
+				},
+				"issuer": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^[a-z][a-z0-9-]{0,62}$"
+						}
+					]
+				},
+				"namespace": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$"
+				},
+				"subject": {
+					"description": "The namespaced id's subject part, literal or hashed (4.1).",
+					"type": "string",
+					"pattern": "^([^~\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]{0,119}|~[a-z2-7]{52})$"
+				}
+			},
+			"oneOf": [
+				{
+					"properties": {
+						"issuer": {
+							"type": "null"
+						},
+						"clientId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"issuer": {
+							"type": "string"
+						},
+						"clientId": {
+							"type": "string"
+						}
+					}
+				}
+			]
+		},
+		"command": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+		},
+		"inputDigest": {
+			"description": "Unpadded base64url SHA-256 of the canonical JSON of the validated input (step 0a's amendment).",
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{43}$"
+		},
+		"properties": {
+			"description": "Only the preview's declared properties, each a string, a number, a boolean or a list of at most 100 strings, as journal.keep keeps them; at most 16.",
+			"type": "object",
+			"maxProperties": 16,
+			"propertyNames": {
+				"pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$"
+			},
+			"additionalProperties": {
+				"oneOf": [
+					{
+						"type": "string",
+						"maxLength": 512,
+						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+					},
+					{
+						"type": "number"
+					},
+					{
+						"type": "boolean"
+					},
+					{
+						"type": "array",
+						"maxItems": 100,
+						"items": {
+							"type": "string",
+							"maxLength": 512,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+						}
+					}
+				]
+			}
+		},
+		"createdAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+		},
+		"expires": {
+			"description": "10 minutes after createdAt.",
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+		},
+		"status": {
+			"enum": ["pending", "approved", "declined"]
+		},
+		"decidedAt": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+				}
+			]
+		},
+		"level": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"const": "verified"
+				}
+			]
+		},
+		"authTime": {
+			"description": "The login's auth_time, ISO 8601 UTC.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				}
+			]
+		},
+		"acr": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[^\\s\\u0000-\\u001f\\u007f-\\u009f]{1,255}$"
+				}
+			]
+		},
+		"previewHash": {
+			"description": "sha256 of the preview the page rendered; the preview itself is never stored.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$"
+				}
+			]
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"status": {
+						"const": "pending"
+					}
+				},
+				"required": ["status"]
+			},
+			"then": {
+				"properties": {
+					"decidedAt": {
+						"type": "null"
+					},
+					"level": {
+						"type": "null"
+					},
+					"authTime": {
+						"type": "null"
+					},
+					"acr": {
+						"type": "null"
+					},
+					"previewHash": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"decidedAt": {
+						"type": "string"
+					},
+					"level": {
+						"const": "verified"
+					},
+					"authTime": {
+						"type": "string"
+					},
+					"acr": {
+						"type": "string"
+					},
+					"previewHash": {
+						"type": "string"
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		}
+	}
+}

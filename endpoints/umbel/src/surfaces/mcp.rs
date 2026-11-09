@@ -37,7 +37,14 @@ pub(crate) fn build_server(
     let key = workspace.confirmation_key()?;
     let mut server = McpServer::new(Arc::clone(registry), "umbel", env!("CARGO_PKG_VERSION"))
         .with_tool_strategy(ToolStrategy::Hybrid)
-        .with_context_hook(principal::hook(&workspace.config().principal, clock.cloned()))
+        .with_context_hook(principal::hook(
+            Arc::new(workspace.config().clone()),
+            principal::HttpAuth::new(
+                &workspace.config().auth,
+                workspace.config().http.public_url.as_deref(),
+            ),
+            clock.cloned(),
+        ))
         .with_first_class_tools(first_class.iter().cloned())
         .with_tools_list_ttl_ms(config.tools_list_ttl_ms)
         .with_confirmations_key(mode(config.confirmations), key)
@@ -56,6 +63,24 @@ pub(crate) fn build_server(
         })?;
     if !config.instructions.is_empty() {
         server = server.with_instructions(config.instructions.clone());
+    }
+    // A hosted mode's server fails closed over HTTP however it is served (phase 5 section 6.3):
+    // only the listener's own authorized server admits a caller. Without the `auth` feature there
+    // is no authorization to attach, so a hosted workspace does not open a host at all.
+    #[cfg(feature = "auth")]
+    if let Some(authorization) = super::http::base_authorization(workspace)? {
+        server = server.with_authorization(authorization);
+    }
+    #[cfg(not(feature = "auth"))]
+    if workspace.config().auth.mode.is_hosted() {
+        return Err(crate::workspace::WorkspaceError::config_invalid(
+            "auth.mode",
+            format!(
+                "is \"{}\", which this build of umbel cannot serve safely (it was built without the `auth` feature)",
+                workspace.config().auth.mode.as_str()
+            ),
+        )
+        .into());
     }
     if !contexts.is_empty() {
         server = server.with_contexts(contexts.to_vec()).map_err(|message| {

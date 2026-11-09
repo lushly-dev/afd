@@ -20,10 +20,13 @@ pub(crate) const MAX_RUN_BYTES: u64 = 64 * 1024 * 1024;
 /// The default for `limit`.
 const DEFAULT_LIMIT: usize = 5000;
 
-/// What one call has left to spend, across its collections.
+/// What one call has left to spend, across its collections. For a caller whose positions are
+/// sealed (phase 5 section 9.3) `files` and `readable_bytes` are spent only on files whose
+/// document it can read, so how far a run gets never depends on files it cannot read.
 pub(crate) struct Budget {
     pub(crate) bytes: u64,
     pub(crate) files: usize,
+    pub(crate) readable_bytes: u64,
 }
 
 /// Everything one collection's sync reports.
@@ -41,6 +44,19 @@ pub(crate) struct Report {
     pub(crate) remaining: bool,
     pub(crate) stopped_after: Option<String>,
     pub(crate) limited: bool,
+    /// The same counts over the documents the caller can read, for a caller whose positions are
+    /// sealed.
+    pub(crate) readable: ReadableCounts,
+}
+
+/// A run's counts over the documents the caller can read (phase 5 section 9.3).
+#[derive(Default)]
+pub(crate) struct ReadableCounts {
+    pub(crate) added: usize,
+    pub(crate) updated: usize,
+    pub(crate) deleted: usize,
+    pub(crate) unchanged: usize,
+    pub(crate) flagged: BTreeMap<&'static str, usize>,
 }
 
 /// Parse the schema pack and load it.
@@ -164,6 +180,16 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     let mut budget = Budget {
         bytes: 0,
         files: limit,
+        readable_bytes: 0,
+    };
+    // A caller whose positions are sealed sees only what its reader filter admits.
+    let sealed = if cx.call().sealed_positions {
+        match cx.reader_tokens(&space) {
+            Ok(tokens) => Some(tokens),
+            Err(error) => return fail::host(&error),
+        }
+    } else {
+        None
     };
     let mut reports: Vec<(String, Result<Report, HostError>)> = Vec::new();
     for collection in &chosen {
@@ -174,6 +200,7 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             &schema,
             &all_ids,
             dry_run,
+            sealed.as_deref(),
             &mut budget,
         );
         reports.push((collection.info.id.clone(), report));
@@ -194,7 +221,15 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     if !dry_run {
         let _ = cx.checkpoint(&space);
     }
-    render(cx, &space, wanted, dry_run, limit, &reports)
+    render(
+        cx,
+        &space,
+        wanted,
+        dry_run,
+        limit,
+        sealed.is_some(),
+        &reports,
+    )
 }
 
 /// One collection's sync: the shared settings of its steps.
@@ -209,6 +244,22 @@ struct Sync<'a> {
     ids: HashSet<String>,
     digest: String,
     dry_run: bool,
+    /// The caller's reader tokens when its positions are sealed (phase 5 section 9.3).
+    sealed: Option<&'a [String]>,
+}
+
+impl Sync<'_> {
+    /// Whether the caller may read a document readable by `access`: always, unless sealed.
+    fn reads(&self, access: &[String]) -> bool {
+        self.sealed
+            .is_none_or(|mine| access.iter().any(|token| mine.contains(token)))
+    }
+
+    /// Whether the caller may read the document a file's state says was stored.
+    fn reads_stored(&self, seen: Option<&Entry>) -> bool {
+        seen.and_then(|seen| seen.stored.as_ref())
+            .is_some_and(|(access, _)| self.reads(access))
+    }
 }
 
 /// What a collection's sync builds up.
@@ -218,6 +269,7 @@ struct Work {
 }
 
 #[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments)]
 fn sync_collection(
     cx: &Cx,
     space: &str,
@@ -225,6 +277,7 @@ fn sync_collection(
     schema: &Schema,
     all_ids: &[String],
     dry_run: bool,
+    sealed: Option<&[String]>,
     budget: &mut Budget,
 ) -> Result<Report, HostError> {
     let mut report = Report::default();
@@ -251,6 +304,7 @@ fn sync_collection(
         ids: candidates.iter().map(|c| c.id.clone()).collect(),
         digest: collection.digest(&schema.bytes),
         dry_run,
+        sealed,
     };
     let mut work = Work { report, state };
     let mut previous: Option<&str> = None;
@@ -270,16 +324,24 @@ fn sync_collection(
         {
             match &seen.skip {
                 Some(code) => work.report.skips.add(code, &candidate.path),
-                None => work.report.unchanged += 1,
+                None => {
+                    work.report.unchanged += 1;
+                    if run.reads_stored(Some(seen)) {
+                        work.report.readable.unchanged += 1;
+                    }
+                }
             }
             previous = Some(&candidate.path);
             continue;
         }
-        if budget.files == 0 || budget.bytes + candidate.size > MAX_RUN_BYTES {
-            walked = false;
-            break;
+        // A sealed caller's budget is spent in `process`, on the files it can read alone.
+        if run.sealed.is_none() {
+            if budget.files == 0 || budget.bytes + candidate.size > MAX_RUN_BYTES {
+                walked = false;
+                break;
+            }
+            budget.files -= 1;
         }
-        budget.files -= 1;
         if run.process(
             candidate,
             seen.as_ref(),
@@ -410,6 +472,7 @@ impl Sync<'_> {
             }
             work.report.deleted += 1;
             if visible {
+                work.report.readable.deleted += 1;
                 work.report.changes.add(&id, "deleted");
             }
         }
@@ -456,6 +519,9 @@ impl Sync<'_> {
         {
             // Touched but not changed: remember the new stat and move on.
             work.report.unchanged += 1;
+            if self.reads_stored(Some(seen)) {
+                work.report.readable.unchanged += 1;
+            }
             if !self.dry_run {
                 work.state.set(
                     &candidate.path,
@@ -542,6 +608,9 @@ impl Sync<'_> {
             && seen.stored.as_ref() == Some(&(access.tokens().to_vec(), sensitivity))
         {
             work.report.unchanged += 1;
+            if self.reads(access.tokens()) {
+                work.report.readable.unchanged += 1;
+            }
             if !self.dry_run {
                 work.state.set(
                     &candidate.path,
@@ -577,8 +646,26 @@ impl Sync<'_> {
         {
             flags.insert(Flag::BrokenLinks);
         }
+        // A sealed caller's budget: spent on a document it can read, and a run out of it stops
+        // before writing one, so `remaining` says that a document it can read waits.
+        let readable_document = self.reads(access.tokens());
+        if self.sealed.is_some() && readable_document {
+            if budget.files == 0 || budget.readable_bytes + candidate.size > MAX_RUN_BYTES {
+                return Ok(Step::Stop);
+            }
+            budget.files -= 1;
+            budget.readable_bytes += candidate.size;
+        }
         for flag in &flags {
             work.report.flagged.count(flag_name(*flag));
+            if readable_document {
+                *work
+                    .report
+                    .readable
+                    .flagged
+                    .entry(flag_name(*flag))
+                    .or_default() += 1;
+            }
         }
 
         let document = document::build(document::Parts {
@@ -621,6 +708,7 @@ impl Sync<'_> {
                     let retry = match current.as_deref().map(ContentHash::parse) {
                         Some(Ok(current)) if current == hash => {
                             work.report.unchanged += 1;
+                            work.report.readable.unchanged += usize::from(readable_document);
                             remember(work);
                             return Ok(Step::Go);
                         }
@@ -645,8 +733,10 @@ impl Sync<'_> {
 
         if change == "added" {
             work.report.added += 1;
+            work.report.readable.added += usize::from(readable_document);
         } else {
             work.report.updated += 1;
+            work.report.readable.updated += usize::from(readable_document);
         }
         // Ids are listed only when the caller may read the document. A file not stored yet (a
         // dry run's new file) has no document to ask about, so its path is for a person at the
@@ -750,15 +840,23 @@ const SKIP_MESSAGES: &[(&str, &str)] = &[
 /// For a warning: each collection's name, its count and the ids or paths it may name.
 type PerCollection = Vec<(String, usize, Vec<String>)>;
 
+#[allow(clippy::too_many_lines)]
 fn render(
     cx: &Cx,
     space: &str,
     wanted: Option<&str>,
     dry_run: bool,
     limit: usize,
+    sealed: bool,
     reports: &[(String, Result<Report, HostError>)],
 ) -> Outcome {
     let person = is_person_at_cli(cx);
+    // A revision as the caller may see it (phase 5 section 9.3).
+    let position = |rev: Option<&u64>| -> Value {
+        rev.map_or(Value::Null, |rev| {
+            cx.doc_position(space, *rev).unwrap_or(Value::Null)
+        })
+    };
     let mut collections = Vec::new();
     let mut totals: BTreeMap<&str, usize> = BTreeMap::new();
     let mut warn_skips: BTreeMap<String, PerCollection> = BTreeMap::new();
@@ -776,13 +874,30 @@ fn render(
                 continue;
             }
         };
-        for (key, value) in [
-            ("added", report.added),
-            ("updated", report.updated),
-            ("deleted", report.deleted),
-            ("unchanged", report.unchanged),
-            ("skipped", report.skips.total()),
-        ] {
+        // To a caller whose positions are sealed every count is of documents it can read: a file
+        // that produced no document, or one it cannot read, is not counted, and its skip reasons
+        // and the path a run stopped after are not shown.
+        let counts = if sealed {
+            [
+                report.readable.added,
+                report.readable.updated,
+                report.readable.deleted,
+                report.readable.unchanged,
+                0,
+            ]
+        } else {
+            [
+                report.added,
+                report.updated,
+                report.deleted,
+                report.unchanged,
+                report.skips.total(),
+            ]
+        };
+        for (key, value) in ["added", "updated", "deleted", "unchanged", "skipped"]
+            .into_iter()
+            .zip(counts)
+        {
             *totals.entry(key).or_default() += value;
         }
         revs.extend(&report.revs);
@@ -790,7 +905,7 @@ fn render(
         if report.limited {
             warn_limit.push(name.clone());
         }
-        for (code, count) in report.skips.reasons() {
+        for (code, count) in report.skips.reasons().iter().filter(|_| !sealed) {
             let paths = if person {
                 report.skips.paths().to_vec()
             } else {
@@ -808,21 +923,39 @@ fn render(
                 .push((name.clone(), ids.len(), ids.clone()));
         }
         let (changed, more) = report.changes.json();
-        let mut entry = json!({
-            "collection": name,
-            "added": report.added,
-            "updated": report.updated,
-            "deleted": report.deleted,
-            "unchanged": report.unchanged,
-            "skipped": { "total": report.skips.total(), "reasons": report.skips.reasons() },
-            "flagged": report.flagged.counts,
-            "fromRev": report.revs.iter().min(),
-            "toRev": report.revs.iter().max(),
-            "remaining": report.remaining,
-            "stoppedAfter": report.stopped_after,
-            "changed": changed,
-            "changedMore": more,
-        });
+        let mut entry = if sealed {
+            json!({
+                "collection": name,
+                "added": counts[0],
+                "updated": counts[1],
+                "deleted": counts[2],
+                "unchanged": counts[3],
+                "skipped": { "total": 0, "reasons": {} },
+                "flagged": report.readable.flagged,
+                "fromRev": position(report.revs.iter().min()),
+                "toRev": position(report.revs.iter().max()),
+                "remaining": report.remaining,
+                "stoppedAfter": null,
+                "changed": changed,
+                "changedMore": more,
+            })
+        } else {
+            json!({
+                "collection": name,
+                "added": report.added,
+                "updated": report.updated,
+                "deleted": report.deleted,
+                "unchanged": report.unchanged,
+                "skipped": { "total": report.skips.total(), "reasons": report.skips.reasons() },
+                "flagged": report.flagged.counts,
+                "fromRev": report.revs.iter().min(),
+                "toRev": report.revs.iter().max(),
+                "remaining": report.remaining,
+                "stoppedAfter": report.stopped_after,
+                "changed": changed,
+                "changedMore": more,
+            })
+        };
         if report.limited
             && let Some(map) = entry.as_object_mut()
         {

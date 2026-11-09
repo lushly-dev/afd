@@ -186,6 +186,14 @@ pub(crate) fn lane(
         .any(|change| matches!(change.kind, ChangeKind::Put | ChangeKind::Delete))
     {
         let head = changes.last().map_or(applied, |change| change.rev);
+        // Revisions as the caller may see them (phase 5 section 9.3).
+        let (Some(applied), Some(head)) = (
+            absent(cx.doc_position(space, applied))?,
+            absent(cx.doc_position(space, head))?,
+        ) else {
+            found.lane.gap = Some(Gap::LaneUnavailable);
+            return Ok(found);
+        };
         found.warnings.push((
             "INDEX_STALE",
             format!("the index of `{space}` is behind the documents; run knowledge-refresh"),

@@ -1,4 +1,9 @@
 //! `plugin-show`: one plugin instance in full.
+//!
+//! In a hosted mode a caller other than the operator is shown only an instance that serves a
+//! space it reads (phase 5 section 9.4); any other answers `PLUGIN_NOT_FOUND`, exactly as an
+//! instance that does not exist. The instance's `spaces` and its packs' per-space states then
+//! name only the spaces the caller reads, and a failed instance's `error` is left out.
 
 use super::plugin_list::summary;
 use super::{Builtin, expose_everywhere_but_the_palette, returns_object, validation_error};
@@ -6,16 +11,20 @@ use crate::plugins::{
     GrantReport, InstanceReport, LoadedPlugins, Manifest, MountReport, PipelineState, PluginKind,
     TRUST_NOTE, Transport,
 };
+use crate::workspace::Workspace;
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, failure, success};
 use async_trait::async_trait;
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, OnceLock};
 
 struct Handler {
+    workspace: Arc<Workspace>,
     loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
 }
 
-fn grants(instance: &InstanceReport, manifest: &Manifest) -> Value {
+/// The grants of `instance`. To a caller listed only some spaces (`hosted`), a withheld grant's
+/// `note` is left out: the loader's notes can name a space of the workspace, readable or not.
+fn grants(instance: &InstanceReport, manifest: &Manifest, hosted: bool) -> Value {
     let items: Vec<Value> = if instance.grants.is_empty() {
         // A failed instance never decided its grants: show what the manifest declares.
         manifest
@@ -31,7 +40,11 @@ fn grants(instance: &InstanceReport, manifest: &Manifest) -> Value {
             })
             .collect()
     } else {
-        instance.grants.iter().map(grant_item).collect()
+        instance
+            .grants
+            .iter()
+            .map(|grant| grant_item(grant, hosted))
+            .collect()
     };
     let mut object = Map::new();
     if manifest.plugin.kind == PluginKind::Compiled {
@@ -41,7 +54,7 @@ fn grants(instance: &InstanceReport, manifest: &Manifest) -> Value {
     Value::Object(object)
 }
 
-fn grant_item(grant: &GrantReport) -> Value {
+fn grant_item(grant: &GrantReport, hosted: bool) -> Value {
     let mut item = Map::new();
     item.insert("name".into(), json!(grant.name));
     item.insert("required".into(), json!(grant.required));
@@ -50,15 +63,15 @@ fn grant_item(grant: &GrantReport) -> Value {
         "status".into(),
         json!(if grant.granted { "granted" } else { "withheld" }),
     );
-    if let Some(note) = &grant.withheld {
+    if let Some(note) = grant.withheld.as_ref().filter(|_| !hosted) {
         item.insert("note".into(), json!(note));
     }
     Value::Object(item)
 }
 
-/// Each pack with, per space of the instance, whether the plugin's default or the space's
-/// override serves it (D46).
-fn packs(instance: &InstanceReport, manifest: &Manifest) -> Value {
+/// Each pack with, per space of the instance (`shown`), whether the plugin's default or the
+/// space's override serves it (D46).
+fn packs(instance: &InstanceReport, manifest: &Manifest, shown: &dyn Fn(&str) -> bool) -> Value {
     Value::Array(
         manifest
             .packs
@@ -71,6 +84,7 @@ fn packs(instance: &InstanceReport, manifest: &Manifest) -> Value {
                     .map(|(_, states)| {
                         states
                             .iter()
+                            .filter(|state| shown(&state.space))
                             .map(|state| {
                                 json!({
                                     "space": state.space,
@@ -186,12 +200,22 @@ fn mount_summary(mount: &MountReport) -> Value {
     })
 }
 
-fn show(instance: &InstanceReport) -> Value {
+/// `instance` in full, to a caller listed `listed` (`None`: every space).
+fn show(instance: &InstanceReport, listed: Option<&[String]>) -> Value {
+    let shown = |space: &str| listed.is_none_or(|listed| listed.iter().any(|s| s == space));
     let mut data = Map::new();
     let mut about = summary(instance);
+    if listed.is_some() {
+        about.remove("error");
+    }
     about.insert("required".into(), json!(instance.required));
     about.insert("source".into(), json!(instance.source));
-    about.insert("spaces".into(), json!(instance.spaces));
+    let spaces: Vec<&String> = instance
+        .spaces
+        .iter()
+        .filter(|space| shown(space))
+        .collect();
+    about.insert("spaces".into(), json!(spaces));
     data.insert("instance".into(), Value::Object(about));
     let Some(manifest) = &instance.manifest else {
         return Value::Object(data);
@@ -211,7 +235,10 @@ fn show(instance: &InstanceReport) -> Value {
         plugin.insert("license".into(), json!(license));
     }
     data.insert("plugin".into(), Value::Object(plugin));
-    data.insert("grants".into(), grants(instance, manifest));
+    data.insert(
+        "grants".into(),
+        grants(instance, manifest, listed.is_some()),
+    );
     let commands: Vec<Value> = manifest
         .commands
         .iter()
@@ -224,7 +251,7 @@ fn show(instance: &InstanceReport) -> Value {
                 "mutation": command.mutation(),
                 "firstClass": command.first_class,
                 "expose": {
-                    "mcp": command.expose.mcp,
+                    "mcp": command.mcp_exposed(),
                     "agent": command.expose.agent,
                     "cli": command.expose.cli,
                     "palette": command.expose.palette,
@@ -243,7 +270,7 @@ fn show(instance: &InstanceReport) -> Value {
         None => commands,
     };
     data.insert("commands".into(), Value::Array(commands));
-    data.insert("packs".into(), packs(instance, manifest));
+    data.insert("packs".into(), packs(instance, manifest, &shown));
     if let Some(mount) = &instance.mount {
         data.insert("mount".into(), mount_summary(mount));
     }
@@ -278,7 +305,7 @@ fn show(instance: &InstanceReport) -> Value {
 
 #[async_trait]
 impl CommandHandler for Handler {
-    async fn execute(&self, input: Value, _context: CommandContext) -> CommandResult<Value> {
+    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
         let Some(id) = input.get("plugin").and_then(Value::as_str) else {
             return failure(validation_error(
                 "plugin must be the id of a plugin instance".to_owned(),
@@ -286,8 +313,12 @@ impl CommandHandler for Handler {
             ));
         };
         let loaded = self.loaded.get().cloned().unwrap_or_default();
-        match loaded.instance(id) {
-            Some(instance) => success(show(instance)),
+        let listed = crate::access::listed_spaces(self.workspace.config(), &context);
+        match loaded
+            .instance(id)
+            .filter(|instance| super::plugin_list::visible_instance(instance, listed.as_deref()))
+        {
+            Some(instance) => success(show(instance, listed.as_deref())),
             None => failure(
                 afd::CommandError::new(
                     crate::plugins::codes::PLUGIN_NOT_FOUND,
@@ -301,12 +332,15 @@ impl CommandHandler for Handler {
 }
 
 /// `plugin-show`.
-pub(crate) fn plugin_show(loaded: Arc<OnceLock<Arc<LoadedPlugins>>>) -> Builtin {
+pub(crate) fn plugin_show(
+    workspace: Arc<Workspace>,
+    loaded: Arc<OnceLock<Arc<LoadedPlugins>>>,
+) -> Builtin {
     let definition = CommandDefinition::new(
         "plugin-show",
         "One plugin instance in full: its manifest summary, grants and reasons, commands with effects, packs per space, contexts, pipelines and skills",
         vec![],
-        Handler { loaded },
+        Handler { workspace, loaded },
     )
     .with_category("plugins")
     .with_returns(returns_object(
@@ -326,5 +360,27 @@ pub(crate) fn plugin_show(loaded: Arc<OnceLock<Arc<LoadedPlugins>>>) -> Builtin 
             "required": ["plugin"],
             "additionalProperties": false,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_withheld_grants_note_is_shown_only_to_a_caller_who_sees_every_space() {
+        let grant = GrantReport {
+            name: "store_write".into(),
+            required: false,
+            reason: "r".into(),
+            granted: false,
+            withheld: Some(
+                "its allow entry `private/c` names a space the instance is not enabled for".into(),
+            ),
+        };
+        assert!(grant_item(&grant, false)["note"].is_string());
+        let hosted = grant_item(&grant, true);
+        assert!(hosted.get("note").is_none(), "{hosted}");
+        assert_eq!(hosted["status"], json!("withheld"));
     }
 }

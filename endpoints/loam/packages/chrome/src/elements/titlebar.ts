@@ -1,6 +1,7 @@
 /**
- * @fileoverview `loam-titlebar`: `banner`, "Loam". The title, the palette's search button, the
- * part toggles and the account button (5.1, 6.5).
+ * @fileoverview `loam-titlebar`: `banner`, "Loam". The title, the New button (documents specification, 7),
+ * the palette's search button, the part toggles and the account button (5.1, 6.5). The New button is text
+ * with no icon, and its menu is the `new` chunk's, loaded on its first press.
  */
 
 import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
@@ -22,6 +23,21 @@ const toggle = (part: 'sidebar' | 'inspector' | 'panel', label: string) => html<
 
 const template = html<LoamTitlebar>`
 	<span class="name">Loam</span>
+	<span class="new"
+		><button
+			class="quiet"
+			type="button"
+			aria-haspopup="menu"
+			aria-expanded="false"
+			@click="${(x) => dispatchAction(x, { action: 'new' })}"
+			@keydown="${(x, c) => {
+				const { key } = c.event as KeyboardEvent;
+				return !/^Arrow(Down|Up)$/.test(key) || dispatchAction(x, { action: 'new', key });
+			}}"
+		>
+			New
+		</button></span
+	>
 	<button
 		class="quiet search"
 		type="button"
@@ -89,6 +105,9 @@ const styles = [
 		}
 		.spacer {
 			flex: 1;
+		}
+		.new {
+			position: relative;
 		}
 		.toggles {
 			display: inline-flex;

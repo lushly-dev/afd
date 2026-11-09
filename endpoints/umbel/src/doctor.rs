@@ -4,6 +4,9 @@
 //! [`run`] reports a workspace that cannot be opened, such as one whose `umbel.toml` does not
 //! parse. A sealed host adds the two registry-dependent checks (`mcp.surface`, `cli.verbs`) to
 //! the report [`run`] builds, where this module reports them as `skip`.
+//!
+//! In a hosted mode the report also holds the hosted profile's checks ([`AUTH_CHECKS`], phase 5
+//! section 6.1), after `http.config`; they ask each issuer over the network.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
@@ -186,6 +189,36 @@ pub const MEMORY_CHECKS: [&str; 7] = [
     "stores.capture",
 ];
 
+/// The hosted profile's checks (phase 5 specification, section 6.1, with `auth.ca_files` from
+/// step 2c and `auth.trusted_proxies` from step 3), in the order the report holds them. They apply whenever `auth.mode` is not `none`;
+/// in mode `none`, `auth.tls` alone runs, and only when `[http.tls]` is set.
+pub const AUTH_CHECKS: [&str; 13] = [
+    "auth.mode",
+    "auth.public_url",
+    "auth.tls",
+    "auth.trusted_proxies",
+    "auth.ca_files",
+    "auth.issuers",
+    "auth.subjects",
+    "auth.services",
+    "auth.principals",
+    "auth.person",
+    "auth.secrets",
+    "auth.shared",
+    "auth.confirmations",
+];
+
+/// What the hosted profile's checks take from a sealed host: the outbound client's test seams
+/// and the commands with `person.mcp`. The default is a shipped build's, knowing no command.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct AuthInputs {
+    /// The roots, clock, time limit and secrets the verifier would use.
+    #[cfg(feature = "auth")]
+    pub(crate) environment: crate::auth::fetch::AuthEnvironment,
+    /// The commands with `person.mcp`, once a host has loaded its plugins.
+    pub(crate) person_mcp: Option<Vec<String>>,
+}
+
 /// Inspect the workspace at `path` as if `--workspace` named it. Needs no registry and no
 /// sealed host, so it reports a workspace that cannot be opened.
 pub fn run(path: impl AsRef<Path>) -> Report {
@@ -235,6 +268,15 @@ pub fn inspect_with_catalog(
     located: Result<Located, WorkspaceError>,
     catalog: Option<&CompiledCatalog>,
 ) -> Report {
+    inspect_with(located, catalog, &AuthInputs::default())
+}
+
+/// [`inspect_with_catalog`] with what a sealed host knows for the hosted profile's checks.
+pub(crate) fn inspect_with(
+    located: Result<Located, WorkspaceError>,
+    catalog: Option<&CompiledCatalog>,
+    auth: &AuthInputs,
+) -> Report {
     let located = match located {
         Ok(located) => located,
         Err(error) => {
@@ -278,12 +320,12 @@ pub fn inspect_with_catalog(
         Some(Ok((spaces, _))) => spaces.iter().map(|space| space.id.clone()).collect(),
         _ => Vec::new(),
     };
-    let lock_timeout_ms = file
+    let config = file
         .as_ref()
-        .and_then(|file| file.clone().into_config(&located.root).ok())
-        .map_or(DEFAULT_LOCK_TIMEOUT_MS, |config| {
-            config.journal.lock_timeout_ms
-        });
+        .and_then(|file| file.clone().into_config(&located.root).ok());
+    let lock_timeout_ms = config.as_ref().map_or(DEFAULT_LOCK_TIMEOUT_MS, |config| {
+        config.journal.lock_timeout_ms
+    });
 
     checks.push(state_writable(&layout, &space_ids));
     checks.push(state_lock(&layout, lock_timeout_ms));
@@ -292,6 +334,12 @@ pub fn inspect_with_catalog(
     checks.push(journal_readable(&journal));
     checks.push(events_consistent(&layout, spaces.as_ref(), &journal));
     checks.push(http_config(file.as_ref()));
+    checks.extend(auth_checks(
+        file.as_ref(),
+        config.as_ref(),
+        &located.root,
+        auth,
+    ));
     checks.push(Check::skip_sealed("mcp.surface"));
     checks.push(Check::skip_sealed("cli.verbs"));
     checks.extend(crate::plugins::doctor_checks(
@@ -349,7 +397,7 @@ fn config_keys(scan: Option<&crate::workspace::KeyScan>) -> Check {
         return Check::fail(
             "config.keys",
             format!("Unknown keys: {}", scan.unknown.join(", ")),
-            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 to 4.",
+            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 to 5.",
         );
     }
     if !scan.reserved.is_empty() {
@@ -426,16 +474,20 @@ fn collections_roots(file: Option<&ConfigFile>, workspace: &Path) -> Check {
 
 /// Whether a file could be created at `path` (or, when its directories are missing, at the
 /// first ancestor that exists), by creating and removing a probe file.
-fn writable(path: &Path) -> Result<(), String> {
+pub(crate) fn writable(path: &Path) -> Result<(), String> {
     let dir = path.ancestors().find(|dir| dir.is_dir()).unwrap_or(path);
     if !path.is_dir() && path.exists() {
         return Err(format!("{} exists and is not a directory", path.display()));
     }
-    let probe = dir.join(format!(".umbel-probe-{}", std::process::id()));
+    // A new file of a random name: an existing file or a planted link is never followed.
+    let probe = dir.join(format!(
+        ".umbel-probe-{}-{}",
+        std::process::id(),
+        crate::host::new_trace_id()
+    ));
     match fs::OpenOptions::new()
         .write(true)
-        .create(true)
-        .truncate(true)
+        .create_new(true)
         .open(&probe)
     {
         Ok(_) => {
@@ -754,6 +806,63 @@ fn events_consistent(layout: &Layout, spaces: Option<&SpaceRules>, journal: &Jou
             held.len()
         ),
     )
+}
+
+/// The hosted profile's checks: none in mode `none` (but `auth.tls` with `[http.tls]`), all of
+/// [`AUTH_CHECKS`] in a hosted mode, skipped when the configuration does not open.
+fn auth_checks(
+    file: Option<&ConfigFile>,
+    config: Option<&crate::workspace::Config>,
+    root: &Path,
+    auth: &AuthInputs,
+) -> Vec<Check> {
+    let Some(config) = config else {
+        let hosted = file
+            .and_then(|file| file.auth_mode().ok())
+            .is_some_and(crate::workspace::AuthMode::is_hosted);
+        return if hosted {
+            AUTH_CHECKS
+                .iter()
+                .map(|id| Check::skip(id, NEEDS_CONFIG))
+                .collect()
+        } else {
+            Vec::new()
+        };
+    };
+    #[cfg(feature = "auth")]
+    {
+        crate::auth::doctor::checks(&crate::auth::doctor::Inputs {
+            config,
+            root,
+            environment: &auth.environment,
+            person_mcp: auth.person_mcp.as_deref(),
+        })
+    }
+    #[cfg(not(feature = "auth"))]
+    {
+        let _ = (root, &auth.person_mcp);
+        const WITHOUT: &str = "This build of umbel leaves out the hosted surface (it was built without the `auth` feature).";
+        if config.auth.mode.is_hosted() {
+            AUTH_CHECKS
+                .iter()
+                .map(|id| match *id {
+                    "auth.mode" => Check::fail(
+                        id,
+                        format!(
+                            "auth.mode is \"{}\", which this build cannot serve or check: {WITHOUT}",
+                            config.auth.mode.as_str()
+                        ),
+                        "Use a build of umbel with the default `auth` feature.",
+                    ),
+                    _ => Check::skip(id, WITHOUT),
+                })
+                .collect()
+        } else if config.http.tls.is_some() {
+            vec![Check::skip("auth.tls", WITHOUT)]
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 fn http_config(file: Option<&ConfigFile>) -> Check {

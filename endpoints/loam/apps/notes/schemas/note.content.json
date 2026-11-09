@@ -1,0 +1,18 @@
+{
+	"type": "object",
+	"properties": {
+		"text": {
+			"type": "string",
+			"maxLength": 200000,
+			"description": "The note's text. A link is [[<document id>|<title>]], which the editor links after each save"
+		},
+		"embeds": {
+			"type": "array",
+			"maxItems": 20,
+			"items": { "type": "string", "minLength": 1, "maxLength": 128 },
+			"description": "The ids of the documents embedded under the text, in order"
+		}
+	},
+	"required": ["text"],
+	"additionalProperties": false
+}

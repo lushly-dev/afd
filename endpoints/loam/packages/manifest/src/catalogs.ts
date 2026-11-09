@@ -253,6 +253,7 @@ export const SHELL_RESERVED_CHORDS_V1: readonly string[] = [
 	'Mod+J',
 	'F6',
 	'Shift+F6',
+	'Mod+S',
 ];
 
 /** What `app check`, `app-get` and an app's README say of each kind (D54). */

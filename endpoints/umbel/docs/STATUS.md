@@ -34,7 +34,7 @@ should never have to scan the codebase to learn what is current.
 | [Phase 2 specification](phases/2-knowledge/spec.md) | Written 2026-11-01; revised 2026-11-01 after the independent review and the owner's decisions; approved and merged in [#625](https://github.com/lushly-dev/afd/pull/625) as `e996aad1`. Adds D51 to D67 with the architecture amendments they need, and step 0 in AFD (output budgets, a public frontmatter reader); step 0a done 2026-11-01 (see Phase 2 below) and amended section 14; step 2 done 2026-11-01 ([636](https://github.com/lushly-dev/afd/pull/636)); step 3 done 2026-11-01 ([643](https://github.com/lushly-dev/afd/pull/643)); steps 4 to 8 and 7a done the same day (see Phase 2 below); step 9 (the eval harness) done 2026-11-01 in the step 9 pull request; step 10 (the exit) done 2026-11-01 in the step 10 pull request, and with it **phase 2 is done** (exit criterion met; see Phase 2 below) | [#625](https://github.com/lushly-dev/afd/pull/625), merged | Revision 2026-11-01 against `main` at `886c3b4d`: the review's findings checked against `src/middleware.rs`, `src/principal.rs`, `src/cli/prompt.rs`, `sdk/src/cx.rs`, the WIT world and the tantivy, tantivy-query-grammar, tree-sitter and tree-sitter-typescript crate sources. First written 2026-11-01 against `main` at `1cca6309`: `endpoints/umbel` schemas, grants, SDK, principal and scan read; `packages/rust` sources, frontmatter, context fields; `spec/` read; trajectory rows checked against crates.io, GitHub and the OKF specification; links and anchors resolve |
 | [Phase 3 specification](phases/3-memory-context/spec.md) | Written 2026-11-01; revised 2026-11-02 after an independent review; **approved 2026-11-02, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-02** (D24). Adds D68 to D89 and W18 with the architecture amendments they need; section 15 records the owner's five decisions and the four after the key design's review; steps 1 to 9 done 2026-11-02 and 2026-11-03 (#729 to #747), and step 10 (the exit) done 2026-11-03 in the step 10 pull request, and with it **phase 3 is done** (exit criterion met; see Phase 3 below) | [#685](https://github.com/lushly-dev/afd/pull/685) | 2026-11-02 against `main` at `4a26cc0b`: each review finding checked against `endpoints/umbel` and `packages/rust`; SQLite experiments for FTS5 erasure, `+a b`, backups and the key file (Python's SQLite 3.53.4); Claude Code transcript structure from 25 local sessions, with no content read; `chacha20poly1305` by `cargo info`; S14, S15 and S16 re-read; links and anchors resolve; no Rust built |
 | [Phase 4 specification](phases/4-curator/spec.md) | Written 2026-11-03; revised the same day after an independent review (33 findings: 31 fixed as raised, 2 holding in part; its Review response table); **approved 2026-11-03, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03** (D24), the recommended option on nine trust-model questions and "attest and verify" on question 10 (section 16). Adds D90 to D105 with the architecture amendments they need (proposal record version 2 in the phase table, the curator component row, the proposal and manifest interfaces, the MCP approval relay prerequisite moved to phase 5, the versioning list, glossary); steps 1 to 6 merged and step 7 (the exit) done 2026-11-03 in its pull request, each with its amendments in the specification, and with step 7 **phase 4 is done** (exit criterion met; see Phase 4 below) | Merged in [#749](https://github.com/lushly-dev/afd/pull/749); the steps' pull requests are in the Phase 4 detail below | 2026-11-03 against `main` at `f0c618aa`: the knowledge proposal code, `proposal.v1.json`, the envelope, the memory store's changes feed and derivation refusal, record namespacing, pipelines, the plugin gate, the principal and CLI marks, the SDK's call context, `spec/command-metadata.md` and language parity read; W1, W2, W5, W7 and the elicitation specification checked against primary sources; links and anchors resolve; no Rust built |
-| [Phase 5 specification](phases/5-auth-hosted/spec.md) | Written 2026-11-03; revised the same day after an independent review (36 findings and 7 nits, all holding, 3 in part; its Review response table); **approved 2026-11-04, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04** (D24): the recommended option on all seventeen questions, with two strengthenings from the owner's instruction (user verification mandatory on every person login; a configurable two-person rule for `memory-erase`). The MCP Authorization layer (modes `none`, `oauth`, `gateway`; RFC 9068 tokens with one audience; RFC 9728 metadata), principal version 1 with identity namespaces, per-space scopes resolved per call, the person page and AFD's host-verified confirmation mode for the MCP approval relay, exact filtering, shared state, Tasks, usage events and rate limits, with an AFD step 0 (0a to 0e). Adds D106 to D130 with the architecture amendments they need. Step 0a (the AFD spec) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0a); step 0b (AFD's Rust `server-auth`) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0b); step 0c (#532) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0c); step 0d (AFD's Rust relay) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0d); step 0e (AFD's Rust tasks) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0e), completing the AFD prerequisites 0a to 0e; steps 1 and 1b are next | This branch, `lush/umbel-phase-5-spec`; not yet a pull request | 2026-11-03 against `main` at `e5b4e43c`: `src/principal.rs`, `src/authority.rs`, `src/middleware.rs`, `src/surfaces/`, `src/host/mod.rs`, `src/workspace/config.rs` and `keys.rs`, `src/access.rs`, `src/provenance.rs`, `src/plugins/memory_services.rs`, the mounted loader, the knowledge redaction sweep, cursors, `workspace-show`, `event-list`; `packages/rust`'s `CommandContext`, confirmations (the server gate, `confirmations.rs:185-348`), context hook and approval middleware; for the revision also `src/plugins/manifest.rs:1607-1612`, `src/host/space.rs:21-36`, `src/commands/event_ack.rs`, `store/src/access.rs` and `jsonwebtoken` 11.1.0's validation defaults; `rmcp` 3.8.0's task manager and client-side auth; tantivy 0.27.0's `Bm25StatisticsProvider`; the MCP Authorization and Tasks proposals, `spec/command-metadata.md` and language parity; external sources dated in its trajectory refresh; links and anchors resolve; no Rust built |
+| [Phase 5 specification](phases/5-auth-hosted/spec.md) | Written 2026-11-03; revised the same day after an independent review (36 findings and 7 nits, all holding, 3 in part; its Review response table); **approved 2026-11-04, under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04** (D24): the recommended option on all seventeen questions, with two strengthenings from the owner's instruction (user verification mandatory on every person login; a configurable two-person rule for `memory-erase`). The MCP Authorization layer (modes `none`, `oauth`, `gateway`; RFC 9068 tokens with one audience; RFC 9728 metadata), principal version 1 with identity namespaces, per-space scopes resolved per call, the person page and AFD's host-verified confirmation mode for the MCP approval relay, exact filtering, shared state, Tasks, usage events and rate limits, with an AFD step 0 (0a to 0e). Adds D106 to D130 with the architecture amendments they need. Step 0a (the AFD spec) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0a); step 0b (AFD's Rust `server-auth`) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0b); step 0c (#532) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0c); step 0d (AFD's Rust relay) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0d); step 0e (AFD's Rust tasks) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-0e), completing the AFD prerequisites 0a to 0e; step 1 (Umbel's shapes: section 2's schemas, configuration and manifest version 5, constants) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-1); step 1b (the test identity provider) done 2026-11-07, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-1b); step 2a (the host's listener and layers) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-2a); step 2b (the host's verification and principal) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-2b); step 2c (the host's doctor, `auth-show`, `workspace-show`'s hosted answer and each issuer's `ca_file`) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-2c); step 3 (the host's scopes, access, shared state and limits) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-3); step 3's follow-up to AFD (hidden commands) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-afds-hidden-commands); step 3 is next | This branch, `lush/umbel-phase-5-spec`; not yet a pull request | 2026-11-03 against `main` at `e5b4e43c`: `src/principal.rs`, `src/authority.rs`, `src/middleware.rs`, `src/surfaces/`, `src/host/mod.rs`, `src/workspace/config.rs` and `keys.rs`, `src/access.rs`, `src/provenance.rs`, `src/plugins/memory_services.rs`, the mounted loader, the knowledge redaction sweep, cursors, `workspace-show`, `event-list`; `packages/rust`'s `CommandContext`, confirmations (the server gate, `confirmations.rs:185-348`), context hook and approval middleware; for the revision also `src/plugins/manifest.rs:1607-1612`, `src/host/space.rs:21-36`, `src/commands/event_ack.rs`, `store/src/access.rs` and `jsonwebtoken` 11.1.0's validation defaults; `rmcp` 3.8.0's task manager and client-side auth; tantivy 0.27.0's `Bm25StatisticsProvider`; the MCP Authorization and Tasks proposals, `spec/command-metadata.md` and language parity; external sources dated in its trajectory refresh; links and anchors resolve; no Rust built |
 | [Research](research.md), [Sources](sources.md) | Current as of 2026-10-30, with corrected figures | #491; corrections in #516 | Same as above |
 
 ## Phases
@@ -47,7 +47,7 @@ should never have to scan the codebase to learn what is current.
 | 2. Knowledge | Specification approved and merged ([#625](https://github.com/lushly-dev/afd/pull/625), `e996aad1`); steps 0a and 0b done 2026-11-01; step 1 (shapes and configuration) done 2026-11-01 in [632](https://github.com/lushly-dev/afd/pull/632); step 2 (store traits and the SQLite stores) done 2026-11-01 in [636](https://github.com/lushly-dev/afd/pull/636); step 3 (the tantivy index) done 2026-11-01 in [643](https://github.com/lushly-dev/afd/pull/643); step 4 (host services) done 2026-11-01 in [651](https://github.com/lushly-dev/afd/pull/651); step 5 (`umbel-scan`, `umbel-okf` and the `sources` plugin) done 2026-11-01 in [668](https://github.com/lushly-dev/afd/pull/668); step 6 (the knowledge core) done 2026-11-01 in [671](https://github.com/lushly-dev/afd/pull/671); step 7a part 1 (the three host services: the true head under derivation reads, the graph's applied revision, the checkpoint) done 2026-11-01 in [672](https://github.com/lushly-dev/afd/pull/672); step 7a part 2 (the structural graph: graph building in `knowledge-index`, rank expansion, `knowledge-neighbors`, `-related`, `-path`, `-outline`, `-stale`) done 2026-11-01 in the step 7a graph pull request; step 8 (proposals and verification) done 2026-11-01 in [673](https://github.com/lushly-dev/afd/pull/673); step 7b (code symbols) done 2026-11-01 in the step 7b pull request; step 9 (the eval harness: the seeded fixture, `knowledge-eval`, the gate and its baseline) done 2026-11-01 in the step 9 pull request; step 10 (the exit: `plugins/knowledge/tests/exit_thousand.rs` and the exit criterion re-run) done 2026-11-01 in the step 10 pull request. **Done 2026-11-01: exit criterion met**; `knowledge-approve` still needs a dynamic confirmation prompt before real use (follow-ups) | Phase 2 owning agent | [Specification](phases/2-knowledge/spec.md) ([#625](https://github.com/lushly-dev/afd/pull/625)); step 0a: the [AFD proposal](../../../docs/features/active/output-budgets/output-budgets.proposal.md) and [`spec/output-budgets.md`](../../../spec/output-budgets.md); step 0b: [#633](https://github.com/lushly-dev/afd/pull/633), the Rust output budgets and the public frontmatter reader; step 1: [632](https://github.com/lushly-dev/afd/pull/632); step 2: [636](https://github.com/lushly-dev/afd/pull/636); step 3: [643](https://github.com/lushly-dev/afd/pull/643); step 4: [651](https://github.com/lushly-dev/afd/pull/651); step 5: [668](https://github.com/lushly-dev/afd/pull/668); step 6: [671](https://github.com/lushly-dev/afd/pull/671); step 7a: [672](https://github.com/lushly-dev/afd/pull/672), the step 7a graph pull request; step 8: [673](https://github.com/lushly-dev/afd/pull/673); step 7b: the step 7b pull request; step 9: the step 9 pull request; step 10: the step 10 pull request | None for phase 2. Phases 3, 5 and 6 are unblocked |
 | 3. Memory and context | Specification approved and merged ([#685](https://github.com/lushly-dev/afd/pull/685), `e4c91f30`, with D86 to D89 written in after it); step 1 (shapes and configuration) done 2026-11-02 in [#729](https://github.com/lushly-dev/afd/pull/729), `ed9a8539`; step 2 (the memory trait and suite) done 2026-11-03 in [#733](https://github.com/lushly-dev/afd/pull/733), `b84e0bd5`; step 3a (the embedded memory store) done 2026-11-03 in [#736](https://github.com/lushly-dev/afd/pull/736), `b970994e`; step 3b (sealing and the key file) done 2026-11-03 in [#737](https://github.com/lushly-dev/afd/pull/737), `8d51ee13`; step 4 (host services and the journal digest) done 2026-11-03 in [#740](https://github.com/lushly-dev/afd/pull/740), `d945bbbf`; step 5 (the memory plugin's writing side) done 2026-11-03 in [#742](https://github.com/lushly-dev/afd/pull/742), `0e3a501a`; step 6 (the memory plugin's reading and lifecycle commands) done 2026-11-03 in [#743](https://github.com/lushly-dev/afd/pull/743), `800856ad`; step 7a (the shared helpers: the locator string and `is_stale` in `umbel-okf`) done 2026-11-03 in [#744](https://github.com/lushly-dev/afd/pull/744), `8f124810`; step 7b (the `context` plugin) done 2026-11-03 in [#745](https://github.com/lushly-dev/afd/pull/745), `c8689ebc`; step 8 (the `umbel-first-party` binary and the `umbel-hook` harness adapter) done 2026-11-03 in [#746](https://github.com/lushly-dev/afd/pull/746), `ab5b321d`; step 9 (import and export) done 2026-11-03 in [#747](https://github.com/lushly-dev/afd/pull/747), `4e46de1b`; step 10 (the exit: `leak_probes.rs`, `poisoning.rs`, `forget_bytes.rs` and `exit_memory.rs` in `first-party/tests`) done 2026-11-03 in the step 10 pull request. **Done 2026-11-03: exit criterion met** (see Phase 3 below) | Phase 3 owning agent | [Specification](phases/3-memory-context/spec.md), [#685](https://github.com/lushly-dev/afd/pull/685); step 1: [#729](https://github.com/lushly-dev/afd/pull/729); step 2: [#733](https://github.com/lushly-dev/afd/pull/733); step 3a: [#736](https://github.com/lushly-dev/afd/pull/736); step 3b: [#737](https://github.com/lushly-dev/afd/pull/737); step 4: [#740](https://github.com/lushly-dev/afd/pull/740); step 5: [#742](https://github.com/lushly-dev/afd/pull/742); step 6: [#743](https://github.com/lushly-dev/afd/pull/743); step 7a: [#744](https://github.com/lushly-dev/afd/pull/744); step 7b: [#745](https://github.com/lushly-dev/afd/pull/745); step 8: [#746](https://github.com/lushly-dev/afd/pull/746); step 9: [#747](https://github.com/lushly-dev/afd/pull/747); step 10: the step 10 pull request | None for phase 3. Phase 4 is unblocked |
 | 4. Curator | Specification approved 2026-11-03 ([spec](phases/4-curator/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-03, merged in [#749](https://github.com/lushly-dev/afd/pull/749), `4a9462c0`; step 1 (shapes) done 2026-11-03 in [#751](https://github.com/lushly-dev/afd/pull/751), `e7aeff70`; step 2 (host) done 2026-11-03 in [#753](https://github.com/lushly-dev/afd/pull/753), `83639abb`; step 3a (knowledge: record and journal) done 2026-11-03 in [#754](https://github.com/lushly-dev/afd/pull/754), `37af26c9`; step 3b (knowledge: the drafted path) done 2026-11-03 in [#763](https://github.com/lushly-dev/afd/pull/763), `4a6b2de4`; step 3c (knowledge: verifying drafts) done 2026-11-03 in [#765](https://github.com/lushly-dev/afd/pull/765), `7e52e337`; step 4 (curator: candidates) done 2026-11-03 in [#767](https://github.com/lushly-dev/afd/pull/767), `0d46a9a0`; step 5 (curator: runs) done 2026-11-03 in [#768](https://github.com/lushly-dev/afd/pull/768), `9ea18e73`; step 6 (auto-approval) done 2026-11-03 in [#770](https://github.com/lushly-dev/afd/pull/770), `6e1c0a0a`; step 7 (the binary and the exit: `umbel-first-party` links the curator, `curator_leaks.rs` and `exit_curator.rs` in `first-party/tests`) done 2026-11-03 in the step 7 pull request. **Done 2026-11-03: exit criterion met** (see Phase 4 below) | Phase 4 owning agent | [Specification](phases/4-curator/spec.md), [#749](https://github.com/lushly-dev/afd/pull/749); step 1: [#751](https://github.com/lushly-dev/afd/pull/751); step 2: [#753](https://github.com/lushly-dev/afd/pull/753); step 3a: [#754](https://github.com/lushly-dev/afd/pull/754); step 3b: [#763](https://github.com/lushly-dev/afd/pull/763); step 3c: [#765](https://github.com/lushly-dev/afd/pull/765); step 4: [#767](https://github.com/lushly-dev/afd/pull/767); step 5: [#768](https://github.com/lushly-dev/afd/pull/768); step 6: [#770](https://github.com/lushly-dev/afd/pull/770); step 7: the step 7 pull request | None for phase 4. Phase 7 now needs phases 5 and 6 |
-| 5. Auth and hosted | Specification approved 2026-11-04 ([spec](phases/5-auth-hosted/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04, after an independent review and a revision; step 0a (the AFD spec, documents and cases only) done 2026-11-07 in the step 0a pull request; step 0b (AFD's Rust `server-auth` feature) done 2026-11-07 in the step 0b pull request; step 0c (#532: confirmation state bound to the principal in TypeScript, Python and Rust) done 2026-11-07 in the step 0c pull request; step 0d (AFD's Rust host-verified mode, `HumanRelay`, relay evidence and the form-mode approval relay) done 2026-11-07 in the step 0d pull request; step 0e (AFD's Rust MCP Tasks: `task`, `TaskStore` and the `tasks/*` handlers) done 2026-11-07, completing the AFD prerequisites 0a to 0e; no Umbel code implemented; steps 1 and 1b next | Phase 5 owning agent | [Specification](phases/5-auth-hosted/spec.md), on `lush/umbel-phase-5-spec` | Steps 1 and 1b, then the plan in order |
+| 5. Auth and hosted | Specification approved 2026-11-04 ([spec](phases/5-auth-hosted/spec.md)), under the owner's 2026-10-31 delegation, with the owner's answers of 2026-11-04, after an independent review and a revision; step 0a (the AFD spec, documents and cases only) done 2026-11-07 in the step 0a pull request; step 0b (AFD's Rust `server-auth` feature) done 2026-11-07 in the step 0b pull request; step 0c (#532: confirmation state bound to the principal in TypeScript, Python and Rust) done 2026-11-07 in the step 0c pull request; step 0d (AFD's Rust host-verified mode, `HumanRelay`, relay evidence and the form-mode approval relay) done 2026-11-07 in the step 0d pull request; step 0e (AFD's Rust MCP Tasks: `task`, `TaskStore` and the `tasks/*` handlers) done 2026-11-07, completing the AFD prerequisites 0a to 0e; step 1 (Umbel's shapes: section 2's schemas, configuration and manifest version 5 parsing, constants) done 2026-11-07 on `lush/umbel-p5-1-shapes`; step 1b (`umbel-testkit-idp` and `tests/no_auth_server.rs`) done 2026-11-07 in the step 1b pull request; step 2a (the host's listener and layers: TLS with `client_auth`, section 6.3's order, the metadata, the per-IP limit, the context hook version 1 skeleton) done 2026-11-08 in the step 2a pull request; step 2b (the host's verification and principal: the `KeySource`, the verifier and introspection, section 4.1's mapping to principal version 1, claim groups, equivalents, an interim scope rule) done 2026-11-08 on `lush/umbel-p5-2b-verification`; step 2c (the doctor's hosted profile, `auth-show`, `workspace-show`'s hosted answer, each issuer's `ca_file`) done 2026-11-08 on `lush/umbel-p5-2c-doctor`; step 3 (the host's scopes, access, shared state and limits) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-3); step 3's follow-up to AFD (hidden commands unknown before validation) done 2026-11-08, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-afds-hidden-commands); step 7 (the stores' exact filtering: BM25 statistics per reader filter for knowledge and memory, sealed positions, readable-only totals; a shipped build now serves `oauth`) done 2026-11-08 on `lush/umbel-p5-7-exact-filtering`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-7); step 4 (the host's gateway mode: the pinned channel, a verified single-use assertion per request, the scope ceiling's meet, no metadata; a shipped build now serves `gateway`) done 2026-11-08 on `lush/umbel-p5-4-gateway`, with its [amendments](phases/5-auth-hosted/spec.md#amendments-from-step-4); step 5 next | Phase 5 owning agent | [Specification](phases/5-auth-hosted/spec.md), on `lush/umbel-phase-5-spec` | Step 5, then the plan in order |
 | 6. Backends | Not started; unblocked 2026-11-01 (phase 2 exit criterion met); next | None | None | Its specification, with an independent review, a revision and the owner's answers (D24) |
 | 7. Distribution and guides | Not started | None | None | Phases 5 and 6 exit criteria met (phase 4's was met 2026-11-03) |
 | Further first-class plugins | Not started; unblocked 2026-11-01 (phase 2 exit criterion met) | None | None | Each gets its own specification (D18) |
@@ -2054,7 +2054,14 @@ on another local branch and push to that remote name.
   2026-11-03; **step 0a done 2026-11-07** (documents and cases only); **step 0b done 2026-11-07** (AFD's Rust
   `server-auth`); **step 0c done 2026-11-07** (#532); **step 0d done 2026-11-07** (AFD's Rust host-verified mode,
   `HumanRelay`, relay evidence and the form-mode approval relay); **step 0e done 2026-11-07** (AFD's Rust MCP Tasks),
-  which completes the AFD prerequisites 0a to 0e; no Umbel code implemented; **steps 1 and 1b next**. Last
+  which completes the AFD prerequisites 0a to 0e; **step 1 done 2026-11-07** (Umbel's shapes); **step 1b done 2026-11-07** (`umbel-testkit-idp`, the test identity
+  provider, and the host's `tests/no_auth_server.rs`); **step 2a done 2026-11-08** (the host's listener and layers);
+  **step 2b done 2026-11-08** (the host's verification and principal); **step 2c done 2026-11-08** (the host's
+  doctor and introspection); **step 3 done 2026-11-08** (the host's scopes, access, shared state and limits),
+  with its follow-up to AFD (hidden commands) **done 2026-11-08**; **step 7 done 2026-11-08** (the stores' exact
+  filtering; **a shipped build serves `oauth`**); **step 4 done 2026-11-08** (the host's gateway mode; **a shipped
+  build serves `gateway`**), with its follow-up to AFD (the decision before dispatch for a host's own layer) **done
+  2026-11-08**; **step 5 next**. Last
   verified 2026-11-03 against `main` at `e5b4e43c` (the specification's Status lists every file and line read; no Rust
   built), and for step 0a on 2026-11-07 against `main` at `ceefba8c` (below).
 - **Done:** [the specification](phases/5-auth-hosted/spec.md), with D106 to D130 decided and the architecture amendments they
@@ -2201,9 +2208,316 @@ on another local branch and push to that remote name.
   `required` refused with `UNAUTHORIZED`; tasks over HTTP need verified credentials or
   `TaskOptions::with_callers_identified_by_hook()` with a hook). Choices are in the
   specification's [Amendments from step 0e](phases/5-auth-hosted/spec.md#amendments-from-step-0e).
-- **Not done:** every step of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan) after 0e, 1 to 12.
-- **Next:** steps 1 and 1b may run now (1 needs only 0a); 5 needs 3 as well as 0c and 0d; 8 needs 0e and 3. Heavy
-  steps follow the plan's build note.
+- **Done:** step 1, Umbel's shapes, 2026-11-07, in [#823](https://github.com/lushly-dev/afd/pull/823) (on top of steps 0a to 0e, merged):
+  - **Schemas**, each closed JSON Schema 2020-12 with examples: `workspace-config.v5`, `plugin-manifest.v5`,
+    `principal.v1`, `provenance-envelope.v3` and the shapes nesting it (`event.v3`, `memory-record.v2`,
+    `proposal.v3`), `cursor.v1`, `locator.v2`, `task-record.v1`, `usage-event.v1`, `person-decision.v1` and
+    `protected-resource.v1`.
+  - **Configuration version 5** (`src/workspace/hosted.rs`), parsed into typed configuration and validated with
+    every rule of section 2.2 at open (`WORKSPACE_CONFIG_INVALID` with `details.key`): `[auth]` (modes, the scope
+    prefix, namespaces with their person logins, issuers, the gateway), `[http.tls]` and `http.public_url`,
+    `[limits]`, `[usage]`, `[principal.equivalents]`, group claims, and the `memory_write` table's `editors`,
+    `erasers`, `erase_approvals` and `erase_approval_window_s`. Versions 1 to 4 read as version 5 with `auth.mode
+    = "none"` and refuse the new keys ("needs config_version = 5"); `umbel init` writes version 5.
+  - **Manifest version 5** (`src/plugins/manifest/v5.rs`): `person` per surface on a `require-human` command, MCP
+    exposure of such a command only with `person.mcp`, the preview and `journal.keep` rule, `task` and its
+    refusals, both on pipelines with the "every step admits" rule at seal (`pipelines::plan`). Versions 1 to 4
+    still load; `spec/plugin-manifest.md`'s P3 lists `task` and `person` as Umbel's from version 5.
+  - **Constants** in `src/auth/mod.rs` (the scope grammar and order, the namespaced id form, the defaults and
+    bounds), and the version lists `workspace-show` reports (`config` and `manifest` 1 to 5, `principal` 0 and 1,
+    `envelope` and `event` 0 to 3, `proposal` 1 to 3, `cursor` 0 and 1, `locator` 1 and 2, `memory` 1 and 2,
+    `task`, `usage` and `person` 1).
+  - **Fail-closed seams until later steps:** a hosted configuration opens, but the HTTP surface refuses to start in
+    a hosted mode, with `[http.tls]` or on a non-loopback bind until step 2a builds the listener; a `require-human`
+    command with `person.mcp` stays off MCP, and every call to one with `person.cli = "verified"` is refused with
+    `PERSON_VERIFICATION_UNAVAILABLE`, until step 5.
+  - An independent review found one blocker (a `person.cli = "verified"` command ran on the terminal check) and nine
+    improvements, all fixed with tests and recorded as "(review)" rows in the amendments.
+  - Tests: `tests/config_v5.rs`, `tests/manifest_v5.rs`, `tests/schemas/phase5.rs`,
+    `tests/schemas/phase5_records.rs`; older tests follow the version bump. Choices are in the specification's
+    [Amendments from step 1](phases/5-auth-hosted/spec.md#amendments-from-step-1).
+- **Done:** step 1b, the test identity provider, 2026-11-07, in the step 1b pull request: the test-only crate
+  `umbel-testkit-idp` (`endpoints/umbel/testkit-idp`, `publish = false`, quarantined in the release inventory with no
+  route, no binary). `TestIdp::start()` binds `127.0.0.1` with a test CA made in memory and plays three roles on one
+  HTTPS listener: an OpenID Connect identity provider (discovery at the path-inserted and appended well-known URLs,
+  a JWKS, a scripted login or a password form for `ada`, `bo` and `cy`, a PKCE `S256` token endpoint issuing ID tokens
+  with `nonce`, `auth_time`, `acr`, `amr` and `groups`, and the RFC 8693 exchange to an ID-JAG); a resource
+  authorization server (RFC 8414 metadata, a JWKS, authorization code with PKCE, client credentials, the RFC 7523
+  grant redeeming an ID-JAG, RFC 9068 tokens for one audience, certificate-bound over mTLS, and RFC 7662
+  introspection with client authentication); and the gateway signer of section 4.4. `TokenBuilder` with `Break`
+  breaks one rule of section 3.2 at a time and names AFD's rule code; `IntrospectionAnswer`, `Fault`, metadata
+  patches, key rotation, recorded authorization requests and a counting plain-HTTP listener script the rest; the
+  kit runs on its own thread and runtime. Keys: RSA, P-256, P-384, Ed25519. Its suite (36 tests: 34 in six integration files, 2 unit tests)
+  verifies the kit's access tokens with AFD's `JwtVerifier` and `check_introspection`, every break refused with its
+  rule while the unbroken token passes. The host's `tests/no_auth_server.rs` (section 1) checks the manifest,
+  `cargo metadata` reachability, the routing calls of every workspace crate and a probe of every router, and failed
+  as it should under a mutation run. A repository-contract test holds the unit private and route-less. An independent review found one blocker
+  (the token exchange's error for a bad subject token) and eight improvements, all fixed and re-reviewed. Choices are in
+  the specification's [Amendments from step 1b](phases/5-auth-hosted/spec.md#amendments-from-step-1b). Verified
+  2026-11-07 with `cargo fmt --all --check`, the workspace clippy, the kit's suite, `no_auth_server.rs`, Umbel's
+  tests in batches and `pnpm check` (exit codes in the step 1b pull request).
+- **Done:** step 2a, the host's listener and layers, 2026-11-08, in the step 2a pull request:
+  - **The listener** (`Host::http_server`, `HttpServer::serve`; `src/surfaces/http/listener.rs`): HTTP/1.1 on hyper,
+    as `axum::serve` is built, putting the socket's peer address and, from the TLS handshake, AFD's
+    `ClientCertificate` in every request's extensions; never a header for either. `umbel serve --http` uses it; the
+    bare `Host::http_router()` serves mode `none` without TLS only.
+  - **TLS** (`http/tls.rs`): rustls 1.3 and 1.2 on the explicit `aws-lc-rs` provider, ALPN `http/1.1`, no session
+    resumption, and `client_auth`: `none`; `ca` (required, chained to `client_ca`); `any` (optional, possession only,
+    for RFC 8705 binding).
+  - **Section 6.3's layers in order** (`http.rs`, `http/layers.rs`): the body size limit (413 on a declared length
+    before anything reads it, and on a streamed body past the cap), the per-IP limit (a sliding minute on
+    `state/shared/limits.sqlite3`, shared by every process, IPv6 by /64; 429 with `Retry-After`), `/health` and the
+    protected-resource metadata at both well-known paths in public, then AFD's bearer layer and MCP service built
+    from one authorized server (`authorized_http_service`), with hosted host checks on `http.allowed_hosts` alone.
+  - **The context hook, version 1 skeleton** (`src/principal.rs`): over HTTP it dispatches on `auth.mode` and
+    fails closed in `oauth` and `gateway`.
+  - **What still failed closed** (step 2b lifted the first two): mode `oauth` refused to start in a shipped build until step 2b filled the token
+    verifier slot from `[auth.issuers]` (only the `testkit` seam `HostBuilder::with_token_verifier` fills it now), and
+    even then the hook refused every call until step 2b mapped credentials to a principal; mode `gateway` refuses to
+    start until step 4; the per-token limit is step 3's; the doctor's `auth.*` checks are step 2c's.
+  - The default `auth` feature (`afd/server-auth`, `tokio-rustls`, `rustls-pki-types`, `rusqlite`); `umbel-first-party`
+    enables it.
+  - Tests: `tests/auth_layers.rs` (each layer by what a request meets there, TLS and mTLS, the thumbprint from the
+    handshake and never from a header, the metadata, the IP limit across two processes, the body caps, the 401 shape,
+    a missing layer failing closed, stdio and the CLI unaffected, what refuses to start), `no_auth_server.rs` with the
+    `oauth` router probed over TLS, and unit tests in `src/shared/limits.rs` and `src/surfaces/http/layers.rs`; a
+    mutation run of thirteen checks (resumption, the hook's mode checks in `oauth` and `gateway`, the certificate,
+    both body caps, the body deadline, a refused body staying refused, `client_auth = "ca"`, the hosted host list, the
+    metadata's issuers, the host server's own authorization) failed each as it should.
+  - An independent security review found two blockers (the host's own `mcp_server()` listed its tools over HTTP
+    without the listener in a hosted mode, now fail-closed by an authorization that admits no one; and the documents,
+    written after its snapshot), seven improvements and five nits (a connection cap, a body deadline, bounded
+    and remembered limit checks, the system clock for limits, narrowed permissions, tests for forged identity and
+    forwarding headers and the hook's gateway branch), all fixed with regression tests. Choices are in the
+    specification's [Amendments from step 2a](phases/5-auth-hosted/spec.md#amendments-from-step-2a).
+  - **Settled 2026-11-08** (the review's two rate-limit follow-ups; neither changes the trust model): no forwarded
+    header is ever read, and step 3 adds an opt-in `http.trusted_proxies`, which accepts a PROXY protocol version 2
+    header only from listed peers, for a same-host proxy; IPv6 peers stay keyed on their /64.
+- **Done:** step 2b, the host's verification and principal, 2026-11-08, on `lush/umbel-p5-2b-verification`:
+  - **Keys** (`src/auth/keys.rs`, `fetch.rs`): Umbel's `KeySource` over `reqwest`, with RFC 8414 discovery (path
+    inserted, then OIDC inserted, then appended; only a 404 moves on), the `issuer` check, an `https` `jwks_uri`, no
+    redirect, 1 MiB and 10 seconds per fetch, a cache of 5 minutes to 24 hours, at most one fetch a minute per issuer,
+    and the last good keys kept until their cache ends, then fail closed.
+  - **Verification** (`verifier.rs`, `introspection.rs`): AFD's `JwtVerifier` built from `[auth]` (the public URL,
+    the skew, the lifetime, the scope prefix and limit, bound tokens, each issuer's algorithms), and the one
+    introspection issuer with Umbel's client credentials and a 60-second cache of accepted answers by the token's
+    SHA-256, bounded to 32 requests in flight and tokens of 4096 bytes. A fetch runs on a task of its own, so a client
+    that hangs up cannot spend the minute's one fetch. A shipped build still refuses to serve `oauth` until the
+    disclosure controls of steps 2c, 3 and 7 exist; the `testkit` seam `with_unfinished_oauth` serves it for tests. Settled 2026-11-08 as the
+    strictest reading: a shipped build serves `oauth` only once 2c, 3 and 7 have all landed.
+  - **The caller** (`mapping.rs`, `caller.rs`, `src/principal.rs`): section 4.1's mapping (namespaces, subject
+    claims, services three ways, the `~` form), `act` from an `act` issuer, claim groups, into principal version 1,
+    which every surface now writes (`humanPresent` stays `null` until step 5). The hook trusts the mapped caller only
+    beside the credentials AFD admitted for the same request.
+  - **Equivalents** (`src/access.rs`): consulted by readers, group members and reader-filter tokens, the memory
+    services' ownership check, and the knowledge plugin's self-approval through the SDK's new
+    `CallContext::equivalents`.
+  - **Until step 3** (`interim.rs`): only unqualified scopes authorise a verified call, and every request needs
+    `<prefix>:read` itself (plus write, approve or erase as the command needs); space-qualified scopes alone get a
+    403 naming the unqualified ones.
+  - **What still fails closed or waits:** serving `oauth` in a shipped build (until 2c, 3 and 7); space-qualified
+    scopes, 5.4's one answer, 9.4's listings and `Caller` in `reader_filter` (step 3); hidden counts (step 7); the
+    doctor's `auth.*` checks, `auth-show` and `workspace-show`'s hosted answer (2c); `gateway` (step 4); `humanPresent` and the person
+    page (step 5); the memory plugin's own equivalents (step 10) and cursor files (step 7).
+  - Tests: `tests/auth_tokens.rs` (every rule of 3.2 broken alone by the kit through the host, with its logged code;
+    routing; the `[auth]` settings; bound tokens; introspection and its cache), `tests/auth_keys.rs`,
+    `tests/token_canary.rs`, `tests/principal_v1.rs`, and unit tests in `src/auth/` and `src/access.rs`. Choices
+    are in the specification's [Amendments from step 2b](phases/5-auth-hosted/spec.md#amendments-from-step-2b).
+  - An independent security review found two blockers (a client hanging up mid-fetch spent the minute's one key
+    fetch; lifting `oauth`'s refusal would have served disclosures later steps close) and six improvements, all
+    fixed with regression tests.
+- **Done:** step 2c, the host's doctor and introspection, 2026-11-08, on `lush/umbel-p5-2c-doctor`:
+  - **The doctor's hosted profile** (`src/auth/doctor.rs`, `src/auth/files.rs`): every `auth.*` check of section
+    6.1 with its severities, after `http.config`: `auth.mode` (warns while this build does not serve the mode),
+    `auth.public_url`, `auth.tls` (every certificate's validity, the key readable by its owner only, trust files
+    writable by no one else, the listener's own loading, the gateway's pinned key set), `auth.ca_files`,
+    `auth.issuers` (3.3's discovery, the key set and its fit to the algorithms, the introspection endpoint called
+    with Umbel's credentials and a made-up token), `auth.subjects`, `auth.services`, `auth.principals` (every
+    principal the configuration grants to), `auth.person`, `auth.secrets` (by variable name, never a value),
+    `auth.shared` (writable, and a local file system by `statfs`) and `auth.confirmations`. No check prints a
+    secret, a token, a key or a remote value.
+  - **The doctor is the operator's** in a hosted mode: CLI only, and its handler refuses any other caller.
+  - **`auth-show`**: the caller's own projection, exactly section 10.3's eight members, never a token or claim.
+  - **`workspace-show`'s hosted answer**: no name or path, only the spaces the caller reads, for every caller but
+    the operator; `access` says `verified`, with statistics `shared` until step 7.
+  - **`ca_file`** (the follow-up settled 2026-11-08): `[auth.issuers.<alias>] ca_file` in configuration version 5
+    and its schema; the verifier gives that issuer a client trusting only those roots, and refuses to start on a
+    file that is unreadable, empty, expired or not yet valid.
+  - **Serving `oauth`** in a shipped build is still refused (settled 2026-11-08: only once 2c, 3 and 7 have
+    landed); 2c's control is in, and 3 (5.4's one answer, 9.4's listings, and the plugin listings that name
+    spaces, found here) and 7 (hidden counts) remain.
+  - Tests: `tests/doctor_auth.rs`, `tests/auth_show.rs`, the `ca_file` cases of `tests/auth_keys.rs`,
+    `tests/config_v5.rs` and `tests/schemas/phase5.rs`, and unit tests in `src/auth/doctor.rs` and `files.rs`.
+    No plugin crate changed. Choices are in the specification's
+    [Amendments from step 2c](phases/5-auth-hosted/spec.md#amendments-from-step-2c).
+  - An independent security review found one blocker (`auth.subjects` and `auth.person` read the RFC 8414
+    document where the provider's OpenID Connect discovery document could say otherwise) and eight improvements
+    (a `ca_file` root expiring after start stayed trusted; two time limits where the verifier has one; file owners
+    and directories unchecked; unbounded file reads; the operator test without the CLI interface; the doctor's
+    gate following only the sealed configuration; missing tests; a login-only issuer's `ca_file`, a step 5
+    follow-up), with four nits; all fixed, each with a regression test where one can be written.
+  - Verified 2026-11-08 on the branch: `cargo fmt --all --check`; the workspace clippy `-D warnings`, the three
+    `--no-default-features` legs, the SDK and hello leg, the `wasm32-wasip2` leg and the two plugin jobs' clippy;
+    the component builds and `hello-mcp`; Umbel's host tests in batches (88 suites, 1022 tests) and the other
+    crates, conformance and external clients (139 suites, 937 tests; 34 of 34 cases on each conformance lane);
+    `pnpm check`; Loam's web build and `test:mounted` (24 tests). All exited 0.
+- **Done:** step 3, the host's scopes, access, shared state and limits, 2026-11-08, on `lush/umbel-p5-3-scopes`:
+  - **Scopes** (`src/auth/scopes.rs`, `scope_gate.rs`): section 5.2's rules as one policy fixed at seal, for
+    Umbel's `ScopeResolver` (the 403 before dispatch, `Defer`, `visible`, and AFD's check at execution) and the
+    scope gate inside the registry. A call needs `read` in each of its spaces (its `space` or `spaces` input, else
+    the default space), `write` there for a mutation, `approve` for an approval policy, a host-verified mode or
+    `require-human`, `erase` for an erase; a space-less command needs any Umbel scope plus its other verbs
+    unqualified, and a mount without `bind_space` unqualified `write`. A token with no Umbel scope is 403 on every
+    request. Step 2b's interim rule is gone.
+  - **One answer** (`src/access.rs`, `src/middleware.rs`): `Caller` in every `reader_filter`; an undeclared space
+    and one the caller may not read, or its token grants nothing in, answer byte for byte alike to every hosted
+    caller but the operator (stdio and the library included), on every route, with nothing of the space in the
+    answer; readability before scope and before `PLUGIN_NOT_ENABLED`. Mode `none` and the operator are unchanged.
+    The resolver finds each request's mapped caller in an in-flight book, and defers when it cannot.
+  - **Listings**: `space-list`, `plugin-list`, `plugin-show` and `skill-list` name only the spaces, instances and
+    skills of spaces the caller reads (2c's follow-up); counts stay step 7's.
+  - **Shared state** (`src/shared/nonces.rs`): `state/shared/nonces.sqlite3`, an atomic spend across processes, in
+    the approval middleware (approval nonces and `relay:` evidence) in hosted modes; a failed spend is answered as
+    the store's failure. Mode `none` keeps AFD's store in memory.
+  - **Limits**: the per-token limit at layer 6 (`calls_per_minute`, per issuer, subject and client) and the read
+    limit in the registry (`read_bytes_per_minute` per effective principal, checked before the handler on bytes
+    already used, opened on the first limited call), on `limits.sqlite3`'s counters (schema version 2), each named
+    by an HMAC under the new `state/keys/limits.key`.
+  - **`http.trusted_proxies`** (2a's settled follow-up): a PROXY protocol version 2 header read only from listed
+    peers and required of them, its client keying the per-IP limit; a configuration version 5 key with its schema
+    and the doctor's `auth.trusted_proxies`.
+  - **Serving `oauth`** in a shipped build is still refused: 2c's and 3's controls are in, and step 7 (hidden counts
+    and positions) remains.
+  - Tests: `tests/scope_gate.rs`, `space_visibility.rs`, `shared_nonces.rs`, `limits.rs`, `confirm_binding.rs`,
+    `trusted_proxies.rs`, and unit tests in `src/auth/`, `src/access.rs`, `src/shared/` and
+    `src/surfaces/http/listener.rs`. No plugin crate changed. Choices are in the specification's
+    [Amendments from step 3](phases/5-auth-hosted/spec.md#amendments-from-step-3).
+  - **Hidden instances**: a plugin command whose instance serves no space a token-narrowed hosted caller reads
+    answers as an unknown command; a space member a command does not declare is refused before anything reads it.
+  - A mutation run removed each security check in turn; a test failed for each (one equivalent mutant, recorded).
+    An independent security review found one blocker (an undeclared `spaces` member reached spaces the scope rules
+    never checked) and six improvements (a hidden instance revealed by calling it; a withheld grant's note; mode
+    `none` and the operator depending on `state/shared/`; a failed spend answered as a spent token; the caller
+    lookup's linear scan; reversible counter names), with six nits; all fixed with regression tests. One follow-up
+    went to AFD (a hidden command must look unknown before input validation too), done the same day (below).
+  - Verified 2026-11-08 on the branch: `cargo fmt --all --check`; the workspace clippy `-D warnings`, the three
+    `--no-default-features` legs, the SDK and hello leg, the `wasm32-wasip2` leg and the two plugin jobs' clippy;
+    the component builds and `hello-mcp`; Umbel's host tests in batches (91 suites, 1070 tests) and the other
+    crates, conformance and external clients (139 suites, 937 tests); `pnpm check`; Loam's web build and
+    `test:mounted` (24 tests). All exited 0.
+- **Done:** step 3's follow-up to AFD, hidden commands, 2026-11-08, on `lush/afd-rust-hidden-before-validation`:
+  `spec/authorization.md` M6 specifies them, and AFD's Rust server answers a command its resolver's new `known`
+  rejects (with filtered listings) byte for byte as an unknown name on every route, before validation, middleware,
+  confirmation, relay or task. Umbel's resolver implements `known` as 9.4's hidden instance (`ScopePolicy::known`),
+  wider than `visible`, so a command the caller may learn of but not call keeps 5.4's 403 naming its missing scope.
+  The hidden-instance check stays as defence in depth. Tests: `tests/space_visibility.rs` (invalid, valid and no
+  input, through the command's own tool, `afd-call`, `afd-batch`, `afd-pipe` and `afd-detail`) and a unit test in
+  `src/auth/scopes.rs`. Choices are in the specification's
+  [Amendments from AFD's hidden commands](phases/5-auth-hosted/spec.md#amendments-from-afds-hidden-commands).
+- **Done:** step 7, the stores' exact filtering, 2026-11-08, on `lush/umbel-p5-7-exact-filtering`:
+  - **Knowledge statistics per reader filter** (9.1; `store-embedded/src/index/stats.rs`): a search scores through
+    tantivy's `Bm25StatisticsProvider` over the chunks its reader may read, deleted ones excluded, with exact
+    per-chunk token counts in index schema 2's `len_<field>` fast fields (equal to tantivy's own totals on an index
+    without deletes); cached per segment set and filter. A prefix expands only into terms a readable chunk holds,
+    and a snippet weighs its terms by readable chunks. `index/v1/` is removed when schema 2 opens; the next
+    `knowledge-index` rebuilds.
+  - **Memory BM25 per reader filter** (9.2; `store-embedded/src/memory/rank.rs`): recall ranks every readable match
+    with FTS5's own `bm25()` formula over the reader's statistics (its readable records, their lengths, and how many
+    hold each phrase), tokenised by `umbel-store`'s memory tokenizer (a port of FTS5's `porter unicode61
+    remove_diacritics 2`, held to FTS5's own tokens over every non-ASCII code point); ties by authority tier, then
+    recency, then id; over 50 000 readable matches is `MEMORY_QUERY_TOO_BROAD`.
+  - **Positions** (9.3; `src/positions.rs`): to a hosted caller that is neither the operator nor stdio, cursors are
+    version 1, revisions `r1.` tokens, a locator version 2, each the sealed last position it can read
+    (XChaCha20-Poly1305 with a synthetic nonce under `state/keys/cursor.key`); `event-list` pages, heads and event
+    views (`event-view.v1`: no `seq`, `journalSeq`, `changes` or record version), `event-ack`, `space-list`'s counts,
+    every revision the knowledge and context plugins show (through the SDK's `Cx::doc_position`), the plugin gate's
+    `dev.umbel/index`, `dev.umbel/changes` and record versions (the changes and versions kept whole for the
+    journal under a random reference), `knowledge-index`'s totals and limit, and `sources-sync`'s and
+    `sources-status`'s counts. Revisions are the last readable document change, so space-readable bookkeeping
+    records move no position. `store-show`, `event-rebuild`, `store-check` and `store-backup` are the operator's in
+    hosted modes, from the library too. Mode `none`, the operator and stdio are unchanged.
+  - **Follow-ups closed:** event ids and sequence numbers (step 1), `space-list`'s counts (step 3),
+    `workspace-show`'s `statistics: "per-filter"` (step 2c), stored cursor files consulting the equivalents (step
+    2b).
+  - **Serving `oauth`**: lifted. A shipped build serves mode `oauth`; the `testkit` seam `with_unfinished_oauth` is
+    removed. `gateway` still waits for step 4, and person-gated commands for step 5.
+  - **The eval** re-ran (`eval_gate.rs`): leaks 0, every unanswerable query empty, and every metric equal to
+    `eval/baseline.json` to four places (overall with expansion: recall 1.0, nDCG 0.9273, MRR 0.9207; without:
+    recall 0.8919, nDCG 0.9123, MRR 0.8784), before and after the review's fixes, so the baseline is unchanged.
+  - **Independent security review** (read-only, of the diff against the specification): two blockers and seven
+    improvements, all fixed with a regression test each (`knowledge-index`'s limit and lists, cursor files per
+    person on a shared client, ties past the collector's window, the CLI-only built-ins from the library, the
+    journal's stash reference, positions moved by sources' sync state, `sources-sync` and `sources-status` counts).
+    AFD's numbered batch trace ids, a prefix's expansion time and three source-tree signals of `sources-sync` are
+    follow-ups.
+  - Tests: `store-embedded/tests/partitioned_stats.rs`, `store/tests/memory_tokenizer.rs`, `tests/cursor_v1.rs`,
+    `eval_gate.rs`, `first-party/tests/exact_filtering.rs`, and unit tests in `stats.rs`, `rank.rs`, the tokenizer
+    and `positions.rs`. Plugin crates changed (`knowledge`, `context`, `memory`, `sources-filesystem`). Choices are in the specification's
+    [Amendments from step 7](phases/5-auth-hosted/spec.md#amendments-from-step-7).
+- **Done:** step 4, the host's gateway mode, 2026-11-08, on `lush/umbel-p5-4-gateway`:
+  - **The channel** (`src/auth/gateway.rs`): with `client_auth = "ca"` and pins, the handshake's certificate must be
+    pinned; otherwise (a loopback bind) the connection's own local address must be loopback (`LocalAddr`, a new
+    listener fact), and any pins must match too. Pins need a client certificate to reach Umbel (`client_auth` other
+    than `none`), checked at open.
+  - **The assertion**: exactly one `Umbel-Gateway-Assertion` of at most 4096 bytes; strict JSON; `typ` exactly
+    `umbel-gw+jwt`; AFD's header rules against the pinned key set, whose every key names its `alg` and is checked
+    with AFD's `check_key_fit` when the file is read (at start, with the doctor's permission rule); the signature
+    through `jsonwebtoken`'s `aws-lc-rs` provider; `iss`, `aud` and `htu` byte for byte, `htm` the method; `sub`,
+    `client`, a 128-bit `jti`, a well-formed `scope`; no `cnf`; whole-second times within the skew and the age
+    limit, 1 to 60 seconds long. Then the `jti` is spent once in the shared nonce store (`gateway:<jti>`), so a
+    refused assertion spends nothing and a replay on another process is refused. Every refusal is one 401,
+    `WWW-Authenticate: Umbel-Gateway realm="umbel"`, its reason logged as a rule code.
+  - **The caller**: section 4.1's mapping in the gateway's namespace, `authentication` `gateway`, no binding, no
+    person, no claim group; scopes cut to `max_scopes` by section 4.4's meet; nothing left is the gateway's own 403.
+    The assertion and any `Authorization` header are removed before the service.
+  - **The surface** (`src/surfaces/http/gateway.rs`): section 6.3's layers with the gateway layer at 5, `/health`
+    the only public route (no metadata), and AFD's admission (`Authorization::admit`) into a server holding Umbel's
+    resolver, so steps 3 and 7 apply unchanged: the scope gate, the one answer, filtered listings, hidden commands,
+    the per-token and read limits, sealed positions. A call's missing scope is `INSUFFICIENT_SCOPE` after routing
+    (superseded 2026-11-08 by the 403 before dispatch; see the follow-up's entry below).
+  - **The doctor**: `auth.mode` passes; `auth.tls` loads the key set with the layer's own loader and names the
+    channel, warning on the loopback leg without pins; `auth.subjects` lists the gateway among its namespace's
+    subject sources.
+  - **Limits**: a connection presenting a pinned certificate is the gateway, authenticated at the channel, and skips
+    the per-IP limit; the per-caller limits after verification govern it. Every other connection keeps it.
+  - **One deviation**: a gateway caller's missing scope is `INSUFFICIENT_SCOPE` after routing (before the
+    confirmation gate and any person), not 5.2's 403 before dispatch, as AFD offers a host's own layer no
+    pre-dispatch decision; a follow-up to AFD. **Closed 2026-11-08** by the follow-up's entry below. Its suggestion names a new assertion, never a token (AFD's additive
+    `ProtectedResource::with_scope_source`).
+  - **Review**: a mutation run removed each security check in turn (44 mutants, all killed). An independent security
+    review found no blocker, four improvements (pinned keys that could never verify, the `jti` retention untested,
+    the per-IP limit in gateway mode, two invariants kept at one call site) and five nits (the 403's shape and
+    wording, `max_assertion_age_s` capped at 60, boundary tests, a follow-up for step 8's tasks, the key file
+    checked as opened); all fixed with regression tests.
+  - Tests: `tests/gateway_mode.rs` (accepted callers, every rule broken alone with its exact logged code, replay
+    across two hosts on one workspace, the pinned and loopback channels, no identity header, no metadata, the key set
+    at start, steps 3 and 7 for gateway callers, the per-token limit), the gateway router of `no_auth_server.rs`, the
+    gateway cases of `doctor_auth.rs`, `config_v5.rs` and `auth_layers.rs`, and unit tests in `src/auth/gateway.rs`,
+    `src/surfaces/http/gateway.rs`, `src/principal.rs`, `src/auth/scopes.rs` and `src/auth/scope_gate.rs`. No
+    plugin crate changed; `umbel-testkit-idp`'s `GatewaySigner` is `Clone`; the afd crate gains
+    `ProtectedResource::with_scope_source`. Choices are in the specification's
+    [Amendments from step 4](phases/5-auth-hosted/spec.md#amendments-from-step-4).
+- **Done:** step 4's follow-up to AFD, the decision before dispatch for a host's own layer, 2026-11-08, on
+  `lush/afd-predispatch-scope-decision`: `spec/authorization.md` M6 specifies "A host's own layer", and AFD's Rust
+  server exposes the bearer layer's own decision as `McpServer::pre_dispatch_check` (`PreDispatchCheck::decide`,
+  `PreDispatch`, and `ScopeChallenge` for a host's own scheme); `BearerLayer` runs the same value. Umbel's gateway
+  layer runs it after admitting the caller, so a gateway caller's missing scope is 5.2's 403 before dispatch,
+  `WWW-Authenticate: Umbel-Gateway realm="umbel", error="insufficient_scope", scope="<missing>"`, with AFD's body and
+  the gateway's suggestion; layer 6's 403 in mode `gateway` is now the same body and challenge, so an assertion with
+  no Umbel scope gets one answer for every name. The parity tests found that AFD asked the resolver about a grouped
+  call's tool name even when it was a hidden command's; AFD now decides a grouped call that resolves to no command on
+  the required scopes alone. An independent review found one blocker, fixed: a call without an `action` of a tool
+  that is both a group and a command, whose members the caller was shown none of, was decided as a group while the
+  router ran the command (without its scopes under the static rule with filtered listings); AFD now names it as the
+  router does. Its three improvements and two nits are fixed too. Tests: AFD's `tests/server_auth_pre_dispatch.rs` (every request of a matrix through the
+  bearer layer and a host layer, byte for byte, in every strategy, under the static rule and a scope-naming resolver
+  that hides commands), `tests/gateway_mode.rs`, and unit tests in `src/surfaces/http/gateway.rs` and
+  `src/auth/gateway.rs`. Choices are in the specification's
+  [Amendments from AFD's pre-dispatch decision](phases/5-auth-hosted/spec.md#amendments-from-afds-pre-dispatch-decision).
+- **Not done:** steps 5, 6 and 8 to 12 of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan).
+- **Next:** step 5 (it needs 3, 0c and 0d); 8 needs 0e and 3; 9 and 11 need 3. Heavy steps follow the plan's build
+  note. Steps 5 to 12 take `umbel-testkit-idp` from `[dev-dependencies]`. A gateway user is proven only on the
+  namespace's person page (4.4), which step 5 builds.
 - **Waiting on the owner:** nothing. Every phase 5 decision is final.
 - **Follow-ups:** the [specification's list](phases/5-auth-hosted/spec.md#follow-ups).
 
@@ -2367,3 +2681,10 @@ on another local branch and push to that remote name.
 | 2026-11-07 | Phase 5 step 0c | [#532](https://github.com/lushly-dev/afd/issues/532) in AFD: confirmation `requestState` bound to the call's principal binding (M8) in TypeScript (one HMAC bind tag over the round's state, confirmation and approval-relay answers alike; `principalBinding`), Python (the SDK's sealed state through `bind_principal`, a mismatch the SDK's `-32602`) and Rust (the gate's HMAC associated data, `afd::principal_binding`); a mismatch refused as tampering is, the same caller still confirmed, a pre-change state failing closed. TypeScript and Python load the `principalBindings` cases. Recorded in the phase 5 specification's amendments from step 0c |
 | 2026-11-07 | Phase 5 step 0d | AFD Rust relay: the host-verified confirmation mode (`CommandConfirmationMode::HostVerified`), `HumanRelay` on `McpServer::with_human_relay`, relay evidence in the approval middleware (spent once as `relay:<decisionId>`), `afd::input_digest`, and the form-mode approval relay (`ApprovalRelay::McpElicitation`) sharing one principal-bound state per call with the confirmation; `tests/server_human_relay.rs`; an independent security review (no blocker; two improvements fixed with regression tests); the specification's Amendments from step 0d. Umbel code unchanged |
 | 2026-11-07 | Phase 5 step 0e | AFD Rust tasks: `CommandDefinition::with_task(TaskSupport)` refused beside a person gate, `afd::server::tasks` (`TaskStore`, the bounded `InMemoryTaskStore`, `TaskOptions`), the `tasks/*` handlers with the owner check in the store and the server, `CancellationSignal` and `report_progress` on the context, `TASK_TOKEN_EXPIRED` in the shared catalog in all four languages (48 codes); `tests/server_tasks.rs`; the specification's Amendments from step 0e. The AFD prerequisites 0a to 0e are complete. Umbel code unchanged |
+| 2026-11-07 | Phase 5 step 1b | `umbel-testkit-idp`, a test-only identity provider, resource authorization server, gateway signer and test CA on `127.0.0.1`, with one-rule-at-a-time token breaks checked against AFD's `JwtVerifier`, the ID-JAG exchange, introspection answers and endpoint faults; `tests/no_auth_server.rs` in the host; the inventory unit, `architecture.json` entry and a repository-contract test; the specification's Amendments from step 1b. No host code changed |
+| 2026-11-08 | Phase 5 step 2a | The host's listener and layers: in-process TLS with `client_auth` and the client certificate passed to the verifier from the handshake, section 6.3's layers in order (the body size limit, the per-IP limit on `state/shared/limits.sqlite3`, `/health` and the protected-resource metadata in public, AFD's bearer layer and MCP service from one authorized server), the context hook version 1 skeleton, `Host::http_server`, the default `auth` feature; `oauth` refuses to start until step 2b fills the verifier slot, `gateway` until step 4; `tests/auth_layers.rs`, `no_auth_server.rs`'s `oauth` router; the specification's Amendments from step 2a |
+| 2026-11-08 | Phase 5 step 2b | The host's verification and principal: Umbel's `KeySource` (RFC 8414 discovery, issuer check, HTTPS only, no redirects, 1 MiB and 10 seconds, a 5-minute to 24-hour cache, one fetch a minute per issuer, fail closed after the cache), AFD's `JwtVerifier` built from `[auth]`, the introspection issuer with a 60-second cache, section 4.1's mapping to principal version 1 on every surface (services, `act`, claim groups, the `~` form), equivalents in reader filters, memory ownership and knowledge self-approval (`CallContext::equivalents`), an interim scope rule until step 3; mode `oauth` verifies and maps, and a shipped build serves it only after steps 2c, 3 and 7 (a `testkit` seam for tests); `tests/auth_tokens.rs`, `auth_keys.rs`, `token_canary.rs`, `principal_v1.rs`; the specification's Amendments from step 2b |
+| 2026-11-08 | Phase 5 step 2c | The host's doctor and introspection: every `auth.*` check of section 6.1 (with `auth.ca_files`), run as the verifier would ask each issuer and never printing a secret, token, key or remote value; `workspace-doctor` the operator's alone in a hosted mode; `auth-show` with exactly section 10.3's members; `workspace-show`'s hosted answer (no name or path, only readable spaces); `[auth.issuers.<alias>] ca_file`, trusted for its issuer alone and only while its roots are valid; the test kit's `TestCa::valid_between` and `TestIdp::start_with_ca`. An independent security review found one blocker and eight improvements, all fixed with regression tests. Serving `oauth` stays refused until steps 3 and 7. Committed locally on `lush/umbel-p5-2c-doctor`, not pushed |
+| 2026-11-08 | Phase 5 step 3 | The host's scopes, access, shared state and limits: section 5.2's policy for Umbel's `ScopeResolver` and the scope gate (space-qualified verbs, every verb implying `read` in its space, unqualified needs for space-less commands, a token with no Umbel scope refused everywhere), section 5.4's one answer with `Caller` in `reader_filter` on every surface, the listings of 9.4 with the plugin listings, the shared nonce store in approvals, the per-token and read limits, and `http.trusted_proxies` (PROXY protocol version 2 from listed peers only); `oauth` still not served until step 7 |
+| 2026-11-08 | Phase 5 step 4 | The host's gateway mode: the pinned channel (a pinned certificate on a `ca` channel, or the connection's own loopback address), a verified, URL- and method-bound assertion spent once in the shared nonce store, section 4.1's mapping with `authentication` `gateway`, the scope ceiling's meet, no metadata, the doctor's gateway checks, and the gateway's own 401 and 403; a shipped build now serves `gateway`, and steps 3 and 7 apply to its callers |
+| 2026-11-08 | Phase 5 step 4 follow-up | The decision before dispatch for a host's own layer: AFD's `McpServer::pre_dispatch_check` (the bearer layer's own `PreDispatchCheck`, with `ScopeChallenge` for a host's scheme), specified in `spec/authorization.md` M6; Umbel's gateway layer runs it, so mode `gateway` answers 5.2's 403 before dispatch in the gateway's scheme, and layer 6 answers with the same 403. AFD decides a grouped call that resolves to no command on the required scopes alone |

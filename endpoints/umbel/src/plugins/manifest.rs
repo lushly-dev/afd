@@ -1,5 +1,5 @@
-//! `umbel-plugin.toml`, manifest versions 1 to 4 (specification section 2, D37; phase 2 section
-//! 3.4, D54; phase 3 section 2.3; phase 4 section 2.2, in [`v4`]).
+//! `umbel-plugin.toml`, manifest versions 1 to 5 (specification section 2, D37; phase 2 section
+//! 3.4, D54; phase 3 section 2.3; phase 4 section 2.2, in [`v4`]; phase 5 section 2.3, in [`v5`]).
 //!
 //! [`Manifest::parse`] reads and validates the text; [`Manifest::validate_files`] checks what it
 //! names on disk; [`Manifest::load`] does both for a plugin directory. Every failure is a
@@ -23,8 +23,10 @@ use super::{
 };
 
 mod v4;
+mod v5;
 
 pub use v4::PipelineResult;
+pub use v5::{Assurance, PersonDecl, TaskMode};
 
 /// The largest `component.path` file the host compiles.
 pub const MAX_COMPONENT_BYTES: u64 = 32 * 1024 * 1024;
@@ -402,6 +404,12 @@ pub struct CommandDecl {
     /// `confirm_preview` (manifest version 4): the `inspect` command of this plugin whose text the
     /// CLI shows before the confirmation prompt (phase 4 section 2.2, D97).
     pub confirm_preview: Option<String>,
+    /// `task` (manifest version 5): whether the command may run as an MCP task (phase 5 section
+    /// 12.2); `never` before version 5.
+    pub task: TaskMode,
+    /// `person` (manifest version 5): the least person assurance per surface, set exactly for a
+    /// `require-human` command; `{ cli = "terminal" }` when the manifest gives none.
+    pub person: Option<PersonDecl>,
     /// `instant`, `fast`, `slow` or `long-running`.
     pub execution_time: Option<String>,
     /// The plugin's default exposure.
@@ -458,6 +466,15 @@ impl CommandDecl {
     pub fn mutation(&self) -> bool {
         self.effects.iter().any(|effect| effect.mutation())
     }
+
+    /// Whether the host registers the command for MCP. A `require-human` command whose `person`
+    /// names `mcp` may declare `expose.mcp = true` from manifest version 5, but it is served over
+    /// MCP only in a hosted mode, to callers whose namespace has a valid person login (phase 5
+    /// section 7.1), which phase 5 step 5 builds; until then it stays off MCP, as in versions 2
+    /// to 4.
+    pub fn mcp_exposed(&self) -> bool {
+        self.expose.mcp && !self.require_human
+    }
 }
 
 /// `[[contexts]]`.
@@ -507,6 +524,11 @@ pub struct PipelineDecl {
     pub expose: Expose,
     /// `result` (manifest version 4): every step's data, or only the last step's (D105).
     pub result: PipelineResult,
+    /// `task` (manifest version 5); admitted at seal only when every step admits it.
+    pub task: TaskMode,
+    /// `person` (manifest version 5); admitted at seal only when every step is a `require-human`
+    /// command whose own assurance it admits.
+    pub person: Option<PersonDecl>,
 }
 
 /// `[[packs]]`.
@@ -605,7 +627,7 @@ pub struct MountDecl {
 pub struct Manifest {
     /// Where the text came from, for messages.
     pub file: String,
-    /// The `manifest_version` the file declared: 1 to 4.
+    /// The `manifest_version` the file declared: 1 to 5.
     pub manifest_version: u32,
     /// `[plugin]`.
     pub plugin: PluginInfo,
@@ -708,6 +730,7 @@ impl Manifest {
         manifest.check_names()?;
         manifest.check_memory_rules()?;
         manifest.check_previews(None)?;
+        manifest.check_person_previews(None)?;
         Ok(manifest)
     }
 
@@ -754,6 +777,7 @@ impl Manifest {
                 .map_err(|problem| bad("config.schema".to_owned(), problem))?;
         }
         self.check_previews(Some(files))?;
+        self.check_person_previews(Some(files))?;
         if let Some(component) = &self.component {
             let size = files
                 .len(&component.path)
@@ -1406,6 +1430,7 @@ fn command(
             (2, COMMAND_KEYS_V2),
             (3, COMMAND_KEYS_V3),
             (4, v4::COMMAND_KEYS_V4),
+            (5, v5::COMMAND_KEYS_V5),
         ],
     )?;
     let input_schema = table
@@ -1449,10 +1474,29 @@ fn command(
     }
     let expose = expose(table)?;
     let confirm_prompt = table.optional_text("confirm_prompt", 500)?;
-    let require_human = require_human(table, confirm_prompt.as_deref(), &expose)?;
+    let declared_person = v5::person(table)?;
+    let require_human = require_human(
+        table,
+        confirm_prompt.as_deref(),
+        &expose,
+        declared_person.is_some_and(|person| person.mcp.is_some()),
+    )?;
+    let person = v5::command_person(table, declared_person, require_human, &expose)?;
     let journal = journal(table)?;
     let authority_prompt = table.optional_text("authority_prompt", MAX_AUTHORITY_PROMPT_CHARS)?;
     let confirm_preview = v4::confirm_preview(table, plugin.kind, confirm_prompt.as_deref())?;
+    let task = v5::command_task(
+        table,
+        &v5::TaskRules {
+            kind: plugin.kind,
+            effects: &effects,
+            expose: &expose,
+            journal: journal.as_ref(),
+            confirm_prompt: confirm_prompt.is_some(),
+            approval,
+            authority_prompt: authority_prompt.is_some(),
+        },
+    )?;
     if plugin.kind == PluginKind::Component {
         for (key, present) in [
             ("journal", journal.is_some()),
@@ -1485,6 +1529,8 @@ fn command(
         journal,
         authority_prompt,
         confirm_preview,
+        task,
+        person,
         execution_time,
         expose,
         examples: examples(table)?,
@@ -1587,11 +1633,14 @@ fn output_budget(table: &Tbl<'_>, kind: PluginKind) -> Result<Option<OutputBudge
 }
 
 /// `confirm = "require-human"` (manifest version 2): the only value. It needs `confirm_prompt`
-/// and an exposure to the CLI alone, because every other surface refuses the command.
+/// and an exposure to the CLI alone, because every other surface refuses the command; from
+/// manifest version 5 also to MCP when `person` names `mcp` (`mcp_person`, phase 5 section 2.3),
+/// and never to agents.
 fn require_human(
     table: &Tbl<'_>,
     confirm_prompt: Option<&str>,
     expose: &Expose,
+    mcp_person: bool,
 ) -> Result<bool, PluginError> {
     match table.string("confirm")?.as_deref() {
         None => return Ok(false),
@@ -1604,10 +1653,25 @@ fn require_human(
             "needs confirm_prompt: the person at the terminal answers it",
         ));
     }
-    if expose.mcp || expose.agent || !expose.cli {
+    if table.manifest_version < 5 {
+        if expose.mcp || expose.agent || !expose.cli {
+            return Err(table.bad(
+                "confirm",
+                "needs expose = { mcp = false, agent = false, cli = true }: every surface but the CLI refuses a require-human command",
+            ));
+        }
+        return Ok(true);
+    }
+    if expose.agent || !expose.cli {
         return Err(table.bad(
             "confirm",
-            "needs expose = { mcp = false, agent = false, cli = true }: every surface but the CLI refuses a require-human command",
+            "needs expose = { agent = false, cli = true }: no agent can confirm for a person, and the CLI is where a person confirms",
+        ));
+    }
+    if expose.mcp && !mcp_person {
+        return Err(table.bad(
+            "confirm",
+            "needs expose.mcp = false, or person = { mcp = \"verified\" }: over MCP only the person page proves a person",
         ));
     }
     Ok(true)
@@ -1707,7 +1771,11 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
             table.check_versioned_keys(
                 PIPELINE_KEYS,
                 &[],
-                &[(3, PIPELINE_KEYS_V3), (4, v4::PIPELINE_KEYS_V4)],
+                &[
+                    (3, PIPELINE_KEYS_V3),
+                    (4, v4::PIPELINE_KEYS_V4),
+                    (5, v5::PIPELINE_KEYS_V5),
+                ],
             )?;
             let input_schema = table
                 .schema("input_schema")?
@@ -1747,17 +1815,25 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
                     alias,
                 });
             }
+            let effects = table
+                .effects("effects", true)?
+                .ok_or_else(|| table.bad("effects", "is required"))?;
+            let journal = journal(table)?;
+            let expose = v4::pipeline_expose(table)?;
+            let person = v5::pipeline_person(table)?;
+            let task =
+                v5::pipeline_task(table, &effects, &expose, journal.as_ref(), person.as_ref())?;
             Ok(PipelineDecl {
                 name: command_name(table, plugin)?,
                 description: table.text("description", 1, 500)?,
-                effects: table
-                    .effects("effects", true)?
-                    .ok_or_else(|| table.bad("effects", "is required"))?,
+                effects,
                 input_schema,
                 steps: parsed,
-                journal: journal(table)?,
-                expose: v4::pipeline_expose(table)?,
+                journal,
+                expose,
                 result: v4::pipeline_result(table)?,
+                task,
+                person,
             })
         })
         .collect()
@@ -1924,6 +2000,7 @@ fn mount_tools(table: &Tbl<'_>, prefix: &str) -> Result<Vec<MountTool>, PluginEr
             &entry,
             "is not available to a mounted tool: a preview is a command of the same plugin, and a mount declares none",
         )?;
+        v5::refuse_on_mounted_tool(&entry)?;
         entry.check_keys(MOUNT_TOOL_KEYS, &[])?;
         let tool = entry.required_string("tool")?;
         let name = entry.string("name")?;

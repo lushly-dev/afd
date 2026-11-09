@@ -95,8 +95,8 @@ pub(crate) struct Drafted<'a> {
 pub(crate) struct Submitted {
     pub(crate) proposal: Proposal,
     pub(crate) created: bool,
-    /// The record's revision, for a stored one.
-    pub(crate) rev: Option<u64>,
+    /// The record's revision, for a stored one, as the caller may see it (phase 5 section 9.3).
+    pub(crate) rev: Option<Value>,
     /// `knowledge-propose`'s answer for it.
     pub(crate) outcome: Outcome,
 }
@@ -558,7 +558,11 @@ pub(crate) fn submit(
         }
         Err(error) => return Err(host(&error)),
     };
-    let mut outcome = shown(&proposal, true, Some(meta.rev))
+    let rev = caller
+        .cx
+        .doc_position(&caller.space, meta.rev)
+        .map_err(|error| host(&error))?;
+    let mut outcome = shown(&proposal, true, Some(rev.clone()))
         .with_metadata(
             "dev.umbel/record",
             json!({ "kind": "proposal", "id": id, "version": meta.rev }),
@@ -570,7 +574,7 @@ pub(crate) fn submit(
     Ok(Submitted {
         proposal,
         created: true,
-        rev: Some(meta.rev),
+        rev: Some(rev),
         outcome,
     })
 }
@@ -584,13 +588,13 @@ pub(crate) fn flagged(outcome: Outcome, flags: &[String]) -> Outcome {
     )
 }
 
-fn shown(proposal: &Proposal, created: bool, rev: Option<u64>) -> Outcome {
+fn shown(proposal: &Proposal, created: bool, rev: Option<Value>) -> Outcome {
     let mut data = json!({
         "created": created,
         "proposal": common::summary(proposal),
     });
     if let Some(rev) = rev {
-        data["rev"] = json!(rev);
+        data["rev"] = rev;
     }
     success(data).with_reasoning(&format!(
         "{} proposal {} for `{}`, {}.",

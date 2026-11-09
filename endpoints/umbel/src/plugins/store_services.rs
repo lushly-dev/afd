@@ -17,7 +17,7 @@ use umbel_store::{
 };
 
 use super::grants::CallServices;
-use crate::access::{effective_principal_of, reader_filter};
+use crate::access::{Caller, effective_principal_of, reader_filter};
 use crate::store::{SpaceStores, codes, host_error};
 
 type Result<T> = std::result::Result<T, ServiceError>;
@@ -114,22 +114,18 @@ impl CallServices {
             .note_write(self.context.trace_id.as_deref().unwrap_or_default(), rev);
     }
 
-    /// The effective principal reads are filtered for: the `as_reader` principal, else the
-    /// caller's.
-    pub(super) fn reading_as(&self) -> Option<String> {
-        self.as_principal
-            .clone()
-            .or_else(|| effective_principal_of(&self.context))
-    }
-
     /// The reader filter of the caller in `space`; `SPACE_NOT_READABLE` is `NotGranted`.
     pub(super) fn filter(&self, space: &str) -> Result<ReaderFilter> {
-        reader_filter(
-            self.shared.workspace.config(),
-            space,
-            self.reading_as().as_deref(),
-        )
-        .map_err(|error| ServiceError::NotGranted(format!("{}: {}", error.code, error.message)))
+        let config = self.shared.workspace.config();
+        let caller = Caller::of(config, &self.context);
+        // Claim groups are the caller's own: reading as another principal gets none, and keeps
+        // this call's narrowing (phase 5 section 5.4).
+        let caller = match &self.as_principal {
+            Some(principal) => caller.reading_as(config, Some(principal.clone())),
+            None => caller,
+        };
+        reader_filter(config, space, &caller)
+            .map_err(|error| ServiceError::NotGranted(format!("{}: {}", error.code, error.message)))
     }
 
     fn stores(&self, space: &str) -> Result<Arc<SpaceStores>> {
@@ -316,6 +312,47 @@ impl CallServices {
             .documents
             .changes(after, limit, &filter, trace)
             .map_err(host_error)
+    }
+
+    /// How this call's caller sees positions (phase 5 section 9.3): the call's own caller, never
+    /// a principal read as.
+    fn presenter(&self) -> Result<crate::positions::Presenter> {
+        let caller = Caller::of(self.shared.workspace.config(), &self.context);
+        crate::positions::Presenter::of(&self.shared.workspace, &caller)
+            .map_err(|error| ServiceError::Io(format!("{}: {}", error.code, error.message)))
+    }
+
+    pub(super) fn svc_doc_position(&self, space: &str, rev: Rev) -> Result<Value> {
+        let (stores, filter) = self.reading("documents", space)?;
+        let presenter = self.presenter()?;
+        if !presenter.seals() {
+            return Ok(Value::from(rev));
+        }
+        let last = stores
+            .documents
+            .last_readable_document(rev, &filter)
+            .map_err(host_error)?;
+        Ok(presenter.revision(space, last))
+    }
+
+    pub(super) fn svc_doc_position_of(&self, space: &str, value: &Value) -> Result<Rev> {
+        self.scoped("documents", space)?;
+        self.filter(space)?;
+        let presenter = self.presenter()?;
+        let rev = if presenter.seals() {
+            value
+                .as_str()
+                .and_then(|text| presenter.open(crate::positions::Kind::Revision, space, text))
+        } else {
+            value.as_u64()
+        };
+        rev.ok_or_else(|| {
+            ServiceError::Invalid(if presenter.seals() {
+                "not a revision this space gave you; pass one as it was returned".to_owned()
+            } else {
+                "a revision is a non-negative integer".to_owned()
+            })
+        })
     }
 
     pub(super) fn svc_doc_put(

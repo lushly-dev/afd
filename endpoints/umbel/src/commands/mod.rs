@@ -3,6 +3,7 @@
 //! Every name follows D22, every input schema is closed, every command declares `returns`, and
 //! every `expose` flag is set explicitly.
 
+mod auth_show;
 mod event_ack;
 mod event_list;
 mod event_rebuild;
@@ -31,6 +32,7 @@ mod workspace_show;
 use afd::{CommandDefinition, ExposeOptions, JsonSchema, JsonSchemaType};
 use serde_json::{Value, json};
 
+pub(crate) use auth_show::auth_show;
 pub(crate) use event_ack::event_ack;
 pub(crate) use event_list::{event_list, read_events};
 pub(crate) use event_rebuild::event_rebuild;
@@ -102,6 +104,25 @@ pub(crate) fn consumer_arg(input: &Value) -> Result<String, afd::CommandError> {
             "Pass a consumer of 1 to 64 lowercase letters, digits, dots, underscores or hyphens, starting with a letter or digit, or omit it for \"default\".",
         )),
     }
+}
+
+/// `COMMAND_NOT_EXPOSED` for `name` to any caller but the operator in a hosted mode (phase 5
+/// sections 4.7 and 9.3): a built-in registered for the CLI alone that counts what every
+/// principal wrote, reached from the library, where no interface is checked. `None` in mode
+/// `none` and for the operator.
+pub(crate) fn operator_only(
+    workspace: &crate::workspace::Workspace,
+    context: &afd::CommandContext,
+    name: &str,
+) -> Option<afd::CommandError> {
+    (workspace.config().auth.mode.is_hosted() && !crate::access::is_operator(context)).then(|| {
+        afd::CommandError::new(
+            afd::error_codes::COMMAND_NOT_EXPOSED,
+            format!("{name} is the operator's in a hosted mode"),
+        )
+        .with_suggestion(format!("Run umbel call {name} at the host's command line."))
+        .with_retryable(false)
+    })
 }
 
 /// The caller named by the principal the host set: its actor and non-empty id. `None` for a

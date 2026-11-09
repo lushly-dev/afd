@@ -1,0 +1,42 @@
+{
+	"version": 1,
+	"id": "b25ufh5invebyjrq7lct3mojdq",
+	"owner": {
+		"effectivePrincipal": "human:corp/U019488227",
+		"actor": {
+			"kind": "agent",
+			"id": "corp/f53f191f9311af35",
+			"onBehalfOf": "corp/U019488227"
+		},
+		"issuer": "corp-as",
+		"clientId": "f53f191f9311af35"
+	},
+	"command": "knowledge-refresh",
+	"space": "main",
+	"status": "completed",
+	"statusMessage": null,
+	"createdAt": "2026-11-09T10:00:00.000Z",
+	"lastUpdatedAt": "2026-11-09T10:01:12.000Z",
+	"ttlMs": 3600000,
+	"pollIntervalMs": 1000,
+	"cancelRequested": false,
+	"lease": null,
+	"result": {
+		"resultType": "complete",
+		"content": [
+			{
+				"type": "text",
+				"text": "{\"indexed\":42,\"removed\":1}"
+			}
+		],
+		"structuredContent": {
+			"success": true,
+			"data": {
+				"indexed": 42,
+				"removed": 1
+			}
+		},
+		"isError": false
+	},
+	"error": null
+}

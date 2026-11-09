@@ -64,6 +64,150 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `documents` row (58), each measured as the closure with it less without it, with no slack. The parts are
  * approximate, since the minifier's renaming interacts with what is removed; the total is exact. First
  * paint 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,860, `apps` 384,233.
+ * Step 10 adds `editorMinified`, the editor area's chunk, loaded on the first document opened, restored
+ * or routed to, charged after the surfaces as `sections` is: first measured at 24,720 against the documents
+ * specification's first estimate of 40,000 (12), at 62%, so lowered by phase 0's rule to its measurement
+ * plus 10%, 27,192; 27,182 after the step's reviews, with the tabs' icons. It records `notes`' bundle, as
+ * `tasks`' is. The editor's state and commands are a chunk of their own, `late-editor`, loaded inside
+ * `loadLate` beside `late-documents`, with a row of its own, `lateEditorMinified`, first 13,111, so 14,423,
+ * its measurement plus 10% (an amendment to 2.4 the coordinator decided, 2026-11-07), and 14,389 after the
+ * reviews: `late`'s closure leaves both out. After the reviews, first paint 285,523 and 88,061 gzip, the bytes
+ * 25 over step 10's allowance of 150 (the busy heading and an observable `mainBusy`), accepted by the
+ * coordinator; the kernel alone 111,543; `late` 57,661; `late-documents` 12,105; `url-sync` 4,806; `apps`
+ * 384,077, as the port's callable list moved to `late`; `surfaces` 83,946, with `host()`. The re-check's
+ * fixes raised `lateEditorMinified` by 221, to 14,644, and `editorMinified` by 573, to 27,765, approved by the
+ * coordinator, 2026-11-07, each part measured as the chunk with it less without it (2.4 has them); after it,
+ * first paint 285,503 and 88,055, the kernel alone 111,521, `late` 57,956 with a server's events,
+ * `late-editor` 14,610 and `editor` 27,755. The narrow re-check's raised them again by their measured
+ * cost, `lateEditorMinified` by 406 to 15,050 and `editorMinified` by 13 to 27,778, approved by the
+ * coordinator, 2026-11-07; after it, first paint 285,503 and 88,055, `late` 58,015, `late-documents`
+ * 12,169, `late-editor` 15,016 and `editor` 27,768. The second narrow re-check's raised `editorMinified` by
+ * its measured cost, 394, to 28,172, approved by the coordinator, 2026-11-07, chiefly a draft kept when its
+ * save rejects after another's close; `late-editor` fell to 14,957, `late` 58,089, `late-documents` 12,125.
+ * The third raised `lateEditorMinified` by 255, to 15,305, and `editorMinified` by 661, to 28,833, their
+ * measured costs, approved by the coordinator, 2026-11-07: `document-open`'s `stay` and the suggestion that
+ * says a rejected save's draft comes back, less what one read-and-write step saved; and a draft kept in every
+ * case but those deviation 16 lists. The fourth raised `editorMinified` by 257, to 29,090, approved by the
+ * coordinator, 2026-11-07: a rejected draft's tab marked before its closed tab's mark goes (83), a full group's
+ * retry beside (58), and every group searched for its document's clean tab (44), with the loop that does it
+ * (about 72). The fifth raised it by 210, to 29,300, approved by the coordinator, 2026-11-07: a parked editor
+ * still saving taken back, with its draft, by its tab shown again; `late` rose to 58,480 with an instance
+ * mutation's check, write and stamp in its document's chain. The sixth raised it by 323, to 29,623, approved
+ * by the coordinator, 2026-11-07: one leave at a time for a frame taken back and parked again (195), each frame's
+ * count of edits, so a leave knows of one made after its save began (82), and a tab whose parked editor is
+ * still saving counted as unsaved by a rejected draft's reopen (46). The seventh raised it by 455, to 30,078,
+ * approved by the coordinator, 2026-11-08: one lifecycle for every frame in place of the patches before it, a
+ * life each with one place that one function moves (about 377), the getter a test's check of its invariants
+ * reads (72), and a lost draft's mark cleared with it (6). The eighth raised it by 1,004, to 31,082, approved
+ * by the coordinator, 2026-11-08, after the independent review of the lifecycle: a mark no editor holds
+ * cleared from the person's page, also while an app shows (360), a parked editor whose tab another's call
+ * closed reopened (112), a slot another frame holds refused (about 70), the person's close kept in its own
+ * scope (28), and visits of a scope, timers by frame, a leaving frame taken off the page and the rest (about
+ * 424), and the split of its helpers into `editor-parts.ts`, under the file-size limit (10). The re-check after it raised it by 199, to 31,281, approved by the coordinator,
+ * 2026-11-08: a mark cleared when its tab's editor is ready and clean (65), a leaving editor of the scope
+ * rendered keeping its tab's mark across a round trip (about 97), and the person's close disposing only a
+ * frame still its tab's (37). The next raised it by 178, to 31,459, approved by the coordinator, 2026-11-08: a tab
+ * whose earlier editor still saves its draft keeping its mark, whatever a newer one says (about 95), and the
+ * person's Discard of an editor still leaving recorded on its life (83). The third raised it by 244, to 31,703,
+ * approved by the coordinator, 2026-11-08: a newer leave of a tab keeping the mark an older leave still holds
+ * (61), and the person's Discard during a reopen's open closing the new tab (127), never adopted, and reset when
+ * a tab takes the frame back (56). The fourth raised it by 718, to 32,421, approved by the coordinator,
+ * 2026-11-08: one rule and one reconciler for every mark in place of six sites, with the closed tabs a leave
+ * still owes, the person's close asking, the Discard by count of edits and the moves to `editor-parts.ts`, net
+ * of what they replaced (273); a mark the rule wants set at once, before any read (256); a Discard of a draft
+ * a reopen has given to another tab (122); and the reopen's check of the tab it opened (67 over its 127). The
+ * final re-check raised it by 242, to 32,663, approved by the coordinator, 2026-11-08: a closed tab a leave owed
+ * kept until its mark is known gone (151), the state the immediate set trusts kept true to what was sent (46),
+ * and an editor's mark only for its own document (36), with about 9 between them. The re-check after it raised
+ * it by 353, to 33,016, approved by the coordinator, 2026-11-08: a draft rejected while the area is away kept
+ * until it shows (161), a tab closed while an app shows leaving at once (117), and the prune they share, the
+ * clear's result, a sign-in's sync and `hostOf` moved to `editor-parts.ts` (115), less 40 that settling only on
+ * a read or a clear that succeeded saved. The last round's raised it by 349, to 33,365, approved by the
+ * coordinator, 2026-11-08: a modal the kernel closed with no answer taken as Keep editing (228), a kept draft's
+ * save tried once more when its scope goes first, and on `pagehide` (90), and the scopes out of reach (31).
+ * Step 11 adds `documentsMinified`, the documents section with `loam-tree` and `violet-tree`, and
+ * `newMinified`, the New menu with `violet-menu`. The documents specification's first estimates were 45,000
+ * and 12,000; measured at 51,194 and 15,787, each was set at its measurement plus 10%, 56,314 and 17,366,
+ * approved by the coordinator, 2026-11-09, since both load only when the section or the menu opens. Parts:
+ * `documents` holds `violet-tree` and `violet-tree-item` (about 16,000), the section, its sidebar, the tree,
+ * their styles and sync (about 33,000) and `cards` (1,969, shared with `sections`); `new` holds `violet-menu`
+ * and its item (about 9,000) and `loam-new-menu` with `readNew` and `runNew` (about 6,800).
+ * Step 11's reviews raised `appsMinified` by their measured cost, 861, to 385,114, approved by the
+ * coordinator, 2026-11-09: `ui.new`'s rules as a rule of their own, run for every manifest, with the mounted
+ * and levels refusals (652), "needs input" decided by the kernel's own parse of `{}` (75), bidirectional
+ * formatting characters refused in Loam's display text (68), and `ui.new` titles in that rule (66).
+ * Its narrow re-check raised `urlMinified` by its measured cost, 156, to 5,247, approved by the coordinator,
+ * 2026-11-09: a `documents` chunk that does not load, with a tab open, says so in the sidebar and leaves main
+ * to the editor, where with no tab main's landing says it (5,038 before).
+ * The input-schema rule's fix raised `appsMinified` by its measured cost, 2,672, to 387,786, keeping the 159
+ * bytes left before it, approved by the coordinator, 2026-11-09: the manifest's reader refuses a schema Zod
+ * would accept and not honour (the documents specification's Follow-ups), measured as the closure with it
+ * less without it (387,627 less 384,955). Parts: the schema walker and its table of keywords (about 2,500),
+ * the suggestion's words on restructuring (86) and the check's place in the input, config and content rules
+ * (about 90). First paint and the kernel alone are unchanged: "needs input" keeps its own branch recursion.
+ * Its independent review raised it by that round's measured cost, 5,423, to 393,209, keeping the 159 bytes
+ * left, approved by the coordinator, 2026-11-09 (393,050 less 387,627): each refusal's reason and remedy in one
+ * table, used at the input, pipeline, content and config sites (about 2,950 over the messages it replaced),
+ * the rules the review and its fuzz found (about 2,400: `minItems` and `maxItems` with no `items`, a tuple Zod
+ * pads, a value Zod lets go missing through branches, `patternProperties` keys, `$ref`'s forms and cycles, and
+ * defaults at the root and in `prefixItems`), and the sites' remedy (about 50). First paint and the kernel
+ * alone are unchanged.
+ * Its re-check raised it by that round's measured cost, 885, to 394,094, keeping the 159 bytes left, approved
+ * by the coordinator, 2026-11-09 (393,935 less 393,050), each part the closure with it less without it: a
+ * closed object a join reaches through `$ref` or nested branches (574), names `Object.prototype` holds (346),
+ * and cycles through a typed node's branches with the order that says two branch keywords first (-35, as the
+ * cycle walk is simpler). First paint's code is unchanged: its gzip is one byte more only for the `apps`
+ * chunk's new hash in its name, and with the old name it is equal. The third re-check's last nit, refusing a
+ * declared `__proto__` too, shrank the closure by 17, to 393,918, under the same ceiling, 176 bytes left.
+ * Step 12's deviation 7, the coordinator's decision of 2026-11-09, adds `editorMoveMinified`, `editor-move` alone,
+ * a view editor's save before a move where the browser has no `moveBefore`, which only that browser loads:
+ * 591, set at 650, its measurement plus 10%; and raises `editorMinified` by its measured cost, 1,140, to 34,505,
+ * keeping the 44 bytes left, approved by the coordinator on 2026-11-09: the frame held where it is while it
+ * saves (about 500), the area hidden rather than removed and a group kept while an unsaved view editor in it
+ * saves (about 300), and the tab actions and Mod+S moved to `editor-actions.ts` under the file-size limit (about
+ * 316).
+ * Step 12's review raised `editorMinified` by that round's measured cost, 613, to 35,118, and `editorMoveMinified`
+ * by 134, to 784, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate, the total exact:
+ * groups placed among live ones, by `moveBefore` where it exists (about 210, G-B1); Mod+S from inside a view
+ * editor's frame (about 150, S7); an embed's editor events kept out of its tab (about 110, T-S1); only the
+ * person's own move saves (about 80, T-S2); the first live group's border (about 70, G-N7); a refused move back
+ * not asked again (about 25, G-N6); less about 30 that G-S4's restructure saved: the action host's ten closures
+ * gone (about 270) against the plain functions the file-size limit then needed (about 240). `editor-move`: the
+ * two toasts and the refusal's stop. `late` rose by 36, to 67,011, for the link id taken only from an undo and a
+ * failed first list retried, approved within its 75,000.
+ * Step 12's re-check raised `editorMinified` by that round's measured cost, 196, to 35,314, and `viewMinified` by
+ * 25, to 25,105, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate, the total exact: a
+ * frame's and a group's `connectedMoveCallback`, so `moveBefore` keeps them (about 60, N-B1); the person's move
+ * read from the event, an undo's among them (about 60); a view's save requests one at a time (about 40); a
+ * refused move back cleared once it settles (about 20); the area's check as a function (about 15). `view`: its
+ * own `connectedMoveCallback`. `late` rose by 46, to 67,057, for the bound on the removed link ids;
+ * `documents` by 256, to 54,795, the inspector hidden rather than closed and focus only for its own open;
+ * `embed` by 25, to 6,072, its `connectedMoveCallback`; `editor-move` by 27, to 752, the reload count; each
+ * within its row.
+ * Step 12's second re-check raised `editorMinified` by that round's measured cost, 131, to 35,445, and
+ * `editorMoveMinified` by 83, to 867, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate,
+ * the total exact: save requests during a save coalesced into one more (about 55, N1); a view editor held, and
+ * shown nowhere, after its move back is refused (about 45, N2); that hold cleared by the next move (about 30).
+ * `editor-move`: saving again for an edit made during the save, and the edits that save covered (S3). `late` rose
+ * by 335, to 67,392, for `layout-get` answering an undeclared inspector closed (B1, S1), within its 75,000;
+ * `documents` by 47, to 54,842, focus after a hidden inspector and its closed drawer, main when the active view
+ * cannot take it yet (B1, S2), within its row.
+ * First paint is unchanged, 286,084: `late` compares the documents layout's id as a literal, since importing it
+ * made the first paint's `shell-state` chunk export one more binding (4 bytes).
+ * Step 12's final re-check raised `editorMoveMinified` by that round's measured cost, 3,338, to 4,205, approved by
+ * the coordinator on 2026-11-09: `loam-editor-held`, the placeholder a held view editor's tab shows after its move
+ * back is refused, with Move back and Save, its template, styles and words (S-1), and the move back shared by the
+ * two. `late` rose by 217, to 67,609, for one `presented` helper over every layout read (S-2), within its 75,000;
+ * `documents` by 80, to 54,922, the drawer's close watched on the shell's presentation (N-1), within its row;
+ * `editor` fell by 34, to 35,367. First paint is unchanged.
+ * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
+ * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
+ * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
+ * 4,990, within step 12's ledger line of 5,000; `editor` 33,321 before deviation 7's save before a move, `view` 25,012, `surfaces` 83,556 and
+ * `documents` 53,757, within their rows; first paint's bytes, `apps` and `late-editor` are unchanged.
+ * Step 13 adds `checklist`, the second type, with no shell change: every row and ceiling is as step 12 left
+ * them, and its view's pages, the editor and the handlers' frame, are recorded beside the native bundles,
+ * never limited, as `notes`' bundle is.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -72,16 +216,22 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
-	urlMinified: 5_091,
-	appsMinified: 384_253,
+	lateEditorMinified: 15_305,
+	urlMinified: 5_247,
+	appsMinified: 394_094,
 	surfacesMinified: 85_000,
-	viewMinified: 25_080,
+	viewMinified: 25_105,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
+	editorMinified: 35_445,
+	documentsMinified: 56_314,
+	newMinified: 17_366,
+	embedMinified: 6_096,
+	editorMoveMinified: 4_205,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -150,7 +300,7 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows)-/.test(
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows|editor)-/.test(
 			name
 		)
 	);
@@ -228,14 +378,23 @@ async function measurePage() {
 	};
 	// In the order a page loads them, so a shared chunk, classic Zod's among them, is charged to the first.
 	// `late-documents` is a chunk of its own, with a row of its own, so `late` leaves it out (2.4, step 9).
-	const late = closure(/^assets\/late-(?!documents-)/, initial);
+	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07).
+	const late = closure(/^assets\/late-(?!documents-|editor-)/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
 	if (lateDocuments.size === 0) {
 		throw new Error('budget: the build has no `late-documents` chunk to measure');
 	}
-	const afterLate = new Set([...initial, ...late, ...lateDocuments]);
+	// Awaited beside it in `loadLate`, so charged after `late` and `late-documents`, before `apps`.
+	const lateEditor = closure(
+		/^assets\/late-editor-/,
+		new Set([...initial, ...late, ...lateDocuments])
+	);
+	if (lateEditor.size === 0) {
+		throw new Error('budget: the build has no `late-editor` chunk to measure');
+	}
+	const afterLate = new Set([...initial, ...late, ...lateDocuments, ...lateEditor]);
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -271,6 +430,36 @@ async function measurePage() {
 	if (closure(/^assets\/sections-/, afterSurfaces).size === 0) {
 		throw new Error('budget: the build has no `sections` chunk to measure');
 	}
+	// The editor area (documents specification, 5 and 12), loaded by the URL's chunk on the first document
+	// opened, restored or routed to: in "the rest" of 2.4's order, after the surfaces, which hold the app
+	// surfaces' `host()` its frames mount through.
+	// Less `editor-move`, a chunk of its own with a row of its own, which loads only without `moveBefore`.
+	const editor = closure(/^assets\/editor-(?!move-)/, afterSurfaces);
+	// A view editor's move where the browser has no `moveBefore` (documents specification, 5.6): loaded by the
+	// editor area then alone, after it. Never first paint's, and charged to no other row.
+	const editorMove = closure(/^assets\/editor-move-/, new Set([...afterSurfaces, ...editor]));
+	if (editorMove.size === 0)
+		throw new Error('budget: the build has no `editor-move` chunk to measure');
+	for (const name of editorMove)
+		if (initial.has(name))
+			throw new Error(
+				`budget: \`${name}\` is in first paint, and must load only without \`moveBefore\``
+			);
+	if (editor.size === 0) throw new Error('budget: the build has no `editor` chunk to measure');
+	// The documents section (documents specification, 8 and 12), loaded by the URL's chunk beside the editor
+	// area's, with `loam-tree` and `violet-tree`, which an app's tree sidebar loads this chunk for: in "the
+	// rest" of 2.4's order, after the surfaces.
+	const documents = closure(/^assets\/documents-/, afterSurfaces);
+	if (documents.size === 0)
+		throw new Error('budget: the build has no `documents` chunk to measure');
+	// The New menu with `violet-menu` (documents specification, 7 and 12), loaded on the New button's first
+	// press or the palette's first `new` query, after the surfaces as the rest are.
+	const newMenu = closure(/^assets\/new-menu-/, afterSurfaces);
+	if (newMenu.size === 0) throw new Error('budget: the build has no `new` chunk to measure');
+	// `loam-embed` (documents specification, 9.2), a chunk of its own the kit loads for the first editor that
+	// embeds, since the `editor` chunk is at its ceiling: after the surfaces, which hold the kit's loader.
+	const embed = closure(/^assets\/embed-/, afterSurfaces);
+	if (embed.size === 0) throw new Error('budget: the build has no `embed` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -290,6 +479,7 @@ async function measurePage() {
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		lateMinified: sizeOf(late),
 		lateDocumentsMinified: sizeOf(lateDocuments),
+		lateEditorMinified: sizeOf(lateEditor),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -300,6 +490,11 @@ async function measurePage() {
 		switcherColdMinified: sizeOf(switcherCold),
 		tooltipMinified: sizeOf(tooltip),
 		sectionsMinified: sizeOf(sections),
+		editorMinified: sizeOf(editor),
+		documentsMinified: sizeOf(documents),
+		newMinified: sizeOf(newMenu),
+		embedMinified: sizeOf(embed),
+		editorMoveMinified: sizeOf(editorMove),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -344,13 +539,19 @@ async function measureKernel() {
 }
 
 /** An app's own bundle, as its build left it: `recorded, not limited` (9.2). */
-function appBundle(app) {
+/**
+ * An app's built files, recorded and never limited: a native app's `.js`, or for a view type, `checklist`
+ * (step 13), its pages, each one self-contained file, the editor and the handlers' frame.
+ */
+function appBundle(app, kind = 'native') {
 	const dist = resolve(ROOT, `../../apps/${app}/dist`);
 	if (!existsSync(dist)) return null;
-	const files = readdirSync(dist).filter((name) => name.endsWith('.js'));
+	const extension = kind === 'view' ? '.html' : '.js';
+	const files = readdirSync(dist).filter((name) => name.endsWith(extension));
 	const sources = files.map((name) => readFileSync(join(dist, name)));
 	return {
 		app,
+		kind,
 		minified: sources.reduce((sum, source) => sum + source.length, 0),
 		gzip: sources.reduce((sum, source) => sum + gzipSync(source, { level: 9 }).length, 0),
 	};
@@ -363,6 +564,7 @@ const ROWS = [
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
+	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
@@ -373,6 +575,14 @@ const ROWS = [
 	['switcherColdMinified', 'The `switcher` chunk on an empty shell, with the listbox, minified'],
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
 	['sectionsMinified', "The `sections` chunk, with the kernel's summary rows, minified"],
+	['editorMinified', "The chrome's `editor` chunk and its imports, minified"],
+	['documentsMinified', 'The `documents` chunk, with `loam-tree` and `violet-tree`, minified'],
+	['newMinified', 'The `new` chunk, with `violet-menu`, minified'],
+	['embedMinified', 'The `embed` chunk, `loam-embed` and its link, minified'],
+	[
+		'editorMoveMinified',
+		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",
+	],
 ];
 
 export async function measure() {
@@ -386,7 +596,15 @@ export async function measure() {
 		ceiling: CEILINGS[key],
 		over: values[key] > CEILINGS[key],
 	}));
-	return { rows, page, kernel, apps: ['hello', 'tally', 'tasks'].map(appBundle).filter(Boolean) };
+	return {
+		rows,
+		page,
+		kernel,
+		apps: [
+			...['hello', 'tally', 'tasks', 'notes'].map((app) => appBundle(app)),
+			appBundle('checklist', 'view'),
+		].filter(Boolean),
+	};
 }
 
 async function main() {
@@ -405,9 +623,9 @@ async function main() {
 			console.log(
 				`${pad(row.label, 52)} ${pad(row.bytes.toLocaleString('en-US'), 10)} of ${pad(row.ceiling.toLocaleString('en-US'), 10)} ${row.over ? 'OVER' : `${Math.round((row.bytes / row.ceiling) * 100)}%`}`
 			);
-		for (const { app, minified, gzip } of apps)
+		for (const { app, kind, minified, gzip } of apps)
 			console.log(
-				`${pad(`${app}'s native bundle, recorded`, 52)} ${minified.toLocaleString('en-US')}, gzip ${gzip.toLocaleString('en-US')}`
+				`${pad(`${app}'s ${kind === 'view' ? 'view pages' : 'native bundle'}, recorded`, 52)} ${minified.toLocaleString('en-US')}, gzip ${gzip.toLocaleString('en-US')}`
 			);
 		console.log('\nThe page by package (rendered bytes, before minification of names):');
 		for (const [name, bytes] of page.packages.slice(0, 15))

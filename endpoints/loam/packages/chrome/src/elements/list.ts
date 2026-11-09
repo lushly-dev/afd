@@ -25,10 +25,6 @@ export interface LoamListItem {
 	id: string;
 	title: string;
 	description?: string;
-	/** A `tree` sidebar's row: how deep it is, from 0 (phase 2 specification, 7.4). */
-	depth?: number;
-	/** A `tree` row's parent's title, which its accessible text names. */
-	parent?: string;
 }
 
 /** A failed read, as a failure's message and suggestion. */
@@ -41,18 +37,8 @@ export interface LoamListFailure {
 export const LIST_SELECT_EVENT = 'loam-list-select';
 
 const itemTemplate = html<LoamListItem>`
-	<violet-option
-		value="${(x) => x.id}"
-		data-item="${(x) => x.id}"
-		data-depth="${(x) => (x.depth ? String(Math.min(x.depth, 7)) : null)}"
-	>
-		<span class="item-title">${(x) => x.title}</span>${when(
-			// Below the top: its level and parent, with no space before the comma (7.4).
-			(x) => (x.depth ?? 0) > 0,
-			html<LoamListItem>`<span class="visually-hidden"
-				>${(x) => `, level ${(x.depth ?? 0) + 1}${x.parent ? `, in ${x.parent}` : ''}`}</span
-			>`
-		)}
+	<violet-option value="${(x) => x.id}" data-item="${(x) => x.id}">
+		<span class="item-title">${(x) => x.title}</span>
 		${when(
 			(x) => x.description !== undefined,
 			html<LoamListItem>`<span class="item-description" slot="description"
@@ -126,14 +112,6 @@ const styles = css`
 		background: var(--color-control-selected-background);
 		color: var(--color-control-selected-foreground);
 	}
-	.visually-hidden {
-		position: absolute;
-		inline-size: 1px;
-		block-size: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
 	h3 {
 		margin: 0 0 var(--space-stack-xs);
 		color: var(--color-text-secondary);
@@ -143,28 +121,6 @@ const styles = css`
 	}
 	:host([heading]:not([heading=''])) {
 		margin-block-end: var(--space-stack-md);
-	}
-	/* One step per level, all eight of a tree's (7.4). */
-	violet-option[data-depth='1']::part(control) {
-		padding-inline-start: calc(var(--space-inline-md) * 2);
-	}
-	violet-option[data-depth='2']::part(control) {
-		padding-inline-start: calc(var(--space-inline-md) * 3);
-	}
-	violet-option[data-depth='3']::part(control) {
-		padding-inline-start: calc(var(--space-inline-md) * 4);
-	}
-	violet-option[data-depth='4']::part(control) {
-		padding-inline-start: calc(var(--space-inline-md) * 5);
-	}
-	violet-option[data-depth='5']::part(control) {
-		padding-inline-start: calc(var(--space-inline-md) * 6);
-	}
-	violet-option[data-depth='6']::part(control) {
-		padding-inline-start: calc(var(--space-inline-md) * 7);
-	}
-	violet-option[data-depth='7']::part(control) {
-		padding-inline-start: calc(var(--space-inline-md) * 8);
 	}
 	.item-title {
 		font-size: var(--type-body-md-size);

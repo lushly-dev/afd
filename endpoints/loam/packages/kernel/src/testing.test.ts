@@ -15,7 +15,7 @@ import {
 	SESSION_50,
 } from './testing.js';
 
-describe('E2: a replayed journal reproduces the layout', () => {
+describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 	it('replays the scripted 50-call session over MemoryAdapter with zero differences', async () => {
 		expect(SESSION_50).toHaveLength(50);
 		const recorded = await recordSession(SESSION_50);
@@ -244,6 +244,18 @@ describe('createReferenceWorkspace (D37)', () => {
 		expect(replayed.report.same).toBe(400);
 		const again = await recordSession(workspace.calls, { seed: 'second' });
 		expect(diffJournals(recorded.entries, again.entries).equal).toBe(true);
+	});
+
+	it('gives its documents the type the caller names, and needs one when there are documents', () => {
+		const documentType = { type: 'reference', instance: 'reference-a' };
+		const workspace = createReferenceWorkspace({ seed: 'x', size: 1, documents: 3, documentType });
+		expect(workspace.documents.map(({ type, instance }) => ({ type, instance }))).toEqual(
+			Array(3).fill(documentType)
+		);
+		expect(createReferenceWorkspace({ seed: 'x', size: 1, links: 5 }).documents).toEqual([]);
+		expect(() => createReferenceWorkspace({ seed: 'x', size: 1, documents: 3 })).toThrow(
+			/documentType/
+		);
 	});
 
 	it('seeds a random source in [0, 1)', () => {

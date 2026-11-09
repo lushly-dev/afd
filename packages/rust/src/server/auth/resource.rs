@@ -124,6 +124,9 @@ pub struct ProtectedResource {
     scopes_supported: Vec<String>,
     resource_name: Option<String>,
     bound_tokens_required: bool,
+    /// What a caller obtains to gain a scope, in the step-up suggestion; `None` for "a token for
+    /// <resource>".
+    scope_source: Option<String>,
 }
 
 impl ProtectedResource {
@@ -163,6 +166,7 @@ impl ProtectedResource {
             scopes_supported: Vec::new(),
             resource_name: None,
             bound_tokens_required: false,
+            scope_source: None,
         })
     }
 
@@ -201,6 +205,17 @@ impl ProtectedResource {
     /// certificate-bound tokens. It must agree with the verifier's rules. Default: `false`.
     pub fn with_bound_tokens_required(mut self, required: bool) -> Self {
         self.bound_tokens_required = required;
+        self
+    }
+
+    /// Name what a caller obtains to gain a scope, for a host whose callers are not token holders
+    /// (a gateway that asserts each caller's scopes, say): the suggestion of a 403 body and of an
+    /// `INSUFFICIENT_SCOPE` result becomes "Obtain `<source>` that also grants `<scopes>`, then
+    /// retry." instead of "Obtain a token for `<resource>` ...". Nothing is published, and the
+    /// challenges are unchanged. Default: a token for the resource, as `spec/authorization.md`
+    /// M5 writes it.
+    pub fn with_scope_source(mut self, source: impl Into<String>) -> Self {
+        self.scope_source = Some(source.into());
         self
     }
 
@@ -337,22 +352,20 @@ impl ProtectedResource {
     /// The suggestion of a 403 body and of an `INSUFFICIENT_SCOPE` result.
     pub(crate) fn insufficient_scope_suggestion(&self, missing: &[String]) -> String {
         let scopes = joined_tokens(missing);
+        let source = self
+            .scope_source
+            .clone()
+            .unwrap_or_else(|| format!("a token for {}", self.resource));
         if scopes.is_empty() {
-            format!(
-                "Obtain a token for {} that grants the scopes this call needs, then retry.",
-                self.resource
-            )
+            format!("Obtain {source} that grants the scopes this call needs, then retry.")
         } else {
-            format!(
-                "Obtain a token for {} that also grants {scopes}, then retry.",
-                self.resource
-            )
+            format!("Obtain {source} that also grants {scopes}, then retry.")
         }
     }
 }
 
 /// The scope tokens of `scopes`, joined by single spaces.
-fn joined_tokens(scopes: &[String]) -> String {
+pub(super) fn joined_tokens(scopes: &[String]) -> String {
     scopes
         .iter()
         .filter(|scope| is_scope_token(scope))
@@ -364,6 +377,35 @@ fn joined_tokens(scopes: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_host_may_name_what_its_callers_obtain_to_gain_a_scope() {
+        let metadata =
+            ProtectedResource::new("https://r.example.com/mcp", ["https://as.example.com"])
+                .unwrap();
+        let missing = ["todo:write".to_owned()];
+        assert_eq!(
+            metadata.insufficient_scope_suggestion(&missing),
+            "Obtain a token for https://r.example.com/mcp that also grants todo:write, then retry."
+        );
+        let gateway = metadata
+            .clone()
+            .with_scope_source("a new assertion from the gateway");
+        assert_eq!(
+            gateway.insufficient_scope_suggestion(&missing),
+            "Obtain a new assertion from the gateway that also grants todo:write, then retry."
+        );
+        assert_eq!(
+            gateway.insufficient_scope_suggestion(&[]),
+            "Obtain a new assertion from the gateway that grants the scopes this call needs, then retry."
+        );
+        // Nothing published changes.
+        assert_eq!(gateway.document(), metadata.document());
+        assert_eq!(
+            gateway.forbidden_challenge(&missing),
+            metadata.forbidden_challenge(&missing)
+        );
+    }
 
     #[test]
     fn urls_split_into_their_parts() {

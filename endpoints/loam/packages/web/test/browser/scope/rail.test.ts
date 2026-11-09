@@ -568,7 +568,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
-	it("P2-E3: the project item keeps 4.5:1 in every theme and state, and leaving an app it focuses main's h1 (A4, N5a, R4)", async () => {
+	it("P2-E12: the project item keeps 4.5:1 in every theme and state, and leaving an app it focuses main's h1 (A4, N5a, R4)", async () => {
 		const opened = await withProjects();
 		const { page } = opened;
 		await scopeTo(page, 'atlas');
@@ -618,7 +618,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
-	it('P2-E3: under forced colours the project item keeps its text and a visible ring, focused and hovered (R2, R4)', async () => {
+	it('P2-E12: under forced colours the project item keeps its text and a visible ring, focused and hovered (R2, R4)', async () => {
 		const opened = await openShell(browser, site.root, { forcedColors: 'active' });
 		const { page } = opened;
 		await kernelCall(page, 'project-create', { name: 'Atlas' });
@@ -650,7 +650,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
-	it('P2-E3: a one-letter project keeps the project item at 24 × 24, its name centred (R1, R4)', async () => {
+	it('P2-E12: a one-letter project keeps the project item at 24 × 24, its name centred (R1, R4)', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
 		await kernelCall(page, 'project-create', { name: 'Q' });

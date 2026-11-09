@@ -1,0 +1,98 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/event-view.v1.json",
+	"title": "Umbel event as a sealed caller sees it, version 1",
+	"description": "An event as event-list presents it to a caller whose positions are sealed (phase 5 section 9.3, D125: a hosted caller that is neither the operator nor stdio). It is the stored line (event versions 0 to 3) with every field that counts events or store revisions left out or sealed, so nothing the caller is shown moves with an event or a write it cannot read: no seq, journalSeq or changes; no record version; id and cursor both the event's cursor version 1, sealed for this caller, which only equality may compare and event-list and event-ack take back. Every other field is the line's, under the version it was written in.",
+	"type": "object",
+	"required": ["version", "id", "space", "cursor", "command", "timestamp", "record", "provenance"],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"description": "The stored line's event version.",
+			"enum": [0, 1, 2, 3]
+		},
+		"id": {
+			"description": "The event's cursor version 1: unique for this caller, and equal on every read of the event.",
+			"$ref": "cursor.v1.json"
+		},
+		"space": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"cursor": {
+			"description": "The cursor version 1 that resumes after this event.",
+			"$ref": "cursor.v1.json"
+		},
+		"command": {
+			"type": "string",
+			"minLength": 1
+		},
+		"timestamp": {
+			"type": "string",
+			"minLength": 1,
+			"description": "ISO 8601"
+		},
+		"traceId": {
+			"type": "string"
+		},
+		"actor": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"record": {
+			"description": "The record the command named, without its version, or null.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"required": ["kind", "id"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"type": "string",
+							"minLength": 1
+						},
+						"id": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				}
+			]
+		},
+		"provenance": {
+			"description": "The line's provenance envelope, in the version it was written in.",
+			"oneOf": [
+				{
+					"$ref": "provenance-envelope.v0.json"
+				},
+				{
+					"$ref": "provenance-envelope.v1.json"
+				},
+				{
+					"$ref": "provenance-envelope.v2.json"
+				},
+				{
+					"$ref": "provenance-envelope.v3.json"
+				}
+			]
+		}
+	}
+}

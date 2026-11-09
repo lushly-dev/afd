@@ -64,6 +64,21 @@ fn inspect(
     let digest = collection.digest(schema);
     let live: HashSet<&str> = candidates.iter().map(|c| c.path.as_str()).collect();
 
+    // A caller whose positions are sealed (phase 5 section 9.3) is told only of files whose stored
+    // document it can read: a file not synced yet has no document to judge it by, a skipped one
+    // none at all.
+    let sealed = if cx.call().sealed_positions {
+        Some(cx.reader_tokens(space)?)
+    } else {
+        None
+    };
+    let counts = |seen: Option<&crate::state::Entry>| -> bool {
+        sealed.as_ref().is_none_or(|mine| {
+            seen.and_then(|seen| seen.stored.as_ref())
+                .is_some_and(|(access, _)| access.iter().any(|token| mine.contains(token)))
+        })
+    };
+    let mut files = 0usize;
     let (mut new, mut modified, mut unchanged, mut skipped) = (0usize, 0usize, 0usize, 0usize);
     let mut changed = Changes::default();
     let mut new_paths: Vec<&str> = Vec::new();
@@ -71,7 +86,9 @@ fn inspect(
         let key = directories
             .inherit(&candidate.path, collection)
             .map_or(INVALID_KEY.to_owned(), |inherit| inherit.key);
+        files += usize::from(counts(state.get(&candidate.path)));
         match state.get(&candidate.path) {
+            None if sealed.is_some() => {}
             None => {
                 new += 1;
                 if person && new_paths.len() < LISTED_PATHS {
@@ -85,13 +102,13 @@ fn inspect(
                     && seen.inherit == key =>
             {
                 if seen.skip.is_some() {
-                    skipped += 1;
+                    skipped += usize::from(sealed.is_none());
                 } else {
-                    unchanged += 1;
+                    unchanged += usize::from(counts(Some(seen)));
                 }
             }
             Some(seen) => {
-                modified += 1;
+                modified += usize::from(counts(Some(seen)));
                 if seen.stored.is_some() && readable(cx, space, id, &candidate.id)? {
                     changed.add(&candidate.id, "modified");
                 }
@@ -103,7 +120,7 @@ fn inspect(
         .entries()
         .filter(|(path, _)| !live.contains(path.as_str()))
     {
-        deleted += 1;
+        deleted += usize::from(counts(Some(seen)));
         if seen.stored.is_some()
             && let Ok(doc) = document_id(id, path, collection.kind)
             && readable(cx, space, id, &doc)?
@@ -114,15 +131,17 @@ fn inspect(
     let (listed, more) = changed.json();
     let mut entry = json!({
         "collection": id,
-        "files": candidates.len(),
+        "files": if sealed.is_some() { files } else { candidates.len() },
         "new": new,
         "modified": modified,
         "deleted": deleted,
         "unchanged": unchanged,
-        "skipped": skipped + skips.total(),
+        "skipped": if sealed.is_some() { 0 } else { skipped + skips.total() },
         "changedSinceLastSync": new + modified + deleted,
-        "lastSync": last_sync(cx, space, id)?
-            .map(|(rev, at, _)| json!({ "rev": rev, "at": at })),
+        "lastSync": match last_sync(cx, space, id)? {
+            Some((rev, at, _)) => Some(json!({ "rev": cx.doc_position(space, rev)?, "at": at })),
+            None => None,
+        },
         "changed": listed,
         "changedMore": more,
     });

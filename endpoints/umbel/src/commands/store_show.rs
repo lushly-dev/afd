@@ -1,4 +1,9 @@
 //! `store-show`: what a space's stores hold and how far its derived data has caught up.
+//!
+//! **In a hosted mode it is the operator's** (phase 5 section 9.3: "`store-show` head, CLI
+//! only"): its head, applied revisions, segments and file sizes count what every principal
+//! wrote, so it is registered for the CLI alone and its handler refuses any other caller, as
+//! `workspace-doctor`'s does. Mode `none` is unchanged.
 
 use super::store_common::{is_cli_human, space_property, view};
 use super::{Builtin, blocking, expose_everywhere_but_the_palette, returns_object};
@@ -19,6 +24,9 @@ struct Handler {
 #[async_trait]
 impl CommandHandler for Handler {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        if let Some(refused) = super::operator_only(&self.workspace, &context, "store-show") {
+            return failure(refused);
+        }
         let (space, filter) = match view(&self.workspace, &input, &context) {
             Ok(view) => view,
             Err(error) => return failure(error),
@@ -81,6 +89,15 @@ impl CommandHandler for Handler {
 
 /// `store-show`.
 pub(crate) fn store_show(workspace: Arc<Workspace>, stores: Hub) -> Builtin {
+    let expose = if workspace.config().auth.mode.is_hosted() {
+        afd::ExposeOptions::new()
+            .with_palette(false)
+            .with_mcp(false)
+            .with_agent(false)
+            .with_cli(true)
+    } else {
+        expose_everywhere_but_the_palette()
+    };
     let definition = CommandDefinition::new(
         "store-show",
         "What a space's stores hold: the head revision, the counts the caller can read, how far the index and the graph have caught up, and the memory store's counts and key file",
@@ -91,7 +108,7 @@ pub(crate) fn store_show(workspace: Arc<Workspace>, stores: Hub) -> Builtin {
     .with_returns(returns_object(
         "space, backend, storeVersion, schemaVersion, head, counts, index, graph, files, memory, and totals for a person at the CLI",
     ))
-    .with_expose(expose_everywhere_but_the_palette());
+    .with_expose(expose);
     Builtin {
         definition,
         schema: json!({

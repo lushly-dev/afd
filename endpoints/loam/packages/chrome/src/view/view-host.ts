@@ -5,6 +5,7 @@
  */
 
 import type { ViewBrokerV1 } from '@lushly-dev/loam-kernel';
+import type { DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import type { ProxyChannel } from './channel.js';
 
 const PROTOCOL_VERSION = '2026-01-26';
@@ -20,6 +21,8 @@ export interface ViewHostContext {
 	'dev.loam/selectionLevel'?: 'workspace' | 'project';
 	'dev.loam/scope'?: { workspace: string; project?: string };
 	'dev.loam/route'?: string;
+	/** A document's editor or embed: the document it renders (documents specification, 5.6). */
+	'dev.loam/document'?: DocumentRefV1;
 }
 
 export interface ViewHostOptions {
@@ -34,7 +37,12 @@ export interface ViewHostOptions {
 	command?: string;
 	context(): ViewHostContext;
 	onInitialized(): void;
+	/** A document's editor: `dev.loam/editor-dirty` and `dev.loam/editor-selection` (5.6). Absent, both are ignored. */
+	onEditor?(method: 'dirty' | 'selection' | 'save', params: unknown): void;
 }
+
+/** How long a view has to answer `dev.loam/editor-save` before the save fails (documents specification, 5.6). */
+export const VIEW_SAVE_MS = 10_000;
 
 /** What phase 5 serves: the capabilities do not offer it, and a view that asks is told so. */
 const PHASE_5_METHODS: ReadonlySet<string> = new Set([
@@ -154,7 +162,14 @@ export class ViewHost {
 	}
 
 	#notification(method: string, params: unknown): void {
-		const { channel, instance, onInitialized } = this.#options;
+		const { channel, instance, onInitialized, onEditor } = this.#options;
+		const editor = /^dev\.loam\/editor-(dirty|selection|save-request)$/.exec(method)?.[1];
+		if (editor) {
+			// Only after `initialized`, and only from a document's editor, which `onEditor` is given to.
+			if (this.#initialized && !this.#leaving)
+				onEditor?.(editor === 'save-request' ? 'save' : (editor as 'dirty' | 'selection'), params);
+			return;
+		}
 		if (method === 'notifications/message') {
 			const { level, data } = (params ?? {}) as { level?: unknown; data?: unknown };
 			if (level === 'error') reportError(new Error(`The view of ${instance}: ${logged(data)}`));
@@ -168,6 +183,38 @@ export class ViewHost {
 			this.#changed = {};
 		}
 		for (const [name, pushed] of this.#pushes.splice(0)) channel.notify(name, pushed);
+	}
+
+	/**
+	 * A document's editor's `save()` (documents specification, 5.6): `dev.loam/editor-save`, answered when the
+	 * view has saved; its error, or no answer in 10 seconds, rejects, and the tab stays unsaved.
+	 */
+	async save(): Promise<void> {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		try {
+			await Promise.race([
+				this.#options.channel.request('dev.loam/editor-save', {}),
+				new Promise((_, reject) => {
+					timer = setTimeout(
+						() =>
+							reject(
+								Object.assign(new Error('The view did not answer its save in 10 seconds'), {
+									code: 'VIEW_SAVE_TIMEOUT',
+									suggestion: 'Try again; the changes stay in the editor until they are saved.',
+								})
+							),
+						VIEW_SAVE_MS
+					);
+				}),
+			]);
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
+	/** Another call changed the document: `dev.loam/document-changed`, after `initialized` (5.7). */
+	documentChanged(change: unknown): void {
+		this.#push('dev.loam/document-changed', change);
 	}
 
 	/** On a switch away from a view that has sent `initialized`: at most `ms`, and the frame goes after. */

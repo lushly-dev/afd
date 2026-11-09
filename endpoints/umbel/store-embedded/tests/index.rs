@@ -1,6 +1,6 @@
 //! The tantivy index beside the suite: its on-disk form (LZ4, the payload, the layout),
-//! durability, checksums, snippets, scores that do not depend on the reader, a second handle
-//! seeing another's commits, the writer wait, and the petgraph cache.
+//! durability, checksums, snippets, scores that depend on what the reader can read and on nothing
+//! else, a second handle seeing another's commits, the writer wait, and the petgraph cache.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -45,15 +45,20 @@ fn commit(index: &dyn SearchIndex, chunks: Vec<IndexChunk>, applied: u64) {
 
 fn meta(dir: &std::path::Path) -> Value {
     let text =
-        std::fs::read_to_string(dir.join("index").join("v1").join("meta.json")).expect("meta.json");
+        std::fs::read_to_string(dir.join("index").join("v2").join("meta.json")).expect("meta.json");
     serde_json::from_str(&text).expect("json")
 }
 
 #[test]
-fn the_index_is_lz4_in_index_v1_with_the_revision_as_its_commit_payload() {
+fn the_index_is_lz4_in_index_v2_with_the_revision_as_its_commit_payload() {
     let dir = tempfile::tempdir().expect("a temporary directory");
+    // A schema 1 index left behind is removed: derived data that could hold forgotten text.
+    let retired = dir.path().join("index").join("v1");
+    std::fs::create_dir_all(&retired).expect("an old index");
+    std::fs::write(retired.join("meta.json"), "{}").expect("an old file");
     let index = TantivyIndex::open(dir.path(), "main", StoreOptions::default()).expect("opening");
-    assert_eq!(index.path(), dir.path().join("index").join("v1"));
+    assert_eq!(index.path(), dir.path().join("index").join("v2"));
+    assert!(!retired.exists(), "the schema 1 index is gone");
     assert_eq!(
         meta(dir.path())["index_settings"]["docstore_compression"],
         "lz4",
@@ -67,9 +72,9 @@ fn the_index_is_lz4_in_index_v1_with_the_revision_as_its_commit_payload() {
     let payload: Value =
         serde_json::from_str(meta(dir.path())["payload"].as_str().expect("a payload"))
             .expect("json");
-    assert_eq!(payload, serde_json::json!({"applied": 42, "schema": 1}));
+    assert_eq!(payload, serde_json::json!({"applied": 42, "schema": 2}));
     let info = index.info().expect("info");
-    assert_eq!((info.applied, info.schema_version, info.chunks), (42, 1, 1));
+    assert_eq!((info.applied, info.schema_version, info.chunks), (42, 2, 1));
     assert!(info.segments >= 1 && info.bytes > 0);
     assert!(
         index
@@ -123,7 +128,7 @@ fn a_damaged_segment_is_found_by_the_checksum_validation() {
         .into_iter()
         .find(|f| f.extension().is_some_and(|e| e == "idx"))
         .expect("a postings file");
-    let path = dir.path().join("index").join("v1").join(&victim);
+    let path = dir.path().join("index").join("v2").join(&victim);
     let mut bytes = std::fs::read(&path).expect("read");
     let middle = bytes.len() / 2;
     bytes[middle] ^= 0xFF;
@@ -144,9 +149,9 @@ fn a_newer_schema_is_refused_with_what_this_build_serves() {
             TantivyIndex::open(dir.path(), "main", StoreOptions::default()).expect("opening");
         commit(&index, vec![chunk("a/one", "One", "note", &["space"])], 1);
     }
-    let path = dir.path().join("index").join("v1").join("meta.json");
+    let path = dir.path().join("index").join("v2").join("meta.json");
     let mut value: Value = serde_json::from_slice(&std::fs::read(&path).expect("read")).unwrap();
-    value["payload"] = Value::String(r#"{"applied":1,"schema":2}"#.to_owned());
+    value["payload"] = Value::String(r#"{"applied":1,"schema":3}"#.to_owned());
     std::fs::write(&path, serde_json::to_vec(&value).unwrap()).expect("write");
     let error = TantivyIndex::open(dir.path(), "main", StoreOptions::default())
         .err()
@@ -154,8 +159,8 @@ fn a_newer_schema_is_refused_with_what_this_build_serves() {
     assert_eq!(
         error,
         StoreError::VersionUnsupported {
-            found: 2,
-            supported: 1
+            found: 3,
+            supported: 2
         }
     );
 }
@@ -181,7 +186,7 @@ fn hits_carry_a_highlighted_snippet_and_the_stored_chunk() {
 }
 
 #[test]
-fn a_score_does_not_depend_on_who_is_asking_or_the_filters() {
+fn a_score_depends_on_what_its_reader_can_read_and_never_on_the_filters() {
     let dir = tempfile::tempdir().expect("a temporary directory");
     let index = TantivyIndex::open(dir.path(), "main", StoreOptions::default()).expect("opening");
     commit(
@@ -194,12 +199,16 @@ fn a_score_does_not_depend_on_who_is_asking_or_the_filters() {
                 &["space"],
             ),
             chunk("a/two", "Rollout", "rollout plan, hidden", &["group:sec"]),
+            chunk("a/three", "Notes", "nothing about it", &["space"]),
         ],
         1,
     );
     let plain = index.search(&ask("rollout"), &space()).expect("search");
-    let wide = ReaderFilter::tokens(["space", "group:sec", "group:other", "principal:human:ada"])
-        .expect("a reader");
+    // More tokens that read nothing more change nothing.
+    let same_reach =
+        ReaderFilter::tokens(["space", "group:other", "principal:human:ada"]).expect("a reader");
+    let same = index.search(&ask("rollout"), &same_reach).expect("search");
+    let wide = ReaderFilter::tokens(["space", "group:sec"]).expect("a reader");
     let seen_by_more = index.search(&ask("rollout"), &wide).expect("search");
     let derived = index
         .search(&ask("rollout"), &ReaderFilter::derivation())
@@ -210,9 +219,12 @@ fn a_score_does_not_depend_on_who_is_asking_or_the_filters() {
             .map(|h| h.score)
             .expect("a/one")
     };
-    // BM25 statistics are the index's (owner decision 4); the reader's tokens add nothing.
-    assert_eq!(first(&plain).to_bits(), first(&seen_by_more).to_bits());
-    assert_eq!(first(&plain).to_bits(), first(&derived).to_bits());
+    // BM25 statistics are the reader's (phase 5 section 9.1, D125): a chunk it cannot read
+    // counts in no document frequency, chunk count or length.
+    assert_eq!(first(&plain).to_bits(), first(&same).to_bits());
+    assert_ne!(first(&plain).to_bits(), first(&seen_by_more).to_bits());
+    assert_eq!(first(&seen_by_more).to_bits(), first(&derived).to_bits());
+    // The structured filters are not the reader's: they never change a score.
     let filtered = index
         .search(
             &IndexQuery {

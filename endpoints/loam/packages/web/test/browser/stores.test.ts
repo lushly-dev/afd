@@ -20,7 +20,7 @@ afterAll(async () => {
 	await site?.close();
 });
 
-describe('E10: a second tab', () => {
+describe('P2-E13: E10: a second tab', () => {
 	it('shows "Loam is open in another tab" and creates no kernel while the first holds the journal', async () => {
 		const first = await openShell(browser, site.origin);
 		const second = await openPage(browser, site.origin, {}, first.context);
@@ -44,7 +44,7 @@ describe('E10: a second tab', () => {
 	});
 });
 
-describe('E7: VioletRuntime with the preloaded source', () => {
+describe('P2-E13: E7: VioletRuntime with the preloaded source', () => {
 	it('gives the same computed values for every component id as the stylesheet, for loam/dark', async () => {
 		const contract = JSON.parse(
 			readFileSync(

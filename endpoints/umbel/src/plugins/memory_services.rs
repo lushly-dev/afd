@@ -238,8 +238,11 @@ impl CallServices {
                 format!("`{id}` has authority person; only a person at a terminal may change it"),
             ));
         }
+        // The caller owns its own records and those of the legacy principals it stands for
+        // (phase 5 section 4.6).
         if change == Change::Replace
-            && current.scope.principal != principal
+            && !crate::access::identities(self.shared.workspace.config(), Some(principal))
+                .contains(&current.scope.principal)
             && !self.sharing_writer(filter)
         {
             return Err(refused(

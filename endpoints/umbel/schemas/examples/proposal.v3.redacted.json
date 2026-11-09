@@ -1,0 +1,89 @@
+{
+	"version": 3,
+	"id": "p-3c4d5e6f708192a3b4c5",
+	"idempotencyKey": "curator/c-4a1b2c3d4e5f60718293/0",
+	"changeHash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	"space": "main",
+	"area": "notes",
+	"state": "withdrawn",
+	"change": {
+		"op": "create",
+		"doc": "notes/learned/c-4a1b2c3d4e5f60718293",
+		"baseHash": null
+	},
+	"diff": "",
+	"rationale": "A semantic record of authority person, observed in 2 sessions by 1 principal, settled at 2026-11-08T09:00:00.000Z.",
+	"evidence": [
+		{
+			"kind": "memory",
+			"ref": "mem-3f9a1c0d7b2e4a6f8c1d5e90@2",
+			"erased": true
+		}
+	],
+	"provenance": {
+		"version": 3,
+		"origin": "agent-inferred",
+		"space": "main",
+		"plugin": "knowledge",
+		"agent": null,
+		"principal": "human:local",
+		"session": null,
+		"traceId": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
+		"observedAt": "2026-11-08T09:00:00.000Z",
+		"validFrom": null,
+		"validUntil": null,
+		"confidence": null,
+		"authority": null,
+		"sources": [
+			{
+				"resource": "/notes/learned/c-4a1b2c3d4e5f60718293"
+			}
+		],
+		"generated": null,
+		"contentHash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		"derivedFrom": null,
+		"access": ["space"],
+		"sensitivity": "internal",
+		"redactions": null,
+		"constraints": null,
+		"delegationChain": [],
+		"confirmation": null
+	},
+	"policy": {
+		"area": "notes",
+		"version": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		"rule": "person"
+	},
+	"exception": null,
+	"proposer": {
+		"actor": {
+			"kind": "human",
+			"id": "local"
+		},
+		"principal": "human:local"
+	},
+	"confidence": null,
+	"decision": null,
+	"result": null,
+	"flags": [],
+	"createdAt": "2026-11-08T09:00:00.000Z",
+	"updatedAt": "2026-11-09T09:00:00.000Z",
+	"drafter": {
+		"plugin": "curator",
+		"instance": "curator",
+		"pipeline": "curator-run",
+		"run": "5e1f0a2b3c4d5e6f708192a3b4c5d6e7",
+		"mode": "scheduled",
+		"candidate": "c-4a1b2c3d4e5f60718293"
+	},
+	"conflictSet": null,
+	"withdrawal": {
+		"by": "drafter",
+		"reason": "source-erased",
+		"at": "2026-11-09T09:00:00.000Z"
+	},
+	"redacted": {
+		"at": "2026-11-09T09:00:00.000Z",
+		"reason": "source-erased"
+	}
+}

@@ -1,0 +1,26 @@
+{
+	"version": 1,
+	"actor": {
+		"kind": "human",
+		"id": "corp/U019488227"
+	},
+	"transport": "cli",
+	"authentication": "process",
+	"namespace": null,
+	"issuer": null,
+	"delegationChain": [],
+	"tokenBinding": null,
+	"humanPresent": {
+		"level": "terminal",
+		"method": "cli-terminal",
+		"at": "2026-11-09T09:00:00.000Z"
+	},
+	"scopes": null,
+	"spaces": null,
+	"policyDecision": {
+		"decision": "allow",
+		"policy": "auth",
+		"reason": null
+	},
+	"policyVersion": "sha256:5b0f6b2d3c1e4a79881f0e2d6c4b3a291807f6e5d4c3b2a1908f7e6d5c4b3a29"
+}

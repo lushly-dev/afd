@@ -1,8 +1,11 @@
 //! Helpers shared by the integration tests: workspaces, fixture commands, the in-process CLI.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
+pub mod gateway;
+pub mod hosted;
 pub mod mcp;
 pub mod memory;
+pub mod oauth;
 pub mod plugins;
 pub mod process;
 pub mod store;
@@ -372,6 +375,10 @@ pub fn schema_validator(stem: &str) -> Validator {
         "event.v2",
         "cursor.v0",
         "cursor-file.v0",
+        "principal.v1",
+        "provenance-envelope.v3",
+        "event.v3",
+        "cursor.v1",
     ]
     .iter()
     .map(|stem| {

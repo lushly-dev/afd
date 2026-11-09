@@ -57,6 +57,12 @@ export interface ScopeRuntime {
 	 * redaction, and never read from a result, so no app can ask for it. Absent until a refusal.
 	 */
 	oversized?: Set<string>;
+	/**
+	 * The shell commands an app with these grants may call besides its own (phase 2 specification, 11.2):
+	 * set by `late/` when it loads, before any app, so the list is written once, out of `apps` (2.4). Absent,
+	 * an app may call none.
+	 */
+	callable?(grants: ReadonlySet<string>, base: readonly string[]): ReadonlySet<string>;
 	/** By trace ID: what the handler and the middleware leave for `run`'s event. */
 	readonly seen: Map<string, ScopeSeen>;
 	note(traceId: string | undefined, seen: ScopeSeen): void;

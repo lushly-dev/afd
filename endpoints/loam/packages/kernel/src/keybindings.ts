@@ -15,6 +15,11 @@ export interface ShellKeybindingV0 {
 	toggle?: 'sidebar' | 'inspector' | 'panel';
 	/** For `F6` and `Shift+F6`, the direction focus moves between present parts. */
 	focus?: 'next' | 'previous';
+	/**
+	 * Mod+S: the active editor's `save()`. The shell has no save command, so this is a binding of its own,
+	 * which the editor area answers only while an editor is the active owner (documents specification, 5.5).
+	 */
+	save?: true;
 }
 
 const BINDINGS: ShellKeybindingV0[] = [
@@ -24,6 +29,7 @@ const BINDINGS: ShellKeybindingV0[] = [
 	{ chord: 'Mod+J', command: 'layout-set', toggle: 'panel' },
 	{ chord: 'F6', command: null, focus: 'next' },
 	{ chord: 'Shift+F6', command: null, focus: 'previous' },
+	{ chord: 'Mod+S', command: null, save: true },
 ];
 
 /** The reserved chords, frozen with every entry. */
@@ -73,17 +79,7 @@ export function createKeybindings(
 }
 
 /**
- * Whether a command's JSON Schema needs input: it has a required property, or every branch of a
- * union does. A chord runs only a command that does not (4.2).
+ * Whether a command's JSON Schema needs input, by its shape: the manifest's predicate, which its rules also
+ * use, so the palette, a chord and New agree (phase 1 specification, 4.2; documents specification, 2.1).
  */
-export function needsInput(schema: unknown): boolean {
-	if (typeof schema !== 'object' || schema === null) return false;
-	const record = schema as { required?: unknown; anyOf?: unknown; oneOf?: unknown };
-	if (Array.isArray(record.required) && record.required.length > 0) return true;
-	const branches = Array.isArray(record.anyOf)
-		? record.anyOf
-		: Array.isArray(record.oneOf)
-			? record.oneOf
-			: undefined;
-	return branches !== undefined && branches.length > 0 && branches.every(needsInput);
-}
+export { needsInputShape as needsInput } from '@lushly-dev/loam-manifest';

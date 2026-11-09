@@ -57,7 +57,7 @@ async function helloManifest(change: (manifest: Record<string, unknown>) => void
 	return manifest;
 }
 
-describe('E7: a manifest that declares an unknown surface', () => {
+describe('P2-E13: E7: a manifest that declares an unknown surface', () => {
 	it('is refused with the list of surfaces; the rail shows it, and the rest of the shell works', async () => {
 		const manifest = await helloManifest((raw) => {
 			(raw.ui as { surfaces: Record<string, unknown> }).surfaces.tray = { element: 'hello-tray' };

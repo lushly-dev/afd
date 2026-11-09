@@ -38,11 +38,16 @@ export interface UrlHostV1 {
 	readState(): Promise<MainStateV1>;
 	/** Main's "Nothing here", or what it shows. */
 	route: 'home' | 'not-found';
+	/** Main shows what it shows, held busy no more; with `failed`, it says it could not load (2.2). */
+	releaseMain?(failed?: boolean): void;
 }
 
 interface NavigationLike {
 	navigate(url: string, options: { history: 'push' | 'replace'; info: unknown }): unknown;
 }
+
+/** Main's heading when a chunk of its own does not load (2.2), written once. */
+const COULD_NOT_LOAD = 'Could not load. Reload to try again.';
 
 /** The router's `STATE_INFO`, repeated so this chunk imports no router at run time. */
 const STATE_INFO = 'loam-state';
@@ -96,6 +101,8 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	let applying = 0;
 	/** Whether the projects section has been shown, so its chunk follows every later state. */
 	let sections = false;
+	/** Whether the documents section has been shown, so the editor area's chunk follows every later state. */
+	let editor = false;
 	const queued = (task: () => Promise<void>): Promise<void> => {
 		queue = queue.then(task).catch(reportError);
 		return queue;
@@ -150,10 +157,16 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		}
 		const section = route.kind === 'project' ? 'projects' : route.section;
 		const rest = route.kind === 'project' ? '' : route.rest.join('/');
-		return (
-			(state.active === null && state.section === section && state.path === rest) ||
-			(await kernel.call('section-open', { section, path: rest })).success
-		);
+		const here = state.active === null && state.section === section && state.path === rest;
+		// A document's deep link runs `document-open` (documents specification, 5.1): the documents section's
+		// path is its active tab's document, so one already open there runs nothing, as after a reload (6).
+		if (section === 'documents' && rest !== '') {
+			return (
+				here ||
+				(!rest.includes('/') && (await kernel.call('document-open', { document: rest })).success)
+			);
+		}
+		return here || (await kernel.call('section-open', { section, path: rest })).success;
 	}
 
 	/**
@@ -237,10 +250,54 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 					// Tried again at the next change, as this chunk's own load is; meanwhile main says it could not
 					// load, as for the late commands (2.2), not "Choose an app" (A11).
 					sections = false;
-					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
+					(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
 					reportError(cause);
 				}
 			);
+		}
+		// The editor area the same way, from its own chunk, loaded on the first document opened, restored or
+		// routed to (documents specification, 1 and 5.1). Awaited, so stage B's boot holds main busy until the
+		// area owns it, and a restored session shows no landing on the way (6).
+		if (editor || (state.section === 'documents' && state.active === null)) {
+			editor = true;
+			const failed = (cause: unknown) => {
+				editor = false;
+				(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
+				host.releaseMain?.(true);
+				reportError(cause);
+			};
+			await import('./editor/editor.js').then(
+				({ syncEditor }) => syncEditor(host as unknown as LoamShell),
+				failed
+			);
+			// Then the section's tree and, with no tab, its list, from a chunk of their own (8). Its failure is its
+			// own: main says it could not load, the editor area and its chunk stay as they are, and the next change
+			// of scope or of main tries the chunk again.
+			void import('./sections/documents.js').then(
+				({ syncDocuments }) => syncDocuments(host as unknown as LoamShell),
+				(cause) => {
+					const root = (host as unknown as LoamShell).shadowRoot;
+					const main = root?.querySelector<HTMLElement>('loam-main');
+					if (
+						main?.querySelector<HTMLElement & { empty?: boolean }>('loam-editor-area')?.empty ===
+						false
+					) {
+						// A tab shows: the editor keeps main, and the sidebar, the tree's place, says so.
+						const empty = root?.querySelector<HTMLElement>('loam-sidebar loam-empty-state');
+						empty?.setAttribute('message', COULD_NOT_LOAD);
+						if (empty) empty.hidden = false;
+					} else {
+						// Where the list would be: main's landing, which the editor area's next sync covers again.
+						(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
+						if (main) delete main.dataset.section;
+					}
+					reportError(cause);
+				}
+			);
+		}
+		// Main held busy for a persisted documents section that the route then left shows what it shows (6).
+		if (state.active === null && state.section !== 'documents') {
+			host.releaseMain?.();
 		}
 		const wanted = routeOf(state);
 		const here = view.location.origin + view.location.pathname;

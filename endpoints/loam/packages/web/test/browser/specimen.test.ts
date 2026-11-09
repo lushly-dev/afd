@@ -10,6 +10,9 @@ import type { Observation, SpecimenContext } from '@lushly-dev/specimen/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const SPECIMENS = fileURLToPath(new URL('../../../chrome/specimens/', import.meta.url));
+const NOTES_SPECIMENS = fileURLToPath(
+	new URL('../../../../apps/notes/specimens/', import.meta.url)
+);
 
 let bench: SpecimenBench;
 beforeAll(async () => {
@@ -53,7 +56,7 @@ function expectClean(observation: Observation, id = observation.manifest.specime
 	).toEqual([]);
 }
 
-describe('E2: a replayed journal reproduces the layout', () => {
+describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 	it('renders the live session and the replayed fixture identically', async () => {
 		const live = await bench.render({ id: 'session-live', context: CONTEXT });
 		const replay = await bench.render({ id: 'session-replay', context: CONTEXT });
@@ -133,7 +136,8 @@ const APP_CAPTURES: [string, string][] = [
 	['app-rail-tooltip', 'button "Tracker"'],
 	['app-project-switcher-list', 'listbox "Projects"'],
 	['app-project-switcher-dialog', 'aria-label="Choose a project"'],
-	['app-list-tree', 'level 3, in Getting started'],
+	// Phase 2's step 11: an app's `tree` sidebar is `loam-tree`, nested, in place of the list's indented rows.
+	['app-tree', 'treeitem "Install, Five minutes"'],
 	['app-list-dual', 'region "In Atlas"'],
 	['app-part-header-crumbs', 'navigation "Location"'],
 	['app-status-action', 'button "Total 3"'],
@@ -153,15 +157,17 @@ const APP_CAPTURES: [string, string][] = [
 	['app-projects-section-form', 'Error: A project already has'],
 	['app-projects-section-empty', 'No projects yet'],
 	['app-projects-section-home', 'article "Slow"'],
+	// Phase 2's step 11: the home's Documents card, the shell's, after the apps' summaries.
+	['app-projects-section-documents', 'article "Documents"'],
 	['app-projects-section-long', 'article "دفتر"'],
 ].flatMap(([id, expected]) => [
 	[id, expected] as [string, string],
 	[`${id}-compact`, expected] as [string, string],
 ]);
 
-describe('E11: Specimen captures of what apps add', () => {
+describe('P2-E13: E11: Specimen captures of what apps add', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
-		it(`captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+		it(`P2-E12: P2-E13: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
 			for (const [id, expected] of APP_CAPTURES) {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
@@ -173,7 +179,138 @@ describe('E11: Specimen captures of what apps add', () => {
 		}, 300_000);
 });
 
-describe('E4: Specimen captures of each part and the whole shell', () => {
+/** The documents specification's D10 so far (step 10): the editor area's elements, comfortable and compact. */
+const EDITOR_CAPTURES: [string, string[]][] = [
+	[
+		'editor-area',
+		[
+			'region "Documents"',
+			'heading "Roadmap"',
+			'tablist "Documents, group 1"',
+			'tab "Roadmap, unsaved" [selected]',
+			'tab "Plan, pinned"',
+			'tab "Ideas (preview)"',
+			'Opening Roadmap',
+			'DOCUMENT_TYPE_UNAVAILABLE',
+			'button "Close"',
+		],
+	],
+	['editor-group', ['tablist "Documents"', 'tab "Plan, pinned"', 'tabpanel', 'Opening Roadmap']],
+	// Step 12: `loam-embed`, refused or missing alike, and a target with no embed of its own as a link.
+	['editor-embed-unavailable', ['group "Embedded: Document"', 'Not available']],
+	['editor-embed-link', ['group "Embedded: Roadmap"', 'link "Roadmap"']],
+	[
+		'editor-menu',
+		['menu "Actions for Roadmap"', 'menuitem "Pin"', 'menuitem "Move to a new group"'],
+	],
+	['editor-frame-loading', ['Opening Roadmap']],
+	['editor-frame-failed', ['heading "Ledger"', 'DOCUMENT_CONTENT_VERSION_NEWER', 'button "Close"']],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string[]],
+	[`${id}-compact`, expected] as [string, string[]],
+]);
+
+/** `notes-editor`, from the type's own fixtures, since no chrome file names a type (D2). */
+const NOTES_CAPTURES: [string, string[]][] = [
+	['notes-editor', ['textbox "Roadmap"']],
+	[
+		'notes-editor-conflict',
+		['alert', 'This note changed elsewhere', 'button "Keep mine"', 'button "Use theirs"'],
+	],
+	// Step 12: its inspector's links and backlinks, and a note as another embeds it.
+	[
+		'notes-inspector',
+		[
+			'region "Links"',
+			'button "Launch plan"',
+			'region "Backlinks"',
+			'button "Old notes"',
+			'In trash',
+		],
+	],
+	['notes-embed', ['Plans for the quarter, and what ships first.']],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string[]],
+	[`${id}-compact`, expected] as [string, string[]],
+]);
+
+describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () => {
+	let notes: SpecimenBench;
+	beforeAll(async () => {
+		notes = await createSpecimenBench({ root: NOTES_SPECIMENS });
+	});
+	afterAll(async () => {
+		await notes?.close();
+	});
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: captures the editor with a draft and with its conflict notice, the inspector and the embed in ${theme}, in both densities`, async () => {
+			for (const [id, expected] of NOTES_CAPTURES) {
+				const observation = await notes.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+			}
+		}, 300_000);
+});
+
+describe('P2-D10: Specimen captures of the editor area', () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+			for (const [id, expected] of EDITOR_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+			}
+		}, 300_000);
+});
+
+/**
+ * The documents specification's D10 so far (step 11): the documents section's sidebar, with its row menu, its
+ * list, trash and empty state, and the New menu, comfortable and compact. A hostile title is text (D8).
+ */
+const DOCUMENTS_CAPTURES: [string, string[]][] = [
+	[
+		'documents-tree',
+		[
+			'tree "Documents"',
+			'treeitem "Recent" [expanded] [level=1]',
+			'treeitem "Roadmap, Jot" [level=2]',
+			'treeitem "Jots" [expanded] [level=1]',
+			'treeitem "Roadmap" [level=2] [selected]',
+			'treeitem "Trash" [expanded] [level=1]',
+			'treeitem "Old plan, Trashed',
+		],
+	],
+	[
+		'documents-tree-menu',
+		['menu "Actions for Roadmap"', 'menuitem "Open beside"', 'menuitem "Trash"'],
+	],
+	[
+		'documents-section',
+		['heading "Documents" [level=1]', 'table "Documents"', 'link "<img src=x onerror=alert(1)>"'],
+	],
+	['documents-section-trash', ['heading "Trash" [level=1]', 'button "Restore Old plan"']],
+	['documents-section-loading', ['heading "Documents" [level=1]', 'Loading…']],
+	['documents-section-empty', ['No documents yet', 'button "New Blank jot"', 'button "New Chore"']],
+	['new-menu', ['menu "New"', 'group "Jots"', 'menuitem "Blank jot"', 'group "Chores"']],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string[]],
+	[`${id}-compact`, expected] as [string, string[]],
+]);
+
+describe('P2-D10: Specimen captures of the documents section and New', () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+			for (const [id, expected] of DOCUMENTS_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+				// A hostile title is text, never markup (D8).
+				expect(observation.channels.dom.normalized, id).not.toContain('<img src="x"');
+			}
+		}, 300_000);
+});
+
+describe('P2-E13: E4: Specimen captures of each part and the whole shell', () => {
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
 		it(`captures every fixture in ${theme}, each with an ARIA snapshot`, async () => {
 			for (const [id, expected] of CAPTURES) {

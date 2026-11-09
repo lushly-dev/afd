@@ -40,6 +40,7 @@ async fn host_context_fills_the_principal_and_a_bare_execute_has_none() {
     assert_eq!(
         principal,
         Principal::new(actor, Transport::Library, Authentication::Embedder)
+            .with_policy_version(host.workspace().config().policy_version.clone())
     );
 
     let called = host

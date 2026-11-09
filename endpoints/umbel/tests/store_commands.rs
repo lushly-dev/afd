@@ -175,7 +175,7 @@ async fn store_check_finds_a_corrupted_index() {
         let _host = seeded(dir.path(), T0).await;
     }
     // Flip a byte in a segment file; `meta.json` and the locks are left alone.
-    let index = dir.path().join("state/spaces/main/index/v1");
+    let index = dir.path().join("state/spaces/main/index/v2");
     let mut damaged = None;
     for entry in std::fs::read_dir(&index).unwrap().flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -270,7 +270,7 @@ async fn store_backup_copies_the_stores_with_a_manifest_of_digests() {
     assert!(
         files
             .iter()
-            .any(|f| f["path"].as_str().unwrap().starts_with("index/v1/"))
+            .any(|f| f["path"].as_str().unwrap().starts_with("index/v2/"))
     );
     // Every digest is of the bytes copied.
     for file in files {

@@ -54,7 +54,7 @@ export interface AppsHost {
 	 */
 	scope: Pick<
 		ScopeRuntime,
-		'active' | 'actorKey' | 'allows' | 'projects' | 'workspaceApps' | 'oversized'
+		'active' | 'actorKey' | 'allows' | 'projects' | 'workspaceApps' | 'oversized' | 'callable'
 	>;
 }
 

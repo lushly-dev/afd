@@ -190,6 +190,59 @@ closes that tooltip itself, since focus inside the element's own shadow root
 never reaches the rail's. Hover, keyboard focus and Escape behave as WCAG
 1.4.13 asks.
 
+## The editor area
+
+Main shows `loam-editor-area` while the documents section is open with no
+app: groups as equal columns, each a `loam-editor-group` with a hand-written
+`role="tablist"` (not `violet-tabs`, whose trigger and panel pairing does not
+fit a closable tab) and one tab panel.
+
+- A tab is a `button` with `role="tab"`, a roving `tabindex`, and a name that
+  says `(preview)`, `, pinned` and `, unsaved`. Selected: the page background,
+  a `size.space.xs` block-end bar of `color.control.selected.foreground`, and
+  `aria-selected`; preview: italics and its name; unsaved: `●` and its name.
+- Its close and menu buttons are siblings, `aria-hidden` and `tabindex="-1"`,
+  for the pointer only: a named button inside a `tablist` fails axe's
+  `aria-required-children`. Delete closes and Shift+F10 opens the menu, on
+  the tab, as `aria-keyshortcuts` says.
+- The area's region is named "Documents"; its visually hidden `h1` is the
+  active document's title, so an editor needs no `h1`, and an editor's mount
+  is no landmark of its own (`landmark-unique`).
+- Reordering the strip keeps focus: `insertBefore` blurs a focused node, so
+  remove gone items first, `moveBefore` where it exists, and refocus.
+- An agent's close or move of the focused tab keeps focus: on the tab where
+  it went, else its group's active tab, else main; test it by agent call.
+- A busy hold needs a test that it clears; a template-bound property must be
+  `observable`.
+- A lazy chunk imports nothing first paint holds but FAST's `css`, `html`,
+  `observable`, `attr` and `Updates`: `ref` and `repeat` part a shared chunk,
+  which `budget` catches. Build lists with the DOM API, by id.
+
+## The documents section and New
+
+With no tab open the editor area hides, region and `h1` too, and
+`loam-documents-section` holds main; `loam-documents-sidebar`, a `loam-tree`,
+holds the sidebar part with tabs or without.
+
+- `loam-tree` is over `violet-tree` (APG's tree view), and is also an app's
+  `tree` sidebar. Find a row's label and meta by class, never by position: an
+  icon goes first. `violet-tree-item` imports FAST's `ref`, so the tree lives
+  in the `documents` chunk alone; a second lazy importer parts a `ref` chunk
+  out of first paint, which `budget` catches.
+- A row's actions follow a tab's: a pointer's More button, `aria-hidden` and
+  `tabindex="-1"`, and Shift+F10 on the row, only on rows with actions. A
+  focused row that leaves hands focus to its neighbour, and what removed it
+  is said in a polite line.
+- A form's Enter is the form's: make Save `type="submit"`, never a keydown
+  that saves whatever is focused, Cancel included.
+- The section's fields and buttons are native, on the field and action
+  tokens; a checkbox beside a picker is a 24 px target in both densities.
+- What re-reads on kernel events hears mutations alone: a query's own event
+  re-read on every event never settles.
+- The New button is text in first paint; `loam-new-menu` is a `violet-menu`
+  laid over it, opening on its first item (ArrowUp: its last). Map `violet-menu-item`'s hover
+  and pressed surfaces to contract colors, as the palette does its options'.
+
 ## Icons
 
 `violet-icon` by deep import. Always set `icon` (`system/<name>`; 16 system

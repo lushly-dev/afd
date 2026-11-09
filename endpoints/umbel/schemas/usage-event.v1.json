@@ -1,0 +1,200 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/usage-event.v1.json",
+	"title": "Umbel usage event, version 1",
+	"description": "One MCP HTTP request's content-free metering record, a line of state/usage/<yyyy-mm>.jsonl (phase 5 section 12.1, D122, owner decision 13). Every request is counted: tools/call, tools/list, tasks/get, tasks/update and tasks/cancel, refused ones included, whose outcome is the error code or the HTTP status. Never recorded: inputs, results, queries, document ids or memory text. Bytes, not tokens. principal, actor and namespace are null when the request was refused before its caller was known; tool is the tools/call tool name; command the command it named, and the task's command for task methods; task the task id for task methods and for a tools/call that created a task. A caller reads its own records, usage.readers and the operator everyone's.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"at",
+		"trace",
+		"principal",
+		"actor",
+		"namespace",
+		"transport",
+		"method",
+		"tool",
+		"command",
+		"space",
+		"outcome",
+		"bytesIn",
+		"bytesOut",
+		"durationMs",
+		"task"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 1
+		},
+		"id": {
+			"description": "u- and 128 random bits as 26 lowercase base32 characters.",
+			"type": "string",
+			"pattern": "^u-[a-z2-7]{26}$"
+		},
+		"at": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+		},
+		"trace": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[A-Za-z0-9._:-]{1,128}$"
+				}
+			]
+		},
+		"principal": {
+			"description": "The effective principal.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+				}
+			]
+		},
+		"actor": {
+			"description": "The actor as a principal string.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+				}
+			]
+		},
+		"namespace": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$"
+				}
+			]
+		},
+		"transport": {
+			"description": "Only MCP HTTP requests are metered in version 1.",
+			"const": "http"
+		},
+		"method": {
+			"enum": ["tools/call", "tools/list", "tasks/get", "tasks/update", "tasks/cancel"]
+		},
+		"tool": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[A-Za-z0-9_.-]{1,128}$"
+				}
+			]
+		},
+		"command": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+				}
+			]
+		},
+		"space": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,62}$"
+				}
+			]
+		},
+		"outcome": {
+			"description": "ok, the error code, or the HTTP status of a refused request.",
+			"type": "string",
+			"pattern": "^(ok|[A-Z][A-Z0-9_]{0,63}|[45][0-9]{2})$"
+		},
+		"bytesIn": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"bytesOut": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"durationMs": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"task": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[a-z2-7]{26}$"
+				}
+			]
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"method": {
+						"const": "tools/list"
+					}
+				},
+				"required": ["method"]
+			},
+			"then": {
+				"properties": {
+					"tool": {
+						"type": "null"
+					},
+					"command": {
+						"type": "null"
+					},
+					"space": {
+						"type": "null"
+					},
+					"task": {
+						"type": "null"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"method": {
+						"enum": ["tasks/get", "tasks/update", "tasks/cancel"]
+					}
+				},
+				"required": ["method"]
+			},
+			"then": {
+				"properties": {
+					"tool": {
+						"type": "null"
+					}
+				}
+			}
+		}
+	]
+}

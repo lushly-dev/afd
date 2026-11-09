@@ -6,11 +6,15 @@
 //! `dev.umbel/mutation`, and these layers **always overwrite** them: a handler (or a plugin) can
 //! neither forge a mutation, nor hide one, nor redirect an event to another space.
 //!
-//! Outermost first: the event stamp, then the space check, then the plugin gate, then (installed by
-//! `seal`) the approval middleware. The event stamp is outermost so that it runs last on the way out and can
-//! put the default space on a mutation of a command that has no `space` input.
+//! Outermost first: the event stamp, then the hidden-instance check (`auth::scope_gate`), the
+//! space check, the access check, the scope gate (`auth::scope_gate`), the read limit
+//! (`shared::read_limit`, hosted modes), the plugin gate, the shared store's spend reporting
+//! (`shared::nonces`, hosted modes) and (installed by `seal`) the approval middleware, as phase 5
+//! section 6.3's layer 7 orders them. The
+//! event stamp is outermost so that it runs last on the way out and can put the default space on
+//! a mutation of a command that has no `space` input.
 
-use crate::access::{effective_principal_of, reader_filter};
+use crate::access::{Caller, listed_for, reader_filter};
 use crate::events::CHANGES_KEY;
 use crate::plugins::{GateEntry, Ledger, PluginError, PluginKind};
 use crate::provenance::{AUTHORITY_KEY, PROVENANCE_KEY, supplied_fields};
@@ -149,9 +153,24 @@ pub(crate) fn event_stamp(
 /// `spaces`, an empty list or a repeat with `VALIDATION_ERROR`) before the handler runs; after
 /// the handler, overwrites `dev.umbel/space` with the resolved `space`. For any other command,
 /// and for a command that has only `spaces`, removes the key.
+///
+/// In a hosted mode every caller but the operator gets section 5.4's one answer for an undeclared
+/// space instead of `SPACE_NOT_FOUND` (phase 5 section 5.4), the answer the access check gives a
+/// space it may not read.
+///
+/// **One reading of a call's spaces.** A `space` or `spaces` member the command does not declare
+/// is refused with `VALIDATION_ERROR` before anything reads it, in every mode: `spaces` on a
+/// command that takes only `space`, `space` on one that takes only `spaces`, and either on a
+/// compiled or component plugin command that takes neither (`stray` names the commands and the
+/// members refused; a pipeline is exempt, since its steps each meet every check on their own
+/// input). Otherwise a member the scope rules never looked at could name the spaces a
+/// plugin's host services reach (phase 5 step 3's review). A mounted tool's own arguments are the
+/// server's and are left alone.
 pub(crate) fn space_check(
+    workspace: Arc<Workspace>,
     with_space: Arc<HashSet<String>>,
     with_spaces: Arc<HashSet<String>>,
+    stray: Arc<BTreeMap<String, Vec<&'static str>>>,
     resolve: ResolveSpace,
     resolve_many: ResolveSpaces,
 ) -> CommandMiddleware {
@@ -161,11 +180,39 @@ pub(crate) fn space_check(
               context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
+            if let Some(member) = stray.get(&name).and_then(|members| {
+                members
+                    .iter()
+                    .find(|member| input.get(**member).is_some_and(|value| !value.is_null()))
+            }) {
+                let error = CommandError::new(
+                    error_codes::VALIDATION_ERROR,
+                    format!("This command takes no `{member}` input"),
+                )
+                .with_suggestion(
+                    "Leave the member out; pass only the space input the command's schema declares.",
+                )
+                .with_retryable(false);
+                return Box::pin(async move {
+                    let mut result = failure(error);
+                    remove(&mut result, SPACE_KEY);
+                    result
+                });
+            }
             let has_space = with_space.contains(&name);
             let has_spaces = with_spaces.contains(&name);
-            let many = has_spaces.then(|| resolve_many(&input, &context));
+            let one_answer = (has_space || has_spaces)
+                && Caller::of(workspace.config(), &context).gets_one_answer();
+            let hide = move |error: CommandError| {
+                if one_answer && error.code == crate::host::SPACE_NOT_FOUND {
+                    crate::access::space_unavailable()
+                } else {
+                    error
+                }
+            };
+            let many = has_spaces.then(|| resolve_many(&input, &context).map_err(hide));
             let resolved = if has_space {
-                Some(resolve(&input, &context))
+                Some(resolve(&input, &context).map_err(hide))
             } else {
                 None
             };
@@ -183,7 +230,17 @@ pub(crate) fn space_check(
                     }
                     Some(Ok(space)) => {
                         let mut result = next().await;
-                        set(&mut result, SPACE_KEY, Value::String(space));
+                        let refused = result
+                            .error
+                            .as_ref()
+                            .is_some_and(|error| error.code == crate::access::SPACE_NOT_READABLE);
+                        if one_answer && refused {
+                            // Section 5.4's one answer carries nothing of the space: an
+                            // undeclared one never resolved, so a declared one must not say so.
+                            remove(&mut result, SPACE_KEY);
+                        } else {
+                            set(&mut result, SPACE_KEY, Value::String(space));
+                        }
                         result
                     }
                     None => {
@@ -197,6 +254,61 @@ pub(crate) fn space_check(
     )
 }
 
+/// The access check (phase 5 sections 5.3 and 5.4), after the space check: for a command that
+/// runs in spaces (its `space` or `spaces` input, or the default space for a plugin command or an
+/// embedder's command without one), refuses a space the caller may not read by its `readers`, or
+/// that its token grants no verb in, with `SPACE_NOT_READABLE` before anything else looks at the
+/// call: section 5.4's one answer for every hosted caller but the operator, which the space check
+/// also gives an undeclared space. So readability comes before scope, and before the plugin
+/// gate's `PLUGIN_NOT_ENABLED`. It applies to every hosted caller but the operator, and to any
+/// caller a token narrows; mode `none` and the operator are unchanged.
+///
+/// `spaced` maps each such command to whether its spaces come from its input (`true`) or are the
+/// default space (`false`: a mounted tool's own `space` argument is the server's, not Umbel's).
+pub(crate) fn access_check(
+    workspace: Arc<Workspace>,
+    spaced: Arc<BTreeMap<String, bool>>,
+    resolve_many: ResolveSpaces,
+) -> CommandMiddleware {
+    Arc::new(
+        move |name: String,
+              input: Value,
+              context: CommandContext,
+              next: MiddlewareNext|
+              -> BoxFuture<'static, CommandResult<Value>> {
+            let spaces = match spaced.get(&name) {
+                None => return next(),
+                Some(true) => resolve_many(&input, &context),
+                Some(false) => Ok(vec![workspace.default_space().as_str().to_owned()]),
+            };
+            let config = workspace.config();
+            let caller = Caller::of(config, &context);
+            // Mode `none` and the operator keep phases 2 to 4's checks (each handler's own, and the
+            // plugin gate's), as section 14's point 10 asks.
+            if !caller.gets_one_answer() && caller.narrowing() == &crate::access::Narrowing::None {
+                return next();
+            }
+            let refused = match spaces {
+                Ok(spaces) => spaces
+                    .iter()
+                    .find_map(|space| reader_filter(config, space, &caller).err()),
+                // The space check refused these already; a refusal here names nothing new.
+                Err(error) => Some(
+                    if caller.gets_one_answer() && error.code == crate::host::SPACE_NOT_FOUND {
+                        crate::access::space_unavailable()
+                    } else {
+                        error
+                    },
+                ),
+            };
+            match refused {
+                Some(error) => Box::pin(async move { failure(error) }),
+                None => next(),
+            }
+        },
+    )
+}
+
 /// What the plugin gate needs beyond the entries: the workspace (the spaces' readers) and the
 /// ledger of what calls did to the stores.
 pub(crate) struct GateContext {
@@ -204,12 +316,17 @@ pub(crate) struct GateContext {
     pub(crate) ledger: Arc<Ledger>,
     pub(crate) resolve_many: ResolveSpaces,
     pub(crate) default_space: String,
+    /// The stores, to seal `dev.umbel/index` for a caller whose positions are sealed.
+    pub(crate) stores: crate::store::Hub,
+    /// Where a sealed result's host metadata waits for the journal.
+    pub(crate) stash: Arc<crate::positions::Stash>,
 }
 
 /// The plugin gate (specification section 8.1), between the space check and approvals. For a
 /// plugin command it resolves the space or spaces (the default space for a command with no
 /// space input) and, before the handler runs, refuses one the instance is not enabled for with
-/// `PLUGIN_NOT_ENABLED`, one the caller may not read with `SPACE_NOT_READABLE`, and a
+/// `PLUGIN_NOT_ENABLED` (naming to a hosted caller only the instance's spaces it reads), one the
+/// caller may not read with `SPACE_NOT_READABLE`, and a
 /// `confirm = "require-human"` command that no person confirmed at the terminal with
 /// `CONFIRMATION_REQUIRED`. After the handler it removes every `dev.umbel/` key a plugin may not
 /// set, keeps `dev.umbel/record`, reduces `dev.umbel/provenance` to the fields a command may
@@ -243,21 +360,37 @@ pub(crate) fn plugin_gate(
                     Ok(spaces) => spaces,
                     Err(error) => return failure(error),
                 };
+                let config = gate.workspace.config();
+                let caller = Caller::of(config, &context);
+                // For every hosted caller but the operator, and any caller a token narrows, the
+                // access check has already refused a space it may not read, so the spaces named
+                // here are readable (phase 5 section 5.4); mode `none` keeps phases 2 to 4's order.
                 for space in &spaces {
                     if !entry.spaces.contains(space) {
+                        // A hosted caller who is not the operator is told only of the instance's
+                        // spaces it may read (section 9.4).
+                        let shown: Vec<String> = match listed_for(config, &caller) {
+                            Some(listed) => entry
+                                .spaces
+                                .iter()
+                                .filter(|space| listed.contains(space))
+                                .cloned()
+                                .collect(),
+                            None => entry.spaces.clone(),
+                        };
                         return failure(
-                            PluginError::not_enabled(&entry.instance, space, &entry.spaces)
+                            PluginError::not_enabled(&entry.instance, space, &shown)
                                 .to_command_error(),
                         );
                     }
                 }
-                let principal = effective_principal_of(&context);
                 for space in &spaces {
-                    if let Err(error) =
-                        reader_filter(gate.workspace.config(), space, principal.as_deref())
-                    {
+                    if let Err(error) = reader_filter(config, space, &caller) {
                         return failure(error);
                     }
+                }
+                if entry.person_verified {
+                    return failure(crate::auth::person_verification_unavailable(&name));
                 }
                 if entry.require_human && !confirmed_by_a_person(&name, &context) {
                     return failure(require_human_refusal(&name));
@@ -266,6 +399,9 @@ pub(crate) fn plugin_gate(
                 let mut result = next().await;
                 let record = gate.ledger.take(&trace);
                 sanitize(&mut result, &entry, &spaces, record);
+                if caller.seals_positions() {
+                    present_sealed(&mut result, &gate, &caller);
+                }
                 result
             })
         },
@@ -404,6 +540,66 @@ fn sanitize(
             .extra
             .insert(TRUST_KEY.to_owned(), Value::String("external".to_owned()));
     }
+}
+
+/// The host key a sealed result carries in place of what it left out: an opaque random reference
+/// to the stash, which the journal takes back (phase 5 section 9.3).
+pub(crate) const JOURNAL_REF_KEY: &str = "dev.umbel/journal-ref";
+
+/// A result as a caller whose positions are sealed sees it (phase 5 section 9.3): no
+/// `dev.umbel/changes`, no record `version`, and `dev.umbel/index`'s `applied` and `head` each
+/// the sealed last document revision the caller can read at or below it (the key is left out
+/// when that cannot be read). The changes and the version are kept in the stash under a fresh
+/// random reference the result carries, which the journal's last look takes back, so the
+/// journal and every event stream record them whole; nothing about them reaches the caller.
+fn present_sealed(result: &mut CommandResult<Value>, gate: &GateContext, caller: &Caller) {
+    let journaled = result.success || gate.workspace.config().journal.record_failures;
+    let Some(metadata) = result.metadata.as_mut() else {
+        return;
+    };
+    let mut raw = Map::new();
+    if let Some(changes) = metadata.extra.remove(CHANGES_KEY) {
+        raw.insert(CHANGES_KEY.to_owned(), changes);
+    }
+    if let Some(Value::Object(record)) = metadata.extra.get_mut(RECORD_KEY)
+        && let Some(version) = record.remove("version")
+    {
+        raw.insert("version".to_owned(), version);
+    }
+    if let Some(index) = metadata.extra.remove(INDEX_KEY)
+        && let Some(sealed) = sealed_index(&index, gate, caller)
+    {
+        metadata.extra.insert(INDEX_KEY.to_owned(), sealed);
+    }
+    // Only for a result the journal records: a failure is journaled only when the workspace
+    // records failures, and nothing else would take the entry back.
+    if !raw.is_empty() && journaled {
+        let reference = crate::host::new_trace_id();
+        gate.stash.put(&reference, raw);
+        metadata
+            .extra
+            .insert(JOURNAL_REF_KEY.to_owned(), Value::String(reference));
+    }
+}
+
+/// `{ <space>: { applied, head, schema } }` with `applied` and `head` sealed for `caller`;
+/// `None` when a store or a filter cannot be read.
+fn sealed_index(index: &Value, gate: &GateContext, caller: &Caller) -> Option<Value> {
+    let presenter = crate::positions::Presenter::of(&gate.workspace, caller).ok()?;
+    let config = gate.workspace.config();
+    let mut out = Map::new();
+    for (space, state) in index.as_object()? {
+        let filter = reader_filter(config, space, caller).ok()?;
+        let stores = gate.stores.space(space).ok()?;
+        let mut shown = state.as_object()?.clone();
+        for field in ["applied", "head"] {
+            let rev = shown.get(field)?.as_u64()?;
+            let last = stores.documents.last_readable_document(rev, &filter).ok()?;
+            shown.insert(field.to_owned(), presenter.revision(space, last));
+        }
+        out.insert(space.clone(), Value::Object(shown));
+    }
+    Some(Value::Object(out))
 }
 
 /// `{ <space>: { applied, head, schema } }` reduced to the spaces of the call, each with three

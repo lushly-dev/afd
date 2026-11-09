@@ -265,6 +265,24 @@ impl CallServices {
         crate::authority::caller_is_person(&self.context, self.command.as_deref(), prompts)
     }
 
+    /// Whether the call's caller sees positions sealed (phase 5 section 9.3), which
+    /// `CallContext.sealed_positions` carries to every compiled plugin's command.
+    pub fn seals_positions(&self) -> bool {
+        crate::access::Caller::of(self.shared.workspace.config(), &self.context).seals_positions()
+    }
+
+    /// The legacy principals the caller's effective principal stands for (phase 5 section 4.6),
+    /// which `CallContext.equivalents` carries to every compiled plugin's command.
+    pub fn equivalents(&self) -> Vec<String> {
+        let principal = crate::access::effective_principal_of(&self.context);
+        let mut identities =
+            crate::access::identities(self.shared.workspace.config(), principal.as_deref());
+        if !identities.is_empty() {
+            identities.remove(0);
+        }
+        identities
+    }
+
     /// Whether the grant `name` is held (declared and not denied).
     #[cfg_attr(not(feature = "component"), allow(dead_code))]
     pub(crate) fn holds(&self, name: &str) -> bool {
@@ -379,9 +397,26 @@ impl HostServices for CallServices {
         limit: u32,
     ) -> Result<Value, ServiceError> {
         self.require("events")?;
+        let config = self.shared.workspace.config();
+        let reader = crate::access::Caller::of(config, &self.context);
         let target = match space {
             None => self.space.clone(),
             Some(name) => {
+                // A hosted caller who is not the operator learns nothing of a space it may not
+                // read: undeclared and unreadable alike get section 5.4's one answer, before the
+                // instance's own spaces are consulted.
+                if reader.gets_one_answer()
+                    && !config
+                        .spaces
+                        .iter()
+                        .any(|space| space.id.as_str() == name && reader.reads(config, space))
+                {
+                    let refusal = crate::access::space_unavailable();
+                    return Err(ServiceError::NotGranted(format!(
+                        "{}: {}",
+                        refusal.code, refusal.message
+                    )));
+                }
                 let id = SpaceId::parse(name)
                     .ok()
                     .filter(|id| self.shared.workspace.has_space(id.as_str()))
@@ -411,6 +446,7 @@ impl HostServices for CallServices {
             after.map(str::to_owned),
             usize::try_from(limit).unwrap_or(usize::MAX),
             crate::commands::caller(&self.context),
+            reader,
         )
         .map_err(|error| ServiceError::Invalid(format!("{}: {}", error.code, error.message)))
     }
@@ -475,6 +511,14 @@ impl HostServices for CallServices {
         trace: Option<&str>,
     ) -> Result<Vec<Change>, ServiceError> {
         self.svc_doc_changes(space, after, limit, trace)
+    }
+
+    fn doc_position(&self, space: &str, rev: Rev) -> Result<Value, ServiceError> {
+        self.svc_doc_position(space, rev)
+    }
+
+    fn doc_position_of(&self, space: &str, value: &Value) -> Result<Rev, ServiceError> {
+        self.svc_doc_position_of(space, value)
     }
 
     fn reader_tokens(&self, space: &str) -> Result<Vec<String>, ServiceError> {

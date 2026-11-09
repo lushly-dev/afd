@@ -9,7 +9,7 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-members = [".", "sdk", "store", "store-embedded", "scan", "okf", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "plugins/knowledge", "plugins/memory", "plugins/context", "plugins/curator", "first-party", "adapters/hook", "tests/fixtures/components/*"]
+members = [".", "sdk", "store", "store-embedded", "scan", "okf", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "plugins/knowledge", "plugins/memory", "plugins/context", "plugins/curator", "first-party", "adapters/hook", "testkit-idp", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -22,7 +22,15 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [features]
-default = ["cli", "component", "mounted", "store-embedded"]
+default = ["auth", "cli", "component", "mounted", "store-embedded"]
+# The hosted HTTP surface (phase 5 specification, sections 3 and 6): in-process TLS with
+# `tokio-rustls` (TLS 1.2 and 1.3 on the `aws-lc-rs` provider) and the client certificate per
+# `client_auth`, the layers of section 6.3, the protected-resource metadata, AFD's bearer layer
+# (`afd/server-auth`) and the shared limit counters in `state/shared/limits.sqlite3`. Without it the
+# HTTP surface serves phase 0's loopback token only, and refuses `[http.tls]` and the hosted modes.
+# Token verification (step 2b) fetches each issuer's metadata and keys, and calls the one
+# introspection endpoint, with `reqwest` (HTTPS only, no redirects, capped and timed out), and
+# reads a verified JWT's claims with `base64`.
 # The `umbel` binary's argument parser. Embedders use default-features = false.
 cli = ["dep:clap"]
 # The WebAssembly component loader (specification section 6.2): wasmtime 48 and its WASI 0.2
@@ -32,6 +40,11 @@ component = ["dep:bytes", "dep:rand", "dep:wasmtime", "dep:wasmtime-wasi", "dep:
 # (specification section 10.1). The specification names `tempfile` and `rmcp`; the drivers also
 # need `http` and `http-body-util` to speak to the router in process.
 testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
+# The doctor's hosted profile (step 2c) reads certificate validity with `x509-parser` and, on
+# Linux and macOS, the file system type of `state/shared/` with `rustix`'s `statfs`; both were
+# already in the lock. The gateway mode (step 4) checks an assertion's signature with
+# `jsonwebtoken`, AFD's own version, also already in the lock.
+auth = ["afd/server-auth", "dep:aws-lc-rs", "dep:base64", "dep:http-body-util", "dep:jsonwebtoken", "dep:reqwest", "dep:rusqlite", "dep:rustix", "dep:rustls-platform-verifier", "dep:rustls-pki-types", "dep:tokio-rustls", "dep:x509-parser"]
 # The mounted MCP server loader (specification section 6.3): rmcp's client over a child process's
 # stdio and Streamable HTTP, with rustls (rmcp's `reqwest` feature is what enables it). The child
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither
@@ -63,6 +76,10 @@ required-features = ["testkit"]
 afd = { path = "../../packages/rust", features = ["server", "journal-file-shared"] }
 async-trait = "0.1"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+# Sealed positions (phase 5 section 9.3, D125): XChaCha20-Poly1305 with a synthetic nonce under
+# `state/keys/cursor.key`, for every build, since any build may open a hosted workspace. Already
+# in the lock, through the embedded store's sealed memory.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 clap = { version = "4", features = ["derive"], optional = true }
 getrandom = ">=0.3, <0.5"
@@ -77,6 +94,12 @@ tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net",
 toml = { version = "1", features = ["preserve_order"] }
 # The exact-path MCP service behind the bearer layer (`service_fn`).
 tower = { version = "0.5", features = ["util"] }
+# The HTTP listener serves HTTP/1.1 on hyper itself, as `axum::serve` does, so that it puts the
+# peer address (and, with the `auth` feature, the TLS client certificate) in each request's
+# extensions; `http-body` for the body size limit's capped body. All three come with axum.
+http-body = "1"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "server", "server-graceful", "http1", "service"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
@@ -97,6 +120,32 @@ futures = { version = "0.3", optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"], optional = true }
 sse-stream = { version = "0.2", optional = true }
 
+# Optional: the `auth` feature, the hosted HTTP surface. `rustls-pki-types`' `PemObject` reads the
+# PEM files; SQLite holds the limit counters every process behind one URL shares (section 10.2).
+# `base64` decodes a verified access token's claims for the mapping of section 4.1.
+base64 = { version = "0.22", optional = true }
+# The gateway assertion's signature (section 4.4, step 4), checked as AFD checks an access
+# token's: `jsonwebtoken`'s `aws-lc-rs` provider called directly, never `decode` or a
+# `Validation`, so no library default applies. AFD's version, already in the lock.
+jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"], optional = true }
+# The gateway's pinned key set (step 4) is parsed with `aws-lc-rs` when it is read, so a key whose
+# material could never verify is refused at start and by the doctor. The test kit's version,
+# already in the lock (it backs `jsonwebtoken` and rustls too).
+aws-lc-rs = { version = "1.15", default-features = false, features = ["aws-lc-sys"], optional = true }
+
+# The outbound client's TLS: the platform's roots, on the `aws-lc-rs` provider passed explicitly.
+rustls-platform-verifier = { version = "0.7", optional = true }
+rusqlite = { version = "0.41", features = ["bundled"], optional = true }
+# The doctor's `auth.shared` (step 2c): whether `state/shared/` is on a local file system (D29),
+# from `statfs`, and the effective user that must own the hosted profile's files, without unsafe
+# code.
+rustix = { version = "1", default-features = false, features = ["fs", "process", "std"], optional = true }
+rustls-pki-types = { version = "1.15", features = ["std"], optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"], optional = true }
+# The doctor's `auth.tls` and `auth.ca_files` (step 2c): each certificate's validity, read from its
+# DER without verifying it (rustls verifies, at the handshake). No feature: nothing it verifies.
+x509-parser = { version = "0.18", default-features = false, optional = true }
+
 # Optional: the `testkit` feature's drivers (the same crates are dev-dependencies below, for the
 # integration tests' own use).
 http = { version = "1", optional = true }
@@ -116,16 +165,23 @@ bytes = "1"
 http = "1"
 http-body-util = "0.1"
 # The mounted-loader tests serve a plugin over HTTPS with a certificate made on the spot.
-hyper = { version = "1", features = ["http1", "server"] }
+# `auth_layers.rs` speaks HTTP/1.1 to the hosted listener, over TLS with and without a client
+# certificate, through hyper's client connection.
+hyper = { version = "1", features = ["client", "http1", "server"] }
 hyper-util = { version = "0.1", features = ["tokio", "http1", "server", "service"] }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
 rmcp = { version = "3.9", default-features = false, features = ["server", "transport-io"] }
 tempfile = "3"
+# The body deadline's unit test runs on paused time.
+tokio = { version = "1", features = ["test-util"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
 # The integration tests drive the test kit, and the hello plugin as a second compiled plugin.
 umbel = { path = ".", features = ["testkit"] }
 umbel-plugin-hello = { path = "plugins/hello" }
 umbel-sdk = { path = "sdk", features = ["mounted"] }
+# The auth tests' certificate authority, access tokens and assertions (phase 5 step 1b). Only ever
+# a dev-dependency: `tests/no_auth_server.rs` fails otherwise.
+umbel-testkit-idp = { path = "testkit-idp" }
 # `doctor_stores.rs` damages a store's tables, and `store_commands.rs` opens a backup.
 rusqlite = { version = "0.41", features = ["bundled"] }
 # The store tests build documents and chunks with the conformance suite's own samples.

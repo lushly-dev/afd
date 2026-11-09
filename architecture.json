@@ -313,6 +313,12 @@
 			"family": "umbel",
 			"layer": "endpoint",
 			"publicSurfaces": ["rust-library", "bin:umbel-hook"]
+		},
+		{
+			"manifest": "endpoints/umbel/testkit-idp/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library"]
 		}
 	],
 	"coverageContract": {

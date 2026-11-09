@@ -143,7 +143,7 @@ describe('P2-D3: types and the registry', () => {
 				{ id: 'blank', title: 'Blank probe' },
 				{ id: 'greeting', title: 'Greeting' },
 			],
-			surfaces: ['editor'],
+			surfaces: ['editor', 'inspector'],
 			binding: {
 				model: 'command',
 				selection: 'text-range',
@@ -555,7 +555,7 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 		expect(restored.data).toMatchObject({ status: 'archived', trashedAt: null, trashedFrom: null });
 	});
 
-	it('trashes and restores, each the undo of the other, and a trashed document refuses changes', async () => {
+	it('P2-D4: P2-D6: trashes and restores, each the undo of the other, and a trashed document refuses changes', async () => {
 		const workspace = await documents({ store: adapterOf() });
 		const { kernel } = workspace;
 		const record = await created(workspace);
@@ -733,6 +733,52 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 			`app-probe/${storeRecordId(scopes.atlas, documentContentKey(record.id))}`,
 		]);
 	});
+
+	it('stamps the document it checked, whatever the handler does to its input', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		const { kernel } = workspace;
+		const checkedOne = await created(workspace, { type: 'probe', title: 'Checked' });
+		const other = await created(workspace, { type: 'probe', title: 'Other' });
+		const events: KernelEventV2[] = [];
+		kernel.subscribe((event) => events.push(event));
+		expect(
+			(await kernel.call('probe-content-swap', { document: checkedOne.id, other: other.id }))
+				.success
+		).toBe(true);
+		expect(events.filter((event) => event.document).map((event) => event.document)).toEqual([
+			checkedOne.id,
+		]);
+		const read = async (id: string) =>
+			(await kernel.call<DocumentRecordV1>('document-get', { document: id })).data?.updatedAt;
+		expect(await read(other.id)).toBe(other.updatedAt);
+		expect(await read(checkedOne.id)).toBeGreaterThan(checkedOne.updatedAt);
+	});
+
+	it('refuses an envelope that names no type, or another', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		for (const type of [undefined, 'probe-memo']) {
+			const refused = await workspace.kernel.call('document-import', {
+				type: 'probe',
+				envelope: { loam_document: 1, ...(type ? { type } : {}), content_version: 1, content: {} },
+			});
+			expect(refused.error?.code, String(type)).toBe('DOCUMENT_TYPE_MISMATCH');
+		}
+	});
+
+	it('refuses a mutation of a document in an archived project, and reads it', async () => {
+		const workspace = await documents({ store: adapterOf() });
+		const { kernel, scopes } = workspace;
+		const record = await created(workspace, { type: 'probe' }, scopes.beacon);
+		await kernel.call('project-archive', { project: 'beacon' });
+		const at = { scope: scopes.beacon };
+		expect((await kernel.call('document-get', { document: record.id }, at)).success).toBe(true);
+		expect(
+			(await kernel.call('document-rename', { document: record.id, title: 'X' }, at)).error?.code
+		).toBe('PROJECT_ARCHIVED');
+		expect(
+			(await kernel.call('probe-content-set', { document: record.id, text: 'X' }, at)).error?.code
+		).toBe('PROJECT_ARCHIVED');
+	});
 });
 
 /**
@@ -842,7 +888,7 @@ describe('P2-D4: every record goes through the stamped write', () => {
 describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 	const DAY = 86_400_000;
 
-	it("deletes each record trashed longer than the workspace's trashDays, and its content, journaled", async () => {
+	it("deletes each record trashed longer than the workspace's trashDays, its content and its links in one batch, journaled", async () => {
 		const store = adapterOf();
 		let now = Date.UTC(2026, 0, 1);
 		const clock = () => (now += 1);
@@ -850,6 +896,21 @@ describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 		const old = await created(first, { type: 'probe', template: 'greeting' }, first.scopes.atlas);
 		const kept = await created(first);
 		const recent = await created(first);
+		// Links from it, to it, to itself, and one it has no part in, which stays (9.3).
+		const linked = [];
+		for (const [from, to, scope] of [
+			[old.id, kept.id, first.scopes.atlas],
+			[kept.id, old.id, undefined],
+			[old.id, old.id, first.scopes.atlas],
+			[kept.id, recent.id, undefined],
+		] as const) {
+			const link = await first.kernel.call<{ id: string }>(
+				'document-link-add',
+				{ from, to },
+				scope ? { scope } : {}
+			);
+			linked.push(link.data?.id as string);
+		}
 		await first.kernel.call('document-trash', { document: old.id }, { scope: first.scopes.atlas });
 		const contentId = storeRecordId(first.scopes.atlas, documentContentKey(old.id));
 		expect(await store.get('app-probe', contentId)).toBeDefined();
@@ -857,12 +918,33 @@ describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 		await first.kernel.call('document-trash', { document: recent.id });
 		await first.kernel.dispose();
 		const journal = new MemoryJournalSink();
+		// Every batch the second boot sends, so the links are seen to go with the record, all or nothing.
+		const batches: string[][] = [];
+		const batch = store.batch.bind(store);
+		store.batch = (operations) => {
+			batches.push(operations.map((operation) => `${operation.method} ${operation.path}`));
+			return batch(operations);
+		};
 		const second = await documents({ store, clock, journal });
 		const expired = (await journal.read()).filter(
 			(entry) => entry.command === 'document-trash-expire'
 		);
 		expect(expired.length).toBe(1);
 		expect(expired[0]?.result.data).toEqual({ deleted: [old.id] });
+		const expiry = batches.find((paths) => paths.includes(`DELETE /document/${old.id}`));
+		expect(expiry).toEqual(
+			expect.arrayContaining(linked.slice(0, 3).map((id) => `DELETE /document-link/${id}`))
+		);
+		expect(expiry).not.toContain(`DELETE /document-link/${linked[3]}`);
+		for (const id of linked.slice(0, 3)) expect(await store.get('document-link', id)).toBeFalsy();
+		expect(await store.get('document-link', linked[3] as string)).toBeTruthy();
+		// The index the second boot built for expiry no longer holds them.
+		const left = await second.kernel.call<{ out: Array<{ link: { id: string } }>; in: unknown[] }>(
+			'document-link-list',
+			{ document: kept.id }
+		);
+		expect(left.data?.out.map((row) => row.link.id)).toEqual([linked[3]]);
+		expect(left.data?.in).toEqual([]);
 		expect(await store.get('document', old.id)).toBeFalsy();
 		expect(await store.get('app-probe', contentId)).toBeFalsy();
 		expect(
@@ -991,7 +1073,9 @@ describe('P2-D6: a cross-project mutation on a document', () => {
 			(await kernel.call('probe-content-get', { document: 'doc_nowhere00000' }, at)).error?.code
 		).toBe('DOCUMENT_NOT_FOUND');
 	});
+});
 
+describe('P2-D10: an instance command’s input is bounded at 256 KiB, before its handler', () => {
 	it('bounds an instance command’s input at 256 KiB, before its handler, journaled without the content', async () => {
 		const workspace = await documents();
 		const { kernel, store } = workspace;
@@ -1073,52 +1157,6 @@ describe('P2-D6: a cross-project mutation on a document', () => {
 		const entry = (await workspace.journal.read()).at(-1);
 		expect(entry?.input).toEqual({});
 		expect(JSON.stringify(entry)).not.toContain('xxxxxxxx');
-	});
-
-	it('stamps the document it checked, whatever the handler does to its input', async () => {
-		const workspace = await documents();
-		const { kernel } = workspace;
-		const checkedOne = await created(workspace, { type: 'probe', title: 'Checked' });
-		const other = await created(workspace, { type: 'probe', title: 'Other' });
-		const events: KernelEventV2[] = [];
-		kernel.subscribe((event) => events.push(event));
-		expect(
-			(await kernel.call('probe-content-swap', { document: checkedOne.id, other: other.id }))
-				.success
-		).toBe(true);
-		expect(events.filter((event) => event.document).map((event) => event.document)).toEqual([
-			checkedOne.id,
-		]);
-		const read = async (id: string) =>
-			(await kernel.call<DocumentRecordV1>('document-get', { document: id })).data?.updatedAt;
-		expect(await read(other.id)).toBe(other.updatedAt);
-		expect(await read(checkedOne.id)).toBeGreaterThan(checkedOne.updatedAt);
-	});
-
-	it('refuses an envelope that names no type, or another', async () => {
-		const workspace = await documents();
-		for (const type of [undefined, 'probe-memo']) {
-			const refused = await workspace.kernel.call('document-import', {
-				type: 'probe',
-				envelope: { loam_document: 1, ...(type ? { type } : {}), content_version: 1, content: {} },
-			});
-			expect(refused.error?.code, String(type)).toBe('DOCUMENT_TYPE_MISMATCH');
-		}
-	});
-
-	it('refuses a mutation of a document in an archived project, and reads it', async () => {
-		const workspace = await documents();
-		const { kernel, scopes } = workspace;
-		const record = await created(workspace, { type: 'probe' }, scopes.beacon);
-		await kernel.call('project-archive', { project: 'beacon' });
-		const at = { scope: scopes.beacon };
-		expect((await kernel.call('document-get', { document: record.id }, at)).success).toBe(true);
-		expect(
-			(await kernel.call('document-rename', { document: record.id, title: 'X' }, at)).error?.code
-		).toBe('PROJECT_ARCHIVED');
-		expect(
-			(await kernel.call('probe-content-set', { document: record.id, text: 'X' }, at)).error?.code
-		).toBe('PROJECT_ARCHIVED');
 	});
 });
 

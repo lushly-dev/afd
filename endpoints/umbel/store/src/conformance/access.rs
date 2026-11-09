@@ -1,5 +1,6 @@
 //! Group `access`: every read path, three readers, 40 documents; nothing unreadable ever comes
-//! back, and an unreadable document is indistinguishable from an absent one.
+//! back, and an unreadable document is indistinguishable from an absent one. A reader's last
+//! readable revision at or below a position names only its own changes (phase 5 section 9.3).
 
 use std::collections::BTreeSet;
 
@@ -209,7 +210,7 @@ fn changes(env: &Env<'_>) -> CaseResult {
             got.iter()
                 .map(|c| (c.rev, c.target.clone()))
                 .collect::<Vec<_>>(),
-            expected,
+            expected.clone(),
             &format!("{name}: changes"),
         )?;
         ensure(
@@ -217,6 +218,27 @@ fn changes(env: &Env<'_>) -> CaseResult {
                 .all(|c| matches!(c.kind, ChangeKind::Put | ChangeKind::Record)),
             "the fixture only writes",
         )?;
+        // The last readable document revision at or below a position (phase 5 section 9.3):
+        // the highest of the reader's own document changes there, never one it cannot read and
+        // never a record's (the fixture's records are revisions 41 to 80).
+        for at in [0, 1, 2, 7, 20, 40, 41, 55, 80, 81, 1000] {
+            let last = s
+                .stores
+                .documents
+                .last_readable_document(at, &reader)
+                .ctx("last_readable_document")?;
+            let wanted = expected
+                .iter()
+                .map(|(rev, _)| *rev)
+                .filter(|rev| *rev <= at && *rev <= 40)
+                .max()
+                .unwrap_or(0);
+            ensure_eq(
+                last,
+                wanted,
+                &format!("{name}: last readable at or below {at}"),
+            )?;
+        }
     }
     pass()
 }

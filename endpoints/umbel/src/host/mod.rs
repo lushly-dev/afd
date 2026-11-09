@@ -56,7 +56,16 @@ pub struct HostBuilder {
     compiled: Vec<Arc<dyn CompiledPlugin>>,
     clock: Option<Arc<dyn Clock>>,
     mount_roots: Vec<Vec<u8>>,
+    #[cfg(feature = "auth")]
+    token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
+    #[cfg(feature = "auth")]
+    auth_environment: crate::auth::fetch::AuthEnvironment,
+    /// A test's view of every held approval (`testkit` only); always `None` in a shipped build.
+    approval_observer: Option<ApprovalObserver>,
 }
+
+/// What a test sees of a held approval: AFD's request, its token included.
+pub(crate) type ApprovalObserver = Arc<dyn Fn(afd::ApprovalRequest) + Send + Sync>;
 
 impl HostBuilder {
     /// Open the workspace at `path` (see [`Workspace::open`]).
@@ -76,6 +85,11 @@ impl HostBuilder {
             compiled: Vec::new(),
             clock: None,
             mount_roots: Vec::new(),
+            #[cfg(feature = "auth")]
+            token_verifier: None,
+            #[cfg(feature = "auth")]
+            auth_environment: crate::auth::fetch::AuthEnvironment::default(),
+            approval_observer: None,
         }
     }
 
@@ -113,6 +127,74 @@ impl HostBuilder {
     #[must_use]
     pub fn with_clock(mut self, clock: impl Clock + 'static) -> Self {
         self.clock = Some(Arc::new(clock));
+        self
+    }
+
+    /// Replace the host's token verifier (phase 5 section 3.3) with `verifier`, for the tests of
+    /// the hosted listener. **Test seam** (`testkit` only): a shipped build always verifies with
+    /// the verifier it builds from `[auth.issuers]`. A verifier other than the host's maps no
+    /// caller, so the context hook refuses every call it admits.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_token_verifier(
+        mut self,
+        verifier: impl afd::server::auth::TokenVerifier + 'static,
+    ) -> Self {
+        self.token_verifier = Some(Arc::new(verifier));
+        self
+    }
+
+    /// Trust one more root certificate (PEM) when token verification fetches an issuer's
+    /// metadata and keys or calls its introspection endpoint. **Test seam** (`testkit` only), for
+    /// an identity provider with a test certificate authority.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_root_certificate(mut self, pem: impl Into<Vec<u8>>) -> Self {
+        self.auth_environment.roots.push(pem.into());
+        self
+    }
+
+    /// Read token times, and age the key and introspection caches, on `clock`. **Test seam**
+    /// (`testkit` only): a shipped build verifies on the system clock, never on the clock of
+    /// [`Self::with_clock`], so a replay clock cannot keep an expired token or key alive.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_clock(mut self, clock: impl Clock + 'static) -> Self {
+        self.auth_environment.clock = Arc::new(clock);
+        self
+    }
+
+    /// Read the environment variable `name` as `value` when token verification needs a secret
+    /// (an introspection client's). **Test seam** (`testkit` only): tests cannot set a variable.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_secret(mut self, name: &str, value: &str) -> Self {
+        self.auth_environment
+            .secrets
+            .insert(name.to_owned(), value.to_owned());
+        self
+    }
+
+    /// Give each outbound fetch of token verification `timeout` instead of 10 seconds. **Test
+    /// seam** (`testkit` only).
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_auth_fetch_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.auth_environment.timeout = timeout;
+        self
+    }
+
+    /// Hand every approval the middleware holds, with its token, to `observer` as well as
+    /// holding it. **Test seam** (`testkit` only): a shipped build never lets an approval token
+    /// leave the process it was minted in (approval tokens stay off every surface); the tests of
+    /// the shared nonce store (phase 5 section 10.2) need one to present it to a second host.
+    #[cfg(feature = "testkit")]
+    #[must_use]
+    pub fn with_approval_observer(
+        mut self,
+        observer: impl Fn(afd::ApprovalRequest) + Send + Sync + 'static,
+    ) -> Self {
+        self.approval_observer = Some(Arc::new(observer));
         self
     }
 
@@ -161,9 +243,10 @@ impl HostBuilder {
                 Arc::clone(&first_class_cell),
                 Arc::clone(&loaded_cell),
             ),
-            commands::plugin_list(Arc::clone(&loaded_cell)),
-            commands::plugin_show(Arc::clone(&loaded_cell)),
-            commands::skill_list(Arc::clone(&loaded_cell)),
+            commands::auth_show(),
+            commands::plugin_list(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
+            commands::plugin_show(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
+            commands::skill_list(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
             commands::skill_export(Arc::clone(&loaded_cell)),
             commands::plugin_new(),
             commands::plugin_check(self.compiled.clone()),
@@ -178,6 +261,8 @@ impl HostBuilder {
                 Arc::clone(&loaded_cell),
                 Arc::clone(&compiled_catalog),
                 Arc::clone(&stores),
+                #[cfg(feature = "auth")]
+                self.auth_environment.clone(),
             ),
             commands::event_rebuild(Arc::clone(&workspace), Arc::clone(&projector)),
         ];
@@ -198,6 +283,10 @@ impl HostBuilder {
             ));
             builtins
         };
+        let builtin_names: HashSet<String> = builtins
+            .iter()
+            .map(|builtin| builtin.definition.name.clone())
+            .collect();
         for Builtin { definition, schema } in builtins {
             register(&registry, Pending::Schema(definition, schema))?;
         }
@@ -251,8 +340,23 @@ impl HostBuilder {
             self.clock.as_ref(),
         )?;
         let server = serve_skills(server, &loaded)?;
-        install_middleware(&registry, &workspace, &loaded, &ledger)?;
-        install_journal(&registry, &workspace, &projector, digest_commands(&loaded));
+        let stash = Arc::new(crate::positions::Stash::default());
+        let scope_policy = install_middleware(
+            &registry,
+            &workspace,
+            &loaded,
+            &ledger,
+            &builtin_names,
+            self.approval_observer,
+            (&stores, &stash),
+        )?;
+        install_journal(
+            &registry,
+            &workspace,
+            &projector,
+            digest_commands(&loaded),
+            stash,
+        );
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
         // stream too damaged to repair does not stop the open: `umbel event rebuild` needs the
@@ -271,6 +375,11 @@ impl HostBuilder {
             server,
             clock: self.clock,
             loaded,
+            scope_policy,
+            #[cfg(feature = "auth")]
+            token_verifier: self.token_verifier,
+            #[cfg(feature = "auth")]
+            auth_environment: self.auth_environment,
         })
     }
 }
@@ -320,8 +429,10 @@ fn has_property(registry: &CommandRegistry, name: &str, property: &str) -> bool 
         .is_some()
 }
 
-/// Install the middleware, outermost first: the event stamp, the space check, the plugin gate,
-/// approvals.
+/// Install the middleware, outermost first: the event stamp, the hidden-instance check, the space
+/// check, the access check, the scope gate, the read limit (hosted modes), the plugin gate, the
+/// shared store's spend reporting (hosted modes), approvals (phase 5 section 6.3, layer 7). Returns section 5.2's rules over the sealed commands, which the scope gate and
+/// the HTTP surface's resolver share.
 ///
 /// The set of space commands is the host's own knowledge: a built-in by its `space` property, a
 /// plugin command by what its instance's load decided (a mounted tool's own `space` argument is
@@ -331,7 +442,10 @@ fn install_middleware(
     workspace: &Arc<Workspace>,
     loaded: &LoadedPlugins,
     ledger: &Arc<plugins::Ledger>,
-) -> Result<(), HostError> {
+    builtins: &HashSet<String>,
+    observer: Option<ApprovalObserver>,
+    (stores, stash): (&Hub, &Arc<crate::positions::Stash>),
+) -> Result<Arc<crate::auth::scopes::ScopePolicy>, HostError> {
     let commands = registry.list();
     let with_space: Arc<HashSet<String>> = Arc::new(
         commands
@@ -369,11 +483,20 @@ fn install_middleware(
         .map(|command| command.name.clone())
         .collect();
 
+    let policy = Arc::new(crate::auth::scopes::ScopePolicy::new(
+        Arc::clone(workspace),
+        registry,
+        &loaded.gate,
+        builtins,
+        &with_space,
+        &with_spaces,
+    ));
     registry.add_middleware(middleware::event_stamp(
         mutations,
         Arc::clone(&with_space),
         workspace.default_space().to_string(),
     ));
+    registry.add_middleware(crate::auth::scope_gate::hidden_check(Arc::clone(&policy)));
     let resolve: middleware::ResolveSpace = {
         let resolver = Arc::clone(workspace);
         Arc::new(move |input, context| {
@@ -390,12 +513,78 @@ fn install_middleware(
                 .map(|spaces| spaces.into_iter().map(|space| space.to_string()).collect())
         })
     };
+    // The commands that run in spaces the access check reads: a plugin command (from its input
+    // when it has a space input, else the default space), and any other command with a `space` or
+    // `spaces` input.
+    let spaced: BTreeMap<String, bool> = commands
+        .iter()
+        .filter_map(|command| {
+            let name = command.name.clone();
+            match loaded.gate.get(&name) {
+                Some(entry) => Some((name, entry.space_command || entry.spaces_command)),
+                None if with_space.contains(&name) || with_spaces.contains(&name) => {
+                    Some((name, true))
+                }
+                None => None,
+            }
+        })
+        .collect();
+    // The space members a command does not declare, refused before anything reads them (phase 5
+    // step 3's review): a member the scope rules never looked at must not name the spaces a
+    // plugin's host services reach.
+    let stray: BTreeMap<String, Vec<&'static str>> = commands
+        .iter()
+        .filter_map(|command| {
+            let name = &command.name;
+            let space = with_space.contains(name);
+            let spaces = with_spaces.contains(name);
+            let members: Vec<&'static str> = match loaded.gate.get(name) {
+                Some(entry) if entry.kind == plugins::PluginKind::Mounted => {
+                    if space && !spaces {
+                        vec!["spaces"]
+                    } else {
+                        Vec::new()
+                    }
+                }
+                Some(_) | None if space && !spaces => vec!["spaces"],
+                Some(_) | None if spaces && !space => vec!["space"],
+                // A pipeline's steps run through the registry, each checked on its own input,
+                // so its own input may carry a space for them; a compiled or component
+                // command's host services would read one.
+                Some(entry) if !space && !spaces && !entry.pipeline => vec!["space", "spaces"],
+                _ => Vec::new(),
+            };
+            (!members.is_empty()).then(|| (name.clone(), members))
+        })
+        .collect();
     registry.add_middleware(middleware::space_check(
+        Arc::clone(workspace),
         with_space,
         with_spaces,
+        Arc::new(stray),
         Arc::clone(&resolve),
         Arc::clone(&resolve_many),
     ));
+    registry.add_middleware(middleware::access_check(
+        Arc::clone(workspace),
+        Arc::new(spaced),
+        Arc::clone(&resolve_many),
+    ));
+    registry.add_middleware(crate::auth::scope_gate::scope_gate(Arc::clone(&policy)));
+    // The read limit's store opens on the first limited call, so the operator, never limited,
+    // never depends on `state/shared/`.
+    #[cfg(feature = "auth")]
+    if workspace.config().auth.mode.is_hosted() {
+        let config = workspace.config();
+        registry.add_middleware(crate::shared::read_limit::read_limit(
+            Arc::clone(workspace),
+            Arc::new(crate::shared::read_limit::LazyLimits::new(Arc::clone(
+                workspace,
+            ))),
+            config.limits.read_bytes_per_minute,
+            std::time::Duration::from_millis(config.store.lock_timeout_ms),
+        ));
+    }
     let entries: BTreeMap<_, _> = loaded.gate.clone();
     registry.add_middleware(middleware::plugin_gate(
         Arc::new(entries),
@@ -404,15 +593,40 @@ fn install_middleware(
             ledger: Arc::clone(ledger),
             resolve_many,
             default_space: workspace.default_space().to_string(),
+            stores: Arc::clone(stores),
+            stash: Arc::clone(stash),
         },
     ));
 
     let key = workspace.approval_key()?;
-    let approval = create_approval_middleware(
+    let options =
         ApprovalMiddlewareOptions::new(key, commands.iter().map(|command| command.as_ref()))
-            .with_include_token(false),
-    )
-    .map_err(|message| {
+            .with_include_token(false);
+    // In a hosted mode, approval nonces and relay evidence (`relay:<decisionId>`) are spent once
+    // across every process behind one URL (phase 5 section 10.2), not once per process; a failed
+    // spend is reported as the shared store's, not as a spent token. Mode `none` keeps AFD's store
+    // in memory, as phases 2 to 4 did.
+    #[cfg(feature = "auth")]
+    let hosted_nonces = workspace.config().auth.mode.is_hosted();
+    #[cfg(feature = "auth")]
+    let options = if hosted_nonces {
+        options.with_nonce_store(crate::shared::nonces::SharedApprovalNonces::new(Arc::new(
+            crate::shared::nonces::SqliteNonces::new(
+                &workspace.layout().nonces_store(),
+                workspace.config().store.lock_timeout_ms,
+            ),
+        )))
+    } else {
+        options
+    };
+    let options = match observer {
+        Some(observer) => options.with_on_approval_required(move |request| {
+            observer(request);
+            Box::pin(async {})
+        }),
+        None => options,
+    };
+    let approval = create_approval_middleware(options).map_err(|message| {
         HostError::new(
             codes::WORKSPACE_KEY_INVALID,
             format!(
@@ -425,8 +639,12 @@ fn install_middleware(
             ),
         )
     })?;
+    #[cfg(feature = "auth")]
+    if hosted_nonces {
+        registry.add_middleware(crate::shared::nonces::spend_failures());
+    }
     registry.add_middleware(approval);
-    Ok(())
+    Ok(policy)
 }
 
 /// The terminal prompts and pipeline steps of the loaded plugins (phase 3 section 3.3).
@@ -455,21 +673,52 @@ fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
 }
 
 /// The journal recorder: the outermost layer, so the stamps are in the journaled result and the
-/// journal alone is enough to rebuild every stream. Its redact step reduces the entry of every
-/// digest command, on every route that records: a direct call, a batch item, a pipe or pipeline
-/// step, each journaled under its own name.
+/// journal alone is enough to rebuild every stream. Its redact step first puts back the host
+/// metadata a sealed result left out (phase 5 section 9.3), so every entry records it whole, then
+/// reduces the entry of every digest command, on every route that records: a direct call, a
+/// batch item, a pipe or pipeline step, each journaled under its own name.
 fn install_journal(
     registry: &CommandRegistry,
     workspace: &Workspace,
     projector: &Arc<Projector>,
     digests: digest::DigestCommands,
+    stash: Arc<crate::positions::Stash>,
 ) {
     registry.set_journal(
         JournalRecorder::new(Arc::new(ProjectingSink::new(Arc::clone(projector))))
             .with_record_failures(workspace.config().journal.record_failures)
-            .with_redact(move |record| Some(digest::redact(&digests, record)))
+            .with_redact(move |mut record| {
+                restore_sealed(&mut record, &stash);
+                Some(digest::redact(&digests, record))
+            })
             .with_on_error(|message| tracing::error!("journal: {message}")),
     );
+}
+
+/// Put back into a journal record what the plugin gate left out of a sealed result (phase 5
+/// section 9.3): its `dev.umbel/changes` and record `version`, found by the reference the result
+/// carries, which the record does not keep.
+fn restore_sealed(record: &mut afd::JournalRecord, stash: &crate::positions::Stash) {
+    let Some(metadata) = record.result.metadata.as_mut() else {
+        return;
+    };
+    let Some(Value::String(reference)) = metadata.extra.remove(middleware::JOURNAL_REF_KEY) else {
+        return;
+    };
+    let Some(mut raw) = stash.take(&reference) else {
+        tracing::error!(
+            "journal: a sealed result's metadata was no longer kept; its event names no changes"
+        );
+        return;
+    };
+    if let Some(version) = raw.remove("version")
+        && let Some(Value::Object(found)) = metadata.extra.get_mut(crate::events::RECORD_KEY)
+    {
+        found.insert("version".to_owned(), version);
+    }
+    for (key, value) in raw {
+        metadata.extra.insert(key, value);
+    }
 }
 
 /// A sealed host: the registry, the workspace, and the surfaces built over them.
@@ -481,6 +730,13 @@ pub struct Host {
     server: McpServer,
     clock: Option<Arc<dyn Clock>>,
     loaded: Arc<LoadedPlugins>,
+    /// Section 5.2's rules over the sealed commands, for the resolver and the scope gate.
+    #[cfg_attr(not(feature = "auth"), allow(dead_code))]
+    scope_policy: Arc<crate::auth::scopes::ScopePolicy>,
+    #[cfg(feature = "auth")]
+    token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
+    #[cfg(feature = "auth")]
+    auth_environment: crate::auth::fetch::AuthEnvironment,
 }
 
 impl Host {
@@ -556,30 +812,67 @@ impl Host {
     }
 
     /// The configured MCP server (hybrid strategy, the first-class tools, confirmations signed
-    /// with the workspace's shared key, the context hook of version 0). It serves stdio and
-    /// Streamable HTTP; the hook tells them apart by whether the request has HTTP parts.
+    /// with the workspace's shared key, the context hook of phase 5 section 4.2). It serves stdio and
+    /// Streamable HTTP; the hook tells them apart by whether the request has HTTP parts. In a hosted
+    /// mode it carries an authorization that admits no HTTP caller (phase 5 section 6.3): serve
+    /// HTTP with [`Self::http_server`], stdio with `serve_stdio`, and mark any other transport
+    /// trusted (`with_trusted_transport`) only when the process boundary vouches for its peer.
     /// Cloning is cheap, but a stdio connection needs a server of its own
     /// ([`McpServer::serve_stdio`] makes one).
     pub fn mcp_server(&self) -> McpServer {
         self.server.clone()
     }
 
-    /// The HTTP router: the MCP endpoint at `http.path` and `GET /health`, every request behind
-    /// the bearer layer. The token is read from `state/keys/http.token`, created race-safe with
-    /// mode 0600 when missing; to rotate it, delete the file and build a new router.
+    /// The HTTP router of mode `none` without TLS: the MCP endpoint at `http.path` and
+    /// `GET /health`, every request behind the bearer layer, behind the body size limit. The
+    /// token is read from `state/keys/http.token`, created race-safe with mode 0600 when missing;
+    /// to rotate it, delete the file and build a new router. For an embedder serving it its own
+    /// way, and for in-process drivers; `umbel serve --http` uses [`Self::http_server`].
     ///
     /// # Errors
-    /// `WORKSPACE_KEY_INVALID` for a malformed token, `WORKSPACE_STATE_UNWRITABLE` when it
-    /// cannot be created.
+    /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` or `http.tls` for a hosted mode or
+    /// `[http.tls]`, which only [`Self::http_server`]'s listener serves; `WORKSPACE_KEY_INVALID`
+    /// for a malformed token, `WORKSPACE_STATE_UNWRITABLE` when it cannot be created.
     pub fn http_router(&self) -> Result<axum::Router, HostError> {
-        surfaces::http::router(&self.server, &self.workspace)
+        surfaces::http::plain_router(&self.server, &self.workspace)
+    }
+
+    /// The HTTP surface `umbel.toml` configures, ready to serve on a listener
+    /// ([`HttpServer::serve`](crate::HttpServer::serve)): TLS per `[http.tls]`, and the layers of
+    /// phase 5 section 6.3 in order. Mode `none` serves phase 0's token layer. Mode `oauth` serves
+    /// the body limit, the per-IP limit, `/health` and the protected-resource metadata in public,
+    /// and AFD's bearer layer around the MCP service, verifying tokens with the verifier it
+    /// builds from `[auth.issuers]` (phase 5 step 2b). Mode `gateway` serves the body limit, the
+    /// per-IP limit and `/health`, no metadata, and the gateway layer around the MCP service: the
+    /// pinned channel and a verified, single-use assertion per request (phase 5 step 4).
+    ///
+    /// # Errors
+    /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, the
+    /// `[auth]` key the verifier cannot be built from, `auth.gateway.keys` for a pinned key set
+    /// that cannot be used, or the `[http.tls]` key whose file is missing or invalid; the errors
+    /// of [`Self::http_router`]
+    /// in mode `none`; `WORKSPACE_STATE_UNWRITABLE` when `state/shared/limits.sqlite3` cannot be
+    /// opened.
+    pub fn http_server(&self) -> Result<crate::HttpServer, HostError> {
+        surfaces::http::server(
+            &self.server,
+            &self.workspace,
+            #[cfg(feature = "auth")]
+            &self.scope_policy,
+            #[cfg(feature = "auth")]
+            self.token_verifier.clone(),
+            #[cfg(feature = "auth")]
+            &self.auth_environment,
+        )
     }
 
     /// A context for a library call: `actor`, a new trace id, and the principal under
     /// `extra["dev.umbel/principal"]` with transport `library` and authentication `embedder`.
     pub fn context(&self, actor: Actor) -> CommandContext {
         let mut context = CommandContext::new().with_trace_id(new_trace_id());
-        Principal::new(actor, Transport::Library, Authentication::Embedder).apply(&mut context);
+        Principal::new(actor, Transport::Library, Authentication::Embedder)
+            .with_policy_version(self.workspace.config().policy_version.clone())
+            .apply(&mut context);
         self.apply_clock(&mut context);
         context
     }
@@ -603,7 +896,9 @@ impl Host {
         let actor =
             Actor::new(afd::ActorKind::Human).with_id(&self.workspace.config().principal.local_id);
         let mut context = CommandContext::new().with_trace_id(new_trace_id());
-        Principal::new(actor, Transport::Cli, Authentication::Process).apply(&mut context);
+        Principal::new(actor, Transport::Cli, Authentication::Process)
+            .with_policy_version(self.workspace.config().policy_version.clone())
+            .apply(&mut context);
         self.apply_clock(&mut context);
         context
     }

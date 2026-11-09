@@ -46,6 +46,11 @@
 //!   grouped actions, hybrid first-class tools): any missing scope is one 403 naming every
 //!   missing scope in step order (M6). It strips the `Authorization` header and passes the
 //!   verified [`Credentials`] on in the request's extensions.
+//! - **A host's own layer** that admits credentials itself ([`Authorization::admit`]) runs the
+//!   same decision before dispatch through
+//!   [`McpServer::pre_dispatch_check`](super::McpServer::pre_dispatch_check): the bearer layer
+//!   runs that same [`PreDispatchCheck`], so the two answer every request alike, but for a 403's
+//!   challenge when the host names its own scheme ([`ScopeChallenge`]).
 //! - **Fail closed** (M1). A server with authorization accepts only credentials admitted for its
 //!   own configuration ([`Authorization::admit`], which its bearer layer calls). An HTTP request
 //!   without them (the layer left out, or a layer from another server) is refused with
@@ -68,6 +73,10 @@
 //!   `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema` and grouped actions show
 //!   only commands the caller may see, no "did you mean" suggestion names another, and
 //!   `tools/list` carries `cacheScope: "private"`.
+//! - **Hidden commands** (M6): with filtered listings and a resolver, a command the resolver's
+//!   [`ScopeResolver::known`] (by default its `visible`) rejects for a caller is answered to that
+//!   caller exactly as a name that does not exist, on every route, before validation, the
+//!   middleware, a confirmation, a relay or a task.
 //! - **Other methods** (`tools/list`, `server/discover`, `resources/*`, `initialize` and the rest)
 //!   need the server's required scopes.
 //!
@@ -89,6 +98,7 @@ pub use crate::credentials::Credentials;
 
 mod bearer;
 mod claims;
+mod dispatch;
 mod jwt;
 mod layer;
 mod resource;
@@ -100,6 +110,7 @@ pub use claims::{
     TokenRules, DEFAULT_CLOCK_SKEW_S, DEFAULT_MAX_TOKEN_LIFETIME_S, DEFAULT_SCOPE_LIMIT,
     MAX_CLAIM_CHARS, MAX_CLOCK_SKEW_S,
 };
+pub use dispatch::{PreDispatch, PreDispatchCheck, ScopeChallenge};
 pub use jwt::{
     is_compact_jws, ClientCertificate, Jwk, JwtIssuer, JwtVerifier, KeyError, KeySource,
     SigningAlgorithm, StaticKeys,
@@ -397,7 +408,9 @@ impl Authorization {
         self
     }
 
-    /// Filter the listings by scope (`filterToolsByScope`). Default: `false`.
+    /// Filter the listings by scope (`filterToolsByScope`). Default: `false`. With a resolver, a
+    /// command its [`ScopeResolver::known`] rejects is then also answered as one that does not
+    /// exist, on every route (M6, "Hidden commands").
     pub fn with_filter_tools_by_scope(mut self, filter: bool) -> Self {
         self.filter_tools_by_scope = filter;
         self
@@ -520,14 +533,25 @@ pub(crate) fn request_credentials(
             Err(Refused::Unauthenticated)
         };
     };
+    admitted(auth, &parts.extensions)
+        .map(|credentials| Some(Arc::new(credentials.clone())))
+        .ok_or(Refused::Unauthenticated)
+}
+
+/// The credentials in `extensions` admitted for `auth` ([`Authorization::admit`]), or `None`
+/// when there are none, or they were admitted for another authorization or not at all.
+pub(crate) fn admitted<'a>(
+    auth: &Authorization,
+    extensions: &'a http::Extensions,
+) -> Option<&'a Credentials> {
     match (
-        parts.extensions.get::<AdmittedBy>(),
-        parts.extensions.get::<Credentials>(),
+        extensions.get::<AdmittedBy>(),
+        extensions.get::<Credentials>(),
     ) {
         (Some(admitted), Some(credentials)) if *admitted == AdmittedBy(auth.id) => {
-            Ok(Some(Arc::new(credentials.clone())))
+            Some(credentials)
         }
-        _ => Err(Refused::Unauthenticated),
+        _ => None,
     }
 }
 
@@ -565,7 +589,8 @@ pub(crate) fn error_data(auth: &Authorization, refused: &Refused) -> rmcp::Error
 /// A `tasks/*` request by a task's owner (`spec/command-metadata.md`, "Tasks"): the owner must
 /// still hold what a call of the task's command needs, as far as it is known without the
 /// input: under the static rule the command's `scopes` (named in the refusal), under a resolver
-/// its `visible` (a refusal naming no scope). A command no longer exposed to MCP has no scope of
+/// its `visible` and `known` (a refusal naming no scope; a command it does not know has made the
+/// task unknown before, [`task_known`]). A command no longer exposed to MCP has no scope of
 /// its own.
 pub(crate) fn task_refusal(
     server: &McpServer,
@@ -579,7 +604,7 @@ pub(crate) fn task_refusal(
         .get(command)
         .filter(|definition| definition.expose.mcp)?;
     let missing = match &auth.resolver {
-        Some(resolver) if resolver.visible(&definition.name, credentials) => return None,
+        Some(_) if scopes::visible(auth, &definition, credentials) => return None,
         Some(_) => Vec::new(),
         None => match scopes::static_decision(
             &[],
@@ -593,20 +618,59 @@ pub(crate) fn task_refusal(
     Some(error_data(auth, &Refused::MissingScopes(missing)))
 }
 
+/// The names of `registry`'s commands that `admits`, as a filter: each command is decided once,
+/// when the request arrives, so a filter consulted many times (and by a task's runner after the
+/// request is answered) never asks the resolver again.
+fn snapshot(
+    registry: &crate::CommandRegistry,
+    admits: impl Fn(&crate::CommandDefinition) -> bool,
+) -> Visibility {
+    let names: std::collections::HashSet<String> = registry
+        .list()
+        .into_iter()
+        .filter(|command| admits(command))
+        .map(|command| command.name.clone())
+        .collect();
+    Visibility(Arc::new(names))
+}
+
+/// Whether a task's `command` still exists for its owner (M6, "Hidden commands"): a task whose
+/// command the owner no longer knows is answered as a task that does not exist.
+pub(crate) fn task_known(auth: &Authorization, command: &str, credentials: &Credentials) -> bool {
+    scopes::knows(auth, command, credentials)
+}
+
 /// The listing filter for a caller, when the server filters listings and the caller has
-/// credentials.
+/// credentials: decided once per request ([`snapshot`]).
 pub(crate) fn visibility(
-    auth: &Arc<Authorization>,
+    auth: &Authorization,
+    registry: &crate::CommandRegistry,
     credentials: Option<&Arc<Credentials>>,
 ) -> Option<Visibility> {
     if !auth.filter_tools_by_scope {
         return None;
     }
-    let credentials = Arc::clone(credentials?);
-    let auth = Arc::clone(auth);
-    Some(Visibility(Arc::new(move |command| {
-        scopes::visible(&auth, command, &credentials)
-    })))
+    let credentials = credentials?;
+    Some(snapshot(registry, |command| {
+        scopes::visible(auth, command, credentials)
+    }))
+}
+
+/// Which commands exist for a caller (M6, "Hidden commands"), when the server filters listings,
+/// a resolver is installed and the caller has credentials: a command the resolver's `known`
+/// rejects is answered as a name that does not exist, on every route. Decided once per request
+/// ([`snapshot`]), so a task created by the request runs with the answer given while it was in
+/// flight.
+pub(crate) fn known(
+    auth: &Authorization,
+    registry: &crate::CommandRegistry,
+    credentials: Option<&Arc<Credentials>>,
+) -> Option<Visibility> {
+    scopes::hider(auth)?;
+    let credentials = credentials?;
+    Some(snapshot(registry, |command| {
+        scopes::knows(auth, &command.name, credentials)
+    }))
 }
 
 /// The decision at execute time (M6, "At execution"), when a resolver is installed: the
@@ -682,7 +746,25 @@ impl McpServer {
         let auth = self.inner.auth.clone().ok_or(
             "[AFD] bearer_layer needs with_authorization: the server has no authorization configured",
         )?;
-        Ok(BearerLayer::new(self.clone(), auth))
+        Ok(BearerLayer::new(PreDispatchCheck::new(self.clone(), auth)))
+    }
+
+    /// The bearer layer's decision before dispatch (`spec/authorization.md`, M6), for a host
+    /// whose own HTTP layer admits credentials instead of the bearer layer
+    /// ([`Authorization::admit`]), such as a gateway that vouches for each caller. Run
+    /// [`PreDispatchCheck::decide`] on each request after admitting its credentials and reading
+    /// its body, and pass the request on only when it says [`PreDispatch::Proceed`]: a missing
+    /// scope is then the bearer layer's 403 before dispatch, decided by the same code, instead
+    /// of `INSUFFICIENT_SCOPE` after routing. Build it from the server the service is built from,
+    /// after every other builder, as [`Self::bearer_layer`].
+    ///
+    /// # Errors
+    /// The server has no [`Self::with_authorization`].
+    pub fn pre_dispatch_check(&self) -> Result<PreDispatchCheck, String> {
+        let auth = self.inner.auth.clone().ok_or(
+            "[AFD] pre_dispatch_check needs with_authorization: the server has no authorization configured",
+        )?;
+        Ok(PreDispatchCheck::new(self.clone(), auth))
     }
 
     /// Serve this server over a transport that carries no HTTP request and whose callers the

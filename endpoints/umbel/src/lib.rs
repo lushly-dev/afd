@@ -10,10 +10,12 @@
 #![allow(clippy::result_large_err)]
 
 pub mod access;
+pub mod auth;
 pub mod authority;
 pub mod doctor;
 pub mod events;
 pub mod plugins;
+pub mod positions;
 pub mod principal;
 pub mod provenance;
 pub mod workspace;
@@ -23,6 +25,8 @@ mod host;
 #[cfg(feature = "cli")]
 mod logging;
 mod middleware;
+#[cfg(feature = "auth")]
+mod shared;
 mod store;
 mod surfaces;
 mod templates;
@@ -36,12 +40,15 @@ pub use plugins::{
     MANIFEST_VERSION, MANIFEST_VERSIONS, PACK_VERSION, PLUGIN_PROTOCOL_VERSION, WIT_WORLD,
 };
 pub use store::{STORE_GRANTS, codes as store_codes};
+pub use surfaces::http::HttpServer;
 pub use versions::{
-    BUNDLE_VERSION, CAPTURE_VERSION, CURATOR_VERSION, CURSOR_VERSION, DOCUMENT_VERSION,
-    EVENT_VERSION, LOCATOR_VERSION, MEMORY_KEYS_VERSION, MEMORY_VERSION, PRINCIPAL_VERSION,
-    PROPOSAL_VERSION, PROPOSAL_VERSIONS, PROVENANCE_VERSION, STORE_VERSION,
+    BUNDLE_VERSION, CAPTURE_VERSION, CURATOR_VERSION, CURSOR_VERSION, CURSOR_VERSIONS,
+    DOCUMENT_VERSION, ENVELOPE_VERSIONS, EVENT_VERSION, EVENT_VERSIONS, LOCATOR_VERSION,
+    LOCATOR_VERSIONS, MEMORY_KEYS_VERSION, MEMORY_VERSION, MEMORY_VERSIONS, PERSON_VERSION,
+    PRINCIPAL_VERSION, PRINCIPAL_VERSIONS, PROPOSAL_VERSION, PROPOSAL_VERSIONS, PROVENANCE_VERSION,
+    STORE_VERSION, TASK_VERSION, USAGE_VERSION,
 };
-pub use workspace::{CONFIG_VERSION, Config, SpaceId, Workspace};
+pub use workspace::{CONFIG_VERSION, CONFIG_VERSIONS, Config, SpaceId, Workspace};
 
 #[cfg(feature = "cli")]
 pub mod cli;

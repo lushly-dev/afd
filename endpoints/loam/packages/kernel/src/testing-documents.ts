@@ -118,6 +118,7 @@ export const PROBE_DOCUMENTS_MANIFEST: ManifestV2 = {
 				export_command: 'probe-export',
 				import_command: 'probe-import',
 				editor: { element: 'probe-editor' },
+				inspector: { element: 'probe-inspector' },
 				binding: BINDING,
 				templates: [
 					{ id: 'blank', title: 'Blank probe', content: { text: '' } },

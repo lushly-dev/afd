@@ -16,7 +16,9 @@
 //!
 //! The result gives totals for every document and the ids the caller can read: the command sees
 //! every document, so an id appears only when the caller's reader filter admits it (owner
-//! decision 1).
+//! decision 1). To a caller whose positions are sealed (phase 5 section 9.3) every total counts
+//! only the documents it can read, a link to a document it cannot read is broken, `remaining`
+//! asks only after changes it can read, and every revision is shown through the host.
 
 use std::collections::BTreeMap;
 
@@ -103,6 +105,27 @@ struct Totals {
     code_files: usize,
     code_symbols: usize,
     degraded: Vec<(String, &'static str)>,
+    /// What each document added to the totals above, for a caller who sees only what it can
+    /// read (phase 5 section 9.3).
+    per_doc: BTreeMap<String, Contribution>,
+}
+
+/// One document's part of a run's totals.
+#[derive(Default)]
+struct Contribution {
+    indexed: bool,
+    removed: bool,
+    chunks: usize,
+    limited: bool,
+    graphed: bool,
+    nodes: usize,
+    edges: usize,
+    /// Links that resolve to no document at all, and the documents the others name.
+    unresolved: usize,
+    targets: Vec<String>,
+    code_file: bool,
+    code_symbols: usize,
+    degraded: bool,
 }
 
 fn build(
@@ -135,25 +158,58 @@ fn build(
     let mut to = from;
     let mut seen = 0u64;
     let mut remaining = false;
-    loop {
-        let want = u32::try_from(budget.saturating_sub(seen).min(u64::from(PAGE))).unwrap_or(PAGE);
-        if want == 0 {
-            break;
-        }
-        let page = cx.derive_changes(space, to, want)?;
-        for change in &page {
-            to = change.rev;
-            if matches!(change.kind, ChangeKind::Put | ChangeKind::Delete) {
-                touched.insert(change.target.clone(), change.rev);
+    // A caller whose positions are sealed (phase 5 section 9.3) spends `limit` on the document
+    // changes it can read alone, and the run stops just before the first readable one past it:
+    // how far a run gets, and whether one remains, never depend on changes it cannot read.
+    let sealed_walk = cx.call().sealed_positions && !rebuild;
+    let mut taken = 0u64;
+    if sealed_walk {
+        loop {
+            let page = cx.derive_changes(space, to, PAGE)?;
+            let Some(last) = page.last().map(|change| change.rev) else {
+                break;
+            };
+            let readable = readable_document_revs(cx, space, to, last)?;
+            for change in &page {
+                let document = matches!(change.kind, ChangeKind::Put | ChangeKind::Delete);
+                if document && readable.contains(&change.rev) {
+                    if taken >= limit {
+                        remaining = true;
+                        break;
+                    }
+                    taken += 1;
+                }
+                to = change.rev;
+                if document {
+                    touched.insert(change.target.clone(), change.rev);
+                }
+            }
+            if remaining || page.len() < PAGE as usize {
+                break;
             }
         }
-        seen += page.len() as u64;
-        if page.len() < want as usize {
-            break;
-        }
-        if seen >= budget {
-            remaining = !cx.derive_changes(space, to, 1)?.is_empty();
-            break;
+    } else {
+        loop {
+            let want =
+                u32::try_from(budget.saturating_sub(seen).min(u64::from(PAGE))).unwrap_or(PAGE);
+            if want == 0 {
+                break;
+            }
+            let page = cx.derive_changes(space, to, want)?;
+            for change in &page {
+                to = change.rev;
+                if matches!(change.kind, ChangeKind::Put | ChangeKind::Delete) {
+                    touched.insert(change.target.clone(), change.rev);
+                }
+            }
+            seen += page.len() as u64;
+            if page.len() < want as usize {
+                break;
+            }
+            if seen >= budget {
+                remaining = !cx.derive_changes(space, to, 1)?.is_empty();
+                break;
+            }
         }
     }
 
@@ -172,14 +228,18 @@ fn build(
         match cx.derive_document(space, id)? {
             Some(document) => {
                 let analysed = analyse(&document);
+                let part = totals.per_doc.entry(id.clone()).or_default();
                 if let Some(facts) = &analysed.code
                     && (index_needs || graph_needs)
                 {
+                    part.code_file = true;
+                    part.code_symbols = facts.symbols.len();
                     totals.code_files += 1;
                     totals.code_symbols += facts.symbols.len();
                     if let Mode::PlainText(reason) = facts.mode
                         && reason.degraded()
                     {
+                        part.degraded = true;
                         totals.degraded.push((id.clone(), reason.code()));
                     }
                 }
@@ -193,7 +253,11 @@ fn build(
                     let built =
                         index_chunks(&document, &chunked, &code_fields, &ranking.index.filterable);
                     totals.chunks += built.len();
+                    let part = totals.per_doc.entry(id.clone()).or_default();
+                    part.chunks = built.len();
+                    part.indexed = true;
                     if chunked.limited {
+                        part.limited = true;
                         totals.limited.push(id.clone());
                     }
                     writer.replace(id, built).map_err(host_error)?;
@@ -212,6 +276,12 @@ fn build(
                     totals.nodes += built.graph.nodes.len();
                     totals.edges += built.graph.edges.len();
                     totals.broken_links += built.unresolved;
+                    let part = totals.per_doc.entry(id.clone()).or_default();
+                    part.graphed = true;
+                    part.nodes = built.graph.nodes.len();
+                    part.edges = built.graph.edges.len();
+                    part.unresolved = built.unresolved;
+                    part.targets.clone_from(&built.targets);
                     for target in &built.targets {
                         if present.len() >= TARGET_LOOKUPS && !present.contains_key(target) {
                             totals.broken_partial = true;
@@ -234,12 +304,15 @@ fn build(
                 totals.kinds.insert(id.clone(), "indexed");
             }
             None => {
+                let part = totals.per_doc.entry(id.clone()).or_default();
                 if index_needs {
                     writer.replace(id, Vec::new()).map_err(host_error)?;
                     totals.removed += 1;
+                    part.removed = true;
                 }
                 if graph_needs {
                     totals.graphed += 1;
+                    part.graphed = true;
                     batch.entries.push((id.clone(), None));
                 }
                 totals.kinds.insert(id.clone(), "removed");
@@ -266,51 +339,76 @@ fn build(
         let _ = cx.checkpoint(space);
     }
     // The true head: this command is a derivation read, so it may count what the caller cannot
-    // read (the totals already do, section 6).
+    // read (the totals already do, section 6) unless its positions are sealed.
     let head = cx.derive_head(space)?.max(index_after);
+    let sealed = cx.call().sealed_positions;
+    // A caller whose positions are sealed sees only what it can read (phase 5 section 9.3).
+    let shown = if sealed {
+        Some(readable_totals(cx, space, from, to, &totals)?)
+    } else {
+        None
+    };
+
+    let position = |rev: u64| cx.doc_position(space, rev);
+    let plain;
+    let totals_view = match &shown {
+        Some(shown) => shown,
+        None => {
+            plain = Shown::of(&totals);
+            &plain
+        }
+    };
 
     // What the caller may be told.
     let (listed, more, truncated) = readable_ids(cx, space, from, to, &totals)?;
     let mut data = json!({
         "space": space,
         "rebuild": rebuild,
-        "fromRev": from,
-        "toRev": to,
-        "applied": index_after,
-        "indexApplied": index_after,
-        "graphApplied": graph_after,
-        "head": head,
-        "documents": { "indexed": totals.indexed, "removed": totals.removed },
-        "chunks": totals.chunks,
+        "fromRev": position(from)?,
+        "toRev": position(to)?,
+        "applied": position(index_after)?,
+        "indexApplied": position(index_after)?,
+        "graphApplied": position(graph_after)?,
+        "head": position(head)?,
+        "documents": { "indexed": totals_view.indexed, "removed": totals_view.removed },
+        "chunks": totals_view.chunks,
         "graph": {
-            "documents": totals.graphed,
-            "nodes": totals.nodes,
-            "edges": totals.edges,
-            "brokenLinks": totals.broken_links,
-            "brokenLinksComplete": !totals.broken_partial,
+            "documents": totals_view.graphed,
+            "nodes": totals_view.nodes,
+            "edges": totals_view.edges,
+            "brokenLinks": totals_view.broken_links,
+            "brokenLinksComplete": !totals_view.broken_partial,
         },
         "ids": listed,
         "idsMore": more,
         "idsComplete": !truncated,
         "remaining": remaining,
     });
-    if totals.code_files > 0
+    if totals_view.code_files > 0
         && let Some(map) = data.as_object_mut()
     {
         map.insert(
             "code".to_owned(),
             json!({
-                "documents": totals.code_files,
-                "symbols": totals.code_symbols,
-                "degraded": totals.degraded.len(),
+                "documents": totals_view.code_files,
+                "symbols": totals_view.code_symbols,
+                "degraded": totals_view.degraded,
             }),
         );
     }
+    let reasoning = if sealed {
+        format!(
+            "Indexed {} and removed {} documents of `{space}` that you can read; the graph holds {} of their contributions rebuilt.",
+            totals_view.indexed, totals_view.removed, totals_view.graphed
+        )
+    } else {
+        format!(
+            "Indexed {} and removed {} documents of `{space}` from revision {from} to {to}; the graph holds {} contributions rebuilt.",
+            totals.indexed, totals.removed, totals.graphed
+        )
+    };
     let mut outcome = success(data)
-    .with_reasoning(&format!(
-        "Indexed {} and removed {} documents of `{space}` from revision {from} to {to}; the graph holds {} contributions rebuilt.",
-        totals.indexed, totals.removed, totals.graphed
-    ))
+    .with_reasoning(&reasoning)
     .with_metadata(
         "dev.umbel/record",
         json!({ "kind": "index", "id": space, "version": index_after }),
@@ -321,12 +419,15 @@ fn build(
     )
     .with_metadata(
         "dev.umbel/index",
-        json!({ space: { "applied": index_after, "head": head, "schema": 1 } }),
+        json!({ space: { "applied": index_after, "head": head, "schema": crate::INDEX_SCHEMA } }),
     );
-    if !totals.degraded.is_empty() {
+    if !totals.degraded.is_empty() && totals_view.degraded > 0 {
+        // The first 20 readable ones; to a sealed caller, never fewer because of ones it
+        // cannot read.
         let mut files = Vec::new();
-        for (id, reason) in totals.degraded.iter().take(20) {
-            if readable(cx, space, id)? {
+        let examined = if sealed { totals.degraded.len() } else { 20 };
+        for (id, reason) in totals.degraded.iter().take(examined) {
+            if files.len() < 20 && readable(cx, space, id)? {
                 files.push(json!({ "id": id, "reason": reason }));
             }
         }
@@ -334,22 +435,23 @@ fn build(
             "CODE_PARSE_DEGRADED",
             &format!(
                 "{} code file(s) were indexed as plain text because their parse exceeded a budget or failed; the reason of each readable one is listed",
-                totals.degraded.len()
+                totals_view.degraded
             ),
-            json!({ "count": totals.degraded.len(), "files": files }),
+            json!({ "count": totals_view.degraded, "files": files }),
         );
     }
     if remaining {
         outcome = outcome.with_warning_details(
             "INDEX_REMAINING",
             "the run stopped at its limit; run knowledge-index again to continue",
-            json!({ "toRev": to }),
+            json!({ "toRev": position(to)? }),
         );
     }
-    if !totals.limited.is_empty() {
+    if !totals.limited.is_empty() && totals_view.limited > 0 {
         let mut ids = Vec::new();
-        for id in totals.limited.iter().take(20) {
-            if readable(cx, space, id)? {
+        let examined = if sealed { totals.limited.len() } else { 20 };
+        for id in totals.limited.iter().take(examined) {
+            if ids.len() < 20 && readable(cx, space, id)? {
                 ids.push(id.clone());
             }
         }
@@ -357,14 +459,161 @@ fn build(
             "CHUNKS_LIMITED",
             &format!(
                 "{} document(s) have more than {} chunks; only the first {} of each are indexed",
-                totals.limited.len(),
+                totals_view.limited,
                 chunk::MAX_CHUNKS,
                 chunk::MAX_CHUNKS
             ),
-            json!({ "count": totals.limited.len(), "ids": ids }),
+            json!({ "count": totals_view.limited, "ids": ids }),
         );
     }
     Ok(outcome)
+}
+
+/// The revisions of the document changes the caller can read after `after` and at or before
+/// `last`.
+fn readable_document_revs(
+    cx: &Cx,
+    space: &str,
+    after: u64,
+    last: u64,
+) -> Result<std::collections::BTreeSet<u64>, HostError> {
+    let mut revs = std::collections::BTreeSet::new();
+    let mut cursor = after;
+    loop {
+        let page = cx.doc_changes(space, cursor, PAGE, None)?;
+        for change in &page {
+            if change.rev > last {
+                return Ok(revs);
+            }
+            cursor = change.rev;
+            if matches!(change.kind, ChangeKind::Put | ChangeKind::Delete) {
+                revs.insert(change.rev);
+            }
+        }
+        if page.len() < PAGE as usize {
+            return Ok(revs);
+        }
+    }
+}
+
+/// The totals a result shows.
+struct Shown {
+    indexed: usize,
+    removed: usize,
+    chunks: usize,
+    limited: usize,
+    graphed: usize,
+    nodes: usize,
+    edges: usize,
+    broken_links: usize,
+    broken_partial: bool,
+    code_files: usize,
+    code_symbols: usize,
+    degraded: usize,
+}
+
+impl Shown {
+    /// Every document's, for a caller whose positions are plain.
+    fn of(totals: &Totals) -> Self {
+        Self {
+            indexed: totals.indexed,
+            removed: totals.removed,
+            chunks: totals.chunks,
+            limited: totals.limited.len(),
+            graphed: totals.graphed,
+            nodes: totals.nodes,
+            edges: totals.edges,
+            broken_links: totals.broken_links,
+            broken_partial: totals.broken_partial,
+            code_files: totals.code_files,
+            code_symbols: totals.code_symbols,
+            degraded: totals.degraded.len(),
+        }
+    }
+}
+
+/// The run's totals over the documents the caller can read (phase 5 section 9.3): a removal it
+/// can read in the change log, a write it can read now; and a link to a document it cannot read
+/// counts as broken, as `knowledge-describe` shows one.
+fn readable_totals(
+    cx: &Cx,
+    space: &str,
+    from: u64,
+    to: u64,
+    totals: &Totals,
+) -> Result<Shown, HostError> {
+    let mut last: BTreeMap<String, ChangeKind> = BTreeMap::new();
+    let mut after = from;
+    'pages: loop {
+        let page = cx.doc_changes(space, after, PAGE, None)?;
+        for change in &page {
+            if change.rev > to {
+                break 'pages;
+            }
+            after = change.rev;
+            if matches!(change.kind, ChangeKind::Put | ChangeKind::Delete)
+                && totals.per_doc.contains_key(&change.target)
+            {
+                last.insert(change.target.clone(), change.kind);
+            }
+        }
+        if page.len() < PAGE as usize {
+            break;
+        }
+    }
+    let mut shown = Shown {
+        indexed: 0,
+        removed: 0,
+        chunks: 0,
+        limited: 0,
+        graphed: 0,
+        nodes: 0,
+        edges: 0,
+        broken_links: 0,
+        broken_partial: false,
+        code_files: 0,
+        code_symbols: 0,
+        degraded: 0,
+    };
+    let mut known: BTreeMap<String, bool> = BTreeMap::new();
+    for (id, kind) in last {
+        let visible = match kind {
+            ChangeKind::Delete => true,
+            _ => readable(cx, space, &id)?,
+        };
+        let Some(part) = totals.per_doc.get(&id).filter(|_| visible) else {
+            continue;
+        };
+        shown.indexed += usize::from(part.indexed);
+        shown.removed += usize::from(part.removed);
+        shown.chunks += part.chunks;
+        shown.limited += usize::from(part.limited);
+        shown.graphed += usize::from(part.graphed);
+        shown.nodes += part.nodes;
+        shown.edges += part.edges;
+        shown.code_files += usize::from(part.code_file);
+        shown.code_symbols += part.code_symbols;
+        shown.degraded += usize::from(part.degraded);
+        shown.broken_links += part.unresolved;
+        for target in &part.targets {
+            if known.len() >= TARGET_LOOKUPS && !known.contains_key(target) {
+                shown.broken_partial = true;
+                continue;
+            }
+            let here = match known.get(target) {
+                Some(here) => *here,
+                None => {
+                    let here = readable(cx, space, target)?;
+                    known.insert(target.clone(), here);
+                    here
+                }
+            };
+            if !here {
+                shown.broken_links += 1;
+            }
+        }
+    }
+    Ok(shown)
 }
 
 /// An index write refused: the host's mapping for the store errors it knows, and a failure of its

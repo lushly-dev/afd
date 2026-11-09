@@ -9,7 +9,7 @@ import {
 	SERVED_GRANTS_V2,
 	SHELL_RESERVED_CHORDS_V1,
 } from './catalogs.js';
-import type { Finding } from './core-rules.js';
+import { type Finding, needsInput } from './core-rules.js';
 import { documentRules } from './document-rules.js';
 import { keyOf, valueAt } from './pointers.js';
 import type { ManifestRefusalCode, ManifestV2 } from './types.js';
@@ -18,7 +18,8 @@ type Ui = NonNullable<ManifestV2['ui']>;
 type Surfaces = NonNullable<Ui['surfaces']>;
 
 const SERVED_GRANTS = SERVED_GRANTS_V2;
-const CONTROL = /\p{Cc}/u;
+/** A control character, or a bidirectional formatting one, which can reorder what a person reads. */
+const CONTROL = /[\p{Cc}\p{Bidi_Control}]/u;
 /** Reserved by the HTML standard, though each has a hyphen. */
 const RESERVED_ELEMENTS = new Set([
 	'annotation-xml',
@@ -72,21 +73,6 @@ export const VERSION_TWO_KEYS: readonly VersionKey[] = [
 	{ pointer: '/ui/new' },
 ];
 
-/**
- * The version 2 keys no step has served yet, each refused as `MANIFEST_SURFACE_UNAVAILABLE` under
- * `manifest_version = 2`. **Delete the one line of the step that serves a key**, in the pull request
- * of that step, with the `not-yet-served-*` cases in `profile-cases.json` that name it (phase 2
- * specification, 16, step 3). The key then reads as the schema says, and its own rules arrive with
- * that step. Step 4 served `app.resource_keys` (`resourceKeyRules`), with kernel interface 2, which
- * holds a `ManifestV2`, so nothing narrows a manifest any longer. Step 6 served the `tree` sidebar, whose
- * one rule, a `command`, the schema holds. Step 7 served `ui.project_summary` (`summaryRules`). Step 9
- * served `ui.documents` (`documentRules`, the documents specification's 2.1).
- */
-export const NOT_YET_SERVED: readonly (VersionKey & { readonly instead?: string })[] = [
-	// Step 11 serves `ui.new`. Its rules: `MANIFEST_COMMAND_UNKNOWN`, `MANIFEST_COMMAND_NEEDS_INPUT`.
-	{ pointer: '/ui/new' },
-];
-
 const holds = (document: unknown, key: VersionKey): boolean => {
 	const found = valueAt(document, key.pointer);
 	return key.value === undefined ? found !== undefined : found === key.value;
@@ -112,20 +98,13 @@ export function versionKeyFindings(document: unknown): Finding[] {
 	}));
 }
 
+/**
+ * A version 1 manifest's version 2 keys. Each version 2 key was refused as `MANIFEST_SURFACE_UNAVAILABLE`
+ * until the step that served it (phase 2 specification, 16, step 3); step 11 served the last, `ui.new`, and
+ * took that list and its loop away with it, so a later key arrives with a manifest version of its own.
+ */
 function versionRules(manifest: ManifestV2, found: Findings): void {
 	found.refusals.push(...versionKeyFindings(manifest));
-	// A version 1 manifest is told one thing at a time: the version first.
-	if (manifest.manifest_version === 1) return;
-	for (const key of NOT_YET_SERVED) {
-		if (holds(manifest, key)) {
-			found.refuse(
-				'MANIFEST_SURFACE_UNAVAILABLE',
-				key.pointer,
-				`${describeKey(key)} is part of phase 2, and no build serves it yet.`,
-				key.instead ?? `Remove ${describeKey(key)} until phase 2 serves it.`
-			);
-		}
-	}
 }
 
 function packedRules(manifest: ManifestV2, found: Findings): void {
@@ -498,7 +477,7 @@ function textRules(manifest: ManifestV2, found: Findings): void {
 			found.refuse(
 				'MANIFEST_TEXT_INVALID',
 				pointer,
-				"It holds a control character, and it reaches a person's screen.",
+				"It holds a control or bidirectional formatting character, and it reaches a person's screen.",
 				'Remove the control character.'
 			);
 		}
@@ -519,6 +498,9 @@ function textRules(manifest: ManifestV2, found: Findings): void {
 	});
 	(manifest.ui?.resources ?? []).forEach((resource, index) => {
 		add(`/ui/resources/${index}/title`, resource.title);
+	});
+	(manifest.ui?.new ?? []).forEach((entry, index) => {
+		add(`/ui/new/${index}/title`, entry.title);
 	});
 	(manifest.ui?.documents ?? []).forEach((type, index) => {
 		add(`/ui/documents/${index}/title`, type.title);
@@ -612,6 +594,53 @@ function summaryRules(manifest: ManifestV2, found: Findings): void {
 	}
 }
 
+/**
+ * `ui.new` (documents specification, 2.1), for every manifest, with surfaces or none: each creator names a
+ * command of this manifest that needs no input, since New calls it with `{}` as the person, in levels the app
+ * takes. A mounted manifest declares none: its commands are unknown until discovery, as for its types.
+ */
+function newRules(manifest: ManifestV2, found: Findings): void {
+	const entries = manifest.ui?.new ?? [];
+	if (entries.length === 0) return;
+	if (manifest.plugin.kind === 'mounted') {
+		found.refuse(
+			'MANIFEST_SURFACE_KIND',
+			'/ui/new',
+			'A mounted app declares no creator: its commands are unknown until discovery.',
+			'Remove `ui.new`.'
+		);
+		return;
+	}
+	const levels = manifest.app?.scope_levels ?? ['workspace'];
+	entries.forEach(({ command, scope_levels }, index) => {
+		const pointer = `/ui/new/${index}/command`;
+		const declared = manifest.commands?.find((candidate) => candidate.name === command);
+		if (!declared) {
+			found.refuse(
+				'MANIFEST_COMMAND_UNKNOWN',
+				pointer,
+				`\`${command}\` is not a command this manifest declares.`,
+				'Declare it in `commands`, or name one that is.'
+			);
+		} else if (needsInput(declared.input_schema)) {
+			found.refuse(
+				'MANIFEST_COMMAND_NEEDS_INPUT',
+				pointer,
+				`\`${command}\` needs input.`,
+				'Name a command whose input schema accepts `{}`.'
+			);
+		}
+		if (scope_levels?.some((level) => !levels.includes(level))) {
+			found.refuse(
+				'MANIFEST_INVALID',
+				`/ui/new/${index}/scope_levels`,
+				"A creator's levels are a subset of `app.scope_levels`.",
+				`Use only ${levels.join(' and ')}, or widen \`app.scope_levels\`.`
+			);
+		}
+	});
+}
+
 /** Loam's rules, for a manifest that passed the schema. */
 export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings: Finding[] } {
 	const found = new Findings();
@@ -626,6 +655,7 @@ export function loamRules(manifest: ManifestV2): { refusals: Finding[]; warnings
 	compositionRules(manifest, found);
 	resourceKeyRules(manifest, found);
 	summaryRules(manifest, found);
+	newRules(manifest, found);
 	documentRules(manifest, found.refuse.bind(found), elementCheck(found));
 	textRules(manifest, found);
 	return found;

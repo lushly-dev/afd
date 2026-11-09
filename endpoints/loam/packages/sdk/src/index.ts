@@ -178,6 +178,72 @@ export interface DocumentTypeV1 {
 	editorKind: 'native' | 'view';
 }
 
+/**
+ * One row of `new-list` (documents specification, 7): a type's template, created by `document-create`, or an
+ * app's `ui.new` creator, whose command needs no input.
+ */
+export type NewItemV1 =
+	| {
+			kind: 'document';
+			type: string;
+			template: string;
+			title: string;
+			icon: string;
+			recent: boolean;
+	  }
+	| { kind: 'creator'; instance: string; command: string; title: string; icon: string };
+
+/**
+ * One reference between two documents of a workspace (documents specification, 9.3; D81): from a document,
+ * to one, by a kind, with an anchor in the from document's locator. Links cross projects freely, and a reader
+ * sees only those whose other end it may read.
+ */
+export interface DocumentLinkV1 {
+	/** `lnk_` and 12 characters, from the command's random. */
+	id: string;
+	workspace: string;
+	/** A document's id. */
+	from: string;
+	/** A document's id. */
+	to: string;
+	/** JSON, at most 1 KiB: the from document's locator, under its binding. */
+	anchor: unknown;
+	/** `reference` by default, or `embed`; `^[a-z][a-z-]{0,31}$`. */
+	kind: string;
+	createdAt: number;
+	createdBy: string;
+}
+
+/** One row of `document-link-list`: the link, and the other document as the reader may see it (9.3). */
+export interface LinkRowV1 {
+	link: DocumentLinkV1;
+	document: {
+		id: string;
+		title: string;
+		type: string;
+		status: DocumentRecordV1['status'];
+		scope: ScopeV1;
+	};
+}
+
+/**
+ * What the `documents` grant gives a surface (documents specification, 11): metadata, references and
+ * backlinks of the documents the caller may read, within its scope, and opening one. Content is read only
+ * through the type's editor and commands, under `store`.
+ */
+export interface DocumentsV1 {
+	get(document: string): Promise<DocumentRecordV1 | null>;
+	list(options?: {
+		type?: string;
+		tag?: string;
+		query?: string;
+		limit?: number;
+	}): Promise<DocumentRecordV1[]>;
+	links(document: string): Promise<{ out: LinkRowV1[]; in: LinkRowV1[] }>;
+	/** Refused unless this app is the active app or the editor owner, `DOCUMENT_OPEN_NOT_ACTIVE`. */
+	open(document: string, options?: { group?: 'active' | 'beside' }): Promise<void>;
+}
+
 /** The store key of a document's content, in its type's `store` (documents specification, 3). */
 export function documentContentKey(document: string): string {
 	return `doc/${document}`;
@@ -202,6 +268,8 @@ export interface AppContextV1 {
 	readonly registry: CustomElementRegistry;
 	readonly kit: KitV1;
 	readonly overlays: OverlaysV1;
+	/** A surface's, with the `documents` grant (documents specification, 11). */
+	readonly documents?: DocumentsV1;
 	/**
 	 * Moves this app's route, by `app-route-set`, so the URL follows (phase 2 specification, 11.3). Native
 	 * only: a view calls `app-route-set` through its client.
@@ -243,6 +311,7 @@ export const KIT_ELEMENT_NAMES_V1 = [
 	'violet-text-field',
 	'loam-list',
 	'loam-status-item',
+	'loam-embed',
 ] as const;
 
 export type KitElementNameV1 = (typeof KIT_ELEMENT_NAMES_V1)[number];
@@ -270,6 +339,55 @@ export interface LoamSurfaceElementV1 extends HTMLElement {
 	/** The level the selection was made at, in a dual-scope app's sidebar. */
 	selectionLevel?: 'workspace' | 'project';
 }
+
+/**
+ * The document an editor renders (documents specification, 5.6). Assigned before the element connects; a
+ * new title is a new object.
+ */
+export interface DocumentRefV1 {
+	readonly id: string;
+	readonly type: string;
+	readonly title: string;
+	readonly scope: ScopeV1;
+	readonly contentVersion: number;
+	readonly binding: BindingV1;
+	/** True in an embed. */
+	readonly readOnly: boolean;
+}
+
+/** Another call changed a document: an instance command that is a mutation succeeded (5.7). */
+export interface DocumentChangeV1 {
+	readonly document: string;
+	readonly command: string;
+	readonly seq?: number;
+}
+
+/**
+ * A document type's native editor (documents specification, 5.6). Every hook is optional, and all are called
+ * by the shell. Its `context.client` is a surface port created with the document's scope.
+ */
+export interface LoamEditorElementV1 extends LoamSurfaceElementV1 {
+	document?: DocumentRefV1;
+	/** Write through the type's own commands. Rejecting keeps the tab dirty. */
+	save?(): Promise<void>;
+	/** Called before the element is dropped. Not given a time limit. */
+	dispose?(): void | Promise<void>;
+	/**
+	 * Another call changed this document: re-read it. Called on every open editor of it, this one's own calls
+	 * included (5.7).
+	 */
+	documentChanged?(change: DocumentChangeV1): void;
+}
+
+/**
+ * What an editor dispatches, bubbling and composed, from its element, on each edit, not only when its state
+ * changes: `detail` is `{ dirty: boolean }`. The shell's autosave timer restarts on each, and a leaving editor
+ * counts them to know of an edit made after its save began (documents specification, 5.5).
+ */
+export const EDITOR_DIRTY_EVENT = 'loam-editor-dirty';
+
+/** What an editor dispatches, bubbling and composed, from its element: `detail` is the selection, or null. */
+export const EDITOR_SELECTION_EVENT = 'loam-editor-selection';
 
 export type OverlayKindV1 = 'toast' | 'modal';
 

@@ -410,13 +410,28 @@ pub(crate) struct ToolSurface {
     pub(crate) visible: Option<Visibility>,
 }
 
-/// A listing filter the MCP server sets for one request: whether the caller may see a command.
+/// A filter the MCP server sets for one request (which commands the caller may list, or which
+/// exist for it): the names it admits, decided once when the request arrives.
 #[derive(Clone)]
-pub(crate) struct Visibility(pub(crate) Arc<dyn Fn(&CommandDefinition) -> bool + Send + Sync>);
+pub(crate) struct Visibility(pub(crate) Arc<std::collections::HashSet<String>>);
 
 impl Visibility {
     pub(crate) fn allows(&self, command: &CommandDefinition) -> bool {
-        (self.0)(command)
+        self.0.contains(&command.name)
+    }
+
+    pub(crate) fn allows_name(&self, name: &str) -> bool {
+        self.0.contains(name)
+    }
+
+    /// `names` without those it does not admit, in order: a command's `requires` as this caller
+    /// may read it (`spec/authorization.md`, M6, "Hidden commands").
+    pub(crate) fn admitted(&self, names: &[String]) -> Vec<String> {
+        names
+            .iter()
+            .filter(|name| self.allows_name(name))
+            .cloned()
+            .collect()
     }
 }
 
@@ -516,6 +531,11 @@ pub struct CommandContext {
     pub(crate) remote: bool,
     /// How the MCP server lists its tools: read by `afd-help`. Only the MCP server sets it.
     pub(crate) tool_surface: Option<ToolSurface>,
+    /// Which commands exist for the caller (`spec/authorization.md`, M6, "Hidden commands"):
+    /// one it rejects is looked up as a name that does not exist, before anything else, by every
+    /// execution under this context (batch items, pipeline steps, nested calls that pass the
+    /// context on). Only the MCP server sets it.
+    pub(crate) known: Option<Visibility>,
     /// The caller's output budget ask (`spec/output-budgets.md`, B2) in its `_meta` form,
     /// `{ "maxBytes": n }`, not yet validated: [`CommandRegistry::execute`] checks it after the
     /// declared context fields. Set in process by [`CommandContext::with_output_budget_ask`], and
@@ -562,6 +582,7 @@ impl fmt::Debug for CommandContext {
             .field("journal_state", &self.journal_state)
             .field("context_scope", &self.context_scope)
             .field("tool_surface", &self.tool_surface)
+            .field("known", &self.known)
             .field("output_budget_ask", &self.output_budget_ask)
             .field("output_budget", &self.output_budget)
             .field("scope_check", &self.scope_check)
@@ -1617,7 +1638,10 @@ impl CommandRegistry {
     ///    to three close matches, as in TypeScript, chosen among the commands
     ///    exposed to `context.interface` (all commands when it is unset) and
     ///    available in the active context, and points to `afd-help` when that
-    ///    is one of them (`afd-discover` for the MCP server's calls).
+    ///    is one of them (`afd-discover` for the MCP server's calls). On an
+    ///    authorized MCP server, a command its resolver hides from the caller
+    ///    is an unknown name here, with the same answer
+    ///    (`spec/authorization.md`, M6, "Hidden commands").
     /// 2. When `context.interface` is set, a command not exposed to that
     ///    interface returns `COMMAND_NOT_EXPOSED` (see [`ExposeOptions`]); the
     ///    MCP server's calls get `COMMAND_NOT_FOUND` instead, as for an unknown
@@ -1684,14 +1708,25 @@ impl CommandRegistry {
                 .interface
                 .is_none_or(|interface| candidate.expose.is_exposed_to(interface))
         };
+        // A command that does not exist for the caller (one an authorized server's resolver
+        // hides from it, `spec/authorization.md`, M6) is a missing one, before any other check.
+        let known = |candidate: &CommandDefinition| {
+            context
+                .known
+                .as_ref()
+                .is_none_or(|known| known.allows(candidate))
+        };
         // A remote caller cannot tell an unexposed command from a missing one (D4).
         let command = self
             .get(name)
+            .filter(|command| known(command))
             .filter(|command| !context.remote || visible(command));
         let Some(command) = command else {
             // Suggest only names the caller could call: an interface caller must
             // not learn the names of commands that are not exposed to it, nor one an
-            // authorized server hides from it by scope (`spec/authorization.md`, M6).
+            // authorized server hides from it by scope (`spec/authorization.md`, M6): the
+            // listing filter, which the server sets whenever it sets `known`, holds only
+            // commands that exist for the caller.
             let listed = context
                 .tool_surface
                 .as_ref()
@@ -1733,7 +1768,7 @@ impl CommandRegistry {
             if !command.is_accessible_in_context(Some(active)) {
                 let context_tools = self
                     .get(crate::builtin_names::AFD_CONTEXT_COMMAND_NAMES[0])
-                    .is_some_and(|list| visible(&list));
+                    .is_some_and(|list| visible(&list) && known(&list));
                 return failure(crate::contexts::not_in_context_error(
                     &command,
                     active,

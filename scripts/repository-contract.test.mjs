@@ -312,6 +312,8 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		'app-hello',
 		'app-tally',
 		'app-tasks',
+		'app-notes',
+		'app-checklist',
 	];
 	for (const name of loam) {
 		const unit = inventory.units.find((entry) => entry.id === `loam-${name}`);
@@ -393,6 +395,100 @@ test('a workflow reads the one output its affected.mjs gate writes', () => {
 	}
 });
 
+test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual run opens every gate", () => {
+	// scripts/loam-exit-check.mjs reads a manual run's jobs and log; a skipped job or a hidden title fails it.
+	const loam = read('.github/workflows/loam.yml');
+	for (const workflow of [loam, read('.github/workflows/ci.yml')]) {
+		assert.match(workflow, /^ {2}workflow_dispatch:$/m);
+		assert.match(
+			workflow,
+			/AFD_SCOPE: \$\{\{ \(github\.event_name == 'pull_request' \|\| github\.event_name == 'push'\) && 'affected' \|\| 'all' \}\}/
+		);
+	}
+	// Each job past the gate reads a gate output the scope job sets from a gate step's `run`.
+	for (const [job, output] of [
+		['loam', 'run'],
+		['walk', 'run'],
+		['mounted', 'mounted'],
+	]) {
+		const block = new RegExp(
+			`^ {2}${job}:\\n[\\s\\S]*?(?=^ {2}[\\w-]+:\\n|$(?![\\s\\S]))`,
+			'm'
+		).exec(loam)?.[0];
+		assert.ok(block, job);
+		assert.match(block, /^ {4}needs: scope$/m, job);
+		assert.match(block, new RegExp(`^ {4}if: needs\\.scope\\.outputs\\.${output} == 'true'$`, 'm'));
+		assert.match(
+			loam,
+			new RegExp(`^ {6}${output}: \\$\\{\\{ steps\\.[\\w-]+\\.outputs\\.run \\}\\}$`, 'm')
+		);
+	}
+	assert.match(
+		loam,
+		/- name: Unit suites with coverage\n {8}run: pnpm -F "\.\/endpoints\/loam\/packages\/\*" -F "\.\/endpoints\/loam\/apps\/\*" test --coverage --reporter=verbose\b/
+	);
+	assert.ok(
+		loam.includes(
+			"- name: AFD's lean path\n        run: |\n" +
+				'          pnpm -F @lushly-dev/afd-server exec vitest run src/entry-points.test.ts --reporter=verbose --reporter=github-actions\n' +
+				'          node --test --test-reporter=spec scripts/plugin-manifest.test.mjs\n'
+		)
+	);
+	// test:browser chains two runs, so a flag would reach only the last: each config names the reporter.
+	for (const config of ['browser', 'conformance', 'mounted', 'walk'])
+		assert.match(
+			read(`endpoints/loam/packages/web/vitest.${config}.config.ts`),
+			/^\t\treporters: process\.env\.GITHUB_ACTIONS === 'true' \? \['verbose', 'github-actions'\] : \['verbose'\],$/m,
+			config
+		);
+	assert.match(read('packages/server/src/entry-points.test.ts'), /'P2-E2: /);
+	assert.match(read('scripts/plugin-manifest.test.mjs'), /test\("P2-E11: /);
+});
+
+test("Loam's exit tests cannot pass by retry, expected failure, skip, todo or only", () => {
+	// Vitest prints a test that passed on a retry, or an `it.fails` that failed, as a plain pass, so the
+	// exit check (scripts/loam-exit-check.mjs) cannot see them in a log: the tests its rows read hold none.
+	const files = [
+		...execFileSync(
+			'git',
+			[
+				'ls-files',
+				'endpoints/loam/packages/*.test.ts',
+				'endpoints/loam/apps/*.test.ts',
+				'endpoints/loam/packages/*/vitest*.config.ts',
+				'endpoints/loam/apps/*/vitest*.config.ts',
+			],
+			{ cwd: repoRoot, encoding: 'utf8' }
+		)
+			.split('\n')
+			.filter(Boolean),
+		'packages/server/src/entry-points.test.ts',
+		'packages/server/vitest.config.ts',
+		'scripts/plugin-manifest.test.mjs',
+	];
+	assert.ok(files.length > 100, `${files.length} files`);
+	const refused = [
+		// it.skip, test.only, describe.todo, it.fails, describe.skipIf, it.runIf, and their chains.
+		/\b(?:it|test|describe|suite|bench)(?:\.\w+)*\.(?:skip|only|todo|fails|skipIf|runIf)\b/,
+		// A test's own context, in Vitest or node: `ctx.skip()`, `t.todo()`.
+		/\b(?:ctx|context|t|task)\.(?:skip|todo)\s*\(/,
+		/\bexpectFailure\b/,
+		// Vitest's `retry` option, in a config or a test's options.
+		/\bretry\s*:/,
+		// node's options: `{ skip: true }`, `{ todo: 'later' }`, `{ only: true }`.
+		/\{\s*(?:skip|todo|only)\s*:/,
+	];
+	const found = [];
+	for (const file of files) {
+		const lines = read(file).split('\n');
+		lines.forEach((line, index) => {
+			for (const pattern of refused)
+				if (pattern.test(line)) found.push(`${file}:${index + 1}: ${line.trim()}`);
+		});
+	}
+	assert.deepEqual(found, []);
+});
+
 test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'
@@ -462,6 +558,40 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	// The knowledge job uploads its eval report as a workflow artifact; that is not publication.
 	assert.doesNotMatch(umbel, /publish|upload(?!-artifact)|id-token|secrets\./);
 	assert.match(umbel, /actions\/upload-artifact@[0-9a-f]{40} # v/);
+});
+
+test("Umbel's test identity provider is a private, route-less, test-only unit", async () => {
+	const { assertAdmission, discoverDistributions, loadInventory } = await import(
+		'./release/control.mjs'
+	);
+	const inventory = loadInventory(repoRoot);
+	const unit = inventory.units.find((entry) => entry.id === 'umbel-testkit-idp');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest, entry.format, entry.private]),
+		[['umbel-testkit-idp', 'endpoints/umbel/testkit-idp/Cargo.toml', 'rust', true]]
+	);
+	assert.ok(!discoverDistributions(repoRoot, inventory).some((entry) => entry.unit === unit.id));
+	for (const route of ['crates-tag', 'npm-main'])
+		assert.throws(
+			() => assertAdmission({ root: repoRoot, inventory, unit: unit.id, route }),
+			/not admitted|route/,
+			route
+		);
+	const manifest = read('endpoints/umbel/testkit-idp/Cargo.toml');
+	assert.match(manifest, /^publish = false$/m);
+	assert.doesNotMatch(manifest, /^\[\[bin\]\]/m);
+	// Phase 5 specification, section 1: the host names it only as a dev-dependency
+	// (`tests/no_auth_server.rs` checks every workspace crate through `cargo metadata`).
+	const sections = read('endpoints/umbel/Cargo.toml').split(/\n(?=\[)/);
+	const linked = sections.filter((section) =>
+		/^\[(dependencies|build-dependencies|target\.[^\]]+\.(dependencies|build-dependencies))(\.[^\]]+)?\]/.test(
+			section
+		)
+	);
+	assert.ok(linked.some((section) => section.startsWith('[dependencies]')));
+	for (const section of linked) assert.doesNotMatch(section, /testkit-idp/);
 });
 
 test('every published package type-checks its tests', () => {

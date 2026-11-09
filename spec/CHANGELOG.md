@@ -133,6 +133,24 @@ or a host's declaration that its hook identifies callers) creates no task, decla
 an `optional` command inline and refuses a `required` one with `UNAUTHORIZED`;
 and the default store is bounded, dropping finished tasks to make room before a full store fails the
 call with `RATE_LIMITED`, with a limit on the tasks one process runs.
+Umbel phase 5's follow-up of 2026-11-08 adds [hidden commands](./authorization.md#hidden-commands) to
+M6: with filtered listings and a resolver, a command for which the resolver's new
+`known(command, credentials)` (default `visible`) is false does not exist for that caller, and every
+route (a command's own tool, a hybrid first-class tool, a grouped action, `afd-call`, `afd-batch`
+and `afd-pipe` steps, `afd-detail` and the listings) answers it byte for byte as a name that does not
+exist, before validation and before any middleware, confirmation, relay or task. `visible` and
+`known` must be pure functions of the command and the credentials, and the server decides them once
+per request (a task runs with that answer); a command name that does not exist for the caller
+(unknown, unexposed or hidden) is decided on `requiredScopes` alone, the resolver never asked about
+it; `resolve` still decides calls to commands that exist; `requires` names only commands that exist
+for the caller; a `tasks/*` request on a task whose command no longer exists for its owner gets the
+unknown-task answer; and `afd-help`'s `firstClassTools` names only first-class tools the caller's
+list shows. Because `known` defaults to `visible`, it is a behaviour change for a server with
+filtered listings and a resolver: a command the caller cannot list, which it could still call (or
+be refused with a 403 naming a scope), is now unknown to it unless the resolver overrides `known`.
+`error-codes.md` (D4), `command-metadata.md` (`requires`, Tasks) and `tool-strategies.md` point to
+it. Rust implements it; it changes no case, fixture or wire field, and nothing for a server without
+filtered listings, a resolver or credentials.
 
 [`plugin-manifest.md`](./plugin-manifest.md) specifies the shared plugin manifest (Loam D58): core
 version 1, JSON Schema `$defs` with every object left open and reserved keys refused, and the contract

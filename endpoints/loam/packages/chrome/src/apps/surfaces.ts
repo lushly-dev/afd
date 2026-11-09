@@ -21,9 +21,10 @@ import type {
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
 import type { AppContextV1 } from '@lushly-dev/loam-sdk';
+import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { APP_OPEN_EVENT } from '../elements/app-entry.js';
 import { deepActiveElement } from '../elements/events.js';
-import { LIST_SELECT_EVENT, type LoamList } from '../elements/list.js';
+import { LIST_SELECT_EVENT } from '../elements/list.js';
 import type { LoamMount } from '../elements/mount.js';
 import type { LoamNotice } from '../elements/notice.js';
 import { type LoamPartHeader, PART_ACTION_EVENT } from '../elements/part-header.js';
@@ -38,7 +39,7 @@ import { focusFallback, focusMainHeading } from './focus-fallback.js';
 import { createKit } from './kit-loader.js';
 import { OverlaySurfaces } from './overlay-surfaces.js';
 import { type Parked, park, restore } from './parking.js';
-import { readSidebarList, selectInLists, sidebarLists } from './sidebar.js';
+import { readSidebarList, type SidebarList, selectInLists, sidebarLists } from './sidebar.js';
 import { StatusItems } from './status-items.js';
 import { surfaceCalls } from './surface-calls.js';
 
@@ -70,7 +71,7 @@ interface HeldApp {
 	sidebar?: Parked;
 	panel?: Parked;
 	/** A `list` or `tree` sidebar's lists: two, at each level, for a dual-scope app in a project (7.4). */
-	lists?: LoamList[];
+	lists?: SidebarList[];
 }
 
 /** Added to `loam-main` from this chunk, so the empty shell's styles do not grow. */
@@ -141,7 +142,7 @@ export class AppSurfaces implements ShellApps {
 		});
 		this.#listen(LIST_SELECT_EVENT, ({ id, level }, event) => {
 			// A list made before a change of scope is stale: what it selects belongs to the scope left (7.6).
-			if ((event.composedPath()[0] as LoamList).stale) return;
+			if ((event.composedPath()[0] as SidebarList).stale) return;
 			if (this.#showing !== null) {
 				// The level of the list it was made in, in a dual-scope app's sidebar (7.4).
 				void kernel.call('app-selection-set', {
@@ -179,6 +180,34 @@ export class AppSurfaces implements ShellApps {
 	/** A toggle or chord for a part the active app did not declare does nothing (4.5). */
 	undeclared(part: Part): boolean {
 		return this.#declared !== null && !this.#declared.has(part);
+	}
+
+	/**
+	 * The editor frame's way in (scope and projects specification, 2.2; documents specification, 5.6): an
+	 * app's `activate`, run once with no rail entry too, and a mount of one of its elements with a surface
+	 * port fixed to the document's scope.
+	 */
+	host(): SurfaceHostV1 {
+		return {
+			ensureActivated: async (instance) => {
+				const failure = await this.#activate(this.#hold(instance));
+				if (failure !== undefined) throw new Error(failure);
+			},
+			createMount: (instance, element, { scope, document, readOnly }) => {
+				const held = this.#hold(instance);
+				const mount = this.#create<LoamMount>('loam-mount');
+				const surface = held.port.surface({ scope, readOnly });
+				mount.configure({
+					registry: held.registry as CustomElementRegistry,
+					element,
+					context: { ...(held.context as AppContextV1), ...surfaceCalls(held.port, surface.call) },
+					selection: null,
+					scope,
+					document,
+				});
+				return mount;
+			},
+		};
 	}
 
 	/** Run a command for a person, with no input; what it answers shows as a toast when it fails. */
@@ -698,8 +727,13 @@ export class AppSurfaces implements ShellApps {
 				await restore(this.#part('sidebar'), held.sidebar, Updates.next, stale);
 				if (stale()) return;
 			} else if (sidebar.shape === 'list' || sidebar.shape === 'tree') {
+				// A tree is `loam-tree`, in the `documents` chunk, loaded with an app's first tree (phase 2
+				// specification, 7.2).
+				const tree = sidebar.shape === 'tree';
+				if (tree) await (await import('../sections/documents.js')).defineTree();
+				if (stale()) return;
 				held.lists = sidebarLists(
-					() => this.#create<LoamList>('loam-list'),
+					() => this.#create<SidebarList>(tree ? 'loam-tree' : 'loam-list'),
 					sidebar,
 					detail.title,
 					manifest.app?.scope_levels ?? [],

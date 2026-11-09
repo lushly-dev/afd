@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"id": "u-cmgsmhajbyd3pjac3vdqpvuypq",
+	"at": "2026-11-03T10:00:00.000Z",
+	"trace": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+	"principal": "human:corp/U019488227",
+	"actor": "agent:corp/f53f191f9311af35",
+	"namespace": "corp",
+	"transport": "http",
+	"method": "tools/call",
+	"tool": "knowledge-search",
+	"command": "knowledge-search",
+	"space": "main",
+	"outcome": "ok",
+	"bytesIn": 212,
+	"bytesOut": 4810,
+	"durationMs": 31,
+	"task": null
+}

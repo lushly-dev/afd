@@ -272,7 +272,7 @@ const injection = (page: Page) =>
 		};
 	});
 
-describe('E10: the console is every new app first UI', () => {
+describe('P2-E13: E10: the console is every new app first UI', () => {
 	it('shows a new app with its command, and the form runs it', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -500,7 +500,7 @@ describe('E10: the console is every new app first UI', () => {
 	});
 });
 
-describe('E10: results are untrusted', () => {
+describe('P2-E13: E10: results are untrusted', () => {
 	for (const command of ['probe-hostile', 'probe-hostile-failure'])
 		it(`renders ${command} as text, with no markup, script or style from it`, async () => {
 			const opened = await openShell(browser, site.origin);
@@ -539,7 +539,7 @@ describe('E10: results are untrusted', () => {
 	});
 });
 
-describe('E10: the CSP', () => {
+describe('P2-E13: E10: the CSP', () => {
 	it("has teeth: a style attribute is refused on this page, and the adapter's classes are not", async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -561,7 +561,7 @@ describe('E10: the CSP', () => {
 	});
 });
 
-describe('E10: its chunk', () => {
+describe('P2-E13: E10: its chunk', () => {
 	it('loads nothing until a console renders', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -594,7 +594,7 @@ describe('E10: its chunk', () => {
 	});
 });
 
-describe('E11: the console by keyboard', () => {
+describe('P2-E13: E11: the console by keyboard', () => {
 	it('goes filter, list, form, Run, and Enter in a single-line field runs', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
@@ -825,7 +825,7 @@ async function consoleWithEverything(page: Page) {
 	await surfacesIdle(page);
 }
 
-describe('E11: axe with the console', () => {
+describe('P2-E13: E11: axe with the console', () => {
 	for (const theme of THEMES)
 		for (const density of DENSITIES)
 			it(`has no violations in ${theme}, ${density}`, async () => {
@@ -889,7 +889,7 @@ describe('E11: axe with the console', () => {
 	});
 });
 
-describe('E11: the console for a mounted instance', () => {
+describe('P2-E13: E11: the console for a mounted instance', () => {
 	let mounted: DeploymentSite;
 	beforeAll(async () => {
 		const directory = join(root, 'ops');
@@ -947,7 +947,7 @@ describe('E11: the console for a mounted instance', () => {
 	});
 });
 
-describe('E10: a view app with no main surface', () => {
+describe('P2-E13: E10: a view app with no main surface', () => {
 	it("shows the console too, and a person's call reaches the handler frame", async () => {
 		const directory = join(root, 'plain');
 		const created = await loam(['app', 'new', 'plain', '--kind', 'view', '--dir', directory], root);

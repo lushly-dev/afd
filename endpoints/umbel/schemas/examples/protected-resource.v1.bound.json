@@ -1,0 +1,6 @@
+{
+	"resource": "https://umbel.example.com:8443/mcp",
+	"authorization_servers": ["https://as.example.com/tenant/7"],
+	"bearer_methods_supported": ["header"],
+	"tls_client_certificate_bound_access_tokens": true
+}

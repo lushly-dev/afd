@@ -17,9 +17,9 @@ path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-# The command line and the embedded stores, and no loader (so no wasmtime), as `umbel-knowledge`
-# and `umbel-memory` do.
-umbel = { path = "..", default-features = false, features = ["cli", "store-embedded"] }
+# The command line, the embedded stores and the hosted HTTP surface (`auth`, phase 5), and no
+# loader (so no wasmtime), as `umbel-knowledge` and `umbel-memory` do.
+umbel = { path = "..", default-features = false, features = ["auth", "cli", "store-embedded"] }
 umbel-plugin-context = { path = "../plugins/context" }
 umbel-plugin-curator = { path = "../plugins/curator" }
 umbel-plugin-knowledge = { path = "../plugins/knowledge" }

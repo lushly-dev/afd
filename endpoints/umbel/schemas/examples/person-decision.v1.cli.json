@@ -1,0 +1,29 @@
+{
+	"version": 1,
+	"id": "qwfubgcqvhalt4rvmcckgokvse",
+	"for": {
+		"actor": {
+			"kind": "human",
+			"id": "corp/U019488227"
+		},
+		"clientId": null,
+		"issuer": null,
+		"namespace": "corp",
+		"subject": "U019488227"
+	},
+	"command": "memory-erase",
+	"inputDigest": "n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg",
+	"properties": {
+		"space": "main",
+		"principal": "agent:loopback",
+		"dryRun": false
+	},
+	"createdAt": "2026-11-09T10:00:00.000Z",
+	"expires": "2026-11-09T10:10:00.000Z",
+	"status": "pending",
+	"decidedAt": null,
+	"level": null,
+	"authTime": null,
+	"acr": null,
+	"previewHash": null
+}

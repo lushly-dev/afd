@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"id": "u-pxorco4ic4x65p3z4aiaz3h42u",
+	"at": "2026-11-03T10:00:00.000Z",
+	"trace": null,
+	"principal": null,
+	"actor": null,
+	"namespace": null,
+	"transport": "http",
+	"method": "tools/call",
+	"tool": null,
+	"command": null,
+	"space": null,
+	"outcome": "401",
+	"bytesIn": 212,
+	"bytesOut": 180,
+	"durationMs": 1,
+	"task": null
+}

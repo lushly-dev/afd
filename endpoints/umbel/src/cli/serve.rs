@@ -7,7 +7,6 @@
 use crate::host::{Host, HostError};
 use crate::workspace::codes;
 use std::fmt::Display;
-use std::future::IntoFuture;
 use std::io::Write;
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -53,7 +52,19 @@ async fn serve_http(
     out: &mut dyn Write,
 ) -> Result<(), HostError> {
     let workspace = host.workspace();
-    let router = host.http_router()?;
+    if print_token && workspace.config().auth.mode.is_hosted() {
+        return Err(HostError::new(
+            codes::SERVER_START_FAILED,
+            format!(
+                "--print-token prints the loopback token of auth.mode = \"none\", which grants nothing in auth.mode = \"{}\"",
+                workspace.config().auth.mode.as_str()
+            ),
+            "Leave out --print-token: a hosted mode's callers get access tokens from an authorization server its protected-resource metadata names.".to_owned(),
+        ));
+    }
+    // Everything that can refuse (the mode, the TLS files, the token, the shared stores) refuses
+    // before the address is bound.
+    let server = host.http_server()?;
     let bind = workspace.config().http.bind;
     let listener = TcpListener::bind(bind)
         .await
@@ -63,12 +74,27 @@ async fn serve_http(
         .map_err(|error| start_failed("Reading the bound address", error))?;
     // Signal handlers are installed above, before this line: a client that waits for it can
     // stop the server straight away.
-    let token_file = workspace.layout().http_token();
-    eprintln!(
-        "umbel listening on http://{address}{} (token in {})",
-        workspace.config().http.path,
-        token_file.display()
-    );
+    let scheme = if server.is_tls() { "https" } else { "http" };
+    if workspace.config().auth.mode.is_hosted() {
+        eprintln!(
+            "umbel listening on {scheme}://{address}{} (auth.mode = \"{}\", public URL {})",
+            workspace.config().http.path,
+            workspace.config().auth.mode.as_str(),
+            workspace
+                .config()
+                .http
+                .public_url
+                .as_deref()
+                .unwrap_or_default()
+        );
+    } else {
+        let token_file = workspace.layout().http_token();
+        eprintln!(
+            "umbel listening on {scheme}://{address}{} (token in {})",
+            workspace.config().http.path,
+            token_file.display()
+        );
+    }
     if print_token {
         let token = workspace.http_token()?;
         let _ = writeln!(out, "{token}");
@@ -76,11 +102,9 @@ async fn serve_http(
     }
 
     let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-    let serving = axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = stopped.await;
-        })
-        .into_future();
+    let serving = server.serve(listener, async move {
+        let _ = stopped.await;
+    });
     tokio::pin!(serving);
     let interrupted = async {
         signals.wait().await;

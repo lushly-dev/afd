@@ -1,0 +1,17 @@
+{
+	"type": "object",
+	"properties": {
+		"document": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 128,
+			"description": "The new note's id, as document-import returned it in data.next"
+		},
+		"content": {
+			"type": "object",
+			"description": "The exported content, { text, embeds? }"
+		}
+	},
+	"required": ["document", "content"],
+	"additionalProperties": false
+}

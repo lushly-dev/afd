@@ -6,10 +6,10 @@
 			"description": "The space; default: the workspace's default space"
 		},
 		"after_rev": {
-			"type": "integer",
+			"type": ["integer", "string"],
 			"minimum": 0,
 			"default": 0,
-			"description": "Changes after this store revision"
+			"description": "Changes after this store revision, as a change's rev or nextAfterRev gave it to you (a number, or a sealed r1. string in a hosted deployment)"
 		},
 		"limit": {
 			"type": "integer",

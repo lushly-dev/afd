@@ -31,6 +31,12 @@ export interface CommandOwner {
 	instance: string;
 	/** A mounted command: its call is recorded, and a replay does not reach the server (7.6). */
 	recorded?: true;
+	/**
+	 * Whether it needs input, by its shape and the validator's parse of `{}`, as New and a chord decide it:
+	 * the palette's flag reads it, and falls back to the shape alone for a command with none (documents
+	 * specification, 2.1). Set where the validator is, the `apps` chunk.
+	 */
+	needsInput?: boolean;
 }
 
 /** One row of `app-command-list`. */

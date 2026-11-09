@@ -172,3 +172,13 @@ The values above landed, for the theme and the components together:
   own tooltip CSS goes. A dimmed entry uses the disabled state and stays focusable. `loam-list` gains
   a `region` heading for a dual-scope app's two groups, `loam-part-header` breadcrumbs, and the status
   bar the workspace and project items. No new token; three raw lengths became `shell.size.*` ids.
+- **2026-11-07. The editor area (phase 2 step 10).** `loam-editor-area`, `loam-editor-group` and
+  `loam-editor-frame` join the chrome in the `editor` chunk, with fixtures in `editor.specimens.ts` and no
+  new token. The tab strip is hand-written; a tab's close and menu buttons are `aria-hidden` and out of
+  the Tab order, since axe refuses a named button inside a `tablist`, so Delete and Shift+F10 on the tab
+  reach them. The selected tab has a block-end bar, a preview italics and `(preview)`, an unsaved tab `●`
+  and `, unsaved`. The area's region is named "Documents", and an editor's mount is no landmark.
+- **2026-11-09. The second type (phase 2 step 13).** `checklist`'s editor, an app's sandboxed view page,
+  with no new token. A view's focus ring is `size.space.xs` of `color.focus.ring` (`Highlight` under forced
+  colors), since `shell.size.focus` is the shell's; it sets `color-scheme` from the host context's `theme`;
+  an item is a `button` with `role="checkbox"`, its box on the field tokens, done a tick and a line through.

@@ -1,0 +1,52 @@
+{
+	"specimens": [
+		{
+			"id": "notes-editor",
+			"title": "Loam/Notes/Editor",
+			"module": "./notes.specimens.ts",
+			"exportName": "Editor"
+		},
+		{
+			"id": "notes-editor-compact",
+			"title": "Loam/Notes/EditorCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorCompact"
+		},
+		{
+			"id": "notes-editor-conflict",
+			"title": "Loam/Notes/EditorConflict",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorConflict"
+		},
+		{
+			"id": "notes-editor-conflict-compact",
+			"title": "Loam/Notes/EditorConflictCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorConflictCompact"
+		},
+		{
+			"id": "notes-inspector",
+			"title": "Loam/Notes/Inspector",
+			"module": "./notes.specimens.ts",
+			"exportName": "Inspector"
+		},
+		{
+			"id": "notes-inspector-compact",
+			"title": "Loam/Notes/InspectorCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "InspectorCompact"
+		},
+		{
+			"id": "notes-embed",
+			"title": "Loam/Notes/Embed",
+			"module": "./notes.specimens.ts",
+			"exportName": "Embed"
+		},
+		{
+			"id": "notes-embed-compact",
+			"title": "Loam/Notes/EmbedCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EmbedCompact"
+		}
+	]
+}

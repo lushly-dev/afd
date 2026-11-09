@@ -318,6 +318,19 @@ impl DocumentStore for SqliteStore {
         })
     }
 
+    fn last_readable_document(&self, at: Rev, reader: &ReaderFilter) -> Result<Rev, StoreError> {
+        let mut sql = Sql::new(
+            "SELECT COALESCE(MAX(c.rev), 0) FROM changes c WHERE c.kind IN ('put', 'delete') AND c.rev <= ",
+        );
+        sql.bind(to_i64(at)?);
+        sql.and_readable("change_access", &[("rev", "c.rev")], reader);
+        self.pool().with(|conn| {
+            let last: i64 =
+                conn.query_row(&sql.text, params_from_iter(&sql.params), |r| r.get(0))?;
+            Ok(to_u64(last)?)
+        })
+    }
+
     fn put_record(
         &self,
         ns: &str,

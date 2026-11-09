@@ -54,7 +54,7 @@ function command(name: string, extra: Record<string, unknown> = {}): ZodCommandD
 	}) as unknown as ZodCommandDefinition;
 }
 
-describe('E8: the kernel refuses a bad name', () => {
+describe('P2-E13: E8: the kernel refuses a bad name', () => {
 	it('rejects createKernel({ commands: [doThing] }) with COMMAND_NAME_INVALID', async () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const doThing = command('doThing');
@@ -280,7 +280,7 @@ describe('the journal', () => {
 	});
 });
 
-describe('E1 (kernel unit): every layout change goes through the shared validator', () => {
+describe('P2-E13: E1 (kernel unit): every layout change goes through the shared validator', () => {
 	it('refuses view-state-set with an out-of-range width, and journals the refusal', async () => {
 		const { kernel: k, journal } = await kernel();
 		const result = await k.agent.call('view-state-set', {
@@ -345,9 +345,11 @@ describe('E1 (kernel unit): every layout change goes through the shared validato
 		expect((await k.call('view-state-set', { id: 'nope', state: {} })).error?.code).toBe(
 			'VIEW_STATE_NOT_FOUND'
 		);
-		// `loam.layout`, `loam.layout.~projects` (phase 2 specification, 7.7), `loam.appearance`, `loam.apps`
-		// and `loam.scope`.
-		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(5);
+		// `loam.layout`, `loam.layout.~projects` (phase 2 specification, 7.7), `loam.layout.~documents` (5.1),
+		// `loam.appearance`, `loam.apps`, `loam.scope`, and the active scope's `loam.editor`, which stage B
+		// registers (documents specification, 6). A person's `loam.new.recent~<actor>` registers on their first
+		// use of New (7).
+		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(7);
 	});
 
 	it('sets, refuses and undoes with layout-set', async () => {

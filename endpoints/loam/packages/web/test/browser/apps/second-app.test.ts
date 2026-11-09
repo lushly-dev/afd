@@ -39,7 +39,7 @@ function sources(directory: string): string[] {
 	});
 }
 
-describe('E5: a second app lands with no shell change', () => {
+describe('P2-E13: E5: a second app lands with no shell change', () => {
 	it('names no second app in the kernel, the chrome or the host', () => {
 		const offenders = [
 			...sources(join(PACKAGES, 'kernel/src')),
