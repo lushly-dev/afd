@@ -10,6 +10,8 @@ import {
 	type AppCallContextV1,
 	type AppDefinitionV1,
 	type AppStoreV1,
+	type DocumentChangeV1,
+	type DocumentRefV1,
 	type LoamClientV1,
 	projectsOver,
 	type ScopeV1,
@@ -30,6 +32,8 @@ export interface ViewHostContextV1 {
 	'dev.loam/scope'?: { workspace: string; project?: string };
 	'dev.loam/route'?: string;
 	'dev.loam/selectionLevel'?: 'workspace' | 'project';
+	/** A document's editor or embed: the document it renders, and a new title (documents specification, 5.6). */
+	'dev.loam/document'?: DocumentRefV1;
 }
 
 export interface ViewConnectionV1 {
@@ -42,6 +46,17 @@ export interface ViewConnectionV1 {
 	onToolCancelled(listener: (reason?: string) => void): () => void;
 	onHostContext(listener: (context: Partial<ViewHostContextV1>) => void): () => void;
 	onTeardown(listener: () => void | Promise<void>): () => void;
+	/**
+	 * A document's editor (documents specification, 5.6): `dev.loam/editor-save`, answered once `listener`
+	 * resolves. Rejecting, or taking over 10 seconds, keeps the tab unsaved. One listener; a second replaces it.
+	 */
+	onSave(listener: () => void | Promise<void>): () => void;
+	/** `dev.loam/document-changed`: another call changed the document, so re-read it (5.7). */
+	onDocumentChanged(listener: (change: DocumentChangeV1) => void): () => void;
+	/** `dev.loam/editor-dirty`, on each edit, not only on a change (5.6). */
+	reportDirty(dirty: boolean): void;
+	/** `dev.loam/editor-selection`: the selection in the type's binding, or null. */
+	reportSelection(selection: unknown): void;
 }
 
 interface ToolsCallResult {
@@ -156,6 +171,8 @@ export async function connectView(info?: {
 	const toolCancelled = createChannel<string | undefined>();
 	const contextChanges = createChannel<Partial<ViewHostContextV1>>();
 	const teardowns = new Set<() => void | Promise<void>>();
+	const changes = createChannel<DocumentChangeV1>();
+	let save: (() => void | Promise<void>) | undefined;
 
 	peer.handle('ping', () => ({}));
 	peer.handle('ui/resource-teardown', async () => {
@@ -170,6 +187,13 @@ export async function connectView(info?: {
 	});
 	peer.onNotification('ui/notifications/tool-cancelled', (params) => {
 		toolCancelled.emit((params as { reason?: string }).reason);
+	});
+	peer.handle('dev.loam/editor-save', async () => {
+		await save?.();
+		return {};
+	});
+	peer.onNotification('dev.loam/document-changed', (params) => {
+		changes.emit(params as DocumentChangeV1);
 	});
 
 	const { hostContext } = (await peer.request('ui/initialize', {
@@ -205,6 +229,15 @@ export async function connectView(info?: {
 				teardowns.delete(listener);
 			};
 		},
+		onSave(listener) {
+			save = listener;
+			return () => {
+				if (save === listener) save = undefined;
+			};
+		},
+		onDocumentChanged: changes.listen,
+		reportDirty: (dirty) => peer.notify('dev.loam/editor-dirty', { dirty: dirty === true }),
+		reportSelection: (selection) => peer.notify('dev.loam/editor-selection', selection ?? null),
 	};
 }
 

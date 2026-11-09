@@ -100,6 +100,20 @@ export interface Life {
 	discard?: number;
 	/** The tab its reopen opened for it, which a Discard of its draft closes. */
 	opened?: string;
+	/** A view's editor whose teardown's save rejected: its edits then, so it is not torn down again unedited (5.6). */
+	kept?: number;
+}
+
+/**
+ * `frame` in `group`, moved only when it is elsewhere: a view's by `moveBefore` where the browser has it,
+ * which keeps its frame's document; anything else re-inserted, as a view's is in a browser without it (5.6).
+ */
+export function place(frame: LoamEditorFrame, group: HTMLElement): void {
+	if (frame.parentElement === group) return;
+	const move = (group as HTMLElement & { moveBefore?: (node: Node, child: Node | null) => void })
+		.moveBefore;
+	if (frame.kind === 'view' && move && frame.isConnected) move.call(group, frame, null);
+	else group.append(frame);
 }
 
 /** A scope as a key, and whether two are the same. */
@@ -152,13 +166,14 @@ export function notSaved(title: string, cause: unknown) {
 	};
 }
 
-/** Open a tab's frame on its record: the type's native editor, or a notice saying why there is none. */
+/** Open a tab's frame on its record: the type's native or view editor, or a notice saying why there is none. */
 export async function openFrame(
 	frame: LoamEditorFrame,
 	record: RecordRead | undefined,
 	types: Map<string, DocumentTypeV1>,
 	kernel: LoamKernelV2,
-	hostOf: () => Promise<SurfaceHostV1 | undefined>
+	hostOf: () => Promise<SurfaceHostV1 | undefined>,
+	theme: () => 'light' | 'dark'
 ): Promise<void> {
 	if (!record || !('title' in record)) {
 		frame.title = 'This document';
@@ -190,29 +205,10 @@ export async function openFrame(
 		});
 		return;
 	}
-	const declared = kernel
-		.appPort(type.instance)
-		.manifest.ui?.documents?.find((each) => each.id === type.id);
-	const element =
-		declared?.editor && 'element' in declared.editor ? declared.editor.element : undefined;
-	if (type.editorKind !== 'native' || element === undefined) {
-		frame.fail({
-			code: 'DOCUMENT_TYPE_UNAVAILABLE',
-			message: "This document's editor is a view, which this shell does not open yet",
-			suggestion: 'Its commands still work from the command palette.',
-		});
-		return;
-	}
+	const port = kernel.appPort(type.instance);
+	const declared = port.manifest.ui?.documents?.find((each) => each.id === type.id);
+	const { element, resource } = (declared?.editor ?? {}) as { element?: string; resource?: string };
 	frame.autosaveMs = declared?.autosave_ms;
-	const host = await hostOf();
-	if (!host) {
-		frame.fail({
-			code: 'APP_RUNTIME_UNAVAILABLE',
-			message: 'The app surfaces did not load',
-			suggestion: 'Reload; check that the deployment serves its assets.',
-		});
-		return;
-	}
 	const reference: DocumentRefV1 = {
 		id: record.id,
 		type: record.type,
@@ -222,7 +218,33 @@ export async function openFrame(
 		binding: record.binding,
 		readOnly: false,
 	};
-	await frame.open(host, type.instance, element, reference);
+	const unloaded = {
+		code: 'APP_RUNTIME_UNAVAILABLE',
+		message: 'The app surfaces did not load',
+		suggestion: 'Reload; check that the deployment serves its assets.',
+	};
+	// A view's editor: a sandboxed frame of its resource, through the view chunk (5.6).
+	if (type.editorKind === 'view' && resource !== undefined) {
+		try {
+			const { documentView } = await import('../view/view.js');
+			frame.openView(
+				await documentView(port, reference, resource, {
+					hostVersion: String(kernel.version),
+					theme,
+				})
+			);
+		} catch (cause) {
+			reportError(cause);
+			frame.fail(unloaded);
+		}
+		return;
+	}
+	const host = element === undefined ? undefined : await hostOf();
+	if (!host) {
+		frame.fail(unloaded);
+		return;
+	}
+	await frame.open(host, type.instance, element as string, reference);
 }
 
 /** The app surfaces' way in, once they have loaded beside stage B. */
@@ -246,4 +268,49 @@ export async function lostModals(
 		modals.delete(id);
 		answer('cancel');
 	}
+}
+
+/** The registry's types, for each tab's editor: what the frame mounts, and its `autosave_ms`. */
+export async function readTypes(kernel: LoamKernelV2): Promise<Map<string, DocumentTypeV1>> {
+	const result = await kernel.call<{ types: DocumentTypeV1[] }>('document-type-list', {
+		all: true,
+	});
+	return new Map((result.data?.types ?? []).map((type) => [type.id, type]));
+}
+
+/** A tab's record, read once while `records` holds it, or why `document-get` gave none. */
+export async function readRecord(
+	kernel: LoamKernelV2,
+	records: Map<string, RecordRead>,
+	document: string
+): Promise<RecordRead> {
+	let held = records.get(document);
+	if (!held) {
+		const result = await kernel.call<DocumentRecordV1>('document-get', { document });
+		held =
+			result.success && result.data
+				? result.data
+				: {
+						code: result.error?.code ?? 'DOCUMENT_NOT_FOUND',
+						message: result.error?.message ?? 'This document is not available',
+						suggestion: result.error?.suggestion,
+					};
+		records.set(document, held);
+	}
+	return held;
+}
+
+/** The phase 1 modal: `Close without saving?`, Discard as `danger`, or Keep editing (5.5); its answer by `modals`. */
+export async function confirmDiscard(
+	kernel: LoamKernelV2,
+	modals: Map<string, (result: 'confirm' | 'cancel') => void>,
+	title: string
+): Promise<boolean> {
+	const opened = await kernel.call<{ overlayId: string }>('modal-open', discardModal(title));
+	const overlayId = opened.data?.overlayId;
+	if (!opened.success || overlayId === undefined) return false;
+	const result = await new Promise<'confirm' | 'cancel'>((resolve) =>
+		modals.set(overlayId, resolve)
+	);
+	return result === 'confirm';
 }

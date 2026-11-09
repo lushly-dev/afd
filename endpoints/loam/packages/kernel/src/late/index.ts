@@ -9,6 +9,7 @@ import type { CommandMiddleware } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
+import { createDefaultLayout } from '../layout.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
 import type { ScopeV1 } from '../scope/records.js';
@@ -18,6 +19,7 @@ import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
+import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
@@ -169,17 +171,41 @@ export async function createLateParts(
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
 	// the scope it needs.
 	let editor: EditorParts | undefined;
+	// `loam.layout.~documents` declares the inspector while the editor owner, the active tab's plugin, has a
+	// type with one (5.1): recomputed after a call that may move the active tab, main or the scope, and at boot.
+	let inspector = false;
+	const declare = async () => {
+		const owner = await editor?.owner();
+		const has = [...documents.types().types.values()].some(
+			(type) => type.instance === owner && type.surfaces.includes('inspector')
+		);
+		if (has === inspector) return;
+		inspector = has;
+		deps.state.registerAppLayout(
+			'~documents',
+			createDefaultLayout(),
+			new Set(has ? ['sidebar', 'inspector'] : ['sidebar'])
+		);
+	};
 	const lateScope = createLateScope({
 		...deps,
 		documents,
-		settle: (name, call) => editor?.settle(name, call),
+		async settle(name, call) {
+			await editor?.settle(name, call);
+			const seen = deps.scope.seen.get(call.traceId as string);
+			if (/^(editor-|document-)/.test(name) || seen?.mainChanged || seen?.scopeChanged)
+				await declare();
+		},
 	});
 	editor = createEditorParts({ ...deps, lateScope, check: documents }, DOCUMENT_KIT);
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
 	// stage A's `hydrate` drops a record with no handler.
 	// Each person's `loam.new.recent~<actor>` registers on their first use, read before anything writes it (7).
 	const created = createNewParts({ ...deps, check: documents });
+	// The link index, built by one `list` at its first read, and kept by the link commands and expiry (9.3).
+	const index = createDocumentIndex(deps.store);
 	await editor.ensure(deps.scope.active().project);
+	await declare();
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);
@@ -215,7 +241,11 @@ export async function createLateParts(
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
-			...createDocumentCommands({ ...deps, check: documents, editor }, DOCUMENT_KIT),
+			...createDocumentCommands(
+				{ ...deps, check: documents, editor, links: { expire: expireLinks(index) } },
+				DOCUMENT_KIT
+			),
+			...createLinkCommands({ ...deps, check: documents, index }),
 			...editor.commands,
 			created.command,
 		].map((command) => [command.name, command])

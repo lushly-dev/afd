@@ -6,6 +6,7 @@
 
 import { attr, css, FASTElement, html, observable, when } from '@lushly-dev/fast-element';
 import type { AppPortV2, ViewBrokerV1 } from '@lushly-dev/loam-kernel';
+import type { DocumentChangeV1, DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import { ProxyChannel } from './channel.js';
 import { readTokens } from './tokens.js';
 import { ViewHost, type ViewHostContext } from './view-host.js';
@@ -25,6 +26,37 @@ export const packageViewSource = (port: AppPortV2): ViewSource => ({
 	read: async (uri) => ({ html: await port.readResource(uri) }),
 });
 
+/**
+ * A document's view (documents specification, 5.6 and 9.2): its type's `editor` or `embed` resource, from
+ * its plugin's package, and nothing else, so a document's frame never renders another resource.
+ */
+export interface DocumentViewSource extends ViewSource {
+	readonly document: DocumentRefV1;
+	readonly resource: string;
+}
+
+export const documentViewSource = (
+	port: AppPortV2,
+	document: DocumentRefV1,
+	resource: string
+): DocumentViewSource => ({
+	document,
+	resource,
+	async read(uri) {
+		if (uri !== resource) {
+			throw {
+				code: 'VIEW_RESOURCE_UNAVAILABLE',
+				message: `'${uri}' is not this document's view`,
+				suggestion: "Declare it as the type's editor or embed resource",
+			};
+		}
+		return { html: await port.readResource(uri) };
+	},
+});
+
+/** The SDK's editor events (5.6), which `loam-editor-frame` hears, named here so this chunk imports none. */
+const EDITOR_EVENTS = { dirty: 'loam-editor-dirty', selection: 'loam-editor-selection' } as const;
+
 export interface ViewFrameOptions {
 	port: AppPortV2;
 	/**
@@ -42,6 +74,8 @@ export interface ViewFrameOptions {
 	/** The surface's scope and the app's route, as `dev.loam/scope` and `dev.loam/route` (7.6). */
 	scope?: { workspace: string; project?: string };
 	route?: string;
+	/** A document's editor or embed: `dev.loam/document`, and the editor's protocol (documents specification, 5.6). */
+	document?: DocumentRefV1;
 	theme(): ViewHostContext['theme'];
 	/** The view has sent `initialized`, or failed. */
 	onSettled?(failed: boolean): void;
@@ -159,6 +193,41 @@ export class LoamViewFrame extends FASTElement {
 		this.#host?.changeContext({ 'dev.loam/selectionLevel': level });
 	}
 
+	/** A new title reaches a document's view as `host-context-changed` (documents specification, 5.6). */
+	set document(document: DocumentRefV1) {
+		if (!this.#options?.document || document.title === this.#options.document.title) return;
+		this.#options.document = document;
+		this.#host?.changeContext({ 'dev.loam/document': document });
+	}
+
+	/** A document's editor's `save()`: `dev.loam/editor-save`, rejecting on its error or after 10 seconds (5.6). */
+	async save(): Promise<void> {
+		const host = this.#host;
+		if (!host?.initialized || this.#options?.document?.readOnly !== false) return;
+		await host.save();
+	}
+
+	/** Focus enters the view, as Enter on its tab asks (5.8). */
+	override focus(options?: FocusOptions): void {
+		this.#channel?.frame.focus(options);
+	}
+
+	/** Another call changed the document (5.7). */
+	documentChanged(change: DocumentChangeV1): void {
+		if (this.#options?.document) this.#host?.documentChanged(change);
+	}
+
+	/** Dropped, as its tab is hidden or closed: told, and gone after its answer or 500 ms (5.6). */
+	dispose(): Promise<void> {
+		return new Promise((done) => {
+			this.#gone = done;
+			this.leave();
+			if (!this.isConnected) done();
+		});
+	}
+
+	#gone: (() => void) | undefined;
+
 	/** A change of route reaches the view as `host-context-changed`, and recreates nothing (7.6). */
 	set route(route: string) {
 		if (!this.#options || route === this.#options.route) return;
@@ -221,6 +290,22 @@ export class LoamViewFrame extends FASTElement {
 			resource: options.resource,
 			...(options.command !== undefined ? { command: options.command } : {}),
 			context: () => this.#context(),
+			// Only a document's editor, never its embed: an embed holds no draft and selects nothing (9.2).
+			...(options.document?.readOnly === false
+				? {
+						onEditor: (kind: 'dirty' | 'selection', params: unknown) =>
+							this.dispatchEvent(
+								new CustomEvent(EDITOR_EVENTS[kind], {
+									detail:
+										kind === 'dirty'
+											? { dirty: (params as { dirty?: unknown } | null)?.dirty === true }
+											: params,
+									bubbles: true,
+									composed: true,
+								})
+							),
+					}
+				: {}),
 			onInitialized: () => {
 				clearTimeout(this.#readyTimer);
 				this.state = 'ready';
@@ -249,6 +334,7 @@ export class LoamViewFrame extends FASTElement {
 			...(this.#selectionLevel ? { 'dev.loam/selectionLevel': this.#selectionLevel } : {}),
 			...(this.#options?.scope ? { 'dev.loam/scope': this.#options.scope } : {}),
 			...(this.#options?.route !== undefined ? { 'dev.loam/route': this.#options.route } : {}),
+			...(this.#options?.document ? { 'dev.loam/document': this.#options.document } : {}),
 		};
 	}
 
@@ -312,10 +398,14 @@ export class LoamViewFrame extends FASTElement {
 		const host = this.#host;
 		if (!host?.initialized) {
 			this.remove();
+			this.#gone?.();
 			return;
 		}
 		this.hidden = true;
-		void host.teardown(VIEW_TEARDOWN_MS).finally(() => this.remove());
+		void host.teardown(VIEW_TEARDOWN_MS).finally(() => {
+			this.remove();
+			this.#gone?.();
+		});
 	}
 }
 attr(LoamViewFrame.prototype, 'heading');

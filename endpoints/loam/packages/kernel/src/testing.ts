@@ -30,6 +30,8 @@ import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
 import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV2 } from './types.js';
 
+/** The link index, which A4 builds from the reference workspace's links (documents specification, 9.3). */
+export { createDocumentIndex, type DocumentIndex, LINK_TABLE } from './late/links.js';
 export {
 	createReferenceWorkspace,
 	type ReferenceWorkspace,

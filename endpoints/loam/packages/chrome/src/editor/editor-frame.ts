@@ -17,6 +17,7 @@ import type {
 } from '@lushly-dev/loam-sdk';
 import type { LoamMount } from '../elements/mount.js';
 import type { LoamNotice } from '../elements/notice.js';
+import type { LoamViewFrame } from '../view/view-frame.js';
 
 /** The SDK's event names (5.6), written here so this chunk imports nothing of the SDK at run time. */
 export const EDITOR_DIRTY_EVENT = 'loam-editor-dirty';
@@ -26,11 +27,14 @@ export const EDITOR_SELECTION_EVENT = 'loam-editor-selection';
 export interface SurfaceHostV1 {
 	/** Run the plugin's `activate` once; rejects with what a failure shows. */
 	ensureActivated(instance: string): Promise<void>;
-	/** A mount of one of the plugin's elements, with a surface port fixed to `scope`, and its document. */
+	/**
+	 * A mount of one of the plugin's elements, with a surface port fixed to `scope`, and its document; an
+	 * embed's port is read-only (9.2).
+	 */
 	createMount(
 		instance: string,
 		element: string,
-		options: { scope: DocumentRefV1['scope']; document: DocumentRefV1 }
+		options: { scope: DocumentRefV1['scope']; document: DocumentRefV1; readOnly?: boolean }
 	): LoamMount;
 }
 
@@ -71,7 +75,8 @@ const styles = css`
 	[hidden] {
 		display: none;
 	}
-	::slotted(loam-mount) {
+	::slotted(loam-mount),
+	::slotted(loam-view-frame) {
 		flex: 1 1 auto;
 		min-block-size: 0;
 	}
@@ -156,7 +161,9 @@ export class LoamEditorFrame extends FASTElement {
 	listener: FrameListener | null = null;
 	/** The editor's last dirty report, as the frame tells the editor area on a change only. */
 	dirty = false;
-	#mount: LoamMount | null = null;
+	/** A view type's editor is torn down when its tab hides, never parked (5.6). */
+	kind: 'native' | 'view' = 'native';
+	#mount: LoamMount | LoamViewFrame | null = null;
 	#parked: Offsets = [];
 
 	constructor() {
@@ -188,9 +195,19 @@ export class LoamEditorFrame extends FASTElement {
 		this.listener?.selection(this, (event as CustomEvent).detail ?? null);
 	};
 
-	/** The editor's element, once mounted. */
+	/** The editor's element, once mounted, or a view type's frame, which answers the same hooks. */
 	get editor(): LoamEditorElementV1 | null {
-		return (this.#mount?.surface as LoamEditorElementV1 | null | undefined) ?? null;
+		const mount = this.#mount;
+		return ((this.kind === 'view' ? mount : (mount as LoamMount | null)?.surface) ??
+			null) as LoamEditorElementV1 | null;
+	}
+
+	/** A view type's editor (5.6): its frame, which the view chunk made, fixed to the document's scope. */
+	openView(view: LoamViewFrame): void {
+		this.kind = 'view';
+		this.#mount = view;
+		this.append(view);
+		this.state = 'ready';
 	}
 
 	/** Mount the type's element, fixed to the document's scope; a failure shows its notice. */

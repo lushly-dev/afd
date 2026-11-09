@@ -435,6 +435,31 @@ describe("P2-D8 (kernel unit): the palette's rows after a write during a build",
 	});
 });
 
+describe('P2-D1 (kernel unit): loam.layout.~documents declares the inspector with a type that has one (5.1)', () => {
+	it('declares it while the active tab’s plugin has a type with an inspector, and not with no tab or after a reload’s restore of none', async () => {
+		const store = new MemoryAdapter();
+		const held = await workspace({ store });
+		const { kernel } = held;
+		const open = () => kernel.call('layout-set', { inspector: { open: true } });
+		await kernel.call('section-open', { section: 'documents' });
+		expect((await open()).error?.code).toBe('LAYOUT_PART_UNDECLARED');
+		const created = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		await kernel.call('document-open', { document: created.data?.id });
+		expect((await open()).success).toBe(true);
+		// Closing its tab takes the inspector away again, and an app's main is not the section's.
+		await kernel.call('editor-close', { tab: 't1', discard: true });
+		expect((await open()).error?.code).toBe('LAYOUT_PART_UNDECLARED');
+		await kernel.call('document-open', { document: created.data?.id });
+		await kernel.flush();
+		await kernel.dispose();
+		// A reload restores the tab with no call: stage B declares it as it boots.
+		const again = await workspace({ store });
+		expect((await again.kernel.call('layout-set', { inspector: { open: false } })).success).toBe(
+			true
+		);
+	});
+});
+
 describe('P2-D8 (kernel unit): loam.layout.~documents (5.1, G-S3)', () => {
 	it('is the documents section’s layout, declaring the sidebar alone, kept apart from the no-app record and across a reload', async () => {
 		const store = new MemoryAdapter();

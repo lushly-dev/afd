@@ -3,6 +3,7 @@
  * specification, 8.2): deterministic for a seed.
  */
 
+import type { DocumentLinkV1, DocumentRecordV1 } from '@lushly-dev/loam-sdk';
 import type { KernelInterfaceV0 } from './kernel.js';
 import { createSeededRandom, type SessionCall } from './session.js';
 import type { CommandSummaryV0 } from './types.js';
@@ -15,6 +16,10 @@ export interface ReferenceWorkspaceOptions {
 	size: number;
 	/** Fixed queries generated. Default 200. */
 	queries?: number;
+	/** Document records generated, half at workspace level and half in five projects (A4). Default 0. */
+	documents?: number;
+	/** Links generated among those documents, of both kinds, some to themselves (A4). Default 0. */
+	links?: number;
 }
 
 export interface ReferenceWorkspace {
@@ -29,6 +34,10 @@ export interface ReferenceWorkspace {
 	 * with {@link recordSession}.
 	 */
 	calls: SessionCall[];
+	/** `documents` records of the `notes` type, for the link index (A4; documents specification, 9.3). */
+	documents: DocumentRecordV1[];
+	/** `links` links among them, in the `document-link` table's shape. */
+	links: DocumentLinkV1[];
 }
 
 const DOMAINS = [
@@ -257,10 +266,76 @@ function referenceCall(random: () => number, signedIn: { value: boolean }): Sess
 	return call('auth-session-get');
 }
 
+const REFERENCE_WORKSPACE = 'personal';
+
+/** An id of `prefix` and twelve base-36 characters, as the kernel's commands make them. */
+const idOf = (prefix: string, random: () => number): string =>
+	`${prefix}_${`${random().toString(36).slice(2)}000000000000`.slice(0, 12)}`;
+
+function referenceDocuments(random: () => number, count: number): DocumentRecordV1[] {
+	const at = Date.UTC(2026, 10, 1);
+	return Array.from({ length: count }, (_, index): DocumentRecordV1 => {
+		const project = index % 2 === 0 ? undefined : `prj_reference${index % 5}`;
+		const scope =
+			project === undefined
+				? { workspace: REFERENCE_WORKSPACE }
+				: { workspace: REFERENCE_WORKSPACE, project };
+		return {
+			id: idOf('doc', random),
+			workspace: REFERENCE_WORKSPACE,
+			type: 'notes',
+			instance: 'notes',
+			title: sentence(random, 2 + Math.floor(random() * 4)),
+			scope,
+			scopeKey: project === undefined ? 'w' : `p:${project}`,
+			owner: 'local',
+			tags: [],
+			status: random() < 0.05 ? 'trashed' : 'active',
+			trashedAt: null,
+			trashedFrom: null,
+			contentVersion: 1,
+			binding: {
+				model: 'command',
+				selection: 'text-range',
+				locator: 'text-range',
+				conflict: 'last-writer-wins',
+			},
+			epoch: 0,
+			createdAt: at + index,
+			updatedAt: at + index,
+			createdBy: 'local',
+			updatedBy: 'local',
+		};
+	});
+}
+
+function referenceLinks(
+	random: () => number,
+	documents: readonly DocumentRecordV1[],
+	count: number
+): DocumentLinkV1[] {
+	if (documents.length === 0) return [];
+	const at = Date.UTC(2026, 10, 2);
+	return Array.from({ length: count }, (_, index): DocumentLinkV1 => {
+		const from = pick(random, documents).id;
+		return {
+			id: idOf('lnk', random),
+			workspace: REFERENCE_WORKSPACE,
+			from,
+			to: random() < 0.02 ? from : pick(random, documents).id,
+			anchor: { kind: 'text-range', start: index, end: index + 8 },
+			kind: random() < 0.2 ? 'embed' : 'reference',
+			createdAt: at + index,
+			createdBy: 'local',
+		};
+	});
+}
+
 /**
  * The reference workspace of the accelerator admission rule: deterministic for a seed. In phase
  * 0 it holds command summaries and queries for the palette index (A1) and calls whose journal
- * replay (A2) and diff (A3) are measured on; documents arrive in phase 2.
+ * replay (A2) and diff (A3) are measured on; phase 2 adds documents and the links among them, which
+ * the link index is built from (A4).
  */
 export function createReferenceWorkspace(options: ReferenceWorkspaceOptions): ReferenceWorkspace {
 	const { seed, size } = options;
@@ -269,5 +344,7 @@ export function createReferenceWorkspace(options: ReferenceWorkspaceOptions): Re
 	const queries = referenceQueries(random, commands, options.queries ?? 200);
 	const signedIn = { value: false };
 	const calls = Array.from({ length: size }, () => referenceCall(random, signedIn));
-	return { seed, size, commands, queries, calls };
+	const documents = referenceDocuments(random, options.documents ?? 0);
+	const links = referenceLinks(random, documents, options.links ?? 0);
+	return { seed, size, commands, queries, calls, documents, links };
 }

@@ -143,7 +143,7 @@ describe('P2-D3: types and the registry', () => {
 				{ id: 'blank', title: 'Blank probe' },
 				{ id: 'greeting', title: 'Greeting' },
 			],
-			surfaces: ['editor'],
+			surfaces: ['editor', 'inspector'],
 			binding: {
 				model: 'command',
 				selection: 'text-range',
@@ -842,7 +842,7 @@ describe('P2-D4: every record goes through the stamped write', () => {
 describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 	const DAY = 86_400_000;
 
-	it("deletes each record trashed longer than the workspace's trashDays, and its content, journaled", async () => {
+	it("deletes each record trashed longer than the workspace's trashDays, its content and its links in one batch, journaled", async () => {
 		const store = adapterOf();
 		let now = Date.UTC(2026, 0, 1);
 		const clock = () => (now += 1);
@@ -850,6 +850,21 @@ describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 		const old = await created(first, { type: 'probe', template: 'greeting' }, first.scopes.atlas);
 		const kept = await created(first);
 		const recent = await created(first);
+		// Links from it, to it, to itself, and one it has no part in, which stays (9.3).
+		const linked = [];
+		for (const [from, to, scope] of [
+			[old.id, kept.id, first.scopes.atlas],
+			[kept.id, old.id, undefined],
+			[old.id, old.id, first.scopes.atlas],
+			[kept.id, recent.id, undefined],
+		] as const) {
+			const link = await first.kernel.call<{ id: string }>(
+				'document-link-add',
+				{ from, to },
+				scope ? { scope } : {}
+			);
+			linked.push(link.data?.id as string);
+		}
 		await first.kernel.call('document-trash', { document: old.id }, { scope: first.scopes.atlas });
 		const contentId = storeRecordId(first.scopes.atlas, documentContentKey(old.id));
 		expect(await store.get('app-probe', contentId)).toBeDefined();
@@ -857,12 +872,33 @@ describe.each(adapters)('P2-D4: the trash expires (%s)', (_name, adapterOf) => {
 		await first.kernel.call('document-trash', { document: recent.id });
 		await first.kernel.dispose();
 		const journal = new MemoryJournalSink();
+		// Every batch the second boot sends, so the links are seen to go with the record, all or nothing.
+		const batches: string[][] = [];
+		const batch = store.batch.bind(store);
+		store.batch = (operations) => {
+			batches.push(operations.map((operation) => `${operation.method} ${operation.path}`));
+			return batch(operations);
+		};
 		const second = await documents({ store, clock, journal });
 		const expired = (await journal.read()).filter(
 			(entry) => entry.command === 'document-trash-expire'
 		);
 		expect(expired.length).toBe(1);
 		expect(expired[0]?.result.data).toEqual({ deleted: [old.id] });
+		const expiry = batches.find((paths) => paths.includes(`DELETE /document/${old.id}`));
+		expect(expiry).toEqual(
+			expect.arrayContaining(linked.slice(0, 3).map((id) => `DELETE /document-link/${id}`))
+		);
+		expect(expiry).not.toContain(`DELETE /document-link/${linked[3]}`);
+		for (const id of linked.slice(0, 3)) expect(await store.get('document-link', id)).toBeFalsy();
+		expect(await store.get('document-link', linked[3] as string)).toBeTruthy();
+		// The index the second boot built for expiry no longer holds them.
+		const left = await second.kernel.call<{ out: Array<{ link: { id: string } }>; in: unknown[] }>(
+			'document-link-list',
+			{ document: kept.id }
+		);
+		expect(left.data?.out.map((row) => row.link.id)).toEqual([linked[3]]);
+		expect(left.data?.in).toEqual([]);
 		expect(await store.get('document', old.id)).toBeFalsy();
 		expect(await store.get('app-probe', contentId)).toBeFalsy();
 		expect(

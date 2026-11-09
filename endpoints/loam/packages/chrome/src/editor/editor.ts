@@ -13,7 +13,7 @@
 
 import { type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
-import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
+import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
 import { editorAreaDefinition, type LoamEditorArea } from './editor-area.js';
 import { editorFrameDefinition, type FrameListener, LoamEditorFrame } from './editor-frame.js';
@@ -25,8 +25,8 @@ import {
 	type LoamEditorGroup,
 } from './editor-group.js';
 import {
+	confirmDiscard,
 	defineEditorElements,
-	discardModal,
 	type EditorReadV1,
 	focusMain,
 	type How,
@@ -41,7 +41,10 @@ import {
 	openFrame,
 	PARKED_PER_GROUP,
 	type Place,
+	place,
 	type RecordRead,
+	readRecord,
+	readTypes,
 	type ScopeOf,
 	same,
 } from './editor-parts.js';
@@ -216,40 +219,18 @@ export class EditorController implements FrameListener {
 		this.#shell.releaseMain();
 	}
 
-	/** The registry's types, for each tab's editor: what the frame mounts, and its `autosave_ms`. */
-	async #readTypes(): Promise<void> {
-		const result = await this.#kernel.call<{ types: DocumentTypeV1[] }>('document-type-list', {
-			all: true,
-		});
-		this.#types = new Map((result.data?.types ?? []).map((type) => [type.id, type]));
-	}
-
-	async #record(document: string): Promise<RecordRead> {
-		let held = this.#records.get(document);
-		if (!held) {
-			const result = await this.#kernel.call<DocumentRecordV1>('document-get', { document });
-			held =
-				result.success && result.data
-					? result.data
-					: {
-							code: result.error?.code ?? 'DOCUMENT_NOT_FOUND',
-							message: result.error?.message ?? 'This document is not available',
-							suggestion: result.error?.suggestion,
-						};
-			this.#records.set(document, held);
-		}
-		return held;
-	}
-
 	async #render(state: EditorReadV1): Promise<void> {
 		const tabs = state.groups.flatMap((group) => group.tabs);
 		this.#area.empty = tabs.length === 0;
 		if (this.#types.size === 0 || tabs.some((tab) => !this.#frames.has(tab.id))) {
-			await this.#readTypes();
+			this.#types = await readTypes(this.#kernel);
 		}
 		const records = new Map(
 			await Promise.all(
-				tabs.map(async (tab) => [tab.document, await this.#record(tab.document)] as const)
+				tabs.map(
+					async (tab) =>
+						[tab.document, await readRecord(this.#kernel, this.#records, tab.document)] as const
+				)
 			)
 		);
 		const titleOf = (document: string) => {
@@ -270,11 +251,13 @@ export class EditorController implements FrameListener {
 		const had = [...this.#groups.values()].find((group) => group.matches(':focus-within'));
 		const was =
 			(had?.shadowRoot?.activeElement as HTMLElement | null)?.dataset.tab ?? had?.activeTab?.id;
-		// Groups in order, as columns; a group the state no longer has goes with its frames.
+		// Groups in order, as columns; a group the state no longer has goes with its frames, once a frame of a
+		// tab moved out of it has left it, so a view's moves with it where the browser can (5.6).
 		const kept = new Set(state.groups.map((group) => group.id));
+		const gone: LoamEditorGroup[] = [];
 		for (const [id, element] of this.#groups) {
 			if (kept.has(id)) continue;
-			element.remove();
+			gone.push(element);
 			this.#groups.delete(id);
 			this.#shown.delete(id);
 		}
@@ -305,15 +288,26 @@ export class EditorController implements FrameListener {
 				this.#area.insertBefore(element, this.#area.children[index] ?? null);
 			for (const tab of group.tabs) {
 				const frame = this.#frames.get(tab.id);
-				if (frame && frame.parentElement !== element) element.append(frame);
+				if (frame) place(frame, element);
 			}
 			const active = group.tabs.find((tab) => tab.id === group.active);
-			for (const tab of group.tabs) this.#frames.get(tab.id)?.show(tab.id === active?.id);
+			for (const tab of group.tabs) {
+				const frame = this.#frames.get(tab.id);
+				frame?.show(tab.id === active?.id);
+				const life = frame && (this.#lives.get(frame) as Life);
+				// A view's editor is torn down with its tab hidden, its save first, never parked; one whose save
+				// rejected stays, hidden with its draft, until an edit or its tab shown again (5.6).
+				if (frame?.kind === 'view' && tab.id !== active?.id && life?.kept !== life?.edits) {
+					this.#stopTimer(frame);
+					this.#retire(frame, 'parked');
+				}
+			}
 			const ids = new Set(group.tabs.map((tab) => tab.id));
 			if (active && !this.#closing.has(`${this.#visit} ${active.id}`)) {
 				this.#showFrame(element, group.id, active, records.get(active.document), ids);
 			}
 		});
+		for (const element of gone) element.remove();
 		void this.#reconcile();
 		// The drafts kept while the area was away come back now.
 		for (const go of this.#waiting.splice(0)) go();
@@ -503,10 +497,18 @@ export class EditorController implements FrameListener {
 			this.#lives.set(frame, { visit: this.#visit, place: 'leaving', edits: 0 });
 			group.append(frame);
 			this.#move(frame, 'shown');
-			void openFrame(frame, record, this.#types, this.#kernel, () => hostOf(this.#shell));
+			void openFrame(
+				frame,
+				record,
+				this.#types,
+				this.#kernel,
+				() => hostOf(this.#shell),
+				() => (this.#shell.appearance.resolved === 'dark' ? 'dark' : 'light')
+			);
 		}
 		if (record && 'title' in record) frame.title = record.title;
 		frame.show(true);
+		(this.#lives.get(frame) as Life).kept = undefined;
 		// This group's tabs only: a tab moved away is the other group's to park.
 		const order = (this.#shown.get(groupId) ?? []).filter(
 			(id) => id !== tab.id && this.#frames.has(id) && ids.has(id)
@@ -647,7 +649,8 @@ export class EditorController implements FrameListener {
 				if (!saved) {
 					// The Discard is of the draft as the modal found it, wherever it is by then; typed into after, kept.
 					const edits = life?.edits;
-					if (!(await this.#confirmDiscard(frame?.title ?? 'this document'))) return false;
+					if (!(await confirmDiscard(this.#kernel, this.#modals, frame?.title ?? 'this document')))
+						return false;
 					if (life) life.discard = edits;
 				}
 			} finally {
@@ -685,20 +688,6 @@ export class EditorController implements FrameListener {
 			else if (main) focusMain(this.#shell, main);
 		}
 		return true;
-	}
-
-	/** The phase 1 modal: `Close without saving?`, Discard as `danger`, or Keep editing (5.5). */
-	async #confirmDiscard(title: string): Promise<boolean> {
-		const opened = await this.#kernel.call<{ overlayId: string }>(
-			'modal-open',
-			discardModal(title)
-		);
-		const overlayId = opened.data?.overlayId;
-		if (!opened.success || overlayId === undefined) return false;
-		const result = await new Promise<'confirm' | 'cancel'>((resolve) =>
-			this.#modals.set(overlayId, resolve)
-		);
-		return result === 'confirm';
 	}
 
 	// ─── Saving (5.5) ──────────────────────────────────────────────────────────────
@@ -824,7 +813,10 @@ export class EditorController implements FrameListener {
 			if (this.#discarded(frame)) life.draft = false;
 			else if (!this.#here(frame)) await this.#save(frame);
 			else if (closed) await this.#reopen(frame, shown);
-			else if (how === 'parked' && !this.#frames.has(tab)) this.#move(frame, 'shown');
+			else if (how === 'parked' && !this.#frames.has(tab)) {
+				life.kept = life.edits;
+				this.#move(frame, 'shown');
+			}
 		}
 		// Kept, or gone after its toast, a draft that could not be kept taking its mark with it.
 		life.busy = life.draft = false;
@@ -837,7 +829,7 @@ export class EditorController implements FrameListener {
 		this.#move(frame, 'leaving');
 		frame.tab = tab;
 		frame.dataset.tab = tab;
-		group.append(frame);
+		place(frame, group);
 		this.#move(frame, 'shown');
 		return frame;
 	}

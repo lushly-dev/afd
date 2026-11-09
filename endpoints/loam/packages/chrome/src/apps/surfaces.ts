@@ -193,10 +193,10 @@ export class AppSurfaces implements ShellApps {
 				const failure = await this.#activate(this.#hold(instance));
 				if (failure !== undefined) throw new Error(failure);
 			},
-			createMount: (instance, element, { scope, document }) => {
+			createMount: (instance, element, { scope, document, readOnly }) => {
 				const held = this.#hold(instance);
 				const mount = this.#create<LoamMount>('loam-mount');
-				const surface = held.port.surface({ scope });
+				const surface = held.port.surface({ scope, readOnly });
 				mount.configure({
 					registry: held.registry as CustomElementRegistry,
 					element,
