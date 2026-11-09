@@ -159,8 +159,18 @@ can produce either. For such a command, on every MCP surface and **whatever the 
 HumanRelay
     begin(call) -> RelayPrompt { url, message, state } | CommandError
     resume(state, call) -> Approved { decisionId } | Declined | Pending(RelayPrompt) | Invalid
-RelayCall { command, inputDigest, actor, credentials?, clientCapabilities }
+RelayCall { command, inputDigest, actor, credentials?, clientCapabilities, input, context }
+    approvedContext(decisionId, call) -> extra fields   (optional; default none)
 ```
+
+A relay is given the validated `input` its `inputDigest` names, so it can keep what its person must be
+shown, and the call's `context` after the context hook, so it can read who the caller is by its own
+mapping. After an `Approved`, the server sets the fields the relay's `approvedContext` returns in the
+call's `extra` before anything runs (Umbel records the decision and `humanPresent` there). They are not
+evidence: the server and the approval middleware never read them, and unlike relay evidence they stay on
+the context of a command the handler runs in process, so a host reading them checks that they name the
+command and input before it. Rust implements this (`RelayCall::input`, `RelayCall::context`,
+`HumanRelay::approved_context`); no other language has a `HumanRelay` yet.
 
 A call goes through these steps:
 
