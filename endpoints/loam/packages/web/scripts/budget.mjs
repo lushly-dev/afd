@@ -159,10 +159,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * cycle walk is simpler). First paint's code is unchanged: its gzip is one byte more only for the `apps`
  * chunk's new hash in its name, and with the old name it is equal. The third re-check's last nit, refusing a
  * declared `__proto__` too, shrank the closure by 17, to 393,918, under the same ceiling, 176 bytes left.
+ * Step 12's deviation 7, the coordinator's decision of 2026-11-09, adds `editorMoveMinified`, `editor-move` alone,
+ * a view editor's save before a move where the browser has no `moveBefore`, which only that browser loads:
+ * 591, set at 650, its measurement plus 10%; and raises `editorMinified` by its measured cost, 1,140, to 34,505,
+ * keeping the 44 bytes left, approved by the coordinator on 2026-11-09: the frame held where it is while it
+ * saves (about 500), the area hidden rather than removed and a group kept while an unsaved view editor in it
+ * saves (about 300), and the tab actions and Mod+S moved to `editor-actions.ts` under the file-size limit (about
+ * 316).
  * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
  * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
  * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
- * 4,990, within step 12's ledger line of 5,000; `editor` 33,321, `view` 25,012, `surfaces` 83,556 and
+ * 4,990, within step 12's ledger line of 5,000; `editor` 33,321 before deviation 7's save before a move, `view` 25,012, `surfaces` 83,556 and
  * `documents` 53,757, within their rows; first paint's bytes, `apps` and `late-editor` are unchanged.
  */
 export const CEILINGS = Object.freeze({
