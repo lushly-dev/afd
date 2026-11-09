@@ -205,6 +205,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
  * 4,990, within step 12's ledger line of 5,000; `editor` 33,321 before deviation 7's save before a move, `view` 25,012, `surfaces` 83,556 and
  * `documents` 53,757, within their rows; first paint's bytes, `apps` and `late-editor` are unchanged.
+ * Step 13 adds `checklist`, the second type, with no shell change: every row and ceiling is as step 12 left
+ * them, and its view's pages, the editor and the handlers' frame, are recorded beside the native bundles,
+ * never limited, as `notes`' bundle is.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -536,13 +539,19 @@ async function measureKernel() {
 }
 
 /** An app's own bundle, as its build left it: `recorded, not limited` (9.2). */
-function appBundle(app) {
+/**
+ * An app's built files, recorded and never limited: a native app's `.js`, or for a view type, `checklist`
+ * (step 13), its pages, each one self-contained file, the editor and the handlers' frame.
+ */
+function appBundle(app, kind = 'native') {
 	const dist = resolve(ROOT, `../../apps/${app}/dist`);
 	if (!existsSync(dist)) return null;
-	const files = readdirSync(dist).filter((name) => name.endsWith('.js'));
+	const extension = kind === 'view' ? '.html' : '.js';
+	const files = readdirSync(dist).filter((name) => name.endsWith(extension));
 	const sources = files.map((name) => readFileSync(join(dist, name)));
 	return {
 		app,
+		kind,
 		minified: sources.reduce((sum, source) => sum + source.length, 0),
 		gzip: sources.reduce((sum, source) => sum + gzipSync(source, { level: 9 }).length, 0),
 	};
@@ -591,7 +600,10 @@ export async function measure() {
 		rows,
 		page,
 		kernel,
-		apps: ['hello', 'tally', 'tasks', 'notes'].map(appBundle).filter(Boolean),
+		apps: [
+			...['hello', 'tally', 'tasks', 'notes'].map((app) => appBundle(app)),
+			appBundle('checklist', 'view'),
+		].filter(Boolean),
 	};
 }
 
@@ -611,9 +623,9 @@ async function main() {
 			console.log(
 				`${pad(row.label, 52)} ${pad(row.bytes.toLocaleString('en-US'), 10)} of ${pad(row.ceiling.toLocaleString('en-US'), 10)} ${row.over ? 'OVER' : `${Math.round((row.bytes / row.ceiling) * 100)}%`}`
 			);
-		for (const { app, minified, gzip } of apps)
+		for (const { app, kind, minified, gzip } of apps)
 			console.log(
-				`${pad(`${app}'s native bundle, recorded`, 52)} ${minified.toLocaleString('en-US')}, gzip ${gzip.toLocaleString('en-US')}`
+				`${pad(`${app}'s ${kind === 'view' ? 'view pages' : 'native bundle'}, recorded`, 52)} ${minified.toLocaleString('en-US')}, gzip ${gzip.toLocaleString('en-US')}`
 			);
 		console.log('\nThe page by package (rendered bytes, before minification of names):');
 		for (const [name, bytes] of page.packages.slice(0, 15))

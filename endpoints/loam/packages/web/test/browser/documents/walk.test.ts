@@ -16,6 +16,7 @@ import {
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
+	journal,
 	kernelCall,
 	openShell,
 	packApp,
@@ -665,6 +666,16 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 			// A seed that takes view steps takes some.
 			if (views > 0)
 				expect(steps.some((each) => (viewKinds as readonly string[]).includes(each))).toBe(true);
+			// The second type's seed opens checklists and changes them, through their frames.
+			if (checklists) {
+				expect(new Set(steps.filter((each) => each.startsWith('checklist')))).toEqual(
+					new Set(['checklist', 'checklist-change'])
+				);
+				const changed = (await journal(page)).filter(
+					(entry) => entry.command.startsWith('checklist-item-') && entry.success
+				);
+				expect(changed.length).toBeGreaterThan(0);
+			}
 			// Straight to the output, so every seed's count shows, passing or not.
 			process.stdout.write(
 				`Seed ${start}: ${reopens} drafts taken by another tab, ${reopenOpens} reopen opens, ${steps.filter((each) => (viewKinds as readonly string[]).includes(each)).length} view steps\n`
