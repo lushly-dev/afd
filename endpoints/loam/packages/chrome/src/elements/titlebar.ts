@@ -30,6 +30,10 @@ const template = html<LoamTitlebar>`
 			aria-haspopup="menu"
 			aria-expanded="false"
 			@click="${(x) => dispatchAction(x, { action: 'new' })}"
+			@keydown="${(x, c) => {
+				const { key } = c.event as KeyboardEvent;
+				return !/^Arrow(Down|Up)$/.test(key) || dispatchAction(x, { action: 'new', key });
+			}}"
 		>
 			New
 		</button></span

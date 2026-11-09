@@ -236,7 +236,7 @@ holds the sidebar part with tabs or without.
 - What re-reads on kernel events hears mutations alone: a query's own event
   re-read on every event never settles.
 - The New button is text in first paint; `loam-new-menu` is a `violet-menu`
-  laid over it, opening on its first item. Map `violet-menu-item`'s hover
+  laid over it, opening on its first item (ArrowUp: its last). Map `violet-menu-item`'s hover
   and pressed surfaces to contract colors, as the palette does its options'.
 
 ## Icons

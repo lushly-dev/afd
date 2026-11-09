@@ -1,9 +1,8 @@
 /**
  * @fileoverview The `new` chunk (documents specification, 7): `loam-new-menu`, the title bar's New button's
  * menu, loaded on its first press or on the palette's first `new` query, so first paint holds the button
- * alone. A `violet-menu`, as APG's menu button pattern has it: Enter, Space or a press on the button opens
- * it with focus on the first item (the pattern's optional arrow keys on the button are left out, so first
- * paint holds no key handler for them); arrows, Home, End and type-ahead move; Enter or Space chooses; Escape closes it
+ * alone. A `violet-menu`, as APG's menu button pattern has it: Enter, Space, ArrowDown or a press on the
+ * button opens it with focus on the first item, ArrowUp on the last; arrows, Home, End and type-ahead move; Enter or Space chooses; Escape closes it
  * and returns focus to the button, and Tab moves on. Its items are `new-list`'s, recents first, under a
  * heading per plugin when there is more than one. Choosing a template runs `document-create` with
  * `recent: true` then `document-open { preview: false }`, and focus goes to the new editor; choosing a
@@ -244,25 +243,25 @@ export class LoamNewMenu extends FASTElement {
 		});
 	}
 
-	/** Read what New offers here, render it, and open with focus on the first item. */
-	open(): Promise<void> {
+	/** Read what New offers here, render it, and open with focus on the first item, or the last for ArrowUp. */
+	open(key = 'ArrowDown'): Promise<void> {
 		if (this.#pressClosed) {
 			this.#pressClosed = false;
 			return Promise.resolve();
 		}
-		this.#opening ??= this.#open().finally(() => {
+		this.#opening ??= this.#open(key).finally(() => {
 			this.#opening = null;
 		});
 		return this.#opening;
 	}
 
-	async #open(): Promise<void> {
+	async #open(key: string): Promise<void> {
 		const kernel = this.host?.kernel;
 		if (!kernel) return;
 		const offer = await readNew(kernel);
 		this.#render(offer);
-		// The menu's own way to open with focus on its first item, as ArrowDown on its trigger does.
-		this.menu.handleTriggerKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+		// The menu's own way to open with focus on its first or last item, as those keys on its trigger do.
+		this.menu.handleTriggerKeydown(new KeyboardEvent('keydown', { key }));
 	}
 
 	/** The items by the DOM API, a heading per plugin when more than one: their text is untrusted (D8). */
@@ -328,7 +327,7 @@ const define = (): Promise<unknown> => {
 };
 
 /** The shell's New button pressed: its menu, made once beside the button, opened. */
-export async function openNew(shell: NewHost): Promise<void> {
+export async function openNew(shell: NewHost, key?: string): Promise<void> {
 	await define();
 	const titlebar = shell.shadowRoot?.querySelector('loam-titlebar');
 	const holder = titlebar?.shadowRoot?.querySelector<HTMLElement>('.new');
@@ -341,5 +340,5 @@ export async function openNew(shell: NewHost): Promise<void> {
 		menu.watch(button);
 		holder.append(menu);
 	}
-	await menu.open();
+	await menu.open(key);
 }

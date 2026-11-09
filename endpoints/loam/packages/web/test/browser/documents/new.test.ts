@@ -244,7 +244,7 @@ describe('P2-D8: New', () => {
 		await site?.close();
 	});
 
-	it('P2-D8: the menu by keyboard: Enter opens it on its first item, a heading per plugin, Escape returns to the button', async () => {
+	it('P2-D8: the menu by keyboard: Enter and ArrowDown open it on its first item, ArrowUp on its last, a heading per plugin, Escape returns to the button', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
 		await surfacesIdle(page);
@@ -273,6 +273,17 @@ describe('P2-D8: New', () => {
 		await page.keyboard.press('Escape');
 		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('false');
 		await expect.poll(async () => (await focusedOn(page)).text).toBe('New');
+		// ArrowDown on the button opens the menu on its first item, ArrowUp on its last (APG's menu button).
+		await page.keyboard.press('ArrowDown');
+		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('true');
+		await expect.poll(async () => (await focusedOn(page)).text).toBe('Broken memo');
+		await page.keyboard.press('Escape');
+		await expect.poll(async () => (await focusedOn(page)).text).toBe('New');
+		await page.keyboard.press('ArrowUp');
+		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('true');
+		await expect.poll(async () => (await focusedOn(page)).text).toBe('Blank note');
+		await page.keyboard.press('Escape');
+		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('false');
 		// A second press of the button while it is open closes it.
 		await button.click();
 		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('true');

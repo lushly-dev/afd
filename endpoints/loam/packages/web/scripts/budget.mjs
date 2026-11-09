@@ -126,9 +126,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * coordinator, 2026-11-08: a modal the kernel closed with no answer taken as Keep editing (228), a kept draft's
  * save tried once more when its scope goes first, and on `pagehide` (90), and the scopes out of reach (31).
  * Step 11 adds `documentsMinified`, the documents section with `loam-tree` and `violet-tree`, and
- * `newMinified`, the New menu with `violet-menu`, at the documents specification's first estimates of 45,000
- * and 12,000; measured at 51,194 and 15,787, both over, and not raised: the coordinator decides (that
- * specification's Status, deviation 19).
+ * `newMinified`, the New menu with `violet-menu`. The documents specification's first estimates were 45,000
+ * and 12,000; measured at 51,194 and 15,787, each was set at its measurement plus 10%, 56,314 and 17,366,
+ * approved by the coordinator, 2026-11-09, since both load only when the section or the menu opens. Parts:
+ * `documents` holds `violet-tree` and `violet-tree-item` (about 16,000), the section, its sidebar, the tree,
+ * their styles and sync (about 33,000) and `cards` (1,969, shared with `sections`); `new` holds `violet-menu`
+ * and its item (about 9,000) and `loam-new-menu` with `readNew` and `runNew` (about 6,800).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -149,8 +152,8 @@ export const CEILINGS = Object.freeze({
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
 	editorMinified: 33_365,
-	documentsMinified: 45_000,
-	newMinified: 12_000,
+	documentsMinified: 56_314,
+	newMinified: 17_366,
 });
 
 /** Group a module id by the package it belongs to. */
