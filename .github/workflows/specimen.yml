@@ -14,6 +14,7 @@ on:
       - 'packages/core/**'
       - 'packages/server/**'
       - 'pnpm-lock.yaml'
+      - '.cargo/config.toml'
       - '.github/workflows/specimen.yml'
   pull_request:
     branches: [main]
@@ -28,6 +29,7 @@ on:
       - 'packages/core/**'
       - 'packages/server/**'
       - 'pnpm-lock.yaml'
+      - '.cargo/config.toml'
       - '.github/workflows/specimen.yml'
   workflow_dispatch:
 
@@ -62,9 +64,9 @@ jobs:
       - id: run
         run: node scripts/affected.mjs gate --package @lushly-dev/specimen --package @lushly-dev/specimen-afd --package @lushly-dev/specimen-cli --package @lushly-dev/specimen-fast-af --path tests/consumers/specimen/ --path .github/workflows/specimen.yml
       - id: host
-        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path .github/workflows/specimen.yml
+        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path .cargo/config.toml --path .github/workflows/specimen.yml
       - id: hosts
-        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path foundations/specimen/packages/ --path foundations/specimen/src/host.ts --path tests/consumers/specimen/ --path .github/workflows/specimen.yml
+        run: node scripts/affected.mjs gate --path foundations/specimen/host/ --path foundations/specimen/packages/ --path foundations/specimen/src/host.ts --path tests/consumers/specimen/ --path .cargo/config.toml --path .github/workflows/specimen.yml
       - id: stories
         run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path .github/workflows/specimen.yml
 

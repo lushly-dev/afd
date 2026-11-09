@@ -11,6 +11,7 @@ on:
       # The conformance job runs the todo example's suite and AFD's CLI against Umbel.
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
+      - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   pull_request:
     branches: [main]
@@ -21,6 +22,7 @@ on:
       # The conformance job runs the todo example's suite and AFD's CLI against Umbel.
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
+      - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   # The macOS leg and the MSRV check run daily and on demand.
   schedule:
@@ -58,7 +60,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: host
-        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path .github/workflows/umbel.yml
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)
