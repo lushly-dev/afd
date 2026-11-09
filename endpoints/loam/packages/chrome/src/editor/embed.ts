@@ -104,6 +104,8 @@ const styles = css`
 	}
 `;
 
+const stop = (event: Event) => event.stopPropagation();
+
 /** The parent of `node` across shadow roots. */
 const up = (node: Node): Node | null => (node instanceof ShadowRoot ? node.host : node.parentNode);
 
@@ -132,11 +134,16 @@ export class LoamEmbed extends FASTElement {
 
 	override connectedCallback(): void {
 		super.connectedCallback();
+		// What the embedded document's editor dispatches stays here: it is not the embedding tab's (T-S1).
+		for (const type of ['loam-editor-dirty', 'loam-editor-selection', 'loam-editor-save'])
+			this.shadowRoot?.addEventListener(type, stop);
 		void this.#render();
 	}
 
 	override disconnectedCallback(): void {
 		super.disconnectedCallback();
+		// A render still reading finds it stale, and mounts nothing (G-S3).
+		this.#rendering += 1;
 		this.#stop?.();
 		this.#stop = undefined;
 		this.#drop();

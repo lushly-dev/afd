@@ -722,3 +722,25 @@ describe('P2-D5: a view editor across an app and a change of scope', () => {
 		await opened.context.close();
 	}, 120_000);
 });
+
+describe('P2-D5: a view editor when another group goes', () => {
+	it('P2-D5: closing the last tab of the group before a view editor’s keeps that view’s window and its draft', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const note = await createNote(page, 'First group');
+		await open(page, note, { preview: false });
+		const { frame } = await draftSheet(page, 'Stays put', 'Draft in place', { group: 'beside' });
+		await frame.evaluate(() => {
+			(window as unknown as { marker: string }).marker = 'same window';
+		});
+		await kernelCall(page, 'editor-close', { tab: 't1', discard: true });
+		await editorIdle(page);
+		expect(await tabsByGroup(page)).toHaveLength(1);
+		expect(await frame.evaluate(() => (window as unknown as { marker?: string }).marker)).toBe(
+			'same window'
+		);
+		expect(await frame.locator('#text').inputValue()).toBe('Draft in place');
+		expect(await marked(page, 't2')).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+});

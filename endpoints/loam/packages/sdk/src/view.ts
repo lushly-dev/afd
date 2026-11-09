@@ -209,6 +209,17 @@ export async function connectView(info?: {
 		contextChanges.emit(changed);
 	});
 	peer.notify('ui/notifications/initialized');
+	// A document's editor: Mod+S inside the frame asks the shell for this editor's own save (5.6, S7).
+	const reference = hostContext['dev.loam/document'];
+	if (reference && !reference.readOnly) {
+		window.addEventListener('keydown', (event: Event) => {
+			const key = event as KeyboardEvent;
+			if (key.code !== 'KeyS' || !(key.metaKey || key.ctrlKey) || key.altKey || key.shiftKey)
+				return;
+			key.preventDefault();
+			if (!key.repeat) peer.notify('dev.loam/editor-save-request');
+		});
+	}
 
 	return {
 		hostContext,

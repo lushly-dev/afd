@@ -55,7 +55,11 @@ export const documentViewSource = (
 });
 
 /** The SDK's editor events (5.6), which `loam-editor-frame` hears, named here so this chunk imports none. */
-const EDITOR_EVENTS = { dirty: 'loam-editor-dirty', selection: 'loam-editor-selection' } as const;
+const EDITOR_EVENTS = {
+	dirty: 'loam-editor-dirty',
+	selection: 'loam-editor-selection',
+	save: 'loam-editor-save',
+} as const;
 
 export interface ViewFrameOptions {
 	port: AppPortV2;
@@ -297,7 +301,7 @@ export class LoamViewFrame extends FASTElement {
 			// Only a document's editor, never its embed: an embed holds no draft and selects nothing (9.2).
 			...(options.document?.readOnly === false
 				? {
-						onEditor: (kind: 'dirty' | 'selection', params: unknown) =>
+						onEditor: (kind: 'dirty' | 'selection' | 'save', params: unknown) =>
 							this.dispatchEvent(
 								new CustomEvent(EDITOR_EVENTS[kind], {
 									detail:

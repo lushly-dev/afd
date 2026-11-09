@@ -38,7 +38,7 @@ export interface ViewHostOptions {
 	context(): ViewHostContext;
 	onInitialized(): void;
 	/** A document's editor: `dev.loam/editor-dirty` and `dev.loam/editor-selection` (5.6). Absent, both are ignored. */
-	onEditor?(method: 'dirty' | 'selection', params: unknown): void;
+	onEditor?(method: 'dirty' | 'selection' | 'save', params: unknown): void;
 }
 
 /** How long a view has to answer `dev.loam/editor-save` before the save fails (documents specification, 5.6). */
@@ -163,9 +163,11 @@ export class ViewHost {
 
 	#notification(method: string, params: unknown): void {
 		const { channel, instance, onInitialized, onEditor } = this.#options;
-		if (method === 'dev.loam/editor-dirty' || method === 'dev.loam/editor-selection') {
+		const editor = /^dev\.loam\/editor-(dirty|selection|save-request)$/.exec(method)?.[1];
+		if (editor) {
+			// Only after `initialized`, and only from a document's editor, which `onEditor` is given to.
 			if (this.#initialized && !this.#leaving)
-				onEditor?.(method === 'dev.loam/editor-dirty' ? 'dirty' : 'selection', params);
+				onEditor?.(editor === 'save-request' ? 'save' : (editor as 'dirty' | 'selection'), params);
 			return;
 		}
 		if (method === 'notifications/message') {

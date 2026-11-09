@@ -88,7 +88,9 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed;
  * 14. a view's editor in `frames` is its group's shown frame, or hidden and kept: its save rejected as its tab
  *     hid, it holds its draft, unsaved, with no edit since, until its tab shows again, or held where it is while
- *     it saves before a move, where the browser has no `moveBefore` (5.6; step 12).
+ *     it saves before a move, where the browser has no `moveBefore` (5.6; step 12);
+ * 15. a view editor's frame keeps its window across every step: the same iframe never holds a new one, which
+ *     only a frame moved or detached and attached again gets (5.6; step 12's review, G-B1).
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -321,6 +323,20 @@ export function frameViolations(page: Page): Promise<string[]> {
 			if (own?.moving) continue;
 			if (!frame.dirty || own?.kept === undefined || own.kept !== own.edits)
 				broken.push(`14: ${tab}'s view editor is hidden in frames, and not kept with its draft`);
+		}
+		// 15: each view editor's iframe keeps the window it had, from one check to the next.
+		const holder = window as unknown as { viewWindows?: WeakMap<Element, unknown> };
+		holder.viewWindows = holder.viewWindows ?? new WeakMap();
+		const windows = holder.viewWindows;
+		for (const view of main?.querySelectorAll('loam-editor-frame loam-view-frame') ?? []) {
+			const iframe = view.shadowRoot?.querySelector('iframe');
+			if (!iframe?.isConnected || !iframe.contentWindow) continue;
+			const known = windows.get(iframe);
+			if (known && known !== iframe.contentWindow)
+				broken.push(
+					`15: a view editor's frame of ${(view.closest('loam-editor-frame') as Frame | null)?.tab} has a new window`
+				);
+			windows.set(iframe, iframe.contentWindow);
 		}
 		return broken;
 	});

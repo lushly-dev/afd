@@ -104,6 +104,8 @@ export interface Life {
 	kept?: number;
 	/** A view's editor saving before a move, where the browser has no `moveBefore`, held where it is meanwhile. */
 	moving?: boolean;
+	/** Its move back was refused: it is not held or asked again. */
+	refused?: boolean;
 }
 
 /**
@@ -346,3 +348,31 @@ export function releaseGroups(holding: Set<HTMLElement>): void {
 /** Whether `frame` must save before it leaves `from` for `to`: a view editor with unsaved work, which moving would reload where the browser has no `moveBefore` (5.6). */
 export const savesToMove = (frame: LoamEditorFrame, from: HTMLElement, to: HTMLElement): boolean =>
 	frame.kind === 'view' && frame.dirty && from !== to && !('moveBefore' in Element.prototype);
+
+/**
+ * `group` at `index` among the area's live groups, those `out` does not name: a group leaving or held is no
+ * place to count, so a group that stays never moves past one. A move is by `moveBefore` where the browser has
+ * it, which keeps a view editor's frame (5.6).
+ */
+export function placeGroup(
+	area: HTMLElement,
+	group: HTMLElement,
+	index: number,
+	out: (child: Element) => boolean
+): void {
+	const live = [...area.children].filter((child) => !out(child));
+	if (live[index] === group) return;
+	const before = live[index] ?? null;
+	const move = (area as HTMLElement & { moveBefore?: (node: Node, child: Node | null) => void })
+		.moveBefore;
+	if (move && group.isConnected) move.call(area, group, before);
+	else area.insertBefore(group, before);
+}
+
+/** `tab` in `state`, or undefined. */
+export const tabIn = (state: EditorReadV1 | null, tab: string) =>
+	state?.groups.flatMap((group) => group.tabs).find((each) => each.id === tab);
+
+/** The active group's active tab. */
+export const activeTab = (state: EditorReadV1 | null): string | null | undefined =>
+	state?.groups.find((each) => each.id === state.activeGroup)?.active;

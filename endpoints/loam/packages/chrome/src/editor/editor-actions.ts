@@ -1,81 +1,91 @@
 /**
- * @fileoverview A person's actions on the editor area's tabs and Mod+S (documents specification, 5.4, 5.5 and
- * 5.8), each turned into a command, apart from the controller (`editor.ts`) so it stays under the file-size
- * limit. In the `editor` chunk.
+ * @fileoverview Mod+S's editor and where focus goes after a render (documents specification, 5.5 and 5.8),
+ * apart from the controller (`editor.ts`) so it stays under the file-size limit, as plain functions over what
+ * the controller passes. In the `editor` chunk.
  */
 
-import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamEditorFrame } from './editor-frame.js';
-import type { EditorGroupAction } from './editor-group.js';
+import type { LoamEditorGroup } from './editor-group.js';
+import { focusMain, isSave, MODAL_RESULT_EVENT } from './editor-parts.js';
 
-/** What a tab's action reads of the controller. */
-export interface ActionHost {
-	kernel: LoamKernelV2;
-	/** The tab to focus once the strip renders, and whether focus then goes into its editor. */
-	focus(tab: string, editor: boolean): void;
-	isActive(tab: string): boolean;
-	sync(): Promise<void>;
-	close(tab: string): Promise<boolean>;
-	keepFocus(group: string, tab: string): void;
-	tabs(group: string): Array<{ id: string; pinned: boolean }>;
-	/** The visit of the scope rendered: each change of scope is a new one. */
-	visit(): number;
-	document(tab: string): string | undefined;
+/**
+ * The editor Mod+S saves, its default prevented, or undefined to leave the chord to the browser (5.5): the one
+ * holding focus, which may be in another group than the active one, else the active group's, ready and its
+ * tab's, while the area shows.
+ */
+export function keyFrame(
+	event: KeyboardEvent,
+	mac: boolean,
+	shows: boolean,
+	state: { activeGroup: string; groups: Array<{ id: string; active: string | null }> } | null,
+	frames: Map<string, LoamEditorFrame>
+): LoamEditorFrame | undefined {
+	if (event.defaultPrevented || !isSave(event, mac) || !shows) return undefined;
+	const group = state?.groups.find((each) => each.id === state.activeGroup);
+	const frame =
+		(event.composedPath().find((node) => node instanceof LoamEditorFrame) as
+			| LoamEditorFrame
+			| undefined) ?? (group?.active ? frames.get(group.active) : undefined);
+	if (frame?.state !== 'ready' || frames.get(frame.tab) !== frame) return undefined;
+	event.preventDefault();
+	return frame;
 }
 
-export async function runAction(
-	action: EditorGroupAction & { group: string },
-	host: ActionHost
-): Promise<void> {
-	const { kernel } = host;
-	const { tab } = action;
-	switch (action.action) {
-		case 'activate':
-			host.focus(tab, action.focus === true);
-			if (host.isActive(tab)) await host.sync();
-			else await kernel.call('editor-activate', { tab });
-			return;
-		case 'close':
-			await host.close(tab);
-			return;
-		case 'pin':
-		case 'unpin':
-			host.keepFocus(action.group, tab);
-			await kernel.call('editor-pin', { tab, pinned: action.action === 'pin' });
-			return;
-		case 'close-others': {
-			const visit = host.visit();
-			for (const other of host.tabs(action.group)) {
-				// Not past a change of scope, whose tabs are another scope's.
-				if (visit !== host.visit()) return;
-				if (other.id !== tab && !other.pinned && !(await host.close(other.id))) return;
-			}
-			return;
-		}
-		case 'beside': {
-			const document = host.document(tab);
-			if (document) await kernel.call('document-open', { document, group: 'beside' });
-			return;
-		}
-		case 'new-group':
-			// Focus follows the tab into its new group, from wherever the menu was opened in the strip.
-			host.keepFocus(action.group, tab);
-			await kernel.call('editor-move', { tab, group: 'new' });
-			return;
-	}
+/** Every dirty editor's `save()`, not waited for, as on `pagehide` (5.5). */
+export function saveAll(frames: LoamEditorFrame[]): void {
+	for (const frame of frames) if (frame.dirty) void frame.save().catch(reportError);
 }
-
-/** The editor Mod+S saves: the one holding focus, which may be in another group than the active one, else `active`. */
-export const saveTarget = (event: KeyboardEvent, active: LoamEditorFrame | undefined) =>
-	(event.composedPath().find((node) => node instanceof LoamEditorFrame) as
-		| LoamEditorFrame
-		| undefined) ?? active;
 
 /** A person who asked to save hears that it did, politely, through the shell's live region. */
 export function announce(shell: LoamShell, frame: LoamEditorFrame): void {
 	shell.announcement = '';
 	requestAnimationFrame(() => {
 		shell.announcement = `${frame.title} saved`;
+	});
+}
+
+/**
+ * Focus after a render (5.8): into the editor or onto the tab a person's action asked for; else, when what had
+ * it went, as another's close or move takes a tab, to that tab in the group it moved to, or its group's active
+ * tab, or main.
+ */
+export function settleFocus(
+	shell: LoamShell,
+	focus: { tab: string; editor: boolean } | null,
+	frame: LoamEditorFrame | null | undefined,
+	groups: LoamEditorGroup[],
+	had: LoamEditorGroup | undefined,
+	was: string | undefined,
+	main: HTMLElement | null
+): void {
+	const groupOf = (tab?: string) =>
+		groups.find((each) => each.tabs.some((held) => held.id === tab));
+	const doc = shell.ownerDocument;
+	if (focus) {
+		if (focus.editor) frame?.focusEditor();
+		else groupOf(focus.tab)?.tabButton(focus.tab)?.focus();
+	} else if (had && doc.activeElement === doc.body) {
+		const holder = groupOf(was);
+		const to =
+			holder && holder !== had
+				? holder.tabButton(was as string)
+				: had.isConnected && had.activeTab && had.tabButton(had.activeTab.id);
+		if (to) to.focus();
+		else if (main) focusMain(shell, main);
+	}
+}
+
+/** The phase 1 modal's answer, to the close that waits for it (5.5). */
+export function hearModals(
+	shell: LoamShell,
+	modals: Map<string, (result: 'confirm' | 'cancel') => void>
+): void {
+	shell.addEventListener(MODAL_RESULT_EVENT, (event) => {
+		const { overlayId, result } = (
+			event as CustomEvent<{ overlayId: string; result: 'confirm' | 'cancel' }>
+		).detail;
+		modals.get(overlayId)?.(result);
+		modals.delete(overlayId);
 	});
 }

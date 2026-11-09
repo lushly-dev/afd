@@ -50,6 +50,8 @@ export interface FrameListener {
 	dirty(frame: LoamEditorFrame, dirty: boolean): void;
 	selection(frame: LoamEditorFrame, selection: unknown): void;
 	closeFrame(frame: LoamEditorFrame): void;
+	/** Mod+S inside a view editor's frame (5.6): its own save. */
+	saveAsked(frame: LoamEditorFrame): void;
 }
 
 const template = html<LoamEditorFrame>`
@@ -176,22 +178,35 @@ export class LoamEditorFrame extends FASTElement {
 		super.connectedCallback();
 		this.addEventListener(EDITOR_DIRTY_EVENT, this.#onDirty);
 		this.addEventListener(EDITOR_SELECTION_EVENT, this.#onSelection);
+		this.addEventListener('loam-editor-save', this.#onSave);
 	}
 
 	override disconnectedCallback(): void {
 		this.removeEventListener(EDITOR_DIRTY_EVENT, this.#onDirty);
 		this.removeEventListener(EDITOR_SELECTION_EVENT, this.#onSelection);
+		this.removeEventListener('loam-editor-save', this.#onSave);
 		super.disconnectedCallback();
 	}
 
+	/** An embedded document's editor events are its own, never this tab's (9.2; T-S1). */
+	#embedded = (event: Event) =>
+		event.composedPath().some((node) => (node as Element).localName === 'loam-embed');
+
+	#onSave = (event: Event) => {
+		event.stopPropagation();
+		if (!this.#embedded(event)) this.listener?.saveAsked(this);
+	};
+
 	#onDirty = (event: Event) => {
 		event.stopPropagation();
+		if (this.#embedded(event)) return;
 		const dirty = (event as CustomEvent<{ dirty?: unknown }>).detail?.dirty === true;
 		this.listener?.dirty(this, dirty);
 	};
 
 	#onSelection = (event: Event) => {
 		event.stopPropagation();
+		if (this.#embedded(event)) return;
 		this.listener?.selection(this, (event as CustomEvent).detail ?? null);
 	};
 

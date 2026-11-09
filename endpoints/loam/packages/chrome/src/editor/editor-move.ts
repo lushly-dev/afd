@@ -19,7 +19,10 @@ export interface ViewMove {
 	from: LoamEditorGroup;
 	life: Life;
 	kernel: LoamKernelV2;
+	/** Its save, for the person's own move; another's answers false, so the person's draft is never saved by it. */
 	save(): Promise<boolean>;
+	/** Whether the person moved it, by the tab's menu. */
+	person: boolean;
 	/** Whether the frame is still its tab's, shown or parked. */
 	live(): boolean;
 	/** The group its tab is in now. */
@@ -46,7 +49,11 @@ export async function moveAfterSave(move: ViewMove): Promise<void> {
 			'toast-show',
 			notSaved(
 				frame.title,
-				new Error('so it stays in its group, since a move would lose its changes in this browser')
+				new Error(
+					move.person
+						? 'it stays in its group, since a move would lose its changes in this browser'
+						: "it stays in its group, since another's move would lose its unsaved changes in this browser"
+				)
 			)
 		);
 		const kept = !!move.state()?.groups.some((group) => group.id === from.group);
@@ -55,6 +62,12 @@ export async function moveAfterSave(move: ViewMove): Promise<void> {
 			{ tab: frame.tab, group: kept ? from.group : 'new' },
 			{ scope: frame.record?.scope }
 		);
+		// A move back refused leaves the tab where it is, held no longer: the next render moves it, and nothing
+		// asks again, since `moving` is clear and the save above already failed once.
+		if (!back.success) {
+			life.refused = true;
+			return;
+		}
 		if (!kept && back.data) {
 			from.hidden = false;
 			delete from.dataset.held;
