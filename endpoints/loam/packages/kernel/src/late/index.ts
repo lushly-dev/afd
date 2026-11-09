@@ -14,7 +14,6 @@ import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
 import type { ScopeV1 } from '../scope/records.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
-import { DOCUMENTS_LAYOUT_ID } from '../shell-state.js';
 import type { AppSummaryV2, KernelEventV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
@@ -31,6 +30,12 @@ import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands } from './scope-commands.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
+
+/**
+ * `DOCUMENTS_LAYOUT_ID`'s value, a literal here: imported, the first paint's `shell-state` chunk would export one
+ * more binding for this chunk (`literals.test.ts` holds the two equal).
+ */
+export const DOCUMENTS_LAYOUT = 'loam.layout.~documents';
 
 export { createOverlayStore } from '../overlays.js';
 export { withBootActions } from './boot-actions.js';
@@ -268,7 +273,7 @@ export async function createLateParts(
 				compact: { drawer: string | null };
 			}>;
 			const layout = result.data;
-			if (!inspector && layout && deps.state.layoutId() === DOCUMENTS_LAYOUT_ID) {
+			if (!inspector && layout && deps.state.layoutId() === DOCUMENTS_LAYOUT) {
 				layout.inspector = { ...layout.inspector, open: false };
 				if (layout.compact.drawer === 'inspector')
 					layout.compact = { ...layout.compact, drawer: null };

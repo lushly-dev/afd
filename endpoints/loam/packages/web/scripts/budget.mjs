@@ -184,6 +184,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `documents` by 256, to 54,795, the inspector hidden rather than closed and focus only for its own open;
  * `embed` by 25, to 6,072, its `connectedMoveCallback`; `editor-move` by 27, to 752, the reload count; each
  * within its row.
+ * Step 12's second re-check raised `editorMinified` by that round's measured cost, 131, to 35,445, and
+ * `editorMoveMinified` by 83, to 867, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate,
+ * the total exact: save requests during a save coalesced into one more (about 55, N1); a view editor held, and
+ * shown nowhere, after its move back is refused (about 45, N2); that hold cleared by the next move (about 30).
+ * `editor-move`: saving again for an edit made during the save, and the edits that save covered (S3). `late` rose
+ * by 335, to 67,392, for `layout-get` answering an undeclared inspector closed (B1, S1), within its 75,000;
+ * `documents` by 39, to 54,834, focus after a hidden inspector and its closed drawer (B1, S2), within its row.
+ * First paint is unchanged, 286,084: `late` compares the documents layout's id as a literal, since importing it
+ * made the first paint's `shell-state` chunk export one more binding (4 bytes).
  * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
  * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
  * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
@@ -208,11 +217,11 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 35_314,
+	editorMinified: 35_445,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
 	embedMinified: 6_096,
-	editorMoveMinified: 784,
+	editorMoveMinified: 867,
 });
 
 /** Group a module id by the package it belongs to. */
