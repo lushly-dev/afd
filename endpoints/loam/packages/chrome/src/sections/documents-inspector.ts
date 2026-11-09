@@ -7,6 +7,7 @@
  * document, its links among them, as `documentChanged`, and goes when its tab stops being the active one.
  */
 
+import { Observable, Updates } from '@lushly-dev/fast-element';
 import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type {
 	DocumentRecordV1,
@@ -75,6 +76,7 @@ export async function syncInspector(
 	if (!heard.has(shell)) {
 		heard.add(shell);
 		kernel.subscribe((event) => hear(shell, event, resync));
+		watchDrawer(shell);
 	}
 	const document = shows ? await activeDocument(kernel) : undefined;
 	const read =
@@ -143,27 +145,39 @@ export async function syncInspector(
 /** Whether the inspector's own `document-open` came while it held focus, which then follows the document (A-B1). */
 let opened = false;
 
-/**
- * Where focus goes once an inspector that held it is replaced: into the active tab's editor after the inspector's
- * own open, as Enter on a tab does (5.8); else the new inspector's first control; else the part.
- */
-/** The shells whose inspector drawer was seen open, until a sync sees it closed. */
+/** The shells whose inspector drawer is open, as their presentation last said. */
 const drawers = new WeakSet<LoamShell>();
 
 const drawerOpen = (shell: LoamShell) => shell.presentation.inspector === 'drawer';
 
 /**
- * Focus lost to the page as the inspector's drawer closed, for the active type has none: the drawer hands focus
- * back to what opened it, which may be the page, so the active editor takes it (B1). Seen open, by any call or
- * sync, until a sync sees it closed: the shell's own read of the layout may close it before this sync runs.
+ * Focus handed to the page as the inspector's drawer closed: the drawer gives focus back to what opened it, which
+ * may be the page or gone, as after an agent's open or a return to a note that reopened it, so the active editor
+ * takes it, else main (B1, N-1). Watched on the shell's presentation, which every open and close changes.
  */
-export function refocus(shell: LoamShell): void {
-	const doc = shell.ownerDocument;
-	const part = shell.shadowRoot?.querySelector<HTMLElement>('loam-inspector');
-	if (drawerOpen(shell) || !drawers.delete(shell)) return;
-	if (part?.hidden && doc.activeElement === doc.body) focusAfter(shell, part);
+function watchDrawer(shell: LoamShell): void {
+	if (drawerOpen(shell)) drawers.add(shell);
+	Observable.getNotifier(shell).subscribe(
+		{
+			handleChange() {
+				if (drawerOpen(shell)) drawers.add(shell);
+				else if (drawers.delete(shell))
+					void Updates.next().then(() => {
+						const doc = shell.ownerDocument;
+						const part = shell.shadowRoot?.querySelector<HTMLElement>('loam-inspector');
+						if (part?.hidden && doc.activeElement === doc.body) focusAfter(shell, part);
+					});
+			},
+		},
+		'presentation'
+	);
 }
 
+/**
+ * Where focus goes once an inspector that held it is replaced or hidden: into the active tab's editor after the
+ * inspector's own open, as Enter on a tab does (5.8), or when no inspector takes its place; else the new
+ * inspector's first control; else the part, or main when the part is about to hide (S2).
+ */
 function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): void {
 	const open = opened;
 	opened = false;
@@ -199,8 +213,6 @@ function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): voi
 
 /** A change to the inspector's document or its links reaches it, as an editor's does (5.7). */
 function hear(shell: LoamShell, event: KernelEventV2, resync: () => void): void {
-	// The inspector's drawer open as this call landed, before the shell reads the layout again.
-	if (drawerOpen(shell)) drawers.add(shell);
 	const now = held.get(shell);
 	const surface = now?.mount?.surface as LoamEditorElementV1 | null | undefined;
 	// A mutation's, never a query's: the inspector's own reads are queries, and would read again forever.

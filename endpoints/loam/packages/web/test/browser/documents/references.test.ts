@@ -1240,6 +1240,52 @@ describe('P2-D10: the inspector when the active type has none (the second re-che
 		await opened.context.close();
 	}, 120_000);
 
+	it('P2-D10: Escape on the inspector’s drawer, reopened by a return to a note, leaves focus in the editor area, not the page', async () => {
+		const opened = await openShell(browser, viewSite.root, {
+			viewport: { width: 500, height: 800 },
+		});
+		const { page } = opened;
+		const a = await createNote(page, 'Reopened note');
+		const b = await createNote(page, 'Reopened link');
+		await kernelCall(page, 'document-link-add', { from: a, to: b });
+		await open(page, a);
+		await kernelCall(page, 'layout-set', {
+			inspector: { open: true },
+			compact: { drawer: 'inspector' },
+		});
+		await expect.poll(() => modalOpen(page)).toBe(true);
+		const sheet = (
+			(await kernelCall(page, 'document-create', { type: 'sheet', title: 'Between' })) as {
+				data: { id: string };
+			}
+		).data.id;
+		await agentCall(page, 'document-open', { document: sheet });
+		await editorIdle(page);
+		await expect.poll(() => modalOpen(page), { timeout: 5_000 }).toBe(false);
+		// Back to the note, by an agent: its type has an inspector, so the drawer opens again as the person left it.
+		await agentCall(page, 'editor-activate', { tab: 't1' });
+		await editorIdle(page);
+		await expect.poll(() => modalOpen(page), { timeout: 5_000 }).toBe(true);
+		await page.keyboard.press('Escape');
+		await expect.poll(() => modalOpen(page), { timeout: 5_000 }).toBe(false);
+		await expect.poll(async () => (await deepFocus(page)).body).toBe(false);
+		// In the editor area: the drawer's opener, when it is still there, else the note's editor, else main.
+		await expect
+			.poll(() =>
+				page.evaluate(() => {
+					let at: Element | null = document.activeElement;
+					while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+					for (let node: Node | null = at; node; ) {
+						if ((node as Element).localName === 'loam-main') return true;
+						node = node.parentNode instanceof ShadowRoot ? node.parentNode.host : node.parentNode;
+					}
+					return false;
+				})
+			)
+			.toBe(true);
+		await opened.context.close();
+	}, 120_000);
+
 	it('P2-D10: F6 and Shift+F6 cycle the parts without sticking while a sheet is active, and an agent’s open leaves no focus on the body', async () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
