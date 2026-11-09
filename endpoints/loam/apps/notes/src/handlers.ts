@@ -3,8 +3,8 @@
  * an instance command, so the shell checks the document first: it exists, the actor may read it, it is a
  * note, in the call's scope and not in the trash (4.2). A note's content is `{ text, embeds? }`, under
  * `documentContentKey(document)` in the document's scope, and only these commands read or write it. Links
- * are separate commands, which a surface calls (step 12): a handler may not, by D68's "a nested call may
- * only be a query".
+ * are separate commands, which a surface calls: a handler may not, by D68's "a nested call may only be a
+ * query", so `notes-content-set` reminds a caller whose text names a document it has not linked.
  */
 
 import {
@@ -12,8 +12,10 @@ import {
 	type AppStoreV1,
 	documentContentKey,
 	failure,
+	type LinkRowV1,
 	success,
 } from '@lushly-dev/loam-sdk';
+import { parseLinks } from './links.js';
 
 /** A note's content, version 1, with the time it was last saved, which the content schema leaves out. */
 export interface NoteV1 {
@@ -52,6 +54,27 @@ function contentOf(value: unknown): NoteV1 | undefined {
 	return { text, embeds: [...embeds] };
 }
 
+/**
+ * Whether `text` names a document this note has no `reference` link to, by a nested query, which a handler
+ * may make: the links are the caller's to add (documents specification, 10).
+ */
+async function unlinked(
+	document: string,
+	text: string,
+	context: AppCallContextV1
+): Promise<boolean> {
+	const named = parseLinks(text);
+	if (named.length === 0) return false;
+	const read = await context.client.call<{ out: LinkRowV1[] }>('document-link-list', {
+		document,
+		direction: 'out',
+	});
+	const linked = new Set(
+		(read.data?.out ?? []).filter((row) => row.link.kind === 'reference').map((row) => row.link.to)
+	);
+	return named.some((link) => !linked.has(link.document));
+}
+
 /** What a read answers: the content, with `embeds` always a list. */
 const shown = (note: NoteV1) => ({
 	text: note.text,
@@ -81,6 +104,16 @@ export const handlers = {
 		return success(shown(note), {
 			undoCommand: 'notes-content-set',
 			undoArgs: { document: input.document, text: previous.text, embeds: previous.embeds ?? [] },
+			...((await unlinked(input.document, input.text, context))
+				? {
+						warnings: [
+							{
+								code: 'NOTE_LINKS_SEPARATE',
+								message: 'links are separate: document-link-add',
+							},
+						],
+					}
+				: {}),
 		});
 	},
 

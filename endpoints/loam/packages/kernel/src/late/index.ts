@@ -5,10 +5,11 @@
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
 import { createAuthMutationCommands } from '@lushly-dev/afd-auth/commands';
-import type { CommandMiddleware } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
+import { createDefaultLayout } from '../layout.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
 import type { ScopeV1 } from '../scope/records.js';
@@ -18,6 +19,7 @@ import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
+import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
@@ -28,6 +30,18 @@ import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands } from './scope-commands.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
+
+/**
+ * `DOCUMENTS_LAYOUT_ID`'s value, a literal here: imported, the first paint's `shell-state` chunk would export one
+ * more binding for this chunk (`literals.test.ts` holds the two equal).
+ */
+export const DOCUMENTS_LAYOUT = 'loam.layout.~documents';
+
+/** What a layout read shows of the inspector: whether it is open, and the compact class's drawer. */
+interface Presented {
+	inspector: { open: boolean };
+	compact: { drawer: string | null };
+}
 
 export { createOverlayStore } from '../overlays.js';
 export { withBootActions } from './boot-actions.js';
@@ -169,17 +183,41 @@ export async function createLateParts(
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
 	// the scope it needs.
 	let editor: EditorParts | undefined;
+	// `loam.layout.~documents` declares the inspector while the editor owner, the active tab's plugin, has a
+	// type with one (5.1): recomputed after a call that may move the active tab, main or the scope, and at boot.
+	let inspector = false;
+	const declare = async () => {
+		const owner = await editor?.owner();
+		const has = [...documents.types().types.values()].some(
+			(type) => type.instance === owner && type.surfaces.includes('inspector')
+		);
+		if (has === inspector) return;
+		inspector = has;
+		deps.state.registerAppLayout(
+			'~documents',
+			createDefaultLayout(),
+			new Set(has ? ['sidebar', 'inspector'] : ['sidebar'])
+		);
+	};
 	const lateScope = createLateScope({
 		...deps,
 		documents,
-		settle: (name, call) => editor?.settle(name, call),
+		async settle(name, call) {
+			await editor?.settle(name, call);
+			const seen = deps.scope.seen.get(call.traceId as string);
+			if (/^(editor-|document-)/.test(name) || seen?.mainChanged || seen?.scopeChanged)
+				await declare();
+		},
 	});
 	editor = createEditorParts({ ...deps, lateScope, check: documents }, DOCUMENT_KIT);
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
 	// stage A's `hydrate` drops a record with no handler.
 	// Each person's `loam.new.recent~<actor>` registers on their first use, read before anything writes it (7).
 	const created = createNewParts({ ...deps, check: documents });
+	// The link index, built by one `list` at its first read, and kept by the link commands and expiry (9.3).
+	const index = createDocumentIndex(deps.store);
 	await editor.ensure(deps.scope.active().project);
+	await declare();
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);
@@ -215,7 +253,11 @@ export async function createLateParts(
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
-			...createDocumentCommands({ ...deps, check: documents, editor }, DOCUMENT_KIT),
+			...createDocumentCommands(
+				{ ...deps, check: documents, editor, links: { expire: expireLinks(index) } },
+				DOCUMENT_KIT
+			),
+			...createLinkCommands({ ...deps, check: documents, index }),
 			...editor.commands,
 			created.command,
 		].map((command) => [command.name, command])
@@ -225,6 +267,43 @@ export async function createLateParts(
 		'document-create',
 		created.recording(byName.get('document-create') as ZodCommandDefinition)
 	);
+	// After stage B, every layout read an agent can make, `layout-get`, `layout-set`'s and `layout-reset`'s results and
+	// `view-state-get` of a layout record, answers an inspector `~documents` does not declare as closed, its drawer
+	// too, writing nothing: the shell then hides the part and closes its drawer as for any closed part, and the
+	// person's layout stays theirs, so a note shows the inspector again as they left it, and an undo, built from
+	// the record, applies as it was recorded (5.1; step 12's re-checks, B1 and S-2).
+	const presented = (layout: Presented): Presented =>
+		inspector
+			? layout
+			: {
+					...layout,
+					inspector: { ...layout.inspector, open: false },
+					compact:
+						layout.compact.drawer === 'inspector'
+							? { ...layout.compact, drawer: null }
+							: layout.compact,
+				};
+	for (const name of ['layout-get', 'layout-set', 'layout-reset', 'view-state-get']) {
+		const command = byName.get(name) as ZodCommandDefinition;
+		byName.set(name, {
+			...command,
+			async handler(input: unknown, context: CommandContext) {
+				const result = (await command.handler(input, context)) as CommandResult<
+					Presented | { id: string; state: Presented }
+				>;
+				const data = result.data;
+				const id = name === 'view-state-get' ? (input as { id: string }).id : 'loam.layout';
+				const documents =
+					id === DOCUMENTS_LAYOUT ||
+					(id === 'loam.layout' && deps.state.layoutId() === DOCUMENTS_LAYOUT);
+				if (!data || !documents) return result;
+				return {
+					...result,
+					data: 'state' in data ? { ...data, state: presented(data.state) } : presented(data),
+				};
+			},
+		} as ZodCommandDefinition);
+	}
 	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {

@@ -196,6 +196,9 @@ const EDITOR_CAPTURES: [string, string[]][] = [
 		],
 	],
 	['editor-group', ['tablist "Documents"', 'tab "Plan, pinned"', 'tabpanel', 'Opening Roadmap']],
+	// Step 12: `loam-embed`, refused or missing alike, and a target with no embed of its own as a link.
+	['editor-embed-unavailable', ['group "Embedded: Document"', 'Not available']],
+	['editor-embed-link', ['group "Embedded: Roadmap"', 'link "Roadmap"']],
 	[
 		'editor-menu',
 		['menu "Actions for Roadmap"', 'menuitem "Pin"', 'menuitem "Move to a new group"'],
@@ -214,12 +217,24 @@ const NOTES_CAPTURES: [string, string[]][] = [
 		'notes-editor-conflict',
 		['alert', 'This note changed elsewhere', 'button "Keep mine"', 'button "Use theirs"'],
 	],
+	// Step 12: its inspector's links and backlinks, and a note as another embeds it.
+	[
+		'notes-inspector',
+		[
+			'region "Links"',
+			'button "Launch plan"',
+			'region "Backlinks"',
+			'button "Old notes"',
+			'In trash',
+		],
+	],
+	['notes-embed', ['Plans for the quarter, and what ships first.']],
 ].flatMap(([id, expected]) => [
 	[id, expected] as [string, string[]],
 	[`${id}-compact`, expected] as [string, string[]],
 ]);
 
-describe('P2-D10: Specimen captures of notes-editor', () => {
+describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () => {
 	let notes: SpecimenBench;
 	beforeAll(async () => {
 		notes = await createSpecimenBench({ root: NOTES_SPECIMENS });
@@ -228,7 +243,7 @@ describe('P2-D10: Specimen captures of notes-editor', () => {
 		await notes?.close();
 	});
 	for (const theme of ['light', 'dark', 'high-contrast'] as const)
-		it(`P2-D10: captures it with a draft and with its conflict notice in ${theme}, in both densities`, async () => {
+		it(`P2-D10: captures the editor with a draft and with its conflict notice, the inspector and the embed in ${theme}, in both densities`, async () => {
 			for (const [id, expected] of NOTES_CAPTURES) {
 				const observation = await notes.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);

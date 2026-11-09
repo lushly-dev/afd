@@ -49,11 +49,12 @@ const styles = css`
 		grid-auto-columns: minmax(0, 1fr);
 		min-block-size: 0;
 	}
-	::slotted(loam-editor-group:not(:first-child)) {
+	/* Between groups: not before the first live one, whatever a held group before it is (G-N7). */
+	::slotted(loam-editor-group:not([data-lead]):not([data-held])) {
 		border-inline-start: 1px solid var(--color-border-subtle);
 	}
 	@media (forced-colors: active) {
-		::slotted(loam-editor-group:not(:first-child)) {
+		::slotted(loam-editor-group:not([data-lead]):not([data-held])) {
 			border-inline-start-color: CanvasText;
 		}
 	}

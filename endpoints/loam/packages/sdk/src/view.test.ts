@@ -89,6 +89,101 @@ describe('connectView', () => {
 		expect(properties.get('--color-surface-page')).toBe('#FFFEFA');
 	});
 
+	it('P2-D5: speaks a document editor’s protocol: its document, saves, changes, dirty and selection', async () => {
+		const document = {
+			id: 'doc_a',
+			type: 'sheet',
+			title: 'Plan',
+			scope: { workspace: 'personal' },
+			contentVersion: 1,
+			binding: {
+				model: 'command',
+				selection: 'text-range',
+				locator: 'text-range',
+				conflict: 'last-writer-wins',
+			},
+			readOnly: false,
+		};
+		const { posted, deliver } = installWindow({
+			'ui/initialize': () => ({
+				protocolVersion: '2026-01-26',
+				hostContext: { ...HOST_CONTEXT, 'dev.loam/document': document },
+			}),
+		});
+		const view = await connectView();
+		expect(view.hostContext['dev.loam/document']).toEqual(document);
+		view.reportDirty(true);
+		view.reportSelection({ kind: 'text-range', start: 1, end: 2 });
+		view.reportSelection(undefined);
+		expect(posted.slice(-3).map(({ method, params }) => [method, params])).toEqual([
+			['dev.loam/editor-dirty', { dirty: true }],
+			['dev.loam/editor-selection', { selection: { kind: 'text-range', start: 1, end: 2 } }],
+			['dev.loam/editor-selection', { selection: null }],
+		]);
+		const changes: unknown[] = [];
+		view.onDocumentChanged((change) => changes.push(change));
+		deliver({
+			jsonrpc: '2.0',
+			method: 'dev.loam/document-changed',
+			params: { document: 'doc_a', command: 'sheet-write', seq: 4 },
+		});
+		expect(changes).toEqual([{ document: 'doc_a', command: 'sheet-write', seq: 4 }]);
+		// A save answers once the listener resolves, and a rejection is an error to the host.
+		let saves = 0;
+		const stop = view.onSave(() => {
+			saves += 1;
+			if (saves === 2) throw new Error('Not now');
+		});
+		deliver({ jsonrpc: '2.0', id: 'save-1', method: 'dev.loam/editor-save', params: {} });
+		await tick();
+		expect(posted.find((message) => message.id === 'save-1')).toMatchObject({ result: {} });
+		deliver({ jsonrpc: '2.0', id: 'save-2', method: 'dev.loam/editor-save', params: {} });
+		await tick();
+		expect(posted.find((message) => message.id === 'save-2')?.error).toBeDefined();
+		// With no listener, a save has nothing to write and answers at once.
+		stop();
+		deliver({ jsonrpc: '2.0', id: 'save-3', method: 'dev.loam/editor-save', params: {} });
+		await tick();
+		expect(posted.find((message) => message.id === 'save-3')).toMatchObject({ result: {} });
+		expect(saves).toBe(2);
+	});
+
+	it('P2-D5: asks the host for its own save on Mod+S, only in an editor, not on a repeat or another chord', async () => {
+		for (const readOnly of [false, true]) {
+			const { posted } = installWindow({
+				'ui/initialize': () => ({
+					protocolVersion: '2026-01-26',
+					hostContext: { ...HOST_CONTEXT, 'dev.loam/document': { id: 'doc_a', readOnly } },
+				}),
+			});
+			const keydowns: Array<(event: unknown) => void> = [];
+			const held = window as unknown as {
+				addEventListener(type: string, listener: (event: unknown) => void): void;
+			};
+			const add = held.addEventListener;
+			held.addEventListener = (type, listener) =>
+				type === 'keydown' ? keydowns.push(listener) : add(type, listener);
+			// An iPad that says so only in its user agent, as the shell reads it too.
+			vi.stubGlobal('navigator', { platform: '', userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0)' });
+			await connectView();
+			expect(keydowns.length).toBe(readOnly ? 0 : 1);
+			if (readOnly) continue;
+			let prevented = 0;
+			const press = (extra: Record<string, unknown>) =>
+				keydowns[0]?.({ code: 'KeyS', metaKey: true, preventDefault: () => prevented++, ...extra });
+			press({});
+			press({ repeat: true });
+			press({ altKey: true });
+			press({ code: 'KeyA' });
+			// On macOS, Control+S is not the chord, and neither is Command and Control together.
+			press({ metaKey: false, ctrlKey: true });
+			press({ ctrlKey: true });
+			const asked = posted.filter((message) => message.method === 'dev.loam/editor-save-request');
+			expect(asked.length).toBe(1);
+			expect(prevented).toBe(2);
+		}
+	});
+
 	it('takes a command result from a tool call', async () => {
 		const result = success({ greeting: 'Hello, Ada!' });
 		const { posted } = installWindow({

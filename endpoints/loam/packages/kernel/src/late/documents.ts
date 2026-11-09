@@ -2,7 +2,7 @@
  * @fileoverview The `document-*` commands (documents specification, section 4; D79), in a chunk of their
  * own, `late-documents`, which `loadLate` imports before stage B's last `setAppCommands` (scope and projects
  * specification, 2.4). `document-open` is the editor area's, in `late-editor` with `editor-*` (step 10), and
- * `document-link-*` step 12's. Each command that names
+ * `document-link-*` are `late`'s, with their index (`links.ts`), which expiry deletes from. Each command that names
  * a document runs 4.2's check first, and each `project` it names `decideAccess`, answering
  * `PROJECT_NOT_FOUND` for missing and refused alike. The shell never reads a document's content: it writes
  * a template's, and moves the row whole (3).
@@ -34,6 +34,16 @@ export interface DocumentCommandDeps {
 			at: ScopeV1,
 			context: CommandContext
 		): Promise<CommandResult<never> | undefined>;
+	};
+	/**
+	 * The link index's part of expiry (9.3): `run` gets the DELETE of every link from or to `documents`, to put
+	 * in its batch, after every earlier change to the link table, and they leave the index once it returns.
+	 */
+	links?: {
+		expire<T>(
+			documents: readonly string[],
+			run: (operations: BatchOperation[]) => Promise<T>
+		): Promise<T>;
 	};
 	/** The kernel's `run`, for `document-export`'s nested query (11.1). */
 	run<T>(
@@ -761,7 +771,8 @@ export function createDocumentCommands(
 
 	const expire = defineCommandWithSchema<typeof expireInput, { deleted: string[] }>({
 		name: 'document-trash-expire',
-		description: "Boot's own: delete each document trashed before `before`, with its content",
+		description:
+			"Boot's own: delete each document trashed before `before`, with its content and its links",
 		mutation: true,
 		input: expireInput,
 		jsonSchema: object({ before: { type: 'number' } }, ['before']),
@@ -771,18 +782,25 @@ export function createDocumentCommands(
 				workspace,
 				input.before
 			);
-			// The record and its content, deleted without reading the content (3); step 12 adds its links.
-			await batch(
-				expired.flatMap((record) => [
-					{
-						method: 'DELETE' as const,
-						path: contentPath(record.instance, record.scope, record.id),
-					},
-					{ method: 'DELETE' as const, path: recordPath(record.id) },
-				]),
-				'expire the trash'
-			);
-			return success({ deleted: expired.map((record) => record.id) });
+			const ids = expired.map((record) => record.id);
+			// The record, its content, deleted without reading the content (3), and every link from or to it, in
+			// one batch, so none is left alone (4.1, 9.3).
+			const expire = (links: BatchOperation[]) =>
+				batch(
+					[
+						...expired.flatMap((record) => [
+							{
+								method: 'DELETE' as const,
+								path: contentPath(record.instance, record.scope, record.id),
+							},
+							{ method: 'DELETE' as const, path: recordPath(record.id) },
+						]),
+						...links,
+					],
+					'expire the trash'
+				);
+			await (deps.links ? deps.links.expire(ids, expire) : expire([]));
+			return success({ deleted: ids });
 		},
 	});
 

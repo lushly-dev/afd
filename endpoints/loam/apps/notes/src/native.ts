@@ -10,7 +10,12 @@ export default defineApp({
 	sdk: 1,
 	handlers,
 	async activate(context) {
-		await context.kit.define(['violet-button', 'violet-text-area']);
+		await context.kit.define([
+			'violet-button',
+			'violet-text-area',
+			'violet-text-field',
+			'loam-embed',
+		]);
 		const { defineNotesElements } = await import('./notes-editor.js');
 		await defineNotesElements(context);
 	},

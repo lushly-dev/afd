@@ -217,7 +217,7 @@ const rowsOf = (result: { data?: unknown }) =>
 	(result.data as ProjectSummaryResultV1).summaries.map((row) => row.instance);
 
 describe('P2-E9 (kernel unit): project-summary-get', () => {
-	it('asks each app with a summary at the project, in the rail’s order, each failure its row alone', async () => {
+	it('P2-D9: asks each app with a summary at the project, in the rail’s order, each failure its row alone, and drops an unknown link kind with a warning', async () => {
 		const aborted: number[] = [];
 		const { kernel, journal, atlas } = await workspace(aborted);
 		const started = Date.now();
@@ -379,7 +379,7 @@ describe('P2-E9 (kernel unit): readProjectSummary and readResourceLink', () => {
 		expect(read?.summary).not.toHaveProperty('script');
 	});
 
-	it('reads a link by shape: an unknown kind, a bad scope or a long route is no link', () => {
+	it('P2-D9: reads a resource link by shape: an unknown kind, a bad scope or a long route is no link', () => {
 		const scope = { workspace: 'personal', project: 'prj_a' };
 		expect(readResourceLink({ kind: 'app', instance: 'tasks', scope })).toEqual({
 			kind: 'app',

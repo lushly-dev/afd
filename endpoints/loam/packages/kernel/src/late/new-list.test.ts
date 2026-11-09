@@ -435,6 +435,103 @@ describe("P2-D8 (kernel unit): the palette's rows after a write during a build",
 	});
 });
 
+describe('P2-D1 (kernel unit): loam.layout.~documents declares the inspector with a type that has one (5.1)', () => {
+	it('declares it while the active tab’s plugin has a type with an inspector, and not with no tab or after a reload’s restore of none', async () => {
+		const store = new MemoryAdapter();
+		const held = await workspace({ store });
+		const { kernel } = held;
+		const open = () => kernel.call('layout-set', { inspector: { open: true } });
+		await kernel.call('section-open', { section: 'documents' });
+		expect((await open()).error?.code).toBe('LAYOUT_PART_UNDECLARED');
+		const created = await kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		await kernel.call('document-open', { document: created.data?.id });
+		expect((await open()).success).toBe(true);
+		// Closing its tab takes the inspector away again, and an app's main is not the section's.
+		await kernel.call('editor-close', { tab: 't1', discard: true });
+		expect((await open()).error?.code).toBe('LAYOUT_PART_UNDECLARED');
+		await kernel.call('document-open', { document: created.data?.id });
+		await kernel.flush();
+		await kernel.dispose();
+		// A reload restores the tab with no call: stage B declares it as it boots.
+		const again = await workspace({ store });
+		expect((await again.kernel.call('layout-set', { inspector: { open: false } })).success).toBe(
+			true
+		);
+	});
+});
+
+describe('P2-D10 (kernel unit): every layout read agrees while the inspector is undeclared (step 12, S-2)', () => {
+	/** `probe` with no inspector: its tab active, `~documents` declares none, as for the browser's sheet. */
+	const NO_INSPECTOR = {
+		...PROBE_DOCUMENTS_MANIFEST,
+		ui: {
+			...PROBE_DOCUMENTS_MANIFEST.ui,
+			documents: PROBE_DOCUMENTS_MANIFEST.ui?.documents?.map(
+				({ inspector: _gone, ...type }) => type
+			),
+		},
+	} as ManifestV2;
+
+	it('answers the inspector closed in layout-get, layout-set’s and layout-reset’s results and view-state-get, storing nothing, and an undo applies as recorded', async () => {
+		const store = new MemoryAdapter();
+		// The person opened the inspector, in its drawer too, while their note's type had one.
+		const first = await workspace({ store });
+		await first.kernel.call('section-open', { section: 'documents' });
+		const note = await first.kernel.call<{ id: string }>('document-create', { type: 'probe' });
+		await first.kernel.call('document-open', { document: note.data?.id });
+		const opened = await first.kernel.call('layout-set', {
+			inspector: { open: true },
+			compact: { drawer: 'inspector' },
+		});
+		expect(opened.success).toBe(true);
+		await first.kernel.flush();
+		await first.kernel.dispose();
+		// Its type has none now: the inspector is undeclared, and every read says it is closed.
+		const second = await workspace({ store }, NO_INSPECTOR);
+		const { kernel } = second;
+		await kernel.call('section-open', { section: 'documents' });
+		type Layout = {
+			inspector: { open: boolean };
+			compact: { drawer: string | null };
+			sidebar: { width: number };
+		};
+		const shown = (layout?: Layout) => ({
+			inspector: layout?.inspector.open,
+			drawer: layout?.compact.drawer,
+		});
+		const closed = { inspector: false, drawer: null };
+		expect(shown((await kernel.call<Layout>('layout-get')).data)).toEqual(closed);
+		const set = await kernel.call<Layout>('layout-set', { sidebar: { width: 300 } });
+		expect(shown(set.data)).toEqual(closed);
+		expect(set.data?.sidebar.width).toBe(300);
+		for (const id of ['loam.layout', 'loam.layout.~documents']) {
+			const read = await kernel.call<{ id: string; state: Layout }>('view-state-get', { id });
+			expect(read.data?.id).toBe(id);
+			expect(shown(read.data?.state)).toEqual(closed);
+		}
+		const reset = await kernel.call<Layout>('layout-reset');
+		expect(shown(reset.data)).toEqual(closed);
+		// Its undo is built from the record, which the reads and the set left as the person had it.
+		expect(reset.undoArgs).toMatchObject({
+			inspector: { open: true },
+			compact: { drawer: 'inspector' },
+			sidebar: { width: 300 },
+		});
+		await kernel.flush();
+		await kernel.dispose();
+		// Its type has one again: both undos, recorded while it was hidden, apply as recorded, newest first.
+		const third = await workspace({ store });
+		await third.kernel.call('section-open', { section: 'documents' });
+		const layout = async () => (await third.kernel.call<Layout>('layout-get')).data;
+		expect((await third.kernel.call('layout-set', reset.undoArgs)).success).toBe(true);
+		expect(shown(await layout())).toEqual({ inspector: true, drawer: 'inspector' });
+		expect((await layout())?.sidebar.width).toBe(300);
+		expect((await third.kernel.call('layout-set', set.undoArgs)).success).toBe(true);
+		expect((await layout())?.sidebar.width).toBe(260);
+		expect(shown(await layout())).toEqual({ inspector: true, drawer: 'inspector' });
+	});
+});
+
 describe('P2-D8 (kernel unit): loam.layout.~documents (5.1, G-S3)', () => {
 	it('is the documents section’s layout, declaring the sidebar alone, kept apart from the no-app record and across a reload', async () => {
 		const store = new MemoryAdapter();

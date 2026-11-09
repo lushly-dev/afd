@@ -193,6 +193,57 @@ export type NewItemV1 =
 	  }
 	| { kind: 'creator'; instance: string; command: string; title: string; icon: string };
 
+/**
+ * One reference between two documents of a workspace (documents specification, 9.3; D81): from a document,
+ * to one, by a kind, with an anchor in the from document's locator. Links cross projects freely, and a reader
+ * sees only those whose other end it may read.
+ */
+export interface DocumentLinkV1 {
+	/** `lnk_` and 12 characters, from the command's random. */
+	id: string;
+	workspace: string;
+	/** A document's id. */
+	from: string;
+	/** A document's id. */
+	to: string;
+	/** JSON, at most 1 KiB: the from document's locator, under its binding. */
+	anchor: unknown;
+	/** `reference` by default, or `embed`; `^[a-z][a-z-]{0,31}$`. */
+	kind: string;
+	createdAt: number;
+	createdBy: string;
+}
+
+/** One row of `document-link-list`: the link, and the other document as the reader may see it (9.3). */
+export interface LinkRowV1 {
+	link: DocumentLinkV1;
+	document: {
+		id: string;
+		title: string;
+		type: string;
+		status: DocumentRecordV1['status'];
+		scope: ScopeV1;
+	};
+}
+
+/**
+ * What the `documents` grant gives a surface (documents specification, 11): metadata, references and
+ * backlinks of the documents the caller may read, within its scope, and opening one. Content is read only
+ * through the type's editor and commands, under `store`.
+ */
+export interface DocumentsV1 {
+	get(document: string): Promise<DocumentRecordV1 | null>;
+	list(options?: {
+		type?: string;
+		tag?: string;
+		query?: string;
+		limit?: number;
+	}): Promise<DocumentRecordV1[]>;
+	links(document: string): Promise<{ out: LinkRowV1[]; in: LinkRowV1[] }>;
+	/** Refused unless this app is the active app or the editor owner, `DOCUMENT_OPEN_NOT_ACTIVE`. */
+	open(document: string, options?: { group?: 'active' | 'beside' }): Promise<void>;
+}
+
 /** The store key of a document's content, in its type's `store` (documents specification, 3). */
 export function documentContentKey(document: string): string {
 	return `doc/${document}`;
@@ -217,6 +268,8 @@ export interface AppContextV1 {
 	readonly registry: CustomElementRegistry;
 	readonly kit: KitV1;
 	readonly overlays: OverlaysV1;
+	/** A surface's, with the `documents` grant (documents specification, 11). */
+	readonly documents?: DocumentsV1;
 	/**
 	 * Moves this app's route, by `app-route-set`, so the URL follows (phase 2 specification, 11.3). Native
 	 * only: a view calls `app-route-set` through its client.
@@ -258,6 +311,7 @@ export const KIT_ELEMENT_NAMES_V1 = [
 	'violet-text-field',
 	'loam-list',
 	'loam-status-item',
+	'loam-embed',
 ] as const;
 
 export type KitElementNameV1 = (typeof KIT_ELEMENT_NAMES_V1)[number];

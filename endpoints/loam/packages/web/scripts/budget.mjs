@@ -159,6 +159,52 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * cycle walk is simpler). First paint's code is unchanged: its gzip is one byte more only for the `apps`
  * chunk's new hash in its name, and with the old name it is equal. The third re-check's last nit, refusing a
  * declared `__proto__` too, shrank the closure by 17, to 393,918, under the same ceiling, 176 bytes left.
+ * Step 12's deviation 7, the coordinator's decision of 2026-11-09, adds `editorMoveMinified`, `editor-move` alone,
+ * a view editor's save before a move where the browser has no `moveBefore`, which only that browser loads:
+ * 591, set at 650, its measurement plus 10%; and raises `editorMinified` by its measured cost, 1,140, to 34,505,
+ * keeping the 44 bytes left, approved by the coordinator on 2026-11-09: the frame held where it is while it
+ * saves (about 500), the area hidden rather than removed and a group kept while an unsaved view editor in it
+ * saves (about 300), and the tab actions and Mod+S moved to `editor-actions.ts` under the file-size limit (about
+ * 316).
+ * Step 12's review raised `editorMinified` by that round's measured cost, 613, to 35,118, and `editorMoveMinified`
+ * by 134, to 784, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate, the total exact:
+ * groups placed among live ones, by `moveBefore` where it exists (about 210, G-B1); Mod+S from inside a view
+ * editor's frame (about 150, S7); an embed's editor events kept out of its tab (about 110, T-S1); only the
+ * person's own move saves (about 80, T-S2); the first live group's border (about 70, G-N7); a refused move back
+ * not asked again (about 25, G-N6); less about 30 that G-S4's restructure saved: the action host's ten closures
+ * gone (about 270) against the plain functions the file-size limit then needed (about 240). `editor-move`: the
+ * two toasts and the refusal's stop. `late` rose by 36, to 67,011, for the link id taken only from an undo and a
+ * failed first list retried, approved within its 75,000.
+ * Step 12's re-check raised `editorMinified` by that round's measured cost, 196, to 35,314, and `viewMinified` by
+ * 25, to 25,105, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate, the total exact: a
+ * frame's and a group's `connectedMoveCallback`, so `moveBefore` keeps them (about 60, N-B1); the person's move
+ * read from the event, an undo's among them (about 60); a view's save requests one at a time (about 40); a
+ * refused move back cleared once it settles (about 20); the area's check as a function (about 15). `view`: its
+ * own `connectedMoveCallback`. `late` rose by 46, to 67,057, for the bound on the removed link ids;
+ * `documents` by 256, to 54,795, the inspector hidden rather than closed and focus only for its own open;
+ * `embed` by 25, to 6,072, its `connectedMoveCallback`; `editor-move` by 27, to 752, the reload count; each
+ * within its row.
+ * Step 12's second re-check raised `editorMinified` by that round's measured cost, 131, to 35,445, and
+ * `editorMoveMinified` by 83, to 867, approved by the coordinator on 2026-11-09. Parts of `editor`, approximate,
+ * the total exact: save requests during a save coalesced into one more (about 55, N1); a view editor held, and
+ * shown nowhere, after its move back is refused (about 45, N2); that hold cleared by the next move (about 30).
+ * `editor-move`: saving again for an edit made during the save, and the edits that save covered (S3). `late` rose
+ * by 335, to 67,392, for `layout-get` answering an undeclared inspector closed (B1, S1), within its 75,000;
+ * `documents` by 47, to 54,842, focus after a hidden inspector and its closed drawer, main when the active view
+ * cannot take it yet (B1, S2), within its row.
+ * First paint is unchanged, 286,084: `late` compares the documents layout's id as a literal, since importing it
+ * made the first paint's `shell-state` chunk export one more binding (4 bytes).
+ * Step 12's final re-check raised `editorMoveMinified` by that round's measured cost, 3,338, to 4,205, approved by
+ * the coordinator on 2026-11-09: `loam-editor-held`, the placeholder a held view editor's tab shows after its move
+ * back is refused, with Move back and Save, its template, styles and words (S-1), and the move back shared by the
+ * two. `late` rose by 217, to 67,609, for one `presented` helper over every layout read (S-2), within its 75,000;
+ * `documents` by 80, to 54,922, the drawer's close watched on the shell's presentation (N-1), within its row;
+ * `editor` fell by 34, to 35,367. First paint is unchanged.
+ * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
+ * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
+ * 6,096, approved by the coordinator, 2026-11-09. Parts: the element, its read and re-check and its states (about 5,050), and `resourceLinkUrl` with `formatRoute`, which `sections` also loads (about 490). `late` rose by
+ * 4,990, within step 12's ledger line of 5,000; `editor` 33,321 before deviation 7's save before a move, `view` 25,012, `surfaces` 83,556 and
+ * `documents` 53,757, within their rows; first paint's bytes, `apps` and `late-editor` are unchanged.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -171,16 +217,18 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 5_247,
 	appsMinified: 394_094,
 	surfacesMinified: 85_000,
-	viewMinified: 25_080,
+	viewMinified: 25_105,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
-	editorMinified: 33_365,
+	editorMinified: 35_445,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
+	embedMinified: 6_096,
+	editorMoveMinified: 4_205,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -382,7 +430,18 @@ async function measurePage() {
 	// The editor area (documents specification, 5 and 12), loaded by the URL's chunk on the first document
 	// opened, restored or routed to: in "the rest" of 2.4's order, after the surfaces, which hold the app
 	// surfaces' `host()` its frames mount through.
-	const editor = closure(/^assets\/editor-/, afterSurfaces);
+	// Less `editor-move`, a chunk of its own with a row of its own, which loads only without `moveBefore`.
+	const editor = closure(/^assets\/editor-(?!move-)/, afterSurfaces);
+	// A view editor's move where the browser has no `moveBefore` (documents specification, 5.6): loaded by the
+	// editor area then alone, after it. Never first paint's, and charged to no other row.
+	const editorMove = closure(/^assets\/editor-move-/, new Set([...afterSurfaces, ...editor]));
+	if (editorMove.size === 0)
+		throw new Error('budget: the build has no `editor-move` chunk to measure');
+	for (const name of editorMove)
+		if (initial.has(name))
+			throw new Error(
+				`budget: \`${name}\` is in first paint, and must load only without \`moveBefore\``
+			);
 	if (editor.size === 0) throw new Error('budget: the build has no `editor` chunk to measure');
 	// The documents section (documents specification, 8 and 12), loaded by the URL's chunk beside the editor
 	// area's, with `loam-tree` and `violet-tree`, which an app's tree sidebar loads this chunk for: in "the
@@ -394,6 +453,10 @@ async function measurePage() {
 	// press or the palette's first `new` query, after the surfaces as the rest are.
 	const newMenu = closure(/^assets\/new-menu-/, afterSurfaces);
 	if (newMenu.size === 0) throw new Error('budget: the build has no `new` chunk to measure');
+	// `loam-embed` (documents specification, 9.2), a chunk of its own the kit loads for the first editor that
+	// embeds, since the `editor` chunk is at its ceiling: after the surfaces, which hold the kit's loader.
+	const embed = closure(/^assets\/embed-/, afterSurfaces);
+	if (embed.size === 0) throw new Error('budget: the build has no `embed` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -427,6 +490,8 @@ async function measurePage() {
 		editorMinified: sizeOf(editor),
 		documentsMinified: sizeOf(documents),
 		newMinified: sizeOf(newMenu),
+		embedMinified: sizeOf(embed),
+		editorMoveMinified: sizeOf(editorMove),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -504,6 +569,11 @@ const ROWS = [
 	['editorMinified', "The chrome's `editor` chunk and its imports, minified"],
 	['documentsMinified', 'The `documents` chunk, with `loam-tree` and `violet-tree`, minified'],
 	['newMinified', 'The `new` chunk, with `violet-menu`, minified'],
+	['embedMinified', 'The `embed` chunk, `loam-embed` and its link, minified'],
+	[
+		'editorMoveMinified',
+		"The `editor-move` chunk, a view editor's move with no `moveBefore`, minified",
+	],
 ];
 
 export async function measure() {

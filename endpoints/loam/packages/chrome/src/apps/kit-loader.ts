@@ -28,6 +28,8 @@ const LOADERS: Readonly<Record<KitElementNameV1, Loader>> = {
 		import('@lushly-dev/violet-elements/dist/text-field/violet-text-field.js'),
 	'loam-list': loaded,
 	'loam-status-item': loaded,
+	// A chunk of its own, loaded by the first editor that embeds (documents specification, 9.2).
+	'loam-embed': () => import('../editor/embed.js').then((module) => module.defined),
 };
 
 /** Define one kit element in `registry`, which is idempotent per registry. */

@@ -11,6 +11,7 @@
 import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
 import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
+import { syncInspector } from './documents-inspector.js';
 import { documentsSectionDefinition, LoamDocumentsSection } from './documents-section.js';
 import { documentsSidebarDefinition, LoamDocumentsSidebar } from './documents-sidebar.js';
 import { defineTree } from './tree.js';
@@ -44,13 +45,16 @@ function define(): Promise<unknown> {
 	return defined;
 }
 
-/** The title bar's inspector and panel toggles, `aria-disabled` while the section shows; a mark another left stays. */
-function markToggles(shell: LoamShell, on: boolean): void {
+/**
+ * The title bar's inspector and panel toggles, `aria-disabled` while the section shows, but the inspector's
+ * while the active tab's type has one (5.1); a mark another left stays.
+ */
+function markToggles(shell: LoamShell, on: boolean, inspector = false): void {
 	const titlebar = shell.shadowRoot?.querySelector('loam-titlebar');
 	for (const part of PARTS) {
 		const toggle = titlebar?.shadowRoot?.querySelector(`[data-toggle="${part}"]`);
 		if (!toggle) continue;
-		if (on) {
+		if (on && !(inspector && part === 'inspector')) {
 			toggle.setAttribute('aria-disabled', 'true');
 			toggle.setAttribute('title', toggleTitle(part));
 		} else if (toggle.getAttribute('title') === toggleTitle(part)) {
@@ -103,6 +107,7 @@ async function sync(shell: LoamShell): Promise<void> {
 		// The app surfaces show it again when an app opens with no sidebar of its own.
 		if (empty && state.active === null) empty.hidden = false;
 		markToggles(shell, false);
+		await syncInspector(shell, false, () => void syncDocuments(shell));
 		if (hadFocus) focusMain(shell, main);
 		return;
 	}
@@ -128,10 +133,10 @@ async function sync(shell: LoamShell): Promise<void> {
 	}
 	const project = state.scope.project;
 	void sidebar.show(`${state.workspace.id} ${project ?? ''}`);
-	markToggles(shell, true);
 	// Main: the editor area while the scope's editor state has tabs, and the list while it has none (5.1).
 	const editor = await kernel.call<{ groups: Array<{ tabs: unknown[] }> }>('editor-get');
 	const tabs = editor.data?.groups.some((group) => group.tabs.length > 0) ?? false;
+	markToggles(shell, true, await syncInspector(shell, tabs, () => void syncDocuments(shell)));
 	if (tabs) {
 		held?.remove();
 	} else {
@@ -159,6 +164,6 @@ async function sync(shell: LoamShell): Promise<void> {
 			section.focusHeading();
 		}
 	}
-	// The section declares the sidebar alone: `loam.layout.~documents`.
+	// The section declares the sidebar, and the inspector while the active tab's plugin has a type with one.
 	await shell.readLayout();
 }

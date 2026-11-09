@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { appCheck, readAppManifest } from '@lushly-dev/loam-cli';
 import { createAppTestKernel } from '@lushly-dev/loam-testing';
 import { describe, expect, it } from 'vitest';
+import { linkChanges, linkToken, parseLinks } from '../src/links.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -132,13 +133,77 @@ describe('notes', () => {
 		);
 	});
 
-	it('passes app check as a version 2 manifest with one document type and no rail', async () => {
+	it('passes app check as a version 2 manifest with one document type, its embed and inspector, and no rail', async () => {
 		const manifest = await readAppManifest(ROOT);
 		expect(manifest.manifest_version).toBe(2);
 		expect(manifest.ui?.documents?.map((type) => type.id)).toEqual(['notes']);
 		expect(manifest.ui?.surfaces).toBeUndefined();
+		expect(manifest.ui?.documents?.[0]).toMatchObject({
+			embed: { element: 'notes-embed' },
+			inspector: { element: 'notes-inspector' },
+		});
+		expect(manifest.grants?.map((grant) => grant.name)).toEqual(['store', 'clock', 'documents']);
 		const report = await appCheck({ dir: ROOT });
 		expect(report.refusals).toEqual([]);
 		expect(report.trust?.code).toBe('TRUSTED_NOT_SANDBOXED');
+	});
+
+	it('P2-D9: reminds a caller whose saved text names a document it has not linked, and stops once it is', async () => {
+		const { kernel } = await kernelIn();
+		const made = async (title: string) =>
+			(await kernel.call<{ id: string }>('document-create', { type: 'notes', title })).data
+				?.id as string;
+		const a = await made('A');
+		const b = await made('B');
+		const text = `See ${linkToken(b, 'B')}`;
+		const first = await kernel.call('notes-content-set', { document: a, text });
+		expect(first.warnings).toEqual([
+			{ code: 'NOTE_LINKS_SEPARATE', message: 'links are separate: document-link-add' },
+		]);
+		await kernel.call('document-link-add', { from: a, to: b });
+		const second = await kernel.call('notes-content-set', { document: a, text });
+		expect(second.warnings).toBeUndefined();
+		// Text with no link needs none.
+		expect(
+			(await kernel.call('notes-content-set', { document: b, text: 'Plain' })).warnings
+		).toBeUndefined();
+	});
+});
+
+describe("P2-D9: a note's links", () => {
+	it('parses each link token of the text, with its id, its title and where it is', () => {
+		const token = linkToken('doc_abc123def456', 'Road]map');
+		expect(token).toBe('[[doc_abc123def456|Road)map]]');
+		const text = `Start ${token} and [[doc_x|X]], not [[no id]] or [[a b|c]].`;
+		expect(parseLinks(text)).toEqual([
+			{ document: 'doc_abc123def456', title: 'Road)map', start: 6, end: 6 + token.length },
+			{
+				document: 'doc_x',
+				title: 'X',
+				start: text.indexOf('[[doc_x'),
+				end: text.indexOf('[[doc_x') + '[[doc_x|X]]'.length,
+			},
+		]);
+		expect(parseLinks('')).toEqual([]);
+	});
+
+	it('diffs what the text links and embeds against the links held, one of each kind and document', () => {
+		const held = [
+			{ id: 'l1', to: 'doc_b', kind: 'reference' },
+			{ id: 'l2', to: 'doc_gone', kind: 'reference' },
+			{ id: 'l3', to: 'doc_b', kind: 'reference' },
+			{ id: 'l4', to: 'doc_e', kind: 'embed' },
+			{ id: 'l5', to: 'doc_q', kind: 'quote' },
+		];
+		const text = `${linkToken('doc_b', 'B')} ${linkToken('doc_c', 'C')} ${linkToken('doc_b', 'B again')}`;
+		expect(linkChanges(text, ['doc_e', 'doc_f'], held)).toEqual({
+			add: [
+				{ to: 'doc_c', kind: 'reference' },
+				{ to: 'doc_f', kind: 'embed' },
+			],
+			// A second link of the same kind and document goes, and another kind is left alone.
+			remove: ['l2', 'l3'],
+		});
+		expect(linkChanges('', [], held).remove).toEqual(['l1', 'l2', 'l3', 'l4']);
 	});
 });

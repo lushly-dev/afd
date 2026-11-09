@@ -12,6 +12,7 @@ import { defineEditorElements } from '../dist/editor/editor.js';
 import type { LoamEditorArea } from '../dist/editor/editor-area.js';
 import type { LoamEditorFrame } from '../dist/editor/editor-frame.js';
 import type { EditorTabView, LoamEditorGroup } from '../dist/editor/editor-group.js';
+import type { LoamEmbed } from '../dist/editor/embed.js';
 import { type Density, themePart } from './support.js';
 
 type Box = { inline: string; block: string };
@@ -166,3 +167,33 @@ export const [EditorFrameFailed, EditorFrameFailedCompact] = both(
 	},
 	{ inline: '480px', block: '320px' }
 );
+
+/**
+ * `loam-embed` (documents specification, 9.2): with no shell around it there is no reader, so it is `Not
+ * available`, as a refused or missing target is; and a target whose type has no embed, its title as a link.
+ */
+async function embed(wrapper: HTMLElement, link: boolean): Promise<void> {
+	await (await import('../dist/editor/embed.js')).defined;
+	const element = document.createElement('loam-embed') as LoamEmbed;
+	element.document = 'doc_fixture00001';
+	wrapper.append(element);
+	await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+	if (link) {
+		element.heading = 'Roadmap';
+		element.url = '/personal/~/documents/doc_fixture00001';
+		element.state = 'link';
+	}
+}
+
+export const [EmbedUnavailable, EmbedUnavailableCompact] = both(
+	(wrapper) => embed(wrapper, false),
+	{
+		inline: '480px',
+		block: '120px',
+	}
+);
+
+export const [EmbedLink, EmbedLinkCompact] = both((wrapper) => embed(wrapper, true), {
+	inline: '480px',
+	block: '120px',
+});

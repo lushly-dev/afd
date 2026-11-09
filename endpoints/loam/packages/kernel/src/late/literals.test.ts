@@ -8,9 +8,9 @@ import { createBootCommands } from '../boot-commands.js';
 import { KERNEL_CONTEXT_FIELDS } from '../context-fields.js';
 import { createScopeRuntime } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
-import { registerShellState } from '../shell-state.js';
+import { DOCUMENTS_LAYOUT_ID, registerShellState } from '../shell-state.js';
 import { createFixedEnvironment } from '../testing.js';
-import { createLateParts, createOverlayStore } from './index.js';
+import { createLateParts, createOverlayStore, DOCUMENTS_LAYOUT } from './index.js';
 
 async function definitions() {
 	const viewState = new ViewStateRegistry();
@@ -46,6 +46,10 @@ async function definitions() {
 }
 
 describe('the shell commands on Zod Mini', () => {
+	it('name the documents layout as the shell state does, a literal kept out of the first paint', () => {
+		expect(DOCUMENTS_LAYOUT).toBe(DOCUMENTS_LAYOUT_ID);
+	});
+
 	it('hold each written JSON Schema equal to its schema', async () => {
 		for (const command of (await definitions()).all) {
 			expect(command.jsonSchema, command.name).toEqual(zodToJsonSchema(command.inputSchema));

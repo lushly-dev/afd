@@ -34,7 +34,7 @@ export interface GroupView {
 export function editorView(page: Page): Promise<GroupView[] | null> {
 	return page.evaluate(() => {
 		const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
-		const area = main?.querySelector('loam-editor-area');
+		const area = main?.querySelector('loam-editor-area:not([hidden])');
 		if (!area) return null;
 		return [...area.querySelectorAll('loam-editor-group')].map((group) => {
 			const list = group.shadowRoot?.querySelector('[role="tablist"]');
@@ -85,7 +85,13 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  *     that tab, document and scope still holds its draft, or the person's close of it saves or asks. 5, 9, 10
  *     and 11 follow from it, and stay as diagnostics;
  * 13. no tab a leave still owes a mark has `wantsMark` false, but in a scope out of reach, and
- *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed.
+ *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed;
+ * 14. a view's editor in `frames` is its group's shown frame, or hidden and kept: its save rejected as its tab
+ *     hid, it holds its draft, unsaved, with no edit since, until its tab shows again, or held where it is while
+ *     it saves before a move, where the browser has no `moveBefore` (5.6; step 12);
+ * 15. a view editor's frame keeps its window while it holds unsaved work: a new window then, its frame moved
+ *     or detached and attached again, would have lost the draft; a clean view may start again, and so may one
+ *     the controller saved before a move with no `moveBefore` (5.6; step 12's review G-B1 and re-check N-B1).
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -95,9 +101,18 @@ export function frameViolations(page: Page): Promise<string[]> {
 			document: string;
 			dirty: boolean;
 			state?: string;
+			kind?: 'native' | 'view';
 			record?: { scope: { workspace: string; project?: string } } | null;
 		};
-		type Life = { visit: number; place: string; busy?: boolean; draft?: boolean };
+		type Life = {
+			visit: number;
+			place: string;
+			busy?: boolean;
+			draft?: boolean;
+			edits?: number;
+			kept?: number;
+			moving?: boolean;
+		};
 		type State = {
 			groups: Array<{ id: string; active: string | null; tabs: Array<{ id: string }> }>;
 		};
@@ -133,7 +148,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 		const parked = new Set(parking.values());
 		const main = shell.shadowRoot?.querySelector('loam-main');
 		// An app's main keeps the editors off the page, with their drafts (Status, deviation 13).
-		const showing = !!main?.querySelector('loam-editor-area');
+		const showing = !!main?.querySelector('loam-editor-area:not([hidden])');
 		const tabs = new Set(
 			rendered?.groups.flatMap((group) => group.tabs.map((tab) => tab.id)) ?? []
 		);
@@ -302,6 +317,36 @@ export function frameViolations(page: Page): Promise<string[]> {
 					broken.push(`9: ${tab}'s editor is unsaved, its tab not`);
 			}
 		}
+		for (const [tab, frame] of frames) {
+			const own = lives.get(frame);
+			if (frame.kind !== 'view' || !frame.hidden) continue;
+			// Or held where it is while it saves before a move, in a browser with no `moveBefore`, or after its move
+			// back was refused, until another move.
+			if (own?.moving || (own as { refused?: boolean } | undefined)?.refused) continue;
+			if (!frame.dirty || own?.kept === undefined || own.kept !== own.edits)
+				broken.push(`14: ${tab}'s view editor is hidden in frames, and not kept with its draft`);
+		}
+		// 15: a view editor's frame keeps its window while it holds unsaved work, from one check to the next: a
+		// clean view may start again, and a reload the controller counts, a saved move with no `moveBefore`, may.
+		const holder = window as unknown as {
+			viewWindows?: WeakMap<Element, { window: unknown; dirty: boolean; reloads: number }>;
+		};
+		holder.viewWindows = holder.viewWindows ?? new WeakMap();
+		const windows = holder.viewWindows;
+		for (const frame of mounted) {
+			const iframe = frame.querySelector('loam-view-frame')?.shadowRoot?.querySelector('iframe');
+			if (!iframe?.isConnected || !iframe.contentWindow) continue;
+			const own = lives.get(frame) as
+				| { reloads?: number; edits?: number; savedEdits?: number }
+				| undefined;
+			const reloads = own?.reloads ?? 0;
+			const known = windows.get(frame);
+			// Exempt only a reload the controller made with every edit saved: none typed during its save (S3).
+			const verified = known?.reloads !== reloads && own?.savedEdits === own?.edits;
+			if (known?.dirty && known.window !== iframe.contentWindow && !verified)
+				broken.push(`15: ${frame.tab}'s view editor has a new window, its unsaved work gone`);
+			windows.set(frame, { window: iframe.contentWindow, dirty: frame.dirty, reloads });
+		}
 		return broken;
 	});
 }
@@ -337,7 +382,7 @@ export async function open(page: Page, id: string, options: Record<string, unkno
 		const area = document
 			.querySelector('loam-shell')
 			?.shadowRoot?.querySelector('loam-main')
-			?.querySelector('loam-editor-area');
+			?.querySelector('loam-editor-area:not([hidden])');
 		return [...(area?.querySelectorAll('loam-editor-frame:not([hidden])') ?? [])].every(
 			(frame) => (frame as unknown as { state: string }).state !== 'loading'
 		);

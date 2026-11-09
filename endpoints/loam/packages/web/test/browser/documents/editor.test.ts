@@ -1580,7 +1580,7 @@ describe('P2-D5: the editor area, native half', () => {
 					() =>
 						!!document
 							.querySelector('loam-shell')
-							?.shadowRoot?.querySelector('loam-main loam-editor-area')
+							?.shadowRoot?.querySelector('loam-main loam-editor-area:not([hidden])')
 				)
 			)
 			.toBe(true);

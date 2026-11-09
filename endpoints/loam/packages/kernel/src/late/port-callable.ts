@@ -7,9 +7,10 @@
 /**
  * `base`, phase 1's nine (`APP_CALLABLE_SHELL_COMMANDS_V1`), which the port passes: imported here, it would
  * part first paint's chunks (2.4). Then `scope-get` and `app-route-set` always, `project-list` and `project-get` with `projects`,
- * and `document-get`, `document-list`, `document-open` and `editor-get` with `documents` (documents
- * specification, 11; the link commands join with step 12). Anything else is `CALL_NOT_GRANTED`, so a port's
- * `editor-*` is `editor-get` alone.
+ * and `document-get`, `document-list`, `document-link-list`, `document-open` and `editor-get` with
+ * `documents`, and `document-link-add` and `-remove`, which a handler's nested client refuses as mutations
+ * (documents specification, 11; D68). Anything else is `CALL_NOT_GRANTED`, so a port's `editor-*` is
+ * `editor-get` alone.
  */
 export function appCallable(
 	grants: ReadonlySet<string>,
@@ -21,7 +22,15 @@ export function appCallable(
 		'app-route-set',
 		...(grants.has('projects') ? ['project-list', 'project-get'] : []),
 		...(grants.has('documents')
-			? ['document-get', 'document-list', 'document-open', 'editor-get']
+			? [
+					'document-get',
+					'document-list',
+					'document-open',
+					'editor-get',
+					'document-link-add',
+					'document-link-remove',
+					'document-link-list',
+				]
 			: []),
 	]);
 }
