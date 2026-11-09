@@ -1155,15 +1155,26 @@ async fn a_login_older_than_max_age_is_refused_even_when_it_began_with_this_logi
 #[tokio::test]
 async fn the_page_has_a_limit_of_its_own() {
     let page = Page::start().await;
-    let path = "/mcp/d/aaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let ada = page.token("ada");
+    let prompt = begin(&page, &ada, approve_input()).await;
+    // A client that names no decision spends only its peer's budget.
     for _ in 0..30 {
-        assert_eq!(page.client.get(path, &[]).await.status, 404);
+        assert_eq!(page.client.get("/mcp/d/style.cs", &[]).await.status, 404);
     }
-    let limited = page.client.get(path, &[]).await;
+    let limited = page.client.get("/mcp/d/style.cs", &[]).await;
     assert_eq!(limited.status, 429, "{}", limited.text);
     assert!(limited.headers.contains_key("retry-after"));
+    // A person's flow, from the same address, is counted per decision and per login: unaffected.
+    let decided = decide_as(&page, &page.client, &prompt.path(), "ada", "approve").await;
+    assert_eq!(decided.status, 200, "{}", decided.text);
+    // One decision's own budget is bounded too.
+    let other = begin(&page, &ada, json!({ "proposal": "p-9" })).await;
+    let mut statuses = Vec::new();
+    for _ in 0..31 {
+        statuses.push(page.client.get(&other.path(), &[]).await.status);
+    }
+    assert_eq!(statuses.last(), Some(&429), "{statuses:?}");
     // The MCP endpoint keeps its own budget.
-    let ada = page.token("ada");
     let ran = result(
         &call(
             &page.client,

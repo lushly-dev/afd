@@ -51,7 +51,8 @@ pub(crate) const CSP: &str = "default-src 'none'; style-src 'self'; form-action 
 const LOGIN_TTL_MS: i64 = 600_000;
 /// The largest form a decision posts.
 const MAX_FORM_BYTES: usize = 4096;
-/// The page's own limit (6.3, layer 4): requests a minute from one peer to its routes.
+/// The page's own limit (6.3, layer 4): requests a minute per decision, per login, or (for a
+/// request naming neither) per peer.
 pub(crate) const PAGE_REQUESTS_PER_MINUTE: u64 = 30;
 /// The cookie name's prefix; the login id follows.
 const COOKIE_PREFIX: &str = "__Host-umbel-person-";
@@ -237,8 +238,10 @@ impl PersonPage {
 
     /// Serve one request to the page.
     pub(crate) async fn handle(self, request: Request) -> Response {
+        let bucket = self.bucket(&request);
         if let Some(refused) =
-            crate::surfaces::http::layers::admit_page(&self.limit, request.extensions()).await
+            crate::surfaces::http::layers::admit_page(&self.limit, request.extensions(), bucket)
+                .await
         {
             return with_headers(refused);
         }
@@ -271,6 +274,26 @@ impl PersonPage {
             (id, _) if is_id(id) => self.method_not_allowed("GET, POST"),
             _ => self.not_found(),
         }
+    }
+
+    /// The limit's bucket of a request: the decision its path names, or the login its `state`
+    /// names when the `state` verifies; `None` (the peer's) for anything else.
+    fn bucket(&self, request: &Request) -> Option<String> {
+        let rest = request.uri().path().strip_prefix(&self.prefix)?;
+        if is_id(rest) {
+            return Some(format!("decision:{rest}"));
+        }
+        if rest != "return" {
+            return None;
+        }
+        let query = request.uri().query()?;
+        let state = url::form_urlencoded::parse(query.as_bytes())
+            .find(|(name, _)| name == "state")
+            .map(|(_, value)| value.into_owned())?;
+        let (login, mac) = state.split_once('.')?;
+        let expected = self.service.mac("umbel/person/state/1", &[login]);
+        (is_id(login) && crate::shared::person::same_digest(mac, &expected))
+            .then(|| format!("login:{login}"))
     }
 
     fn method_not_allowed(&self, allow: &'static str) -> Response {

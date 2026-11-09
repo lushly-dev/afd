@@ -337,7 +337,7 @@ fn failed(error: &dyn std::fmt::Display) -> SharedError {
     }
 }
 
-const DECISION_COLUMNS: &str = "id, for_json, command, input_digest, properties, space, chain, trace_id, created_ms, expires_ms, status, decided_ms, auth_time_ms, acr, preview_hash";
+const DECISION_COLUMNS: &str = "id, for_json, command, input_digest, properties, spaces, chain, trace_id, created_ms, expires_ms, status, decided_ms, auth_time_ms, acr, preview_hash";
 
 fn decision_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(Decision, String, String)> {
     let for_json: String = row.get(1)?;
@@ -452,7 +452,7 @@ impl SqlitePerson {
                      command TEXT NOT NULL,
                      input_digest TEXT NOT NULL,
                      properties TEXT NOT NULL,
-                     space TEXT NOT NULL,
+                     spaces TEXT NOT NULL,
                      chain TEXT NOT NULL,
                      trace_id TEXT,
                      created_ms INTEGER NOT NULL,

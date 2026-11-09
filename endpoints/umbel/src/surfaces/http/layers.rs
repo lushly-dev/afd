@@ -354,21 +354,26 @@ pub(crate) async fn limit_ip(
 }
 
 /// The person page's own limit (phase 5 section 6.3, layer 4: "their own limit"): at most
-/// `limit`'s requests a minute from one peer to the page's routes, on the shared counters under
-/// their own key, beside layer 3's. `None` admits the request; otherwise the refusal to send, as
-/// layer 3 answers (429, 503 or 500).
+/// `limit`'s requests a minute to the page's routes, on the shared counters under their own keys,
+/// beside layer 3's: per `bucket` (one decision's, or one login's whose `state` verified) when
+/// the request names one, else per peer. So a client without a decision's id or a login's
+/// `state`, even one sharing a same-host proxy's address with every person, spends only the
+/// per-peer budget, which no person's flow uses. `None` admits the request; otherwise the refusal
+/// to send, as layer 3 answers (429, 503 or 500).
 #[cfg(feature = "auth")]
 pub(crate) async fn admit_page(
     limit: &SlidingLimit,
     extensions: &http::Extensions,
+    bucket: Option<String>,
 ) -> Option<Response> {
     let Some(PeerAddr(peer)) = extensions.get::<PeerAddr>().copied() else {
         return Some(plain(StatusCode::INTERNAL_SERVER_ERROR, false));
     };
-    match limit
-        .admit(format!("person-page:{}", ip_key(peer.ip())))
-        .await
-    {
+    let key = match bucket {
+        Some(bucket) => format!("person-page:{bucket}"),
+        None => format!("person-page:{}", ip_key(peer.ip())),
+    };
+    match limit.admit(key).await {
         Ok(()) => None,
         Err(Refusal::TooMany(left)) => Some(too_many(left, "to the person page from this address")),
         Err(Refusal::Busy(store)) => Some(shared_timeout(store)),
