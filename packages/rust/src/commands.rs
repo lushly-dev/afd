@@ -1844,8 +1844,13 @@ impl CommandRegistry {
     /// `input` validated against `command`'s schema, defaults applied, exactly as
     /// [`CommandRegistry::execute`] validates it before the middleware: the MCP server's
     /// host-verified gate validates with it before asking anyone, so the person decides on the
-    /// input that runs.
-    pub(crate) fn validate(
+    /// input that runs. A host asking a person through a channel of its own (a terminal that
+    /// waits for a decision made elsewhere) validates with it too, so that
+    /// [`crate::input_digest`] of the result names what will run.
+    ///
+    /// # Errors
+    /// `VALIDATION_ERROR`, as [`CommandRegistry::execute`] answers it.
+    pub fn validate(
         &self,
         command: &CommandDefinition,
         input: serde_json::Value,
