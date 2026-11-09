@@ -48,7 +48,9 @@ const REOPEN_FLOOR = 1;
 
 describe('P2-D5: the editor area, a seeded walk', () => {
 	// The eleven seeds walk as they always have; the last two also take step 12's view steps, from a stream of
-	// their own, since any added step moves a seed's path and the eleven's paths are what found their bugs.
+	// their own, since any added step moves a seed's path and the eleven's paths are what found their bugs. Kept
+	// to these two dedicated seeds, so the eleven keep their paths and their reopens, as the coordinator accepted
+	// on 2026-11-09.
 	it.each([
 		[0x5eed10, 200, 0],
 		[9, 200, 0],
