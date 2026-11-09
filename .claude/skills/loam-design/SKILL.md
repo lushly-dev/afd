@@ -218,6 +218,27 @@ fit a closable tab) and one tab panel.
   `observable`, `attr` and `Updates`: `ref` and `repeat` part a shared chunk,
   which `budget` catches. Build lists with the DOM API, by id.
 
+## The documents section and New
+
+With no tab open the editor area hides, region and `h1` too, and
+`loam-documents-section` holds main; `loam-documents-sidebar`, a `loam-tree`,
+holds the sidebar part with tabs or without.
+
+- `loam-tree` is over `violet-tree` (APG's tree view), and is also an app's
+  `tree` sidebar. Find a row's label and meta by class, never by position: an
+  icon goes first. `violet-tree-item` imports FAST's `ref`, so the tree lives
+  in the `documents` chunk alone; a second lazy importer parts a `ref` chunk
+  out of first paint, which `budget` catches.
+- A row's actions follow a tab's: a pointer's More button, `aria-hidden` and
+  `tabindex="-1"`, and Shift+F10 on the row.
+- The section's fields and buttons are native, on the field and action
+  tokens; a checkbox beside a picker is a 24 px target in both densities.
+- What re-reads on kernel events hears mutations alone: a query's own event
+  re-read on every event never settles.
+- The New button is text in first paint; `loam-new-menu` is a `violet-menu`
+  laid over it, opening on its first item. Map `violet-menu-item`'s hover
+  and pressed surfaces to contract colors, as the palette does its options'.
+
 ## Icons
 
 `violet-icon` by deep import. Always set `icon` (`system/<name>`; 16 system

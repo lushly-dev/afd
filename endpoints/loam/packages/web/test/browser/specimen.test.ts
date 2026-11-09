@@ -255,11 +255,12 @@ const DOCUMENTS_CAPTURES: [string, string[]][] = [
 		'documents-tree',
 		[
 			'tree "Documents"',
-			'treeitem "Recent" [expanded]',
-			'treeitem "Notes" [expanded]',
-			'treeitem "Roadmap" [selected]',
-			'treeitem "Trash" [expanded]',
-			'Old plan, Trashed',
+			'treeitem "Recent" [expanded] [level=1]',
+			'treeitem "Roadmap, Jot" [level=2]',
+			'treeitem "Jots" [expanded] [level=1]',
+			'treeitem "Roadmap" [level=2] [selected]',
+			'treeitem "Trash" [expanded] [level=1]',
+			'treeitem "Old plan, Trashed',
 		],
 	],
 	[
@@ -271,8 +272,8 @@ const DOCUMENTS_CAPTURES: [string, string[]][] = [
 		['heading "Documents" [level=1]', 'table "Documents"', 'link "<img src=x onerror=alert(1)>"'],
 	],
 	['documents-section-trash', ['heading "Trash" [level=1]', 'button "Restore Old plan"']],
-	['documents-section-empty', ['No documents yet', 'button "New Blank note"', 'button "New Task"']],
-	['new-menu', ['menu "New"', 'group "Notes"', 'menuitem "Blank note"', 'group "Tasks"']],
+	['documents-section-empty', ['No documents yet', 'button "New Blank jot"', 'button "New Chore"']],
+	['new-menu', ['menu "New"', 'group "Jots"', 'menuitem "Blank jot"', 'group "Chores"']],
 ].flatMap(([id, expected]) => [
 	[id, expected] as [string, string[]],
 	[`${id}-compact`, expected] as [string, string[]],

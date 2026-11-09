@@ -6,7 +6,7 @@
  */
 
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
-import { openNew } from '../dist/new/new-menu.js';
+import { LoamNewMenu, newMenuDefinition } from '../dist/new/new-menu.js';
 import {
 	documentsSectionDefinition,
 	type LoamDocumentsSection,
@@ -28,8 +28,8 @@ const NOW = Date.UTC(2026, 10, 8, 12);
 const record = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
 	id,
 	workspace: 'personal',
-	type: 'notes',
-	instance: 'notes',
+	type: 'jots',
+	instance: 'jots',
 	title,
 	scope: { workspace: 'personal' },
 	scopeKey: 'w',
@@ -53,14 +53,14 @@ const record = (id: string, title: string, extra: Record<string, unknown> = {}) 
 	...extra,
 });
 
-const NOTES = {
-	id: 'notes',
-	title: 'Note',
+const JOTS = {
+	id: 'jots',
+	title: 'Jot',
 	icon: 'system/document',
-	instance: 'notes',
-	app: 'notes',
+	instance: 'jots',
+	app: 'jots',
 	scopeLevels: ['workspace', 'project'],
-	templates: [{ id: 'blank', title: 'Blank note' }],
+	templates: [{ id: 'blank', title: 'Blank jot' }],
 };
 
 /** A kernel that answers each read the section, its sidebar and New make, and changes nothing. */
@@ -82,7 +82,7 @@ const DOCUMENTS = [
 ];
 
 const READS = {
-	'document-type-list': () => ({ types: [NOTES] }),
+	'document-type-list': () => ({ types: [JOTS] }),
 	'document-list': (input: Record<string, unknown>) =>
 		input.status === 'trashed'
 			? {
@@ -97,25 +97,25 @@ const READS = {
 		items: [
 			{
 				kind: 'document',
-				type: 'notes',
+				type: 'jots',
 				template: 'blank',
-				title: 'Blank note',
+				title: 'Blank jot',
 				icon: 'system/document',
 				recent: true,
 			},
 			{
 				kind: 'creator',
-				instance: 'tasks',
-				command: 'tasks-add-blank',
-				title: 'Task',
+				instance: 'chores',
+				command: 'chores-add-blank',
+				title: 'Chore',
 				icon: 'system/checkmark',
 			},
 		],
 	}),
 	'app-list': () => ({
 		apps: [
-			{ instance: 'notes', title: 'Notes' },
-			{ instance: 'tasks', title: 'Tasks' },
+			{ instance: 'jots', title: 'Jots' },
+			{ instance: 'chores', title: 'Chores' },
 		],
 	}),
 	'scope-get': () => ({ scope: { workspace: 'personal' } }),
@@ -173,18 +173,20 @@ async function sidebar(wrapper: HTMLElement, trash = false): Promise<LoamDocumen
 	const element = document.createElement(documentsSidebarDefinition.name) as LoamDocumentsSidebar;
 	element.kernel = stubKernel(READS);
 	wrapper.append(element);
-	if (trash) element.tree.expanded.add('trash');
-	element.tree.expanded.add('type:notes');
 	await element.show('personal ');
+	// Opened once the scope is shown, which starts with Recent alone open.
+	element.tree.expanded.add('type:jots');
+	if (trash) element.tree.expanded.add('trash');
+	await element.read();
 	return element;
 }
 
-/** The section's sidebar: Recent, Notes and Trash open, a row selected. */
+/** The section's sidebar: Recent, Jots and Trash open, a row selected. */
 export const [DocumentsTree, DocumentsTreeCompact] = both(
 	'loam-documents-sidebar',
 	async (wrapper) => {
 		const element = await sidebar(wrapper, true);
-		element.tree.selected = 'notes:doc_roadmap';
+		element.tree.selected = 'jots:doc_roadmap';
 	},
 	SIDE
 );
@@ -281,13 +283,9 @@ export const [DocumentsSectionEmpty, DocumentsSectionEmptyCompact] = both(
 export const [NewMenu, NewMenuCompact] = both(
 	'loam-new-menu',
 	async (wrapper) => {
-		// A stand-in for the title bar: the button the menu opens from, in a shadow root as the shell's is.
-		const host = document.createElement('div');
-		const root = host.attachShadow({ mode: 'open' });
-		const titlebar = document.createElement('loam-titlebar-stand-in');
-		const bar = titlebar.attachShadow({ mode: 'open' });
+		if (!customElements.get(newMenuDefinition.name)) await LoamNewMenu.define(newMenuDefinition);
+		// A stand-in for the title bar's New button, which the menu opens from.
 		const holder = document.createElement('span');
-		holder.className = 'new';
 		holder.style.setProperty('position', 'relative');
 		holder.style.setProperty('display', 'inline-block');
 		const button = document.createElement('button');
@@ -295,18 +293,12 @@ export const [NewMenu, NewMenuCompact] = both(
 		button.textContent = 'New';
 		button.setAttribute('aria-haspopup', 'menu');
 		holder.append(button);
-		bar.append(holder);
-		titlebar.setAttribute('data-stand-in', 'loam-titlebar');
-		root.append(titlebar);
-		wrapper.append(host);
-		// `openNew` finds the title bar by its name in the shell's shadow root.
-		Object.defineProperty(root, 'querySelector', {
-			value: (selector: string) =>
-				selector === 'loam-titlebar'
-					? titlebar
-					: ShadowRoot.prototype.querySelector.call(root, selector),
-		});
-		await openNew({ kernel: stubKernel(READS), shadowRoot: root, ownerDocument: document });
+		wrapper.append(holder);
+		const menu = document.createElement(newMenuDefinition.name) as LoamNewMenu;
+		menu.host = { kernel: stubKernel(READS), shadowRoot: null, ownerDocument: document };
+		menu.watch(button);
+		holder.append(menu);
+		await menu.open();
 	},
 	{ inline: '360px', block: '260px' }
 );

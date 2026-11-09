@@ -125,6 +125,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * a read or a clear that succeeded saved. The last round's raised it by 349, to 33,365, approved by the
  * coordinator, 2026-11-08: a modal the kernel closed with no answer taken as Keep editing (228), a kept draft's
  * save tried once more when its scope goes first, and on `pagehide` (90), and the scopes out of reach (31).
+ * Step 11 adds `documentsMinified`, the documents section with `loam-tree` and `violet-tree`, and
+ * `newMinified`, the New menu with `violet-menu`, at the documents specification's first estimates of 45,000
+ * and 12,000; measured at 51,194 and 15,787, both over, and not raised: the coordinator decides (that
+ * specification's Status, deviation 19).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
