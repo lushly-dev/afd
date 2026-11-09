@@ -1,0 +1,464 @@
+/**
+ * The editor area's seeded walk (documents specification, Status, deviation 16): random steps of a person, an
+ * agent and held saves, the thirteen invariants checked after each, then every mark against the rule and a
+ * trash of every document. Its own CI job, `loam.yml`'s "Editor walk", runs it beside the Chromium suite.
+ */
+
+import { type Browser, chromium } from 'playwright';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+	agentCall,
+	type DeploymentSite,
+	deploymentEntry,
+	deploymentFile,
+	kernelCall,
+	openShell,
+	packApp,
+	serveDeployment,
+} from '../harness';
+import { createNote, editorIdle, frameViolations, marksOf, open, type Walk } from './support';
+
+let browser: Browser;
+let site: DeploymentSite;
+
+beforeAll(async () => {
+	browser = await chromium.launch();
+	site = await serveDeployment({
+		config: deploymentFile(
+			deploymentEntry('hello', await packApp('hello')),
+			deploymentEntry('notes', await packApp('notes'))
+		),
+	});
+});
+
+afterAll(async () => {
+	await site?.close();
+	await browser?.close();
+});
+
+/** The fewest reopens a walk's seed may reach, so its coverage cannot drop unseen. */
+const REOPEN_FLOOR = 1;
+
+describe('P2-D5: the editor area, a seeded walk', () => {
+	it.each([
+		[0x5eed10, 200],
+		[9, 200],
+		[12, 200],
+		[20, 200],
+		[32, 200],
+		[43, 300],
+		[100, 200],
+		[1, 200],
+		[2, 200],
+		[0xdeadbeef, 200],
+		[42, 200],
+	])(
+		'P2-D5: a seeded walk, seed %i, of %i steps, keeps the thirteen invariants after each and reaches reopens',
+		async (start, length) => {
+			const opened = await openShell(browser, site.root);
+			const { page } = opened;
+			// mulberry32: the same steps for the same seed every run.
+			let seed = start;
+			const random = () => {
+				seed = (seed + 0x6d2b79f5) | 0;
+				let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+				t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+				return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+			};
+			const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)] as T;
+			const holdSaves = () =>
+				page.evaluate(() => {
+					const held = window as Walk;
+					held.pending = [];
+					// Once the editor's chunk defines its frame, which a reload into an app may not have yet.
+					void customElements.whenDefined('loam-editor-frame').then(() => {
+						const frame = customElements.get('loam-editor-frame')?.prototype as {
+							save(): Promise<void>;
+						};
+						frame.save = () =>
+							new Promise<void>((resolve, reject) => {
+								held.pending?.push({
+									resolve,
+									reject: () =>
+										reject(Object.assign(new Error('Refused by the walk'), { code: 'WALK' })),
+								});
+							});
+					});
+				});
+			// Counts the reopens reached, a draft taken by another tab or a reopen's own open, and holds the next of
+			// those opens at a gate when asked.
+			const instrument = () =>
+				page.evaluate(() => {
+					const held = window as Walk;
+					held.reopens = 0;
+					held.reopenOpens = 0;
+					held.gates = [];
+					const shell = document.querySelector('loam-shell') as unknown as {
+						kernel: { call(name: string, input?: unknown, ...rest: unknown[]): Promise<unknown> };
+						shadowRoot: ShadowRoot;
+					};
+					const call = shell.kernel.call.bind(shell.kernel);
+					shell.kernel.call = async (name: string, input?: unknown, ...rest: unknown[]) => {
+						if (name === 'document-open' && (input as { stay?: string } | undefined)?.stay) {
+							held.reopenOpens = (held.reopenOpens ?? 0) + 1;
+							if (held.gate) {
+								held.gate = false;
+								await new Promise<void>((resolve) => held.gates?.push(resolve));
+							}
+						}
+						return call(name, input, ...rest);
+					};
+					new MutationObserver((records) => {
+						for (const record of records) {
+							const now = (record.target as HTMLElement).dataset.tab;
+							if (record.oldValue && record.oldValue !== now)
+								held.reopens = (held.reopens ?? 0) + 1;
+						}
+					}).observe(shell.shadowRoot, {
+						subtree: true,
+						attributeFilter: ['data-tab'],
+						attributeOldValue: true,
+					});
+				});
+			let reopens = 0;
+			let reopenOpens = 0;
+			const counted = async () => {
+				const [taken, opens] = await page.evaluate(() => [
+					(window as Walk).reopens ?? 0,
+					(window as Walk).reopenOpens ?? 0,
+				]);
+				reopens += taken;
+				reopenOpens += opens;
+			};
+			await kernelCall(page, 'project-create', { name: 'Atlas' });
+			// Every document the walk makes, for its last check.
+			const documents: string[] = [];
+			const note = async (title: string, project?: string) => {
+				const id = await createNote(page, title, project);
+				documents.push(id);
+				return id;
+			};
+			for (const title of ['One', 'Two', 'Three']) await open(page, await note(title));
+			await holdSaves();
+			await instrument();
+			const kinds = [
+				'park',
+				'park',
+				'take',
+				'take',
+				'type',
+				'type',
+				'type',
+				'resolve',
+				'reject',
+				'hold',
+				'switch',
+				'move',
+				'close',
+				'mark',
+				'trash',
+				'relocate',
+				'person-close',
+				'modal',
+				'pagehide',
+				'held-read',
+				'reload',
+				'app',
+				'beside',
+				'pin',
+				'activate',
+				'stay',
+				'pagehide-reject',
+				'move-held',
+				'round-trip',
+				'type-held',
+				'rename',
+				'close-move',
+				'close-close',
+				'save-key',
+				'person-close-held',
+				'gate',
+				'release',
+				'race',
+				'person-open',
+				'content-set',
+				'type-close',
+				'type-close',
+				'type-close-reject',
+				'type-close-reject',
+				'modal',
+			] as const;
+			let project: string | undefined;
+			let app = false;
+			const steps: string[] = [];
+			for (let step = 0; step < length; step++) {
+				const kind = pick(kinds);
+				steps.push(kind);
+				const read = (await agentCall(page, 'editor-get')) as {
+					data?: { groups: Array<{ id: string; tabs: Array<{ id: string; document: string }> }> };
+				};
+				const groups = read.data?.groups ?? [];
+				const tabs = groups.flatMap((group) => group.tabs);
+				const some = () => pick(tabs);
+				if (kind === 'park') {
+					await kernelCall(page, 'document-open', {
+						document: await note(`Walk ${step}`, project),
+					});
+				} else if (kind === 'take' && tabs.length > 0) {
+					await kernelCall(page, 'editor-activate', { tab: some().id });
+				} else if (kind === 'type') {
+					const area = page
+						.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+						.first();
+					if ((await area.count()) > 0) {
+						await area.click({ timeout: 500 }).catch(() => undefined);
+						await page.keyboard.type('x');
+					}
+				} else if (kind === 'resolve' || kind === 'reject') {
+					// Any held save, not only the oldest.
+					await page.evaluate(
+						({ kind, at }) => {
+							const pending = (window as Walk).pending ?? [];
+							pending.splice(Math.floor(at * pending.length), 1)[0]?.[kind]();
+						},
+						{ kind, at: random() }
+					);
+				} else if (kind === 'switch') {
+					project = project ? undefined : 'atlas';
+					await kernelCall(page, 'scope-set', { project: project ?? null });
+				} else if (kind === 'move' && tabs.length > 0) {
+					await agentCall(page, 'editor-move', {
+						tab: some().id,
+						group: random() < 0.5 ? 'new' : pick(groups).id,
+					});
+				} else if (kind === 'close' && tabs.length > 0) {
+					await agentCall(page, 'editor-close', { tab: some().id, discard: random() < 0.5 });
+				} else if (kind === 'mark' && tabs.length > 0) {
+					await agentCall(page, 'editor-dirty-set', { tab: some().id, dirty: random() < 0.5 });
+				} else if (kind === 'trash' && tabs.length > 0) {
+					await agentCall(page, 'document-trash', { document: some().document });
+				} else if (kind === 'relocate' && tabs.length > 0) {
+					await agentCall(page, 'document-move', {
+						document: some().document,
+						project: project ? null : 'atlas',
+					});
+				} else if (kind === 'person-close') {
+					const tab = page
+						.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
+						.first();
+					if ((await tab.count()) > 0) {
+						await tab.focus().catch(() => undefined);
+						await page.keyboard.press('Delete');
+					}
+				} else if (kind === 'modal') {
+					const choice = page.locator('loam-modal button', {
+						hasText: random() < 0.5 ? 'Discard' : 'Keep editing',
+					});
+					if ((await choice.count()) > 0)
+						await choice
+							.first()
+							.click({ timeout: 500 })
+							.catch(() => undefined);
+				} else if (kind === 'pagehide') {
+					await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+				} else if (kind === 'held-read') {
+					await page.evaluate(() => {
+						const shell = document.querySelector('loam-shell') as unknown as {
+							kernel: { call(name: string, ...rest: unknown[]): Promise<unknown> };
+						};
+						const call = shell.kernel.call.bind(shell.kernel);
+						let once = true;
+						shell.kernel.call = async (name: string, ...rest: unknown[]) => {
+							const answer = await call(name, ...rest);
+							if (name === 'editor-get' && once) {
+								once = false;
+								await new Promise((resolve) => setTimeout(resolve, 150));
+							}
+							return answer;
+						};
+					});
+				} else if (kind === 'reload') {
+					await counted();
+					await page.reload();
+					await page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
+					await page.waitForTimeout(300);
+					await holdSaves();
+					await instrument();
+					app = false;
+				} else if (kind === 'app') {
+					app = !app;
+					await kernelCall(
+						page,
+						app ? 'app-open' : 'section-open',
+						app ? { instance: 'hello' } : { section: 'documents' }
+					);
+				} else if (kind === 'beside' && tabs.length > 0) {
+					await kernelCall(page, 'document-open', { document: some().document, group: 'beside' });
+				} else if (kind === 'pin' && tabs.length > 0) {
+					await agentCall(page, 'editor-pin', { tab: some().id, pinned: random() < 0.5 });
+				} else if (kind === 'activate' && tabs.length > 0) {
+					await agentCall(page, 'editor-activate', { tab: some().id });
+				} else if (kind === 'stay' && tabs.length > 0) {
+					await agentCall(page, 'document-open', { document: some().document, stay: 'background' });
+				} else if (kind === 'pagehide-reject') {
+					await page.evaluate(() => {
+						window.dispatchEvent(new Event('pagehide'));
+						for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
+					});
+				} else if (kind === 'round-trip') {
+					// The other scope's documents, and back.
+					await kernelCall(page, 'scope-set', { project: project ? null : 'atlas' });
+					await kernelCall(page, 'section-open', { section: 'documents' });
+					await editorIdle(page).catch((cause) => {
+						throw new Error(
+							`Seed ${start}, step ${step} (${kind}, away): ${(cause as Error).message}. Steps: ${steps.join(', ')}`
+						);
+					});
+					await kernelCall(page, 'scope-set', { project: project ?? null });
+					await kernelCall(page, 'section-open', { section: 'documents' });
+				} else if (kind === 'type-held' || kind === 'save-key') {
+					const area = page
+						.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+						.first();
+					if ((await area.count()) > 0) {
+						await area.click({ timeout: 500 }).catch(() => undefined);
+						if (kind === 'type-held') await page.keyboard.type('h');
+						else await page.keyboard.press('ControlOrMeta+s');
+					}
+				} else if (kind === 'rename' && tabs.length > 0) {
+					await kernelCall(page, 'document-rename', {
+						document: some().document,
+						title: `Renamed ${step}`,
+					});
+				} else if (kind === 'close-move' && tabs.length > 1) {
+					await agentCall(page, 'editor-close', { tab: some().id, discard: true });
+					await agentCall(page, 'editor-move', { tab: some().id, group: 'new' });
+				} else if (kind === 'close-close' && tabs.length > 0) {
+					const tab = some().id;
+					await agentCall(page, 'editor-close', { tab, discard: true });
+					await agentCall(page, 'editor-close', { tab, discard: true });
+				} else if (kind === 'person-close-held') {
+					if (await page.evaluate(() => ((window as Walk).pending?.length ?? 0) > 0)) {
+						const tab = page
+							.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
+							.first();
+						if ((await tab.count()) > 0) {
+							await tab.focus().catch(() => undefined);
+							await page.keyboard.press('Delete');
+						}
+					}
+				} else if (kind === 'gate') {
+					await page.evaluate(() => {
+						(window as Walk).gate = true;
+					});
+				} else if (kind === 'release') {
+					await page.evaluate(() => {
+						for (const release of (window as Walk).gates?.splice(0) ?? []) release();
+					});
+				} else if (kind === 'race') {
+					// Typing, the person's close and an agent's close of the same tab, none waited for.
+					const tab = page
+						.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
+						.first();
+					const area = page
+						.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+						.first();
+					const id = (await tab.count()) > 0 ? await tab.getAttribute('data-tab') : null;
+					if (id && (await area.count()) > 0) {
+						await area.click({ timeout: 500 }).catch(() => undefined);
+						await page.keyboard.type('r');
+						await tab.focus().catch(() => undefined);
+						await page.keyboard.press('Delete');
+						await agentCall(page, 'editor-close', { tab: id, discard: true });
+					}
+				} else if (kind === 'type-close' || kind === 'type-close-reject') {
+					// A draft an agent's close takes, its save held: what a reopen brings back when that save rejects.
+					const tab = page
+						.locator('loam-editor-group:not([hidden]) [role="tab"][aria-selected="true"]')
+						.first();
+					const area = page
+						.locator('loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) textarea')
+						.first();
+					const id = (await tab.count()) > 0 ? await tab.getAttribute('data-tab') : null;
+					if (id && (await area.count()) > 0) {
+						await area.click({ timeout: 500 }).catch(() => undefined);
+						await page.keyboard.type('c');
+						await agentCall(page, 'editor-close', { tab: id, discard: random() < 0.5 });
+						// Its leave's save, the newest held, rejects at once: the reopen runs while the area shows.
+						if (kind === 'type-close-reject') {
+							await page.waitForTimeout(50);
+							await page.evaluate(() => (window as Walk).pending?.pop()?.reject());
+						}
+					}
+				} else if (kind === 'person-open' && tabs.length > 0) {
+					await kernelCall(page, 'document-open', { document: some().document });
+				} else if (kind === 'content-set' && tabs.length > 0) {
+					await agentCall(page, 'notes-content-set', {
+						document: some().document,
+						text: `Agent ${step}`,
+					});
+				} else if (kind === 'move-held' && tabs.length > 0) {
+					// A tab moved while a save is held, of its editor or another's.
+					if (await page.evaluate(() => ((window as Walk).pending?.length ?? 0) > 0)) {
+						await agentCall(page, 'editor-move', { tab: some().id, group: 'new' });
+					}
+				}
+				try {
+					await editorIdle(page);
+				} catch (cause) {
+					throw new Error(
+						`Seed ${start}, step ${step} (${kind}): ${(cause as Error).message}. Steps: ${steps.join(', ')}`
+					);
+				}
+			}
+			// Everything settles: gates open, held saves reject, and every modal a close opens is answered Discard,
+			// until nothing is held.
+			for (let round = 0; round < 10; round++) {
+				// The documents area, where a draft kept while it was away comes back.
+				await kernelCall(page, 'section-open', { section: 'documents' });
+				await page.evaluate(() => {
+					for (const release of (window as Walk).gates?.splice(0) ?? []) release();
+					for (const each of (window as Walk).pending?.splice(0) ?? []) each.reject();
+				});
+				await editorIdle(page);
+				const discard = page.locator('loam-modal button', { hasText: 'Discard' });
+				const asked = (await discard.count()) > 0;
+				if (asked)
+					await discard
+						.first()
+						.click({ timeout: 1000 })
+						.catch(() => undefined);
+				await editorIdle(page);
+				const held = await page.evaluate(() => (window as Walk).pending?.length ?? 0);
+				if (!asked && held === 0) break;
+			}
+			expect(await frameViolations(page)).toEqual([]);
+			// Both scopes: every tab's mark is the rule's answer, and a trash of every document the walk made
+			// meets EDITOR_TAB_DIRTY only for an open tab the rule marks.
+			const marks = await marksOf(page, [null, 'atlas']);
+			expect(
+				marks.filter((each) => each.dirty !== each.wants),
+				`Seed ${start}: marks the rule does not give. Steps: ${steps.join(', ')}`
+			).toEqual([]);
+			for (const id of documents) {
+				const trash = (await agentCall(page, 'document-trash', { document: id })) as {
+					error?: { code: string; message?: string };
+				};
+				if (trash.error?.code !== 'EDITOR_TAB_DIRTY') continue;
+				const tab = /tab (t\d+)/.exec(trash.error.message ?? '')?.[1];
+				expect(
+					marks.some((each) => each.tab === tab && each.document === id && each.wants),
+					`Seed ${start}: ${id} is refused for ${tab}, which is no open tab the rule marks. Steps: ${steps.join(', ')}`
+				).toBe(true);
+			}
+			await counted();
+			// Straight to the output, so every seed's count shows, passing or not.
+			process.stdout.write(
+				`Seed ${start}: ${reopens} drafts taken by another tab, ${reopenOpens} reopen opens\n`
+			);
+			expect(reopens + reopenOpens).toBeGreaterThanOrEqual(REOPEN_FLOOR);
+			await opened.context.close();
+		},
+		600_000
+	);
+});
