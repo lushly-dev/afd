@@ -728,7 +728,7 @@ fn prepare(
     let manifest = &resolved.manifest;
     let workspace = inputs.workspace;
     let files = resolved.files.as_ref() as &dyn PluginFiles;
-    let hosted = workspace.config().auth.mode.is_hosted();
+    let hosted = person_page_served(workspace.config());
 
     // 3. The instance configuration.
     let configuration = config::resolve(&instance.id, manifest, files, &instance.config)?;
@@ -1243,13 +1243,23 @@ fn origin(instance: &str, manifest: &Manifest, command: &CommandDecl) -> Value {
     })
 }
 
-/// Whether the command is registered for MCP: as [`CommandDecl::mcp_exposed`] says, and, in a
-/// hosted mode only, a `require-human` command whose `person` names `mcp` and which declares
-/// `expose.mcp` (phase 5 section 7.1). Such a command is host-verified ([`definitions`]), and the
-/// scope resolver lists and serves it only to callers whose namespace serves verified commands;
-/// mode `none` keeps it off MCP, as phases 2 to 4 did.
-pub(crate) fn mcp_registered(command: &CommandDecl, hosted: bool) -> bool {
-    command.mcp_exposed() || (hosted && person_mcp(command) && command.expose.mcp)
+/// Whether a workspace serves its person page, so that a command a person decides over MCP is
+/// registered for MCP (phase 5 section 7.1): mode `oauth` with `auth.filter_tools_by_scope`, the
+/// only setting under which AFD asks Umbel's resolver whether such a command exists for a caller
+/// (so a caller whose namespace serves no verified commands gets an unknown name). Mode `gateway`
+/// serves no person page: the gateway would stand between the person and the page (step 5's
+/// review, a question for the owner).
+pub(crate) fn person_page_served(config: &crate::workspace::Config) -> bool {
+    config.auth.mode == crate::workspace::AuthMode::Oauth && config.auth.filter_tools_by_scope
+}
+
+/// Whether the command is registered for MCP: as [`CommandDecl::mcp_exposed`] says, and, where
+/// the person page is served ([`person_page_served`], `served`), a `require-human` command whose
+/// `person` names `mcp` and which declares `expose.mcp` (phase 5 section 7.1). Such a command is
+/// host-verified ([`definitions`]), and the scope resolver lists and serves it only to callers
+/// whose namespace serves verified commands; elsewhere it stays off MCP, as in phases 2 to 4.
+pub(crate) fn mcp_registered(command: &CommandDecl, served: bool) -> bool {
+    command.mcp_exposed() || (served && person_mcp(command) && command.expose.mcp)
 }
 
 /// Whether the command's `person` names MCP.

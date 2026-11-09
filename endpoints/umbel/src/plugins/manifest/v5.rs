@@ -325,6 +325,21 @@ impl Manifest {
             let Some(preview) = self.commands.iter().find(|command| &command.name == name) else {
                 continue;
             };
+            // The page renders the preview through the registry, which journals it: only a digest
+            // journal keeps none of its text, as "nothing of the preview is stored but its
+            // SHA-256" requires (7.2, step 4; step 5's review).
+            if !preview
+                .journal
+                .as_ref()
+                .is_some_and(|journal| journal.mode == JournalMode::Digest)
+            {
+                return Err(bad(
+                    "confirm_preview",
+                    format!(
+                        "names `{name}`, which must be journaled with mode = \"digest\": the person page renders it, and nothing of a preview is stored but its hash"
+                    ),
+                ));
+            }
             let schema = match (&preview.input_schema, files) {
                 (SchemaRef::Inline(value), _) => value.clone(),
                 (schema @ SchemaRef::File(_), Some(files)) => {

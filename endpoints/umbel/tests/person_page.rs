@@ -414,7 +414,8 @@ async fn an_id_token_for_another_client_or_issuer_is_refused() {
     assert_eq!(expired.status, 400);
     let typ = refused_login(
         &page,
-        ScriptedLogin::user("ada").adjust_token(|token| token.header_member("typ", json!("at+jwt"))),
+        ScriptedLogin::user("ada")
+            .adjust_token(|token| token.header_member("typ", json!("at+jwt"))),
     )
     .await;
     assert_eq!(typ.status, 400);
@@ -455,9 +456,15 @@ async fn a_replayed_or_forged_state_or_a_missing_cookie_is_refused() {
     let opened = open(&page.client, &prompt.path()).await;
     let back = authorize(&page.kit, &opened.location).await;
     let cookie = opened.cookie_header();
-    // No cookie: refused, and the login is spent.
+    // No cookie, or another browser's: refused, and the login is not spent by it.
     let without = page.client.get(&back, &[]).await;
     assert_eq!(without.status, 400, "{}", without.text);
+    let wrong = format!("{}=not-the-browsers", opened.cookie.0);
+    let other = page.client.get(&back, &[("cookie", wrong.as_str())]).await;
+    assert_eq!(other.status, 400, "{}", other.text);
+    let fine = page.client.get(&back, &[("cookie", cookie.as_str())]).await;
+    assert_eq!(fine.status, 200, "{}", fine.text);
+    // Replayed once used: nothing.
     let replayed = page.client.get(&back, &[("cookie", cookie.as_str())]).await;
     assert_eq!(replayed.status, 400, "{}", replayed.text);
 
@@ -609,7 +616,10 @@ async fn every_page_is_unframed_uncached_and_escaped() {
     }
     // The redirect to the provider too: no referrer leaks the decision's URL to it.
     assert_eq!(logged.opened.reply.headers["cache-control"], "no-store");
-    assert_eq!(logged.opened.reply.headers["referrer-policy"], "no-referrer");
+    assert_eq!(
+        logged.opened.reply.headers["referrer-policy"],
+        "no-referrer"
+    );
     // The preview is escaped, and the page runs no script.
     assert!(!shown.text.contains("<script>"), "{}", shown.text);
     assert!(!shown.text.contains("<img"), "{}", shown.text);
@@ -1108,4 +1118,171 @@ async fn no_person_is_asked_about_a_space_the_caller_cannot_read() {
     );
     assert_eq!(undeclared["error"], refused["error"]);
     assert!(!page.dir.path().join("state/shared/person.sqlite3").exists());
+}
+
+#[tokio::test]
+async fn a_login_older_than_max_age_is_refused_even_when_it_began_with_this_login() {
+    let page = Page::start().await;
+    let ada = page.token("ada");
+    let prompt = begin(&page, &ada, approve_input()).await;
+    let started = page.now_s();
+    let opened = open(&page.client, &prompt.path()).await;
+    // The person took 400 seconds to come back; they authenticated 50 seconds after the login
+    // began, which is after it began but older than max_age_s (300) when the token arrives.
+    page.clock.advance(400_000);
+    let now = page.now_s();
+    page.script(
+        ScriptedLogin::user("ada")
+            .auth_time(started + 50)
+            .adjust_token(move |token| {
+                token
+                    .claim("iat", json!(now - 5))
+                    .claim("exp", json!(now + 300))
+            }),
+    );
+    let back = authorize(&page.kit, &opened.location).await;
+    let refused = page
+        .client
+        .get(&back, &[("cookie", opened.cookie_header().as_str())])
+        .await;
+    assert_eq!(refused.status, 400, "{}", refused.text);
+    assert!(support::person::form(&refused.text).is_none());
+    assert_eq!(page.seen.runs("gate-approve"), 0);
+}
+
+// ── What the review of step 5 added ────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn the_page_has_a_limit_of_its_own() {
+    let page = Page::start().await;
+    let path = "/mcp/d/aaaaaaaaaaaaaaaaaaaaaaaaaa";
+    for _ in 0..30 {
+        assert_eq!(page.client.get(path, &[]).await.status, 404);
+    }
+    let limited = page.client.get(path, &[]).await;
+    assert_eq!(limited.status, 429, "{}", limited.text);
+    assert!(limited.headers.contains_key("retry-after"));
+    // The MCP endpoint keeps its own budget.
+    let ada = page.token("ada");
+    let ran = result(
+        &call(
+            &page.client,
+            &ada,
+            "fixture-whoami",
+            json!({}),
+            json!({}),
+            true,
+        )
+        .await,
+    );
+    assert_eq!(ran["success"], json!(true), "{ran}");
+}
+
+#[tokio::test]
+async fn without_filtered_listings_no_verified_command_is_served() {
+    let seen = support::person::Seen::default();
+    let kit = umbel_testkit_idp::TestIdp::start().await.unwrap();
+    let dir = support::workspace(&support::oauth::config(
+        &kit,
+        &Setup {
+            auth: "filter_tools_by_scope = false",
+            rest: REST,
+            ..Setup::default()
+        },
+    ));
+    let clock = afd::fixed_clock(support::oauth::now_ms());
+    let host = support::person::host(dir.path(), &kit, &clock, &seen);
+    let definition = host.registry().get("gate-approve").unwrap();
+    assert!(!definition.expose.mcp);
+}
+
+#[tokio::test]
+async fn mode_gateway_serves_no_person_page() {
+    let kit = umbel_testkit_idp::TestIdp::start().await.unwrap();
+    let seen = support::person::Seen::default();
+    let text = support::gateway::config(&kit, &support::gateway::Setup {
+        rest: "[plugins]\nenabled = [\"gate\"]\n",
+        ..support::gateway::Setup::default()
+    })
+    .replace(
+        "[auth.namespaces.corp]\n",
+        &format!(
+            "[auth.namespaces.corp]\nperson = {{ issuer = \"idp\", client_id = \"umbel-person-page\", client_secret_env = \"UMBEL_TEST_PERSON_SECRET\", acr_values = [\"phr\"], uv_amr = [\"pin\"] }}\n\n[auth.issuers.idp]\nissuer = \"{}\"\nnamespace = \"corp\"\naccess_tokens = false\n",
+            kit.identity_provider().issuer()
+        ),
+    );
+    let dir = support::workspace(&text);
+    support::gateway::write_keys(dir.path(), &kit);
+    let clock = afd::fixed_clock(support::oauth::now_ms());
+    let host = support::person::host(dir.path(), &kit, &clock, &seen);
+    // Not registered for MCP: the gateway would stand between the person and the page.
+    assert!(!host.registry().get("gate-approve").unwrap().expose.mcp);
+    // The page's routes are not served.
+    let served = support::hosted::Served::start(&host).await;
+    let client = Client::plain(served.address);
+    let reply = client.get("/mcp/d/aaaaaaaaaaaaaaaaaaaaaaaaaa", &[]).await;
+    assert_eq!(reply.status, 404, "{}", reply.text);
+    assert!(!reply.text.contains("<html"), "{}", reply.text);
+    // The CLI's URL flow refuses: no page to send the person to.
+    let console: std::sync::Arc<dyn umbel::cli::Console> = std::sync::Arc::new(Shown::default());
+    let run = support::cli_with(
+        dir.path(),
+        &["call", "gate-approve", "proposal=p"],
+        console,
+        {
+            let seen = seen.clone();
+            let ca = kit.ca().certificate_pem().to_owned();
+            move |builder| {
+                builder
+                    .with_compiled(support::person::plugin(&seen))
+                    .register(support::oauth::whoami())
+                    .register(support::oauth::touch())
+                    .with_auth_root_certificate(ca.into_bytes())
+                    .with_auth_secret("UMBEL_TEST_PERSON_SECRET", support::person::SECRET)
+            }
+        },
+    )
+    .await;
+    assert_eq!(
+        run.json()["error"]["code"],
+        "PERSON_VERIFICATION_UNAVAILABLE",
+        "{}",
+        run.stdout
+    );
+    assert_eq!(seen.runs("gate-approve"), 0);
+}
+
+#[tokio::test]
+async fn a_preview_the_page_renders_must_keep_no_text_in_the_journal() {
+    let seen = support::person::Seen::default();
+    let manifest = support::person::MANIFEST.replace(
+        "expose = { mcp = false, agent = false, cli = true }\njournal = { mode = \"digest\", keep = [\"proposal\"] }\nreturns",
+        "expose = { mcp = false, agent = false, cli = true }\njournal = { mode = \"plain\" }\nreturns",
+    );
+    assert_ne!(manifest, support::person::MANIFEST);
+    let dir = support::workspace(&format!(
+        "config_version = 5\ndefault_space = \"main\"\n[spaces.main]\n{REST}"
+    ));
+    let plugin = support::person::plugin_with(&seen, manifest);
+    let error = support::plugins::seal(dir.path(), |builder| builder.with_compiled(plugin))
+        .err()
+        .expect("refused");
+    assert!(
+        error
+            .to_string()
+            .contains("must be journaled with mode = \"digest\""),
+        "{error}"
+    );
+}
+
+#[tokio::test]
+async fn the_hook_sets_the_person_decision_field_itself() {
+    // The hook writes the field (as `null`) on every call, so a declared context field can never
+    // bring one: trusted code wins (`spec/context-fields.md`).
+    let page = Page::start().await;
+    let keys = page.extra_keys(&page.token("ada")).await;
+    assert!(
+        keys.contains(&"dev.umbel/person-decision".to_owned()),
+        "{keys:?}"
+    );
 }

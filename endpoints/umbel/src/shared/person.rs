@@ -5,7 +5,7 @@
 //!
 //! **What a row holds.** A decision holds `person-decision.v1`'s fields (ids, the input digest and
 //! the preview's declared properties, which manifest version 5 keeps to `journal.keep`'s ids),
-//! and, beside them, what the page shows of who asked (the call's space and delegation chain, ids
+//! and, beside them, what the page shows of who asked (the call's spaces and delegation chain, ids
 //! only) and the trace of the call that began it, under which the decision is journaled. A login
 //! holds its PKCE verifier, its `nonce`, the SHA-256 of the browser's cookie and, once the login
 //! returned, its `auth_time`, its `acr` and the SHA-256 of the preview the page rendered. No row
@@ -83,8 +83,8 @@ pub(crate) struct NewDecision {
     pub(crate) input_digest: String,
     /// Only the preview's declared properties (2.3's rule keeps them to ids).
     pub(crate) properties: Map<String, Value>,
-    /// The call's space, shown on the page.
-    pub(crate) space: Option<String>,
+    /// The call's spaces, shown on the page.
+    pub(crate) spaces: Vec<String>,
     /// The call's delegation chain, shown on the page.
     pub(crate) chain: Vec<ChainEntry>,
     /// The trace of the call that began it; the decision is journaled under it.
@@ -101,7 +101,7 @@ pub(crate) struct Decision {
     pub(crate) command: String,
     pub(crate) input_digest: String,
     pub(crate) properties: Map<String, Value>,
-    pub(crate) space: Option<String>,
+    pub(crate) spaces: Vec<String>,
     pub(crate) chain: Vec<ChainEntry>,
     pub(crate) trace_id: Option<String>,
     pub(crate) created_ms: i64,
@@ -204,7 +204,6 @@ pub(crate) struct Login {
     pub(crate) decision: String,
     pub(crate) verifier: String,
     pub(crate) nonce: String,
-    pub(crate) browser_hash: String,
     pub(crate) created_ms: i64,
     pub(crate) status: LoginStatus,
 }
@@ -271,12 +270,19 @@ pub(crate) trait PersonStore: Send + Sync {
     /// A [`SharedError`].
     fn start_login(&self, login: &NewLogin, now_ms: i64) -> Result<LoginStart, SharedError>;
 
-    /// Take the login `id` once, on its browser's return: a `started`, live login becomes
-    /// `returning` and is returned; anything else is `None`.
+    /// Take the login `id` once, on its browser's return, when the browser's cookie hashes to
+    /// `browser_hash`: a `started`, live login becomes `returning` and is returned; anything else
+    /// is `None`, and a login presented without its cookie is left as it was, so whoever holds a
+    /// leaked `state` cannot spend the person's login.
     ///
     /// # Errors
     /// A [`SharedError`].
-    fn take_login(&self, id: &str, now_ms: i64) -> Result<Option<Login>, SharedError>;
+    fn take_login(
+        &self,
+        id: &str,
+        browser_hash: &str,
+        now_ms: i64,
+    ) -> Result<Option<Login>, SharedError>;
 
     /// Finish a `returning` login: `verified` with what it proved, or `failed`.
     ///
@@ -354,7 +360,7 @@ fn decision_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(Decision, String, 
         command: row.get(2)?,
         input_digest: row.get(3)?,
         properties: serde_json::from_str(&properties).unwrap_or_default(),
-        space: row.get(5)?,
+        spaces: serde_json::from_str(&row.get::<_, String>(5)?).unwrap_or_default(),
         chain: serde_json::from_str(&chain).unwrap_or_default(),
         trace_id: row.get(7)?,
         created_ms: row.get(8)?,
@@ -446,7 +452,7 @@ impl SqlitePerson {
                      command TEXT NOT NULL,
                      input_digest TEXT NOT NULL,
                      properties TEXT NOT NULL,
-                     space TEXT,
+                     space TEXT NOT NULL,
                      chain TEXT NOT NULL,
                      trace_id TEXT,
                      created_ms INTEGER NOT NULL,
@@ -558,6 +564,7 @@ impl PersonStore for SqlitePerson {
         let properties =
             serde_json::to_string(&decision.properties).map_err(|error| failed(&error))?;
         let chain = serde_json::to_string(&decision.chain).map_err(|error| failed(&error))?;
+        let spaces = serde_json::to_string(&decision.spaces).map_err(|error| failed(&error))?;
         self.with(|connection| {
             let transaction = connection
                 .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -575,7 +582,7 @@ impl PersonStore for SqlitePerson {
                         decision.command,
                         decision.input_digest,
                         properties,
-                        decision.space,
+                        spaces,
                         chain,
                         decision.trace_id,
                         decision.created_ms,
@@ -642,11 +649,27 @@ impl PersonStore for SqlitePerson {
         })
     }
 
-    fn take_login(&self, id: &str, now_ms: i64) -> Result<Option<Login>, SharedError> {
+    fn take_login(
+        &self,
+        id: &str,
+        browser_hash: &str,
+        now_ms: i64,
+    ) -> Result<Option<Login>, SharedError> {
         self.with(|connection| {
             let transaction = connection
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|error| shared_error(&error))?;
+            let held: Option<String> = transaction
+                .query_row(
+                    "SELECT browser_hash FROM logins WHERE id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|error| shared_error(&error))?;
+            if !held.is_some_and(|held| same_digest(&held, browser_hash)) {
+                return Ok(None);
+            }
             let taken = transaction
                 .execute(
                     "UPDATE logins SET status = 'returning'
@@ -669,7 +692,6 @@ impl PersonStore for SqlitePerson {
                             decision: row.get(1)?,
                             verifier: row.get(2)?,
                             nonce: row.get(3)?,
-                            browser_hash: row.get(4)?,
                             created_ms: row.get(5)?,
                             status: LoginStatus::parse(&status).unwrap_or(LoginStatus::Failed),
                         })
@@ -822,7 +844,7 @@ mod tests {
             command: "gate-approve".into(),
             input_digest: "d".repeat(43),
             properties: serde_json::from_value(serde_json::json!({ "proposal": "p-1" })).unwrap(),
-            space: Some("main".into()),
+            spaces: vec!["main".into()],
             chain: Vec::new(),
             trace_id: Some("t".into()),
             created_ms: now,
@@ -868,9 +890,26 @@ mod tests {
                 .unwrap(),
             Decided::Refused
         ));
-        assert!(store.take_login("l1", now).unwrap().is_some());
+        // Without its browser's cookie the login is not taken, and stays to be taken.
+        assert!(
+            store
+                .take_login("l1", &"cd".repeat(32), now)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            store
+                .take_login("l1", &"ab".repeat(32), now)
+                .unwrap()
+                .is_some()
+        );
         // A replayed return finds nothing.
-        assert!(store.take_login("l1", now).unwrap().is_none());
+        assert!(
+            store
+                .take_login("l1", &"ab".repeat(32), now)
+                .unwrap()
+                .is_none()
+        );
         assert!(store.finish_login("l1", Some(&verified(true))).unwrap());
         // Another browser, another decision, or after the login's expiry: nothing.
         assert!(matches!(
@@ -950,7 +989,10 @@ mod tests {
         let now = 5_000_000;
         store.create(&decision("d1", now), now).unwrap();
         store.start_login(&login("l1", "d1", now), now).unwrap();
-        store.take_login("l1", now).unwrap().unwrap();
+        store
+            .take_login("l1", &"ab".repeat(32), now)
+            .unwrap()
+            .unwrap();
         store.finish_login("l1", Some(&verified(false))).unwrap();
         assert!(matches!(
             store

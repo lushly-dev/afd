@@ -321,7 +321,7 @@ impl CommandHandler for Handler {
             Some(instance) => success(show(
                 instance,
                 listed.as_deref(),
-                self.workspace.config().auth.mode.is_hosted(),
+                crate::plugins::loader::person_page_served(self.workspace.config()),
             )),
             None => failure(
                 afd::CommandError::new(

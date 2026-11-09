@@ -326,10 +326,11 @@ mod tests {
             command: &str,
             input_digest: &str,
         ) -> Result<(), CommandError> {
-            self.asked
-                .lock()
-                .unwrap()
-                .push((who.clone(), command.to_owned(), input_digest.to_owned()));
+            self.asked.lock().unwrap().push((
+                who.clone(),
+                command.to_owned(),
+                input_digest.to_owned(),
+            ));
             if self.admit {
                 Ok(())
             } else {
@@ -444,7 +445,15 @@ mod tests {
         // A ledger that refuses (another for, not approved, already run), or none: refused.
         let refusing = fake(false);
         assert!(
-            admit(&config, "gate-approve", &input(), &good, Surface::Mcp, Some(&refusing)).is_err()
+            admit(
+                &config,
+                "gate-approve",
+                &input(),
+                &good,
+                Surface::Mcp,
+                Some(&refusing)
+            )
+            .is_err()
         );
         assert!(admit(&config, "gate-approve", &input(), &good, Surface::Mcp, None).is_err());
     }

@@ -1157,6 +1157,22 @@ async fn the_person_login_is_judged_by_the_providers_openid_connect_document() {
 }
 
 #[tokio::test]
+async fn a_provider_without_an_openid_connect_document_fails_the_person_login() {
+    // Only RFC 8414 metadata: the person page, an OpenID Connect relying party, cannot use it, so
+    // the doctor does not fall back to it (step 5's review).
+    let kit = kit().await;
+    let idp = kit.identity_provider();
+    idp.set_fault(Endpoint::OpenidMetadata, Fault::Status(404));
+    idp.set_fault(Endpoint::OpenidMetadataAppended, Fault::Status(404));
+    let dir = workspace(&config(&kit, &Config::default()));
+    let message = doctor(dir.path(), &kit).await.expect("auth.person", "fail");
+    assert!(
+        message.contains("publishes no OpenID Connect discovery document"),
+        "{message}"
+    );
+}
+
+#[tokio::test]
 async fn the_metadata_and_the_key_set_share_one_time_limit_as_the_verifiers_fetch_does() {
     // Each answer alone fits the limit; together they do not, so the verifier would refuse the
     // issuer, and the doctor must say so.

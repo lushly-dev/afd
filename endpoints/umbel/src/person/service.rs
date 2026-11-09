@@ -161,8 +161,8 @@ fn keepable(value: &Value) -> bool {
 }
 
 impl PersonService {
-    /// The service of a hosted workspace, or `None` in mode `none`, where no person page is
-    /// served. `commands` are the gated commands with a `verified` surface.
+    /// The service of a workspace that serves its person page (mode `oauth` with
+    /// `auth.filter_tools_by_scope`; `loader::person_page_served`), else `None`. `commands` are the gated commands with a `verified` surface.
     ///
     /// # Errors
     /// `WORKSPACE_KEY_INVALID` or `WORKSPACE_STATE_UNWRITABLE` for `person.key` or `relay.key`.
@@ -174,7 +174,7 @@ impl PersonService {
         environment: &AuthEnvironment,
     ) -> Result<Option<Arc<Self>>, crate::host::HostError> {
         let config = workspace.config();
-        if !config.auth.mode.is_hosted() {
+        if !crate::plugins::loader::person_page_served(config) {
             return Ok(None);
         }
         let Some(public_url) = config.http.public_url.clone() else {
@@ -439,7 +439,7 @@ impl PersonService {
             command: command.to_owned(),
             input_digest: request.input_digest.to_owned(),
             properties,
-            space: spaces.first().cloned(),
+            spaces: spaces.clone(),
             chain: Principal::from_context(request.context)
                 .map(|principal| principal.delegation_chain)
                 .unwrap_or_default(),
@@ -461,7 +461,7 @@ impl PersonService {
             command: new.command,
             input_digest: new.input_digest,
             properties: new.properties,
-            space: new.space,
+            spaces: new.spaces,
             chain: new.chain,
             trace_id: new.trace_id,
             created_ms: new.created_ms,
@@ -771,12 +771,15 @@ pub(crate) fn render(text: &str) -> String {
 pub(crate) struct Ledger {
     store: Arc<dyn PersonStore>,
     nonces: Arc<dyn NonceStore>,
+    clock: Arc<dyn Clock>,
 }
 
 impl Ledger {
-    pub(crate) fn new(workspace: &Workspace) -> Self {
+    /// The ledger of `workspace`, reading decisions' expiry on `clock` (the person page's).
+    pub(crate) fn new(workspace: &Workspace, clock: Arc<dyn Clock>) -> Self {
         let config = workspace.config();
         Self {
+            clock,
             store: Arc::new(crate::shared::person::SqlitePerson::new(
                 &workspace.layout().person_store(),
                 config.store.lock_timeout_ms,
@@ -804,6 +807,7 @@ impl super::DecisionLedger for Ledger {
             .map_err(|error| store_failure(&error))?
             .ok_or_else(refuse)?;
         let covers = decision.status == crate::shared::person::Status::Approved
+            && decision.live(self.clock.now())
             && decision.preview_hash.is_some()
             && decision.for_ == *who
             && decision.command == command
@@ -871,7 +875,7 @@ mod tests {
                 command: "gate-approve".into(),
                 input_digest: digest.clone(),
                 properties: Map::new(),
-                space: None,
+                spaces: Vec::new(),
                 chain: Vec::new(),
                 trace_id: None,
                 created_ms: now,
@@ -882,6 +886,7 @@ mod tests {
         let ledger = Ledger {
             store: store.clone(),
             nonces,
+            clock: Arc::new(afd::SYSTEM_CLOCK),
         };
         let mark = |id: &str| PersonMark {
             id: id.to_owned(),
@@ -896,7 +901,11 @@ mod tests {
             at: String::new(),
         };
         // Pending: not admitted.
-        assert!(ledger.admit(&mark(&id), &who, "gate-approve", &digest).is_err());
+        assert!(
+            ledger
+                .admit(&mark(&id), &who, "gate-approve", &digest)
+                .is_err()
+        );
         ok(store.start_login(
             &NewLogin {
                 id: "l".repeat(26),
@@ -909,7 +918,7 @@ mod tests {
             },
             now,
         ));
-        ok(store.take_login(&"l".repeat(26), now));
+        ok(store.take_login(&"l".repeat(26), &"ab".repeat(32), now));
         ok(store.finish_login(
             &"l".repeat(26),
             Some(&Verified {
@@ -923,12 +932,32 @@ mod tests {
         // Another person, command or input: not admitted, and nothing spent.
         let mut bo = who.clone();
         bo.subject = "bo".into();
-        assert!(ledger.admit(&mark(&id), &bo, "gate-approve", &digest).is_err());
-        assert!(ledger.admit(&mark(&id), &who, "gate-reject", &digest).is_err());
-        assert!(ledger.admit(&mark(&id), &who, "gate-approve", &"e".repeat(43)).is_err());
+        assert!(
+            ledger
+                .admit(&mark(&id), &bo, "gate-approve", &digest)
+                .is_err()
+        );
+        assert!(
+            ledger
+                .admit(&mark(&id), &who, "gate-reject", &digest)
+                .is_err()
+        );
+        assert!(
+            ledger
+                .admit(&mark(&id), &who, "gate-approve", &"e".repeat(43))
+                .is_err()
+        );
         // The right call: once.
-        assert!(ledger.admit(&mark(&id), &who, "gate-approve", &digest).is_ok());
-        assert!(ledger.admit(&mark(&id), &who, "gate-approve", &digest).is_err());
+        assert!(
+            ledger
+                .admit(&mark(&id), &who, "gate-approve", &digest)
+                .is_ok()
+        );
+        assert!(
+            ledger
+                .admit(&mark(&id), &who, "gate-approve", &digest)
+                .is_err()
+        );
     }
 
     #[test]

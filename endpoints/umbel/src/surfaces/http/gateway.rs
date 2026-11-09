@@ -355,7 +355,7 @@ pub(crate) fn router(
         }),
     };
     let path = config.http.path.clone();
-    let page = super::person_page(person, &path);
+    let page = super::person_page(person, &path, &limits, lock_timeout);
     let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
         // The person page's routes, before the gateway layer (6.3, layer 4): a gateway's person

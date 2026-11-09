@@ -463,7 +463,12 @@ fn oauth_router(
         &config.auth.scope_prefix,
     );
     let service = tower::Layer::layer(&bearer, gated);
-    let page = person_page(person, &config.http.path);
+    let page = person_page(
+        person,
+        &config.http.path,
+        &limits,
+        std::time::Duration::from_millis(config.store.lock_timeout_ms),
+    );
     let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
         // The person page's routes, beside the MCP path and never behind the bearer layer (6.3,
@@ -519,8 +524,16 @@ fn oauth_router(
 pub(crate) fn person_page(
     person: Option<&Arc<crate::person::service::PersonService>>,
     path: &str,
+    limits: &Arc<dyn crate::shared::limits::LimitStore>,
+    lock_timeout: std::time::Duration,
 ) -> Option<crate::person::page::PersonPage> {
-    person.and_then(|service| crate::person::page::PersonPage::new(Arc::clone(service), path))
+    let limit = Arc::new(layers::SlidingLimit::new(
+        Arc::clone(limits),
+        crate::person::page::PAGE_REQUESTS_PER_MINUTE,
+        lock_timeout,
+    ));
+    person
+        .and_then(|service| crate::person::page::PersonPage::new(Arc::clone(service), path, limit))
 }
 
 async fn health() -> Response {

@@ -444,6 +444,20 @@ impl Provider {
                     iss_parameter: document.get("authorization_response_iss_parameter_supported")
                         == Some(&Value::Bool(true)),
                 };
+                // PKCE S256 is required; a provider that publishes its methods must list it.
+                if let Some(methods) = document.get("code_challenge_methods_supported")
+                    && !methods
+                        .as_array()
+                        .is_some_and(|methods| methods.iter().any(|m| m.as_str() == Some("S256")))
+                {
+                    return Err((
+                        Some(doc),
+                        format!(
+                            "namespace {}: its provider's code_challenge_methods_supported lacks S256",
+                            provider.namespace
+                        ),
+                    ));
+                }
                 let (failures, _) = login_findings(
                     &provider.namespace,
                     &provider.alias,

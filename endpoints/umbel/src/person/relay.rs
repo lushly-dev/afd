@@ -37,11 +37,16 @@ impl UmbelRelay {
         Self { service }
     }
 
-    fn prompt(&self, id: &str, space: Option<&str>, call: &RelayCall) -> Option<RelayPrompt> {
+    fn prompt(&self, id: &str, spaces: &[String], call: &RelayCall) -> Option<RelayPrompt> {
         let state = self.service.seal_state(id, call)?;
-        let message = match space {
-            Some(space) => format!("Open the link to review {} in {space}", call.command),
-            None => format!("Open the link to review {}", call.command),
+        let message = if spaces.is_empty() {
+            format!("Open the link to review {}", call.command)
+        } else {
+            format!(
+                "Open the link to review {} in {}",
+                call.command,
+                spaces.join(", ")
+            )
         };
         Some(RelayPrompt::new(self.service.url(id), message, state))
     }
@@ -92,7 +97,7 @@ impl HumanRelay for UmbelRelay {
                 surface: Surface::Mcp,
             })
             .await?;
-        self.prompt(&decision.id, decision.space.as_deref(), call)
+        self.prompt(&decision.id, &decision.spaces, call)
             .ok_or_else(crate::shared::read_limit::store_failed)
     }
 
@@ -120,7 +125,7 @@ impl HumanRelay for UmbelRelay {
         }
         match decision.status {
             Status::Pending => self
-                .prompt(&decision.id, decision.space.as_deref(), call)
+                .prompt(&decision.id, &decision.spaces, call)
                 .map_or(RelayOutcome::Invalid, RelayOutcome::Pending),
             Status::Declined => RelayOutcome::Declined,
             Status::Approved => match self.service.spend(&decision.id).await {

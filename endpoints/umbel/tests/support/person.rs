@@ -113,8 +113,13 @@ fn preview_of(proposal: &str) -> afd::CommandResult<Value> {
 
 /// The compiled plugin `gate`, recording every call into `seen`.
 pub fn plugin(seen: &Seen) -> Raw {
+    plugin_with(seen, MANIFEST.to_owned())
+}
+
+/// The plugin `gate` with `manifest` in place of [`MANIFEST`].
+pub fn plugin_with(seen: &Seen, manifest: String) -> Raw {
     let seen = seen.clone();
-    Raw::new(MANIFEST.to_owned(), move |_| {
+    Raw::new(manifest, move |_| {
         let record = |name: &'static str, seen: Seen| {
             closure(name, move |input, context| {
                 seen.0.lock().unwrap().push(json!({
@@ -238,6 +243,25 @@ impl Page {
             .client_id(client)
             .scopes(["umbel:read", "umbel:write", "umbel:approve"])
             .sign()
+    }
+
+    /// The `extra` keys a command's context carried for `token` (`fixture-whoami`'s).
+    pub async fn extra_keys(&self, token: &str) -> Vec<String> {
+        let answer = call(
+            &self.client,
+            token,
+            "fixture-whoami",
+            json!({}),
+            json!({}),
+            true,
+        )
+        .await;
+        result(&answer)["data"]["extraKeys"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{answer}"))
+            .iter()
+            .map(|key| key.as_str().unwrap().to_owned())
+            .collect()
     }
 
     /// Queue the identity provider's next login.

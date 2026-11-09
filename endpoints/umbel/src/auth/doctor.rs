@@ -949,6 +949,26 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
     let mut found = Findings::default();
     let gated = inputs.person_mcp.unwrap_or_default();
     let mut valid = Vec::new();
+    // Where the person page is not served, no namespace's verified commands are (step 5).
+    let logins = auth
+        .namespaces
+        .iter()
+        .any(|namespace| namespace.person.is_some());
+    if auth.mode == crate::workspace::AuthMode::Gateway && (logins || !gated.is_empty()) {
+        found.warn(
+            "mode gateway serves no person page (the gateway would stand between the person and the page), so no verified command is served"
+                .to_owned(),
+        );
+    }
+    if auth.mode == crate::workspace::AuthMode::Oauth
+        && !auth.filter_tools_by_scope
+        && !gated.is_empty()
+    {
+        found.warn(format!(
+            "auth.filter_tools_by_scope is false, so the person page is not served and {} (person.mcp) are not served",
+            listed(gated)
+        ));
+    }
     for namespace in &auth.namespaces {
         let ns = &namespace.id;
         let has_callers = auth
@@ -967,7 +987,21 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
         let failures = found.failures.len();
         // The same function the person page runs at serve time, so the doctor passes exactly
         // the namespaces whose verified commands are served (step 2c's follow-up).
-        match identity_document(probe_of(probes, &login.issuer)) {
+        // The person page reads its provider's OpenID Connect discovery document alone, never
+        // RFC 8414 metadata, so the doctor does too (step 5's review).
+        let document = match probe_of(probes, &login.issuer) {
+            None => Err("was not asked".to_owned()),
+            Some(probe) => match (&probe.metadata, &probe.oidc) {
+                (Err(problem), _) => Err(problem.clone()),
+                (Ok(_), Some(Ok(Some(document)))) => Ok((document, true)),
+                (Ok(_), Some(Ok(None)) | None) => Err(
+                    "it publishes no OpenID Connect discovery document, which the person page reads"
+                        .to_owned(),
+                ),
+                (Ok(_), Some(Err(problem))) => Err(problem.clone()),
+            },
+        };
+        match document {
             Ok((document, _)) => {
                 let (failed, warned) =
                     crate::person::oidc::login_findings(ns, &login.issuer, login, document);

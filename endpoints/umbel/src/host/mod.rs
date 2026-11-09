@@ -349,6 +349,8 @@ impl HostBuilder {
             &builtin_names,
             self.approval_observer,
             (&stores, &stash),
+            #[cfg(feature = "auth")]
+            Arc::clone(&self.auth_environment.clock),
         )?;
         install_journal(
             &registry,
@@ -498,6 +500,7 @@ fn has_property(registry: &CommandRegistry, name: &str, property: &str) -> bool 
 /// The set of space commands is the host's own knowledge: a built-in by its `space` property, a
 /// plugin command by what its instance's load decided (a mounted tool's own `space` argument is
 /// the server's, not Umbel's).
+#[allow(clippy::too_many_arguments)]
 fn install_middleware(
     registry: &Arc<CommandRegistry>,
     workspace: &Arc<Workspace>,
@@ -506,6 +509,7 @@ fn install_middleware(
     builtins: &HashSet<String>,
     observer: Option<ApprovalObserver>,
     (stores, stash): (&Hub, &Arc<crate::positions::Stash>),
+    #[cfg(feature = "auth")] auth_clock: Arc<dyn Clock>,
 ) -> Result<Arc<crate::auth::scopes::ScopePolicy>, HostError> {
     let commands = registry.list();
     let with_space: Arc<HashSet<String>> = Arc::new(
@@ -658,8 +662,10 @@ fn install_middleware(
             stash: Arc::clone(stash),
             #[cfg(feature = "auth")]
             decisions: workspace.config().auth.mode.is_hosted().then(|| {
-                Arc::new(crate::person::service::Ledger::new(workspace))
-                    as Arc<dyn crate::person::DecisionLedger>
+                Arc::new(crate::person::service::Ledger::new(
+                    workspace,
+                    Arc::clone(&auth_clock),
+                )) as Arc<dyn crate::person::DecisionLedger>
             }),
             #[cfg(not(feature = "auth"))]
             decisions: None,

@@ -51,6 +51,8 @@ pub(crate) const CSP: &str = "default-src 'none'; style-src 'self'; form-action 
 const LOGIN_TTL_MS: i64 = 600_000;
 /// The largest form a decision posts.
 const MAX_FORM_BYTES: usize = 4096;
+/// The page's own limit (6.3, layer 4): requests a minute from one peer to its routes.
+pub(crate) const PAGE_REQUESTS_PER_MINUTE: u64 = 30;
 /// The cookie name's prefix; the login id follows.
 const COOKIE_PREFIX: &str = "__Host-umbel-person-";
 
@@ -71,6 +73,8 @@ pub(crate) struct PersonPage {
     port: Option<u16>,
     /// `https://<host>[:<port>]`.
     origin: String,
+    /// [`PAGE_REQUESTS_PER_MINUTE`] per peer.
+    limit: Arc<crate::surfaces::http::layers::SlidingLimit>,
 }
 
 impl std::fmt::Debug for PersonPage {
@@ -118,7 +122,11 @@ fn with_headers(mut response: Response) -> Response {
 
 impl PersonPage {
     /// The routes of `service`, under `http.path`.
-    pub(crate) fn new(service: Arc<PersonService>, path: &str) -> Option<Self> {
+    pub(crate) fn new(
+        service: Arc<PersonService>,
+        path: &str,
+        limit: Arc<crate::surfaces::http::layers::SlidingLimit>,
+    ) -> Option<Self> {
         let url = reqwest::Url::parse(service.public_url()).ok()?;
         let host = url.host_str()?.to_ascii_lowercase();
         let port = url.port();
@@ -132,6 +140,7 @@ impl PersonPage {
             host,
             port,
             origin,
+            limit,
         })
     }
 
@@ -201,8 +210,8 @@ impl PersonPage {
                 },
             }
         };
-        host.eq_ignore_ascii_case(&self.host)
-            && self.port.is_none_or(|expected| port == Some(expected))
+        // Without a port in the public URL, the default port's: none, or 443.
+        host.eq_ignore_ascii_case(&self.host) && port.unwrap_or(443) == self.port.unwrap_or(443)
     }
 
     /// Whether a post comes from the public URL's origin.
@@ -228,6 +237,11 @@ impl PersonPage {
 
     /// Serve one request to the page.
     pub(crate) async fn handle(self, request: Request) -> Response {
+        if let Some(refused) =
+            crate::surfaces::http::layers::admit_page(&self.limit, request.extensions()).await
+        {
+            return with_headers(refused);
+        }
         if !self.host_ok(request.headers()) {
             return self.message(
                 StatusCode::MISDIRECTED_REQUEST,
@@ -414,13 +428,19 @@ impl PersonPage {
             log_refusal("state");
             return refused(self);
         }
-        let cookie = Self::cookie(request.headers(), &format!("{COOKIE_PREFIX}{login}"));
+        // The login is taken only with its browser's cookie: without it nothing is spent, so a
+        // leaked `state` cannot burn the person's login.
+        let Some(cookie) = Self::cookie(request.headers(), &format!("{COOKIE_PREFIX}{login}"))
+        else {
+            log_refusal("cookie");
+            return refused(self);
+        };
         let now = self.service.now();
         // Taken once: a replayed `state` finds nothing.
         let taken = {
             let store = Arc::clone(&self.service.store);
-            let login = login.to_owned();
-            tokio::task::spawn_blocking(move || store.take_login(&login, now)).await
+            let (login, hash) = (login.to_owned(), sha256_hex(&cookie));
+            tokio::task::spawn_blocking(move || store.take_login(&login, &hash, now)).await
         };
         let row = match taken {
             Ok(Ok(Some(row))) => row,
@@ -439,12 +459,6 @@ impl PersonPage {
             });
             response
         };
-        let cookie_ok = cookie.as_deref().is_some_and(|value| {
-            crate::shared::person::same_digest(&sha256_hex(value), &row.browser_hash)
-        });
-        if !cookie_ok {
-            return fail(self, "cookie", refused(self));
-        }
         if params.contains_key("error") {
             return fail(self, "provider-error", refused(self));
         }
@@ -578,7 +592,7 @@ impl PersonPage {
         };
         let body = format!(
             "<p>Signed in as <b>{namespace}/{person}</b>. Decide this request yourself: approve it only if you asked for it.</p>\
-             <dl><dt>Command</dt><dd><code>{command}</code></dd><dt>Space</dt><dd>{space}</dd>\
+             <dl><dt>Command</dt><dd><code>{command}</code></dd><dt>Spaces</dt><dd>{space}</dd>\
              <dt>Asked by</dt><dd><code>{actor}</code></dd><dt>Client</dt><dd><code>{client}</code></dd>\
              <dt>Through</dt><dd><code>{chain}</code></dd><dt>Asked at</dt><dd>{asked}</dd><dt>Expires</dt><dd>{expires}</dd></dl>\
              <h2>What it will do</h2><pre>{preview}</pre>\
@@ -586,7 +600,7 @@ impl PersonPage {
             namespace = escape(&decision.for_.namespace),
             person = escape(person),
             command = escape(&decision.command),
-            space = escape(decision.space.as_deref().unwrap_or("(default)")),
+            space = escape(&decision.spaces.join(", ")),
             actor = escape(actor),
             client = escape(client),
             chain = escape(&chain),

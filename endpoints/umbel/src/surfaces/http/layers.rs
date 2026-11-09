@@ -353,6 +353,29 @@ pub(crate) async fn limit_ip(
     }
 }
 
+/// The person page's own limit (phase 5 section 6.3, layer 4: "their own limit"): at most
+/// `limit`'s requests a minute from one peer to the page's routes, on the shared counters under
+/// their own key, beside layer 3's. `None` admits the request; otherwise the refusal to send, as
+/// layer 3 answers (429, 503 or 500).
+#[cfg(feature = "auth")]
+pub(crate) async fn admit_page(
+    limit: &SlidingLimit,
+    extensions: &http::Extensions,
+) -> Option<Response> {
+    let Some(PeerAddr(peer)) = extensions.get::<PeerAddr>().copied() else {
+        return Some(plain(StatusCode::INTERNAL_SERVER_ERROR, false));
+    };
+    match limit
+        .admit(format!("person-page:{}", ip_key(peer.ip())))
+        .await
+    {
+        Ok(()) => None,
+        Err(Refusal::TooMany(left)) => Some(too_many(left, "to the person page from this address")),
+        Err(Refusal::Busy(store)) => Some(shared_timeout(store)),
+        Err(Refusal::Failed) => Some(plain(StatusCode::INTERNAL_SERVER_ERROR, false)),
+    }
+}
+
 /// A JSON refusal with `status`, `Retry-After: seconds`, and `body`.
 #[cfg(feature = "auth")]
 fn retry_later(status: StatusCode, seconds: i64, body: &serde_json::Value) -> Response {

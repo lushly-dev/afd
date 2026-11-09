@@ -14,19 +14,25 @@
 //! - **declined**: `CONFIRMATION_DECLINED`, nothing runs;
 //! - **expired** (or gone): `PERSON_DECISION_EXPIRED`, retryable, nothing runs.
 
+#[cfg(feature = "auth")]
 use std::sync::Arc;
+#[cfg(feature = "auth")]
 use std::time::Duration;
 
-use afd::{CommandResult, error_codes, failure};
+#[cfg(feature = "auth")]
+use afd::error_codes;
+use afd::{CommandResult, failure};
 use serde_json::Value;
 
 use super::Environment;
 use crate::host::Host;
 
 /// How often the CLI reads its decision.
+#[cfg(feature = "auth")]
 const POLL: Duration = Duration::from_secs(1);
 
 /// `PERSON_DECISION_EXPIRED`: the decision was not decided, or not used, in time.
+#[cfg(feature = "auth")]
 fn expired(command: &str) -> afd::CommandError {
     afd::CommandError::new(
         crate::person::PERSON_DECISION_EXPIRED,
@@ -71,7 +77,7 @@ async fn verified(
     let Some(service) = host.person().cloned() else {
         return failure(unavailable(
             command,
-            "this workspace serves no person page (it needs auth.mode \"oauth\" or \"gateway\" and http.public_url)",
+            "this workspace serves no person page (it needs auth.mode \"oauth\", auth.filter_tools_by_scope and http.public_url)",
         ));
     };
     let mut context = host.cli_context();
