@@ -610,6 +610,8 @@ async function draftSheet(
 				.some((tab) => tab.name.includes('unsaved'))
 		)
 		.toBe(true);
+	// Settled, so a check of the frames knows this view now holds unsaved work.
+	await editorIdle(page);
 	return { sheet, frame };
 }
 
@@ -882,6 +884,8 @@ describe('P2-D5: a view editor when another group goes', () => {
 	it('P2-D5: closing the last tab of the group before a view editor’s keeps that view’s window and its draft', async () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
+		// With no `moveBefore`, a group moved past a gone one would reload its views (G-B1).
+		await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
 		const note = await createNote(page, 'First group');
 		await open(page, note, { preview: false });
 		const { frame } = await draftSheet(page, 'Stays put', 'Draft in place', { group: 'beside' });
