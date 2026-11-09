@@ -276,11 +276,21 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 			void import('./sections/documents.js').then(
 				({ syncDocuments }) => syncDocuments(host as unknown as LoamShell),
 				(cause) => {
-					const shell = host as unknown as LoamShell;
-					shell.landing = COULD_NOT_LOAD;
-					// Main's landing shows it: the editor area's sync marks main again at the next change.
-					const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
-					if (main) delete main.dataset.section;
+					const root = (host as unknown as LoamShell).shadowRoot;
+					const main = root?.querySelector<HTMLElement>('loam-main');
+					if (
+						main?.querySelector<HTMLElement & { empty?: boolean }>('loam-editor-area')?.empty ===
+						false
+					) {
+						// A tab shows: the editor keeps main, and the sidebar, the tree's place, says so.
+						const empty = root?.querySelector<HTMLElement>('loam-sidebar loam-empty-state');
+						empty?.setAttribute('message', COULD_NOT_LOAD);
+						if (empty) empty.hidden = false;
+					} else {
+						// Where the list would be: main's landing, which the editor area's next sync covers again.
+						(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
+						if (main) delete main.dataset.section;
+					}
 					reportError(cause);
 				}
 			);

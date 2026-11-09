@@ -119,7 +119,13 @@ async function sync(shell: LoamShell): Promise<void> {
 	}
 	sidebar.compact = shell.presentation.layoutClass === 'compact';
 	part.setAttribute('heading', 'Documents');
-	if (empty) empty.hidden = true;
+	if (empty) {
+		empty.hidden = true;
+		// Its own words again, after a failed load put the failure there (with a tab open).
+		if (empty.getAttribute('message') === 'Could not load. Reload to try again.') {
+			empty.setAttribute('message', "The active app's navigation will appear here.");
+		}
+	}
 	const project = state.scope.project;
 	void sidebar.show(`${state.workspace.id} ${project ?? ''}`);
 	markToggles(shell, true);

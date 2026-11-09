@@ -494,6 +494,14 @@ describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's 
 				description: 'At least one.',
 				effects: ['inspect'],
 				input_schema: branchy({ minProperties: 1 }),
+			},
+			{
+				// Only the validator's parse sees it: the `apps` chunk's answer, on the command's owner.
+				name: 'tasks-fixed',
+				title: 'Fixed',
+				description: 'One value alone.',
+				effects: ['inspect'],
+				input_schema: branchy({ const: { a: 'x' } }),
 			}
 		);
 		const held = await createScopedWorkspace({
@@ -518,6 +526,7 @@ describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's 
 		);
 		expect(flags.get('tasks-either')).toBe(true);
 		expect(flags.get('tasks-some')).toBe(true);
+		expect(flags.get('tasks-fixed')).toBe(true);
 		expect(flags.get('tasks-list')).toBe(false);
 		expect(flags.get('tasks-add')).toBe(true);
 	});

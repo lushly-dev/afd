@@ -104,10 +104,11 @@ const isObject = (value: unknown): value is Json =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * Whether a command needs input: its schema's shape says so (`needsInputShape`, the kernel's own), or the
- * parse the kernel runs on an app's input refuses `{}`, so `required` in a branch, `minProperties`, `not` and
- * the rest all count. A path, read later by `app check`, or a schema the checker refuses, which
- * `input-schema` reports, says no.
+ * Whether a command needs input: its schema's shape says so (`needsInputShape`, the kernel's own), which
+ * catches `required` and `minProperties` at the root and in `allOf`, `anyOf` and `oneOf` branches; or the
+ * parse the kernel runs on an app's input refuses `{}`, which catches a root `const` or `enum` the shape cannot
+ * see. A path, read later by `app check`, or a schema the checker refuses, which `input-schema` reports,
+ * says no.
  */
 export function needsInput(schema: unknown): boolean {
 	if (!isObject(schema)) return false;

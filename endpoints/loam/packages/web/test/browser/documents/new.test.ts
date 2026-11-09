@@ -927,6 +927,62 @@ describe('P2-D8: the reviews of step 11', () => {
 		await opened.context.close();
 	}, 120_000);
 
+	it('nit: a Show more whose view changes takes no focus, and with no row to take it focus goes to the heading', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const ids = (await page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { call(name: string, input: unknown): Promise<{ data?: { id: string } }> };
+			};
+			const made: string[] = [];
+			for (let n = 0; n < 201; n++) {
+				made.push(
+					(await shell.kernel.call('document-create', { type: 'notes', title: `Note ${n}` })).data
+						?.id as string
+				);
+			}
+			return made;
+		})) as string[];
+		await documentsSection(page);
+		const section = page.locator('loam-main loam-documents-section');
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(200);
+		// Show more pressed, and the view changed at once: the archived view takes no focus from it.
+		await section.evaluate((element) => {
+			const root = element.shadowRoot as ShadowRoot;
+			root.querySelector<HTMLButtonElement>('.more button')?.click();
+			const select = root.querySelector<HTMLSelectElement>(
+				'select[data-ref="status"]'
+			) as HTMLSelectElement;
+			select.focus();
+			select.value = 'archived';
+			select.dispatchEvent(new Event('change'));
+		});
+		await expect.poll(() => section.locator('.empty').textContent()).toBe('No archived documents');
+		await settle(page);
+		expect((await deepFocus(page)).tag).toBe('select');
+		// Back to the active list; Show more, while two rows go: no row 201, so focus goes to the heading.
+		await section.locator('select[data-ref="status"]').selectOption('active');
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(200);
+		await section.evaluate(
+			async (element, gone) => {
+				const shell = document.querySelector('loam-shell') as unknown as {
+					kernel: { call(name: string, input: unknown): Promise<unknown> };
+				};
+				element.shadowRoot?.querySelector<HTMLButtonElement>('.more button')?.click();
+				await Promise.all(
+					gone.map((document) => shell.kernel.call('document-trash', { document }))
+				);
+			},
+			ids.slice(0, 2)
+		);
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(199);
+		await settle(page);
+		expect((await deepFocus(page)).tag).toBe('h1');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 120_000);
+
 	it('nits: a second press keeps a document whichever row it is pressed on, and New: rows follow the query', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
@@ -1016,6 +1072,40 @@ describe('P2-D8: a documents chunk that does not load', () => {
 		await kernelCall(page, 'section-open', { section: 'documents' });
 		await page.locator('loam-main loam-documents-section h1').waitFor();
 		expect(await heading()).toBeNull();
+		await context.close();
+		await site.close();
+	});
+
+	it('with a tab open, the editor keeps main, and the sidebar says it could not load', async () => {
+		const site = await fullDeployment();
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		await context.route('**/assets/documents-*', (route) => route.abort());
+		const opened = await openShell(browser, site.root, {}, context);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const id = await createNote(page, 'Open');
+		await kernelCall(page, 'document-open', { document: id });
+		await editorIdle(page);
+		const sizes = () =>
+			page.evaluate(() => {
+				const root = document.querySelector('loam-shell')?.shadowRoot;
+				const main = root?.querySelector<HTMLElement>('loam-main');
+				const area = main?.querySelector<HTMLElement>('loam-editor-area');
+				const empty = root?.querySelector<HTMLElement>('loam-sidebar loam-empty-state');
+				const landing = main?.shadowRoot?.querySelector<HTMLElement>('.landing');
+				return {
+					main: main?.getBoundingClientRect().height ?? 0,
+					area: area?.getBoundingClientRect().height ?? 0,
+					sidebar: empty && !empty.hidden ? empty.getAttribute('message') : null,
+					landing: landing ? getComputedStyle(landing).display : 'none',
+				};
+			});
+		await expect
+			.poll(async () => (await sizes()).sidebar)
+			.toBe('Could not load. Reload to try again.');
+		const now = await sizes();
+		expect(now.landing).toBe('none');
+		expect(Math.abs(now.main - now.area)).toBeLessThan(2);
 		await context.close();
 		await site.close();
 	});

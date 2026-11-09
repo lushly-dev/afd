@@ -306,7 +306,11 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 
 		for (const definition of definitions) {
 			commands.push(definition);
-			owners.set(definition.name, { app: entry.app, instance: entry.instance });
+			owners.set(definition.name, {
+				app: entry.app,
+				instance: entry.instance,
+				needsInput: needsInput(definition.jsonSchema),
+			});
 		}
 		const needing = new Map(
 			definitions.map((definition) => [definition.name, definition.jsonSchema])

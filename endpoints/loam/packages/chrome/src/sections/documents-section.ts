@@ -212,29 +212,34 @@ export class LoamDocumentsSection extends FASTElement {
 		clearTimeout(this.#timer);
 		this.#timer = setTimeout(() => {
 			this.#query = value.trim().slice(0, 200);
+			this.#shown = null;
 			this.#limit = PAGE;
 			void this.read(true);
 		}, 300);
 	}
 	setType(value: string): void {
 		this.#type = value;
+		this.#shown = null;
 		this.#limit = PAGE;
 		void this.read(true);
 	}
 	setTag(value: string): void {
 		this.#tag = value;
+		this.#shown = null;
 		this.#limit = PAGE;
 		void this.read(true);
 	}
 	setStatus(value: Status): void {
 		this.status = value;
-		// A Restore's focus belongs to the trash it was pressed in, never to the next view.
+		// A Restore's or a Show more's focus belongs to the view it was pressed in, never to the next.
 		this.#refocus = null;
+		this.#shown = null;
 		this.#limit = PAGE;
 		void this.read(true);
 	}
 	setAll(value: boolean): void {
 		this.all = value;
+		this.#shown = null;
 		this.#limit = PAGE;
 		void this.read(true);
 	}
@@ -377,7 +382,10 @@ export class LoamDocumentsSection extends FASTElement {
 			const rows = this.#ref('rows')?.querySelectorAll<HTMLElement>('tr');
 			const row = rows?.[this.#shown];
 			this.#shown = null;
-			(row?.querySelector<HTMLElement>('a, button') ?? undefined)?.focus();
+			const target = row?.querySelector<HTMLElement>('a, button');
+			// No row came, as when the list changed meanwhile: focus goes to the heading, never the page.
+			if (target) target.focus();
+			else this.focusHeading();
 		}
 		this.#paintFilters();
 		await this.#paintNew();

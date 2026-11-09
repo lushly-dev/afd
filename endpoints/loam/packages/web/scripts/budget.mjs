@@ -136,6 +136,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * coordinator, 2026-11-09: `ui.new`'s rules as a rule of their own, run for every manifest, with the mounted
  * and levels refusals (652), "needs input" decided by the kernel's own parse of `{}` (75), bidirectional
  * formatting characters refused in Loam's display text (68), and `ui.new` titles in that rule (66).
+ * Its narrow re-check raised `urlMinified` by its measured cost, 156, to 5,247, approved by the coordinator,
+ * 2026-11-09: a `documents` chunk that does not load, with a tab open, says so in the sidebar and leaves main
+ * to the editor, where with no tab main's landing says it (5,038 before).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -145,7 +148,7 @@ export const CEILINGS = Object.freeze({
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
-	urlMinified: 5_091,
+	urlMinified: 5_247,
 	appsMinified: 385_114,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,

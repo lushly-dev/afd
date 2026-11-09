@@ -189,6 +189,12 @@
     - **A leaving row hands focus within its branch:** its next sibling, else the previous, else the branch, never a row of another.
     - **A documents chunk that does not load** says "Could not load. Reload to try again." in main, through its landing, and a later visit loads it and puts the landing's text back; a Chromium test aborts the chunk.
     - **Nits.** Loam's display text refuses every `Bidi_Control` character, U+061C among them (deviation 19, a case for it); a Restore sets where focus goes only while the trash still shows, and leaving the trash forgets it.
+  - **After the narrow re-check of 2026-11-09,** which confirmed the re-check's fixes and found one should-fix the round brought and three nits, all fixed, each behaviour fix with a test that fails on revert:
+    - **A blocked `documents` chunk with a tab open** said so in main's landing, above the editor, which it squeezed: with a tab shown the editor keeps main, and the sidebar's place, where the tree would be, says "Could not load. Reload to try again."; with none, main's landing says it, as before. The chunk, once it loads, gives the sidebar its own words back. Chromium: the tab case, the editor's height equal to main's and the message in the sidebar.
+    - **The palette's flag is the whole answer for an app's command:** the `apps` chunk stores `needsInput`, the shape and the parse, on each command's owner, and `listCommands` reads it, falling back to the shape for shell commands, so a root `const` is marked too. A kernel unit with a `const` command.
+    - **Show more's focus mark** is cleared by every filter, and with no row to take it focus goes to the heading. Chromium, both.
+    - **Nit.** `needsInput`'s comment says which half catches what.
+    - **The budget:** first paint 286,084 and 88,195 gzip, 34 and 2 for the owner's flag, step 11 581 of its 600 and 140 of its 250; `url-sync` 5,194, **its row raised by the measured cost, 156, to 5,247, approved by the coordinator on 2026-11-09**; `apps` 384,955 and `documents` 51,907, within.
   - **Spec deviations,** numbered as in the pull request:
     1. **The New button is markup in `loam-titlebar`'s template** (`.new > button`), not an element `loam-new-button` of its own, which would cost first paint a definition for one button; its menu is `loam-new-menu`.
     2. **`violet-menu` is laid over the button** (`position: absolute; inset: 0`, the host taking no pointer), not given it as its slotted trigger, since the button is first paint's and the menu the `new` chunk's; `loam-new-menu` keeps the button's `aria-expanded`, returns focus to it on Escape and a choice, and treats a press that light-dismisses the open menu as its close. The button's ArrowDown and ArrowUp, APG's menu button keys, open it on its first and last item through `violet-menu`'s own trigger handling.
@@ -923,6 +929,7 @@ The owner's D29 question stays as recorded.
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
+| 2026-11-09 | The step 11 re-check | Zod's `fromJSONSchema`, the kernel's validator of an app's input, ignores `required` and `minProperties` inside `anyOf`, `oneOf` and `allOf` branches, while the manifest's input-schema checker accepts such schemas: a command can run with input it said it requires, or a `oneOf` can refuse every input. Older than step 11. The manifest's input-schema checker must refuse every construct the kernel's validator does not honour. The coordinator fixes it in a pull request of its own after #837 | Open |
 | 2026-11-09 | Step 11's accessibility review | Specimen captures of the documents sidebar's Rename and Links dialogs, once Specimen observes a modal dialog's ARIA snapshot (its snapshot is empty while one is open); axe covers them meanwhile | Open |
 | 2026-11-02 | Phase 2 specification | Group sizes, rows, and dragging a tab or a group | Open |
 | 2026-11-08 | Step 10's re-check after the independent review | A long walk of the editor area, scheduled or run by hand, with many seeds and more steps than the six of 200 a pull request runs, once Loam's CI has a schedule | Open |
