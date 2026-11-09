@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** written 2026-11-09 by the design sub-agent; revised the same day after two independent reviews, a trust and security review and a general review, each of whose findings is answered in [Review 2026-11-09](#review-2026-11-09). Not yet approved. **Six questions were asked of the owner on 2026-11-09 and await answers** ([Questions for the owner](#questions-for-the-owner)); the text is written to each recommendation and marks every place an answer changes it, so an answer is folded into its section and decision without rewriting the rest. Decisions D84 to D95 are in the [decision log](../../decisions.md), "proposed, pending review", and D95 "pending the owner". The order relative to phase 6 is the coordinator's decision; [10.3](#103-the-order-recommended-for-the-coordinator-to-decide) recommends one.
+- **State:** written 2026-11-09 by the design sub-agent; revised the same day after two independent reviews, a trust and security review and a general review, each of whose findings is answered in [Review 2026-11-09](#review-2026-11-09). Not yet approved. **Six questions were asked of the owner on 2026-11-09. The owner answered four the same day** (Q1, Q3, Q5's recovery and Q6), recorded here as owner decisions D95 to D98; **Q2 and Q4 still await answers**, and the text is written to their recommendations, marking where an answer changes it ([Questions for the owner](#questions-for-the-owner)). The ways to sign in are the coordinator's decision of 2026-11-09, D99. Decisions D84 to D94 are in the [decision log](../../decisions.md), "proposed, pending review". The order relative to phase 6 is the coordinator's decision; [10.3](#103-the-order-recommended-for-the-coordinator-to-decide) recommends one.
 - **Last verified:** 2026-11-09 against `main` at `4eee0af8`, from this evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
     - `kernel.ts:325-329` (the chain: afd-auth's middleware with every held command excluded, so nothing needs a session; the journal; scope), `:330-353` (both registries and the boot registry share it), `:509-511` (`runAs`: a port's and a nested call run on the `palette` registry with only `KernelCallFields`), `:89-94` (`UNJOURNALED_COMMANDS`), `:113-119` (`redactJournalRecord`), `:768-774` (`resetSession`);
@@ -25,7 +25,7 @@
   - **Issues:** #852, #853, #854 and #864, each answered in [Carried](#carried-from-phase-2-answered-here); the rest of #851 to #889 name no phase 3 work.
   - **External:** the [trajectory refresh](#trajectory-refresh), dated 2026-11-09. A browser bundle of Better Auth 1.7.18's client with its organization and passkey plugins measured 54,636 bytes minified, 18,137 gzip; with the organization plugin alone 42,128 and 14,714 (esbuild 0.28.2, 2026-11-09).
 - **Done:** this specification and its revision.
-- **Not done:** everything it specifies; the owner's six answers; approval.
+- **Not done:** everything it specifies; the owner's answers to Q2 and Q4; approval.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -175,7 +175,7 @@ mode = "provider"            # default "local"
 provider = "better-auth"     # the only value
 organization = "acme"        # the bound organization's slug at first binding; required for "provider"
 path = "api/auth"            # relative to site.base_path, no leading slash; default "api/auth"
-methods = ["passkey"]        # "passkey", "password", "oidc:<provider-id>"; default ["passkey"]. Pending Q5
+methods = ["passkey"]        # "passkey", "password", "oidc:<provider-id>"; default ["passkey"] (D99)
 ```
 
 **`path` has one reading:** relative to `site.base_path`, so with `base_path = "/loam/"` the provider is at `/loam/api/auth/`. The projection carries `identity: { mode, organization, path, methods }`, the slug for display only, and nothing else: no secret, no key, no database, no organization id. The provider's own configuration (secret, database, mail sender, OIDC clients) is the hosted lane's, through `createLoamAuthOptions`, never in the deployment file (D63).
@@ -185,7 +185,7 @@ methods = ["passkey"]        # "passkey", "password", "oidc:<provider-id>"; defa
 | `mode = "provider"` with no `organization`, or one off the slug pattern | `DEPLOYMENT_IDENTITY_INVALID` |
 | `path` with a leading `/`, a `.` or `..` segment, or one a deployment's own files use | `DEPLOYMENT_IDENTITY_INVALID` |
 | `methods` empty, or naming an unknown method | `DEPLOYMENT_IDENTITY_INVALID` |
-| A `provider` deployment with a mounted `stdio` instance | **Pending [Q6](#q6-stdio-instances-on-the-hosted-server).** Written to the recommendation, which keeps D56: a warning, `DEPLOYMENT_STDIO_TEAM`, "This `stdio` instance runs as the server's user for every member who may reach it". D95, refusing it, waits on the owner |
+| A `provider` deployment with a mounted `stdio` instance. **Decided by the owner on 2026-11-09 (D95, [Q6](#q6-stdio-instances-on-the-hosted-server)), which narrows D56:** a shared workspace runs no program as the server's own user for its members | `DEPLOYMENT_STDIO_TEAM`: `deployment write` and `check` stop, naming the instance and suggesting an HTTP instance. The hosted server refuses to start with one, so a hand-edited file cannot slip it past |
 
 ### 2.3 The workspace bound to an organization
 
@@ -243,6 +243,7 @@ A browser kernel runs commands against the browser's own IndexedDB, and **nothin
 - **Organization:** `allowUserToCreateOrganization: false`; `requireEmailVerificationOnInvitation: true`; `sendInvitationEmail` through `mail` with Loam's join link ([5.6](#56-enrolment)); custom access control and `organizationHooks` ([7.5](#75-the-providers-own-endpoints)).
 - **OIDC (`methods` holds `oidc:<id>`):** `genericOAuth` for that provider; `account.accountLinking` enabled only for that provider, only when its ID token says `email_verified: true`, and never to a different email.
 - **OAuth provider:** [9.4](#94-connected-agents-and-their-pages).
+- **Ways in (D99, the coordinator's decision of 2026-11-09):** passkeys; the deployer's single sign-on (`oidc:<id>`) if the deployer sets one up; passwords off by default, and a deployer may turn them on. **Passwords and OIDC sign-ins carry no user verification:** the provider records how each session was made, and a session from a password or an OIDC sign-in is not user-verified. Section 5.2 says what that limits.
 - **Pins:** `better-auth`, `@better-auth/passkey`, `@better-auth/oauth-provider` and `@better-auth/cimd` at `1.7.18` exactly, together, in `identity` and `web`'s dev dependencies, past the workspace's three-day `minimumReleaseAge` (published 2026-11-05).
 
 ## 3. The actor and the access decision
@@ -426,7 +427,7 @@ export interface AccountV1 {
 	workspace: { member: boolean; role: 'owner' | 'admin' | 'member' | null; owner: boolean };
 	persona: string;                                   // the active persona's id, or 'default'
 	methods: ('passkey' | 'password' | `oidc:${string}`)[];
-	recovery: 'oidc' | 'email' | 'owner' | 'none';     // how this person could recover (5.7)
+	recovery: 'oidc' | 'email' | 'none';                // how this person could recover (5.7, D97)
 }
 ```
 
@@ -440,7 +441,7 @@ export interface AccountV1 {
 | `account-passkey-remove` | mutation, recorded, human, fresh | `{ passkey }` | `{ removed: true }`. No undo. **`PASSKEY_LAST`** when it is the person's only passkey and `AccountV1.recovery` is `none` with no other method in `identity.methods` |
 
 - **User verification is required** on every ceremony, by `authenticatorSelection.userVerification: 'required'` and by the provider's check of the assertion's UV flag. E1 holds that an assertion without user verification is refused.
-- **Fresh.** `account-passkey-add`, `account-passkey-remove` and `session-revoke { 'others' | 'all' }` need a session created within `freshAge` (300 seconds). `loamServerPlugin` adds a `before` hook on `/passkey/add-passkey`, `/passkey/delete-passkey`, `/revoke-other-sessions`, `/revoke-sessions` and its own `revoke-person` that refuses an older session, so the rule holds at the provider; the kernel answers `REAUTH_REQUIRED` first, and the chrome asks for a passkey sign-in, which makes a fresh session, then retries once.
+- **Fresh.** `account-passkey-add`, `account-passkey-remove` and `session-revoke { 'others' | 'all' }` need a session created within `freshAge` (300 seconds). `loamServerPlugin` adds a `before` hook on `/passkey/add-passkey`, `/passkey/delete-passkey`, `/revoke-other-sessions`, `/revoke-sessions` and its own `revoke-person` that refuses an older session, so the rule holds at the provider; the kernel answers `REAUTH_REQUIRED` first, and the chrome asks for a passkey sign-in, which makes a fresh session, then retries once. **A person who holds a passkey must re-authenticate with one:** a fresh password or OIDC session is not user-verified (D99) and does not satisfy these hooks for them. A person with no passkey yet may add their first from a fresh password or OIDC session, which is how a password or single sign-on account enrols one.
 - **A person's gesture.** The chrome calls `account-passkey-add` from a button press; WebAuthn refuses a ceremony without transient activation (`PASSKEY_CANCELLED`).
 - **Signals.** After a removal, where `PublicKeyCredential.signalUnknownCredential` exists, the chrome signals it (W32).
 - **The sign-in dialog,** `loam-sign-in-dialog`: "Sign in with a passkey" first; the email field with `autocomplete="username webauthn"` for autofill, started when the dialog opens if `PublicKeyCredential.isConditionalMediationAvailable()` says so; then each other allowed method. A shell modal through the overlay manager.
@@ -497,21 +498,21 @@ and the rules in `loam-rules.ts`: `surface` names a declared surface of a native
 
 ### 5.7 Recovery
 
-**Who may start a recovery is pending [Q5](#q5-ways-to-sign-in-and-who-may-restore-access).** The ceremony is the same whoever starts it; only who receives the link differs:
+**Decided by the owner on 2026-11-09 (D97, [Q5](#q5-ways-to-sign-in-and-who-may-restore-access)):** a person restores their own access by an **emailed one-time link to their verified email**, or through the company's **single sign-on** where the deployer set it up. **No owner can restore another person's account:** no command, owner or otherwise, starts a recovery for someone else, and no recovery link goes to any address but the account's own verified one.
 
-| Started by | The link goes to |
+| Path | How |
 | --- | --- |
-| The person, by email (if Q5 allows) | The account's verified email |
-| An owner (if Q5 allows) | The address the owner gives, after `member-recover-start { member }`, an owner command |
-| Single sign-on | No link: signing in through the deployer's OIDC with the same verified email is the recovery |
+| Email | The person asks on the sign-in dialog's "Can't sign in?" with their email; the link goes only to that account's verified email. The answer is the same whether or not the email has an account, so the form reveals nothing |
+| Single sign-on | No link: signing in through the deployer's OIDC with the same verified email is the recovery, and enrols a passkey on the same page |
 
 **The ceremony,** in `loamServerPlugin`:
 
 - A recovery token: 32 random bytes, stored hashed, **single use, valid 15 minutes**, at most one outstanding per person (a new one cancels the old).
 - The recovery page (top level, `frame-ancestors 'none'`) registers a new passkey with `requireSession: false` and `resolveUser` resolving the token's person.
 - On success, in one transaction: the token is consumed; **every other session, every OAuth consent and every refresh token of the person is revoked**, and their connected agents are suspended, as `session-revoke 'all'` does; a new session is created.
-- **Journaled and announced:** an email to the account's verified address ("Your access to Acme was restored on <date>"); a notice in the account section at the next sign-in; and, for an owner-started recovery, an email to every owner. The kernel journals the resulting `session-settle` with `reason: 'provider'`, and `account-get` reports `recoveredAt`.
-- **`PASSKEY_LAST`** reads `AccountV1.recovery`: removing the last passkey is refused only when the person would have no way back in, no other method and no recovery path Q5 allows.
+- **Journaled and announced to the person:** an email to the account's verified address ("Your access to Acme was restored on <date>. If this wasn't you, contact an owner"); a notice in the account section at the next sign-in. The provider keeps the recovery as a dated record; the kernel journals the resulting `session-settle` with `reason: 'provider'`, and `account-get` reports `recoveredAt`.
+- **The request is rate-limited:** at most three recovery emails per account per hour, and per client address the provider's default rate limit.
+- **`PASSKEY_LAST`** reads `AccountV1.recovery`: removing the last passkey is refused only when the person would have no way back in. With D97, recovery by email is always open to a verified account, so `recovery` is `email` (or `oidc` where single sign-on is set up), and `PASSKEY_LAST` applies only to an account whose email is not verified.
 
 ## 6. Persona (D89)
 
@@ -574,9 +575,9 @@ export interface PersonaV1 {
 
 ### 7.1 Who is an owner
 
-**Pending [Q1](#q1-who-counts-as-an-owner).** Written to the recommendation: in `provider` mode, a member whose role in the bound organization is **`owner` or `admin`**, with the admin role narrowed in the provider ([7.5](#75-the-providers-own-endpoints)): no `organization:update` or `organization:delete`, and no granting or removing `owner`. In `local` mode, every actor. `isOwner(membership, person)` in `scope/` is the only reader; each owner command checks line 0, then `HUMAN_REQUIRED`, then a membership re-read (7.6), then `OWNER_REQUIRED`, each journaled.
+**Decided by the owner on 2026-11-09 (D96, [Q1](#q1-who-counts-as-an-owner)):** in `provider` mode, a member whose role in the bound organization is **`owner` or `admin`**. Both are Loam owners. `createLoamAuthOptions` keeps the provider's admin powers consistent with that ([7.5](#75-the-providers-own-endpoints)): an `admin` holds in the provider every member and invitation power an `owner` holds, so nothing Loam lets an owner do is refused to an admin at the provider, and nothing the provider lets an admin do goes beyond a Loam owner. Two things no Loam owner does in the provider, of either role: changing or deleting the bound organization (no role holds `organization:update` or `organization:delete`), and, for an `admin`, granting or removing the provider's `owner` role, which decides only who may delete the organization and who is the last owner, and changes nothing in Loam. In `local` mode, every actor. `isOwner(membership, person)` in `scope/` is the only reader; each owner command checks line 0, then `HUMAN_REQUIRED`, then a membership re-read (7.6), then `OWNER_REQUIRED`, each journaled.
 
-**Owners can enter every project,** by adding themselves to its members (7.3), journaled; `decideAccess` gives an owner nothing a member list does not.
+**Owners can enter every project** (D96): an owner may add themselves to any project's members, a restricted one or one a team instance serves, by `project-update { access }`, journaled; `decideAccess` gives an owner nothing a member list does not, so the record says who entered and when.
 
 **The last owner.** Better Auth 1.7 refuses leaving as the only owner (`YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER`, `…_WITHOUT_AN_OWNER`); Loam maps both to `MEMBER_LAST_OWNER`, and its `beforeRemoveMember` and `beforeUpdateMemberRole` hooks refuse removing or demoting the last `owner` too, the cases the provider's errors do not name.
 
@@ -589,7 +590,6 @@ export interface PersonaV1 {
 | `member-invitation-list`, `member-invitation-cancel` | owner, recorded | `{}`, `{ invitation }` | The pending invitations; `{ cancelled: true }` |
 | `member-remove` | owner, recorded | `{ member }` | `{ removed: true; suspended: string[] }`. Revokes the person's sessions, consents and refresh tokens through `revoke-person` (4.3), and suspends the agent members they sponsor. No undo: invite again |
 | `member-role-set` | owner, recorded | `{ member; role }`. Only an `owner`-role member grants or removes `owner` | `{ role; previous }`. Undo restores |
-| `member-recover-start` | owner, recorded | `{ member; deliverTo }` | **Exists only if Q5 allows owners** ([5.7](#57-recovery)) |
 | `member-leave` | human, recorded | `{}` | `{ left: true }`, then `session-settle` |
 
 Each mutation names the bound id, raises `memberEpoch`, and re-reads `MembershipV1`.
@@ -617,7 +617,7 @@ Better Auth serves its organization endpoints on the same origin, so a person ca
 | --- | --- |
 | The bound organization cannot be renamed, re-slugged or deleted | Access control: no role holds `organization:update` or `organization:delete`; `beforeUpdateOrganization`, `beforeDeleteOrganization` refuse |
 | No new organizations | `allowUserToCreateOrganization: false` |
-| Who is an owner, who invites, who sets roles (Q1) | Access control on `member` and `invitation`; `beforeCreateInvitation` and `beforeUpdateMemberRole` refuse `owner` from an `admin` |
+| Owners are `owner` and `admin` (D96); who invites, who sets roles | Access control gives `admin` the same `member` and `invitation` permissions as `owner`; `beforeCreateInvitation` and `beforeUpdateMemberRole` refuse granting the `owner` role from an `admin` |
 | The last owner | `beforeRemoveMember`, `beforeUpdateMemberRole` |
 | Membership only through invitation | `beforeAddMember` refuses any add not from an accepted invitation |
 | A removed person's credentials go | `afterRemoveMember` calls `revoke-person` |
@@ -641,7 +641,7 @@ export interface AgentMemberV1 {
 	name: string;                  // 1 to 80; for `connected`, the client's self-asserted name
 	description?: string;          // up to 500
 	sponsor: string;               // a person member's id; its `onBehalfOf`
-	installedBy: string;           // the owner, or for `connected` the person who connected it (Q3)
+	installedBy: string;           // the owner, or for `connected` the person who connected it (D98)
 	client?: { id: string; host: string };   // `connected` only: the OAuth client id and its metadata document's host
 	access: { workspace: boolean; projects: string[] | 'sponsor' };   // default { workspace: false, projects: [] }
 	guidance?: string;             // up to 8 KiB; read by phase 5
@@ -693,7 +693,7 @@ Table `agent-member` in the workspace store, indexed by `sponsor` and `client.id
 
 ### 9.2 The hosted principal mapping
 
-**Pending [Q3](#q3-a-persons-own-external-agent-over-mcp), which is about who may connect, not about this shape:** an external agent is a **connected agent**, an agent member the person sponsors, so D40 holds for it. `principalOf(credentials, server)`, called by the MCP chain:
+**Decided by the owner on 2026-11-09 (D98, [Q3](#q3-a-persons-own-external-agent-over-mcp)):** a person may connect their own external agent over MCP **without an owner's approval**. It is a **connected agent**, an agent member the person sponsors, so D40 holds for it: its access is at most the person's own; it never gets owner actions or changes to anyone's access, sign-in or sessions (`HUMAN_REQUIRED`, and those commands are not served over MCP); every action names both the agent and the person; owners see it in the members tab; and the person or an owner can disconnect it. `principalOf(credentials, server)`, called by the MCP chain:
 
 1. `credentials.issuer` equals the provider's issuer exactly. Otherwise `PRINCIPAL_ISSUER_UNKNOWN`, **a 401 with `error="invalid_token"`**, as M5 allows, failing closed.
 2. `credentials.subject` is a person's id; an `agt_` subject is `AGENT_CANNOT_SIGN_IN`, a 401. **Pairwise subjects are forbidden:** `createLoamAuthOptions` sets no `pairwiseSecret`, and a client registering `subject_type: "pairwise"` is refused at registration.
@@ -702,7 +702,9 @@ Table `agent-member` in the workspace store, indexed by `sponsor` and `client.id
 5. `decideAccess` decides as for any agent member (3.3): the subject's membership, read on the server, the project, and the record's `access`, which for a connected agent is `{ workspace: true, projects: 'sponsor' }` unless its person narrowed it.
 6. `credentials` is on the context, never journaled, never in a result, never forwarded to a mounted instance (M4).
 
-**Connecting** creates the record: the consent page ([9.4](#94-connected-agents-and-their-pages)), on the person's approval, runs `connectAgent`, which `loamServerPlugin` writes to the server's store with `installedBy` the person, `active` if Q3 lets a person connect one, `pending` an owner's approval otherwise.
+**Connecting** creates the record: the consent page ([9.4](#94-connected-agents-and-their-pages)), on the person's approval, runs `connectAgent`, which `loamServerPlugin` writes to the server's store with `sponsor` and `installedBy` the person and status `active`. **The sponsor confirmation of Q4 does not apply,** since the sponsor is the person connecting it. **Disconnecting:** the person by `account-agent-disconnect` (5.3), an owner by `agent-member-remove`, which for a connected agent also deletes its consent and revokes its refresh tokens.
+
+**No autonomy policy before phase 5.** The autonomy policy (D41) is enforced from phase 5, so until then **a connected agent with `loam:write` can make any change its person can, without asking**, within the person's access and never an owner or human command. The consent page says so in words (9.4).
 
 ### 9.3 Scopes
 
@@ -726,7 +728,8 @@ The provider is the authorization server: `oauthProvider` with the JWT plugin an
   - the client's name **marked "name given by the app"**, since it is self-asserted;
   - **the exact scopes**, each in words ("Read what you can read in Acme", "Change what you can change in Acme");
   - **the redirect URI's host**, and for a loopback redirect (`localhost`, `127.0.0.1`, `[::1]`) the warning "This app runs on your own computer. Connect it only if you started it yourself";
-  - that connecting creates an agent you sponsor, visible to owners.
+  - that connecting creates an agent you sponsor, visible to owners, which you or an owner can disconnect;
+  - **with `loam:write`, "This agent can make any change you can make in Acme, without asking you first"**, since no autonomy policy exists before phase 5 (D41).
   Approve calls `/oauth2/consent` with `accept: true` by `fetch`, then navigates to the returned redirect; Deny the same with `accept: false`.
 - **The person sees and disconnects them** in the account section's agents tab (5.3).
 
@@ -856,7 +859,7 @@ Every code has a suggestion and is added to `LoamKernelErrorCode`, afd-auth's `A
 | `PERSONA_NOT_FOUND`, `PERSONA_LIMIT`, `PERSONA_INVALID` | Section 6 | A failure | Per row |
 | `IDENTITY_PROVIDER_UNAVAILABLE` | The provider did not answer | A failure, retryable | Try again |
 | `IDENTITY_ORGANIZATION_UNKNOWN`, `IDENTITY_BINDING_MISMATCH` | 2.3 | Shown in main; a server warning | Fix the binding on the server |
-| `DEPLOYMENT_IDENTITY_INVALID`; `DEPLOYMENT_STDIO_TEAM` (a warning, pending Q6) | 2.2 | `deployment write` stops; warns | The fix |
+| `DEPLOYMENT_IDENTITY_INVALID`, `DEPLOYMENT_STDIO_TEAM` (D95) | 2.2 | `deployment write` stops; the hosted server will not start | The fix; for `stdio`, an HTTP instance |
 | `MANIFEST_ACCOUNT_LIMIT`, `MANIFEST_ACCOUNT_MOUNTED`, `MANIFEST_ACCOUNT_SURFACE_UNKNOWN` | 5.5 | The package is refused | The fix |
 | `PRINCIPAL_ISSUER_UNKNOWN` | 9.2 | 401, `invalid_token` | Configure the issuer |
 | afd-auth's `UNAUTHORIZED`, `TOKEN_EXPIRED` | Signed out or expired in `provider` mode | A failure, journaled | `auth-sign-in` |
@@ -872,6 +875,8 @@ Every code has a suggestion and is added to `LoamKernelErrorCode`, afd-auth's `A
 - **Shared browser profiles** share history, which keeps the slugs of restricted projects a person visited (phase 2's note); on sign-out the shell replaces the current history entry with the workspace's root; the account section says "Use your own browser profile on a shared computer".
 - **Tokens** are never in a browser's journal, store, results or logs; audience-bound; refused in the query string; never forwarded to a mounted instance or an app.
 - **`local` mode** is not authentication, and says so.
+- **Connected agents act without asking until phase 5** (D41, D98): a connected agent with `loam:write` can make any change its person can, within the person's access and never an owner or human command; the consent page says so, the journal names the agent and the person, and the person or an owner can disconnect it.
+- **No `stdio` instance in a shared workspace** (D95): a `provider` deployment refuses one, so no program runs as the server's own user on every member's behalf.
 - **Native apps** remain trusted code (D54): `context.actor` is a contract for one and a boundary for a view.
 
 ## 17. Out of scope, and the seams reserved
@@ -919,7 +924,7 @@ The phase exits when every test below passes on `main` in the place its row name
 | P3-E15 | **No secret in the journal or the store** | Chromium; Units | After E1's, E3's, E8's, E17's and E18's sessions: no seeded password, cookie value, token, join or recovery token, assertion bytes or IP address in any journal entry, store row or `localStorage` value |
 | P3-E16 | **No job was skipped** | The exit step | `node scripts/loam-exit-check.mjs --phase 3`, for the local part; again with the hosted job for the hosted part |
 | P3-E17 | **Enrolment by invitation only**, through a test-only auth host | Chromium; Units | An owner invites a new email; the mail sink holds the link; the invitee creates a passkey from it with no password and no prior session, and is a member with a verified email; the link fails a second time and after expiry; a direct sign-up call to the provider is refused; an OIDC sign-in with `email_verified: false` creates no user and links nothing; accepting an invitation unverified is refused |
-| P3-E18 | **Recovery**, through a test-only auth host, for each path Q5 allows | Chromium; Units | A recovery link restores access with a new passkey, revokes every other session, consent and refresh token, suspends connected agents, sends the announcement and shows the notice; it fails a second time and after 15 minutes; a second link cancels the first; `PASSKEY_LAST` follows `recovery` |
+| P3-E18 | **Recovery** (D97), through a test-only auth host | Chromium; Units | By email and by single sign-on: a recovery link, sent only to the verified email, restores access with a new passkey, revokes every other session, consent and refresh token, suspends connected agents, sends the announcement and shows the notice; it fails a second time and after 15 minutes; a second link cancels the first; the request form answers the same for an unknown email; no command lets an owner start another person's recovery (a scan of the registry and the provider's routes); `PASSKEY_LAST` follows `recovery` |
 | P3-E19 | **A re-created organization grants nothing**, through a test-only auth host | Units; Chromium | With the binding pinned: the bound organization's slug change and deletion refused by the provider; a new organization created directly in the host's database with the bound slug, and its members, are not members of the workspace; `IDENTITY_BINDING_MISMATCH` reported |
 | P3-H1 | **The hosted server refuses a token for the wrong audience** | Hosted | With a second configured resource on the same provider: its token is a 401 at the MCP endpoint with the challenge naming the metadata; a token from another issuer, 401; the right one, 200 |
 | P3-H2 | **A person signs in with a passkey on the hosted lane** | Hosted | E1's and E17's passkey paths against the profile's own provider, over HTTPS, no test-only host |
@@ -938,7 +943,7 @@ Each step is one pull request, merged on green. It updates this status block and
 | 1 | Identity core | `loam-identity` with `createLoamAuthOptions`, `loamServerPlugin` (whoami, the binding, the hooks of 7.5) and `startTestAuthHost`; deployment and projection version 3; `decideAccess` version 2, `MembershipV1`, `personKey`, `isOwner`, line 0, the auth gate's lists; `KernelCallFields.actor`; the agent interface's actor; `personalRecordId`; the tables; kernel interface version 3; `member`; `call-scope.test.ts`; the architecture's amendments; 2.1's amendments to E12; E13; E7's, E5's and E6's units so far; E19's units | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
 | 2 | `session-settle` | 4.4: the listener, the expiry timer, the input as data, the change-of-person rule, `SESSION_CHANGED`; E4. Closes #854 and #864 | `pnpm check`, `loam.yml` |
 | 3 | Sign-in, the probe and sessions | 4.2, 4.3, 4.6, 5.2; `identity.ts`, `auth` with `SessionSync`, `loam-sign-in-dialog`, the signed-out main, the account menu without personas; the harness's `authHost`, HTTPS on `localhost`, virtual authenticator and mail sink; `revoke-person`; freshness hooks; E1, E3, E10 so far, E11 and E15 so far. **Trust review: the gate, the probe, revocation** | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
-| 4 | The account section, members and owners | 5.1, 5.3, 5.4, 5.6, 5.7 (to Q5's answer), section 7; the `account` chunk with the join and recovery pages; E6, E7, E17, E18, E19. #852's rule in the kernel | `pnpm check`, `loam.yml`, `budget` |
+| 4 | The account section, members and owners | 5.1, 5.3, 5.4, 5.6, 5.7, section 7; the `account` chunk with the join and recovery pages; E6, E7, E17, E18, E19. #852's rule in the kernel | `pnpm check`, `loam.yml`, `budget` |
 | 5 | Persona | Section 6; the context field; emphasis in the rail and palette; E2 | `pnpm check`, `loam.yml`, `budget`, `lint:tokens` |
 | 6 | Agent members | Section 8, `agent-member-settle`; E5. **Trust review: line 4 and the sponsor rules** | `pnpm check`, `loam.yml`, `budget` |
 | 7 | Identity over MCP | Section 9: `createMcpAuth`, `createMcpChain`, `createNoSessionAdapter`, `principalOf`, the scopes, connected agents and `connectAgent`, the OAuth provider's options, the login and consent pages and their tests (the page's fields, a loopback warning, Deny, no PKCE refused, the response CSP asserted by the test host); E8. **Trust review: the MCP chain.** #853's design complete; it closes at step 10 | `pnpm check`, `pnpm verify`, `loam.yml` |
@@ -952,7 +957,7 @@ Order: 0a, 0b and 0c in parallel, first (D15). Step 1 needs 0b. Step 2 needs 1. 
 
 ## Questions for the owner
 
-**Asked 2026-11-09; awaiting answers.** Each is a change to who may do what, or a reading of an owner decision. The specification is written to each recommendation and says where an answer changes it.
+**Asked 2026-11-09. The owner answered Q1, Q3, Q5's recovery and Q6 the same day; Q2 and Q4 await answers.** Each is a change to who may do what, or a reading of an owner decision. An answered question keeps its text and states the answer, which its section and decision record as the owner's. An unanswered one keeps its recommendation, to which the specification is written.
 
 ### Q1. Who counts as an owner?
 
@@ -961,9 +966,11 @@ Owners install agent members, choose the workspace's apps, invite and remove peo
 - **Owners and admins (recommended),** with admins unable to rename or delete the organization or to make or remove owners. Day-to-day administration doesn't wait on the one owner. The tradeoff: more people can see into every project and install agents.
 - **The provider's owners only.** Fewer people can do these things. Admins would have no more power in Loam than members.
 
+**Answered by the owner, 2026-11-09: owners and admins.** The provider's `owner` and `admin` roles are both Loam owners, `createLoamAuthOptions` keeps the provider's admin powers consistent with that, and owners can enter every project (D96; [7.1](#71-who-is-an-owner), [7.5](#75-the-providers-own-endpoints)).
+
 ### Q2. Who may change a project's members?
 
-This is for projects a team instance doesn't serve; for those, owners only is already decided. Owners can always add themselves.
+**Awaiting the owner's answer.** This is for projects a team instance doesn't serve; for those, owners only is already decided. Owners can always add themselves.
 
 - **Owners and the project's creator (recommended).** The creator keeps running their project. Another member can't lock everyone out of a shared project. Anyone may remove themselves.
 - **Anyone in the project.** This is the most self-service option. The tradeoff: one member can shut the rest out until an owner fixes it.
@@ -976,9 +983,11 @@ An external agent, such as a desktop assistant connected to the hosted shell, is
 - **The person may connect one themselves (recommended),** approving it on the connection page. Owners see it in the members list and can remove it. Connecting your own assistant doesn't wait on anyone, and it never exceeds your own access.
 - **An owner must approve each connection.** Owners decide every agent in the workspace. The tradeoff: a person's own assistant waits for an owner.
 
+**Answered by the owner, 2026-11-09: yes, without an owner's approval.** It is an agent member the person sponsors, created when the person approves the connection on the consent screen. Its access is at most the person's own, and it never gets owner actions or changes to anyone's access, sign-in or sessions. Every action names both the agent and the person. Owners see it in the members tab, and the person or an owner can disconnect it. The sponsor confirmation of Q4 does not apply, since the sponsor is the person connecting it. Until phase 5's autonomy policy, a `loam:write` agent can make any change the person can, unprompted, and the consent screen says so (D98; [9.2](#92-the-hosted-principal-mapping), [9.4](#94-connected-agents-and-their-pages)).
+
 ### Q4. A sponsor confirms
 
-When an owner names someone as the accountable sponsor of an agent member, does that person confirm before the agent can act, and confirm again when its access widens?
+**Awaiting the owner's answer.** When an owner names someone as the accountable sponsor of an agent member, does that person confirm before the agent can act, and confirm again when its access widens?
 
 - **Yes (recommended).** Nobody becomes accountable for an agent, or for more than they agreed to, without saying so. An owner who names themselves confirms by doing it.
 - **No.** Setup is faster. The tradeoff: a person can be made accountable for an agent, or for wider access, they never agreed to.
@@ -993,12 +1002,16 @@ Passkeys are the main way in. When someone loses every passkey, who may restore 
 
 Separately, whether a deployer may allow passwords at all. The recommendation is off by default, with the deployer able to turn them on.
 
+**Answered by the owner, 2026-11-09, for recovery: an emailed one-time link to the person's verified email, or the company's single sign-on where the deployer set it up; no owner can restore another person's account.** The link is single-use and short-lived. Using it enrols a new passkey, revokes every other session and connected agent, is journaled, and is announced to the person (D97; [5.7](#57-recovery)). **The ways to sign in were the coordinator's to decide, 2026-11-09:** passkeys, plus single sign-on if the deployer sets it up; passwords off by default, which the deployer may turn on. Passwords and OIDC sign-ins carry no user verification ([2.6](#26-the-providers-configuration), [5.2](#52-passkeys), D99).
+
 ### Q6. `stdio` instances on the hosted server
 
 D56 lets the deployer's configuration add a `stdio` instance on the hosted server. Such a program runs as the server's own user, for every member who may reach it. D95 would refuse them in every team deployment.
 
 - **Keep D56, with a warning (recommended).** The deployer already controls the server and chose the program. Refusing it adds no protection the deployer couldn't remove, and some tools exist only as `stdio`.
 - **Adopt D95.** Team deployments run only instances reached over HTTP, so a program on the server is never shared with every member by accident. The tradeoff: a deployer must wrap a `stdio`-only tool as an HTTP server first.
+
+**Answered by the owner, 2026-11-09: refused in shared, `provider`-mode workspaces.** D95 is adopted as the owner's decision and narrows D56 ([2.2](#22-the-deployment-file-version-3)).
 
 ## Amendments to the architecture and the decision log
 
@@ -1009,22 +1022,26 @@ Proposed; applied when the coordinator approves this specification, in step 1:
 - **Architecture section 8, Security:** where `provider` mode is enforced (2.5).
 - **Architecture section 9:** phase 3's row gains "local criterion through a test-only auth host and handler; hosted criterion on phase 6's development profile (D84)"; phase 6's row gains 10.2's minimum.
 - **Architecture glossary:** "Owner (workspace)", "Identity mode", "Connected agent", "Enforcement point".
-- **Decision log:** D84 to D95, "proposed, pending review", D95 "pending the owner". D11, D40, D55, D56 and D73 gain notes pointing to them.
+- **Decision log:** D84 to D94, "proposed, pending review"; D95 to D98, decided by the owner on 2026-11-09; D99, decided by the coordinator on 2026-11-09. D11, D40, D55 and D73 gain notes pointing to them. **D56 is narrowed by D95,** the owner's decision: "Narrowed by the owner on 2026-11-09 (D95): refused in a provider-mode workspace." D54, D55, D57 and D58 are not altered.
 
 | ID | Decision |
 | --- | --- |
 | D84 | Phase 3's exit has a local part, through a test-only auth host and handler, and a hosted part on phase 6's development profile; the phase exits when both pass |
 | D85 | A deployment's identity is `local` or `provider`, in deployment and projection version 3; `provider` is Better Auth on the same origin, bound by id to one organization, enforced by the provider, the hosted server's kernel and the mount relay |
 | D86 | `decideAccess` version 2: the person the call is for, workspace membership, the project, and an agent member's own record with its sponsor in `onBehalfOf`, intersected; neither persona, the active scope nor the session's active organization is an input |
-| D87 | Owner and human commands, never served over MCP; the owner by provider role (Q1); #852's rule; `PROJECT_SLUG_UNAVAILABLE`; the organization rules written into the provider |
+| D87 | Owner and human commands, never served over MCP; owners are the provider's `owner` and `admin` (D96); #852's rule; `PROJECT_SLUG_UNAVAILABLE`; the organization rules written into the provider |
 | D88 | The kernel hears its adapter and times expiry on its clock; a change of person is the journaled internal `session-settle`, whose input records the person and membership as data |
 | D89 | Persona is a record per person, with emphasis that orders and marks but never hides; `dev.loam/persona`, set only off `default`, never an input to a decision |
-| D90 | An agent member is a Loam record with no provider account, a sponsor named in its `onBehalfOf` who may enter its projects and confirms (Q4), suspended when the sponsor leaves; an external MCP agent is a connected agent member (Q3) |
+| D90 | An agent member is a Loam record with no provider account, a sponsor named in its `onBehalfOf` who may enter its projects and confirms (Q4, awaiting), suspended when the sponsor leaves; an external MCP agent is a connected agent member its person sponsors (D98) |
 | D91 | Over MCP, a verified token runs as its client's connected agent acting for its subject, on a chain with no session gate; `loam:read` and `loam:write`; Better Auth issues audience-bound JWTs of 10 minutes |
 | D92 | First paint gets only the session probe and a deferred adapter; the provider's client, the identity commands and the account UI are lazy |
 | D93 | afd-auth gains a passkey method, optional session, passkey and organization capabilities, `refresh()`, and keeps a credentials-verified call's actor |
 | D94 | In `provider` mode, a person's working view-state records are per person; there is no open sign-up, and enrolment and recovery are single-use, hashed, short-lived links |
-| D95 | **Pending the owner (Q6):** a `provider` deployment refuses a mounted `stdio` instance. Narrows D56 |
+| D95 | **Decided by the owner, 2026-11-09 (Q6).** A `provider` deployment refuses a mounted `stdio` instance. Narrows D56 |
+| D96 | **Decided by the owner, 2026-11-09 (Q1).** Loam's owners are the provider's `owner` and `admin` roles, with the provider's admin powers kept consistent; owners can enter every project |
+| D97 | **Decided by the owner, 2026-11-09 (Q5, recovery).** A person restores their own access by an emailed one-time link to their verified email, or through the deployer's single sign-on; no owner can restore another person's account |
+| D98 | **Decided by the owner, 2026-11-09 (Q3).** A person may connect their own external agent over MCP without an owner's approval, as an agent member they sponsor, at most their own access, never an owner or human command |
+| D99 | **Decided by the coordinator, 2026-11-09.** Ways in: passkeys, the deployer's single sign-on if set up, passwords off by default and the deployer's to turn on; password and OIDC sessions carry no user verification |
 
 ## Review 2026-11-09
 
@@ -1043,7 +1060,7 @@ Two independent reviews of `ede753e1`, a trust and security review and a general
 | `ui.account`'s schema and its `apps` cost | 5.5, 13, step 8 |
 | E8 against E13 and the dependency cycle | 1, 9.6, E8 |
 | `startTestAuthHost` and `packages/auth/hosted` | 1 (copied, with provenance) |
-| D95 narrows D56 | Q6, 2.2, D95 marked pending the owner |
+| D95 narrows D56 | Q6, answered by the owner on 2026-11-09: D95 adopted (2.2) |
 | Expiry with no command; replay; a change of person | 4.4 |
 | Membership freshness and revocation's reach | 4.3, 7.6, 7.2's `member-remove` |
 | Better Auth's own endpoints; the last owner | 7.1, 7.5; R10 corrected |
