@@ -7,7 +7,8 @@
 //! of a verified token to a caller (`mapping`, `caller`). Step 2c adds the doctor's hosted profile
 //! (`doctor`, with `files` for the certificates, keys and CA files it reads, which the verifier's
 //! per-issuer `ca_file` shares). Step 3 adds section 5's resolver (`scopes`) and scope gate
-//! (`scope_gate`), replacing step 2b's interim rule.
+//! (`scope_gate`), replacing step 2b's interim rule. Step 4 adds section 4.4's gateway-trusted
+//! mode (`gateway`): the pinned channel, the assertion's verification and its mapping.
 
 use crate::workspace::SpaceId;
 
@@ -18,6 +19,8 @@ pub(crate) mod doctor;
 pub(crate) mod fetch;
 #[cfg(feature = "auth")]
 pub(crate) mod files;
+#[cfg(feature = "auth")]
+pub(crate) mod gateway;
 #[cfg(feature = "auth")]
 pub(crate) mod introspection;
 #[cfg(feature = "auth")]

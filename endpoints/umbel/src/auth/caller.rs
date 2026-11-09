@@ -40,7 +40,20 @@ pub enum TokenBinding {
     },
 }
 
-/// A verified caller, as section 4.1 maps it from one request's verified token.
+/// What vouches for a verified caller: section 2.1's `authentication` and `tokenBinding`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(not(feature = "auth"), allow(dead_code))]
+pub(crate) enum Vouched {
+    /// A verified access token (section 3.2), held as the binding says: `authentication`
+    /// `verified`.
+    Token(TokenBinding),
+    /// A verified gateway assertion (section 4.4): `authentication` `gateway`, and no
+    /// `tokenBinding`, since an assertion is not a token (amendment from step 1).
+    Gateway,
+}
+
+/// A verified caller, as section 4.1 maps it from one request's verified token, or section 4.4
+/// from its verified gateway assertion.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct VerifiedCaller {
     /// The credentials AFD's verifier returned for the same token; the hook requires them equal
@@ -54,8 +67,8 @@ pub(crate) struct VerifiedCaller {
     pub(crate) actor: Actor,
     /// Outermost first, at most [`super::MAX_DELEGATION_CHAIN`].
     pub(crate) chain: Vec<ChainEntry>,
-    /// Bearer, or bound to the certificate.
-    pub(crate) binding: TokenBinding,
+    /// A token, bearer or bound to the certificate, or a gateway assertion.
+    pub(crate) vouched: Vouched,
     /// The granted scopes under the configured prefix (5.1), in token order.
     pub(crate) scopes: Vec<String>,
     /// The `[access.groups]` this token's claims make the caller a member of (4.5).
@@ -76,6 +89,13 @@ impl fmt::Debug for VerifiedCaller {
         f.debug_struct("VerifiedCaller")
             .field("issuer", &self.issuer)
             .field("namespace", &self.namespace)
+            .field(
+                "vouched",
+                &match self.vouched {
+                    Vouched::Token(_) => "token",
+                    Vouched::Gateway => "gateway",
+                },
+            )
             .field("credentials", &self.credentials)
             .field("actor", &"[redacted]")
             .field("chain", &"[redacted]")
@@ -304,7 +324,7 @@ mod tests {
                 .with_id("corp/app")
                 .with_on_behalf_of("corp/ada"),
             chain: Vec::new(),
-            binding: TokenBinding::Bearer,
+            vouched: Vouched::Token(TokenBinding::Bearer),
             scopes: Vec::new(),
             claim_groups: groups.iter().map(|g| (*g).to_owned()).collect(),
         }

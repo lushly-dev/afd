@@ -3966,6 +3966,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jsonschema",
+ "jsonwebtoken",
  "rand 0.10.3",
  "rcgen",
  "reqwest",

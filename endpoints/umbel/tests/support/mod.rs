@@ -1,6 +1,7 @@
 //! Helpers shared by the integration tests: workspaces, fixture commands, the in-process CLI.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
+pub mod gateway;
 pub mod hosted;
 pub mod mcp;
 pub mod memory;

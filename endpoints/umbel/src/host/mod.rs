@@ -842,14 +842,15 @@ impl Host {
     /// phase 5 section 6.3 in order. Mode `none` serves phase 0's token layer. Mode `oauth` serves
     /// the body limit, the per-IP limit, `/health` and the protected-resource metadata in public,
     /// and AFD's bearer layer around the MCP service, verifying tokens with the verifier it
-    /// builds from `[auth.issuers]` (phase 5 step 2b); a shipped build still refuses to serve it
-    /// until the disclosure controls of phase 5 steps 3 and 7 exist (step 2c's are in). Mode
-    /// `gateway` refuses to start until phase 5 step 4.
+    /// builds from `[auth.issuers]` (phase 5 step 2b). Mode `gateway` serves the body limit, the
+    /// per-IP limit and `/health`, no metadata, and the gateway layer around the MCP service: the
+    /// pinned channel and a verified, single-use assertion per request (phase 5 step 4).
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` for a mode this build does not serve, the
-    /// `[auth]` key the verifier cannot be built from, or the `[http.tls]` key whose file is
-    /// missing or invalid; the errors of [`Self::http_router`]
+    /// `[auth]` key the verifier cannot be built from, `auth.gateway.keys` for a pinned key set
+    /// that cannot be used, or the `[http.tls]` key whose file is missing or invalid; the errors
+    /// of [`Self::http_router`]
     /// in mode `none`; `WORKSPACE_STATE_UNWRITABLE` when `state/shared/limits.sqlite3` cannot be
     /// opened.
     pub fn http_server(&self) -> Result<crate::HttpServer, HostError> {

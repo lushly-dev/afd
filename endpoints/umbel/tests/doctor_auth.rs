@@ -313,12 +313,14 @@ fn assert_no_key(report: &Report, key_pem: &str) {
 // ─── auth.mode ───────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn gateway_mode_is_read_but_not_served_yet() {
+async fn gateway_mode_is_served_and_its_pinned_key_set_checked_as_the_gateway_layer_loads_it() {
     let kit = kit().await;
     let gateway = kit.gateway();
     let dir = tempfile::tempdir().unwrap();
+    let keys = dir.path().join("gw/jwks.json");
     std::fs::create_dir_all(dir.path().join("gw")).unwrap();
-    std::fs::write(dir.path().join("gw/jwks.json"), gateway.jwks().to_string()).unwrap();
+    let pinned = support::gateway::pinned_jwks(&kit);
+    std::fs::write(&keys, pinned.to_string()).unwrap();
     let text = format!(
         r#"config_version = 5
 [principal]
@@ -331,6 +333,11 @@ allowed_hosts = ["127.0.0.1"]
 [auth]
 mode = "gateway"
 [auth.namespaces.corp]
+person = {{ issuer = "idp", client_id = "umbel-person-page", client_secret_env = "UMBEL_TEST_PERSON_SECRET", acr_values = ["phr"], uv_amr = ["pin"] }}
+[auth.issuers.idp]
+issuer = "{idp}"
+namespace = "corp"
+access_tokens = false
 [auth.gateway]
 alias = "edge"
 namespace = "corp"
@@ -338,26 +345,96 @@ issuer = "https://gateway.example.com"
 keys = "gw/jwks.json"
 client_cert_sha256 = []
 max_scopes = ["umbel:read"]
-"#
+"#,
+        idp = kit.identity_provider().issuer(),
     );
     std::fs::write(dir.path().join("umbel.toml"), text).unwrap();
     let report = doctor(dir.path(), &kit).await;
-    let mode = report.expect("auth.mode", "warn");
-    assert!(mode.contains("step 4"), "{mode}");
-    report.expect("auth.tls", "pass");
-    // The pinned key set is a file the doctor reads: one without a usable key fails auth.tls.
-    std::fs::write(dir.path().join("gw/jwks.json"), r#"{"keys":[]}"#).unwrap();
-    let report = doctor(dir.path(), &kit).await;
-    let tls = report.expect("auth.tls", "fail");
-    assert!(tls.contains("auth.gateway.keys"), "{tls}");
+    // Served since step 4: no warning, the gateway named.
+    let mode = report.expect("auth.mode", "pass");
+    assert!(mode.contains("gateway edge"), "{mode}");
+    assert!(mode.contains("no protected-resource metadata"), "{mode}");
+    let tls = report.expect("auth.tls", "pass");
+    assert!(tls.contains("pinned key set holds 4 key(s)"), "{tls}");
+    assert!(tls.contains("over loopback"), "{tls}");
+    // The gateway joins its namespace's subjects as an issuer does: the deployer's assertion.
+    let subjects = report.check("auth.subjects").1;
+    assert!(
+        subjects.contains("namespace corp joins idp (sub) and the gateway edge"),
+        "{subjects}"
+    );
+
+    // The pinned key set is read as the gateway layer reads it: every key usable, each naming
+    // its alg, public keys only, writable by no one else.
+    let mut without_alg = pinned.clone();
+    without_alg["keys"][1]
+        .as_object_mut()
+        .unwrap()
+        .remove("alg");
+    let mut private = pinned.clone();
+    private["keys"][0]["d"] = json!("AAAA");
+    for (label, document, needle) in [
+        ("empty", json!({ "keys": [] }).to_string(), "pins no key"),
+        ("no alg", without_alg.to_string(), "key 2 names no alg"),
+        (
+            "private material",
+            private.to_string(),
+            "private or symmetric member",
+        ),
+        ("not a key set", "[]".to_owned(), "not a JSON object"),
+        (
+            "a repeated member",
+            format!("{{\"keys\":[],\"keys\":{}}}", pinned["keys"]),
+            "unique member names",
+        ),
+        (
+            "unpublished alg-less kit set",
+            gateway.jwks().to_string(),
+            "names no alg",
+        ),
+    ] {
+        std::fs::write(&keys, document).unwrap();
+        let report = doctor(dir.path(), &kit).await;
+        let tls = report.expect("auth.tls", "fail");
+        assert!(tls.contains("auth.gateway.keys"), "{label}: {tls}");
+        assert!(tls.contains(needle), "{label}: {tls}");
+        assert!(!tls.contains("AAAA"), "{label}: {tls}");
+    }
     #[cfg(unix)]
     {
-        std::fs::write(dir.path().join("gw/jwks.json"), gateway.jwks().to_string()).unwrap();
-        chmod(&dir.path().join("gw/jwks.json"), 0o666);
+        std::fs::write(&keys, pinned.to_string()).unwrap();
+        chmod(&keys, 0o666);
         let report = doctor(dir.path(), &kit).await;
         let tls = report.expect("auth.tls", "fail");
         assert!(tls.contains("writable by group or other"), "{tls}");
+        chmod(&keys, 0o644);
     }
+
+    // The pinned channel is reported as such.
+    std::fs::write(&keys, pinned.to_string()).unwrap();
+    write_tls(dir.path(), &year_ca());
+    let text = std::fs::read_to_string(dir.path().join("umbel.toml"))
+        .unwrap()
+        .replace(
+            "client_cert_sha256 = []",
+            &format!(
+                "client_cert_sha256 = [\"{}\"]",
+                gateway.certificate().sha256_hex()
+            ),
+        )
+        .replace(
+            "allowed_hosts = [\"127.0.0.1\"]",
+            &format!(
+                "allowed_hosts = [\"127.0.0.1\"]\n{TLS}client_auth = \"ca\"\nclient_ca = \"tls/ca.pem\"\n"
+            ),
+        );
+    std::fs::write(dir.path().join("umbel.toml"), text).unwrap();
+    let report = doctor(dir.path(), &kit).await;
+    let tls = report.expect("auth.tls", "pass");
+    assert!(
+        tls.contains("one of 1 pinned certificate(s) chaining to http.tls.client_ca"),
+        "{tls}"
+    );
 }
 
 // ─── auth.public_url ─────────────────────────────────────────────────────────────────────────

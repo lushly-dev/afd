@@ -18,7 +18,7 @@
 use afd::{Actor, ActorKind, Credentials};
 use serde_json::{Map, Value};
 
-use super::caller::{ChainEntry, TokenBinding, VerifiedCaller, mapped_id};
+use super::caller::{ChainEntry, TokenBinding, VerifiedCaller, Vouched, mapped_id};
 use super::{MAX_DELEGATION_CHAIN, Scope};
 use crate::workspace::{AccessGroup, AuthConfig, Delegation, IssuerConfig};
 
@@ -169,7 +169,7 @@ pub(crate) fn map(
         issuer: issuer.alias.clone(),
         actor,
         chain,
-        binding,
+        vouched: Vouched::Token(binding),
         scopes,
         claim_groups,
     })

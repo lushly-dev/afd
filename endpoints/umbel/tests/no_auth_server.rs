@@ -12,11 +12,11 @@
 //!   literal is covered by the probe instead.
 //! - **The router answers none of them.** Every OAuth path, with a credential the router admits,
 //!   gets a 404 or 405 and no OAuth document, and without one a refusal, from the router of every
-//!   auth mode the host serves: mode `none` in process with its loopback token, and mode `oauth`
+//!   auth mode the host serves: mode `none` in process with its loopback token, mode `oauth`
 //!   (step 2a) over its TLS listener with a `umbel-testkit-idp` access token for
-//!   `http.public_url`, minted fresh for each request. Mode `gateway` refuses to start until step
-//!   4, which adds its router here with a fresh single-use assertion for each request's method
-//!   and URL (the per-request credential of [`Probe`]).
+//!   `http.public_url`, minted fresh for each request, and mode `gateway` (step 4) over its
+//!   pinned TLS channel with a fresh single-use assertion for each request's method (the
+//!   per-request credential of [`Probe`]).
 //!
 //! The dependency walk reads `cargo metadata --no-deps` of the workspace, then of each path crate
 //! outside it that the walk reaches (the afd crate), so it works offline.
@@ -448,18 +448,19 @@ fn no_routing_call_in_any_workspace_crate_names_an_oauth_path() {
     assert!(routes.iter().any(|route| route == "/health"), "{routes:?}");
 }
 
-/// The `Authorization` value for one request, from its method and path.
+/// The credential header's value for one request, from its method and path.
 type Credential = Box<dyn Fn(&str, &str) -> String + Send + Sync>;
 
 /// How a probe reaches one router.
 enum Probe {
     /// `Host::http_router()` in process, with the loopback token.
     InProcess(Http),
-    /// The listener over TLS. `credential` makes the `Authorization` value for one request from
+    /// The listener over TLS. `credential` makes the value of the `header` for one request from
     /// its method and path, fresh each time, so a single-use credential (step 4's gateway
     /// assertion) works as well as a reusable one.
     Hosted {
         client: Client,
+        header: &'static str,
         credential: Credential,
         _served: Box<Served>,
         _kit: Box<TestIdp>,
@@ -476,9 +477,9 @@ struct Probed {
 
 /// Every HTTP router the host builds, one per auth mode it serves. Mode `none` admits the
 /// workspace's bearer token. Mode `oauth` (step 2a) admits a `umbel-testkit-idp` access token for
-/// `http.public_url`, verified by AFD's verifier in the token verifier slot. Mode `gateway` is
-/// refused at start until step 4 ([`the_gateway_mode_serves_no_router_until_step_4`]), which adds
-/// it here with a kit assertion over the pinned channel, minted per request.
+/// `http.public_url`, verified by AFD's verifier in the token verifier slot. Mode `gateway` (step
+/// 4) admits a kit assertion for the request's method, minted per request, over the pinned
+/// channel.
 async fn routers() -> Vec<Probed> {
     let dir = minimal();
     let host = host(dir.path());
@@ -505,6 +506,7 @@ async fn routers() -> Vec<Probed> {
         _workspace: dir,
         probe: Probe::Hosted {
             client,
+            header: "authorization",
             credential: Box::new(move |_method, _path| {
                 let token = minting
                     .access_token(PUBLIC_URL)
@@ -517,7 +519,38 @@ async fn routers() -> Vec<Probed> {
             _kit: Box::new(kit),
         },
     };
-    vec![none, oauth]
+
+    let kit = TestIdp::start().await.unwrap();
+    let dir = workspace(&support::gateway::config(
+        &kit,
+        &support::gateway::Setup {
+            channel: support::gateway::Channel::Pinned,
+            ..support::gateway::Setup::default()
+        },
+    ));
+    write_tls(dir.path(), &kit);
+    support::gateway::write_keys(dir.path(), &kit);
+    let host = support::oauth::host_with(dir.path(), &kit, None, None, |builder| builder);
+    let served = Served::start(&host).await;
+    let client = Client::tls(
+        served.address,
+        kit.ca().certificate_pem(),
+        Some(kit.gateway().certificate()),
+    );
+    let signer = kit.gateway().clone();
+    let gateway = Probed {
+        mode: "gateway",
+        _workspace: dir,
+        probe: Probe::Hosted {
+            client,
+            header: support::gateway::ASSERTION,
+            // A single-use assertion bound to the request's method, fresh for each request.
+            credential: Box::new(move |method, _path| signer.assertion(PUBLIC_URL, method).sign()),
+            _served: Box::new(served),
+            _kit: Box::new(kit),
+        },
+    };
+    vec![none, oauth, gateway]
 }
 
 impl Probe {
@@ -548,15 +581,18 @@ impl Probe {
                 http.send(request.body(Body::from(body)).unwrap()).await
             }
             Self::Hosted {
-                client, credential, ..
+                client,
+                header,
+                credential,
+                ..
             } => {
-                let authorization = credential(method, path);
+                let value = credential(method, path);
                 let mut headers: Vec<(&str, &str)> = Vec::new();
                 if form {
                     headers.push(("content-type", "application/x-www-form-urlencoded"));
                 }
                 if with_credential {
-                    headers.push(("authorization", &authorization));
+                    headers.push((header, &value));
                 }
                 client
                     .send(client.request(method, path, &headers, body))
@@ -564,44 +600,6 @@ impl Probe {
             }
         }
     }
-}
-
-#[tokio::test]
-async fn the_gateway_mode_serves_no_router_until_step_4() {
-    let kit = TestIdp::start().await.unwrap();
-    let text = format!(
-        r#"config_version = 5
-
-[principal]
-local_id = "corp/ada"
-
-[http]
-public_url = "https://127.0.0.1/mcp"
-allowed_hosts = ["127.0.0.1"]
-
-[auth]
-mode = "gateway"
-
-[auth.namespaces.corp]
-
-[auth.gateway]
-alias = "edge"
-namespace = "corp"
-issuer = "{issuer}"
-keys = "gateway/jwks.json"
-client_cert_sha256 = ["{pin}"]
-max_scopes = ["umbel:read"]
-"#,
-        issuer = kit.gateway().issuer(),
-        pin = kit.gateway().certificate().sha256_hex(),
-    );
-    let dir = workspace(&text);
-    let host = host(dir.path());
-    assert_eq!(
-        host.http_server().unwrap_err().code(),
-        "WORKSPACE_CONFIG_INVALID"
-    );
-    assert!(host.http_router().is_err());
 }
 
 const PROBES: &[&str] = &[
@@ -671,7 +669,7 @@ async fn no_router_answers_an_oauth_request() {
     let probed = routers().await;
     assert_eq!(
         probed.iter().map(|probed| probed.mode).collect::<Vec<_>>(),
-        ["none", "oauth"]
+        ["none", "oauth", "gateway"]
     );
     for probed in probed {
         let mode = probed.mode;

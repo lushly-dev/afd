@@ -904,6 +904,20 @@ fn a_gateway_is_mode_gateway_only_with_a_pinned_channel_off_loopback() {
             .len(),
         1
     );
+    // Pins need a certificate to reach Umbel (amendment from step 4): on loopback without TLS,
+    // or with client_auth = "none", they could never match, so they are refused.
+    let error = invalid(
+        &gateway("127.0.0.1:8443", "", PIN),
+        "auth.gateway.client_cert_sha256",
+    );
+    assert!(error.message().contains("client_auth"), "{error}");
+    let tls_none = "\n[http.tls]\ncert = \"c.pem\"\nkey = \"k.pem\"\nclient_auth = \"none\"\n";
+    invalid(
+        &gateway("127.0.0.1:8443", tls_none, PIN),
+        "auth.gateway.client_cert_sha256",
+    );
+    open(&gateway("127.0.0.1:8443", tls_any, PIN)).unwrap();
+    open(&gateway("127.0.0.1:8443", TLS_CA, PIN)).unwrap();
     // The table is required in mode gateway and refused elsewhere.
     let without = gateway("127.0.0.1:8443", "", "");
     let cut = without.find("\n[auth.gateway]").unwrap();
