@@ -1166,6 +1166,40 @@ describe('P2-D10: the inspector when the active type has none (the second re-che
 });
 
 describe('P2-D5: a move’s save and a refused move back (the second re-check)', () => {
+	it('P2-D5: Mod+S inside a view after a new edit, while its save is held, saves once more when it lands', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { sheet, frame } = await draftSheet(page, 'Saved twice', 'Before');
+		const chord = () =>
+			frame.evaluate(() =>
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						code: 'KeyS',
+						key: 's',
+						metaKey: /Mac/.test(navigator.platform),
+						ctrlKey: !/Mac/.test(navigator.platform),
+					})
+				)
+			);
+		await frame.evaluate(() => {
+			(window as unknown as { holdNext: boolean }).holdNext = true;
+		});
+		await chord();
+		await expect
+			.poll(() => frame.evaluate(() => typeof (window as unknown as { release?: unknown }).release))
+			.toBe('function');
+		await frame.evaluate(() => {
+			const area = document.getElementById('text') as HTMLTextAreaElement;
+			area.value += ' after';
+			area.dispatchEvent(new Event('input'));
+		});
+		await chord();
+		await frame.evaluate(() => (window as unknown as { release: () => void }).release());
+		await expect.poll(() => storedAt(page, sheet)).toBe('Before after');
+		await expect.poll(() => marked(page, 't1')).toBe(false);
+		await opened.context.close();
+	}, 120_000);
+
 	it('P2-D5: an edit made while a move’s save runs is saved too before the view moves, so nothing is lost', async () => {
 		const opened = await openShell(browser, viewSite.root);
 		const { page } = opened;
