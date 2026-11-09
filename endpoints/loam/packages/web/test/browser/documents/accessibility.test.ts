@@ -3,7 +3,8 @@
  * tab menu open, the documents section's tree with its row menu open, its list and its trash, and the New
  * menu open, in each theme and density, under forced colors and in the compact class, with phase 0's tags
  * and zero violations. Step 12 adds a view editor in its sandboxed frame, axe inside that frame too, a note
- * embedding another, the link picker open and the documents inspector; the second type joins with step 13.
+ * embedding another, the link picker open and the documents inspector. Step 13's second type, checklist, has
+ * its own view's runs beside its D2 tests, in `checklist.test.ts`.
  */
 
 import { type Browser, chromium, type Frame, type Page } from 'playwright';

@@ -715,4 +715,16 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   - The area's region is named "Documents", not by its heading: the heading is the document's title, which
     an editor may show too, and two landmarks of one name fail `landmark-unique`. An editor's mount is no
     landmark of its own: its tab panel names it.
+- **2026-11-09. The second type (phase 2 step 13).** `checklist`'s editor, an app's sandboxed view page
+  (`apps/checklist/src/editor.ts`, its styles in `editor-styles.ts` under `lint:tokens`), joins no chrome list
+  and adds no token; the contract stays version 1. Its axe runs inside its frame in each theme, density and
+  forced colors are in `web/test/browser/documents/checklist.test.ts`. Decided:
+  - A view's focus ring is `size.space.xs` of `color.focus.ring`, `Highlight` under forced colors, since
+    `shell.size.focus` is the shell's and `dev.loam/tokens` does not carry it; in high contrast it stays 2 px
+    where the shell's is 3.
+  - A view sets its `color-scheme` from the host context's `theme`, so the browser's own parts of a control
+    follow the shell's theme rather than the system's.
+  - An item is a `button` with `role="checkbox"` and `aria-checked`, its box drawn on the field tokens and,
+    ticked, the primary action's: a native checkbox's box is drawn in the browser's colors, not a token's.
+    Done is a tick and a line through its text, never color alone.
 

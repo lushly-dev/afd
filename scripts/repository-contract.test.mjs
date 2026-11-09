@@ -313,6 +313,7 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		'app-tally',
 		'app-tasks',
 		'app-notes',
+		'app-checklist',
 	];
 	for (const name of loam) {
 		const unit = inventory.units.find((entry) => entry.id === `loam-${name}`);
