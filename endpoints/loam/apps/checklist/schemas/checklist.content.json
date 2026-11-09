@@ -1,0 +1,31 @@
+{
+	"type": "object",
+	"properties": {
+		"items": {
+			"type": "array",
+			"maxItems": 500,
+			"description": "The checklist's items, in order",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^itm_[a-z0-9]{10}$",
+						"description": "The item's id, which checklist-item-add gives it"
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 500,
+						"description": "What the item says"
+					},
+					"done": { "type": "boolean", "description": "Whether the item is ticked off" }
+				},
+				"required": ["id", "text", "done"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["items"],
+	"additionalProperties": false
+}

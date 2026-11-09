@@ -1,0 +1,94 @@
+manifest_version = 2
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "checklist"
+title = "Checklist"
+version = "0.1.0"
+description = "Checklists: items a person adds and ticks off in the editor area, at workspace level or in a project."
+kind = "view"
+domains = ["checklist"]
+license = "MIT"
+
+# The handlers run in a hidden frame on the sandbox origin (D61).
+[view]
+handlers = "dist/handlers.html"
+
+# A document type, with no rail, sidebar or main: its documents open in the editor area (D82).
+[app]
+scope_levels = ["workspace", "project"]
+
+[[grants]]
+name = "store"
+reason = "Keeps each checklist's items."
+
+[[grants]]
+name = "clock"
+reason = "Stamps when each checklist last changed."
+
+[[grants]]
+name = "random"
+reason = "Gives each new item its id."
+
+[[commands]]
+name = "checklist-get"
+title = "Read a checklist"
+description = "Read a checklist's items, in order, each with its id, text and whether it is done."
+category = "checklist"
+effects = ["inspect"]
+input_schema = "schemas/checklist-document.input.json"
+
+[[commands]]
+name = "checklist-item-add"
+title = "Add a checklist item"
+description = "Add an item to the end of a checklist, not done, and return it with its id. Its undo removes it."
+category = "checklist"
+effects = ["store-write"]
+input_schema = "schemas/checklist-item-add.input.json"
+undoable = true
+
+[[commands]]
+name = "checklist-item-toggle"
+title = "Tick or untick a checklist item"
+description = "Mark a checklist item done, or not done when it was. Its undo toggles it back."
+category = "checklist"
+effects = ["store-write"]
+input_schema = "schemas/checklist-item.input.json"
+undoable = true
+
+[[commands]]
+name = "checklist-item-remove"
+title = "Remove a checklist item"
+description = "Remove an item from a checklist. Its undo puts it back where it was, with its id and state."
+category = "checklist"
+effects = ["store-write"]
+input_schema = "schemas/checklist-item.input.json"
+undoable = true
+
+[[ui.resources]]
+uri = "ui://checklist/editor"
+path = "dist/editor.html"
+
+[[ui.documents]]
+id = "checklist"
+title = "Checklist"
+icon = "system/checkmark"
+content_schema = "schemas/checklist.content.json"
+content_version = 1
+instance_commands = ["checklist-get", "checklist-item-add", "checklist-item-toggle", "checklist-item-remove"]
+
+# Each change is a command at once, so the type holds no draft and has no `autosave_ms`.
+[ui.documents.editor]
+resource = "ui://checklist/editor"
+
+[ui.documents.binding]
+model = "command"
+selection = "item"
+locator = "item"
+conflict = "last-writer-wins"
+
+[[ui.documents.templates]]
+id = "blank"
+title = "Blank checklist"
+content = { items = [] }
