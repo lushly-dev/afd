@@ -55,7 +55,7 @@ export interface ViewConnectionV1 {
 	onDocumentChanged(listener: (change: DocumentChangeV1) => void): () => void;
 	/** `dev.loam/editor-dirty`, on each edit, not only on a change (5.6). */
 	reportDirty(dirty: boolean): void;
-	/** `dev.loam/editor-selection`: the selection in the type's binding, or null. */
+	/** `dev.loam/editor-selection`, `{ selection }`: the selection in the type's binding, or null. */
 	reportSelection(selection: unknown): void;
 }
 
@@ -237,7 +237,9 @@ export async function connectView(info?: {
 		},
 		onDocumentChanged: changes.listen,
 		reportDirty: (dirty) => peer.notify('dev.loam/editor-dirty', { dirty: dirty === true }),
-		reportSelection: (selection) => peer.notify('dev.loam/editor-selection', selection ?? null),
+		// Wrapped, as JSON-RPC's params are an object, so a cleared selection arrives as null.
+		reportSelection: (selection) =>
+			peer.notify('dev.loam/editor-selection', { selection: selection ?? null }),
 	};
 }
 

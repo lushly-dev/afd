@@ -9,6 +9,8 @@ import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
 import '@lushly-dev/violet-elements/dist/button/violet-button.js';
 import '@lushly-dev/violet-elements/dist/text-area/violet-text-area.js';
+// The link picker's field, which Specimen waits to see defined before it observes the editor.
+import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
 import type { AppContextV1, DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import { defineNotesElements, type NotesEditor } from '../src/notes-editor.js';
 import type { NotesEmbed } from '../src/notes-embed.js';

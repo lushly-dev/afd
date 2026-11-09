@@ -288,9 +288,10 @@ describe('P2-D10: the editor area under axe', () => {
 			.poll(() =>
 				page.evaluate(
 					() =>
-						document
+						!!document
 							.querySelector('loam-shell')
-							?.shadowRoot?.querySelector('loam-inspector notes-inspector') !== null
+							?.shadowRoot?.querySelector('loam-inspector loam-mount')
+							?.shadowRoot?.querySelector('notes-inspector')
 				)
 			)
 			.toBe(true);

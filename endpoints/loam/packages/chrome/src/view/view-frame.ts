@@ -300,7 +300,7 @@ export class LoamViewFrame extends FASTElement {
 									detail:
 										kind === 'dirty'
 											? { dirty: (params as { dirty?: unknown } | null)?.dirty === true }
-											: params,
+											: ((params as { selection?: unknown } | null)?.selection ?? null),
 									bubbles: true,
 									composed: true,
 								})

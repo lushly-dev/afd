@@ -38,7 +38,9 @@ describe('the SDK root', () => {
 	});
 
 	it('lists the kit named by the specification', () => {
-		expect(KIT_ELEMENT_NAMES_V1).toHaveLength(13);
+		expect(KIT_ELEMENT_NAMES_V1).toHaveLength(14);
 		expect(KIT_ELEMENT_NAMES_V1).toContain('loam-list');
+		// The documents specification's 9.2: an editor embeds another document by name.
+		expect(KIT_ELEMENT_NAMES_V1).toContain('loam-embed');
 	});
 });

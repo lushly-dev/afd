@@ -21,6 +21,8 @@ import {
 	type LoamEditorElementV1,
 } from '@lushly-dev/loam-sdk';
 import { linkChanges, linkToken } from './links.js';
+import { NotesEmbed, notesEmbedDefinition } from './notes-embed.js';
+import { NotesInspector, notesInspectorDefinition } from './notes-inspector.js';
 
 interface TextArea extends HTMLElement {
 	value: string;
@@ -51,6 +53,17 @@ const template = html<NotesEditor>`
 		</div>
 	</div>
 	<p class="status" role="status">${(x) => x.status}</p>
+	<violet-text-area
+		${ref('area')}
+		class="text"
+		label="${(x) => x.document?.title ?? 'Note'}"
+		rows="12"
+		?readonly="${(x) => x.document?.readOnly === true}"
+		@input="${(x, c) => x.edited(c.event)}"
+		@keyup="${(x) => x.selected()}"
+		@mouseup="${(x) => x.selected()}"
+		@select="${(x) => x.selected()}"
+	></violet-text-area>
 	<div class="tools" ?hidden="${(x) => x.document?.readOnly === true}">
 		<violet-button class="link" @click="${(x) => x.pick('link')}">Insert link</violet-button>
 		<violet-button class="embed" @click="${(x) => x.pick('embed')}">Embed</violet-button>
@@ -81,17 +94,6 @@ const template = html<NotesEditor>`
 		<p class="none" ?hidden="${(x) => x.found.length > 0}">No documents match</p>
 		<violet-button class="cancel" @click="${(x) => x.closePicker()}">Cancel</violet-button>
 	</div>
-	<violet-text-area
-		${ref('area')}
-		class="text"
-		label="${(x) => x.document?.title ?? 'Note'}"
-		rows="12"
-		?readonly="${(x) => x.document?.readOnly === true}"
-		@input="${(x, c) => x.edited(c.event)}"
-		@keyup="${(x) => x.selected()}"
-		@mouseup="${(x) => x.selected()}"
-		@select="${(x) => x.selected()}"
-	></violet-text-area>
 	<ul class="embeds" aria-label="Embedded documents" ?hidden="${(x) => x.embeds.length === 0}">
 		${repeat(
 			(x) => x.embeds,
@@ -501,8 +503,6 @@ observable(NotesEditor.prototype, 'found');
 /** The type's editor, inspector and embed, each in the app's registry with its shadow root on it. */
 export async function defineNotesElements(context: AppContextV1): Promise<void> {
 	const { registry } = context;
-	const { NotesInspector, notesInspectorDefinition } = await import('./notes-inspector.js');
-	const { NotesEmbed, notesEmbedDefinition } = await import('./notes-embed.js');
 	const shadowOptions = { mode: 'open' as const, customElementRegistry: registry };
 	await Promise.all([
 		FASTElement.define(NotesEditor, {
