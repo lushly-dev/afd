@@ -1,12 +1,18 @@
-/** A1 to A3's page (phase 0 specification, 8.2): the operations on the reference workspace. */
+/**
+ * A1 to A4's page (phase 0 specification, 8.2; documents specification, 9.3): the operations on the reference
+ * workspace, A4 the link index's rebuild over its documents and links.
+ */
 import '../../../src/zod-jitless.js';
 import { createPaletteIndex } from '@lushly-dev/loam-kernel/palette';
 import {
+	createDocumentIndex,
 	createReferenceWorkspace,
 	diffJournals,
+	LINK_TABLE,
 	recordSession,
 	replayKernel,
 } from '@lushly-dev/loam-kernel/testing';
+import { MemoryAdapter } from '@lushly-dev/local-db';
 
 const percentile = (values: number[], p: number) => {
 	const sorted = [...values].sort((a, b) => a - b);
@@ -35,9 +41,47 @@ async function measure() {
 	const diff = diffJournals(first.entries, second.entries);
 	const diffMs = performance.now() - start;
 
+	// A4: 2,000 documents and 20,000 links in a store, and the index built from them by one list (9.3).
+	const linked = createReferenceWorkspace({
+		seed: 'phase-2',
+		size: 1,
+		documents: 2_000,
+		links: 20_000,
+	});
+	const store = new MemoryAdapter();
+	await store.batch([
+		...linked.documents.map((record) => ({
+			method: 'PUT' as const,
+			path: `/document/${record.id}`,
+			body: record,
+		})),
+		...linked.links.map((link) => ({
+			method: 'PUT' as const,
+			path: `/${LINK_TABLE}/${link.id}`,
+			body: link,
+		})),
+	]);
+	const linkedFirst = linked.documents[0]?.id as string;
+	start = performance.now();
+	const held = await createDocumentIndex(store).of(linkedFirst);
+	const indexMs = performance.now() - start;
+
 	return {
+		a4: {
+			documents: linked.documents.length,
+			links: linked.links.length,
+			totalMs: indexMs,
+			found: held.out.length + held.in.length,
+			expected:
+				linked.links.filter((link) => link.from === linkedFirst || link.to === linkedFirst).length +
+				linked.links.filter((link) => link.from === linkedFirst && link.to === linkedFirst).length,
+		},
 		a1: { queries: times.length, entries: palette.commands.length, p95Ms: percentile(times, 95) },
-		a2: { entries: first.entries.length, totalMs: replayMs, diverged: replay.report.diverged },
+		a2: {
+			entries: first.entries.length,
+			totalMs: replayMs,
+			diverged: replay.report.diverged,
+		},
 		a3: {
 			entries: [first.entries.length, second.entries.length],
 			totalMs: diffMs,

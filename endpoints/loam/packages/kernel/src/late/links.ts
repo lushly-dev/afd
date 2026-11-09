@@ -30,7 +30,13 @@ import { kernelFailure } from '../errors.js';
 import { actorKey } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
-import { callNow, DOCUMENT_TABLE, type DocumentCheck, sameScope } from './document-types.js';
+import {
+	callNow,
+	DOCUMENT_TABLE,
+	type DocumentCheck,
+	documentNotFound,
+	sameScope,
+} from './document-types.js';
 
 /** The link table (9.3). */
 export const LINK_TABLE = 'document-link';
@@ -149,14 +155,6 @@ const ID_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 128 };
 const LINK_ID = /^lnk_[0-9a-z]{12}$/;
 const KIND = /^[a-z][a-z-]{0,31}$/;
 
-/** The answer for a missing link and a refused one alike, in the bytes of a missing document (4.2). */
-const notFound = (): CommandResult<never> =>
-	kernelFailure(
-		'DOCUMENT_NOT_FOUND',
-		'No document with that id is available to you',
-		'List the documents you can open with document-list'
-	);
-
 export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 	const { scope, store, check, index } = deps;
 	const workspace = scope.workspace.id;
@@ -216,7 +214,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 		name: 'document-link-add',
 		title: 'Link two documents',
 		description:
-			"Add a link from one document to another, which may be in another project; an existing one is answered as it is. kind is 'reference' by default, or 'embed'",
+			"Link a document to another, in any project; kind is 'reference' by default, or 'embed'",
 		category: 'document',
 		mutation: true,
 		undoable: true,
@@ -249,13 +247,6 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 						'Anchor the link with a smaller locator, or none'
 					);
 				}
-				if (input.id !== undefined && callOf(context).caller !== undefined) {
-					return kernelFailure(
-						'VALIDATION_ERROR',
-						"An app does not choose a link's id",
-						'Call document-link-add without id'
-					);
-				}
 				const held = (await index.of(source.id)).out.find((link) =>
 					sameLink(link, anchor, kind, target.id)
 				);
@@ -271,10 +262,14 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 					createdAt: callNow(context),
 					createdBy: actorKey(context),
 				};
-				if (await store.get(LINK_TABLE, link.id)) {
+				// Only an undo names an id, and never an app's, which would learn whether one is taken.
+				if (
+					input.id !== undefined &&
+					(callOf(context).caller !== undefined || (await store.get(LINK_TABLE, link.id)))
+				) {
 					return kernelFailure(
 						'VALIDATION_ERROR',
-						`The link id '${link.id}' is taken`,
+						"A link's id is the shell's to choose",
 						'Call document-link-add without id'
 					);
 				}
@@ -293,7 +288,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 	const remove = defineCommandWithSchema<typeof removeInput, { link: string }>({
 		name: 'document-link-remove',
 		title: 'Remove a link',
-		description: 'Remove one link between two documents, by its id from document-link-list',
+		description: 'Remove a link, by its id from document-link-list',
 		category: 'document',
 		mutation: true,
 		undoable: true,
@@ -303,7 +298,8 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 		handler: (input, context) =>
 			index.serial(async () => {
 				const link = await store.get<DocumentLinkV1>(LINK_TABLE, input.link);
-				if (!link || link.workspace !== workspace) return notFound();
+				// A missing link answers in the bytes of a missing document, as a refused one does (4.2).
+				if (!link || link.workspace !== workspace) return documentNotFound();
 				// Both ends decided, either refusal the bytes of a missing id (4.2); `from` is the one changed.
 				const source = await check.find(link.from, 'document-link-remove', context);
 				if (isRefusal(source)) return source;
@@ -325,8 +321,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 
 	const list = defineCommandWithSchema<typeof listInput, { out: LinkRowV1[]; in: LinkRowV1[] }>({
 		name: 'document-link-list',
-		description:
-			"List a document's links out and in, both by default: only those whose other document you may read",
+		description: "List a document's links out and in: those whose other document you may read",
 		category: 'document',
 		mutation: false,
 		executionTime: 'instant',

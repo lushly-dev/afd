@@ -159,6 +159,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * cycle walk is simpler). First paint's code is unchanged: its gzip is one byte more only for the `apps`
  * chunk's new hash in its name, and with the old name it is equal. The third re-check's last nit, refusing a
  * declared `__proto__` too, shrank the closure by 17, to 393,918, under the same ceiling, 176 bytes left.
+ * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
+ * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
+ * 6,096, for the coordinator to approve. It holds the element, its read and re-check, and the link it shows
+ * for a type with no embed (`resourceLinkUrl` and `formatRoute`, which `sections` also loads). `late` rose by
+ * 4,990, within step 12's ledger line of 5,000; `editor` 33,321, `view` 24,995, `surfaces` 83,556 and
+ * `documents` 53,757, within their rows; first paint's bytes, `apps` and `late-editor` are unchanged.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -181,6 +187,7 @@ export const CEILINGS = Object.freeze({
 	editorMinified: 33_365,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
+	embedMinified: 6_096,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -394,6 +401,10 @@ async function measurePage() {
 	// press or the palette's first `new` query, after the surfaces as the rest are.
 	const newMenu = closure(/^assets\/new-menu-/, afterSurfaces);
 	if (newMenu.size === 0) throw new Error('budget: the build has no `new` chunk to measure');
+	// `loam-embed` (documents specification, 9.2), a chunk of its own the kit loads for the first editor that
+	// embeds, since the `editor` chunk is at its ceiling: after the surfaces, which hold the kit's loader.
+	const embed = closure(/^assets\/embed-/, afterSurfaces);
+	if (embed.size === 0) throw new Error('budget: the build has no `embed` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -427,6 +438,7 @@ async function measurePage() {
 		editorMinified: sizeOf(editor),
 		documentsMinified: sizeOf(documents),
 		newMinified: sizeOf(newMenu),
+		embedMinified: sizeOf(embed),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -504,6 +516,7 @@ const ROWS = [
 	['editorMinified', "The chrome's `editor` chunk and its imports, minified"],
 	['documentsMinified', 'The `documents` chunk, with `loam-tree` and `violet-tree`, minified'],
 	['newMinified', 'The `new` chunk, with `violet-menu`, minified'],
+	['embedMinified', 'The `embed` chunk, `loam-embed` and its link, minified'],
 ];
 
 export async function measure() {

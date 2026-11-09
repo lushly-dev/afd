@@ -1,7 +1,11 @@
 /**
  * The editor area's seeded walk (documents specification, Status, deviation 16): random steps of a person, an
  * agent and held saves, the thirteen invariants checked after each, then every mark against the rule and a
- * trash of every document. Since step 11 the person also opens from the documents section's tree. Its own CI job, `loam.yml`'s "Editor walk", runs it beside the Chromium suite.
+ * trash of every document. Since step 11 the person also opens from the documents section's tree; since step
+ * 12 two seeds of their own also open the `sheet` fixture's view editors, type into their sandboxed frames,
+ * which a hidden tab tears down, and have an agent embed one document in a note; every seed checks a
+ * fourteenth invariant, for a kept view editor.
+ * Its own CI job, `loam.yml`'s "Editor walk", runs it beside the Chromium suite.
  */
 
 import { type Browser, chromium } from 'playwright';
@@ -16,6 +20,7 @@ import {
 	packApp,
 	serveDeployment,
 } from '../harness';
+import { sheetPackage } from './sheet';
 import { createNote, editorIdle, frameViolations, marksOf, open, type Walk } from './support';
 
 let browser: Browser;
@@ -24,12 +29,14 @@ let site: DeploymentSite;
 beforeAll(async () => {
 	browser = await chromium.launch();
 	site = await serveDeployment({
+		sandbox: true,
 		config: deploymentFile(
 			deploymentEntry('hello', await packApp('hello')),
-			deploymentEntry('notes', await packApp('notes'))
+			deploymentEntry('notes', await packApp('notes')),
+			deploymentEntry('sheet', await sheetPackage())
 		),
 	});
-});
+}, 120_000);
 
 afterAll(async () => {
 	await site?.close();
@@ -40,21 +47,25 @@ afterAll(async () => {
 const REOPEN_FLOOR = 1;
 
 describe('P2-D5: the editor area, a seeded walk', () => {
+	// The eleven seeds walk as they always have; the last two also take step 12's view steps, from a stream of
+	// their own, since any added step moves a seed's path and the eleven's paths are what found their bugs.
 	it.each([
-		[0x5eed10, 200],
-		[9, 200],
-		[12, 200],
-		[20, 200],
-		[32, 300],
-		[43, 300],
-		[100, 200],
-		[1, 200],
-		[2, 200],
-		[0xdeadbeef, 200],
-		[42, 200],
+		[0x5eed10, 200, 0],
+		[9, 200, 0],
+		[12, 200, 0],
+		[20, 200, 0],
+		[32, 300, 0],
+		[43, 300, 0],
+		[100, 200, 0],
+		[1, 200, 0],
+		[2, 200, 0],
+		[0xdeadbeef, 200, 0],
+		[42, 200, 0],
+		[5, 200, 0.17],
+		[77, 200, 0.17],
 	])(
-		'P2-D5: a seeded walk, seed %i, of %i steps, keeps the thirteen invariants after each and reaches reopens',
-		async (start, length) => {
+		'P2-D5: a seeded walk, seed %i, of %i steps with view steps at %d, keeps the fourteen invariants after each and reaches reopens',
+		async (start, length, views) => {
 			const opened = await openShell(browser, site.root);
 			const { page } = opened;
 			// mulberry32: the same steps for the same seed every run.
@@ -203,6 +214,15 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				'sign-out',
 				'sign-in',
 			] as const;
+			// Step 12's view steps draw from a stream of their own, so each seed's steps above stay as they were.
+			let viewSeed = start ^ 0x5ee712;
+			const viewRandom = () => {
+				viewSeed = (viewSeed + 0x6d2b79f5) | 0;
+				let t = Math.imul(viewSeed ^ (viewSeed >>> 15), 1 | viewSeed);
+				t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+				return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+			};
+			const viewKinds = ['sheet', 'sheet-type', 'sheet-type', 'embed'] as const;
 			let project: string | undefined;
 			let app = false;
 			const steps: string[] = [];
@@ -446,6 +466,43 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 						await agentCall(page, 'editor-move', { tab: some().id, group: 'new' });
 					}
 				}
+				// A view step, on about one step in six in the seeds that take them: a sheet's editor opened, typed
+				// into, or an embed.
+				if (viewRandom() < views) {
+					const view = viewKinds[Math.floor(viewRandom() * viewKinds.length)] as string;
+					const other = () => tabs[Math.floor(viewRandom() * tabs.length)] as (typeof tabs)[number];
+					steps.push(view);
+					if (view === 'sheet') {
+						// A view's editor, in a sandboxed frame: hidden, it saves and is torn down (5.6).
+						const created = (await kernelCall(page, 'document-create', {
+							type: 'sheet',
+							title: `Sheet ${step}`,
+							...(project ? { project } : {}),
+						})) as { data?: { id: string } };
+						if (created.data) {
+							documents.push(created.data.id);
+							await kernelCall(page, 'document-open', { document: created.data.id });
+						}
+					} else if (view === 'sheet-type') {
+						// Into a view editor a person sees, inside its frame, which reports dirty to the shell.
+						await page
+							.frameLocator(
+								'loam-editor-group:not([hidden]) loam-editor-frame:not([hidden]) loam-view-frame iframe'
+							)
+							.first()
+							.frameLocator('iframe')
+							.locator('#text')
+							.pressSequentially('y', { timeout: 1_000 })
+							.catch(() => undefined);
+					} else if (tabs.length > 1) {
+						// An agent embeds one open document in another, which a note shows read-only.
+						await agentCall(page, 'notes-content-set', {
+							document: other().document,
+							text: `Embeds ${step}`,
+							embeds: [other().document],
+						});
+					}
+				}
 				try {
 					await editorIdle(page);
 				} catch (cause) {
@@ -524,9 +581,12 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 				).toBe(true);
 			}
 			await counted();
+			// A seed that takes view steps takes some.
+			if (views > 0)
+				expect(steps.some((each) => (viewKinds as readonly string[]).includes(each))).toBe(true);
 			// Straight to the output, so every seed's count shows, passing or not.
 			process.stdout.write(
-				`Seed ${start}: ${reopens} drafts taken by another tab, ${reopenOpens} reopen opens\n`
+				`Seed ${start}: ${reopens} drafts taken by another tab, ${reopenOpens} reopen opens, ${steps.filter((each) => (viewKinds as readonly string[]).includes(each)).length} view steps\n`
 			);
 			expect(reopens + reopenOpens).toBeGreaterThanOrEqual(REOPEN_FLOOR);
 			await opened.context.close();

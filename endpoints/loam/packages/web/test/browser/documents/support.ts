@@ -85,7 +85,9 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  *     that tab, document and scope still holds its draft, or the person's close of it saves or asks. 5, 9, 10
  *     and 11 follow from it, and stay as diagnostics;
  * 13. no tab a leave still owes a mark has `wantsMark` false, but in a scope out of reach, and
- *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed.
+ *     every tab marked in a scope with a leave in flight has `wantsMark` true or is owed;
+ * 14. a view's editor in `frames` is its group's shown frame, or hidden and kept: its save rejected as its tab
+ *     hid, it holds its draft, unsaved, with no edit since, until its tab shows again (5.6; step 12).
  * Empty when they hold, or before the editor area has loaded.
  */
 export function frameViolations(page: Page): Promise<string[]> {
@@ -95,9 +97,17 @@ export function frameViolations(page: Page): Promise<string[]> {
 			document: string;
 			dirty: boolean;
 			state?: string;
+			kind?: 'native' | 'view';
 			record?: { scope: { workspace: string; project?: string } } | null;
 		};
-		type Life = { visit: number; place: string; busy?: boolean; draft?: boolean };
+		type Life = {
+			visit: number;
+			place: string;
+			busy?: boolean;
+			draft?: boolean;
+			edits?: number;
+			kept?: number;
+		};
 		type State = {
 			groups: Array<{ id: string; active: string | null; tabs: Array<{ id: string }> }>;
 		};
@@ -301,6 +311,12 @@ export function frameViolations(page: Page): Promise<string[]> {
 				if (frame.dirty && marked.get(tab) === false)
 					broken.push(`9: ${tab}'s editor is unsaved, its tab not`);
 			}
+		}
+		for (const [tab, frame] of frames) {
+			const own = lives.get(frame);
+			if (frame.kind !== 'view' || !frame.hidden) continue;
+			if (!frame.dirty || own?.kept === undefined || own.kept !== own.edits)
+				broken.push(`14: ${tab}'s view editor is hidden in frames, and not kept with its draft`);
 		}
 		return broken;
 	});

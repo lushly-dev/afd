@@ -11,6 +11,8 @@ import '@lushly-dev/violet-elements/dist/button/violet-button.js';
 import '@lushly-dev/violet-elements/dist/text-area/violet-text-area.js';
 import type { AppContextV1, DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import { defineNotesElements, type NotesEditor } from '../src/notes-editor.js';
+import type { NotesEmbed } from '../src/notes-embed.js';
+import type { NotesInspector } from '../src/notes-inspector.js';
 
 type Density = 'comfortable' | 'compact';
 
@@ -108,4 +110,63 @@ export const [Editor, EditorCompact] = [fixture('comfortable', false), fixture('
 export const [EditorConflict, EditorConflictCompact] = [
 	fixture('comfortable', true),
 	fixture('compact', true),
+];
+
+const row = (id: string, title: string, status: 'active' | 'trashed') => ({
+	link: {
+		id: `lnk_${id}`,
+		workspace: 'personal',
+		from: REFERENCE.id,
+		to: id,
+		anchor: null,
+		kind: 'reference',
+		createdAt: 1,
+		createdBy: 'local',
+	},
+	document: { id, title, type: 'notes', status, scope: { workspace: 'personal' } },
+});
+
+/** `notes-inspector` with a link and a backlink in the trash, and `notes-embed` with its text (10). */
+function part(density: Density, which: 'notes-inspector' | 'notes-embed'): SpecimenDefinition {
+	return {
+		render: () => {
+			const wrapper = document.createElement('div');
+			wrapper.dataset.fixture = which;
+			wrapper.style.setProperty('inline-size', which === 'notes-inspector' ? '280px' : '480px');
+			return {
+				element: wrapper,
+				ready: (async () => {
+					theme(density);
+					const context: AppContextV1 = {
+						...contextOver({ text: 'Plans for the quarter, and what ships first.' }),
+						documents: {
+							get: async () => null,
+							list: async () => [],
+							links: async () => ({
+								out: [row('doc_fixture00002', 'Launch plan', 'active')] as never,
+								in: [row('doc_fixture00003', 'Old notes', 'trashed')] as never,
+							}),
+							open: async () => {},
+						},
+					};
+					if (!customElements.get('notes-editor')) await defineNotesElements(context);
+					const element = document.createElement(which) as NotesInspector | NotesEmbed;
+					element.context = context;
+					element.document = { ...REFERENCE, readOnly: which === 'notes-embed' };
+					wrapper.append(element);
+					await new Promise((resolve) => setTimeout(resolve, 50));
+					await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+				})(),
+			};
+		},
+	};
+}
+
+export const [Inspector, InspectorCompact] = [
+	part('comfortable', 'notes-inspector'),
+	part('compact', 'notes-inspector'),
+];
+export const [Embed, EmbedCompact] = [
+	part('comfortable', 'notes-embed'),
+	part('compact', 'notes-embed'),
 ];

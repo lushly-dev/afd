@@ -23,6 +23,30 @@
 			"title": "Loam/Notes/EditorConflictCompact",
 			"module": "./notes.specimens.ts",
 			"exportName": "EditorConflictCompact"
+		},
+		{
+			"id": "notes-inspector",
+			"title": "Loam/Notes/Inspector",
+			"module": "./notes.specimens.ts",
+			"exportName": "Inspector"
+		},
+		{
+			"id": "notes-inspector-compact",
+			"title": "Loam/Notes/InspectorCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "InspectorCompact"
+		},
+		{
+			"id": "notes-embed",
+			"title": "Loam/Notes/Embed",
+			"module": "./notes.specimens.ts",
+			"exportName": "Embed"
+		},
+		{
+			"id": "notes-embed-compact",
+			"title": "Loam/Notes/EmbedCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EmbedCompact"
 		}
 	]
 }

@@ -2,12 +2,15 @@
  * The editor area under axe (documents specification, D10 so far; steps 10 and 11): two groups of notes, the
  * tab menu open, the documents section's tree with its row menu open, its list and its trash, and the New
  * menu open, in each theme and density, under forced colors and in the compact class, with phase 0's tags
- * and zero violations. A view editor joins with steps 12 and 13.
+ * and zero violations. Step 12 adds a view editor in its sandboxed frame, axe inside that frame too, a note
+ * embedding another, the link picker open and the documents inspector; the second type joins with step 13.
  */
 
-import { type Browser, chromium, type Page } from 'playwright';
+import { type Browser, chromium, type Frame, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+	agentCall,
+	axe,
 	type DeploymentSite,
 	deploymentEntry,
 	deploymentFile,
@@ -16,22 +19,55 @@ import {
 	packApp,
 	serveDeployment,
 } from '../harness';
+import { sheetPackage } from './sheet';
 import { createNote, editorIdle, editorView, settledAxe } from './support';
 
 let browser: Browser;
 let site: DeploymentSite;
+/** With the `sheet` fixture, a view, on a second origin (step 12). */
+let viewSite: DeploymentSite;
 
 beforeAll(async () => {
 	browser = await chromium.launch();
 	site = await serveDeployment({
 		config: deploymentFile(deploymentEntry('notes', await packApp('notes'))),
 	});
-});
+	viewSite = await serveDeployment({
+		sandbox: true,
+		config: deploymentFile(
+			deploymentEntry('notes', await packApp('notes')),
+			deploymentEntry('sheet', await sheetPackage())
+		),
+	});
+}, 120_000);
 
 afterAll(async () => {
 	await site?.close();
+	await viewSite?.close();
 	await browser?.close();
 });
+
+/** The sandbox's inner frame of a sheet view, once it has read its document. */
+async function sheetFrame(page: Page, role: 'editor' | 'embed'): Promise<Frame> {
+	let found: Frame | undefined;
+	await expect
+		.poll(async () => {
+			for (const frame of page.frames()) {
+				const held = await frame
+					.evaluate(
+						() => (window as unknown as { sheet?: { ready?: boolean; role?: string } }).sheet
+					)
+					.catch(() => undefined);
+				if (held?.ready && held.role === role) {
+					found = frame;
+					return true;
+				}
+			}
+			return false;
+		})
+		.toBe(true);
+	return found as Frame;
+}
 
 /** Two notes side by side, the first with an unsaved draft. */
 async function twoGroups(page: Page): Promise<void> {
@@ -229,4 +265,53 @@ describe('P2-D10: the editor area under axe', () => {
 		);
 		await opened.context.close();
 	}, 60_000);
+
+	it('P2-D10: a view editor beside a note that embeds another, the link picker open and the inspector have no violation, in each theme and density and under forced colors, and none inside the view’s frame', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const sheet = (
+			(await kernelCall(page, 'document-create', { type: 'sheet', title: 'Sheet' })) as {
+				data: { id: string };
+			}
+		).data.id;
+		const inner = await createNote(page, 'Inner');
+		const outer = await createNote(page, 'Outer');
+		await agentCall(page, 'notes-content-set', { document: inner, text: 'Inner text' });
+		await agentCall(page, 'notes-content-set', { document: outer, text: 'Outer', embeds: [inner] });
+		await kernelCall(page, 'document-open', { document: outer });
+		await kernelCall(page, 'document-open', { document: sheet, group: 'beside' });
+		await kernelCall(page, 'editor-activate', { tab: 't1' });
+		await kernelCall(page, 'layout-set', { inspector: { open: true } });
+		await editorIdle(page);
+		const frame = await sheetFrame(page, 'editor');
+		await expect
+			.poll(() =>
+				page.evaluate(
+					() =>
+						document
+							.querySelector('loam-shell')
+							?.shadowRoot?.querySelector('loam-inspector notes-inspector') !== null
+				)
+			)
+			.toBe(true);
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			for (const density of ['comfortable', 'compact'] as const) {
+				await kernelCall(page, 'appearance-set', { theme, density });
+				await editorIdle(page);
+				expect(await settledAxe(page), `${theme} ${density}`).toEqual([]);
+			}
+		}
+		await kernelCall(page, 'appearance-set', { theme: 'light', density: 'comfortable' });
+		expect(await axe(frame), 'inside the view editor’s frame').toEqual([]);
+		// The link picker, open.
+		await page.locator('loam-editor-frame[data-tab="t1"] violet-button.link').click();
+		await page.locator('loam-editor-frame[data-tab="t1"] violet-button.choice').first().waitFor();
+		expect(await settledAxe(page), 'the link picker open').toEqual([]);
+		await page.keyboard.press('Escape');
+		await page.emulateMedia({ forcedColors: 'active' });
+		expect(await settledAxe(page), 'forced colors').toEqual([]);
+		await page.emulateMedia({ forcedColors: 'none' });
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 120_000);
 });

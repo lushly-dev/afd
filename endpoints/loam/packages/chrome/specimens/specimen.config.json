@@ -653,6 +653,30 @@
 			"title": "Loam/Documents/NewMenuCompact",
 			"module": "./documents.specimens.ts",
 			"exportName": "NewMenuCompact"
+		},
+		{
+			"id": "editor-embed-unavailable",
+			"title": "Loam/Editor/EmbedUnavailable",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedUnavailable"
+		},
+		{
+			"id": "editor-embed-unavailable-compact",
+			"title": "Loam/Editor/EmbedUnavailableCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedUnavailableCompact"
+		},
+		{
+			"id": "editor-embed-link",
+			"title": "Loam/Editor/EmbedLink",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedLink"
+		},
+		{
+			"id": "editor-embed-link-compact",
+			"title": "Loam/Editor/EmbedLinkCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedLinkCompact"
 		}
 	]
 }
