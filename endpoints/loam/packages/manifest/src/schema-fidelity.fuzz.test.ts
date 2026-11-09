@@ -324,6 +324,8 @@ describe('the input-schema rule over generated schemas', () => {
 			expect(accepted).toBeGreaterThan(SCHEMAS / 4);
 			// A wider run by hand, `FUZZ_SEED=… FUZZ_SCHEMAS=20000`, takes about a millisecond a schema.
 		},
-		Math.max(10_000, SCHEMAS * 5)
+		// Generous, as the rest of the suite runs beside it: 1.1 s alone under coverage here, 7.1 s beside
+		// two whole-workspace coverage runs (load 16 on ten cores), and over 10 s on a scheduled `ci.yml` run.
+		Math.max(120_000, SCHEMAS * 80)
 	);
 });
