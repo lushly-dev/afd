@@ -19,7 +19,7 @@ type Surfaces = NonNullable<Ui['surfaces']>;
 
 const SERVED_GRANTS = SERVED_GRANTS_V2;
 /** A control character, or a bidirectional formatting one, which can reorder what a person reads. */
-const CONTROL = /[\p{Cc}\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
+const CONTROL = /[\p{Cc}\p{Bidi_Control}]/u;
 /** Reserved by the HTML standard, though each has a hyphen. */
 const RESERVED_ELEMENTS = new Set([
 	'annotation-xml',

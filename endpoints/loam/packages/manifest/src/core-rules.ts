@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { AFD_CONTRACT } from './_generated/facts.js';
+import { needsInputShape } from './needs-input.js';
 import type { ManifestRefusalCode } from './types.js';
 import { validateSchemaShape } from './validate-shape.generated.js';
 import type { GeneratedValidator } from './validator-errors.js';
@@ -103,12 +104,14 @@ const isObject = (value: unknown): value is Json =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * Whether a command needs input: its schema refuses `{}`, by the parse the kernel runs on an app's input,
- * so `required`, `minProperties`, `anyOf` and the rest all count. A path, read later by `app check`, or a
- * schema the checker refuses, which `input-schema` reports, says no.
+ * Whether a command needs input: its schema's shape says so (`needsInputShape`, the kernel's own), or the
+ * parse the kernel runs on an app's input refuses `{}`, so `required` in a branch, `minProperties`, `not` and
+ * the rest all count. A path, read later by `app check`, or a schema the checker refuses, which
+ * `input-schema` reports, says no.
  */
 export function needsInput(schema: unknown): boolean {
 	if (!isObject(schema)) return false;
+	if (needsInputShape(schema)) return true;
 	try {
 		return !z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]).safeParse({})
 			.success;

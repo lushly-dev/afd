@@ -107,6 +107,10 @@ async function sync(shell: LoamShell): Promise<void> {
 		return;
 	}
 	await define();
+	// Loaded after a failure that said so: the landing says what it said before (`loam-shell`'s own text).
+	if (shell.landing === 'Could not load. Reload to try again.' && !kernel.lateFailure) {
+		shell.landing = 'Choose an app';
+	}
 	let sidebar = side;
 	if (!sidebar) {
 		sidebar = shell.ownerDocument.createElement(SIDEBAR) as LoamDocumentsSidebar;

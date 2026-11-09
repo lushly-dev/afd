@@ -1405,6 +1405,164 @@
 			"suggestion": "accepts `{}`"
 		},
 		{
+			"id": "ui-new-needs-input-any-of",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/1/input_schema": {
+					"type": "object",
+					"properties": {
+						"a": {
+							"type": "string"
+						},
+						"b": {
+							"type": "string"
+						}
+					},
+					"anyOf": [
+						{
+							"required": ["a"]
+						},
+						{
+							"required": ["b"]
+						}
+					],
+					"additionalProperties": false
+				},
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_NEEDS_INPUT",
+			"key": "ui.new[0].command",
+			"suggestion": "accepts `{}`"
+		},
+		{
+			"id": "ui-new-needs-input-one-of",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/1/input_schema": {
+					"type": "object",
+					"properties": {
+						"a": {
+							"type": "string"
+						},
+						"b": {
+							"type": "string"
+						}
+					},
+					"oneOf": [
+						{
+							"required": ["a"]
+						},
+						{
+							"required": ["b"]
+						}
+					],
+					"additionalProperties": false
+				},
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_NEEDS_INPUT",
+			"key": "ui.new[0].command",
+			"suggestion": "accepts `{}`"
+		},
+		{
+			"id": "ui-new-needs-input-all-of",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/1/input_schema": {
+					"type": "object",
+					"properties": {
+						"a": {
+							"type": "string"
+						}
+					},
+					"allOf": [
+						{
+							"required": ["a"]
+						}
+					],
+					"additionalProperties": false
+				},
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_COMMAND_NEEDS_INPUT",
+			"key": "ui.new[0].command",
+			"suggestion": "accepts `{}`"
+		},
+		{
+			"id": "ui-new-any-of-one-branch-empty",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/commands/1/input_schema": {
+					"type": "object",
+					"properties": {
+						"a": {
+							"type": "string"
+						}
+					},
+					"anyOf": [
+						{
+							"required": ["a"]
+						},
+						{
+							"properties": {}
+						}
+					],
+					"additionalProperties": false
+				},
+				"/ui/new": [
+					{
+						"title": "Greeting",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": true
+		},
+		{
+			"id": "ui-new-title-arabic-letter-mark",
+			"base": "native",
+			"set": {
+				"/manifest_version": 2,
+				"/ui/new": [
+					{
+						"title": "Greet\u061c",
+						"icon": "system/document",
+						"command": "hello-list"
+					}
+				]
+			},
+			"accepted": false,
+			"code": "MANIFEST_TEXT_INVALID",
+			"key": "ui.new[0].title",
+			"suggestion": "control character"
+		},
+		{
 			"id": "ui-new-mounted",
 			"base": "mounted",
 			"set": {

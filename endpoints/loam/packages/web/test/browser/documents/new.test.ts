@@ -757,15 +757,14 @@ describe('P2-D8: the reviews of step 11', () => {
 		await expect.poll(() => row(page, `recent:${second}`).count()).toBe(0);
 		await expect.poll(async () => (await deepFocus(page)).id).toBe(`recent:${first}`);
 		await expect.poll(() => said(page)).toBe('Second moved to Trash');
-		// From the Trash branch, its last row restored: focus goes back up to the branch's row above it.
+		// From the Trash branch, its only row restored: focus goes back to its branch, Trash.
 		await row(page, 'trash').locator(':scope > .label').click();
 		await row(page, `trash:${second}`).waitFor();
 		await row(page, `trash:${second}`).focus();
 		await page.keyboard.press('Shift+F10');
 		await page.keyboard.press('Enter');
 		await expect.poll(() => row(page, `trash:${second}`).count()).toBe(0);
-		await expect.poll(async () => (await deepFocus(page)).id).not.toBeNull();
-		expect((await deepFocus(page)).tag).toBe('violet-tree-item');
+		await expect.poll(async () => (await deepFocus(page)).id).toBe('trash');
 		await expect.poll(() => said(page)).toBe('Second restored');
 		// The list's Restore: focus goes to the next row's Restore, and with none left, to the heading.
 		await kernelCall(page, 'document-trash', { document: first });
@@ -779,6 +778,65 @@ describe('P2-D8: the reviews of step 11', () => {
 		await expect.poll(async () => (await deepFocus(page)).label).toBe(`Restore ${other}`);
 		await page.keyboard.press('Enter');
 		await expect.poll(async () => (await deepFocus(page)).tag).toBe('h1');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('A-B2: a row that leaves hands focus within its branch: its sibling above, else the branch', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const older = await createNote(page, 'Older');
+		const newer = await createNote(page, 'Newer');
+		await documentsSection(page);
+		// Recent's last row, Older, with Notes below it: focus goes up to Newer, not down into Notes.
+		await row(page, `recent:${older}`).focus();
+		await page.keyboard.press('Shift+F10');
+		await tree(page).locator('.menu [data-action="trash"]').click();
+		await expect.poll(() => row(page, `recent:${older}`).count()).toBe(0);
+		await expect.poll(async () => (await deepFocus(page)).id).toBe(`recent:${newer}`);
+		// The only row in Notes: focus goes back to Notes.
+		await row(page, 'type:notes').locator(':scope > .label').click();
+		await row(page, `notes:${newer}`).waitFor();
+		await row(page, `notes:${newer}`).focus();
+		await page.keyboard.press('Shift+F10');
+		await tree(page).locator('.menu [data-action="trash"]').click();
+		await expect.poll(() => row(page, `notes:${newer}`).count()).toBe(0);
+		await expect.poll(async () => (await deepFocus(page)).id).toBe('type:notes');
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	});
+
+	it('nit: a Restore whose view the person leaves takes no focus when they come back to the trash', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		await surfacesIdle(page);
+		const first = await createNote(page, 'First');
+		const second = await createNote(page, 'Second');
+		await kernelCall(page, 'document-trash', { document: first });
+		await kernelCall(page, 'document-trash', { document: second });
+		await documentsSection(page);
+		const section = page.locator('loam-main loam-documents-section');
+		const status = section.locator('select[data-ref="status"]');
+		await status.selectOption('trashed');
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(2);
+		// Restore pressed, and the view left in the same moment, before the restore has answered.
+		await section.evaluate((element) => {
+			const root = element.shadowRoot as ShadowRoot;
+			root.querySelector<HTMLButtonElement>('tbody button')?.click();
+			const select = root.querySelector<HTMLSelectElement>(
+				'select[data-ref="status"]'
+			) as HTMLSelectElement;
+			select.value = 'active';
+			select.dispatchEvent(new Event('change'));
+		});
+		await expect.poll(() => section.locator('h1').textContent()).toBe('Documents');
+		await settle(page);
+		await status.focus();
+		await status.selectOption('trashed');
+		await expect.poll(() => section.locator('tbody tr').count()).toBe(1);
+		await settle(page);
+		expect((await deepFocus(page)).tag).toBe('select');
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	});
@@ -860,6 +918,10 @@ describe('P2-D8: the reviews of step 11', () => {
 		await section.getByRole('button', { name: 'Show more' }).click();
 		await expect.poll(() => section.locator('tbody tr').count()).toBe(201);
 		expect(await section.locator('.more').isVisible()).toBe(false);
+		// The button has gone: focus is on the first row it added, not the page.
+		const added = await section.locator('tbody tr').nth(200).locator('a').textContent();
+		await expect.poll(async () => (await deepFocus(page)).label).toBe(added);
+		expect((await deepFocus(page)).tag).toBe('a');
 		await expect.poll(() => section.locator('.said').textContent()).toBe('201 documents');
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
@@ -924,6 +986,38 @@ describe('P2-D8: the reviews of step 11', () => {
 		await expect.poll(() => button.getAttribute('aria-expanded')).toBe('true');
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
+	});
+});
+
+describe('P2-D8: a documents chunk that does not load', () => {
+	it("says it could not load, not the landing's text, and a later visit loads the section", async () => {
+		const site = await fullDeployment();
+		const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+		await context.route('**/assets/documents-*', (route) => route.abort());
+		const opened = await openShell(browser, site.root, {}, context);
+		const { page } = opened;
+		await surfacesIdle(page);
+		await createNote(page, 'Kept');
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		const heading = () =>
+			page.evaluate(() => {
+				const main = document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-main');
+				const landing = main?.shadowRoot?.querySelector<HTMLElement>('.landing');
+				return landing && getComputedStyle(landing).display !== 'none'
+					? landing.querySelector('h1')?.textContent
+					: null;
+			});
+		await expect.poll(heading).toBe('Could not load. Reload to try again.');
+		expect(await page.locator('loam-main loam-documents-section').count()).toBe(0);
+		// Served again: the next visit loads the chunk, and the list takes main.
+		await context.unroute('**/assets/documents-*');
+		await kernelCall(page, 'section-open', { section: 'projects' });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await page.locator('loam-main loam-documents-section h1').waitFor();
+		expect(await heading()).toBeNull();
+		await context.close();
+		await site.close();
 	});
 });
 

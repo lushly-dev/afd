@@ -402,13 +402,15 @@ export class LoamTree extends FASTElement {
 			if (focused?.isConnected && this.shadowRoot?.activeElement !== focused) {
 				focused.focus({ preventScroll: true });
 			} else if (at >= 0 && !focused?.isConnected) {
-				// The next row that stays, else the previous, else the branch it was in.
+				// The next sibling that stays, else the previous, else the branch it was in: never a row of another
+				// branch, which would take the person across the tree.
+				const parent = (focused as HTMLElement).dataset.parent;
 				const stays = (row: HTMLElement | undefined) =>
-					row?.isConnected && this.#visible().includes(row);
+					row?.isConnected && row.dataset.parent === parent && this.#visible().includes(row);
 				const next =
 					before.slice(at + 1).find(stays) ??
 					before.slice(0, at).reverse().find(stays) ??
-					this.#item((focused as HTMLElement & { dataset: DOMStringMap }).dataset.parent ?? '');
+					(parent === undefined ? undefined : this.#item(parent));
 				next?.focus({ preventScroll: true });
 			}
 		} finally {

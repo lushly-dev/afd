@@ -46,6 +46,9 @@ interface NavigationLike {
 	navigate(url: string, options: { history: 'push' | 'replace'; info: unknown }): unknown;
 }
 
+/** Main's heading when a chunk of its own does not load (2.2), written once. */
+const COULD_NOT_LOAD = 'Could not load. Reload to try again.';
+
 /** The router's `STATE_INFO`, repeated so this chunk imports no router at run time. */
 const STATE_INFO = 'loam-state';
 
@@ -247,7 +250,7 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 					// Tried again at the next change, as this chunk's own load is; meanwhile main says it could not
 					// load, as for the late commands (2.2), not "Choose an app" (A11).
 					sections = false;
-					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
+					(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
 					reportError(cause);
 				}
 			);
@@ -259,7 +262,7 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 			editor = true;
 			const failed = (cause: unknown) => {
 				editor = false;
-				(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
+				(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
 				host.releaseMain?.(true);
 				reportError(cause);
 			};
@@ -267,11 +270,19 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 				({ syncEditor }) => syncEditor(host as unknown as LoamShell),
 				failed
 			);
-			// Then the section's tree and, with no tab, its list, from a chunk of their own (8). Its failure is
-			// reported and its own: the editor area, its chunk and main's hold are left as they are.
+			// Then the section's tree and, with no tab, its list, from a chunk of their own (8). Its failure is its
+			// own: main says it could not load, the editor area and its chunk stay as they are, and the next change
+			// of scope or of main tries the chunk again.
 			void import('./sections/documents.js').then(
 				({ syncDocuments }) => syncDocuments(host as unknown as LoamShell),
-				reportError
+				(cause) => {
+					const shell = host as unknown as LoamShell;
+					shell.landing = COULD_NOT_LOAD;
+					// Main's landing shows it: the editor area's sync marks main again at the next change.
+					const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
+					if (main) delete main.dataset.section;
+					reportError(cause);
+				}
 			);
 		}
 		// Main held busy for a persisted documents section that the route then left shows what it shows (6).

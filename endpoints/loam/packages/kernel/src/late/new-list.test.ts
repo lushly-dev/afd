@@ -468,3 +468,57 @@ describe('P2-D8 (kernel unit): loam.layout.~documents (5.1, G-S3)', () => {
 		).toBe(320);
 	});
 });
+
+describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's (step 11's re-check)", () => {
+	it('marks a command needing input in every anyOf branch, or by minProperties, as New refuses it', async () => {
+		const branchy = (extra: object) => ({
+			type: 'object',
+			properties: { a: { type: 'string' }, b: { type: 'string' } },
+			additionalProperties: false,
+			...extra,
+		});
+		const manifest = structuredClone(TASKS_WITH_NEW) as unknown as {
+			commands: Array<Record<string, unknown>>;
+		};
+		manifest.commands.push(
+			{
+				name: 'tasks-either',
+				title: 'Either',
+				description: 'One of two.',
+				effects: ['inspect'],
+				input_schema: branchy({ anyOf: [{ required: ['a'] }, { required: ['b'] }] }),
+			},
+			{
+				name: 'tasks-some',
+				title: 'Some',
+				description: 'At least one.',
+				effects: ['inspect'],
+				input_schema: branchy({ minProperties: 1 }),
+			}
+		);
+		const held = await createScopedWorkspace({
+			deployment: documentsDeployment(),
+			ports: createFixturePorts({
+				...scopedPackages(),
+				'fixtures/tasks/': {
+					manifest: manifest as unknown as ManifestV2,
+					definition: TASKS_DEFINITION,
+				},
+				'fixtures/probe/': {
+					manifest: PROBE_DOCUMENTS_MANIFEST,
+					definition: PROBE_DOCUMENTS_DEFINITION,
+				},
+			}),
+		});
+		kernels.push(held.kernel);
+		// Tasks is project-only: its commands are listed in a project.
+		await held.kernel.call('scope-set', { project: 'atlas' });
+		const flags = new Map(
+			held.kernel.listCommands().map((command) => [command.name, command.needsInput])
+		);
+		expect(flags.get('tasks-either')).toBe(true);
+		expect(flags.get('tasks-some')).toBe(true);
+		expect(flags.get('tasks-list')).toBe(false);
+		expect(flags.get('tasks-add')).toBe(true);
+	});
+});

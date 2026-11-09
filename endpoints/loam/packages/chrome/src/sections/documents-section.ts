@@ -123,6 +123,8 @@ export class LoamDocumentsSection extends FASTElement {
 	#limit = PAGE;
 	/** The row whose Restore was pressed, by its place, so focus goes on to the next once it leaves (A-B2). */
 	#refocus: number | null = null;
+	/** How many rows showed before a Show more: the first one after them takes focus once they render. */
+	#shown: number | null = null;
 
 	constructor() {
 		super();
@@ -200,6 +202,8 @@ export class LoamDocumentsSection extends FASTElement {
 
 	/** The next 200 rows, said as how many show of how many (G-S4). */
 	showMore(): void {
+		// The first row it adds takes focus, since the button goes once every row shows (G-S4).
+		this.#shown = this.documents.length;
 		this.#limit += PAGE;
 		void this.read(true);
 	}
@@ -224,6 +228,8 @@ export class LoamDocumentsSection extends FASTElement {
 	}
 	setStatus(value: Status): void {
 		this.status = value;
+		// A Restore's focus belongs to the trash it was pressed in, never to the next view.
+		this.#refocus = null;
 		this.#limit = PAGE;
 		void this.read(true);
 	}
@@ -367,6 +373,12 @@ export class LoamDocumentsSection extends FASTElement {
 			if (to) to.focus();
 			else this.focusHeading();
 		}
+		if (this.#shown !== null) {
+			const rows = this.#ref('rows')?.querySelectorAll<HTMLElement>('tr');
+			const row = rows?.[this.#shown];
+			this.#shown = null;
+			(row?.querySelector<HTMLElement>('a, button') ?? undefined)?.focus();
+		}
 		this.#paintFilters();
 		await this.#paintNew();
 	}
@@ -374,7 +386,8 @@ export class LoamDocumentsSection extends FASTElement {
 	async #restore(record: DocumentRecordV1): Promise<void> {
 		const at = this.documents.findIndex((row) => row.id === record.id);
 		const result = await this.kernel?.call('document-restore', { document: record.id });
-		if (result?.success) this.#refocus = at;
+		// Only while the trash still shows: a view left meanwhile takes no focus from it later.
+		if (result?.success && this.status === 'trashed') this.#refocus = at;
 		this.said = result?.success
 			? `${record.title} restored`
 			: `${record.title} was not restored: ${result?.error?.message ?? 'it failed'}`;

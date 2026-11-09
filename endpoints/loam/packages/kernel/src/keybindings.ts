@@ -79,17 +79,7 @@ export function createKeybindings(
 }
 
 /**
- * Whether a command's JSON Schema needs input: it has a required property, or every branch of a
- * union does. A chord runs only a command that does not (4.2).
+ * Whether a command's JSON Schema needs input, by its shape: the manifest's predicate, which its rules also
+ * use, so the palette, a chord and New agree (phase 1 specification, 4.2; documents specification, 2.1).
  */
-export function needsInput(schema: unknown): boolean {
-	if (typeof schema !== 'object' || schema === null) return false;
-	const record = schema as { required?: unknown; anyOf?: unknown; oneOf?: unknown };
-	if (Array.isArray(record.required) && record.required.length > 0) return true;
-	const branches = Array.isArray(record.anyOf)
-		? record.anyOf
-		: Array.isArray(record.oneOf)
-			? record.oneOf
-			: undefined;
-	return branches !== undefined && branches.length > 0 && branches.every(needsInput);
-}
+export { needsInputShape as needsInput } from '@lushly-dev/loam-manifest';

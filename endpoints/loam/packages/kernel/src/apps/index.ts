@@ -12,13 +12,13 @@ import {
 	type ProjectionAppV1,
 	SHELL_DOMAINS_V1,
 } from '@lushly-dev/loam-manifest';
-import { readManifest } from '@lushly-dev/loam-manifest/validate';
+import { needsInput, readManifest } from '@lushly-dev/loam-manifest/validate';
 import type { AppDefinitionV1 } from '@lushly-dev/loam-sdk';
 import type { AppCommandRowV1, AppsRuntime, CommandOwner } from '../apps-runtime.js';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure, LoamKernelError } from '../errors.js';
-import { type AppKeybinding, needsInput } from '../keybindings.js';
+import type { AppKeybinding } from '../keybindings.js';
 import type { AppPortV2, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 import { defineAppCommand, type ManifestCommand } from './definitions.js';
 import {
@@ -319,6 +319,7 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 					message: `The chord ${chord} is held by \`${holder}\`, so this app's binding is refused. Choose another chord.`,
 				});
 			} else if (needsInput(needing.get(command))) {
+				// The shape and the validator's parse of `{}`, as `ui.new`'s rule decides it (documents specification, 2.1).
 				record.notices.push({
 					code: 'KEYBINDING_NEEDS_INPUT',
 					message: `The chord ${chord} is not bound: \`${command}\` needs input, and a chord runs only a command that does not.`,
