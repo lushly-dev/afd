@@ -307,7 +307,7 @@ export function unfaithful(schema: unknown): Refusal | undefined {
 		const properties = isNode(node.properties) ? node.properties : {};
 		const required = (node.required as string[] | undefined) ?? [];
 		const inherited = [...Object.keys(properties), ...required].find(
-			(name) => name in Object.prototype && name !== '__proto__'
+			(name) => name in Object.prototype
 		);
 		if (inherited !== undefined)
 			return at(

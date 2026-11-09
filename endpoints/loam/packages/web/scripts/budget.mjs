@@ -157,7 +157,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * closed object a join reaches through `$ref` or nested branches (574), names `Object.prototype` holds (346),
  * and cycles through a typed node's branches with the order that says two branch keywords first (-35, as the
  * cycle walk is simpler). First paint's code is unchanged: its gzip is one byte more only for the `apps`
- * chunk's new hash in its name, and with the old name it is equal.
+ * chunk's new hash in its name, and with the old name it is equal. The third re-check's last nit, refusing a
+ * declared `__proto__` too, shrank the closure by 17, to 393,918, under the same ceiling, 176 bytes left.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,

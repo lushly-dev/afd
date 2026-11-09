@@ -61,6 +61,8 @@ function kernel(schema: object, input: unknown): boolean | 'throws' {
 }
 
 const ab = { a: { type: 'string' }, b: { type: 'string' } };
+const PROTO =
+	'{"type": "object", "properties": {"__proto__": {"type": "string"}}, "required": ["__proto__"]}';
 const CLOSED = {
 	type: 'object',
 	properties: { a: { type: 'string' } },
@@ -116,7 +118,7 @@ interface Row {
 
 /** The table's size, so a report of it can be checked. */
 const ACCEPTED = 46;
-const REFUSED = 73;
+const REFUSED = 74;
 
 const TABLE: Row[] = [
 	// `required` and `minProperties` in branches: the follow-up itself.
@@ -942,6 +944,14 @@ const TABLE: Row[] = [
 			'constructor',
 			'renamed'
 		),
+	},
+	{
+		// Only `JSON.parse` makes an own `__proto__` key; an object literal sets the prototype instead.
+		construct: 'a required property named __proto__, read by the spec',
+		schema: JSON.parse(PROTO),
+		refused: 'properties',
+		inputs: [JSON.parse('{"__proto__": 1}'), JSON.parse('{"__proto__": "s"}')],
+		validator: renamed(JSON.parse(PROTO), '__proto__', 'renamed'),
 	},
 	{
 		construct: 'two branch keywords with no type on a required property',
