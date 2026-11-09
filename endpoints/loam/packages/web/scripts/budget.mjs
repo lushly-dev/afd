@@ -190,7 +190,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * shown nowhere, after its move back is refused (about 45, N2); that hold cleared by the next move (about 30).
  * `editor-move`: saving again for an edit made during the save, and the edits that save covered (S3). `late` rose
  * by 335, to 67,392, for `layout-get` answering an undeclared inspector closed (B1, S1), within its 75,000;
- * `documents` by 39, to 54,834, focus after a hidden inspector and its closed drawer (B1, S2), within its row.
+ * `documents` by 47, to 54,842, focus after a hidden inspector and its closed drawer, main when the active view
+ * cannot take it yet (B1, S2), within its row.
  * First paint is unchanged, 286,084: `late` compares the documents layout's id as a literal, since importing it
  * made the first paint's `shell-state` chunk export one more binding (4 bytes).
  * Step 12 adds `embedMinified`, `loam-embed` in a chunk of its own, which the kit loads for the first editor
