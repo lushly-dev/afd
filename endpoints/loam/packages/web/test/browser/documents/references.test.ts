@@ -889,6 +889,9 @@ describe('P2-D5: a view editor when another group goes', () => {
 		const note = await createNote(page, 'First group');
 		await open(page, note, { preview: false });
 		const { frame } = await draftSheet(page, 'Stays put', 'Draft in place', { group: 'beside' });
+		// Settled again, so a view reloaded once its draft was typed shows as invariant 15 by name.
+		await viewReady(page, 't2');
+		await editorIdle(page);
 		await frame.evaluate(() => {
 			(window as unknown as { marker: string }).marker = 'same window';
 		});
