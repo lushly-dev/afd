@@ -9,7 +9,7 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { inputSchemaProblem, needsInput } from './core-rules.js';
+import { coreRules, inputSchemaProblem, needsInput } from './core-rules.js';
 import { needsInputShape } from './needs-input.js';
 import { unfaithful } from './schema-fidelity.js';
 
@@ -21,6 +21,22 @@ const AjvDraft7 = require('ajv').default;
 // `multipleOfPrecision`: a multiple of 0.1 is one, which plain floating point division misses.
 const reference = new Ajv2020({ strict: false, multipleOfPrecision: 12 });
 const draft7 = new AjvDraft7({ strict: false });
+
+/** Ajv's answer: `unreadable` for a schema it cannot compile, which no input agrees with, or a throw. */
+function referenceOf(schema: object): (input: unknown) => boolean | 'unreadable' | 'throws' {
+	try {
+		const validate = reference.compile(schema);
+		return (input) => {
+			try {
+				return validate(input);
+			} catch {
+				return 'throws';
+			}
+		};
+	} catch {
+		return () => 'unreadable';
+	}
+}
 
 /** The kernel's answer: accepted, refused, or a throw, which refuses the call. */
 function kernel(schema: object, input: unknown): boolean | 'throws' {
@@ -77,9 +93,13 @@ interface Row {
 	/** The keyword the rule names, or null when it accepts the schema. */
 	refused: string | null;
 	inputs?: unknown[];
-	/** The reference for a schema that declares another draft. */
+	/** The reference for a schema that declares another draft, or reads a format. */
 	validator?: Validate;
 }
+
+/** The table's size, so a report of it can be checked. */
+const ACCEPTED = 45;
+const REFUSED = 61;
 
 const TABLE: Row[] = [
 	// `required` and `minProperties` in branches: the follow-up itself.
@@ -596,25 +616,242 @@ const TABLE: Row[] = [
 		schema: root({ oneOf: [{ type: 'object' }, { type: 'object' }] }),
 		refused: null,
 	},
+	// The independent review of 2026-11-09.
+	{
+		construct: 'minItems with no items',
+		schema: property({ type: 'array', minItems: 1 }),
+		refused: 'minItems',
+	},
+	{
+		construct: 'maxItems with no items',
+		schema: property({ type: 'array', maxItems: 1 }),
+		refused: 'maxItems',
+		inputs: [{ v: [1, 2] }],
+	},
+	{
+		construct: 'minItems and maxItems with items true',
+		schema: property({ type: 'array', items: true, minItems: 1, maxItems: 2 }),
+		refused: null,
+		inputs: [{ v: [1, 2, 3] }],
+	},
+	{
+		construct: 'minItems with prefixItems',
+		schema: property({ type: 'array', prefixItems: [{ type: 'number' }], minItems: 1 }),
+		refused: null,
+		inputs: [{ v: [1, 'a'] }],
+	},
+	{
+		construct: 'a default in prefixItems',
+		schema: property({
+			type: 'array',
+			prefixItems: [{ type: 'number', default: 1 }],
+			minItems: 1,
+		}),
+		refused: 'default',
+	},
+	{
+		construct: 'a patternProperties key with a property escape, closed',
+		schema: {
+			type: 'object',
+			patternProperties: { '^\\p{L}$': { type: 'number' } },
+			additionalProperties: false,
+		},
+		refused: 'patternProperties',
+		inputs: [{ é: 1 }, { 'p{L}': 1 }],
+	},
+	{
+		construct: 'a patternProperties key with a property escape, open',
+		schema: { type: 'object', patternProperties: { '^\\p{L}$': { type: 'number' } } },
+		refused: 'patternProperties',
+		inputs: [{ é: 's' }, { 'p{L}': 's' }],
+	},
+	{
+		construct: 'a patternProperties key, open',
+		schema: { type: 'object', patternProperties: { '^x': { type: 'number' } } },
+		refused: null,
+		inputs: [{ x1: 1 }, { x1: 's' }, { y: 's' }],
+	},
+	{
+		construct: 'a pattern with a character beyond U+FFFF in a class',
+		schema: property({ type: 'string', pattern: '^[😀]$' }),
+		refused: 'pattern',
+		inputs: [{ v: '😀' }],
+	},
+	{
+		construct: 'a pattern quantifying a character beyond U+FFFF',
+		schema: property({ type: 'string', pattern: '^😀+$' }),
+		refused: 'pattern',
+		inputs: [{ v: '😀😀' }],
+	},
+	{
+		construct: 'a pattern with surrogate escapes in a class',
+		schema: property({ type: 'string', pattern: '^[\\uD83D\\uDE00]$' }),
+		refused: 'pattern',
+		inputs: [{ v: '😀' }],
+	},
+	{
+		construct: '$ref below an entry of $defs',
+		schema: {
+			type: 'object',
+			$defs: { a: { type: 'object', properties: { b: { type: 'number' } } } },
+			properties: { v: { $ref: '#/$defs/a/properties/b' } },
+		},
+		refused: '$ref',
+	},
+	{
+		construct: '$ref to #/$defs with only definitions at the root, which Ajv cannot resolve',
+		schema: {
+			type: 'object',
+			definitions: { a: { type: 'number' } },
+			properties: { v: { $ref: '#/$defs/a' } },
+		},
+		refused: '$ref',
+	},
+	{
+		construct: '$ref cycle with nothing between, which Ajv cannot compile either',
+		schema: {
+			type: 'object',
+			$defs: { a: { $ref: '#/$defs/b' }, b: { $ref: '#/$defs/a' } },
+			properties: { v: { $ref: '#/$defs/a' } },
+		},
+		refused: '$ref',
+	},
+	{
+		construct: '$ref cycle through a branch, which Ajv cannot compile either',
+		schema: {
+			type: 'object',
+			$defs: {
+				a: { anyOf: [{ $ref: '#/$defs/b' }, { type: 'string' }] },
+				b: { $ref: '#/$defs/a' },
+			},
+			properties: { v: { $ref: '#/$defs/a' } },
+		},
+		refused: '$ref',
+	},
+	{
+		construct: '$ref cycle through an object',
+		schema: {
+			type: 'object',
+			$defs: {
+				node: {
+					type: 'object',
+					properties: { next: { $ref: '#/$defs/node' }, n: { type: 'number' } },
+				},
+			},
+			properties: { v: { $ref: '#/$defs/node' } },
+		},
+		refused: null,
+		inputs: [{ v: { next: { n: 'x' } } }, { v: { next: { n: 1 } } }],
+	},
+	{
+		construct: 'propertyNames holding a $ref',
+		schema: {
+			type: 'object',
+			$defs: { k: { type: 'string', maxLength: 1 } },
+			propertyNames: { $ref: '#/$defs/k' },
+		},
+		refused: null,
+		inputs: [{ ab: 1 }],
+	},
+	{
+		construct: 'a default at the root, reached through $ref',
+		schema: {
+			type: 'object',
+			properties: { a: { type: 'string' }, child: { $ref: '#' } },
+			required: ['a', 'child'],
+			default: { a: 'x' },
+		},
+		refused: 'default',
+	},
+	// Found by the committed fuzz: where Zod lets a value go missing.
+	{
+		construct: 'a required property whose branches let it go missing',
+		schema: {
+			type: 'object',
+			properties: { a: { anyOf: [{}, { type: 'array', uniqueItems: true }] } },
+			required: ['a'],
+		},
+		refused: 'required',
+	},
+	{
+		construct: 'a required property with a branch that accepts anything, beside a typed one',
+		schema: {
+			type: 'object',
+			properties: { a: { anyOf: [{ type: 'string' }, {}] } },
+			required: ['a'],
+		},
+		refused: null,
+	},
+	{
+		construct: 'a required property with two branches that accept anything, in oneOf',
+		schema: {
+			type: 'object',
+			properties: { a: { oneOf: [{}, true, { type: 'array', uniqueItems: true }] } },
+			required: ['a'],
+		},
+		refused: null,
+	},
+	{
+		construct: 'an optional property whose branches would let it go missing',
+		schema: {
+			type: 'object',
+			properties: { a: { anyOf: [{}, { type: 'array', uniqueItems: true }] } },
+		},
+		refused: null,
+	},
+	{
+		construct: 'an item that accepts anything among the first minItems',
+		schema: property({ type: 'array', prefixItems: [true], minItems: 1 }),
+		refused: 'prefixItems',
+	},
+	{
+		construct: 'an item that accepts anything among the first minItems, with items false',
+		schema: property({ type: 'array', prefixItems: [true], items: false, minItems: 1 }),
+		refused: null,
+	},
+	{
+		construct: 'an optional item among the first minItems, with items false',
+		schema: property({
+			type: 'array',
+			prefixItems: [{ anyOf: [{}, { type: 'array', uniqueItems: true }] }],
+			items: false,
+			minItems: 1,
+		}),
+		refused: 'prefixItems',
+	},
+	{
+		construct: 'an item that accepts anything after the first minItems',
+		schema: property({ type: 'array', prefixItems: [{ type: 'number' }, true], minItems: 1 }),
+		refused: null,
+		inputs: [{ v: [1, 'a'] }],
+	},
 ];
 
 describe('the input-schema rule against the kernel and a reference', () => {
 	it.each(TABLE)('$construct', ({ schema, refused, inputs = [], validator }) => {
-		const problem = inputSchemaProblem(schema);
-		const answer = validator ?? reference.compile(schema);
+		const [problem, remedy] = inputSchemaProblem(schema) ?? [];
+		const answer = validator ?? referenceOf(schema);
 		const rows = [...COMMON, ...inputs].map((input) => ({
 			input,
 			kernel: kernel(schema, input),
 			reference: answer(input),
 		}));
-		const differ = rows.filter((row) => row.kernel !== row.reference);
+		const differ = rows.filter((row) => row.kernel !== row.reference || row.kernel === 'throws');
 		if (refused === null) {
 			expect(problem).toBeUndefined();
 			expect(differ).toEqual([]);
 		} else {
 			expect(problem).toContain(`\`${refused}\``);
+			// Each refusal says how to restructure, in its own words.
+			expect(remedy).toMatch(/^[A-Z].+\.$/);
+			// A different answer, or a parse that throws, which refuses every call.
 			expect(differ.length, 'a refusal the kernel would not need').toBeGreaterThan(0);
 		}
+	});
+
+	it('counts its rows', () => {
+		expect(TABLE.filter((row) => row.refused === null).length).toBe(ACCEPTED);
+		expect(TABLE.filter((row) => row.refused !== null).length).toBe(REFUSED);
 	});
 
 	it("keeps first paint's needs-input answer with the kernel on every schema it accepts", () => {
@@ -634,15 +871,44 @@ describe('the input-schema rule against the kernel and a reference', () => {
 		}
 	});
 
+	it('gives its remedy as the suggestion of a command, a pipeline and a config', () => {
+		const untyped = root({ anyOf: [{ required: ['a'] }] });
+		const { refusals } = coreRules({
+			plugin: { id: 'x', kind: 'native', domains: ['x'] },
+			commands: [{ name: 'x-run', input_schema: untyped }],
+			pipelines: [{ name: 'x-flow', input_schema: untyped, steps: [] }],
+			config: { schema: { ...untyped, additionalProperties: false } },
+		} as Parameters<typeof coreRules>[0]);
+		const of = (pointer: string) => refusals.find((refusal) => refusal.pointer === pointer);
+		const remedy = (unfaithful(untyped) as [string, string])[1];
+		expect(of('/commands/0/input_schema')?.suggestion).toBe(remedy);
+		expect(of('/pipelines/0/input_schema')?.suggestion).toBe(remedy);
+		expect(of('/config/schema')?.suggestion).toContain("Declare every branch's properties");
+		// A refusal the rule has no remedy for keeps the site's own suggestion.
+		const plain = coreRules({
+			plugin: { id: 'x', kind: 'native', domains: ['x'] },
+			commands: [{ name: 'x-run', input_schema: { type: 'string' } }],
+		} as Parameters<typeof coreRules>[0]);
+		expect(plain.refusals[0]?.suggestion).toContain('type: object');
+	});
+
 	it('names the place of what it refuses', () => {
-		expect(inputSchemaProblem(root({ anyOf: [typed('a'), { required: ['b'] }] }))).toBe(
-			'`required` at `/anyOf/1`, which Zod ignores with no `type`'
-		);
+		expect(inputSchemaProblem(root({ anyOf: [typed('a'), { required: ['b'] }] }))).toEqual([
+			'`required` at `/anyOf/1`, which Zod ignores with no `type` beside it',
+			'Give this branch `type: object` beside `required`, or require top-level properties told apart by an `enum`.',
+		]);
 		expect(
-			unfaithful(property({ type: 'object', properties: { 'a/b': { minLength: 1 } } }))
+			unfaithful(property({ type: 'object', properties: { 'a/b': { minLength: 1 } } }))?.[0]
 		).toContain('at `/properties/v/properties/a~1b`');
 		// A pattern only a reading without the `u` flag compiles, which Ajv cannot compile at all.
-		expect(unfaithful(property({ type: 'string', pattern: 'a\\-b' }))).toContain('`pattern`');
+		expect(unfaithful(property({ type: 'string', pattern: 'a\\-b' }))?.[0]).toContain('`pattern`');
+		expect(unfaithful(root({ required: ['z'] }))).toEqual([
+			'`required` at `/`, which names `z`, a property `properties` does not declare, so Zod does not require it',
+			'Declare `z` in `properties`, or remove it from `required`.',
+		]);
+		expect(unfaithful(property({ minLength: 1 }))?.[1]).toBe(
+			'Give this subschema the `type` that `minLength` constrains.'
+		);
 	});
 
 	it('accepts the shipped apps’ schemas', async () => {
@@ -674,6 +940,15 @@ describe('known differences, pinned', () => {
 		expect(inputSchemaProblem(schema)).toBeUndefined();
 		expect(kernel(schema, { v: '😀' })).toBe(false);
 		expect(reference.validate(schema, { v: '😀' })).toBe(true);
+	});
+
+	it('`\\S` and `[^a]` meet half of an astral character, with no `u` flag', () => {
+		for (const pattern of ['^\\S$', '^[^a]$']) {
+			const schema = property({ type: 'string', pattern });
+			expect(inputSchemaProblem(schema)).toBeUndefined();
+			expect(kernel(schema, { v: '😀' })).toBe(false);
+			expect(reference.validate(schema, { v: '😀' })).toBe(true);
+		}
 	});
 
 	it('an integer above 2^53 is refused, which JSON numbers cannot carry exactly anyway', () => {

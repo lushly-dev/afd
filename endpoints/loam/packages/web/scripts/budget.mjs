@@ -145,6 +145,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * less without it (387,627 less 384,955). Parts: the schema walker and its table of keywords (about 2,500),
  * the suggestion's words on restructuring (86) and the check's place in the input, config and content rules
  * (about 90). First paint and the kernel alone are unchanged: "needs input" keeps its own branch recursion.
+ * Its independent review raised it by that round's measured cost, 5,423, to 393,209, keeping the 159 bytes
+ * left, approved by the coordinator, 2026-11-09 (393,050 less 387,627): each refusal's reason and remedy in one
+ * table, used at the input, pipeline, content and config sites (about 2,950 over the messages it replaced),
+ * the rules the review and its fuzz found (about 2,400: `minItems` and `maxItems` with no `items`, a tuple Zod
+ * pads, a value Zod lets go missing through branches, `patternProperties` keys, `$ref`'s forms and cycles, and
+ * defaults at the root and in `prefixItems`), and the sites' remedy (about 50). First paint and the kernel
+ * alone are unchanged.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -155,7 +162,7 @@ export const CEILINGS = Object.freeze({
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	urlMinified: 5_247,
-	appsMinified: 387_786,
+	appsMinified: 393_209,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,

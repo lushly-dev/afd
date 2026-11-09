@@ -122,29 +122,35 @@ export function needsInput(schema: unknown): boolean {
 	}
 }
 
-export function inputSchemaProblem(schema: unknown): string | undefined {
+/**
+ * Why `input-schema` refuses a schema, and how to restructure it when the rule knows one; the caller's own
+ * suggestion otherwise.
+ */
+export type SchemaProblem = [problem: string, remedy?: string];
+
+export function inputSchemaProblem(schema: unknown): SchemaProblem | undefined {
 	// A path is read once the file system is at hand, by `app check`.
 	if (typeof schema === 'string') return undefined;
-	if (!isObject(schema) || schema.type !== 'object') return 'it must be a `type: object` schema';
+	if (!isObject(schema) || schema.type !== 'object') return ['it must be a `type: object` schema'];
 	return checkerProblem(schema);
 }
 
 /** The shape, then Loam's AFD checker, then what that checker would accept and not honour. */
-function checkerProblem(schema: Json): string | undefined {
-	if (!validSchema(schema)) return 'it is not a valid JSON Schema';
-	if (!zodAccepts(schema)) return "it uses a keyword Loam's AFD checker refuses";
+function checkerProblem(schema: Json): SchemaProblem | undefined {
+	if (!validSchema(schema)) return ['it is not a valid JSON Schema'];
+	if (!zodAccepts(schema)) return ["it uses a keyword Loam's AFD checker refuses"];
 	try {
 		return unfaithful(schema);
 	} catch {
-		return 'it is not a valid JSON Schema';
+		return ['it is not a valid JSON Schema'];
 	}
 }
 
-function configSchemaProblem(schema: unknown): string | undefined {
+function configSchemaProblem(schema: unknown): SchemaProblem | undefined {
 	if (typeof schema === 'string') return undefined;
-	if (!isObject(schema) || schema.type !== 'object') return 'it must be a `type: object` schema';
+	if (!isObject(schema) || schema.type !== 'object') return ['it must be a `type: object` schema'];
 	if (schema.additionalProperties !== false)
-		return 'it must be closed at its root, with `additionalProperties: false`';
+		return ['it must be closed at its root, with `additionalProperties: false`'];
 	return checkerProblem(schema);
 }
 
@@ -275,13 +281,13 @@ export function coreRules(manifest: CoreView): { refusals: Finding[]; warnings: 
 		});
 	}
 	commands.forEach((command, index) => {
-		const problem = inputSchemaProblem(command.input_schema);
+		const [problem, remedy] = inputSchemaProblem(command.input_schema) ?? [];
 		if (problem) {
 			push(
 				'MANIFEST_INPUT_SCHEMA_INVALID',
 				`/commands/${index}/input_schema`,
 				`This \`input_schema\` is refused: ${problem}.`,
-				'Declare a `type: object` schema with properties an AFD form and Zod can read: give each branch its `type`, or require top-level properties told apart by an `enum`.'
+				remedy ?? 'Declare a `type: object` schema with properties an AFD form and Zod can read.'
 			);
 		}
 		const budget = command.output_budget;
@@ -324,13 +330,13 @@ export function coreRules(manifest: CoreView): { refusals: Finding[]; warnings: 
 	});
 	pipelines.forEach((pipeline, index) => {
 		named(pipeline.name, `/pipelines/${index}/name`);
-		const problem = inputSchemaProblem(pipeline.input_schema);
+		const [problem, remedy] = inputSchemaProblem(pipeline.input_schema) ?? [];
 		if (problem) {
 			push(
 				'MANIFEST_INPUT_SCHEMA_INVALID',
 				`/pipelines/${index}/input_schema`,
 				`This \`input_schema\` is refused: ${problem}.`,
-				'Declare a `type: object` schema.'
+				remedy ?? 'Declare a `type: object` schema.'
 			);
 		}
 		const aliases = new Set<unknown>();
@@ -371,13 +377,14 @@ export function coreRules(manifest: CoreView): { refusals: Finding[]; warnings: 
 		once(tools, tool.tool, `/mount/tools/${index}/tool`, 'The tool');
 		once(toolNames, tool.name, `/mount/tools/${index}/name`, 'The tool name');
 	});
-	const configProblem = manifest.config && configSchemaProblem(manifest.config.schema);
+	const [configProblem, configRemedy] =
+		(manifest.config && configSchemaProblem(manifest.config.schema)) || [];
 	if (configProblem) {
 		push(
 			'MANIFEST_CONFIG_SCHEMA_INVALID',
 			'/config/schema',
 			`This \`config.schema\` is refused: ${configProblem}.`,
-			'Declare a `type: object` schema with `additionalProperties: false`.'
+			configRemedy ?? 'Declare a `type: object` schema with `additionalProperties: false`.'
 		);
 	}
 	textFindings(manifest, refusals);
