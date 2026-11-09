@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import tomllib
+from collections.abc import Iterator
+from contextlib import chdir, contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -11,6 +13,13 @@ from click.testing import CliRunner
 
 import botcore
 from botcore.cli import cli
+
+
+@contextmanager
+def _workspace(tmp_path: Path) -> Iterator[str]:
+    """Run inside `tmp_path`, as Click's deprecated `isolated_filesystem` did."""
+    with chdir(tmp_path):
+        yield str(tmp_path)
 
 
 async def _fake_plugin_command() -> dict[str, str]:
@@ -68,7 +77,7 @@ def test_help_with_plugin_commands_registered():
 
 def test_init_non_interactive(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         # Create a .git dir so workspace detection works
         Path(td, ".git").mkdir()
 
@@ -85,7 +94,7 @@ def test_init_non_interactive(tmp_path):
 
 def test_init_non_interactive_json(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         # --json works as subcommand flag (user-facing syntax)
@@ -101,7 +110,7 @@ def test_init_non_interactive_json(tmp_path):
 
 def test_init_json_as_group_flag(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         # --json also works as group flag (backward compat)
@@ -114,7 +123,7 @@ def test_init_json_as_group_flag(tmp_path):
 
 def test_init_skips_existing(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
         config = Path(td) / "botcore.toml"
         config.write_text("existing = true\n")
@@ -129,7 +138,7 @@ def test_init_skips_existing(tmp_path):
 
 def test_init_skips_existing_json(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
         config = Path(td) / "botcore.toml"
         config.write_text("existing = true\n")
@@ -144,7 +153,7 @@ def test_init_skips_existing_json(tmp_path):
 
 def test_init_force_overwrites(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
         config = Path(td) / "botcore.toml"
         config.write_text("existing = true\n")
@@ -159,7 +168,7 @@ def test_init_force_overwrites(tmp_path):
 
 def test_init_language_override(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         result = runner.invoke(cli, ["init", "--non-interactive", "--language", "typescript"])
@@ -174,7 +183,7 @@ def test_init_language_override(tmp_path):
 
 def test_init_python_defaults(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         result = runner.invoke(cli, ["init", "--non-interactive", "--language", "python"])
@@ -189,7 +198,7 @@ def test_init_python_defaults(tmp_path):
 
 def test_init_no_skills(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         result = runner.invoke(cli, ["init", "--non-interactive", "--no-skills", "--json"])
@@ -201,7 +210,7 @@ def test_init_no_skills(tmp_path):
 
 def test_init_extension_flags(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         result = runner.invoke(
@@ -217,7 +226,7 @@ def test_init_extension_flags(tmp_path):
 
 def test_init_rejects_invalid_language(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         result = runner.invoke(cli, ["init", "--non-interactive", "--language", "go"])
@@ -290,7 +299,7 @@ def test_command_error_exit_code():
 def test_init_skill_seed_failure_is_non_fatal(tmp_path):
     """If skill_seed raises, init still succeeds with config created."""
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         with patch("botcore.commands.skill.seed.skill_seed", new_callable=AsyncMock) as mock:
@@ -306,7 +315,7 @@ def test_init_skill_seed_failure_is_non_fatal(tmp_path):
 def test_init_skill_seed_failure_json_still_succeeds(tmp_path):
     """In JSON mode, skill_seed failure still returns success with 0 skills."""
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
 
         with patch("botcore.commands.skill.seed.skill_seed", new_callable=AsyncMock) as mock:
@@ -336,7 +345,7 @@ def test_serve_missing_mcp_dependency():
 def test_skill_status_json_is_real_json(tmp_path):
     """--json must emit the dumped CommandResult, not a quoted Python repr."""
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
         with patch("botcore.commands.skill.status.find_workspace", return_value=Path(td)):
             result = runner.invoke(cli, ["skill-status", "--json"])
@@ -349,7 +358,7 @@ def test_skill_status_json_is_real_json(tmp_path):
 
 def test_skill_list_json_is_real_json(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
         with patch("botcore.commands.skill.list.find_workspace", return_value=Path(td)):
             result = runner.invoke(cli, ["skill-list", "--json"])
@@ -393,7 +402,7 @@ def test_non_json_success_prints_data(tmp_path):
 
 def test_init_reports_seeded_count(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
         result = runner.invoke(cli, ["init", "--non-interactive", "--json"])
         assert result.exit_code == 0, result.output
@@ -405,7 +414,7 @@ def test_init_reports_seeded_count(tmp_path):
 
 def test_init_reports_seeded_count_text(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with _workspace(tmp_path) as td:
         Path(td, ".git").mkdir()
         result = runner.invoke(cli, ["init", "--non-interactive"])
         assert result.exit_code == 0, result.output

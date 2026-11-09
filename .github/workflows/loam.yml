@@ -84,7 +84,7 @@ jobs:
         run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
       # The same, and an Umbel or `afd` crate change, which reaches this job and not the one below.
       - id: mounted
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml --path endpoints/umbel/ --path packages/rust/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
 
   loam:
     name: Build, unit and Chromium
@@ -137,6 +137,8 @@ jobs:
         with:
           name: loam-test-results
           path: endpoints/loam/packages/web/test-results/
+          # A passing run writes no results; that is not worth a warning.
+          if-no-files-found: ignore
           retention-days: 7
 
   # The editor area's seeded walk, beside the Chromium suite, which leaves it out: the same gate and build.
@@ -208,4 +210,6 @@ jobs:
         with:
           name: loam-mounted-test-results
           path: endpoints/loam/packages/web/test-results/
+          # A passing run writes no results; that is not worth a warning.
+          if-no-files-found: ignore
           retention-days: 7

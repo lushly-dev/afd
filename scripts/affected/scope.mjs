@@ -7,7 +7,8 @@
  *   - every package under the same unit root when it lies outside any package (for example
  *     foundations/violet/tsconfig.json affects both Violet packages), except under the unit's
  *     docs/ directory (endpoints/loam/docs/STATUS.md affects none), which no package reads;
- *   - the packages listed in EXTRA_INPUTS for shared inputs read from outside a package;
+ *   - the packages listed in EXTRA_INPUTS for shared inputs read from outside a package, except
+ *     the prose beside them (spec/authorization.md affects none), which no package test reads;
  *   - via pnpm-lock.yaml, the importers whose resolved dependency closure changed.
  * Dependents of affected packages are affected too; builds also include their dependencies.
  * GLOBAL_FILES, an unresolvable base or an unreadable lockfile select the whole workspace.
@@ -33,15 +34,22 @@ const GLOBAL_PREFIXES = ['scripts/affected/'];
 /** Under a global prefix, but only lists what `pnpm verify` runs; no package reads it. */
 const SCOPE_INERT = new Set(['scripts/affected/suites.mjs']);
 
+/**
+ * Markdown under spec/: package tests read the JSON, vectors, wire fixtures and VERSION beside it,
+ * and only repository-wide checks, which always run, read the prose.
+ */
+const PROSE = /\.md$/;
+
 /** Repository inputs outside any package that package tests read directly. */
 export const EXTRA_INPUTS = [
 	// Wire fixtures, behaviour vectors, spec/VERSION and tool strategies.
 	{
 		prefix: 'spec/',
+		except: PROSE,
 		packages: ['@lushly-dev/afd-core', '@lushly-dev/afd-server', '@lushly-dev/afd-cli'],
 	},
 	// Loam's profile is checked against the plugin manifest core, and records the contract version.
-	{ prefix: 'spec/plugin-manifest', packages: ['@lushly-dev/loam-manifest'] },
+	{ prefix: 'spec/plugin-manifest', except: PROSE, packages: ['@lushly-dev/loam-manifest'] },
 	{ prefix: 'spec/VERSION', packages: ['@lushly-dev/loam-manifest'] },
 ];
 
@@ -151,7 +159,9 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 				owners = packages.filter((pkg) => inside(pkg.dir, unit));
 		}
 		for (const pkg of owners) mark(pkg.name, file);
-		for (const input of EXTRA_INPUTS.filter((extra) => file.startsWith(extra.prefix)))
+		for (const input of EXTRA_INPUTS.filter(
+			(extra) => file.startsWith(extra.prefix) && !extra.except?.test(file)
+		))
 			for (const name of input.packages) mark(name, file);
 	}
 

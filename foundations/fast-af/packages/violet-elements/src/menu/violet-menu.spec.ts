@@ -221,10 +221,13 @@ describe("violet-menu", () => {
             const items = menu.querySelectorAll("violet-menu-item");
             const trigger = menu.querySelector<HTMLButtonElement>('[slot="trigger"]')!;
 
+            // Let the open menu's deferred first-item focus land before the key: whether it lands
+            // before or after a key pressed straight away is the frame's race, not the menu's (#505).
             menu.show();
+            await settle(items[0]);
             trigger.focus();
             await userEvent.keyboard("{ArrowDown}");
-            await settle(items[0]);
+            await settle(items[1]);
         });
 
         it("lets Tab leave the trigger", async () => {
