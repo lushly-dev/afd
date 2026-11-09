@@ -53,9 +53,10 @@ export const documentsStyles = css`
 		gap: var(--space-inline-sm);
 		min-block-size: var(--size-target-natural);
 	}
+	/* A 24 px target in both densities, beside the pickers (design.md). */
 	.check input {
-		inline-size: var(--size-space-xl);
-		block-size: var(--size-space-xl);
+		inline-size: var(--size-target-compact);
+		block-size: var(--size-target-compact);
 		margin: 0;
 		accent-color: var(--color-control-selected-background);
 	}

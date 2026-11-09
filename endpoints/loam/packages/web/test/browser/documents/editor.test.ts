@@ -639,13 +639,22 @@ describe('P2-D5: the editor area, native half', () => {
 			['Three', 'Two'],
 		]);
 		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Three, pinned' });
-		// An agent closing the focused tab: focus goes to its group's new active tab, and with none, to main.
+		// An agent closing the focused tab: focus goes to its group's new active tab, and with none, to main,
+		// which the documents list then holds, so to its heading (documents specification, 5.8 and 8.2).
 		await agentCall(page, 'editor-close', { tab: 't3' });
 		await editorIdle(page);
 		expect(await focusedOn(page)).toMatchObject({ role: 'tab', label: 'Two' });
 		await agentCall(page, 'editor-close', { tab: 't2' });
 		await editorIdle(page);
-		expect((await focusedOn(page)).tag).toBe('loam-main');
+		await expect
+			.poll(() =>
+				page.evaluate(() => {
+					let element: Element | null = document.activeElement;
+					while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+					return `${element?.tagName.toLowerCase()} ${element?.textContent?.trim()}`;
+				})
+			)
+			.toBe('h1 Documents');
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	});

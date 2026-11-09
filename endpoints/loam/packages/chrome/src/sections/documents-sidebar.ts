@@ -188,7 +188,11 @@ export class LoamDocumentsSidebar extends FASTElement {
 		}
 		this.#unsubscribe ??=
 			this.kernel?.subscribe((event) => {
-				if (event.success && /^(document-|workspace-app-set$|auth-)/.test(event.command))
+				if (
+					event.success &&
+					event.mutation &&
+					/^(document-(?!open$)|workspace-app-set$|auth-)/.test(event.command)
+				)
 					this.read();
 			}) ?? null;
 	}

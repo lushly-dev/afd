@@ -77,6 +77,12 @@ compositions = ["list-detail"]
 # What a project's home shows of tasks: a query at the project's scope, called with {} (7.7).
 project_summary = { command = "tasks-summary" }
 
+# What New creates in a project: an untitled task, by a command that needs no input (documents specification, 7).
+[[ui.new]]
+title = "Task"
+icon = "system/checkmark"
+command = "tasks-add-blank"
+
 [ui.layout]
 sidebar = { open = true, width = 260 }
 

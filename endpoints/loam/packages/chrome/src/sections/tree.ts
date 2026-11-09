@@ -433,6 +433,7 @@ export class LoamTree extends FASTElement {
 				const label = doc.createElement('span');
 				label.className = 'label';
 				const meta = doc.createElement('span');
+				meta.className = 'meta';
 				meta.slot = 'meta';
 				item.append(label, meta);
 				if (this.menu) {
@@ -460,7 +461,9 @@ export class LoamTree extends FASTElement {
 					});
 				}
 			}
-			const [label, meta] = item.children as unknown as HTMLElement[];
+			// By class, not by place: an icon is put first.
+			const label = item.querySelector<HTMLElement>(':scope > .label');
+			const meta = item.querySelector<HTMLElement>(':scope > .meta');
 			if (label) label.textContent = node.title;
 			if (meta) meta.textContent = node.description ?? '';
 			let icon = item.querySelector<HTMLElement>(':scope > violet-icon');

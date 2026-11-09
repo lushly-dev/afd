@@ -131,7 +131,11 @@ export class LoamDocumentsSection extends FASTElement {
 		this.#unsubscribe ??=
 			this.kernel?.subscribe((event) => {
 				// From anyone: a document or an app changed, or the actor did.
-				if (event.success && /^(document-|workspace-app-set$|auth-)/.test(event.command)) {
+				if (
+					event.success &&
+					event.mutation &&
+					/^(document-(?!open$)|workspace-app-set$|auth-)/.test(event.command)
+				) {
 					void this.read();
 				}
 			}) ?? null;

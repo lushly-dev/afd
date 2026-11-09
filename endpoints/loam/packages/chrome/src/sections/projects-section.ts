@@ -217,7 +217,7 @@ const home = html<LoamProjectsSection>`
 		html<LoamProjectsSection>`<p class="empty">No app summarizes this project yet</p>`
 	)}
 	<div class="cards" data-ref="cards"></div>
-	<div class="cards" data-ref="documents"></div>
+	<div data-ref="documents"></div>
 `;
 
 /** The region is busy while it reads; its live lines are beside it, so nothing they say waits for the read. */
