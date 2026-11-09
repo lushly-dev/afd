@@ -889,6 +889,7 @@ describe('P2-D5: a view editor when another group goes', () => {
 			(window as unknown as { marker: string }).marker = 'same window';
 		});
 		await kernelCall(page, 'editor-close', { tab: 't1', discard: true });
+		await viewReady(page, 't2');
 		await editorIdle(page);
 		expect(await tabsByGroup(page)).toHaveLength(1);
 		expect(await frame.evaluate(() => (window as unknown as { marker?: string }).marker)).toBe(
@@ -899,6 +900,21 @@ describe('P2-D5: a view editor when another group goes', () => {
 		await opened.context.close();
 	}, 120_000);
 });
+
+/** Until the view editor of `tab` is ready with its iframe, so a check of its frames sees its window now. */
+const viewReady = (page: Page, tab: string) =>
+	expect
+		.poll(() =>
+			page.evaluate((tab) => {
+				const view = document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector(`loam-editor-frame[data-tab="${tab}"] loam-view-frame`) as
+					| (HTMLElement & { state: string })
+					| null;
+				return view?.state === 'ready' && !!view.shadowRoot?.querySelector('iframe')?.contentWindow;
+			}, tab)
+		)
+		.toBe(true);
 
 describe('P2-D5: moves where the browser has moveBefore (the re-check’s N-B1)', () => {
 	it('P2-D5: the person’s move and an agent’s keep an unsaved view editor’s window, its draft and its mark', async () => {
@@ -921,10 +937,12 @@ describe('P2-D5: moves where the browser has moveBefore (the re-check’s N-B1)'
 			expect(await marked(page, 't2')).toBe(true);
 		};
 		await personMove(page, 'Travels');
+		await viewReady(page, 't2');
 		await editorIdle(page);
 		await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
 		await same();
 		await agentCall(page, 'editor-move', { tab: 't2', group: 'g1' });
+		await viewReady(page, 't2');
 		await editorIdle(page);
 		await expect.poll(() => tabsByGroup(page)).toEqual([[note, sheet]]);
 		await same();
@@ -941,18 +959,6 @@ describe('P2-D5: moves where the browser has moveBefore (the re-check’s N-B1)'
 		await open(page, two, { preview: false });
 		await page.locator('loam-editor-frame[data-tab="t2"] textarea').click();
 		await page.keyboard.type('Native draft');
-		const editorOf = () =>
-			page.evaluate(() => {
-				const frame = document
-					.querySelector('loam-shell')
-					?.shadowRoot?.querySelector('loam-editor-frame[data-tab="t2"]');
-				return frame
-					?.querySelector('loam-mount')
-					?.shadowRoot?.querySelector('notes-editor') as unknown as {
-					marker?: string;
-					draft: string;
-				};
-			});
 		await page.evaluate(() => {
 			const frame = document
 				.querySelector('loam-shell')
@@ -978,7 +984,6 @@ describe('P2-D5: moves where the browser has moveBefore (the re-check’s N-B1)'
 			};
 			return [editor?.marker, editor?.draft];
 		});
-		void editorOf;
 		expect(kept).toEqual(['same', 'Native draft']);
 		expect(await marked(page, 't2')).toBe(true);
 		await opened.context.close();
