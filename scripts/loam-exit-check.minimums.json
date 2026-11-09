@@ -1,0 +1,92 @@
+{
+	"about": [
+		"The fewest passing titles scripts/loam-exit-check.mjs accepts for each exit row, by the place its row names, so an exclude, a skipped suite or a deleted file cannot pass unnoticed.",
+		"Each is the count a full run observed. When exit tests are added or removed on purpose, run the check on a run that has them with --print-minimums, and copy the counts it prints here in the same pull request, saying why each changed."
+	],
+	"observed": "loam.yml run 42692171040 at b78b1548, every job run; then this file's own pull request: D4's Units +6 and D6's Units -3, three tests moved into D4's describe over both adapters, and E13's Chromium +28, the IndexedDB contract under a P2-E13: describe (24), the Specimen captures (3) and the A1 to A3 test (1) titled P2-E13: too",
+	"minimums": {
+		"E1": {
+			"chromium": 7
+		},
+		"E2": {
+			"chromium": 2,
+			"lean": 2
+		},
+		"E3": {
+			"chromium": 25
+		},
+		"E4": {
+			"units": 22,
+			"chromium": 4
+		},
+		"E5": {
+			"units": 20
+		},
+		"E6": {
+			"mounted": 11
+		},
+		"E7": {
+			"units": 32,
+			"chromium": 3
+		},
+		"E8": {
+			"units": 186,
+			"chromium": 31
+		},
+		"E9": {
+			"chromium": 5
+		},
+		"E10": {
+			"units": 20,
+			"chromium": 1
+		},
+		"E11": {
+			"units": 5,
+			"lean": 6
+		},
+		"E12": {
+			"chromium": 19
+		},
+		"E13": {
+			"chromium": 155,
+			"mounted": 11,
+			"units": 44
+		},
+		"D1": {
+			"chromium": 2
+		},
+		"D2": {
+			"chromium": 2,
+			"units": 2
+		},
+		"D3": {
+			"units": 8
+		},
+		"D4": {
+			"units": 48
+		},
+		"D5": {
+			"units": 63,
+			"chromium": 71,
+			"walk": 15
+		},
+		"D6": {
+			"units": 25,
+			"chromium": 1
+		},
+		"D7": {
+			"chromium": 1
+		},
+		"D8": {
+			"chromium": 23
+		},
+		"D9": {
+			"units": 14,
+			"chromium": 5
+		},
+		"D10": {
+			"chromium": 26,
+			"units": 7
+		}
+	}
+}

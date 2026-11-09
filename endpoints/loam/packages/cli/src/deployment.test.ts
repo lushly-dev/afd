@@ -804,7 +804,7 @@ describe('deployment check', () => {
 		expect(JSON.stringify(result)).not.toContain(COMMAND_SECRET);
 	});
 
-	describe('P2-E6 (CLI unit): a mounted instance and its projects (9.1, 4.2)', () => {
+	describe('P2-E6: (CLI unit) a mounted instance and its projects (9.1, 4.2)', () => {
 		const mounted = (extra: string, levels?: string[]) =>
 			layout(
 				`deployment_version = 2\n\n[apps.work]\napp = "umbel"\npackage = "umbel"\nprefix = "work"\ntransport = "http"\nurl = "http://127.0.0.1:1/mcp"\n${extra}`,

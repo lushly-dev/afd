@@ -27,7 +27,7 @@ const rootTheme = (page: Page) =>
 			.trim(),
 	}));
 
-describe('E6: sign-in through the Mock adapter', () => {
+describe('P2-E13: E6: sign-in through the Mock adapter', () => {
 	it('signs in from the title bar; the status bar shows the actor and the journal keeps no password', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;

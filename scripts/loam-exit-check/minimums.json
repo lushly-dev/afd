@@ -1,0 +1,85 @@
+{
+	"E1": {
+		"chromium": 1
+	},
+	"E2": {
+		"chromium": 1,
+		"lean": 2
+	},
+	"E3": {
+		"chromium": 1
+	},
+	"E4": {
+		"units": 1,
+		"chromium": 1
+	},
+	"E5": {
+		"units": 2
+	},
+	"E6": {
+		"mounted": 1
+	},
+	"E7": {
+		"units": 1,
+		"chromium": 1
+	},
+	"E8": {
+		"units": 1,
+		"chromium": 1
+	},
+	"E9": {
+		"chromium": 1
+	},
+	"E10": {
+		"units": 1,
+		"chromium": 1
+	},
+	"E11": {
+		"units": 1,
+		"lean": 2
+	},
+	"E12": {
+		"chromium": 1
+	},
+	"E13": {
+		"chromium": 3,
+		"mounted": 1,
+		"units": 1
+	},
+	"D1": {
+		"chromium": 1
+	},
+	"D2": {
+		"chromium": 1,
+		"units": 1
+	},
+	"D3": {
+		"units": 1
+	},
+	"D4": {
+		"units": 1
+	},
+	"D5": {
+		"units": 1,
+		"chromium": 1,
+		"walk": 1
+	},
+	"D6": {
+		"units": 1,
+		"chromium": 1
+	},
+	"D7": {
+		"chromium": 1
+	},
+	"D8": {
+		"chromium": 1
+	},
+	"D9": {
+		"units": 1,
+		"chromium": 2
+	},
+	"D10": {
+		"chromium": 1,
+		"units": 1
+	}
+}

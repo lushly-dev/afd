@@ -65,7 +65,7 @@ afterAll(async () => {
 const commandRow = (page: Page, name: string) =>
 	page.locator(`loam-console violet-option[value="${name}"]`);
 
-describe('E3: hello mounted, and a real Umbel in the console, through a test-only relay', () => {
+describe('P2-E13: E3: hello mounted, and a real Umbel in the console, through a test-only relay', () => {
 	it('answers hello-greet from the console form', async () => {
 		const { page, errors, violations, context } = await openShell(browser, site.origin);
 		expect(await page.evaluate(() => document.documentElement.dataset.loamHost)).toBe('web');

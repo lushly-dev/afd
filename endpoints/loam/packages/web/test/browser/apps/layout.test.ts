@@ -51,7 +51,7 @@ const viewStateLayout = async (page: Page) =>
 	((await agentCall(page, 'view-state-get', { id: 'loam.layout' })) as { data: { state: Layout } })
 		.data.state;
 
-describe('E9: layout and persistence with apps', () => {
+describe('P2-E13: E9: layout and persistence with apps', () => {
 	it('keeps per-app layouts apart across a switch and a reload', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page, context } = opened;

@@ -1,0 +1,129 @@
+{
+	"databaseId": 42700000002,
+	"workflowName": "CI",
+	"path": ".github/workflows/ci.yml",
+	"repository": "lushly-dev/afd",
+	"event": "workflow_dispatch",
+	"headBranch": "main",
+	"headSha": "0123456789abcdef0123456789abcdef01234567",
+	"status": "completed",
+	"conclusion": "success",
+	"attempt": 1,
+	"url": "https://github.com/lushly-dev/afd/actions/runs/42700000002",
+	"jobs": [
+		{
+			"name": "TypeScript (Node 22.x)",
+			"databaseId": 10,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Install dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Affected packages",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Quality gate",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
+			"name": "TypeScript (Node 24.x)",
+			"databaseId": 11,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Install dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Affected packages",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Quality gate",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
+			"name": "TypeScript (Node 26.x)",
+			"databaseId": 12,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Install dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Affected packages",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Quality gate",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		}
+	]
+}

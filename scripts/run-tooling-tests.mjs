@@ -23,6 +23,7 @@ export const testFiles = [
 	'scripts/fast-af-provenance.test.mjs',
 	'scripts/violet-provenance.test.mjs',
 	'scripts/plugin-manifest.test.mjs',
+	'scripts/loam-exit-check.test.mjs',
 	'scripts/release-control.test.mjs',
 	'scripts/release-prerelease.test.mjs',
 	'scripts/release/changeset.test.mjs',

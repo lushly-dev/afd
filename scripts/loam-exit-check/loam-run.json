@@ -1,0 +1,197 @@
+{
+	"databaseId": 42700000001,
+	"workflowName": "Loam",
+	"path": ".github/workflows/loam.yml",
+	"repository": "lushly-dev/afd",
+	"event": "workflow_dispatch",
+	"headBranch": "main",
+	"headSha": "0123456789abcdef0123456789abcdef01234567",
+	"status": "completed",
+	"conclusion": "success",
+	"attempt": 1,
+	"url": "https://github.com/lushly-dev/afd/actions/runs/42700000001",
+	"jobs": [
+		{
+			"name": "Affected units",
+			"databaseId": 1,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run actions/checkout",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run node scripts/affected.mjs gate",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
+			"name": "Build, unit and Chromium",
+			"databaseId": 2,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Build the web host and its dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Typecheck the packages and apps",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Unit suites with coverage",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "AFD's lean path",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Theme contract against the tree",
+					"number": 6,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Token-only lint",
+					"number": 7,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Chromium suite against the built shell (phase 0's E1 to E10, phase 1's so far, A1 to A3; the walk is its own job)",
+					"number": 8,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Bundle budget",
+					"number": 9,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Build leaves tracked files unchanged",
+					"number": 10,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 11,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
+			"name": "Editor walk",
+			"databaseId": 3,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Build the web host and its dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The editor area's seeded walk, every seed, thirteen invariants after each step",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The run leaves tracked files unchanged",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		{
+			"name": "Mounted against Umbel",
+			"databaseId": 4,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Build the web host and its dependencies",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "E3, E4 and E9's mounted part, through a test-only relay",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The run leaves tracked files unchanged",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		}
+	]
+}

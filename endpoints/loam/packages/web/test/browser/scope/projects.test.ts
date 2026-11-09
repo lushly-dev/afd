@@ -272,7 +272,7 @@ describe('P2-E9: the projects section', () => {
 		await opened.context.close();
 	});
 
-	it("P2-E9 and P2-D9: the home shows tasks' counts and links that navigate; a summary that hangs, throws or is over its bounds is its own row, as text", async () => {
+	it("P2-E9: P2-D9: the home shows tasks' counts and links that navigate; a summary that hangs, throws or is over its bounds is its own row, as text", async () => {
 		const opened = await openProjects();
 		const { page } = opened;
 		await create(page, 'Atlas');

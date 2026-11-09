@@ -93,7 +93,7 @@ describe('constants shared with the manifest', () => {
 	});
 });
 
-describe('E8: grants', () => {
+describe('P2-E13: E8: grants', () => {
 	it('refuses a grant outside the catalog, and the rest of the shell works', async () => {
 		const { kernel } = await boot([entry('bad'), entry('probe')], {
 			'apps/bad/': { manifest: manifest('bad', { grants: [{ name: 'teleport', reason: 'r' }] }) },

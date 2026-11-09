@@ -121,7 +121,7 @@ describe('createMountTransport', () => {
 		expect((refused as Error).message).not.toContain('server');
 	});
 
-	it("P2-E6 (unit): puts a command call's meta in `_meta`, and sends none without it (9.2)", async () => {
+	it("P2-E6: (unit) puts a command call's meta in `_meta`, and sends none without it (9.2)", async () => {
 		const sent: Array<{ params: Record<string, unknown> }> = [];
 		const { Fake } = fakeTransport({
 			send: async (request) => {

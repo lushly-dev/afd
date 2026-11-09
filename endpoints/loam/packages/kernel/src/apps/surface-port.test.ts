@@ -178,7 +178,7 @@ describe('P2-E7: the checks of a surface port, in the order `checkedCall` makes 
 		);
 	});
 
-	it('runs bound to the scope it was created in, whatever is active when the call arrives', async () => {
+	it('P2-E7: P2-D6: runs bound to the scope it was created in, whatever is active when the call arrives', async () => {
 		const workspace = await scoped();
 		const { kernel } = workspace;
 		await kernel.call('scope-set', { project: 'atlas' });

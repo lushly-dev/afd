@@ -85,7 +85,7 @@ function noViolations(opened: ShellPage) {
 	expect(opened.errors).toEqual([]);
 }
 
-describe('E1: every layout change is a journaled command', () => {
+describe('P2-E13: E1: every layout change is a journaled command', () => {
 	it('toggles twice when a chord is pressed twice quickly', async () => {
 		const opened = await shellAt(1600);
 		const { page } = opened;
@@ -290,7 +290,7 @@ describe('E1: every layout change is a journaled command', () => {
 	});
 });
 
-describe('E5: the layout classes', () => {
+describe('P2-E13: E5: the layout classes', () => {
 	it('shows the tab bar and a modal drawer at 390 × 844, trapping and returning focus', async () => {
 		const opened = await openShell(browser, site.origin, { viewport: { width: 390, height: 844 } });
 		const { page } = opened;

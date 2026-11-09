@@ -91,7 +91,7 @@ const labels = (rows: NewItemV1[]) =>
 			: `${row.instance}:${row.command}`
 	);
 
-describe('P2-D8 (kernel unit): new-list by scope, recents first', () => {
+describe('P2-D8: (kernel unit) new-list by scope, recents first', () => {
 	it("lists each template of the call level's types and each creator, by the rail's order", async () => {
 		const held = await workspace();
 		// At workspace level: `probe` at either level; the project-only memo and tasks' creator are not here.
@@ -223,7 +223,7 @@ const search = async (held: ScopedWorkspace, query: string): Promise<PaletteItem
 const documentRows = (rows: PaletteItem[]) =>
 	rows.filter((row) => row.kind === 'document').map((row) => `${row.title}: ${row.description}`);
 
-describe("P2-D8 (kernel unit): the palette's document rows (8.2)", () => {
+describe("P2-D8: (kernel unit) the palette's document rows (8.2)", () => {
 	it('finds active titles, each filtered through decideAccess at query time', async () => {
 		const held = await workspace();
 		const { kernel, scopes } = held;
@@ -298,7 +298,7 @@ describe("P2-D8 (kernel unit): the palette's document rows (8.2)", () => {
 	});
 });
 
-describe('P2-D8 (kernel unit): recents per person, bounded at five (7, G-S2, T-N2)', () => {
+describe('P2-D8: (kernel unit) recents per person, bounded at five (7, G-S2, T-N2)', () => {
 	it('keeps five: a sixth evicts the oldest, and creating one again moves it first with no copy', async () => {
 		const held = await workspace({}, PROBE_SIX);
 		const { kernel } = held;
@@ -352,7 +352,7 @@ describe('P2-D8 (kernel unit): recents per person, bounded at five (7, G-S2, T-N
 	});
 });
 
-describe("P2-D8 (kernel unit): a creator only runs its own app's command (T-B1)", () => {
+describe("P2-D8: (kernel unit) a creator only runs its own app's command (T-B1)", () => {
 	it('lists a ui.new entry only when its app owns the command, whatever the manifest says', async () => {
 		const summary = {
 			instance: 'own',
@@ -402,7 +402,7 @@ describe("P2-D8 (kernel unit): a creator only runs its own app's command (T-B1)"
 	});
 });
 
-describe("P2-D8 (kernel unit): the palette's rows after a write during a build", () => {
+describe("P2-D8: (kernel unit) the palette's rows after a write during a build", () => {
 	it('builds again when a record is written while the index is being read, so an old title never shows', async () => {
 		let gate: (() => void) | undefined;
 		let holding = false;
@@ -435,7 +435,7 @@ describe("P2-D8 (kernel unit): the palette's rows after a write during a build",
 	});
 });
 
-describe('P2-D1 (kernel unit): loam.layout.~documents declares the inspector with a type that has one (5.1)', () => {
+describe('P2-D1: (kernel unit) loam.layout.~documents declares the inspector with a type that has one (5.1)', () => {
 	it('declares it while the active tab’s plugin has a type with an inspector, and not with no tab or after a reload’s restore of none', async () => {
 		const store = new MemoryAdapter();
 		const held = await workspace({ store });
@@ -460,7 +460,7 @@ describe('P2-D1 (kernel unit): loam.layout.~documents declares the inspector wit
 	});
 });
 
-describe('P2-D10 (kernel unit): every layout read agrees while the inspector is undeclared (step 12, S-2)', () => {
+describe('P2-D10: (kernel unit) every layout read agrees while the inspector is undeclared (step 12, S-2)', () => {
 	/** `probe` with no inspector: its tab active, `~documents` declares none, as for the browser's sheet. */
 	const NO_INSPECTOR = {
 		...PROBE_DOCUMENTS_MANIFEST,
@@ -532,7 +532,7 @@ describe('P2-D10 (kernel unit): every layout read agrees while the inspector is 
 	});
 });
 
-describe('P2-D8 (kernel unit): loam.layout.~documents (5.1, G-S3)', () => {
+describe('P2-D8: (kernel unit) loam.layout.~documents (5.1, G-S3)', () => {
 	it('is the documents section’s layout, declaring the sidebar alone, kept apart from the no-app record and across a reload', async () => {
 		const store = new MemoryAdapter();
 		const held = await workspace({ store });
@@ -566,7 +566,7 @@ describe('P2-D8 (kernel unit): loam.layout.~documents (5.1, G-S3)', () => {
 	});
 });
 
-describe("P2-D8 (kernel unit): the palette's needs-input flag agrees with New's (step 11's re-check)", () => {
+describe("P2-D8: (kernel unit) the palette's needs-input flag agrees with New's (step 11's re-check)", () => {
 	it('marks a command needing input in every anyOf branch, or by minProperties, as New refuses it', async () => {
 		const branchy = (extra: object) => ({
 			type: 'object',

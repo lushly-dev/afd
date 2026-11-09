@@ -85,7 +85,7 @@ const rowsOf = (page: Page) =>
 		.locator('loam-console violet-option')
 		.evaluateAll((rows) => rows.map((row) => (row as HTMLElement & { value: string }).value));
 
-describe('E4: instances, through a test-only relay', () => {
+describe('P2-E13: E4: instances, through a test-only relay', () => {
 	it('loads two instances with names apart, and no location or credential reaches the page', async () => {
 		await withSite(twoInstances(), async (site) => {
 			const { page, errors, violations, context } = await openShell(browser, site.origin);
