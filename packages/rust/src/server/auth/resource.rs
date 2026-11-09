@@ -365,7 +365,7 @@ impl ProtectedResource {
 }
 
 /// The scope tokens of `scopes`, joined by single spaces.
-fn joined_tokens(scopes: &[String]) -> String {
+pub(super) fn joined_tokens(scopes: &[String]) -> String {
     scopes
         .iter()
         .filter(|scope| is_scope_token(scope))

@@ -46,6 +46,11 @@
 //!   grouped actions, hybrid first-class tools): any missing scope is one 403 naming every
 //!   missing scope in step order (M6). It strips the `Authorization` header and passes the
 //!   verified [`Credentials`] on in the request's extensions.
+//! - **A host's own layer** that admits credentials itself ([`Authorization::admit`]) runs the
+//!   same decision before dispatch through
+//!   [`McpServer::pre_dispatch_check`](super::McpServer::pre_dispatch_check): the bearer layer
+//!   runs that same [`PreDispatchCheck`], so the two answer every request alike, but for a 403's
+//!   challenge when the host names its own scheme ([`ScopeChallenge`]).
 //! - **Fail closed** (M1). A server with authorization accepts only credentials admitted for its
 //!   own configuration ([`Authorization::admit`], which its bearer layer calls). An HTTP request
 //!   without them (the layer left out, or a layer from another server) is refused with
@@ -93,6 +98,7 @@ pub use crate::credentials::Credentials;
 
 mod bearer;
 mod claims;
+mod dispatch;
 mod jwt;
 mod layer;
 mod resource;
@@ -104,6 +110,7 @@ pub use claims::{
     TokenRules, DEFAULT_CLOCK_SKEW_S, DEFAULT_MAX_TOKEN_LIFETIME_S, DEFAULT_SCOPE_LIMIT,
     MAX_CLAIM_CHARS, MAX_CLOCK_SKEW_S,
 };
+pub use dispatch::{PreDispatch, PreDispatchCheck, ScopeChallenge};
 pub use jwt::{
     is_compact_jws, ClientCertificate, Jwk, JwtIssuer, JwtVerifier, KeyError, KeySource,
     SigningAlgorithm, StaticKeys,
@@ -526,14 +533,25 @@ pub(crate) fn request_credentials(
             Err(Refused::Unauthenticated)
         };
     };
+    admitted(auth, &parts.extensions)
+        .map(|credentials| Some(Arc::new(credentials.clone())))
+        .ok_or(Refused::Unauthenticated)
+}
+
+/// The credentials in `extensions` admitted for `auth` ([`Authorization::admit`]), or `None`
+/// when there are none, or they were admitted for another authorization or not at all.
+pub(crate) fn admitted<'a>(
+    auth: &Authorization,
+    extensions: &'a http::Extensions,
+) -> Option<&'a Credentials> {
     match (
-        parts.extensions.get::<AdmittedBy>(),
-        parts.extensions.get::<Credentials>(),
+        extensions.get::<AdmittedBy>(),
+        extensions.get::<Credentials>(),
     ) {
         (Some(admitted), Some(credentials)) if *admitted == AdmittedBy(auth.id) => {
-            Ok(Some(Arc::new(credentials.clone())))
+            Some(credentials)
         }
-        _ => Err(Refused::Unauthenticated),
+        _ => None,
     }
 }
 
@@ -728,7 +746,25 @@ impl McpServer {
         let auth = self.inner.auth.clone().ok_or(
             "[AFD] bearer_layer needs with_authorization: the server has no authorization configured",
         )?;
-        Ok(BearerLayer::new(self.clone(), auth))
+        Ok(BearerLayer::new(PreDispatchCheck::new(self.clone(), auth)))
+    }
+
+    /// The bearer layer's decision before dispatch (`spec/authorization.md`, M6), for a host
+    /// whose own HTTP layer admits credentials instead of the bearer layer
+    /// ([`Authorization::admit`]), such as a gateway that vouches for each caller. Run
+    /// [`PreDispatchCheck::decide`] on each request after admitting its credentials and reading
+    /// its body, and pass the request on only when it says [`PreDispatch::Proceed`]: a missing
+    /// scope is then the bearer layer's 403 before dispatch, decided by the same code, instead
+    /// of `INSUFFICIENT_SCOPE` after routing. Build it from the server the service is built from,
+    /// after every other builder, as [`Self::bearer_layer`].
+    ///
+    /// # Errors
+    /// The server has no [`Self::with_authorization`].
+    pub fn pre_dispatch_check(&self) -> Result<PreDispatchCheck, String> {
+        let auth = self.inner.auth.clone().ok_or(
+            "[AFD] pre_dispatch_check needs with_authorization: the server has no authorization configured",
+        )?;
+        Ok(PreDispatchCheck::new(self.clone(), auth))
     }
 
     /// Serve this server over a transport that carries no HTTP request and whose callers the

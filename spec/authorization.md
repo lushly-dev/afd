@@ -285,10 +285,14 @@ ScopeResolver
 ### Which commands a request names
 
 - A command's own tool, a hybrid first-class tool, and a grouped tool's action: that command. A
-  grouped action is resolved as the router would; a grouped call it cannot resolve (no action, or
-  an unknown or ambiguous one) is decided as a tool that names no command, under the grouped tool's
-  name, so it still needs `requiredScopes`; the router then answers it (`COMMAND_NOT_FOUND`,
-  `AMBIGUOUS_ACTION` or `INVALID_GROUPED_CALL`).
+  grouped call is resolved as the router resolves it: a call with an `action` is a grouped call on
+  any tool name, and a call without one is a grouped call only when the tool's group has a member
+  the caller is shown ([Listing](#listing)); otherwise it is a call of the command the tool names,
+  which the router runs directly. A grouped call it cannot resolve to one command (no action, or
+  an unknown or ambiguous action) runs nothing, so it is decided as a name that does not exist:
+  on `requiredScopes` alone, with `resolve` never asked about the tool's name, which may be a
+  hidden command's. The router then answers it (`COMMAND_NOT_FOUND`, `AMBIGUOUS_ACTION` or
+  `INVALID_GROUPED_CALL`).
 - A command the request names that does not exist for the caller (unknown, not exposed to MCP, or
   [hidden](#hidden-commands) from it) is decided on `requiredScopes` alone: it has no `scopes` of
   its own, and a resolver is never asked about it, so a scope never reveals a command the caller
@@ -300,8 +304,12 @@ ScopeResolver
 - `afd-call`: the command it names, with its `input`.
 - `afd-batch` and `afd-pipe`: every step's command, with its input. A pipeline step's input is
   resolved with its references unresolved, as sent.
-- A tool that names no command (`afd-discover`, `afd-detail`, `afd-help`, the context tools): the
-  tool's own name, with its arguments. Under the static rule it needs `requiredScopes` only.
+- A tool that names no command (`afd-discover`, `afd-detail`, `afd-help`, the context tools, and
+  `afd-call`, `afd-batch` or `afd-pipe` without a command for every step): the tool's own name,
+  with its arguments. Under the static rule it needs `requiredScopes` only. Its arguments are the
+  caller's, as sent, and may name any command, hidden ones included (`afd-detail`'s `command`, a
+  malformed batch's other steps): a resolver that decides such a tool must not decide on whether
+  a command its input names exists.
 - `/rpc`, `/batch` and `/stream`: as `afd-call` and `afd-batch`.
 
 ### Before dispatch: the 403
@@ -317,6 +325,33 @@ registry.
 A request the layer cannot decide this way, such as a call on the deprecated `/message` lane
 (whose answer travels on another connection) or a body it cannot parse, is decided again after
 routing.
+
+**A host's own layer.** A host whose own HTTP layer admits credentials instead of the bearer
+layer (a gateway that vouches for each caller, say) may run the same decision on each request it
+admitted, after admitting the credentials for the server's own authorization and reading the
+body. A language that offers this runs the bearer layer's own implementation, not a copy, so the
+two cannot drift, and a request gets exactly the answer the bearer layer would give it after
+admitting the same credentials:
+
+- the same body cap (over it, 413) and the same JSON-RPC batch refusal (400, `-32600`);
+- the same commands named, resolved as above, with a name that does not exist for the caller
+  (unknown, unexposed or hidden) and a grouped call that resolves to no command decided on
+  `requiredScopes` alone, so a hidden command still answers as a missing one;
+- the same aggregation: any missing step is one 403 naming every missing scope of every step,
+  each once, in step order, and nothing is passed on;
+- the same body for that 403, with the host's suggestion when it names what its callers obtain
+  instead of a token;
+- a body that cannot be parsed, and every method but `POST`, passed on to be decided after
+  routing; and, under the cap, a request without credentials admitted for the server's own
+  authorization not decided at all, since the server refuses it (M1). A host reads the body
+  under the same cap the bearer layer reads it under.
+
+Only the 403's challenge may differ, when the host's callers authenticate by a scheme of its own
+rather than `Bearer`: `<scheme> <param>="<value>", ..., error="insufficient_scope",
+scope="<missing>"`, the host's scheme and parameters (a `realm`, say) first, `scope` under M5's
+rules (scope tokens only, never sent empty), and no `resource_metadata`, since such a host
+publishes no metadata for its scheme. The scheme is never `Bearer`: a `Bearer` 403 is M5's.
+After routing and at execution, the decisions below stay as they are.
 
 ### After routing: `INSUFFICIENT_SCOPE`
 
@@ -499,7 +534,9 @@ does ([tasks](./command-metadata.md#tasks)).
 
 Rust spells them on `afd::server::auth` behind the `server-auth` feature (`BearerLayer`,
 `ProtectedResource`, `JwtVerifier`, `KeySource`, `ScopeResolver`), as the Umbel specification's
-section 3.3 gives.
+section 3.3 gives. A host's own layer runs the decision before dispatch through
+`McpServer::pre_dispatch_check` (`PreDispatchCheck::decide`, with `ScopeChallenge` for its own
+scheme and `ProtectedResource::with_scope_source` for its suggestion).
 
 ## Conformance
 
@@ -551,7 +588,8 @@ decides every other call after routing. `tests/authorization_cases.rs` loads eve
 the test (RSA, EC P-256 and P-384, Ed25519), `tests/server_auth.rs` the layer end to end,
 `tests/server_auth_hardening.rs` the fail-closed, refusal, execution-time and suggestion rules,
 `tests/server_auth_hidden.rs` the hidden commands, each answer compared with a twin server's
-for a name it does not have, and
+for a name it does not have, `tests/server_auth_pre_dispatch.rs` a host's own layer running the
+decision before dispatch, each answer compared byte for byte with the bearer layer's, and
 `tests/auth_canary.rs` the token canary over every log line. Rust serves the layer and the service
 together through `McpServer::authorized_http_service`.
 
@@ -591,6 +629,7 @@ Rust ask again, Python answers `-32602`.
 | Bearer token, verification, audience, credentials (M1 to M4) | Planned | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
 | 401 and 403, rule codes (M5) | Planned | Planned | Yes (step 0b) | N/A |
 | Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
+| [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Planned | Planned | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
 | [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Planned | Planned | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
 | Protected-resource metadata (M7) | Planned | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |

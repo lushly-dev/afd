@@ -9,18 +9,16 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use http::header::{ALLOW, AUTHORIZATION, CONTENT_TYPE, WWW_AUTHENTICATE};
+use http::header::{ALLOW, AUTHORIZATION, CONTENT_TYPE};
 use http::{HeaderValue, Method, Request, Response, StatusCode};
 use http_body::Body;
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
-use serde_json::{Map, Value};
 use tower_layer::Layer;
 use tower_service::Service;
 
-use super::super::McpServer;
 use super::bearer::extract_bearer;
-use super::scopes::{call_decision, request_missing, RequestDecision};
+use super::dispatch::{json_response, plain, PreDispatch, PreDispatchCheck};
 use super::{Authorization, RuleCode};
 
 /// The response body of a [`BearerService`]: the inner service's, or the layer's own JSON.
@@ -29,8 +27,9 @@ pub type BearerBody<E> = BoxBody<Bytes, E>;
 type BoxedFuture<T, E> = Pin<Box<dyn Future<Output = Result<T, E>> + Send>>;
 
 struct Shared {
-    server: McpServer,
-    auth: Arc<Authorization>,
+    /// The decision before dispatch, which a host's own layer runs too
+    /// ([`McpServer::pre_dispatch_check`](super::super::McpServer::pre_dispatch_check)).
+    check: PreDispatchCheck,
     metadata_paths: Vec<String>,
 }
 
@@ -47,12 +46,13 @@ struct Shared {
 /// 2. takes the one bearer token (M2), and verifies it with the configured verifier (M3), or
 ///    answers 401 (M5), logging the rule code at `warn` with the issuer alias, never the token or
 ///    a claim value;
-/// 3. reads the body (at most the configured size, else 413) and, for a JSON-RPC `tools/call`,
-///    decides every command it names before dispatch: any missing scope is one 403 naming every
-///    missing scope in step order (M6). Every other request needs the required scopes;
-/// 4. removes the `Authorization` header and passes the request on with the verified
-///    [`Credentials`](crate::Credentials) in its extensions. Nothing behind the layer, the context
-///    hook included, ever sees the token.
+/// 3. reads the body (at most the configured size, else 413), removes the `Authorization`
+///    header and admits the verified [`Credentials`](crate::Credentials) into the request's
+///    extensions. Nothing behind the layer, the context hook included, ever sees the token;
+/// 4. runs the decision before dispatch ([`PreDispatchCheck`], which a host's own layer can run
+///    too): for a JSON-RPC `tools/call`, every command it names is decided, and any missing scope
+///    is one 403 naming every missing scope in step order (M6). Every other request needs the
+///    required scopes. Then it passes the request on.
 #[derive(Clone)]
 pub struct BearerLayer {
     shared: Arc<Shared>,
@@ -67,12 +67,11 @@ impl std::fmt::Debug for BearerLayer {
 }
 
 impl BearerLayer {
-    pub(crate) fn new(server: McpServer, auth: Arc<Authorization>) -> Self {
-        let metadata_paths = auth.metadata.metadata_paths();
+    pub(crate) fn new(check: PreDispatchCheck) -> Self {
+        let metadata_paths = check.auth.metadata.metadata_paths();
         Self {
             shared: Arc::new(Shared {
-                server,
-                auth,
+                check,
                 metadata_paths,
             }),
         }
@@ -103,35 +102,9 @@ impl<S> std::fmt::Debug for BearerService<S> {
     }
 }
 
-fn json_response<E>(
-    status: StatusCode,
-    body: &Value,
-    challenge: Option<String>,
-) -> Response<BearerBody<E>> {
-    let mut response = Response::new(own_body(Bytes::from(body.to_string())));
-    *response.status_mut() = status;
-    response
-        .headers_mut()
-        .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    if let Some(challenge) = challenge {
-        // The challenge is built from checked URLs and scope tokens: visible ASCII.
-        if let Ok(value) = HeaderValue::from_str(&challenge) {
-            response.headers_mut().insert(WWW_AUTHENTICATE, value);
-        }
-    }
-    response
-}
-
-fn own_body<E>(bytes: Bytes) -> BearerBody<E> {
-    Full::new(bytes)
-        .map_err(|never: Infallible| match never {})
-        .boxed()
-}
-
-fn plain<E>(status: StatusCode) -> Response<BearerBody<E>> {
-    let mut response = Response::new(own_body(Bytes::new()));
-    *response.status_mut() = status;
-    response
+/// One of the layer's own responses, as a [`BearerBody`].
+fn boxed<E>(response: Response<Full<Bytes>>) -> Response<BearerBody<E>> {
+    response.map(|body| body.map_err(|never: Infallible| match never {}).boxed())
 }
 
 fn is_form(headers: &http::HeaderMap) -> bool {
@@ -163,6 +136,10 @@ where
 }
 
 impl Shared {
+    fn auth(&self) -> &Authorization {
+        &self.check.auth
+    }
+
     fn unauthorized<E>(&self, rule: RuleCode, issuer: Option<&str>) -> Response<BearerBody<E>> {
         tracing::warn!(
             target: "afd::auth",
@@ -170,21 +147,12 @@ impl Shared {
             issuer = issuer.unwrap_or("-"),
             "refused a request's bearer token"
         );
-        let metadata = &self.auth.metadata;
-        json_response(
+        let metadata = &self.auth().metadata;
+        boxed(json_response(
             StatusCode::UNAUTHORIZED,
             &metadata.unauthorized_body(),
             Some(metadata.unauthorized_challenge(rule != RuleCode::NoToken)),
-        )
-    }
-
-    fn forbidden<E>(&self, missing: &[String]) -> Response<BearerBody<E>> {
-        let metadata = &self.auth.metadata;
-        json_response(
-            StatusCode::FORBIDDEN,
-            &metadata.forbidden_body(missing),
-            Some(metadata.forbidden_challenge(missing)),
-        )
+        ))
     }
 
     fn metadata<E>(&self, method: &Method) -> Response<BearerBody<E>> {
@@ -193,61 +161,14 @@ impl Shared {
             response
                 .headers_mut()
                 .insert(ALLOW, HeaderValue::from_static("GET"));
-            return response;
+            return boxed(response);
         }
-        json_response(StatusCode::OK, &self.auth.metadata.document(), None)
-    }
-
-    /// The decision on a request body (M6): a JSON-RPC `tools/call` is decided over every call
-    /// it names, any other message needs the required scopes. `None` for a body the layer cannot
-    /// parse, decided again after routing.
-    fn body_decision(&self, body: &[u8], credentials: &crate::Credentials) -> Option<Decided> {
-        let message = serde_json::from_slice::<Value>(body).ok()?;
-        if message.is_array() {
-            return Some(Decided::Batch);
-        }
-        let params = message.get("params");
-        let name = params
-            .and_then(|params| params.get("name"))
-            .and_then(Value::as_str);
-        Some(Decided::Scopes(
-            match (message.get("method").and_then(Value::as_str), name) {
-                (Some("tools/call"), Some(name)) => {
-                    let args = params
-                        .and_then(|params| params.get("arguments"))
-                        .and_then(Value::as_object)
-                        .cloned()
-                        .unwrap_or_else(Map::new);
-                    call_decision(&self.server, &self.auth, name, &args, credentials)
-                }
-                _ => request_missing(&self.auth, credentials),
-            },
+        boxed(json_response(
+            StatusCode::OK,
+            &self.auth().metadata.document(),
+            None,
         ))
     }
-}
-
-/// What the layer decided about a body.
-enum Decided {
-    /// A JSON-RPC batch: MCP has none since 2025-06-18, so the layer refuses it before deciding.
-    Batch,
-    /// The scope decision on the one message.
-    Scopes(RequestDecision),
-}
-
-/// The 400 for a JSON-RPC batch.
-fn batch_refused<E>() -> Response<BearerBody<E>> {
-    json_response(
-        StatusCode::BAD_REQUEST,
-        &serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": null,
-            "error": {
-                "code": -32600,
-                "message": "JSON-RPC batches are not supported: send one message per request",
-            },
-        }),
-        None,
-    )
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for BearerService<S>
@@ -284,14 +205,14 @@ where
             {
                 return Ok(shared.metadata(&parts.method));
             }
-            let limit = shared.auth.max_body_bytes;
+            let limit = shared.auth().max_body_bytes;
             let mut body = Some(body);
             // M2: a form body is read before the token, since a token in it refuses the request.
             let form = if is_form(&parts.headers) {
                 let body = body.take().expect("the body is read once");
                 match read_body(body, limit).await {
                     Ok(bytes) => Some(bytes),
-                    Err(status) => return Ok(plain(status)),
+                    Err(status) => return Ok(boxed(plain(status))),
                 }
             } else {
                 None
@@ -309,7 +230,7 @@ where
                 }
             };
             // M3: verify, then forget the token.
-            let verified = shared.auth.verifier.verify(&token, &parts).await;
+            let verified = shared.auth().verifier.verify(&token, &parts).await;
             drop(token);
             let credentials = match verified {
                 Ok(credentials) => credentials,
@@ -321,23 +242,17 @@ where
                 (Some(bytes), _) => bytes,
                 (None, Some(body)) => match read_body(body, limit).await {
                     Ok(bytes) => bytes,
-                    Err(status) => return Ok(plain(status)),
+                    Err(status) => return Ok(boxed(plain(status))),
                 },
                 (None, None) => Bytes::new(),
             };
-            // M6: the 403 before dispatch.
-            if parts.method == Method::POST {
-                match shared.body_decision(&bytes, &credentials) {
-                    Some(Decided::Batch) => return Ok(batch_refused()),
-                    Some(Decided::Scopes(RequestDecision::Forbidden(missing))) => {
-                        return Ok(shared.forbidden(&missing));
-                    }
-                    Some(Decided::Scopes(RequestDecision::Proceed)) | None => {}
-                }
-            }
             // M2: nothing behind the layer receives the token.
             parts.headers.remove(AUTHORIZATION);
-            shared.auth.admit(&mut parts.extensions, credentials);
+            shared.auth().admit(&mut parts.extensions, credentials);
+            // M6: the 403 before dispatch, decided as a host's own layer decides it.
+            if let PreDispatch::Respond(response) = shared.check.decide(&parts, &bytes) {
+                return Ok(boxed(response));
+            }
             let response = inner
                 .call(Request::from_parts(parts, Full::new(bytes)))
                 .await?;
