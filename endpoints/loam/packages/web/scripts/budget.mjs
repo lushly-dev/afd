@@ -163,7 +163,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * that embeds, since `editor` had 693 bytes left: first measured at 5,542, set at its measurement plus 10%,
  * 6,096, for the coordinator to approve. It holds the element, its read and re-check, and the link it shows
  * for a type with no embed (`resourceLinkUrl` and `formatRoute`, which `sections` also loads). `late` rose by
- * 4,990, within step 12's ledger line of 5,000; `editor` 33,321, `view` 24,995, `surfaces` 83,556 and
+ * 4,990, within step 12's ledger line of 5,000; `editor` 33,321, `view` 25,012, `surfaces` 83,556 and
  * `documents` 53,757, within their rows; first paint's bytes, `apps` and `late-editor` are unchanged.
  */
 export const CEILINGS = Object.freeze({
