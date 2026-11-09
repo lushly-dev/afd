@@ -26,6 +26,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, SUITES } from './affected/suites.mjs';
+import { defaultTargets, sweep } from './rust-sweep.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
@@ -204,6 +205,15 @@ function verify(scope, options) {
 	if (options.list) return;
 	const missing = missingTools(plan);
 	if (missing.length > 0) throw new Error(`missing tools: ${missing.join('; ')}`);
+	// Before building Rust, evict what no build has read for days, so a shared CARGO_TARGET_DIR
+	// does not grow without bound (scripts/rust-sweep.mjs). A sweep never fails verify.
+	if (plan.some(({ suite }) => suite.tools.includes('cargo')))
+		try {
+			for (const line of sweep(defaultTargets(root), { days: 3, maxGb: 60 }))
+				console.error(`[verify] rust-sweep: ${line}`);
+		} catch (error) {
+			console.error(`[verify] rust-sweep: ${error.message}`);
+		}
 
 	const results = [];
 	const record = (name, action) => {
