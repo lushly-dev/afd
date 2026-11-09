@@ -710,8 +710,10 @@ describe('P2-D5: a view editor that cannot move with its draft, where the browse
 async function personMove(page: Page, title: string): Promise<void> {
 	await page.locator('loam-editor-group [role="tab"]', { hasText: title }).focus();
 	await page.keyboard.press('Shift+F10');
+	// The open menu's: each group has one.
 	await page
 		.locator('loam-editor-group [role="menuitem"]', { hasText: 'Move to a new group' })
+		.filter({ visible: true })
 		.click();
 }
 
@@ -904,6 +906,123 @@ describe('P2-D5: a view editor when another group goes', () => {
 		);
 		expect(await frame.locator('#text').inputValue()).toBe('Draft in place');
 		expect(await marked(page, 't2')).toBe(true);
+		await opened.context.close();
+	}, 120_000);
+});
+
+/**
+ * A sheet drafted beside a note where the browser has no `moveBefore`, its window marked, held in the note's group
+ * after an agent's move of its tab whose move back the chrome is refused once, as a full group would refuse it.
+ */
+async function heldSheet(page: Page, title: string) {
+	await page.evaluate(() => delete (Element.prototype as { moveBefore?: unknown }).moveBefore);
+	const note = await createNote(page, 'Home');
+	await open(page, note, { preview: false });
+	const { sheet, frame } = await draftSheet(page, title, 'Held draft', { preview: false });
+	await frame.evaluate(() => {
+		(window as unknown as { marker: string }).marker = 'same window';
+	});
+	await page.evaluate(() => {
+		const shell = document.querySelector('loam-shell') as unknown as {
+			kernel: { call(name: string, input?: unknown, options?: unknown): Promise<unknown> };
+		};
+		const call = shell.kernel.call.bind(shell.kernel);
+		let refuse = true;
+		shell.kernel.call = (name, input, options) => {
+			if (name === 'editor-move' && refuse) {
+				refuse = false;
+				return Promise.resolve({
+					success: false,
+					error: { code: 'EDITOR_TAB_LIMIT', message: 'Full' },
+				});
+			}
+			return call(name, input, options);
+		};
+	});
+	await agentCall(page, 'editor-move', { tab: 't2', group: 'new' });
+	await editorIdle(page);
+	await expect.poll(() => tabsByGroup(page)).toEqual([[note], [sheet]]);
+	return { note, sheet, frame };
+}
+
+/** The placeholder a held view editor's tab shows, in the group that tab is in. */
+const placeholder = (page: Page) => page.locator('loam-editor-held');
+
+describe('P2-D5: a held view editor’s placeholder (the final re-check’s S-1)', () => {
+	it('P2-D5: shows a placeholder, announced and reachable by keyboard, whose Move back brings the tab to its editor with its draft', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { note, sheet, frame } = await heldSheet(page, 'Held here');
+		await expect.poll(() => placeholder(page).isVisible()).toBe(true);
+		await expect
+			.poll(() => placeholder(page).getByRole('status').textContent())
+			.toContain("Held here's unsaved changes are held in its other group");
+		// Keyboard: from the tab, Tab reaches Move back.
+		await page.locator('loam-editor-group [role="tab"]', { hasText: 'Held here' }).focus();
+		let reached = false;
+		for (let press = 0; press < 6 && !reached; press++) {
+			await page.keyboard.press('Tab');
+			reached =
+				(await deepFocus(page)).name === 'button' &&
+				(await page.evaluate(() => {
+					let at: Element | null = document.activeElement;
+					while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+					return at?.textContent?.trim();
+				})) === 'Move back';
+		}
+		expect(reached).toBe(true);
+		await page.keyboard.press('Enter');
+		await expect.poll(() => tabsByGroup(page)).toEqual([[note, sheet]]);
+		await editorIdle(page);
+		await expect.poll(() => placeholder(page).count()).toBe(0);
+		expect(await frame.evaluate(() => (window as unknown as { marker?: string }).marker)).toBe(
+			'same window'
+		);
+		expect(await frame.locator('#text').inputValue()).toBe('Held draft');
+		expect(await marked(page, 't2')).toBe(true);
+		expect(await storedAt(page, sheet)).toBe('');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: its Save saves the held draft, and the tab’s group then shows its editor', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { note, sheet } = await heldSheet(page, 'Saved from held');
+		await placeholder(page).getByRole('button', { name: 'Save' }).click();
+		await expect.poll(() => storedAt(page, sheet)).toBe('Held draft');
+		await viewReady(page, 't2');
+		await editorIdle(page);
+		await expect.poll(() => placeholder(page).count()).toBe(0);
+		expect(await tabsByGroup(page)).toEqual([[note], [sheet]]);
+		await expect.poll(() => marked(page, 't2')).toBe(false);
+		const moved = await sheetFrame(page, 'Saved from held');
+		await expect.poll(() => moved.locator('#text').inputValue()).toBe('Held draft');
+		await opened.context.close();
+	}, 120_000);
+
+	it('P2-D5: another tab’s move, the person’s own, leaves a held view editor, its draft and its placeholder alone', async () => {
+		const opened = await openShell(browser, viewSite.root);
+		const { page } = opened;
+		const { note, sheet, frame } = await heldSheet(page, 'Left alone');
+		const other = await createNote(page, 'Unrelated');
+		await kernelCall(page, 'document-open', { document: other, group: 'beside' });
+		await editorIdle(page);
+		await personMove(page, 'Unrelated');
+		await editorIdle(page);
+		await expect
+			.poll(async () => (await tabsByGroup(page)).flat().sort())
+			.toEqual([note, sheet, other].sort());
+		expect((await tabsByGroup(page)).find((group) => group.includes(sheet))).toEqual([sheet]);
+		expect(await storedAt(page, sheet)).toBe('');
+		expect(await frame.evaluate(() => (window as unknown as { marker?: string }).marker)).toBe(
+			'same window'
+		);
+		expect(await frame.locator('#text').inputValue()).toBe('Held draft');
+		expect(await marked(page, 't2')).toBe(true);
+		// Its group's tab active again, the placeholder shows.
+		await page.locator('loam-editor-group [role="tab"]', { hasText: 'Left alone' }).click();
+		await editorIdle(page);
+		await expect.poll(() => placeholder(page).isVisible()).toBe(true);
 		await opened.context.close();
 	}, 120_000);
 });

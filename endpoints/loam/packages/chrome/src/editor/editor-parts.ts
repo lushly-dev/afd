@@ -104,8 +104,11 @@ export interface Life {
 	kept?: number;
 	/** A view's editor saving before a move, where the browser has no `moveBefore`, held where it is meanwhile. */
 	moving?: boolean;
-	/** Its move back was refused: it stays where it is until another move, which saves first or is refused. */
-	refused?: boolean;
+	/**
+	 * Its move back was refused: the group its tab is in, where a placeholder stands for it. It stays where it is
+	 * until its own tab moves, and that move saves first or is refused again.
+	 */
+	refused?: string;
 	/** How often its view reloaded on purpose, saved first, moved where the browser has no `moveBefore`. */
 	reloads?: number;
 	/** Its edits that the save before that reload covered, all of them. */

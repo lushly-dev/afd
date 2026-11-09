@@ -544,7 +544,6 @@ export class EditorController implements FrameListener {
 		// The person's own move, from the tab's menu or an undo, may save a view editor before it (`editor-move.ts`).
 		if (event.command === 'editor-move' && event.success) {
 			this.#moved = event.interface === 'palette';
-			for (const frame of this.#frames.values()) (this.#lives.get(frame) as Life).refused = false;
 		}
 		// Another call changed a document: every open editor of it re-reads, its own calls included (5.7).
 		if (event.document !== undefined && event.success) {
@@ -912,8 +911,10 @@ export class EditorController implements FrameListener {
 	#stays(frame: LoamEditorFrame, to: LoamEditorGroup): boolean {
 		const life = this.#lives.get(frame) as Life;
 		const from = frame.parentElement as LoamEditorGroup | null;
-		// Held while it saves, or after its move back was refused, until another move (N2).
-		if (life.moving || life.refused) return true;
+		// Held while it saves, or after its move back was refused while its tab stays there: its own tab's move frees it.
+		if (life.refused === to.group) return true;
+		life.refused = undefined;
+		if (life.moving) return true;
 		if (!from || !savesToMove(frame, from, to)) return false;
 		life.moving = true;
 		const person = this.#moved;
@@ -929,8 +930,7 @@ export class EditorController implements FrameListener {
 				sync: () => this.sync(),
 				groups: this.#groups,
 				holding: this.#holding,
-				// Only the person's own move saves the person's draft; any other's is refused unsaved (T-S2).
-				save: () => (person ? this.#save(frame) : Promise.resolve(false)),
+				save: () => this.#save(frame),
 				person,
 				live: () => this.#live(frame),
 				into: () => this.#groupOf(frame.tab),
