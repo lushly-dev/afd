@@ -7,7 +7,6 @@
  * document, its links among them, as `documentChanged`, and goes when its tab stops being the active one.
  */
 
-import { css } from '@lushly-dev/fast-element';
 import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type {
 	DocumentRecordV1,
@@ -29,21 +28,6 @@ interface Held {
 
 const held = new WeakMap<LoamShell, Held>();
 
-/** The inspector part and its resize handle, hidden while the active type has no inspector (A-S3). */
-const hiddenPart = css`
-	:host([data-no-inspector]) loam-inspector,
-	:host([data-no-inspector]) [data-resizes='inspector'] {
-		display: none;
-	}
-`;
-
-function hidePart(shell: LoamShell, hide: boolean): void {
-	if (hide && !shell.dataset.inspectorStyled) {
-		shell.dataset.inspectorStyled = '';
-		shell.$fastController.addStyles(hiddenPart);
-	}
-	shell.toggleAttribute('data-no-inspector', hide);
-}
 const heard = new WeakSet<LoamShell>();
 
 /** The active group's active tab's document, from `editor-get`, or undefined with none. */
@@ -119,9 +103,8 @@ export async function syncInspector(
 	drop(shell, part);
 	if (!part || !record || !type || element === undefined) {
 		if (focused && part) focusAfter(shell, part);
-		// No inspector for the active type: the part is hidden, never closed, so the person's layout is theirs and
-		// a note shows it again as they left it; the toggle says the section has none (A-S3, the coordinator's call).
-		hidePart(shell, shows);
+		// No inspector for the active type: `layout-get` answers the part closed, writing nothing, so the shell hides
+		// it, and a note shows it again as the person left it (A-S3; the re-check's B1).
 		return false;
 	}
 	const host = (shell.apps as { host?(): SurfaceHostV1 } | null)?.host?.();
@@ -149,7 +132,6 @@ export async function syncInspector(
 		scope: record.scope,
 		document: reference,
 	});
-	hidePart(shell, false);
 	part.setAttribute('heading', `${type.title} details`);
 	const empty = part.querySelector<HTMLElement>('loam-empty-state');
 	if (empty) empty.hidden = true;
@@ -170,12 +152,14 @@ function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): voi
 	opened = false;
 	const kernel = shell.kernel as LoamKernelV2;
 	requestAnimationFrame(async () => {
-		const read = open
-			? await kernel.call<{
-					activeGroup: string;
-					groups: Array<{ id: string; active: string | null }>;
-				}>('editor-get')
-			: undefined;
+		// With no inspector to take it, the part is about to hide: focus goes to the active editor, else main (S2).
+		const read =
+			open || !mount
+				? await kernel.call<{
+						activeGroup: string;
+						groups: Array<{ id: string; active: string | null }>;
+					}>('editor-get')
+				: undefined;
 		const active = read?.data?.groups.find((group) => group.id === read.data?.activeGroup)?.active;
 		const frame =
 			active &&
@@ -185,8 +169,9 @@ function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): voi
 		if (frame) return frame.focusEditor();
 		if ((mount?.surface as (HTMLElement & { focusFirst?(): boolean }) | null)?.focusFirst?.())
 			return;
-		part.setAttribute('tabindex', '-1');
-		part.focus();
+		const target = mount ? part : shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
+		target?.setAttribute('tabindex', '-1');
+		target?.focus();
 	});
 }
 

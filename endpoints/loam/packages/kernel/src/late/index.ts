@@ -5,7 +5,7 @@
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
 import { createAuthMutationCommands } from '@lushly-dev/afd-auth/commands';
-import type { CommandMiddleware } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
@@ -14,6 +14,7 @@ import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
 import type { ScopeV1 } from '../scope/records.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
+import { DOCUMENTS_LAYOUT_ID } from '../shell-state.js';
 import type { AppSummaryV2, KernelEventV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
@@ -255,6 +256,26 @@ export async function createLateParts(
 		'document-create',
 		created.recording(byName.get('document-create') as ZodCommandDefinition)
 	);
+	// After stage B, `layout-get` answers an inspector `~documents` does not declare as closed, its drawer too,
+	// writing nothing: the shell then hides the part and closes its drawer as for any closed part, and the person's
+	// layout stays theirs, so a note shows the inspector again as they left it (5.1; step 12's re-check, B1).
+	const layoutGet = byName.get('layout-get') as ZodCommandDefinition;
+	byName.set('layout-get', {
+		...layoutGet,
+		async handler(input: unknown, context: CommandContext) {
+			const result = (await layoutGet.handler(input, context)) as CommandResult<{
+				inspector: { open: boolean };
+				compact: { drawer: string | null };
+			}>;
+			const layout = result.data;
+			if (!inspector && layout && deps.state.layoutId() === DOCUMENTS_LAYOUT_ID) {
+				layout.inspector = { ...layout.inspector, open: false };
+				if (layout.compact.drawer === 'inspector')
+					layout.compact = { ...layout.compact, drawer: null };
+			}
+			return result;
+		},
+	} as ZodCommandDefinition);
 	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
