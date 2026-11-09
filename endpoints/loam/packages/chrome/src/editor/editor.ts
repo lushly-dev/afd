@@ -121,7 +121,6 @@ export class EditorController implements FrameListener {
 		this.#shell = shell;
 		this.#kernel = shell.kernel as LoamKernelV2;
 		this.#area = shell.ownerDocument.createElement(editorAreaDefinition.name) as LoamEditorArea;
-		this.#area.shortcut = shell.shortcut;
 		const view = shell.ownerDocument.defaultView ?? window;
 		this.#kernel.subscribe((event) => this.#onEvent(event));
 		// Before the shell's own listener, which leaves Mod+S to this one (5.5).

@@ -1,7 +1,7 @@
 /**
  * The editor area's seeded walk (documents specification, Status, deviation 16): random steps of a person, an
  * agent and held saves, the thirteen invariants checked after each, then every mark against the rule and a
- * trash of every document. Its own CI job, `loam.yml`'s "Editor walk", runs it beside the Chromium suite.
+ * trash of every document. Since step 11 the person also opens from the documents section's tree. Its own CI job, `loam.yml`'s "Editor walk", runs it beside the Chromium suite.
  */
 
 import { type Browser, chromium } from 'playwright';
@@ -414,7 +414,27 @@ describe('P2-D5: the editor area, a seeded walk', () => {
 						}
 					}
 				} else if (kind === 'person-open' && tabs.length > 0) {
-					await kernelCall(page, 'document-open', { document: some().document });
+					// On an even step, through the documents section's tree, as the person presses its row (step
+					// 11): a preview, or the tab kept when it already is one. With no draw of its own, so each
+					// seed's draws are what they were.
+					const document = some().document;
+					const pressed =
+						step % 2 === 0 &&
+						!app &&
+						(await page.evaluate((document) => {
+							const tree = document
+								? (globalThis.document
+										.querySelector('loam-shell')
+										?.shadowRoot?.querySelector('loam-documents-sidebar')
+										?.shadowRoot?.querySelector('loam-tree') ?? null)
+								: null;
+							const label = tree?.shadowRoot?.querySelector<HTMLElement>(
+								`violet-tree-item[data-id="recent:${document}"] > .label`
+							);
+							label?.click();
+							return label !== undefined && label !== null;
+						}, document));
+					if (!pressed) await kernelCall(page, 'document-open', { document });
 				} else if (kind === 'content-set' && tabs.length > 0) {
 					await agentCall(page, 'notes-content-set', {
 						document: some().document,

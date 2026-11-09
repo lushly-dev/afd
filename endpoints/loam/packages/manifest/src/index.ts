@@ -19,6 +19,7 @@ export {
 	TRUST_LINES_V1,
 } from './catalogs.js';
 export { LAYOUT_DEFAULTS_V0, type LayoutDefaultsV0 } from './layout-defaults.js';
+export { needsInputShape } from './needs-input.js';
 // Stage A's reader, in first paint: it holds no validator (phase 2 specification, 2.2).
 export {
 	type BootAppV2,

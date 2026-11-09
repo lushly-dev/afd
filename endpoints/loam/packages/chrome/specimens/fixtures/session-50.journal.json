@@ -178,8 +178,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1794103867394",
-					"expiresAt": "2026-11-08T03:11:07.394Z"
+					"id": "mock-session-1794201424348",
+					"expiresAt": "2026-11-09T06:17:04.348Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -1536,6 +1536,29 @@
 						}
 					},
 					{
+						"id": "loam.layout.~documents",
+						"state": {
+							"version": 0,
+							"sidebar": {
+								"open": true,
+								"width": 260
+							},
+							"inspector": {
+								"open": false,
+								"width": 300
+							},
+							"panel": {
+								"open": false,
+								"height": 240,
+								"maximized": false
+							},
+							"compact": {
+								"drawer": null,
+								"sheet": false
+							}
+						}
+					},
+					{
 						"id": "loam.appearance",
 						"state": {
 							"theme": "dark",
@@ -1573,9 +1596,9 @@
 						}
 					}
 				],
-				"total": 6
+				"total": 7
 			},
-			"reasoning": "Found 6 registered view state(s)",
+			"reasoning": "Found 7 registered view state(s)",
 			"confidence": 1,
 			"metadata": {
 				"executionTimeMs": 1,
@@ -2558,8 +2581,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1794103867394",
-					"expiresAt": "2026-11-08T03:11:07.394Z"
+					"id": "mock-session-1794201424348",
+					"expiresAt": "2026-11-09T06:17:04.348Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",

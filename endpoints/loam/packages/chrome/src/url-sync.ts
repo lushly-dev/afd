@@ -46,6 +46,9 @@ interface NavigationLike {
 	navigate(url: string, options: { history: 'push' | 'replace'; info: unknown }): unknown;
 }
 
+/** Main's heading when a chunk of its own does not load (2.2), written once. */
+const COULD_NOT_LOAD = 'Could not load. Reload to try again.';
+
 /** The router's `STATE_INFO`, repeated so this chunk imports no router at run time. */
 const STATE_INFO = 'loam-state';
 
@@ -247,7 +250,7 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 					// Tried again at the next change, as this chunk's own load is; meanwhile main says it could not
 					// load, as for the late commands (2.2), not "Choose an app" (A11).
 					sections = false;
-					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
+					(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
 					reportError(cause);
 				}
 			);
@@ -257,12 +260,37 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		// area owns it, and a restored session shows no landing on the way (6).
 		if (editor || (state.section === 'documents' && state.active === null)) {
 			editor = true;
+			const failed = (cause: unknown) => {
+				editor = false;
+				(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
+				host.releaseMain?.(true);
+				reportError(cause);
+			};
 			await import('./editor/editor.js').then(
 				({ syncEditor }) => syncEditor(host as unknown as LoamShell),
+				failed
+			);
+			// Then the section's tree and, with no tab, its list, from a chunk of their own (8). Its failure is its
+			// own: main says it could not load, the editor area and its chunk stay as they are, and the next change
+			// of scope or of main tries the chunk again.
+			void import('./sections/documents.js').then(
+				({ syncDocuments }) => syncDocuments(host as unknown as LoamShell),
 				(cause) => {
-					editor = false;
-					(host as unknown as LoamShell).landing = 'Could not load. Reload to try again.';
-					host.releaseMain?.(true);
+					const root = (host as unknown as LoamShell).shadowRoot;
+					const main = root?.querySelector<HTMLElement>('loam-main');
+					if (
+						main?.querySelector<HTMLElement & { empty?: boolean }>('loam-editor-area')?.empty ===
+						false
+					) {
+						// A tab shows: the editor keeps main, and the sidebar, the tree's place, says so.
+						const empty = root?.querySelector<HTMLElement>('loam-sidebar loam-empty-state');
+						empty?.setAttribute('message', COULD_NOT_LOAD);
+						if (empty) empty.hidden = false;
+					} else {
+						// Where the list would be: main's landing, which the editor area's next sync covers again.
+						(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
+						if (main) delete main.dataset.section;
+					}
 					reportError(cause);
 				}
 			);

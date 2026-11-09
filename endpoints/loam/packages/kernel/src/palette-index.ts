@@ -23,6 +23,8 @@ export interface PaletteItem {
 	field: PaletteField;
 	/** The matched ranges in that field, as `[start, end)` character offsets. */
 	matches: Array<[number, number]>;
+	/** A document's row, whose `name` is its id (documents specification, 8.2); a command's has none. */
+	kind?: 'document';
 }
 
 export interface PaletteIndex {
@@ -196,11 +198,17 @@ function item(
 	};
 }
 
-/** Build the index over `entries`. The entries are read once; later changes are not seen. */
-export function createPaletteIndex(entries: readonly PaletteEntry[]): PaletteIndex {
+/**
+ * Build the index over `entries`, matching `fields`, every field by default. The entries are read once;
+ * later changes are not seen.
+ */
+export function createPaletteIndex(
+	entries: readonly PaletteEntry[],
+	fields: readonly PaletteField[] = FIELDS
+): PaletteIndex {
 	const indexed: IndexedEntry[] = entries.map((entry) => ({
 		entry: { ...entry },
-		fields: FIELDS.flatMap((field) => {
+		fields: fields.flatMap((field) => {
 			const text = entry[field];
 			return typeof text === 'string' && text.length > 0 ? [indexField(field, text)] : [];
 		}),

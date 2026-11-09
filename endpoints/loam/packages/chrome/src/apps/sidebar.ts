@@ -3,30 +3,35 @@
  * one list, or for a dual-scope app in a project two groups, `In <project>` at the active scope and `In
  * <workspace>` at the workspace's, each a `region` with its heading. Each list keeps the scope it was made
  * in, so a read queued before a change of scope still reads there, and a change of scope marks it stale,
- * so a selection made in it is ignored (7.6). A `tree`'s rows are read by `readTree`.
+ * so a selection made in it is ignored (7.6). A `tree` is a `loam-tree`, from the `documents` chunk, whose
+ * nodes are read by `readTree` (documents specification, step 11).
  */
 
 import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
 import type { LoamList } from '../elements/list.js';
+import type { LoamTree } from '../sections/tree.js';
 import type { MainStateV1 } from '../url-sync.js';
 import { readTree } from './tree-reader.js';
+
+/** A `list` sidebar's `loam-list`, or a `tree` sidebar's `loam-tree`: the same fields. */
+export type SidebarList = LoamList | LoamTree;
 
 type Sidebar = { shape: string; command?: string; title?: string };
 
 /** The lists of an app's sidebar, made for `state`'s scope. */
 export function sidebarLists(
-	create: () => LoamList,
+	create: () => SidebarList,
 	sidebar: Sidebar,
 	title: string,
 	levels: readonly string[],
 	state: MainStateV1
-): LoamList[] {
+): SidebarList[] {
 	const dual = state.project !== null && levels.includes('workspace') && levels.includes('project');
 	return (dual ? (['project', 'workspace'] as const) : [undefined]).map((level) => {
 		const list = create();
 		list.label = sidebar.title ?? title;
 		list.busy = true;
-		list.scope = state.scope as LoamList['scope'];
+		list.scope = state.scope as SidebarList['scope'];
 		if (level) {
 			list.level = level;
 			list.heading = `In ${level === 'project' ? state.project?.name : (state.workspace.name ?? state.workspace.id)}`;
@@ -39,7 +44,7 @@ export function sidebarLists(
 export async function readSidebarList(
 	kernel: LoamKernelV2,
 	sidebar: Sidebar | undefined,
-	list: LoamList
+	list: SidebarList
 ): Promise<void> {
 	const command = sidebar?.command;
 	if (command === undefined || list.stale) return;
@@ -52,13 +57,13 @@ export async function readSidebarList(
 	list.busy = false;
 	if (result.success && sidebar?.shape === 'tree') {
 		const read = readTree(result.data);
-		list.failure = read.failure ?? null;
-		list.items = read.failure ? [] : read.items;
+		(list as LoamTree).failure = read.failure ?? null;
+		(list as LoamTree).items = read.failure ? [] : read.items;
 		return;
 	}
 	if (result.success && Array.isArray(result.data?.items)) {
 		list.failure = null;
-		list.items = result.data.items;
+		(list as LoamList).items = result.data.items;
 		return;
 	}
 	list.failure = {
@@ -68,7 +73,11 @@ export async function readSidebarList(
 }
 
 /** The selection shows in the group of its level, and in no other (7.4). */
-export function selectInLists(lists: readonly LoamList[], id: string | null, level: string): void {
+export function selectInLists(
+	lists: readonly SidebarList[],
+	id: string | null,
+	level: string
+): void {
 	for (const list of lists)
 		list.selected = list.level === undefined || list.level === level ? id : null;
 }

@@ -48,7 +48,8 @@ const resultTemplate = html<PaletteResult, LoamPalette>`
 		?disabled="${(x) => x.disabled}"
 		data-command="${(x) => x.name}"
 	>
-		<span class="result-name">${(x) => x.title ?? x.name}</span>
+		<span class="result-name">${(x) => x.title ?? x.name}</span
+		><span class="pause">, </span>
 		<span slot="description" class="result-description">
 			${(x) => (x.disabled ? `${x.description} (needs input)` : x.description)}
 		</span>
@@ -71,11 +72,11 @@ const template = html<LoamPalette>`
 				class="field"
 				type="text"
 				role="combobox"
-				aria-label="Search commands"
+				aria-label="Search commands and documents"
 				aria-autocomplete="list"
 				aria-expanded="true"
 				aria-controls="palette-results"
-				placeholder="Type a command"
+				placeholder="Type a command or a title"
 				autocomplete="off"
 				spellcheck="false"
 				@input="${(x) => x.handleInput()}"
@@ -86,7 +87,7 @@ const template = html<LoamPalette>`
 			${ref('listbox')}
 			id="palette-results"
 			class="results"
-			label="Commands"
+			label="Commands and documents"
 			@change="${(x, c) => x.handleChange(c.event as CustomEvent<{ value: string }>)}"
 		>
 			${repeat((x) => x.results, resultTemplate)}
@@ -101,7 +102,7 @@ const template = html<LoamPalette>`
 			)}
 			${when(
 				(x) => x.failure === null && x.searched && x.results.length === 0,
-				html<LoamPalette>`<p>No commands match</p>`
+				html<LoamPalette>`<p>No commands or documents match</p>`
 			)}
 		</div>
 	</violet-dialog>
@@ -171,6 +172,15 @@ const styles = css`
 	violet-option[data-active]::part(control) {
 		outline: var(--shell-size-focus) solid var(--color-focus-ring);
 		outline-offset: calc(-1 * var(--shell-size-focus));
+	}
+	/* A pause between a row's title and its description, heard and not seen (A-N1). */
+	.pause {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	.result-name {
 		font-size: var(--type-body-md-size);

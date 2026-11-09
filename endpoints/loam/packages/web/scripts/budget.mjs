@@ -125,6 +125,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * a read or a clear that succeeded saved. The last round's raised it by 349, to 33,365, approved by the
  * coordinator, 2026-11-08: a modal the kernel closed with no answer taken as Keep editing (228), a kept draft's
  * save tried once more when its scope goes first, and on `pagehide` (90), and the scopes out of reach (31).
+ * Step 11 adds `documentsMinified`, the documents section with `loam-tree` and `violet-tree`, and
+ * `newMinified`, the New menu with `violet-menu`. The documents specification's first estimates were 45,000
+ * and 12,000; measured at 51,194 and 15,787, each was set at its measurement plus 10%, 56,314 and 17,366,
+ * approved by the coordinator, 2026-11-09, since both load only when the section or the menu opens. Parts:
+ * `documents` holds `violet-tree` and `violet-tree-item` (about 16,000), the section, its sidebar, the tree,
+ * their styles and sync (about 33,000) and `cards` (1,969, shared with `sections`); `new` holds `violet-menu`
+ * and its item (about 9,000) and `loam-new-menu` with `readNew` and `runNew` (about 6,800).
+ * Step 11's reviews raised `appsMinified` by their measured cost, 861, to 385,114, approved by the
+ * coordinator, 2026-11-09: `ui.new`'s rules as a rule of their own, run for every manifest, with the mounted
+ * and levels refusals (652), "needs input" decided by the kernel's own parse of `{}` (75), bidirectional
+ * formatting characters refused in Loam's display text (68), and `ui.new` titles in that rule (66).
+ * Its narrow re-check raised `urlMinified` by its measured cost, 156, to 5,247, approved by the coordinator,
+ * 2026-11-09: a `documents` chunk that does not load, with a tab open, says so in the sidebar and leaves main
+ * to the editor, where with no tab main's landing says it (5,038 before).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -134,8 +148,8 @@ export const CEILINGS = Object.freeze({
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
-	urlMinified: 5_091,
-	appsMinified: 384_253,
+	urlMinified: 5_247,
+	appsMinified: 385_114,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,
@@ -145,6 +159,8 @@ export const CEILINGS = Object.freeze({
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
 	editorMinified: 33_365,
+	documentsMinified: 56_314,
+	newMinified: 17_366,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -348,6 +364,16 @@ async function measurePage() {
 	// surfaces' `host()` its frames mount through.
 	const editor = closure(/^assets\/editor-/, afterSurfaces);
 	if (editor.size === 0) throw new Error('budget: the build has no `editor` chunk to measure');
+	// The documents section (documents specification, 8 and 12), loaded by the URL's chunk beside the editor
+	// area's, with `loam-tree` and `violet-tree`, which an app's tree sidebar loads this chunk for: in "the
+	// rest" of 2.4's order, after the surfaces.
+	const documents = closure(/^assets\/documents-/, afterSurfaces);
+	if (documents.size === 0)
+		throw new Error('budget: the build has no `documents` chunk to measure');
+	// The New menu with `violet-menu` (documents specification, 7 and 12), loaded on the New button's first
+	// press or the palette's first `new` query, after the surfaces as the rest are.
+	const newMenu = closure(/^assets\/new-menu-/, afterSurfaces);
+	if (newMenu.size === 0) throw new Error('budget: the build has no `new` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -379,6 +405,8 @@ async function measurePage() {
 		tooltipMinified: sizeOf(tooltip),
 		sectionsMinified: sizeOf(sections),
 		editorMinified: sizeOf(editor),
+		documentsMinified: sizeOf(documents),
+		newMinified: sizeOf(newMenu),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -454,6 +482,8 @@ const ROWS = [
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
 	['sectionsMinified', "The `sections` chunk, with the kernel's summary rows, minified"],
 	['editorMinified', "The chrome's `editor` chunk and its imports, minified"],
+	['documentsMinified', 'The `documents` chunk, with `loam-tree` and `violet-tree`, minified'],
+	['newMinified', 'The `new` chunk, with `violet-menu`, minified'],
 ];
 
 export async function measure() {

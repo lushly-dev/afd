@@ -35,10 +35,17 @@ export const SCOPE_VIEW_STATE_ID = 'loam.scope';
 
 /**
  * The projects section's layout record, registered in stage A, declaring main alone (phase 2 specification,
- * 7.6 and 7.7). Step 11 registers `loam.layout.~documents` beside it. One loop over both, with a lookup by
- * section, was measured at 30 to 50 bytes more of first paint than this step's allowance holds (2.4).
+ * 7.6 and 7.7). One loop over both sections, with a lookup by section, was measured at 30 to 50 bytes more
+ * of first paint than step 7's allowance held (2.4).
  */
 export const PROJECTS_LAYOUT_ID = 'loam.layout.~projects';
+
+/**
+ * The documents section's, registered beside it in stage A, declaring the sidebar, which holds its tree
+ * (documents specification, 5.1 and 8.1). The inspector joins its declared parts with the first type that
+ * has one, step 12's.
+ */
+export const DOCUMENTS_LAYOUT_ID = 'loam.layout.~documents';
 
 /** What main shows: the active app, or a section, and its route (phase 2 specification, 4.3). */
 export interface MainStateV2 {
@@ -141,6 +148,12 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 	const closed = createDefaultLayout();
 	closed.sidebar.open = false;
 	registerLayout(PROJECTS_LAYOUT_ID, { state: closed, initial: closed, declared: new Set() });
+	const sidebar = createDefaultLayout();
+	registerLayout(DOCUMENTS_LAYOUT_ID, {
+		state: sidebar,
+		initial: sidebar,
+		declared: new Set(['sidebar']),
+	});
 
 	const appearanceHandler: ViewStateHandler<AppearanceStateV0 & Record<string, unknown>> = {
 		get: () => ({ ...appearance }) as AppearanceStateV0 & Record<string, unknown>,
@@ -198,7 +211,9 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 			? appLayoutId(active)
 			: section === 'projects'
 				? PROJECTS_LAYOUT_ID
-				: LAYOUT_VIEW_STATE_ID;
+				: section === 'documents'
+					? DOCUMENTS_LAYOUT_ID
+					: LAYOUT_VIEW_STATE_ID;
 	const record = (id: string): LayoutRecord => layouts.get(id) as LayoutRecord;
 
 	return {

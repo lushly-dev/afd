@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { AFD_CONTRACT } from './_generated/facts.js';
+import { needsInputShape } from './needs-input.js';
 import type { ManifestRefusalCode } from './types.js';
 import { validateSchemaShape } from './validate-shape.generated.js';
 import type { GeneratedValidator } from './validator-errors.js';
@@ -101,6 +102,24 @@ function zodAccepts(schema: object): boolean {
 
 const isObject = (value: unknown): value is Json =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Whether a command needs input: its schema's shape says so (`needsInputShape`, the kernel's own), which
+ * catches `required` and `minProperties` at the root and in `allOf`, `anyOf` and `oneOf` branches; or the
+ * parse the kernel runs on an app's input refuses `{}`, which catches a root `const` or `enum` the shape cannot
+ * see. A path, read later by `app check`, or a schema the checker refuses, which `input-schema` reports,
+ * says no.
+ */
+export function needsInput(schema: unknown): boolean {
+	if (!isObject(schema)) return false;
+	if (needsInputShape(schema)) return true;
+	try {
+		return !z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]).safeParse({})
+			.success;
+	} catch {
+		return false;
+	}
+}
 
 export function inputSchemaProblem(schema: unknown): string | undefined {
 	// A path is read once the file system is at hand, by `app check`.

@@ -279,7 +279,8 @@ export async function createKernelParts(
 					...(command.title !== undefined ? { title: command.title } : {}),
 					description: command.description,
 					mutation: command.mutation === true,
-					needsInput: needsInput(command.inputSchema),
+					// The `apps` chunk's whole answer for an app's command, the shape alone for the rest (2.1).
+					needsInput: apps.owners.get(command.name)?.needsInput ?? needsInput(command.inputSchema),
 					...(keybinding !== undefined ? { keybinding } : {}),
 					...(instance !== undefined ? { instance } : {}),
 				};

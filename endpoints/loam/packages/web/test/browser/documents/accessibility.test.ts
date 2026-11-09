@@ -1,7 +1,8 @@
 /**
- * The editor area under axe (documents specification, D10 so far; step 10): two groups of notes, the tab
- * menu open, the empty area, in each theme and density, under forced colors and in the compact class, with
- * phase 0's tags and zero violations. A view editor, the tree and the New menu join with steps 11 to 13.
+ * The editor area under axe (documents specification, D10 so far; steps 10 and 11): two groups of notes, the
+ * tab menu open, the documents section's tree with its row menu open, its list and its trash, and the New
+ * menu open, in each theme and density, under forced colors and in the compact class, with phase 0's tags
+ * and zero violations. A view editor joins with steps 12 and 13.
  */
 
 import { type Browser, chromium, type Page } from 'playwright';
@@ -56,12 +57,13 @@ async function twoGroups(page: Page): Promise<void> {
 }
 
 describe('P2-D10: the editor area under axe', () => {
-	it('P2-D10: two groups, the empty area and the tab menu have no violation, in each theme and density and under forced colors', async () => {
+	it('P2-D10: two groups, the list with no tab and the tab menu have no violation, in each theme and density and under forced colors', async () => {
 		const opened = await openShell(browser, site.root);
 		const { page } = opened;
 		await kernelCall(page, 'section-open', { section: 'documents' });
 		await editorIdle(page);
-		expect(await settledAxe(page), 'the empty area').toEqual([]);
+		// With no tab, main is the documents section's list, beside its tree (5.1, 8).
+		expect(await settledAxe(page), 'the list and the tree').toEqual([]);
 		await twoGroups(page);
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
 			for (const density of ['comfortable', 'compact'] as const) {
@@ -78,6 +80,71 @@ describe('P2-D10: the editor area under axe', () => {
 		await page.emulateMedia({ forcedColors: 'active' });
 		expect(await settledAxe(page), 'forced colors').toEqual([]);
 		await page.emulateMedia({ forcedColors: 'none' });
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 90_000);
+
+	it('P2-D10: the tree with its row menu open, the list, its trash and the New menu open have no violation, in each theme and density and under forced colors', async () => {
+		const opened = await openShell(browser, site.root);
+		const { page } = opened;
+		const one = await createNote(page, 'One');
+		await createNote(page, 'Two');
+		await kernelCall(page, 'document-trash', { document: one });
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		const tree = page.locator('loam-documents-sidebar loam-tree');
+		await tree.locator('violet-tree-item[data-id="trash"] > .label').click();
+		await tree.locator(`violet-tree-item[data-id="trash:${one}"]`).waitFor();
+		const status = page.locator('loam-documents-section select[data-ref="status"]');
+		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
+			for (const density of ['comfortable', 'compact'] as const) {
+				await kernelCall(page, 'appearance-set', { theme, density });
+				await editorIdle(page);
+				await status.selectOption('active');
+				expect(await settledAxe(page), `${theme} ${density}, the list`).toEqual([]);
+				await status.selectOption('trashed');
+				expect(await settledAxe(page), `${theme} ${density}, the trash`).toEqual([]);
+				await tree.locator('violet-tree-item[data-id^="recent:"]').first().focus();
+				await page.keyboard.press('Shift+F10');
+				expect(await settledAxe(page), `${theme} ${density}, the row menu`).toEqual([]);
+				await page.keyboard.press('Escape');
+				await page.locator('loam-titlebar .new > button').click();
+				await page.locator('loam-new-menu violet-menu-item').first().waitFor();
+				expect(await settledAxe(page), `${theme} ${density}, the New menu`).toEqual([]);
+				await page.keyboard.press('Escape');
+			}
+		}
+		await kernelCall(page, 'appearance-set', { theme: 'light', density: 'comfortable' });
+		await page.emulateMedia({ forcedColors: 'active' });
+		await status.selectOption('active');
+		expect(await settledAxe(page), 'forced colors, the list').toEqual([]);
+		await tree.locator('violet-tree-item[data-id^="recent:"]').first().focus();
+		await page.keyboard.press('Shift+F10');
+		expect(await settledAxe(page), 'forced colors, the row menu').toEqual([]);
+		await page.keyboard.press('Escape');
+		await page.locator('loam-titlebar .new > button').click();
+		await page.locator('loam-new-menu violet-menu-item').first().waitFor();
+		expect(await settledAxe(page), 'forced colors, the New menu').toEqual([]);
+		await page.emulateMedia({ forcedColors: 'none' });
+		expect(opened.errors).toEqual([]);
+		await opened.context.close();
+	}, 180_000);
+
+	it('P2-D10: in the compact class, the list, the New menu and the tree in its drawer have no violation', async () => {
+		const opened = await openShell(browser, site.root, { viewport: { width: 390, height: 844 } });
+		const { page } = opened;
+		await createNote(page, 'One');
+		await kernelCall(page, 'section-open', { section: 'documents' });
+		await editorIdle(page);
+		await page.locator('loam-documents-section h1').waitFor();
+		expect(await settledAxe(page), 'compact, the list').toEqual([]);
+		await page.locator('loam-titlebar .new > button').click();
+		await page.locator('loam-new-menu violet-menu-item').first().waitFor();
+		expect(await settledAxe(page), 'compact, the New menu').toEqual([]);
+		await page.keyboard.press('Escape');
+		await kernelCall(page, 'layout-set', { compact: { drawer: 'sidebar' } });
+		await page.locator('loam-documents-sidebar loam-tree violet-tree-item').first().waitFor();
+		expect(await settledAxe(page), 'compact, the tree in its drawer').toEqual([]);
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
 	}, 90_000);

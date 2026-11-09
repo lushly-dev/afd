@@ -345,9 +345,11 @@ describe('E1 (kernel unit): every layout change goes through the shared validato
 		expect((await k.call('view-state-set', { id: 'nope', state: {} })).error?.code).toBe(
 			'VIEW_STATE_NOT_FOUND'
 		);
-		// `loam.layout`, `loam.layout.~projects` (phase 2 specification, 7.7), `loam.appearance`, `loam.apps`,
-		// `loam.scope`, and the active scope's `loam.editor`, which stage B registers (documents specification, 6).
-		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(6);
+		// `loam.layout`, `loam.layout.~projects` (phase 2 specification, 7.7), `loam.layout.~documents` (5.1),
+		// `loam.appearance`, `loam.apps`, `loam.scope`, and the active scope's `loam.editor`, which stage B
+		// registers (documents specification, 6). A person's `loam.new.recent~<actor>` registers on their first
+		// use of New (7).
+		expect((await k.call<{ total: number }>('view-state-list')).data?.total).toBe(7);
 	});
 
 	it('sets, refuses and undoes with layout-set', async () => {

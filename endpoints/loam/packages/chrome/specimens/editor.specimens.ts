@@ -1,6 +1,7 @@
 /**
  * The editor area's fixtures (documents specification, 5.8 and D10): the area with two groups of tabs,
- * pinned, preview and unsaved among them, the area with none open, and a frame's failure, each comfortable
+ * pinned, preview and unsaved among them, and a frame's failure (the area with none open is hidden, and the
+ * documents section's list takes main: `documents.specimens.ts`), each comfortable
  * and compact. Specimen renders each in the light, dark and high-contrast contexts. No app is loaded, so the
  * frames show their own states: the area's look is the shell's, whatever an editor draws.
  */
@@ -116,11 +117,6 @@ export const [EditorArea, EditorAreaCompact] = both(
 				})
 			),
 		]),
-	BOX
-);
-
-export const [EditorAreaEmpty, EditorAreaEmptyCompact] = both(
-	(wrapper) => area(wrapper, '', []),
 	BOX
 );
 

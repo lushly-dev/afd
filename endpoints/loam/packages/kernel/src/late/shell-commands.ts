@@ -61,6 +61,8 @@ import type {
 	KernelOptionsV0,
 	ShellInfoV2,
 } from '../types.js';
+import { NEW_RECENT_ID, newRecentId } from './new-list.js';
+import type { DocumentRows } from './palette-documents.js';
 
 export interface ShellCommandDeps {
 	viewState: ViewStateRegistry;
@@ -74,6 +76,12 @@ export interface ShellCommandDeps {
 	commandSet(): number;
 	scope: ScopeRuntime;
 	apps(): AppsRuntime;
+	/** The editor owner, whose commands the palette shows as an active app's (documents specification, 5.4). */
+	editorOwner?(): Promise<string | null>;
+	/** The instance commands of the types `instance` declares, which the palette lists first for it (5.4). */
+	instanceCommands?(instance: string): ReadonlySet<string>;
+	/** The palette's document rows, filtered for the actor at query time (8.2). */
+	documentRows?: DocumentRows;
 }
 
 /** The project a view-state id holds after `@`, as `loam.layout.hello@prj_atlas` does (3.4). */
@@ -88,6 +96,8 @@ const projectOfId = (id: string): string | undefined => {
  * is resolved, which would register the record.
  */
 const mayRead = (id: string, context: CommandContext, deps: ShellCommandDeps): boolean => {
+	// A person's recents are theirs alone (documents specification, 7), as `newRecentId` names them.
+	if (id.startsWith(`${NEW_RECENT_ID}~`)) return id === newRecentId(actorKey(context));
 	const project = id === LAYOUT_VIEW_STATE_ID ? callScope(context).project : projectOfId(id);
 	return (
 		project === undefined ||
@@ -236,6 +246,7 @@ function guardViewStateSet(
 			if (
 				id === APPS_VIEW_STATE_ID ||
 				id === SCOPE_VIEW_STATE_ID ||
+				id.startsWith(`${NEW_RECENT_ID}~`) ||
 				/^loam\.editor(@|$)/.test(id)
 			) {
 				return kernelFailure(
@@ -245,7 +256,9 @@ function guardViewStateSet(
 						? 'Use scope-set, which also applies the switch rules'
 						: id === APPS_VIEW_STATE_ID
 							? 'Use app-open or app-close, which also apply the overlay and surface rules'
-							: 'Use document-open and the editor-* commands, which keep its rules'
+							: id.startsWith(NEW_RECENT_ID)
+								? 'Use document-create with recent: true'
+								: 'Use document-open and the editor-* commands, which keep its rules'
 				);
 			}
 			if (!mayRead(id, context, deps)) return unregistered(id);
@@ -278,9 +291,15 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 	const [viewStateGet, viewStateSet, viewStateList] = createViewStateCommands(viewState);
 
 	let index: { active: string | null; commandSet: number; index: PaletteIndex } | undefined;
-	const search = (query: string, limit: number): PaletteItem[] => {
-		// Shell commands and the active app's: an inactive app's stay callable by name (9.1).
-		const active = state.activeApp();
+	const search = async (
+		query: string,
+		limit: number,
+		context: CommandContext
+	): Promise<PaletteItem[]> => {
+		// Shell commands and the active app's, or the editor owner's while no app is: an inactive app's stay
+		// callable by name (9.1; documents specification, 5.4).
+		const app = state.activeApp();
+		const active = app ?? (await deps.editorOwner?.()) ?? null;
 		const commandSet = deps.commandSet();
 		if (index?.active !== active || index.commandSet !== commandSet) {
 			const shown = deps
@@ -288,7 +307,16 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 				.filter((command) => command.instance === undefined || command.instance === active);
 			index = { active, commandSet, index: createPaletteIndex(shown) };
 		}
-		return index.index.search(query, limit);
+		// Commands and documents by score, a command first on a tie (8.2); the editor owner's document's
+		// instance commands first of all (5.4).
+		const first = app === null && active !== null ? deps.instanceCommands?.(active) : undefined;
+		const items = [
+			...index.index.search(query, limit),
+			...((await deps.documentRows?.search(query, actorKey(context), limit)) ?? []),
+		]
+			.sort((a, b) => Number(first?.has(b.name)) - Number(first?.has(a.name)) || b.score - a.score)
+			.slice(0, limit);
+		return items;
 	};
 
 	const layoutSet = defineCommandWithSchema<typeof layoutPatchInput, LayoutStateV0>({
@@ -434,9 +462,9 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 			required: ['query'],
 			additionalProperties: false,
 		},
-		async handler(input) {
+		async handler(input, context) {
 			return success({
-				items: search(input.query, input.limit ?? PALETTE_SEARCH_LIMIT.default),
+				items: await search(input.query, input.limit ?? PALETTE_SEARCH_LIMIT.default, context),
 			});
 		},
 	});

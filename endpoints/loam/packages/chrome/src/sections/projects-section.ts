@@ -19,12 +19,24 @@ import type {
 	ProjectV1,
 	ResourceLinkV1,
 } from '@lushly-dev/loam-kernel';
+import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import '@lushly-dev/violet-elements/dist/button/violet-button.js';
 import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
 import type { VioletTextField } from '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
 import { type ProjectLookup, resourceLinkUrl } from '../resource-link.js';
 import { formatRoute } from '../route-format.js';
-import { type CardView, cardOf, dateOf, el, isoOf, numberOf, REPORT, sentences } from './cards.js';
+import {
+	type CardView,
+	cardOf,
+	type DocumentsCardView,
+	dateOf,
+	documentsCardOf,
+	el,
+	isoOf,
+	numberOf,
+	REPORT,
+	sentences,
+} from './cards.js';
 import { styles } from './section-styles.js';
 
 /** A field's refusal, beside it, as the console words one. */
@@ -205,6 +217,7 @@ const home = html<LoamProjectsSection>`
 		html<LoamProjectsSection>`<p class="empty">No app summarizes this project yet</p>`
 	)}
 	<div class="cards" data-ref="cards"></div>
+	<div data-ref="documents"></div>
 `;
 
 /** The region is busy while it reads; its live lines are beside it, so nothing they say waits for the read. */
@@ -229,6 +242,8 @@ export class LoamProjectsSection extends FASTElement {
 	declare project: ProjectV1 | null;
 	declare projects: ProjectV1[];
 	declare cards: CardView[];
+	/** The home's `Documents` card, the shell's, not an app's summary (documents specification, 8.3). */
+	declare documents: DocumentsCardView | null;
 	declare loaded: boolean;
 	declare filter: string;
 	declare showArchived: boolean;
@@ -289,6 +304,7 @@ export class LoamProjectsSection extends FASTElement {
 		this.project = null;
 		this.projects = [];
 		this.cards = [];
+		this.documents = null;
 		this.loaded = false;
 		this.filter = '';
 		this.showArchived = false;
@@ -359,6 +375,7 @@ export class LoamProjectsSection extends FASTElement {
 		if (changed) {
 			this.formOpen = false;
 			this.cards = [];
+			this.documents = null;
 			this.loaded = false;
 			this.status = this.#carried;
 			this.#carried = '';
@@ -402,6 +419,9 @@ export class LoamProjectsSection extends FASTElement {
 				} else {
 					this.cards = [];
 				}
+				const documents = await this.#readDocuments(kernel, this.project);
+				if (read !== this.#reads) return;
+				this.documents = documents;
 			}
 			this.failure = '';
 		} catch (cause) {
@@ -427,6 +447,50 @@ export class LoamProjectsSection extends FASTElement {
 				this.newButton
 			)?.focus();
 		}
+	}
+
+	/**
+	 * The `Documents` card: per type the project allows, its count and the five most recent, by
+	 * `document-list` at the project (documents specification, 8.3); none when no type is registered.
+	 */
+	async #readDocuments(
+		kernel: LoamKernelV2,
+		project: ProjectV1
+	): Promise<DocumentsCardView | null> {
+		const scope = { workspace: this.workspace, project: project.id };
+		const types = await kernel.call<{ types: DocumentTypeV1[] }>(
+			'document-type-list',
+			{},
+			{ scope }
+		);
+		if (!types.success || !types.data || types.data.types.length === 0) return null;
+		const lookup = this.#lookup();
+		return {
+			types: await Promise.all(
+				types.data.types.map(async (type) => {
+					const listed = await kernel.call<{ documents: DocumentRecordV1[]; total: number }>(
+						'document-list',
+						{ type: type.id, limit: 5 },
+						{ scope }
+					);
+					return {
+						title: type.title,
+						icon: type.icon,
+						total: listed.data?.total ?? 0,
+						recent: (listed.data?.documents ?? []).map((record) => ({
+							label: record.title,
+							url: resourceLinkUrl(
+								{ kind: 'document', document: record.id, scope: record.scope },
+								this.base,
+								lookup
+							),
+							updated: dateOf(record.updatedAt),
+							iso: isoOf(record.updatedAt),
+						})),
+					};
+				})
+			),
+		};
 	}
 
 	/** One row's card, or its error alone: a row that cannot be shown never fails the others (T1). */
@@ -470,12 +534,18 @@ export class LoamProjectsSection extends FASTElement {
 			)
 		);
 		this.#ref('cards')?.replaceChildren(...this.cards.map(cardOf));
+		this.#ref('documents')?.replaceChildren(
+			...(this.documents ? [documentsCardOf(this.documents)] : [])
+		);
 	}
 
 	projectsChanged(): void {
 		void this.paint();
 	}
 	cardsChanged(): void {
+		void this.paint();
+	}
+	documentsChanged(): void {
 		void this.paint();
 	}
 	filterChanged(): void {
@@ -554,7 +624,12 @@ export class LoamProjectsSection extends FASTElement {
 			this.status = '';
 			this.#carried = '';
 		}
-		if (/^(project-|workspace-app-set$|auth-)/.test(event.command)) void this.read();
+		// A home's documents card follows every document's change too (documents specification, 8.3).
+		if (
+			/^(project-|workspace-app-set$|auth-)/.test(event.command) ||
+			(this.view === 'home' && event.command.startsWith('document-'))
+		)
+			void this.read();
 	}
 
 	#clearErrors(): void {
@@ -728,6 +803,7 @@ observable(LoamProjectsSection.prototype, 'view');
 observable(LoamProjectsSection.prototype, 'project');
 observable(LoamProjectsSection.prototype, 'projects');
 observable(LoamProjectsSection.prototype, 'cards');
+observable(LoamProjectsSection.prototype, 'documents');
 observable(LoamProjectsSection.prototype, 'loaded');
 observable(LoamProjectsSection.prototype, 'filter');
 observable(LoamProjectsSection.prototype, 'showArchived');

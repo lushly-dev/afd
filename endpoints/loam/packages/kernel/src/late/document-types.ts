@@ -126,6 +126,8 @@ export interface DocumentCheckDeps {
 	store: DataAdapter;
 	apps(): AppsRuntime;
 	isMutation(name: string): boolean;
+	/** After a record is written, so the palette's titles are read again (8.2). */
+	changed?(): void;
 }
 
 export interface DocumentCheck {
@@ -302,6 +304,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			...with_,
 			{ method: 'PUT', path: `/${DOCUMENT_TABLE}/${encodeURIComponent(record.id)}`, body: record },
 		]);
+		deps.changed?.();
 		if (summary.failed > 0) throw new Error(`The store could not write '${record.id}'`);
 	}
 

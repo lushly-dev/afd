@@ -51,6 +51,7 @@ export const SHELL_COMMAND_NAMES = [
 	'workspace-app-list',
 	'workspace-app-set',
 	'document-type-list',
+	'new-list',
 	'document-create',
 	'document-get',
 	'document-list',

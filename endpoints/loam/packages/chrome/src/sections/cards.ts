@@ -4,15 +4,11 @@
  */
 
 import type { ProjectSummaryRowV1 } from '@lushly-dev/loam-kernel';
+import { el, numberOf } from './dom.js';
 
-/** A date as text, or none: a time `Date` cannot hold makes `format` throw, and no row may fail the read (T1). */
-export const dateOf = (at: number): string => {
-	try {
-		return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(at));
-	} catch {
-		return '';
-	}
-};
+export { dateOf, el, isoOf, numberOf } from './dom.js';
+
+type Child = Node | string;
 
 export const REPORT = "Report this to the app's owner";
 
@@ -27,17 +23,6 @@ const sentence = (text: string): string =>
 export const sentences = (message: string, suggestion?: string): string =>
 	`${sentence(message)}${suggestion ? ` ${sentence(suggestion)}` : ''}`;
 
-export const numberOf = (value: number): string => new Intl.NumberFormat().format(value);
-
-/** An ISO date for `<time datetime>`, or none where a `Date` cannot hold the time. */
-export const isoOf = (at: number): string => {
-	try {
-		return new Date(at).toISOString();
-	} catch {
-		return '';
-	}
-};
-
 export interface LinkView {
 	label: string;
 	url: string | undefined;
@@ -49,24 +34,6 @@ export interface CardView {
 	url: string | undefined;
 	recent: Array<LinkView & { updated: string; iso: string }>;
 	links: LinkView[];
-}
-
-type Child = Node | string;
-
-/**
- * An element whose text is always text: strings are appended as text nodes and attributes are set as
- * values, never parsed as markup (13). The lists are built so, not by `repeat`, whose module first paint's
- * switcher shares with the kit's listbox: importing it here would split that chunk (2.4).
- */
-export function el(
-	tag: string,
-	attributes: Record<string, string>,
-	...children: Child[]
-): HTMLElement {
-	const element = document.createElement(tag);
-	for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
-	element.append(...children);
-	return element;
 }
 
 /** A link where the scheme gave a URL, else its text alone: navigation, never execution. */
@@ -142,4 +109,46 @@ export function cardOf({ row, url, recent, links }: CardView): HTMLElement {
 	}
 	// An `article`, not a `section`: six apps add no six landmarks.
 	return el('article', { class: 'card', 'aria-labelledby': id }, ...parts);
+}
+
+/** The project home's `Documents` card (documents specification, 8.3): per type, its count and five most recent. */
+export interface DocumentsCardView {
+	types: Array<{
+		title: string;
+		icon: string;
+		total: number;
+		recent: Array<LinkView & { updated: string; iso: string }>;
+	}>;
+}
+
+/** The shell's own card, after the apps' summaries: a heading per type with its count, and its recent ones. */
+export function documentsCardOf({ types }: DocumentsCardView): HTMLElement {
+	return el(
+		'article',
+		{ class: 'card', 'aria-labelledby': 'card-documents' },
+		el(
+			'h2',
+			{ id: 'card-documents' },
+			el('violet-icon', { icon: 'system/document', decorative: '' }),
+			'Documents'
+		),
+		...types.flatMap((type) => [
+			el('h3', { dir: 'auto' }, `${type.title}: ${numberOf(type.total)}`),
+			type.recent.length === 0
+				? el('p', { class: 'muted' }, 'None yet')
+				: el(
+						'ul',
+						{ class: 'recent' },
+						...type.recent.map((item) =>
+							el(
+								'li',
+								{},
+								linkOrText(item),
+								el('span', { class: 'muted', 'aria-hidden': 'true' }, ' · '),
+								el('time', { class: 'muted', datetime: item.iso }, item.updated)
+							)
+						)
+					),
+		])
+	);
 }

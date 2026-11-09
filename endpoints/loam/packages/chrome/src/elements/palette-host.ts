@@ -2,17 +2,24 @@
  * @fileoverview The command palette's host for `loam-shell` (phase 0 specification, 7): the palette's
  * search, run and close, each a command, and its rows' flags from the kernel's command summaries. It loads
  * with the palette, when the page is idle, so first paint holds only the boundary (phase 2 specification,
- * 2.4).
+ * 2.4). A document's row, `palette-search`'s `kind: 'document'`, opens it with `document-open`; a query that
+ * starts `new` lists what New creates, as `New: <title>`, from the `new` chunk, loaded on that first query
+ * (documents specification, 7 and 8.2).
  */
 
 import type { CommandSummaryV0, LoamKernelV2, PaletteItem } from '@lushly-dev/loam-kernel';
+import type { NewItemV1 } from '@lushly-dev/loam-sdk';
+import type { NewHost } from '../new/new-menu.js';
 import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
 
 /** What the host reads of the shell. */
-interface PaletteShell {
+interface PaletteShell extends NewHost {
 	readonly kernel: LoamKernelV2 | null;
 	readonly palette: LoamPalette;
 }
+
+/** A row that is not a command: a document to open, or what New creates. */
+type Row = { document: string } | { item: NewItemV1 };
 
 export class ShellPalette {
 	readonly #shell: PaletteShell;
@@ -55,32 +62,80 @@ export class ShellPalette {
 		await palette?.open(query);
 	}
 
+	/** The rows of the last search that are not commands, by their names. */
+	#rows = new Map<string, Row>();
+
 	async #search(query: string): Promise<PaletteResult[]> {
-		const result = await this.#shell.kernel?.call<{ items: PaletteItem[] }>('palette-search', {
-			query,
-			limit: 20,
-		});
-		if (!result?.success) return [];
+		const kernel = this.#shell.kernel;
+		const [result, made] = await Promise.all([
+			kernel?.call<{ items: PaletteItem[] }>('palette-search', { query, limit: 20 }),
+			/^\s*new\b/i.test(query) && kernel
+				? import('../new/new-menu.js').then(({ readNew }) => readNew(kernel))
+				: undefined,
+		]);
+		this.#rows = new Map();
+		// `new note` lists New's items whose titles hold the rest of the query.
+		const rest = query
+			.replace(/^\s*new\b/i, '')
+			.trim()
+			.toLowerCase();
+		const rows: PaletteResult[] = (made?.items ?? [])
+			.filter((item) => item.title.toLowerCase().includes(rest))
+			.map((item, index) => {
+				const name = `new:${index}`;
+				this.#rows.set(name, { item });
+				return {
+					name,
+					title: `New: ${item.title}`,
+					description:
+						item.kind === 'creator'
+							? `Runs ${item.command}`
+							: `Creates a document from ${item.title}`,
+					disabled: false,
+				};
+			});
+		if (!result?.success) return rows;
 		// The rows' flags from the commands as they are now: stage B adds more.
 		const commands = new Map<string, CommandSummaryV0>(
-			this.#shell.kernel?.listCommands().map((command) => [command.name, command])
+			kernel?.listCommands().map((command) => [command.name, command])
 		);
-		return (result.data as { items: PaletteItem[] }).items.map((item) => {
+		for (const item of (result.data as { items: PaletteItem[] }).items) {
+			if (item.kind === 'document') {
+				this.#rows.set(item.name, { document: item.name });
+				rows.push({
+					name: item.name,
+					...(item.title !== undefined ? { title: item.title } : {}),
+					description: item.description,
+					disabled: false,
+				});
+				continue;
+			}
 			const summary = commands.get(item.name);
-			return {
+			rows.push({
 				name: item.name,
 				...(item.title !== undefined ? { title: item.title } : {}),
 				description: item.description,
 				disabled: summary?.needsInput === true,
 				...(summary?.keybinding !== undefined ? { keybinding: summary.keybinding } : {}),
-			};
-		});
+			});
+		}
+		return rows;
 	}
 
 	async #run(name: string): Promise<PaletteFailure | null> {
 		const kernel = this.#shell.kernel;
 		if (!kernel) return null;
-		const result = await kernel.call(name, {});
+		const row = this.#rows.get(name);
+		if (row && 'item' in row) {
+			// The palette closes first, so focus can go to the new editor (7).
+			await kernel.call('palette-close');
+			const { runNew } = await import('../new/new-menu.js');
+			await runNew(this.#shell, row.item);
+			return null;
+		}
+		const result = row
+			? await kernel.call('document-open', { document: row.document, preview: false })
+			: await kernel.call(name, {});
 		if (!result.success) {
 			return {
 				message: result.error?.message ?? `${name} failed`,
