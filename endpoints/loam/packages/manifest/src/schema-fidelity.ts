@@ -16,7 +16,9 @@
  * - with no `type`, a second of `allOf`, `anyOf` and `oneOf` replaces the first;
  * - it compiles `pattern` and `patternProperties` without the `u` flag, so `\p{L}` is a `p`;
  * - it resolves `$ref` as `#` or `#/$defs/<name>` only, from the root's `$defs` or else `definitions`, and
- *   recurses without end on references that reach themselves with nothing between;
+ *   recurses without end on references that reach themselves through branches alone, and the join that
+ *   weakens a closed object reaches through `$ref` and nested branches too;
+ * - it reads a property named after a member of `Object.prototype` from the prototype when the key is missing;
  * - it checks `format` by definitions of its own, ignores `nullable`, `$dynamicRef`, a nested `$id` and
  *   `additionalProperties` beside `patternProperties` unless it is `false`, and reads draft 2020-12 only.
  */
@@ -98,7 +100,15 @@ const WHY: Record<string, Refusal> = {
 	],
 	cycle: [
 		'which reaches itself again through references and branches alone, so Zod never stops parsing',
-		'Put a subschema with a `type` between the references.',
+		'Let the reference recur only below a keyword that moves into the input, such as `properties` or `items`.',
+	],
+	closed: [
+		'which reaches an object closed by `additionalProperties: false` or `propertyNames` on one side of a join, where Zod refuses a key only when both sides do, so other keys get through',
+		"Declare the entry's properties on the object that uses it, with no branch, and close that object; or leave the entry open.",
+	],
+	inherited: [
+		'which names `{}`, a member every JavaScript object inherits, so Zod reads the inherited one when the key is missing',
+		'Rename `{}` to a name no JavaScript object inherits.',
 	],
 	$schema: [
 		'which names a draft other than 2020-12, which Zod reads otherwise',
@@ -166,16 +176,28 @@ export function unfaithful(schema: unknown): Refusal | undefined {
 		const name = ref.slice(8).replaceAll('~1', '/').replaceAll('~0', '~');
 		return ref === '#' ? root : Object.hasOwn(defs, name) ? defs[name] : undefined;
 	};
-	// The references read at the same place in the input as `node`: its own, and its branches' with no `type`.
+	// The references read at the same place in the input as `node`: its own, and its branches', whatever its type.
 	const same = (node: unknown): string[] =>
-		isNode(node) && !['type', 'enum', 'const'].some((key) => node[key] !== undefined)
+		isNode(node)
 			? [
 					...(typeof node.$ref === 'string' ? [node.$ref] : []),
-					...subschemas(node)
-						.filter(([, keyword]) => BRANCHES.includes(keyword))
-						.flatMap(([child]) => same(child)),
+					...BRANCHES.flatMap((key) => list(node, key)).flatMap(same),
 				]
 			: [];
+	// Whether `node`, or what it reaches through references and branches, refuses keys Zod would let through
+	// on one side of a join.
+	const closes = (node: unknown, seen: Set<unknown>): boolean => {
+		if (!isNode(node) || seen.has(node)) return false;
+		seen.add(node);
+		return (
+			node.additionalProperties === false ||
+			(has(node, 'propertyNames') && node.propertyNames !== true) ||
+			[
+				...(typeof node.$ref === 'string' ? [target(node.$ref)] : []),
+				...BRANCHES.flatMap((key) => list(node, key)),
+			].some((child) => closes(child, seen))
+		);
+	};
 	const typed = (node: Node): boolean =>
 		['type', 'enum', 'const', 'not'].some((key) => node[key] !== undefined);
 	const list = (node: Node, key: string): unknown[] => (Array.isArray(node[key]) ? node[key] : []);
@@ -281,16 +303,23 @@ export function unfaithful(schema: unknown): Refusal | undefined {
 			(lone === 'enum' ? (node.enum as unknown[]) : lone === 'const' ? [node.const] : []).some(odd)
 		)
 			return at(lone as string, 'values');
+		if (joined && ref && closes(target(ref), new Set())) return at('$ref', 'closed');
 		const properties = isNode(node.properties) ? node.properties : {};
-		for (const name of (node.required as string[] | undefined) ?? []) {
+		const required = (node.required as string[] | undefined) ?? [];
+		const inherited = [...Object.keys(properties), ...required].find(
+			(name) => name in Object.prototype && name !== '__proto__'
+		);
+		if (inherited !== undefined)
+			return at(
+				Object.hasOwn(properties, inherited) ? 'properties' : 'required',
+				'inherited',
+				inherited
+			);
+		for (const name of required) {
 			if (!Object.hasOwn(properties, name)) return at('required', 'undeclared', name);
 			if ((properties[name] as Node | null)?.default !== undefined)
 				return at('required', 'defaulted', name);
 		}
-		const missing = ((node.required as string[] | undefined) ?? []).find(
-			(name) => lax(properties[name]) && vague(properties[name])
-		);
-		if (missing !== undefined) return at('required', 'missing', missing);
 		const short = list(node, 'prefixItems')
 			.slice(0, Number(node.minItems ?? 0))
 			.some((item) => vague(item) && (node.items !== false || lax(item)));
@@ -315,11 +344,14 @@ export function unfaithful(schema: unknown): Refusal | undefined {
 			const problem = walk(
 				keys ? { type: 'string', ...child } : child,
 				`${path}/${where}`,
-				keyword === 'allOf' || (branch && explicit),
+				keyword === 'allOf' || (branch && (explicit || joined)),
 				defaults && !branch && !['prefixItems', '$defs', 'definitions'].includes(keyword)
 			);
 			if (problem) return problem;
 		}
+		// After the children, whose own refusal of a property's schema says more.
+		const missing = required.find((name) => lax(properties[name]) && vague(properties[name]));
+		if (missing !== undefined) return at('required', 'missing', missing);
 		return undefined;
 	};
 	return walk(schema, '', false, true);

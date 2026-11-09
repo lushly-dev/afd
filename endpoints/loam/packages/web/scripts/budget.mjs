@@ -152,6 +152,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * pads, a value Zod lets go missing through branches, `patternProperties` keys, `$ref`'s forms and cycles, and
  * defaults at the root and in `prefixItems`), and the sites' remedy (about 50). First paint and the kernel
  * alone are unchanged.
+ * Its re-check raised it by that round's measured cost, 885, to 394,094, keeping the 159 bytes left, approved
+ * by the coordinator, 2026-11-09 (393,935 less 393,050), each part the closure with it less without it: a
+ * closed object a join reaches through `$ref` or nested branches (574), names `Object.prototype` holds (346),
+ * and cycles through a typed node's branches with the order that says two branch keywords first (-35, as the
+ * cycle walk is simpler). First paint's code is unchanged: its gzip is one byte more only for the `apps`
+ * chunk's new hash in its name, and with the old name it is equal.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -162,7 +168,7 @@ export const CEILINGS = Object.freeze({
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	urlMinified: 5_247,
-	appsMinified: 393_209,
+	appsMinified: 394_094,
 	surfacesMinified: 85_000,
 	viewMinified: 25_080,
 	consoleMinified: 91_222,

@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { coreRules, inputSchemaProblem, needsInput } from './core-rules.js';
+import { documentRules } from './document-rules.js';
 import { needsInputShape } from './needs-input.js';
 import { unfaithful } from './schema-fidelity.js';
 
@@ -38,6 +39,17 @@ function referenceOf(schema: object): (input: unknown) => boolean | 'unreadable'
 	}
 }
 
+/**
+ * The spec's reading of a schema whose property is named after a member of `Object.prototype`, which Ajv
+ * misreads as Zod does: Ajv's answer once that name is renamed in the schema and the input alike.
+ */
+function renamed(schema: object, from: string, to: string): Validate {
+	const swap = (value: unknown): unknown =>
+		JSON.parse(JSON.stringify(value).replaceAll(`"${from}"`, `"${to}"`));
+	const validate = reference.compile(swap(schema) as object);
+	return (input) => validate(swap(input));
+}
+
 /** The kernel's answer: accepted, refused, or a throw, which refuses the call. */
 function kernel(schema: object, input: unknown): boolean | 'throws' {
 	try {
@@ -49,6 +61,11 @@ function kernel(schema: object, input: unknown): boolean | 'throws' {
 }
 
 const ab = { a: { type: 'string' }, b: { type: 'string' } };
+const CLOSED = {
+	type: 'object',
+	properties: { a: { type: 'string' } },
+	additionalProperties: false,
+};
 const root = (extra: object = {}) => ({ type: 'object', properties: ab, ...extra });
 const property = (v: unknown, extra: object = {}) => ({
 	type: 'object',
@@ -98,8 +115,8 @@ interface Row {
 }
 
 /** The table's size, so a report of it can be checked. */
-const ACCEPTED = 45;
-const REFUSED = 61;
+const ACCEPTED = 46;
+const REFUSED = 73;
 
 const TABLE: Row[] = [
 	// `required` and `minProperties` in branches: the follow-up itself.
@@ -825,6 +842,119 @@ const TABLE: Row[] = [
 		refused: null,
 		inputs: [{ v: [1, 'a'] }],
 	},
+	// The re-check of 2026-11-09: joins through `$ref` and nested branches, cycles through a typed node's
+	// branches, and names an object inherits.
+	{
+		construct: 'allOf naming a closed object through $ref',
+		schema: {
+			type: 'object',
+			properties: { a: { type: 'string' } },
+			allOf: [{ $ref: '#/$defs/c' }],
+			$defs: { c: CLOSED },
+		},
+		refused: '$ref',
+	},
+	{
+		construct: 'a closed object through $ref, in no join',
+		schema: { type: 'object', properties: { v: { $ref: '#/$defs/c' } }, $defs: { c: CLOSED } },
+		refused: null,
+		inputs: [{ v: { a: 'x', z: 1 } }],
+	},
+	{
+		construct: 'a closed object in a nested anyOf beside type',
+		schema: { type: 'object', properties: { a: { type: 'string' } }, anyOf: [{ anyOf: [CLOSED] }] },
+		refused: 'additionalProperties',
+	},
+	{
+		construct: 'a closed object in an anyOf inside allOf',
+		schema: { type: 'object', properties: { a: { type: 'string' } }, allOf: [{ anyOf: [CLOSED] }] },
+		refused: 'additionalProperties',
+	},
+	{
+		construct: 'propertyNames in an anyOf inside allOf',
+		schema: {
+			type: 'object',
+			properties: { a: { type: 'string' } },
+			allOf: [
+				{
+					anyOf: [
+						{
+							type: 'object',
+							properties: { a: { type: 'string' } },
+							propertyNames: { maxLength: 1 },
+						},
+					],
+				},
+			],
+		},
+		refused: 'propertyNames',
+		inputs: [{ a: 'x', ab: 1 }],
+	},
+	{
+		construct: 'a property of an object type with a closed object in a nested anyOf',
+		schema: property({ type: 'object', anyOf: [{ anyOf: [CLOSED] }] }),
+		refused: 'additionalProperties',
+	},
+	{
+		construct: '$ref to the root in allOf beside type',
+		schema: { type: 'object', allOf: [{ $ref: '#' }] },
+		refused: '$ref',
+	},
+	{
+		construct: '$ref to the root in anyOf beside type',
+		schema: { type: 'object', anyOf: [{ $ref: '#' }] },
+		refused: '$ref',
+	},
+	{
+		construct: '$ref to the root in oneOf beside type',
+		schema: { type: 'object', oneOf: [{ $ref: '#' }] },
+		refused: '$ref',
+	},
+	{
+		construct: '$ref cycle through a typed entry of $defs',
+		schema: {
+			type: 'object',
+			$defs: { a: { type: 'string', anyOf: [{ $ref: '#/$defs/a' }] } },
+			properties: { v: { $ref: '#/$defs/a' } },
+		},
+		refused: '$ref',
+	},
+	{
+		construct: 'a property named after an inherited member, read by the spec',
+		schema: {
+			type: 'object',
+			properties: { constructor: { type: 'string' }, x: { type: 'number' } },
+		},
+		refused: 'properties',
+		inputs: [{ x: 1 }],
+		validator: renamed(
+			{ type: 'object', properties: { constructor: { type: 'string' }, x: { type: 'number' } } },
+			'constructor',
+			'renamed'
+		),
+	},
+	{
+		construct: 'a required property named after an inherited member, read by the spec',
+		schema: { type: 'object', properties: { constructor: {} }, required: ['constructor'] },
+		refused: 'properties',
+		validator: renamed(
+			{ type: 'object', properties: { constructor: {} }, required: ['constructor'] },
+			'constructor',
+			'renamed'
+		),
+	},
+	{
+		construct: 'two branch keywords with no type on a required property',
+		schema: {
+			type: 'object',
+			properties: {
+				a: { anyOf: [{ type: 'string' }], oneOf: [{ type: 'number' }, { type: 'string' }] },
+			},
+			required: ['a'],
+		},
+		refused: 'oneOf',
+		inputs: [{ a: 1 }],
+	},
 ];
 
 describe('the input-schema rule against the kernel and a reference', () => {
@@ -871,7 +1001,7 @@ describe('the input-schema rule against the kernel and a reference', () => {
 		}
 	});
 
-	it('gives its remedy as the suggestion of a command, a pipeline and a config', () => {
+	it('gives its remedy as the suggestion of a command, a pipeline, a content schema and a config', () => {
 		const untyped = root({ anyOf: [{ required: ['a'] }] });
 		const { refusals } = coreRules({
 			plugin: { id: 'x', kind: 'native', domains: ['x'] },
@@ -884,12 +1014,47 @@ describe('the input-schema rule against the kernel and a reference', () => {
 		expect(of('/commands/0/input_schema')?.suggestion).toBe(remedy);
 		expect(of('/pipelines/0/input_schema')?.suggestion).toBe(remedy);
 		expect(of('/config/schema')?.suggestion).toContain("Declare every branch's properties");
+		const content: { pointer: string; suggestion: string }[] = [];
+		documentRules(
+			{
+				plugin: { id: 'x', kind: 'native' },
+				ui: {
+					documents: [
+						{
+							id: 'x',
+							content_schema: untyped,
+							binding: { model: 'command', selection: 'none', locator: 'none' },
+							templates: [],
+							instance_commands: [],
+						},
+					],
+				},
+			} as unknown as Parameters<typeof documentRules>[0],
+			(_code, pointer, _message, suggestion) => {
+				content.push({ pointer, suggestion });
+			},
+			() => {}
+		);
+		expect(
+			content.find((refusal) => refusal.pointer === '/ui/documents/0/content_schema')?.suggestion
+		).toBe(remedy);
 		// A refusal the rule has no remedy for keeps the site's own suggestion.
 		const plain = coreRules({
 			plugin: { id: 'x', kind: 'native', domains: ['x'] },
 			commands: [{ name: 'x-run', input_schema: { type: 'string' } }],
 		} as Parameters<typeof coreRules>[0]);
 		expect(plain.refusals[0]?.suggestion).toContain('type: object');
+	});
+
+	it("says a required property's two branch keywords before it says the property can go missing", () => {
+		const schema = {
+			type: 'object',
+			properties: { a: { anyOf: [{}, { type: 'array', uniqueItems: true }], oneOf: [{}, true] } },
+			required: ['a'],
+		};
+		expect(unfaithful(schema)?.[0]).toBe(
+			'`oneOf` at `/properties/a`, which replaces the `anyOf` beside it, as Zod keeps one branch keyword where there is no `type`'
+		);
 	});
 
 	it('names the place of what it refuses', () => {

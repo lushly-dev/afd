@@ -67,16 +67,32 @@ function numberSchema(): Json {
 	return schema;
 }
 
+/** How many `items` or `prefixItems` the schema being generated sits under. */
+let underItems = 0;
+
 function arraySchema(depth: number): Json {
 	const schema: Json = { type: 'array' };
+	const nested = underItems > 0;
+	underItems++;
 	if (chance(0.3)) schema.prefixItems = [leaf(depth + 1), leaf(depth + 1)].slice(0, pick([1, 2]));
 	if (chance(0.6)) schema.items = chance(0.2) ? pick([false, true]) : leaf(depth + 1);
+	underItems--;
 	if (chance(0.35)) schema.minItems = pick([0, 1, 2]);
 	if (chance(0.3)) schema.maxItems = pick([1, 2, 3]);
-	// Neither beside `prefixItems`, where Ajv 8.20 is wrong and Zod right: Ajv accepts `[]` against `contains`
-	// and `[null, null]` against `uniqueItems`, which JSON Schema refuses.
+	// An item that accepts anything among the first `minItems`, with which Zod pads a short array.
+	if (chance(0.1)) {
+		underItems++;
+		schema.prefixItems = [pick([true, {}]), leaf(depth + 1)];
+		underItems--;
+		schema.minItems = 1;
+		delete schema.maxItems;
+	}
+	// Kept apart where Ajv 8.20 is wrong and Zod right, each refusing what JSON Schema refuses: beside
+	// `prefixItems`, Ajv accepts `[]` against `contains` and `[null, null]` against `uniqueItems`; and under
+	// `items` or `prefixItems`, even through an object, it accepts an empty array against `contains` once an
+	// earlier item has met it (`items: {type: 'array', contains: {pattern: '^x'}}` accepts `[["xa"], []]`).
 	if (!schema.prefixItems && chance(0.2)) schema.uniqueItems = true;
-	if (!schema.prefixItems && chance(0.2)) {
+	if (!schema.prefixItems && !nested && chance(0.2)) {
 		schema.contains = { const: pick([1, 'a']) };
 		if (chance(0.4)) schema.minContains = pick([0, 1, 2]);
 		if (chance(0.3)) schema.maxContains = pick([1, 2]);
@@ -101,14 +117,22 @@ function objectSchema(depth: number, rooted = false): Json {
 			pick([1, 2])
 		);
 	}
+	// A cycle through a typed node's branches, which the rule refuses and both validators overflow on.
+	if (rooted && chance(0.04)) schema[pick(['allOf', 'anyOf', 'oneOf'])] = [{ $ref: '#' }];
 	if (rooted && chance(0.08)) schema.dependentSchemas = { a: { required: ['b'] } };
 	if (rooted && chance(0.08)) schema.unevaluatedProperties = false;
 	if (rooted && chance(0.05)) schema.not = {};
 	return schema;
 }
 
-/** A branch at an object's place: typed, with what it requires declared beside it. */
+/**
+ * A branch at an object's place: typed, with what it requires declared beside it; or a closed object reached
+ * through `$ref` or nested branches with no `type`, where Zod's join weakens it.
+ */
 function branch(depth: number): Json {
+	if (chance(0.12)) return { $ref: pick(['#/$defs/closed', '#/$defs/named']) };
+	if (chance(0.12))
+		return { [pick(['anyOf', 'oneOf'])]: [chance(0.5) ? DEFS.closed : branch(depth + 1)] };
 	const name = pick(NAMES);
 	const shape: Json = { type: 'object', properties: { [name]: leaf(depth + 1) } };
 	if (chance(0.6)) shape.required = [name];
@@ -117,7 +141,18 @@ function branch(depth: number): Json {
 }
 
 function leaf(depth: number): unknown {
-	const kinds = ['string', 'number', 'boolean', 'null', 'list', 'union', 'const', 'ref', 'any'];
+	const kinds = [
+		'string',
+		'number',
+		'boolean',
+		'null',
+		'list',
+		'union',
+		'const',
+		'ref',
+		'any',
+		'loose',
+	];
 	const kind = depth > 2 ? pick(kinds.slice(0, 4)) : pick([...kinds, 'array', 'object']);
 	switch (kind) {
 		case 'string':
@@ -130,6 +165,17 @@ function leaf(depth: number): unknown {
 			return { type: 'null' };
 		case 'list':
 			return { type: ['string', 'null'], ...(chance(0.4) ? { minLength: 1 } : {}) };
+		case 'loose':
+			// A branch that accepts anything beside one Zod checks apart: Zod lets the value go missing.
+			return {
+				[pick(['anyOf', 'oneOf'])]: [
+					pick([true, {}]),
+					pick([
+						{ type: 'array', uniqueItems: true },
+						{ type: 'object', minProperties: 1 },
+					]),
+				],
+			};
 		case 'union':
 			return { [pick(['anyOf', 'oneOf'])]: [leaf(depth + 1), leaf(depth + 1)] };
 		case 'const':
@@ -137,7 +183,15 @@ function leaf(depth: number): unknown {
 				? { const: pick([...STRINGS, ...NUMBERS, true, null]) }
 				: { enum: some(STRINGS).concat('a') };
 		case 'ref':
-			return { $ref: pick(['#/$defs/word', '#/$defs/count', '#/$defs/pair']) };
+			return {
+				$ref: pick([
+					'#/$defs/word',
+					'#/$defs/count',
+					'#/$defs/pair',
+					'#/$defs/closed',
+					'#/$defs/loop',
+				]),
+			};
 		case 'array':
 			return arraySchema(depth);
 		case 'object':
@@ -151,6 +205,10 @@ const DEFS = {
 	word: { type: 'string', maxLength: 2 },
 	count: { type: 'integer', minimum: 0 },
 	pair: { type: 'array', prefixItems: [{ type: 'string' }, { type: 'number' }], items: false },
+	closed: { type: 'object', properties: { a: { type: 'string' } }, additionalProperties: false },
+	named: { type: 'object', properties: { a: { type: 'string' } }, propertyNames: { maxLength: 1 } },
+	// A cycle through a typed node's branch.
+	loop: { type: 'string', anyOf: [{ $ref: '#/$defs/loop' }] },
 };
 
 /** A value meant to meet `schema`, often not quite: the inputs that tell two validators apart. */
@@ -159,7 +217,9 @@ function sample(schema: unknown, depth = 0): unknown {
 		return pick([...STRINGS, ...NUMBERS]);
 	const node = schema as Json;
 	if (node.$ref)
-		return sample(DEFS[(node.$ref as string).slice(8) as keyof typeof DEFS], depth + 1);
+		return node.$ref === '#'
+			? {}
+			: sample(DEFS[(node.$ref as string).slice(8) as keyof typeof DEFS], depth + 1);
 	if (node.const !== undefined) return node.const;
 	if (Array.isArray(node.enum)) return pick(node.enum);
 	for (const key of ['anyOf', 'oneOf', 'allOf']) {
@@ -188,7 +248,9 @@ function sample(schema: unknown, depth = 0): unknown {
 			const properties = (node.properties ?? {}) as Json;
 			const required = (node.required ?? []) as string[];
 			for (const [name, child] of Object.entries(properties)) {
-				if (required.includes(name) || chance(0.5)) value[name] = sample(child, depth + 1);
+				// A required key left out now and then: where Zod lets a value go missing.
+				if (required.includes(name) ? chance(0.85) : chance(0.5))
+					value[name] = sample(child, depth + 1);
 			}
 			if (chance(0.25)) value[pick(NAMES)] = pick([...STRINGS, ...NUMBERS]);
 			return value;
@@ -217,33 +279,51 @@ function kernel(schema: object, input: unknown): boolean | 'throws' {
 }
 
 describe('the input-schema rule over generated schemas', () => {
-	it(`agrees with Ajv on every schema it accepts (seed ${SEED.toString(16)})`, () => {
-		const differences: string[] = [];
-		let accepted = 0;
-		for (let index = 0; index < SCHEMAS; index++) {
-			const schema = objectSchema(0, true);
-			if (chance(0.3)) schema.$defs = DEFS;
-			if (inputSchemaProblem(schema)) continue;
-			accepted++;
-			let validate: (input: unknown) => boolean;
-			try {
-				validate = reference.compile(schema);
-			} catch (error) {
-				differences.push(`Ajv cannot compile ${JSON.stringify(schema)}: ${String(error)}`);
-				continue;
-			}
-			for (let at = 0; at < INPUTS; at++) {
-				const input = at % 2 === 0 ? sample(schema) : anything();
-				const ours = kernel(schema, input);
-				const theirs = validate(input);
-				if (ours !== theirs)
-					differences.push(
-						`${JSON.stringify(schema)} ${JSON.stringify(input)}: kernel ${ours}, Ajv ${theirs}`
+	it(
+		`agrees with Ajv on every schema it accepts (seed ${SEED.toString(16)})`,
+		() => {
+			const differences: string[] = [];
+			let accepted = 0;
+			for (let index = 0; index < SCHEMAS; index++) {
+				const schema = objectSchema(0, true);
+				// Only the entries it names: an unused `loop` would have the rule refuse every schema holding it.
+				const named = Object.keys(DEFS).filter((name) =>
+					JSON.stringify(schema).includes(`"#/$defs/${name}"`)
+				);
+				if (named.length > 0)
+					schema.$defs = Object.fromEntries(
+						named.map((name) => [name, DEFS[name as keyof typeof DEFS]])
 					);
+				if (inputSchemaProblem(schema)) continue;
+				accepted++;
+				let validate: (input: unknown) => boolean;
+				try {
+					validate = reference.compile(schema);
+				} catch (error) {
+					differences.push(`Ajv cannot compile ${JSON.stringify(schema)}: ${String(error)}`);
+					continue;
+				}
+				for (let at = 0; at < INPUTS; at++) {
+					const input = at % 2 === 0 ? sample(schema) : anything();
+					const ours = kernel(schema, input);
+					let theirs: boolean | 'throws';
+					try {
+						theirs = validate(input);
+					} catch {
+						theirs = 'throws';
+					}
+					// A parse that throws refuses every call, whatever Ajv makes of it.
+					if (ours !== theirs || ours === 'throws')
+						differences.push(
+							`${JSON.stringify(schema)} ${JSON.stringify(input)}: kernel ${ours}, Ajv ${theirs}`
+						);
+				}
 			}
-		}
-		expect(differences.slice(0, 3).map((line) => line.slice(0, 2000))).toEqual([]);
-		// Enough of what is generated is accepted for the comparison to mean something.
-		expect(accepted).toBeGreaterThan(SCHEMAS / 4);
-	});
+			expect(differences.slice(0, 3).map((line) => line.slice(0, 2000))).toEqual([]);
+			// Enough of what is generated is accepted for the comparison to mean something.
+			expect(accepted).toBeGreaterThan(SCHEMAS / 4);
+			// A wider run by hand, `FUZZ_SEED=… FUZZ_SCHEMAS=20000`, takes about a millisecond a schema.
+		},
+		Math.max(10_000, SCHEMAS * 5)
+	);
 });
