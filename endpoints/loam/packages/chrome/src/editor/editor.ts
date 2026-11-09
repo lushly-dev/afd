@@ -519,8 +519,9 @@ export class EditorController implements FrameListener {
 			);
 		}
 		if (record && 'title' in record) frame.title = record.title;
-		frame.show(true);
-		(this.#lives.get(frame) as Life).kept = undefined;
+		const life = this.#lives.get(frame) as Life;
+		frame.show(!life.moving && !life.refused); // Not a view held in another group (`#stays`).
+		life.kept = undefined;
 		// This group's tabs only: a tab moved away is the other group's to park.
 		const order = (this.#shown.get(groupId) ?? []).filter(
 			(id) => id !== tab.id && this.#frames.has(id) && ids.has(id)
