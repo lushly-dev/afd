@@ -64,6 +64,67 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * `documents` row (58), each measured as the closure with it less without it, with no slack. The parts are
  * approximate, since the minifier's renaming interacts with what is removed; the total is exact. First
  * paint 285,348 and 87,990 gzip, the kernel alone 111,350, `late` 56,860, `apps` 384,233.
+ * Step 10 adds `editorMinified`, the editor area's chunk, loaded on the first document opened, restored
+ * or routed to, charged after the surfaces as `sections` is: first measured at 24,720 against the documents
+ * specification's first estimate of 40,000 (12), at 62%, so lowered by phase 0's rule to its measurement
+ * plus 10%, 27,192; 27,182 after the step's reviews, with the tabs' icons. It records `notes`' bundle, as
+ * `tasks`' is. The editor's state and commands are a chunk of their own, `late-editor`, loaded inside
+ * `loadLate` beside `late-documents`, with a row of its own, `lateEditorMinified`, first 13,111, so 14,423,
+ * its measurement plus 10% (an amendment to 2.4 the coordinator decided, 2026-11-07), and 14,389 after the
+ * reviews: `late`'s closure leaves both out. After the reviews, first paint 285,523 and 88,061 gzip, the bytes
+ * 25 over step 10's allowance of 150 (the busy heading and an observable `mainBusy`), accepted by the
+ * coordinator; the kernel alone 111,543; `late` 57,661; `late-documents` 12,105; `url-sync` 4,806; `apps`
+ * 384,077, as the port's callable list moved to `late`; `surfaces` 83,946, with `host()`. The re-check's
+ * fixes raised `lateEditorMinified` by 221, to 14,644, and `editorMinified` by 573, to 27,765, approved by the
+ * coordinator, 2026-11-07, each part measured as the chunk with it less without it (2.4 has them); after it,
+ * first paint 285,503 and 88,055, the kernel alone 111,521, `late` 57,956 with a server's events,
+ * `late-editor` 14,610 and `editor` 27,755. The narrow re-check's raised them again by their measured
+ * cost, `lateEditorMinified` by 406 to 15,050 and `editorMinified` by 13 to 27,778, approved by the
+ * coordinator, 2026-11-07; after it, first paint 285,503 and 88,055, `late` 58,015, `late-documents`
+ * 12,169, `late-editor` 15,016 and `editor` 27,768. The second narrow re-check's raised `editorMinified` by
+ * its measured cost, 394, to 28,172, approved by the coordinator, 2026-11-07, chiefly a draft kept when its
+ * save rejects after another's close; `late-editor` fell to 14,957, `late` 58,089, `late-documents` 12,125.
+ * The third raised `lateEditorMinified` by 255, to 15,305, and `editorMinified` by 661, to 28,833, their
+ * measured costs, approved by the coordinator, 2026-11-07: `document-open`'s `stay` and the suggestion that
+ * says a rejected save's draft comes back, less what one read-and-write step saved; and a draft kept in every
+ * case but those deviation 16 lists. The fourth raised `editorMinified` by 257, to 29,090, approved by the
+ * coordinator, 2026-11-07: a rejected draft's tab marked before its closed tab's mark goes (83), a full group's
+ * retry beside (58), and every group searched for its document's clean tab (44), with the loop that does it
+ * (about 72). The fifth raised it by 210, to 29,300, approved by the coordinator, 2026-11-07: a parked editor
+ * still saving taken back, with its draft, by its tab shown again; `late` rose to 58,480 with an instance
+ * mutation's check, write and stamp in its document's chain. The sixth raised it by 323, to 29,623, approved
+ * by the coordinator, 2026-11-07: one leave at a time for a frame taken back and parked again (195), each frame's
+ * count of edits, so a leave knows of one made after its save began (82), and a tab whose parked editor is
+ * still saving counted as unsaved by a rejected draft's reopen (46). The seventh raised it by 455, to 30,078,
+ * approved by the coordinator, 2026-11-08: one lifecycle for every frame in place of the patches before it, a
+ * life each with one place that one function moves (about 377), the getter a test's check of its invariants
+ * reads (72), and a lost draft's mark cleared with it (6). The eighth raised it by 1,004, to 31,082, approved
+ * by the coordinator, 2026-11-08, after the independent review of the lifecycle: a mark no editor holds
+ * cleared from the person's page, also while an app shows (360), a parked editor whose tab another's call
+ * closed reopened (112), a slot another frame holds refused (about 70), the person's close kept in its own
+ * scope (28), and visits of a scope, timers by frame, a leaving frame taken off the page and the rest (about
+ * 424), and the split of its helpers into `editor-parts.ts`, under the file-size limit (10). The re-check after it raised it by 199, to 31,281, approved by the coordinator,
+ * 2026-11-08: a mark cleared when its tab's editor is ready and clean (65), a leaving editor of the scope
+ * rendered keeping its tab's mark across a round trip (about 97), and the person's close disposing only a
+ * frame still its tab's (37). The next raised it by 178, to 31,459, approved by the coordinator, 2026-11-08: a tab
+ * whose earlier editor still saves its draft keeping its mark, whatever a newer one says (about 95), and the
+ * person's Discard of an editor still leaving recorded on its life (83). The third raised it by 244, to 31,703,
+ * approved by the coordinator, 2026-11-08: a newer leave of a tab keeping the mark an older leave still holds
+ * (61), and the person's Discard during a reopen's open closing the new tab (127), never adopted, and reset when
+ * a tab takes the frame back (56). The fourth raised it by 718, to 32,421, approved by the coordinator,
+ * 2026-11-08: one rule and one reconciler for every mark in place of six sites, with the closed tabs a leave
+ * still owes, the person's close asking, the Discard by count of edits and the moves to `editor-parts.ts`, net
+ * of what they replaced (273); a mark the rule wants set at once, before any read (256); a Discard of a draft
+ * a reopen has given to another tab (122); and the reopen's check of the tab it opened (67 over its 127). The
+ * final re-check raised it by 242, to 32,663, approved by the coordinator, 2026-11-08: a closed tab a leave owed
+ * kept until its mark is known gone (151), the state the immediate set trusts kept true to what was sent (46),
+ * and an editor's mark only for its own document (36), with about 9 between them. The re-check after it raised
+ * it by 353, to 33,016, approved by the coordinator, 2026-11-08: a draft rejected while the area is away kept
+ * until it shows (161), a tab closed while an app shows leaving at once (117), and the prune they share, the
+ * clear's result, a sign-in's sync and `hostOf` moved to `editor-parts.ts` (115), less 40 that settling only on
+ * a read or a clear that succeeded saved. The last round's raised it by 349, to 33,365, approved by the
+ * coordinator, 2026-11-08: a modal the kernel closed with no answer taken as Keep editing (228), a kept draft's
+ * save tried once more when its scope goes first, and on `pagehide` (90), and the scopes out of reach (31).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -72,6 +133,7 @@ export const CEILINGS = Object.freeze({
 	kernelMinified: 113_401,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
+	lateEditorMinified: 15_305,
 	urlMinified: 5_091,
 	appsMinified: 384_253,
 	surfacesMinified: 85_000,
@@ -82,6 +144,7 @@ export const CEILINGS = Object.freeze({
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
 	sectionsMinified: 45_000,
+	editorMinified: 33_365,
 });
 
 /** Group a module id by the package it belongs to. */
@@ -150,7 +213,7 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows)-/.test(
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows|editor)-/.test(
 			name
 		)
 	);
@@ -228,14 +291,23 @@ async function measurePage() {
 	};
 	// In the order a page loads them, so a shared chunk, classic Zod's among them, is charged to the first.
 	// `late-documents` is a chunk of its own, with a row of its own, so `late` leaves it out (2.4, step 9).
-	const late = closure(/^assets\/late-(?!documents-)/, initial);
+	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07).
+	const late = closure(/^assets\/late-(?!documents-|editor-)/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
 	if (lateDocuments.size === 0) {
 		throw new Error('budget: the build has no `late-documents` chunk to measure');
 	}
-	const afterLate = new Set([...initial, ...late, ...lateDocuments]);
+	// Awaited beside it in `loadLate`, so charged after `late` and `late-documents`, before `apps`.
+	const lateEditor = closure(
+		/^assets\/late-editor-/,
+		new Set([...initial, ...late, ...lateDocuments])
+	);
+	if (lateEditor.size === 0) {
+		throw new Error('budget: the build has no `late-editor` chunk to measure');
+	}
+	const afterLate = new Set([...initial, ...late, ...lateDocuments, ...lateEditor]);
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -271,6 +343,11 @@ async function measurePage() {
 	if (closure(/^assets\/sections-/, afterSurfaces).size === 0) {
 		throw new Error('budget: the build has no `sections` chunk to measure');
 	}
+	// The editor area (documents specification, 5 and 12), loaded by the URL's chunk on the first document
+	// opened, restored or routed to: in "the rest" of 2.4's order, after the surfaces, which hold the app
+	// surfaces' `host()` its frames mount through.
+	const editor = closure(/^assets\/editor-/, afterSurfaces);
+	if (editor.size === 0) throw new Error('budget: the build has no `editor` chunk to measure');
 	const sizeOf = (files) =>
 		[...files].reduce((sum, name) => sum + Buffer.byteLength(chunks.get(name).code), 0);
 	const js = initialChunks.map((chunk) => Buffer.from(chunk.code));
@@ -290,6 +367,7 @@ async function measurePage() {
 		lazy: [...chunks.keys()].filter((name) => !initial.has(name)),
 		lateMinified: sizeOf(late),
 		lateDocumentsMinified: sizeOf(lateDocuments),
+		lateEditorMinified: sizeOf(lateEditor),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -300,6 +378,7 @@ async function measurePage() {
 		switcherColdMinified: sizeOf(switcherCold),
 		tooltipMinified: sizeOf(tooltip),
 		sectionsMinified: sizeOf(sections),
+		editorMinified: sizeOf(editor),
 		jsMinified: js.reduce((sum, code) => sum + code.length, 0),
 		jsGzip: js.reduce((sum, code) => sum + gzipOf(code), 0),
 		cssMinified:
@@ -363,6 +442,7 @@ const ROWS = [
 	['kernelMinified', '@lushly-dev/loam-kernel alone, minified with Zod Mini'],
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
+	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],
@@ -373,6 +453,7 @@ const ROWS = [
 	['switcherColdMinified', 'The `switcher` chunk on an empty shell, with the listbox, minified'],
 	['tooltipMinified', "The chrome's `tooltip` chunk and its imports, minified"],
 	['sectionsMinified', "The `sections` chunk, with the kernel's summary rows, minified"],
+	['editorMinified', "The chrome's `editor` chunk and its imports, minified"],
 ];
 
 export async function measure() {
@@ -386,7 +467,12 @@ export async function measure() {
 		ceiling: CEILINGS[key],
 		over: values[key] > CEILINGS[key],
 	}));
-	return { rows, page, kernel, apps: ['hello', 'tally', 'tasks'].map(appBundle).filter(Boolean) };
+	return {
+		rows,
+		page,
+		kernel,
+		apps: ['hello', 'tally', 'tasks', 'notes'].map(appBundle).filter(Boolean),
+	};
 }
 
 async function main() {

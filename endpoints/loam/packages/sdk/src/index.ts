@@ -271,6 +271,55 @@ export interface LoamSurfaceElementV1 extends HTMLElement {
 	selectionLevel?: 'workspace' | 'project';
 }
 
+/**
+ * The document an editor renders (documents specification, 5.6). Assigned before the element connects; a
+ * new title is a new object.
+ */
+export interface DocumentRefV1 {
+	readonly id: string;
+	readonly type: string;
+	readonly title: string;
+	readonly scope: ScopeV1;
+	readonly contentVersion: number;
+	readonly binding: BindingV1;
+	/** True in an embed. */
+	readonly readOnly: boolean;
+}
+
+/** Another call changed a document: an instance command that is a mutation succeeded (5.7). */
+export interface DocumentChangeV1 {
+	readonly document: string;
+	readonly command: string;
+	readonly seq?: number;
+}
+
+/**
+ * A document type's native editor (documents specification, 5.6). Every hook is optional, and all are called
+ * by the shell. Its `context.client` is a surface port created with the document's scope.
+ */
+export interface LoamEditorElementV1 extends LoamSurfaceElementV1 {
+	document?: DocumentRefV1;
+	/** Write through the type's own commands. Rejecting keeps the tab dirty. */
+	save?(): Promise<void>;
+	/** Called before the element is dropped. Not given a time limit. */
+	dispose?(): void | Promise<void>;
+	/**
+	 * Another call changed this document: re-read it. Called on every open editor of it, this one's own calls
+	 * included (5.7).
+	 */
+	documentChanged?(change: DocumentChangeV1): void;
+}
+
+/**
+ * What an editor dispatches, bubbling and composed, from its element, on each edit, not only when its state
+ * changes: `detail` is `{ dirty: boolean }`. The shell's autosave timer restarts on each, and a leaving editor
+ * counts them to know of an edit made after its save began (documents specification, 5.5).
+ */
+export const EDITOR_DIRTY_EVENT = 'loam-editor-dirty';
+
+/** What an editor dispatches, bubbling and composed, from its element: `detail` is the selection, or null. */
+export const EDITOR_SELECTION_EVENT = 'loam-editor-selection';
+
 export type OverlayKindV1 = 'toast' | 'modal';
 
 export interface OverlayRefV1 {

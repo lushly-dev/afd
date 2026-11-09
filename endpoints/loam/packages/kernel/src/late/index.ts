@@ -10,13 +10,16 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
-import type { LateScope } from '../scope/middleware.js';
+import { type LateScope, sessionActor } from '../scope/middleware.js';
+import type { ScopeV1 } from '../scope/records.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
-import type { AppSummaryV2, KernelMcpOptions } from '../types.js';
+import type { AppSummaryV2, KernelEventV2, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
+import type { EditorParts } from './editor-commands.js';
 import { createOverlayCommands } from './overlay-commands.js';
+import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
 import { createLateScope, type LateScopeDeps } from './scope-change.js';
@@ -102,11 +105,16 @@ export interface LateParts {
 	/**
 	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
 	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
-	 * and `scope` alone.
+	 * and `scope` alone. Outside that chain, each of a server's mutations that succeeds, in a scope the page's
+	 * actor may enter, reaches `listeners` as the kernel's event, with what the call noted, so a page renders
+	 * what a server changed (documents specification, 5.4).
 	 */
 	mcpOptions(
-		commands: readonly ZodCommandDefinition[],
-		middleware: readonly CommandMiddleware[]
+		current: {
+			commands: readonly ZodCommandDefinition[];
+			middleware: readonly CommandMiddleware[];
+		},
+		listeners: ReadonlySet<(event: KernelEventV2) => void>
 	): KernelMcpOptions;
 	/** A reload, for a replay: the session is forgotten, as the Mock's page forgets it (10). */
 	reload(): Promise<void>;
@@ -140,8 +148,27 @@ export async function createLateParts(
 	deps: LateCommandDeps
 ): Promise<LateParts> {
 	const documents = createDocumentCheck(deps);
-	const lateScope = createLateScope({ ...deps, documents });
-	const { createDocumentCommands, trashBefore } = await import('./documents.js');
+	// Both chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
+	// either failing fails the late load whole (documents specification, Status, deviations 9 and 14).
+	const [{ createDocumentCommands, trashBefore }, { createEditorParts }] = await Promise.all([
+		import('./documents.js'),
+		import('./editor-commands.js'),
+	]);
+	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
+	// before any app, so a late load that fails sets nothing.
+	deps.scope.callable = appCallable;
+	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
+	// the scope it needs.
+	let editor: EditorParts | undefined;
+	const lateScope = createLateScope({
+		...deps,
+		documents,
+		settle: (name, call) => editor?.settle(name, call),
+	});
+	editor = createEditorParts({ ...deps, lateScope, check: documents }, DOCUMENT_KIT);
+	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
+	// stage A's `hydrate` drops a record with no handler.
+	await editor.ensure(deps.scope.active().project);
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
 	const stores = createShellStores(deps.store, deps.scope);
@@ -163,26 +190,66 @@ export async function createLateParts(
 			...createOverlayCommands({
 				overlays: deps.overlays,
 				activeApp: () => deps.state.activeApp(),
+				editorOwner: editor.owner,
 			}),
 			...scoped,
 			createProjectSummaryCommand(deps),
-			...createDocumentCommands({ ...deps, check: documents }, DOCUMENT_KIT),
+			...createDocumentCommands({ ...deps, check: documents, editor }, DOCUMENT_KIT),
+			...editor.commands,
 		].map((command) => [command.name, command])
 	);
+	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
+	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
 		shell: SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
 		internal: createPortRefusals(),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,
-		mcpOptions: (commands, middleware) => ({
+		mcpOptions: ({ commands, middleware }, listeners) => ({
 			// A server holds no active scope and no person's session (3.3), so the commands that move them
 			// are not served: a person's calls make them.
 			commands: commands.filter(
 				(command) =>
 					!INTERNAL_COMMANDS.includes(command.name) && !PERSON_SESSION.includes(command.name)
 			),
-			middleware,
+			middleware: [
+				async (command, _input, context, next) => {
+					const trace = context.traceId as string;
+					// Before and after: a call that takes the page's actor out of a scope is heard too.
+					const before = deps.scope.allows(
+						sessionActor(deps.auth),
+						(context as { scope?: ScopeV1 }).scope ?? { workspace: deps.scope.workspace.id }
+					);
+					deps.scope.seen.set(trace, {});
+					const result = await next();
+					const seen = deps.scope.seen.get(trace);
+					deps.scope.seen.delete(trace);
+					// Only of a scope the page's actor may enter: of any other, the page has nothing to render.
+					if (
+						result.success &&
+						deps.isMutation(command) &&
+						(before || !seen?.scope || deps.scope.allows(sessionActor(deps.auth), seen.scope))
+					) {
+						const event = {
+							command,
+							interface: 'agent',
+							success: true,
+							mutation: true,
+							...seen,
+						} as const;
+						for (const listener of [...listeners]) {
+							try {
+								listener(event);
+							} catch (cause) {
+								reportLate(cause);
+							}
+						}
+					}
+					return result;
+				},
+				...middleware,
+			],
 			contextFields: MCP_CONTEXT_FIELDS,
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
@@ -229,6 +296,8 @@ export async function createLateParts(
 			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.
 			await deps.auth.signOut();
 			lateScope.forgetActor();
+			// Dirty tabs and selections are memory alone, lost as an unsaved change is (5.2).
+			editor?.reset();
 		},
 	};
 	return parts;

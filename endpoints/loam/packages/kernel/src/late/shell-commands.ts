@@ -231,13 +231,21 @@ function guardViewStateSet(
 				state: Record<string, unknown>;
 				replace?: boolean;
 			};
-			if (id === APPS_VIEW_STATE_ID || id === SCOPE_VIEW_STATE_ID) {
+			// `loam.editor` and `loam.editor@<project>`, whose state is the `late-editor` chunk's, by their name here so
+			// `late` imports nothing of that chunk.
+			if (
+				id === APPS_VIEW_STATE_ID ||
+				id === SCOPE_VIEW_STATE_ID ||
+				/^loam\.editor(@|$)/.test(id)
+			) {
 				return kernelFailure(
 					'VIEW_STATE_READ_ONLY',
 					`'${id}' cannot be written through view-state-set`,
 					id === SCOPE_VIEW_STATE_ID
 						? 'Use scope-set, which also applies the switch rules'
-						: 'Use app-open or app-close, which also apply the overlay and surface rules'
+						: id === APPS_VIEW_STATE_ID
+							? 'Use app-open or app-close, which also apply the overlay and surface rules'
+							: 'Use document-open and the editor-* commands, which keep its rules'
 				);
 			}
 			if (!mayRead(id, context, deps)) return unregistered(id);

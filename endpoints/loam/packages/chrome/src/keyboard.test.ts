@@ -57,6 +57,8 @@ describe('reserved chords', () => {
 			'Mod+J': key({ code: 'KeyJ', ctrlKey: true }),
 			F6: key({ key: 'F6' }),
 			'Shift+F6': key({ key: 'F6', shiftKey: true }),
+			// The editor area's save (documents specification, 5.5).
+			'Mod+S': key({ code: 'KeyS', ctrlKey: true }),
 		};
 		for (const binding of SHELL_KEYBINDINGS_V0) {
 			expect(matchKeybinding(events[binding.chord] as ChordEvent, false)?.chord).toBe(

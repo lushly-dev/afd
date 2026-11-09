@@ -1,0 +1,41 @@
+{
+	"name": "@lushly-dev/loam-app-notes",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Loam's first document type, native: notes, text a person writes in the editor area, at workspace level or in a project. It lands with no shell change",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"scripts": {
+		"build": "vite build",
+		"clean": "rimraf dist coverage",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run",
+		"lint:tokens": "loam-lint-tokens \"src/**/*.ts\"",
+		"pack": "loam app pack . --out dist/package"
+	},
+	"dependencies": {
+		"@lushly-dev/fast-element": "workspace:*",
+		"@lushly-dev/loam-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"@lushly-dev/loam-cli": "workspace:*",
+		"@lushly-dev/loam-testing": "workspace:*",
+		"@lushly-dev/loam-theme": "workspace:*",
+		"@lushly-dev/specimen": "workspace:*",
+		"@lushly-dev/violet-elements": "workspace:*",
+		"@types/node": "^26.6.6",
+		"@vitest/coverage-v8": "^4.1.12",
+		"rimraf": "^6.1.3",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.0",
+		"vitest": "^4.1.12"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/loam/apps/notes"
+	}
+}

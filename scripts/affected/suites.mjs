@@ -102,9 +102,10 @@ export const SUITES = [
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-theme theme:check' },
 			{
 				gate: 'run',
-				run: 'pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally -F @lushly-dev/loam-app-tasks lint:tokens',
+				run: 'pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally -F @lushly-dev/loam-app-tasks -F @lushly-dev/loam-app-notes lint:tokens',
 			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:browser' },
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:walk' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web budget' },
 			{ gate: 'mounted', run: 'pnpm -F @lushly-dev/loam-web test:mounted' },
 		],

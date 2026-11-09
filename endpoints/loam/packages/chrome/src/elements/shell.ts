@@ -20,6 +20,7 @@ import {
 	type LayoutStateV0,
 	type LoamKernelV2,
 } from '@lushly-dev/loam-kernel';
+import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
 import {
 	isMacPlatform,
@@ -68,6 +69,8 @@ export interface ShellApps {
 	run(command: string): void;
 	start(): Promise<void>;
 	dispose(): void;
+	/** The editor frame's way in (documents specification, 5.6). */
+	host(): SurfaceHostV1;
 }
 
 interface SessionState {
@@ -141,7 +144,8 @@ const template = html<LoamShell>`
 				shortcut="${(x) => x.shortcut}"
 				home="${(x) => x.home}"
 				?inert="${(x) => x.presentation.panel === 'maximized'}"
-			></loam-main>
+				>${when((x) => x.mainBusy, html`<h1 class=announce>Opening</h1>`)}</loam-main
+			>
 			<loam-inspector
 				data-part="inspector"
 				heading="Inspector"
@@ -240,7 +244,10 @@ export class LoamShell extends FASTElement {
 
 	/** Main's landing heading: the empty shell's until the app surfaces say otherwise. */
 	declare landing: string;
-	/** Main hides its landing while a persisted active app's surface is on its way (2.2). */
+	/**
+	 * Main hides its landing while a persisted owner, an app or the documents section, is on its way (2.2;
+	 * documents specification, 6); a visually hidden `h1`, "Opening", heads the page meanwhile.
+	 */
 	declare mainBusy: boolean;
 	/** The status bar's left items: the workspace's name, and the active project's, or empty (7.4). */
 	declare workspaceName: string;
@@ -449,7 +456,8 @@ export class LoamShell extends FASTElement {
 				: route.kind === 'root' || route.kind === 'workspace'
 					? list?.active
 					: null;
-		if (found && owner != null) this.#holdMain();
+		// A persisted documents section too: its editors restore in stage B (documents specification, 6).
+		if (found && (owner ?? state.section === 'documents')) this.#holdMain();
 		else if (this.appCount > 0) this.landing = 'Choose an app';
 		this.booted = true;
 		this.#present();
@@ -852,7 +860,8 @@ export class LoamShell extends FASTElement {
 		const paletteOpen =
 			(customElements.get('loam-palette') !== undefined && this.palette?.isOpen === true) ||
 			this.apps?.modalOpen === true;
-		if (binding) {
+		// Mod+S is the editor area's, which answers it first while an editor is the active owner (5.5).
+		if (binding && !binding.save) {
 			event.preventDefault();
 			if (binding.focus) {
 				// A modal keeps focus; F6 would otherwise leave it for the browser's toolbar.
@@ -921,6 +930,8 @@ observable(LoamShell.prototype, 'panelMax');
 observable(LoamShell.prototype, 'failure');
 observable(LoamShell.prototype, 'booted');
 observable(LoamShell.prototype, 'landing');
+// Bound to main's `busy`, so a release clears `aria-busy` (documents specification, 6).
+observable(LoamShell.prototype, 'mainBusy');
 observable(LoamShell.prototype, 'workspaceName');
 observable(LoamShell.prototype, 'projectName');
 observable(LoamShell.prototype, 'announcement');

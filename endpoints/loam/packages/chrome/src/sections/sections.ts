@@ -106,7 +106,8 @@ async function sync(shell: LoamShell): Promise<void> {
 		if (!held) return;
 		const hadFocus = held.matches(':focus-within');
 		held.remove();
-		delete main.dataset.section;
+		// The documents section's editor area may already own main (documents specification, 5.1).
+		if (main.dataset.section === 'projects') delete main.dataset.section;
 		markToggles(shell, false);
 		await shell.readLayout();
 		// Focus that was in the section goes to main, or to the panel when main is inert, not to the page.

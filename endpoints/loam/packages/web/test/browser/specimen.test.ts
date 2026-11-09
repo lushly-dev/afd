@@ -10,6 +10,9 @@ import type { Observation, SpecimenContext } from '@lushly-dev/specimen/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const SPECIMENS = fileURLToPath(new URL('../../../chrome/specimens/', import.meta.url));
+const NOTES_SPECIMENS = fileURLToPath(
+	new URL('../../../../apps/notes/specimens/', import.meta.url)
+);
 
 let bench: SpecimenBench;
 beforeAll(async () => {
@@ -169,6 +172,76 @@ describe('E11: Specimen captures of what apps add', () => {
 					? observation.channels.dom.normalized
 					: observation.channels.a11y.snapshot;
 				expect(channel, id).toContain(expected);
+			}
+		}, 300_000);
+});
+
+/** The documents specification's D10 so far (step 10): the editor area's elements, comfortable and compact. */
+const EDITOR_CAPTURES: [string, string[]][] = [
+	[
+		'editor-area',
+		[
+			'region "Documents"',
+			'heading "Roadmap"',
+			'tablist "Documents, group 1"',
+			'tab "Roadmap, unsaved" [selected]',
+			'tab "Plan, pinned"',
+			'tab "Ideas (preview)"',
+			'Opening Roadmap',
+			'DOCUMENT_TYPE_UNAVAILABLE',
+			'button "Close"',
+		],
+	],
+	['editor-area-empty', ['region "Documents"', 'No documents are open']],
+	['editor-group', ['tablist "Documents"', 'tab "Plan, pinned"', 'tabpanel', 'Opening Roadmap']],
+	[
+		'editor-menu',
+		['menu "Actions for Roadmap"', 'menuitem "Pin"', 'menuitem "Move to a new group"'],
+	],
+	['editor-frame-loading', ['Opening Roadmap']],
+	['editor-frame-failed', ['heading "Ledger"', 'DOCUMENT_CONTENT_VERSION_NEWER', 'button "Close"']],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string[]],
+	[`${id}-compact`, expected] as [string, string[]],
+]);
+
+/** `notes-editor`, from the type's own fixtures, since no chrome file names a type (D2). */
+const NOTES_CAPTURES: [string, string[]][] = [
+	['notes-editor', ['textbox "Roadmap"']],
+	[
+		'notes-editor-conflict',
+		['alert', 'This note changed elsewhere', 'button "Keep mine"', 'button "Use theirs"'],
+	],
+].flatMap(([id, expected]) => [
+	[id, expected] as [string, string[]],
+	[`${id}-compact`, expected] as [string, string[]],
+]);
+
+describe('P2-D10: Specimen captures of notes-editor', () => {
+	let notes: SpecimenBench;
+	beforeAll(async () => {
+		notes = await createSpecimenBench({ root: NOTES_SPECIMENS });
+	});
+	afterAll(async () => {
+		await notes?.close();
+	});
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: captures it with a draft and with its conflict notice in ${theme}, in both densities`, async () => {
+			for (const [id, expected] of NOTES_CAPTURES) {
+				const observation = await notes.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+			}
+		}, 300_000);
+});
+
+describe('P2-D10: Specimen captures of the editor area', () => {
+	for (const theme of ['light', 'dark', 'high-contrast'] as const)
+		it(`P2-D10: captures each in ${theme}, in both densities, each with an ARIA snapshot`, async () => {
+			for (const [id, expected] of EDITOR_CAPTURES) {
+				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
+				expectClean(observation);
+				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
 			}
 		}, 300_000);
 });

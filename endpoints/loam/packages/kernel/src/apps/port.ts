@@ -31,22 +31,6 @@ const SCOPED_TO_CALLER: ReadonlySet<string> = new Set([
 	'app-route-set',
 ]);
 
-/**
- * What an app may call besides its own commands (phase 2 specification, 11.2): phase 1's nine,
- * `scope-get` and `app-route-set` always, `project-list` and `project-get` with `projects`, and
- * `document-get` and `document-list` with `documents` (documents specification, 11; `document-open`,
- * `editor-get` and the link commands join with steps 10 and 12). Anything else is `CALL_NOT_GRANTED`.
- */
-export function appCallable(grants: ReadonlySet<string>): ReadonlySet<string> {
-	return new Set<string>([
-		...APP_CALLABLE_SHELL_COMMANDS_V1,
-		'scope-get',
-		'app-route-set',
-		...(grants.has('projects') ? ['project-list', 'project-get'] : []),
-		...(grants.has('documents') ? ['document-get', 'document-list'] : []),
-	]);
-}
-
 /** A call's options as an app may give them: a signal, and `level: 'workspace'`, the only widening. */
 export type AppCallOptions = CallOptionsV1 & { level?: unknown; scope?: unknown };
 
@@ -100,7 +84,9 @@ export function createAppPort(options: AppPortOptions): {
 } {
 	const { record, manifest, config, packageUrl, host, ports, granted } = options;
 	const { instance } = record;
-	const callable = appCallable(granted);
+	// `late/`'s list, which loads before any app (phase 2 specification, 11.2); with none, nothing is callable.
+	const callable =
+		host.scope.callable?.(granted, APP_CALLABLE_SHELL_COMMANDS_V1) ?? new Set<string>();
 	let modalRefusedUntil = 0;
 
 	/** A view's `modal-open`: a person who closes one gets time to leave before the next. */

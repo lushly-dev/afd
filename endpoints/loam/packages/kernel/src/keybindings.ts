@@ -15,6 +15,11 @@ export interface ShellKeybindingV0 {
 	toggle?: 'sidebar' | 'inspector' | 'panel';
 	/** For `F6` and `Shift+F6`, the direction focus moves between present parts. */
 	focus?: 'next' | 'previous';
+	/**
+	 * Mod+S: the active editor's `save()`. The shell has no save command, so this is a binding of its own,
+	 * which the editor area answers only while an editor is the active owner (documents specification, 5.5).
+	 */
+	save?: true;
 }
 
 const BINDINGS: ShellKeybindingV0[] = [
@@ -24,6 +29,7 @@ const BINDINGS: ShellKeybindingV0[] = [
 	{ chord: 'Mod+J', command: 'layout-set', toggle: 'panel' },
 	{ chord: 'F6', command: null, focus: 'next' },
 	{ chord: 'Shift+F6', command: null, focus: 'previous' },
+	{ chord: 'Mod+S', command: null, save: true },
 ];
 
 /** The reserved chords, frozen with every entry. */

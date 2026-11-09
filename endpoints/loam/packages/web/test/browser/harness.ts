@@ -151,7 +151,7 @@ const packed = new Map<string, Promise<string>>();
 
 /** `loam app pack` on an app's built source, once a run, in a temporary directory. */
 export function packApp(
-	app: 'hello' | 'tally' | 'tasks',
+	app: 'hello' | 'tally' | 'tasks' | 'notes',
 	kind: 'native' | 'view' | 'mounted' = 'native'
 ): Promise<string> {
 	const key = `${app}-${kind}`;
