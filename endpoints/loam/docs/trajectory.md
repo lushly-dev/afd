@@ -5,7 +5,7 @@ owning agent refreshes the rows it depends on before writing its
 specification. Dates are the sources' own; "reserved" means Loam keeps a
 seam for it without implementing a draft. Source IDs refer to the
 [ledger](sources.md). **Refreshed 2026-11-09** for the [phase 3 specification](phases/3-identity/spec.md#trajectory-refresh): W12,
-R10 and R14 re-checked, W31 to W33 added (S80 to S87).
+R10 and R14 re-checked, W31 to W33 added (S80 to S87). **Refreshed 2026-11-09** for the [phase 6 specification](phases/6-hosts/spec.md#trajectory-refresh): W7 and W30 re-checked, W34 to W37 added (S88 to S97).
 
 ## Eight movements
 
@@ -99,7 +99,7 @@ R10 and R14 re-checked, W31 to W33 added (S80 to S87).
 | W4 | CSS anchor positioning in Safari | Shipped in Safari 26 | Settled | Keep a fallback only for older engines |
 | W5 | Cross-document view transitions in Firefox | Not shipped | Interop 2026 hoped, unconfirmed | Cosmetic only |
 | W6 | Navigation API precommit handler in Safari | Missing. Refreshed 2026-11-02: `Navigation` is in Chrome 102, Firefox 147 and Safari 26.2; no precommit entry was readable in MDN's data, and phase 2 registers no such handler | Unknown | Route guards use the fallback path; without the API a link is a full load, which D74 keeps working |
-| W7 | Tauri line and mobile maturity | 2.12.5 on 2026-10-21; 3.0.0 in alpha; mobile younger than desktop | Tauri 3.0 | D33; the desktop lane pins a major |
+| W7 | Tauri line and mobile maturity | 2.12.5 on 2026-10-21; 3.0.0 in alpha; mobile younger than desktop. Refreshed 2026-11-09: the `tauri` crate 2.12.5 (MSRV 1.90) still current, `@tauri-apps/cli` 2.12.4, 3.0.0-alpha.6 on 2026-11-06 (S90); WebDriver driven directly on Windows and Linux only, macOS having "no WKWebView driver tool" (S91) | Tauri 3.0 | D33; the desktop lane pins 2.12 (proposed D106); macOS builds without a WebDriver suite |
 | W8 | WebAssembly components in browsers | Transpilation through jco only; no native implementation | Unknown | A component app kind stays reserved |
 | W9 | Rust frontends and web components | No support found in Dioxus or Leptos sources | Unknown | A Rust-rendered chrome stays reserved |
 | W10 | Module Federation 2.0 versus import maps | Both viable; the contract avoids bundler coupling | Ongoing | Nothing unless a consumer needs federation |
@@ -125,7 +125,11 @@ R10 and R14 re-checked, W31 to W33 added (S80 to S87).
 | W27 | Agent plugin formats | Claude's plugin directories and Agent Skills converge on files; Cowork, Claude Code, VS Code and Raycast each load something | Unknown | The agent-pack loader (D44) follows Agent Skills first |
 | W28 | CRDT and sync-engine choice | Yjs the most deployed; Automerge with a Rust core; Postgres sync engines for structured data | Before the collaboration specification | Which library sits behind the document store interface (D46) |
 | W29 | Signing for plugins and apps | The owner decided on 2026-11-01 that signing waits; `signature` stays reserved in the manifest; workspace-store digests and D47's owner approval cover published apps. Tracks Umbel's watch row W9, on Agent Skills versioning and security | When Umbel's W9 settles | Whether Loam's published apps gain a signature (D58) |
-| W30 | Browsers restricting a public page calling loopback | Chrome's Local Network Access, since 142, gates it behind a permission, split into `local-network` and `loopback-network` in 145; Firefox and Safari not found on 2026-11-01 | Before phase 6 | Another reason a browser reaches an instance through the hosted server (D64) |
+| W30 | Browsers restricting a public page calling loopback | Chrome's Local Network Access, since 142, gates it behind a permission, split into `local-network` and `loopback-network` in 145; Firefox and Safari not found on 2026-11-01. Refreshed 2026-11-09: Chrome's post (updated 2025-09-29) says the prompt launched in 142; the blink-dev intent to ship confirms 145's split, keeping the old name as an alias (S93); Firefox and Safari still not found | Each Chrome release | Another reason a browser reaches an instance through the hosted server (D64); the hosted shell's `Permissions-Policy` denies both to the page (phase 6, 3.5) |
+| W34 | Hono and its Node adapter | Added 2026-11-09: `hono` 4.13.17 on 2026-11-07, 5.0.0-rc.1 tagged `next`; `@hono/node-server` 2.1.6 on 2026-11-02, with `HttpBindings` and `RESPONSE_ALREADY_SENT` for a handler that writes its own response (S88, S89) | Hono 5.0 | The hosted server pins 4.13 (proposed D101) |
+| W35 | The MCP Registry | Added 2026-11-09: in preview, with resets possible before general availability; `server.json` at schema `2025-12-11`; OCI images verified by the `io.modelcontextprotocol.server.name` annotation; no private servers (S94) | General availability | An entry describes Loam's image, never a deployment; nothing submitted until the owner admits it (proposed D107) |
+| W36 | MCP Server Cards | Added 2026-11-09: SEP-2127 is Final; a card at `<streamable-http-url>/server-card`, `application/mcp-server-card+json`, open CORS and `ETag`; an AI Catalog at `/.well-known/ai-catalog.json`; no tools in a card (S95). Umbel's R11 plans its own | The extension's next version | The hosted server serves a card; the catalog is off by default (proposed D107) |
+| W37 | Node 26 | Added 2026-11-09: LTS ("Lithium"), 26.13.0 on 2026-10-28; `node:26-trixie-slim` updated 2026-11-05 (S96) | Node 28 | The hosted server and its image run Node 26, the base pinned by digest |
 
 ## Deliberately not chased
 
@@ -142,7 +146,7 @@ model gateway of Loam's own.
 ## Sources
 
 The dated sources for the movements above are rows S01 to S34, S43 to S53
-and S55 to S78 of the [ledger](sources.md), and S80 to S87 for the rows refreshed on 2026-11-09. Umbel's [trajectory
+and S55 to S78 of the [ledger](sources.md), S80 to S87 for the rows refreshed on 2026-11-09 for phase 3, and S88 to S97 for those refreshed the same day for phase 6. Umbel's [trajectory
 watch](../../umbel/docs/trajectory.md) covers the protocol, harness and
 enterprise-context movements Loam depends on through Umbel, in particular
 MCP Events, Tasks, agent identity and Skills over MCP, and is not repeated
