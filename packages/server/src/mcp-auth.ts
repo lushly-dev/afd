@@ -36,6 +36,9 @@ import {
 	type ForbiddenStyle,
 	type PreDispatch,
 } from './mcp-auth-dispatch.js';
+
+export type { PreDispatch } from './mcp-auth-dispatch.js';
+
 import type { TokenVerifier } from './mcp-auth-jwt.js';
 import {
 	createProtectedResource,

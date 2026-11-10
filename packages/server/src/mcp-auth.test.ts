@@ -714,20 +714,26 @@ describe('P3-E9: configuration fails closed', () => {
 		).toThrow(/audience/);
 	});
 
-	it('refuses the scope options (M6) rather than ignore them', () => {
-		for (const option of ['requiredScopes', 'resolver', 'filterToolsByScope']) {
-			expect(() =>
-				createMcpHandler({
-					...base(),
-					auth: {
-						resource: RESOURCE,
-						authorizationServers: [as.issuer],
-						verifier: verifier(),
-						[option]: option === 'filterToolsByScope' ? true : ['todo:read'],
-					} as never,
-				})
-			).toThrow(new RegExp(`auth.${option} is not supported yet`));
-		}
+	it('refuses scope options that are not scope tokens, a boolean or a resolver (M6)', () => {
+		const auth = { resource: RESOURCE, authorizationServers: [as.issuer], verifier: verifier() };
+		const make =
+			(extra: Record<string, unknown>, commands = [whoami]) =>
+			() =>
+				createMcpHandler({ ...base(), commands, auth: { ...auth, ...extra } as never });
+		expect(make({ requiredScopes: ['todo read'] })).toThrow(/not an OAuth scope token/);
+		expect(make({ requiredScopes: 'todo:read' })).toThrow(/array of scope tokens/);
+		expect(make({ filterToolsByScope: 'yes' })).toThrow(/filterToolsByScope must be a boolean/);
+		expect(make({ resolver: { resolve: () => 'allowed' } })).toThrow(/resolve\(\) and visible\(\)/);
+		const badScope = defineCommand({
+			name: 'caller-write',
+			description: 'Write',
+			expose: { mcp: true },
+			scopes: ['bad scope'],
+			input: z.object({}),
+			handler: async () => success({}),
+		});
+		expect(make({}, [whoami, badScope] as never)).toThrow(/caller-write/);
+		expect(make({ requiredScopes: ['todo:read'], filterToolsByScope: true })).not.toThrow();
 	});
 
 	it('refuses a missing verifier, an http resource and no authorization server', () => {

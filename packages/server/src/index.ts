@@ -140,7 +140,14 @@ export {
 	replayJournal,
 } from './journal-replay.js';
 // MCP authorization on HTTP (spec/authorization.md, M1 to M5 and M7): createMcpHandler's `auth`
-export { type AuthRefusal, credentialsActor, type McpAuthOptions } from './mcp-auth.js';
+export {
+	type AuthRefusal,
+	credentialsActor,
+	type McpAuthOptions,
+	type PreDispatch,
+	type PreDispatchCheck,
+	type PreDispatchCheckOptions,
+} from './mcp-auth.js';
 export { type BearerResult, extractBearer } from './mcp-auth-bearer.js';
 export {
 	createIntrospectionVerifier,
@@ -186,6 +193,14 @@ export {
 	type TokenRules,
 	type TokenRulesOptions,
 } from './mcp-auth-rules.js';
+export {
+	type RequestDecision,
+	requestDecision,
+	ScopeChallenge,
+	type ScopeDecision,
+	type ScopeResolver,
+	staticDecision,
+} from './mcp-auth-scopes.js';
 // MCP resources, tool `_meta` keys and Agent Skills (spec/mcp-resources.md)
 export { checkMetaEntry } from './meta-keys.js';
 // Middleware
