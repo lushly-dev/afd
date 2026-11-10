@@ -498,9 +498,9 @@
       "path": "foundations/violet/README.md",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "733b74690a8f994276a1e5acf430d6c91a27a2b118db0802a4d703683764fa99",
+      "current_import_sha256": "c8d2d72d39b653bb6cd0fdb90cc7f5a2894b8ae70f15bddcb60f9abd3f550ec8",
       "classification": "afd-authored",
-      "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree; gates list the Postgres and Neon driver store legs; the runtime row names its adaptation for Loam D50 and phase 0 spec section 3 (step 0b)",
+      "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree; gates list the Postgres and Neon driver store legs; the runtime row names its adaptation for Loam D50 and phase 0 spec section 3 (step 0b); Configuration reflects the toolchain majors (#599): Biome 2 with its own configuration, Zod 4, runtime types",
       "candidate": {
         "path": null,
         "sha256": null,
