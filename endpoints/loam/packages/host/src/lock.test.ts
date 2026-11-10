@@ -72,6 +72,24 @@ describe('the data directory lock (section 4)', () => {
 		acquireDataLock(data).release();
 	});
 
+	it('refuses a retry in the same process from memory, and keeps the lock against other processes', async () => {
+		const data = await temporaryDirectory();
+		const lock = acquireDataLock(data);
+		for (let attempt = 0; attempt < 2; attempt++) {
+			let refused: unknown;
+			try {
+				acquireDataLock(data);
+			} catch (cause) {
+				refused = cause;
+			}
+			expect((refused as HostError).code).toBe('HOST_DATA_LOCKED');
+			// The retry touched nothing, so the lock still holds against another process.
+			expect((await otherProcess(data)).said).toBe('refused 5');
+		}
+		lock.release();
+		expect((await otherProcess(data)).said).toBe('held');
+	});
+
 	it('uses the rollback journal and an exclusive lock, never WAL', () => {
 		expect(LOCK_STATEMENTS).toContain('PRAGMA locking_mode = EXCLUSIVE');
 		expect(LOCK_STATEMENTS).toContain('PRAGMA journal_mode = DELETE');

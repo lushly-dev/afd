@@ -5,9 +5,21 @@
  * connection kept open for the process's life. A second process opens the file without error and meets
  * `SQLITE_BUSY` on its first statement. The lock ends with the process however it ends, so nothing is
  * ever stale. `.lock` beside it is informational: nothing reads it as a rule.
+ *
+ * On POSIX, closing any descriptor to a file drops every lock the process holds on it, SQLite's
+ * included. So this process never closes a descriptor to a lock file that may already exist, and a
+ * second attempt in the same process is refused from memory before it touches the file system.
  */
 
-import { chmodSync, closeSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	closeSync,
+	openSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -57,11 +69,21 @@ function lockedError(data: string): HostError {
 	]);
 }
 
+/** The `realpath` of each data directory this process holds. */
+const held = new Set<string>();
+
 /** Takes the lock on `<data>/lock.sqlite`, or throws `HOST_DATA_LOCKED`. */
 export function acquireDataLock(data: string): DataLock {
-	const path = join(data, LOCK_FILE);
+	const directory = realpathSync(data);
+	if (held.has(directory)) throw lockedError(data);
+	const path = join(directory, LOCK_FILE);
 	// Created 0600 before SQLite opens it, so it and its journal, which copies its mode, stay private.
-	closeSync(openSync(path, 'a', 0o600));
+	// Only a file this call created is closed: no lock can be held on it yet.
+	try {
+		closeSync(openSync(path, 'wx', 0o600));
+	} catch (cause) {
+		if ((cause as NodeJS.ErrnoException).code !== 'EEXIST') throw cause;
+	}
 	chmodSync(path, 0o600);
 	let database: DatabaseSync;
 	try {
@@ -82,7 +104,8 @@ export function acquireDataLock(data: string): DataLock {
 		startedAt: new Date().toISOString(),
 		host: hostname(),
 	};
-	const infoPath = join(data, LOCK_INFO_FILE);
+	held.add(directory);
+	const infoPath = join(directory, LOCK_INFO_FILE);
 	// Removed first, since a mode applies only when a file is created.
 	rmSync(infoPath, { force: true });
 	writeFileSync(infoPath, `${JSON.stringify(info)}\n`, { mode: 0o600, flag: 'wx' });
@@ -92,8 +115,9 @@ export function acquireDataLock(data: string): DataLock {
 		release() {
 			if (released) return;
 			released = true;
-			if (readLockInfo(data)?.pid === info.pid) rmSync(infoPath, { force: true });
+			if (readLockInfo(directory)?.pid === info.pid) rmSync(infoPath, { force: true });
 			database.close();
+			held.delete(directory);
 		},
 	};
 }
