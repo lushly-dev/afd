@@ -21,6 +21,8 @@ interface IncumbentTest {
 	status: 'passed' | 'failed' | 'skipped';
 	accessibility: boolean;
 	message: string;
+	/** The accessibility rules its failure names, as `toHaveNoViolations` lists them. */
+	rules: string[];
 }
 
 /** Storybook's Vitest run of one fixture project, test by test. */
@@ -56,6 +58,14 @@ async function incumbent(project: string): Promise<IncumbentTest[]> {
 			status: test.status as IncumbentTest['status'],
 			accessibility: test.failureMessages.some((message) => message.includes('toHaveNoViolations')),
 			message: test.failureMessages[0]?.split('\n')[0] ?? '',
+			rules: [
+				...new Set(
+					// Each listed violation is `"<help> (<rule>)"`; the reporter's colors sit outside the quotes.
+					test.failureMessages.flatMap((message) =>
+						[...message.matchAll(/"[^"\n]*\(([a-z0-9-]+)\)"/g)].map((match) => match[1] ?? '')
+					)
+				),
+			],
 		}))
 	);
 }
@@ -80,12 +90,19 @@ async function candidate(
 }
 
 /**
- * Both runners agree on every story, and Specimen's outcomes are the expected ones. A story in
- * `racing` changes its accessibility on its next frame, and Storybook's check, under Vitest 5's
- * browser mode on a loaded host, sometimes runs after that frame: Storybook may then fail it, but
- * only on accessibility.
+ * Both runners agree on every story, and Specimen's outcomes are the expected ones. `racing` names
+ * the stories that change on their next frame, each with the one rule its changed state breaks.
+ * Storybook's check starts as soon as the story renders but holds no frame back (it awaits axe's
+ * import, and axe settles each rule on a timer), so on a slow or busy host the frame can land
+ * before axe reads the page (#923). Storybook may then fail such a story, but only for that rule,
+ * the settled state the settled check finds, and only while Specimen's check at the same moment
+ * passes it.
  */
-async function agree(project: string, expected: Record<string, string>, racing: string[] = []) {
+async function agree(
+	project: string,
+	expected: Record<string, string>,
+	racing: Record<string, string> = {}
+) {
 	// One runner at a time, to keep the shared host's load bounded.
 	const tests = await incumbent(project);
 	const stories = await candidate(project);
@@ -100,8 +117,16 @@ async function agree(project: string, expected: Record<string, string>, racing: 
 			continue;
 		}
 		expect(test, `${story.name} has an incumbent test`).toBeDefined();
-		if (racing.includes(story.name) && test?.status === 'failed') {
-			expect(test.accessibility, `${story.name}: ${test.message}`).toBe(true);
+		const rule = racing[story.name];
+		if (rule && test?.status === 'failed') {
+			// Storybook read the page after the story's next frame: it found the settled state.
+			expect(outcome.status, `${story.name}: Specimen reads it before its next frame`).toBe(
+				'passed'
+			);
+			expect(
+				{ accessibility: test.accessibility, rules: test.rules },
+				`${story.name}: ${test.message}`
+			).toEqual({ accessibility: true, rules: [rule] });
 			continue;
 		}
 		expect(outcome.status, `${story.name}: ${test?.message}`).toBe(test?.status);
@@ -207,7 +232,7 @@ describe('the settled accessibility check', () => {
 		const stories = await agree(
 			'settled',
 			{ Steady: 'passed', 'Late Contrast': 'passed', 'Late Disabled': 'passed' },
-			['Late Contrast']
+			{ 'Late Contrast': 'color-contrast' }
 		);
 		for (const story of stories) expect(story.run.outcome.settled).toBeUndefined();
 		const bench = await createSpecimenBench({
