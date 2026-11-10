@@ -413,9 +413,9 @@ a private `WeakSet`, so a copy, an object built with the same fields, the
 `createContext` sets are never recognised. Branded credentials are frozen, and
 stop being recognised once their `expiresAt` has passed (`isVerifiedCredentials(value, now?)`,
 `now` defaulting to `Date.now()`) or their request has ended. No entry exports
-the functions that brand and unbrand; until the server verifies tokens itself,
-nothing is branded. A nested call keeps the brand only if it is given the same
-object.
+the functions that brand and unbrand: only the [`auth` option](#mcp-authorization)
+brands, the credentials of a request it verified. A nested call keeps the brand
+only if it is given the same object.
 
 A host that serves MCP with token authorization through afd-auth's middleware
 passes it there, so a token's call keeps its actor rather than the session's:
@@ -429,6 +429,82 @@ const auth = createAuthMiddleware(adapter, { isVerifiedCredentials });
 
 The entry loads nothing else of the server and is held browser-safe by
 `entry-points.test.ts`. The root entry exports the same function.
+
+### MCP authorization
+
+With `auth`, `createMcpHandler` (and `createMcpServer` over HTTP) is an OAuth 2.1
+protected resource, as [`spec/authorization.md`](../../spec/authorization.md) M1
+to M5 and M7 specify:
+
+```typescript
+import { createMcpHandler, JwtVerifier, jwksKeySource } from '@lushly-dev/afd-server';
+
+const resource = 'https://todo.example.com/mcp';
+const handler = createMcpHandler({
+  name: 'todo',
+  version: '1.0.0',
+  commands,
+  allowedHosts: ['todo.example.com'],
+  auth: {
+    resource,
+    authorizationServers: ['https://auth.example.com'],
+    scopesSupported: ['todo:read'],
+    verifier: new JwtVerifier({
+      rules: { resource },
+      issuers: [
+        {
+          issuer: 'https://auth.example.com',
+          algorithms: ['RS256', 'ES256', 'EdDSA'],
+          // The host fetches; AFD opens no socket.
+          keys: jwksKeySource(() => fetch('https://auth.example.com/jwks').then((r) => r.json())),
+        },
+      ],
+    }),
+  },
+  // Map the verified credentials to an actor (optional).
+  createContext: (_req, { credentials }) => ({
+    actor: { kind: 'agent', id: credentials?.clientId, onBehalfOf: credentials?.subject },
+  }),
+});
+```
+
+- **Every HTTP route needs exactly one bearer token** in the `Authorization`
+  header (`/mcp`, `/sse`, `/message`, `/rpc`, `/batch`, `/stream`, `/health`
+  and any other path). A missing, malformed or refused one, a token in the query
+  or a form body, or a second header is a 401 with M5's exact
+  `WWW-Authenticate` challenge and JSON body. Only the RFC 9728 metadata,
+  served by `GET` at `/.well-known/oauth-protected-resource<path>` and
+  `/.well-known/oauth-protected-resource`, and CORS preflights are public.
+  `/health` needs a token too, so it fails closed: a host that needs a public
+  health check serves its own route before handing the request to the handler.
+  stdio, `server.execute()` and in-process registries are unaffected.
+- **`JwtVerifier`** applies every M3 rule itself, in order; `jose` checks the
+  signature only, through WebCrypto (RS256 to RS512, PS256 to PS512, ES256,
+  ES384 and EdDSA on Ed25519). The audience check is not optional: `aud` must be
+  the `resource`, alone. `none` and `HS*` are always refused, the clock skew is
+  at most 300 seconds (default 60) and the lifetime at most 3600 seconds by
+  default. An opaque token goes to `createIntrospectionVerifier({ issuer, rules,
+  introspect })`, given as `introspection`, whose `introspect(token)` is the
+  host's RFC 7662 call.
+- **Commands see `context.credentials`** (`issuer`, `subject`, `clientId`,
+  `scopes`, `resource`, `expiresAt`, `issuedAt`, and `authTime`, `acr` and `cnf`
+  when present), frozen and recognised by `isVerifiedCredentials` until the
+  request ends. A token accepted inside the clock skew after its `exp` has
+  credentials `isVerifiedCredentials` no longer recognises, so afd-auth's
+  middleware gates that call on its session, and a server with no session
+  answers it `UNAUTHORIZED`: the safe side. Never the token: the layer removes the `Authorization` header
+  before `createContext` runs, and the journal never records credentials.
+  Without an `actor` from `createContext`, the actor is
+  `{ kind: 'agent', id: <clientId>, onBehalfOf: <subject> }`.
+- **A refused token's rule code** (`audience`, `expired`, ...) goes to
+  `auth.onRefusal`, by default a `console.warn` line, with the issuer's alias;
+  never the token or a claim. A host verifier may wrap `JwtVerifier` to refuse
+  more with a code of its own, which is answered the same way.
+- **Scopes (M6) are not enforced yet.** `requiredScopes`, `resolver` and
+  `filterToolsByScope` throw rather than be ignored.
+
+A server that also runs afd-auth's middleware passes `isVerifiedCredentials` to
+`createAuthMiddleware`, as [above](#verified-credentials-lushly-devafd-servercredentials).
 
 ### Basic Command
 
@@ -1012,7 +1088,8 @@ Create an MCP server from commands.
 | `allowedOrigins` | string[] | No | Additional exact browser origins |
 | `allowedHosts` | string[] | No | Accepted HTTP hostnames, without ports |
 | `maxBodyBytes` | number | No | Maximum JSON body bytes (default: 1048576) |
-| `createContext` | `(req) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command |
+| `createContext` | `(req, { credentials? }) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command; with `auth`, it is given the verified credentials |
+| `auth` | `McpAuthOptions` | No | [MCP authorization](#mcp-authorization): every HTTP route needs a verified bearer token |
 | `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
 | `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
 | `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |

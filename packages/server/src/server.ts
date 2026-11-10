@@ -17,6 +17,7 @@ import { createContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore } from './http-sessions.js';
+import { createAuthLayer } from './mcp-auth.js';
 import {
 	createModernHttpLane,
 	DEFAULT_TOOLS_LIST_TTL_MS,
@@ -191,10 +192,13 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		devMode,
 		onError,
 	};
+	const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
+	const auth = options.auth ? createAuthLayer(options.auth, maxBodyBytes) : undefined;
 	const modern = createModernHttpLane({
 		...modernDeps,
 		createContext: options.createContext,
-		maxBodyBytes: options.maxBodyBytes ?? 1024 * 1024,
+		maxBodyBytes,
+		auth,
 	});
 
 	const { handler, dispose } = createHttpHandler({
@@ -220,6 +224,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contextFields,
 		onError,
 		modern,
+		auth,
 	});
 
 	return {

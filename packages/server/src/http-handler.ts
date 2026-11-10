@@ -39,6 +39,7 @@ import {
 	methodNotFound,
 	parseJsonRpcMessage,
 } from './json-rpc.js';
+import type { AuthLayer } from './mcp-auth.js';
 import type { ModernHttpLane } from './mcp-modern.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { requestContextValues } from './request-context.js';
@@ -88,6 +89,11 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	modern?: ModernHttpLane;
 	/** Confirmation enforcement for `/rpc`, `/batch` and `/stream` (acknowledged by `Afd-Confirm`). */
 	confirmations?: ConfirmationGate;
+	/**
+	 * MCP authorization (`spec/authorization.md`): every route but the metadata needs a verified
+	 * token, and every command context carries the request's credentials.
+	 */
+	auth?: AuthLayer;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -121,6 +127,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		onError,
 		modern,
 		confirmations,
+		auth,
 	} = deps;
 	const unconfirmed = createHttpConfirmationCheck(confirmations);
 	const metaKeys = metaArgumentKeys(contextFields);
@@ -178,7 +185,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		res.once('close', () => {
 			if (!res.writableFinished) controller.abort(new Error('Client disconnected'));
 		});
-		const custom = await requestContextValues(createContext, req);
+		const custom = await requestContextValues(createContext, req, auth?.credentialsFor(req));
 		// Declared fields from `_meta` first, so a value `createContext` sets wins.
 		const declared = contextFieldValues(contextFields, meta);
 		return scoped({ ...declared, ...custom, signal: controller.signal, interface: 'mcp' }, state);
@@ -396,13 +403,19 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				'Access-Control-Allow-Headers',
 				'Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Mcp-Method, Mcp-Name, Afd-Confirm'
 			);
-			res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+			res.setHeader(
+				'Access-Control-Expose-Headers',
+				auth ? 'Mcp-Session-Id, WWW-Authenticate' : 'Mcp-Session-Id'
+			);
 		}
+		// A CORS preflight carries no token and reaches nothing.
 		if (req.method === 'OPTIONS') {
 			res.writeHead(204);
 			res.end();
 			return;
 		}
+		// M1, M2 and M7: the metadata is public; every other route needs a verified token.
+		if (auth && !(await auth.admit(req, res, url))) return;
 		if (url.pathname === '/mcp' && modern) {
 			await modern.handle(req, res);
 			return;
