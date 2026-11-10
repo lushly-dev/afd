@@ -1,9 +1,9 @@
-import { matchesGlob } from '@lushly-dev/violet-core/engine';
-import { withResolutionCache } from '@lushly-dev/violet-core/engine';
 import {
 	ChainTokens,
 	InheritanceResolutionError,
+	matchesGlob,
 	resolveChainState,
+	withResolutionCache,
 } from '@lushly-dev/violet-core/engine';
 import type { Node } from '@lushly-dev/violet-core/types';
 import { TokenCategorySchema, type TokenMetadata } from '@lushly-dev/violet-core/types';

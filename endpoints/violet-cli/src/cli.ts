@@ -1636,7 +1636,7 @@ function addMcpCommands(program: Command): void {
 			let args: unknown;
 			try {
 				args = JSON.parse(options.args);
-			} catch (e) {
+			} catch {
 				console.error(formatError(`Invalid JSON arguments: ${options.args}`));
 				process.exit(1);
 			}

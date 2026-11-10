@@ -1,7 +1,7 @@
 import { createMemoryDatabase } from '@lushly-dev/violet-core';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { registry } from '../registry.js';
 import type { CommandContext } from '../registry.js';
+import { registry } from '../registry.js';
 import { doctorCommand, registerSystemCommands } from './index.js';
 
 describe('Doctor Command', () => {

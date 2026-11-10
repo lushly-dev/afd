@@ -22,7 +22,7 @@ describe('webhooks.test command', () => {
 			},
 			context,
 		);
-		webhookId = result.data?.webhook.id!;
+		webhookId = result.data!.webhook.id;
 	});
 
 	it('should fail for non-existent webhook', async () => {
@@ -73,7 +73,7 @@ describe('webhooks.test command', () => {
 				{ url: 'http://localhost:9998/other', events: ['test.ping'] },
 				context,
 			);
-			const otherId = other.data?.webhook.id!;
+			const otherId = other.data!.webhook.id;
 
 			const fetchMock = vi.fn(async () => new Response('ok', { status: 200 }));
 			vi.stubGlobal('fetch', fetchMock);
@@ -89,7 +89,7 @@ describe('webhooks.test command', () => {
 			expect(calledUrls).toEqual(['http://localhost:9999/webhook']);
 
 			// The reported delivery belongs to the target; the other webhook has none
-			const delivery = await db.getDelivery(result.data?.deliveryId!);
+			const delivery = await db.getDelivery(result.data!.deliveryId);
 			expect(delivery?.webhookId).toBe(webhookId);
 			const otherDeliveries = await db.listDeliveries({ webhookId: otherId });
 			expect(otherDeliveries).toHaveLength(0);
@@ -102,7 +102,7 @@ describe('webhooks.test command', () => {
 				{ url: 'http://localhost:9998/target', events: ['test.ping'] },
 				context,
 			);
-			const targetId = target.data?.webhook.id!;
+			const targetId = target.data!.webhook.id;
 
 			vi.stubGlobal(
 				'fetch',

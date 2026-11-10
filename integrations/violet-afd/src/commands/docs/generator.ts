@@ -58,12 +58,12 @@ export const DocsGenerateOutputSchema = z.object({
 			name: z.string(),
 			category: z.string(),
 			description: z.string(),
-			inputSchema: z.record(z.unknown()).optional(),
-			outputSchema: z.record(z.unknown()).optional(),
+			inputSchema: z.record(z.string(), z.unknown()).optional(),
+			outputSchema: z.record(z.string(), z.unknown()).optional(),
 			examples: z
 				.array(
 					z.object({
-						input: z.record(z.unknown()),
+						input: z.record(z.string(), z.unknown()),
 						description: z.string().optional(),
 					}),
 				)

@@ -49,7 +49,5 @@ export function conventionToken(component: string, role: string): string {
 
 /** A role's validated declaration, or null when the role is unknown or the value fails */
 export function specimenRoleDeclaration(role: string, value: unknown): string | null {
-	return Object.prototype.hasOwnProperty.call(SPECIMEN_ROLES, role)
-		? SPECIMEN_ROLES[role](value)
-		: null;
+	return Object.hasOwn(SPECIMEN_ROLES, role) ? SPECIMEN_ROLES[role](value) : null;
 }

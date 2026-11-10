@@ -461,11 +461,7 @@ export function parseColor(value: string): { r: number; g: number; b: number } |
 /**
  * Calculate relative luminance (WCAG 2.0)
  */
-export function calculateLuminance(color: {
-	r: number;
-	g: number;
-	b: number;
-}): number {
+export function calculateLuminance(color: { r: number; g: number; b: number }): number {
 	const [r, g, b] = [color.r, color.g, color.b].map((c) => {
 		const sRGB = c / 255;
 		return sRGB <= 0.03928 ? sRGB / 12.92 : ((sRGB + 0.055) / 1.055) ** 2.4;
