@@ -287,6 +287,7 @@ pub(crate) fn router(
     workspace: &Workspace,
     policy: &Arc<crate::auth::scopes::ScopePolicy>,
     environment: &crate::auth::fetch::AuthEnvironment,
+    clock: Option<&Arc<dyn afd::Clock>>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
     let lock_timeout = std::time::Duration::from_millis(config.store.lock_timeout_ms);
@@ -318,7 +319,10 @@ pub(crate) fn router(
     })?;
     // The check and the service from one authorized server, so the check decides exactly the
     // credentials the service accepts.
-    let authorized = server.clone().with_authorization(authorization.clone());
+    // Tasks in the shared store (section 12.2); a gateway caller's task ends with its assertion
+    // (step 8's amendment).
+    let authorized = crate::shared::tasks::serve(server.clone(), workspace, clock)?
+        .with_authorization(authorization.clone());
     let check = authorized
         .pre_dispatch_check()
         .map_err(super::invalid_surface)?

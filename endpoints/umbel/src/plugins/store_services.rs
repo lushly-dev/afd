@@ -200,6 +200,7 @@ impl CallServices {
     /// A derivation read: for a command with the `store-write` effect whose instance holds
     /// `index_write` or `graph_write` for `space` (rule 3).
     fn deriving(&self, space: &str) -> Result<Arc<SpaceStores>> {
+        self.task_guard()?;
         let command = self
             .command
             .as_deref()
@@ -486,7 +487,21 @@ impl CallServices {
 
     pub(super) fn svc_index_writer(&self, space: &str) -> Result<Box<dyn IndexWriterSession>> {
         let stores = self.writing("index_write", space, None)?;
-        stores.index.writer().map_err(host_error)
+        let session = stores.index.writer().map_err(host_error)?;
+        Ok(Box::new(GuardedWriter {
+            inner: session,
+            services: self.guard_view(),
+        }))
+    }
+
+    /// What a writer session needs to run a task's guard after the call that opened it returned.
+    fn guard_view(&self) -> GuardView {
+        GuardView {
+            workspace: Arc::clone(&self.shared.workspace),
+            context: self.context.clone(),
+            spaces: self.spaces().to_vec(),
+            revoked: self.revoked(),
+        }
     }
 
     pub(super) fn svc_graph_neighbors(
@@ -624,6 +639,7 @@ impl CallServices {
     /// Store maintenance needs a writable call holding a write grant allowed for `space`, in one
     /// of the call's spaces.
     fn maintaining(&self, space: &str) -> Result<()> {
+        self.task_guard()?;
         self.writable()?;
         let held = WRITE_GRANTS.iter().any(|grant| {
             self.shared.granted.contains(*grant)
@@ -652,6 +668,7 @@ impl CallServices {
     }
 
     pub(super) fn svc_as_reader(&self, principal: &str) -> Result<Reader> {
+        self.task_guard()?;
         let policy = self
             .command
             .as_deref()
@@ -670,6 +687,71 @@ impl CallServices {
         self.note_use();
         let reader = self.read_only_view(principal);
         Ok(Reader::new(Box::new(reader) as Box<dyn HostServices>))
+    }
+}
+
+/// A task's guard, held by an index writer session ([`CallServices::task_guard`]).
+struct GuardView {
+    workspace: Arc<crate::workspace::Workspace>,
+    context: afd::CommandContext,
+    spaces: Vec<crate::workspace::SpaceId>,
+    revoked: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl GuardView {
+    fn check(&self) -> umbel_store::Result<()> {
+        match super::grants::task_guard(self.workspace.config(), &self.context, &self.spaces) {
+            Ok(()) => Ok(()),
+            Err(refusal) => {
+                if refusal == super::grants::Refusal::Unreadable {
+                    self.revoked
+                        .store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+                Err(umbel_store::StoreError::Invalid(format!(
+                    "the task running this call {}, so its index writer stages and commits nothing more",
+                    match refusal {
+                        super::grants::Refusal::Stopped => "was stopped",
+                        super::grants::Refusal::Unreadable => "can no longer read its space",
+                    }
+                )))
+            }
+        }
+    }
+}
+
+/// An index writer session that runs a task's guard before each step that changes the index, so a
+/// stopped task commits nothing more, even with a session it opened before it was stopped.
+struct GuardedWriter {
+    inner: Box<dyn IndexWriterSession>,
+    services: GuardView,
+}
+
+impl IndexWriterSession for GuardedWriter {
+    fn applied(&self) -> umbel_store::Result<Rev> {
+        self.inner.applied()
+    }
+
+    fn replace(
+        &mut self,
+        doc: &umbel_store::DocId,
+        chunks: Vec<IndexChunk>,
+    ) -> umbel_store::Result<()> {
+        self.services.check()?;
+        self.inner.replace(doc, chunks)
+    }
+
+    fn clear(&mut self) -> umbel_store::Result<()> {
+        self.services.check()?;
+        self.inner.clear()
+    }
+
+    fn commit(&mut self, applied: Rev) -> umbel_store::Result<()> {
+        self.services.check()?;
+        self.inner.commit(applied)
+    }
+
+    fn abort(&mut self) {
+        self.inner.abort();
     }
 }
 

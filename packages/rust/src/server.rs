@@ -150,8 +150,8 @@ pub use resources::{
 pub use skills::{Skill, SkillCatalog, MAX_SKILL_BYTES, MAX_SKILL_FILES};
 pub use strategy::{GroupBy, ToolStrategy, MAX_FIRST_CLASS_TOOLS};
 pub use tasks::{
-    InMemoryTaskStore, TaskChange, TaskOptions, TaskOwner, TaskRecord, TaskState, TaskStore,
-    TaskStoreError, TASKS_EXTENSION_ID,
+    failure_result, InMemoryTaskStore, TaskCall, TaskChange, TaskOptions, TaskOwner, TaskRecord,
+    TaskState, TaskStore, TaskStoreError, TASKS_EXTENSION_ID,
 };
 
 /// Origin, Host and body-size policy for [`McpServer::streamable_http_service`].

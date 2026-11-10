@@ -173,6 +173,7 @@ pub(crate) fn server(
     #[cfg(feature = "auth")] verifier: Option<Arc<dyn TokenVerifier>>,
     #[cfg(feature = "auth")] environment: &crate::auth::fetch::AuthEnvironment,
     #[cfg(feature = "auth")] person: Option<&Arc<crate::person::service::PersonService>>,
+    #[cfg(feature = "auth")] clock: Option<&Arc<dyn afd::Clock>>,
 ) -> Result<HttpServer, HostError> {
     #[cfg(not(feature = "auth"))]
     {
@@ -202,9 +203,9 @@ pub(crate) fn server(
                         Arc::new(verifier)
                     }
                 };
-                oauth_router(server, workspace, policy, verifier, person)?
+                oauth_router(server, workspace, policy, verifier, person, clock)?
             }
-            AuthMode::Gateway => gateway::router(server, workspace, policy, environment)?,
+            AuthMode::Gateway => gateway::router(server, workspace, policy, environment, clock)?,
         };
         let tls = config
             .http
@@ -419,6 +420,7 @@ fn oauth_router(
     policy: &Arc<crate::auth::scopes::ScopePolicy>,
     verifier: Arc<dyn TokenVerifier>,
     person: Option<&Arc<crate::person::service::PersonService>>,
+    clock: Option<&Arc<dyn afd::Clock>>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
     let metadata = protected_resource(workspace)?;
@@ -455,7 +457,9 @@ fn oauth_router(
         allowed_origins: config.http.allowed_origins.clone(),
         max_body_bytes: max_body_bytes(workspace),
     };
-    let authorized = server.clone().with_authorization(authorization);
+    // Tasks in the shared store (section 12.2), so any process behind the URL answers for them.
+    let authorized = crate::shared::tasks::serve(server.clone(), workspace, clock)?
+        .with_authorization(authorization);
     let bearer = authorized
         .bearer_layer()
         .map_err(|message| invalid_surface(message.to_owned()))?;

@@ -216,6 +216,8 @@ category = "knowledge"
 tags = ["knowledge", "index"]
 version = "1.0.0"
 journal = { mode = "plain" }
+# A long index may run as an MCP task (phase 5 section 12.2): its result is counts and ids.
+task = "optional"
 examples = [{ title = "Index what changed", input = {} }]
 
 [[commands]]
@@ -368,6 +370,8 @@ name = "knowledge-refresh"
 description = "Read a space's files into the document store, then bring its search index up to date."
 effects = ["store-write"]
 journal = { mode = "plain" }
+# A task when every step may be one (section 2.3): sources-sync and knowledge-index both are.
+task = "optional"
 input_schema = { type = "object", properties = { space = { type = "string", description = "The space; default: the workspace's default space" } }, additionalProperties = false }
 steps = [
   { command = "sources-sync", input = { space = "$input.space" }, as = "sync" },
