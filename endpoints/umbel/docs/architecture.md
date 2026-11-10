@@ -566,7 +566,7 @@ material, from loosest to strongest:
   manifest version 5, envelope version 3 with event version 3, memory record
   version 2 and proposal record version 3, cursor version 1, locator version 2,
   the task record, the usage event and the person decision; phase 6
-  (proposed) adds workspace configuration version 6, the space archive, the
+  adds workspace configuration version 6, the space archive, the
   move record and the certification report, with store traits version 3.
 - **Repository placement.** Umbel lives in `endpoints/umbel/`, following
   Botcore's layout: the host runtime, plugin SDK, first-party plugins and
@@ -617,7 +617,7 @@ flowchart LR
 | 3. Memory and context | Memory with class labels, scoped by space and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 2 (version 1 came with phase 2's stores, [D55](decisions.md)); adapter contract; bundle budget rules; hygiene and redaction policy |
 | 4. Curator | Settling window, candidates and conflict sets per space, curator proposals as decision traces, deterministic auto-approval rules per area, scheduled re-verification and inconsistency proposals, rejection feedback, scheduled runs | A curator proposal approved from the CLI lands in the knowledge base with full provenance (amended 2026-11-01: phase 2 already lands person-written proposals, [D62](decisions.md)) | The curator's proposal fields on proposal record ~~version 1~~ version 2 (amended 2026-11-03: version 1, which phase 2 settles with the person rule and the CLI apply command, [D62](decisions.md), is closed with `rule` constant `person`, so the fields need a new version, [D92](decisions.md)); auto-approval rules; the MCP approval relay on the apply command; settling and re-verification defaults; the optional model configuration |
 | 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events, the MCP approval relay on approve and reject (moved from phase 4, [D99](decisions.md)) | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile. Written in the [phase 5 specification](phases/5-auth-hosted/spec.md) (approved 2026-11-04), with D106 to D130 |
-| 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends. Written in the [phase 6 specification](phases/6-backends/spec.md) (draft 2026-11-09, revised after its review the same day; awaiting the owner's answers), with D131 to D149 proposed |
+| 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends. Written in the [phase 6 specification](phases/6-backends/spec.md) (written 2026-11-09, revised after its review the same day, approved 2026-11-09 with the owner's answers), deciding D131 to D149 |
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
 Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
@@ -695,15 +695,15 @@ document needs as an amendment.
 | Surface | A way callers reach the registry: MCP over stdio or Streamable HTTP, the CLI, or in-process. Loam (`endpoints/loam/`) uses "surface" for a region of its shell UI; its glossary records the difference |
 | Connector | A plugin's binding to an external system or source |
 | Backend | A swappable implementation behind a store trait |
-| Backend instance | One `[backends.<id>]` entry of `umbel.toml`, a kind (`embedded` or `postgres`) and its connection settings, named by spaces (proposed, phase 6) |
-| Certification | A conformance suite run with no failure and no skip against one backend kind, recorded with what it ran against (proposed, phase 6) |
-| Epoch | A period during which one key wraps a PostgreSQL space's data keys; retired epoch keys are destroyed after the recovery window (proposed, phase 6) |
-| Keyring | The store of wrapped epoch keys and shared host keys, kept apart from the content database (proposed, phase 6) |
-| Key service | A KMS or HSM that holds keys it never exports and can destroy them, which a shared deployment needs so that forget is final (proposed, phase 6) |
-| Lookup value | An HMAC of a sealed value stored beside it, so SQL can find or filter by the value without seeing it (proposed, phase 6) |
-| Space archive | The portable, backend-neutral copy of one space written by `store-backup` (proposed, phase 6) |
-| Deployment mode | `single` (one machine) or `shared` (several machines behind one URL sharing a state backend) (proposed, phase 6) |
-| Store-held collection | A collection whose documents live in the document store as their source, moved to and from files only at the CLI (proposed, phase 6) |
+| Backend instance | One `[backends.<id>]` entry of `umbel.toml`, a kind (`embedded` or `postgres`) and its connection settings, named by spaces (phase 6) |
+| Certification | A conformance suite run with no failure and no skip against one backend kind, recorded with what it ran against (phase 6) |
+| Epoch | A period during which one key wraps a PostgreSQL space's data keys; retired epoch keys are destroyed after the recovery window (phase 6) |
+| Keyring | The store of wrapped epoch keys and shared host keys, kept apart from the content database (phase 6) |
+| Key service | A KMS or HSM that holds keys it never exports and can destroy them, which a shared deployment needs so that forget is final (phase 6) |
+| Lookup value | An HMAC of a sealed value stored beside it, so SQL can find or filter by the value without seeing it (phase 6) |
+| Space archive | The portable, backend-neutral copy of one space written by `store-backup` (phase 6) |
+| Deployment mode | `single` (one machine) or `shared` (several machines behind one URL sharing a state backend) (phase 6) |
+| Store-held collection | A collection whose documents live in the document store as their source, moved to and from files only at the CLI (phase 6) |
 | Adapter | An infrastructure binding, such as auth or a harness adapter |
 | Workspace | The deployer-owned directory for one deployment: configuration, spaces, plugin list, profile. Always Umbel's; the Rust one is the "Cargo workspace" |
 | State directory | The workspace's `state/` directory, which only the host writes: the journal, event streams, cursors, keys and the workspace lock |

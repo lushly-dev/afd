@@ -9,14 +9,11 @@
 
 ## Status
 
-- **State:** **draft, written 2026-11-09, revised 2026-11-09 after its independent review; not approved.** It needs
-  the owner's answers to section [12](#12-for-the-owner) before implementation (D24).
-  - It proposes decisions [D131 to D149](../../decisions.md). Three wait on the owner's answers to section 12's
-    questions: D131 (question 1), D145 (question 2) and D138's recovery window (question 3). The others are settled
-    here as technical or security-strength choices, taking the strongest option, and are decided with the approval
-    under the owner's 2026-10-31 delegation. Two of those the owner may want to revisit when reading the questions:
-    D146 (in a shared deployment the knowledge base lives in the database; the draft's question 3, now settled) and
-    D149 (a shared deployment needs a key service that can truly destroy keys).
+- **State:** **approved 2026-11-09**, under the owner's 2026-10-31 delegation (D24), with the owner's answers of
+  2026-11-09 to section [12](#12-for-the-owner): written and revised the same day after its independent review.
+  - It decides [D131 to D149](../../decisions.md). The owner answered the three questions with the recommendations:
+    PostgreSQL first (D131), several servers behind one address in this phase (D145), and a 30-day default recovery
+    window (D138). D146 and D149, settled as the strongest choices and stated inside question 2, stand with the answer.
   - Phase 5 is not done: its steps 6 and 8 to 12 are in progress on other branches. Steps 2 and 4e of this plan wait
     for phase 5's steps 8 to 11 (tasks, usage, `memory-erase` and the erasure sweep), so that store traits version 3
     and its suite cover them once; step 11 (the exit) waits for phase 5's exit (section [11](#11-implementation-plan)).
@@ -41,7 +38,7 @@
     published sources and crates.io (tantivy 0.27.0's `Directory`, `tokio-postgres` 0.7.18's `ChannelBinding`,
     `tokio-postgres-rustls` 0.14.0's `tls-server-end-point`, `cryptoki` 0.12.1). No Rust was built or run.
 - **Done:** nothing; this is the specification.
-- **Not done:** the owner's answers, and every step of section 11.
+- **Not done:** every step of section 11.
 - **Follow-ups:** the [table at the end](#follow-ups).
 
 ### Review response
@@ -1396,6 +1393,20 @@ Steps 9, 10 and the exit's point 5 are built only if the owner answers question 
 build only under load 20. The `backends` job needs the PostgreSQL server and SoftHSM packages, not Docker.
 
 ## 12. For the owner
+
+### Owner decisions, 2026-11-09
+
+The owner answered all three questions with the recommendation:
+
+1. **Which second backend comes first:** PostgreSQL. A git-backed knowledge store gets its own specification later
+   (D131); the proposal's sentence is amended to match.
+2. **Several servers behind one address:** yes, in this phase (D145), with its three requirements: every space in
+   PostgreSQL, knowledge changed through proposals or an operator import (D146), and a key service that can truly
+   destroy keys (D149).
+3. **The default recovery window:** 30 days (D138), plus the key service's own deletion delay.
+
+The questions as they were asked follow.
+
 
 Three questions change what people can do, or what phase 6 delivers. Everything else is settled in the sections above
 as the strongest choice and recorded as decisions. Two of those settled decisions shape question 2's answer, and are
