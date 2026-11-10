@@ -20,7 +20,7 @@ function signedIn(email: string, adapter = mock()) {
 	return adapter.signIn({ method: 'credentials', email }).then(() => adapter);
 }
 
-describe('withMockCapabilities', () => {
+describe('P3-E9: withMockCapabilities', () => {
 	it('leaves a plain Mock without capabilities, and passkey sign-in unsupported', async () => {
 		const plain = new MockAuthAdapter();
 		expect(plain.sessions).toBeUndefined();
@@ -49,7 +49,7 @@ describe('withMockCapabilities', () => {
 	});
 });
 
-describe('MockAuthAdapter clock', () => {
+describe('P3-E9: MockAuthAdapter clock', () => {
 	it('times sessions, passkeys and invitations on its clock', async () => {
 		const clock = fixedClock(START);
 		const adapter = mock({ clock, roles: { acme: { [ADA]: 'owner' } } });
@@ -91,7 +91,7 @@ describe('MockAuthAdapter clock', () => {
 	});
 });
 
-describe('MockAuthAdapter passkeys', () => {
+describe('P3-E9: MockAuthAdapter passkeys', () => {
 	it('adds, lists, renames and removes the signed-in person’s passkeys', async () => {
 		const adapter = await signedIn('ada@example.test');
 		const added = await adapter.passkeys.addPasskey({ name: 'Laptop' });
@@ -170,7 +170,7 @@ describe('MockAuthAdapter passkeys', () => {
 	});
 });
 
-describe('MockAuthAdapter sessions', () => {
+describe('P3-E9: MockAuthAdapter sessions', () => {
 	it('lists the one session by handle and revokes it', async () => {
 		const clock = fixedClock(START);
 		const adapter = await signedIn('ada@example.test', mock({ clock }));
@@ -205,7 +205,7 @@ describe('MockAuthAdapter sessions', () => {
 	});
 });
 
-describe('MockAuthAdapter organization', () => {
+describe('P3-E9: MockAuthAdapter organization', () => {
 	const roles = { acme: { [ADA]: 'owner' } };
 
 	it('answers membership from its roles option, by organization id', async () => {

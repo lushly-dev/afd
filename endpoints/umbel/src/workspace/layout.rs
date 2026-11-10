@@ -122,6 +122,12 @@ impl Layout {
         self.shared_dir().join("tasks.sqlite3")
     }
 
+    /// `state/usage/usage.sqlite3`: usage events, one content-free row per metered MCP HTTP
+    /// request, shared by every process behind one URL (phase 5 sections 10.2 and 12.1; D122).
+    pub fn usage_store(&self) -> PathBuf {
+        self.state_dir().join("usage").join("usage.sqlite3")
+    }
+
     /// `state/spaces/`.
     pub fn space_states_dir(&self) -> PathBuf {
         self.state_dir().join("spaces")

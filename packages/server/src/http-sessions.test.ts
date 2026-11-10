@@ -54,6 +54,20 @@ describe('createSessionStore', () => {
 		expect(store.get(third)).toBeDefined();
 	});
 
+	it('answers a session owned by another caller as unknown, and leaves it untouched', () => {
+		const time = clock();
+		const store = createSessionStore({ idleTimeoutMs: 100, now: time.now });
+		const id = store.create('alice');
+		store.get(id, 'alice')?.enter('edit');
+		time.advance(60);
+		expect(store.get(id, 'mallory')).toBeUndefined();
+		expect(store.get(id)).toBeUndefined();
+		// The refused look did not refresh the idle timer, nor drop the session.
+		time.advance(30);
+		expect(store.get(id, 'alice')?.getActive()).toBe('edit');
+		expect(store.get(store.create(), 'alice')).toBeUndefined();
+	});
+
 	it('clears every session', () => {
 		const store = createSessionStore();
 		const id = store.create();

@@ -1,5 +1,20 @@
 # @lushly-dev/afd-auth
 
+## 2.4.0
+
+### Minor Changes
+
+- [#896](https://github.com/lushly-dev/afd/pull/896) [`eba33ef`](https://github.com/lushly-dev/afd/commit/eba33efa826865dabd1770941f61e1f9e86ce544) Thanks [@Falkicon](https://github.com/Falkicon)! - `@lushly-dev/afd-auth` signs in with passkeys and gains three optional adapter capabilities. `SignInOptions` adds `{ method: 'passkey', autoFill? }`, and `auth-sign-in` accepts it. `AuthAdapter` adds `refresh()`, `sessions` (list the signed-in person's sessions, by a handle that is the first 16 hex characters of SHA-256 over the token, never the token, with a device label and no IP address; revoke one, the others, or all), `passkeys` (list, add, rename, remove) and `organization` (membership, members, invitations and roles, each call naming the organization by id; an empty id is a `TypeError`, so no call falls back to the provider's active organization). Two codes, `PASSKEY_CANCELLED` and `PASSKEY_UNSUPPORTED`, neither retryable, come from the new exported functions `passkeyCancelled()` and `passkeyUnsupported()`. `BetterAuthAdapter` implements all three on Better Auth's session routes and its organization and passkey client plugins, takes an `initial` state, and is tested on Better Auth 1.7.18 with `@better-auth/passkey` 1.7.18, now an optional peer. `MockAuthAdapter` takes a `clock`, and `refresh()` signs out a session past its expiry on it; its capabilities are attached in memory by `withMockCapabilities(mock, { roles })` from the new `@lushly-dev/afd-auth/mock-capabilities` entry, so a host that only signs in with the Mock never bundles them. The Convex adapter refuses a passkey sign-in with `PASSKEY_UNSUPPORTED`.
+
+  `createAuthMiddleware` takes `isVerifiedCredentials` and `clock`. With the predicate, a call whose `credentials` afd-server set itself after verifying a token keeps its actor and runs without reading the adapter's session, `context.auth` is deleted, and the built-in `auth-*` commands are refused with `UNAUTHORIZED`, since a token has no session; `credentials` a caller supplies, or a copy, are not recognised. Without it, every call is gated on the session as before. A host that serves MCP with token authorization through this middleware must pass it. `clock` is the time a session's `expiresAt` is compared with; a host that gives `MockAuthAdapter` its own clock passes the same one here. `BetterAuthAdapter.refresh()` rejects with `NETWORK_ERROR` or `REFRESH_FAILED` when the provider did not answer, and the `better-auth` peer range is now `^1.7.18`.
+
+  `@lushly-dev/afd-server` exports `isVerifiedCredentials(credentials, now?)`, from the root and from the new browser-safe `@lushly-dev/afd-server/credentials` entry. It recognises only the object afd-server branded, and froze, after verifying a token, and only until its `expiresAt` or the end of its request; nothing brands one yet, until the server verifies tokens itself.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @lushly-dev/afd-core@2.4.0
+
 ## 2.3.0
 
 ### Minor Changes

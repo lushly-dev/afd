@@ -71,6 +71,7 @@ import {
 	type RoundAnswers,
 	type RoundState,
 } from './elicitation-state.js';
+import type { AuthLayer } from './mcp-auth.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
@@ -530,13 +531,23 @@ export interface ModernHttpLane {
 
 /** Create the `/mcp` endpoint handler. */
 export function createModernHttpLane(
-	deps: ModernMcpDeps & { createContext?: CreateRequestContext; maxBodyBytes: number }
+	deps: ModernMcpDeps & {
+		createContext?: CreateRequestContext;
+		maxBodyBytes: number;
+		/** MCP authorization: each call's context carries the credentials its request admitted. */
+		auth?: AuthLayer;
+	}
 ): ModernHttpLane {
 	const currentRequest = new AsyncLocalStorage<IncomingMessage>();
 	const factory = createServerFactory(deps, {
-		requestValues: () => {
+		requestValues: async () => {
 			const req = currentRequest.getStore();
-			return req ? requestContextValues(deps.createContext, req) : Promise.resolve({});
+			// M1: with authorization, a call that cannot be tied to an admitted request fails.
+			if (!req) {
+				if (deps.auth) throw new Error('No HTTP request carries this call');
+				return {};
+			}
+			return requestContextValues(deps.createContext, req, deps.auth?.credentialsFor(req));
 		},
 	});
 	// The SDK reports rejected requests (bad headers, unsupported versions) through `onerror`;

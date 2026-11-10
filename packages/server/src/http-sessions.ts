@@ -26,10 +26,18 @@ export interface SessionStoreOptions {
 }
 
 export interface SessionStore {
-	/** Start a session and return its ID. */
-	create(): string;
-	/** The context state of a live session, refreshing its idle timer; `undefined` if unknown or expired. */
-	get(id: string): ContextState | undefined;
+	/**
+	 * Start a session and return its ID. `owner` binds it to a caller: on a server with MCP
+	 * authorization, the verified credentials' issuer, subject and client
+	 * (`credentialsBinding`).
+	 */
+	create(owner?: string): string;
+	/**
+	 * The context state of a live session, refreshing its idle timer; `undefined` if unknown,
+	 * expired, or owned by another caller than `owner`. A caller that is not the owner neither
+	 * sees nor touches the session, so it is answered as one that does not exist.
+	 */
+	get(id: string, owner?: string): ContextState | undefined;
 	/** Number of live sessions (expired ones may still be counted until the next access). */
 	readonly size: number;
 	/** Drop every session. */
@@ -39,6 +47,7 @@ export interface SessionStore {
 interface Session {
 	state: ContextState;
 	lastSeen: number;
+	owner: string | undefined;
 }
 
 export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
@@ -64,7 +73,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 	}
 
 	return {
-		create() {
+		create(owner) {
 			const at = now();
 			sweep(at);
 			for (const oldest of sessions.keys()) {
@@ -72,12 +81,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 				sessions.delete(oldest);
 			}
 			const id = randomUUID();
-			sessions.set(id, { state: createContextState(), lastSeen: at });
+			sessions.set(id, { state: createContextState(), lastSeen: at, owner });
 			return id;
 		},
-		get(id) {
+		get(id, owner) {
 			const session = sessions.get(id);
-			if (!session) return undefined;
+			if (!session || session.owner !== owner) return undefined;
 			sessions.delete(id);
 			const at = now();
 			if (at - session.lastSeen >= idleTimeoutMs) return undefined;

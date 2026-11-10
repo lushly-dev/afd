@@ -39,8 +39,10 @@ import {
 	methodNotFound,
 	parseJsonRpcMessage,
 } from './json-rpc.js';
+import type { AuthLayer } from './mcp-auth.js';
 import type { ModernHttpLane } from './mcp-modern.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
+import { credentialsBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import type { CreateRequestContext } from './server-types.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
@@ -88,6 +90,11 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	modern?: ModernHttpLane;
 	/** Confirmation enforcement for `/rpc`, `/batch` and `/stream` (acknowledged by `Afd-Confirm`). */
 	confirmations?: ConfirmationGate;
+	/**
+	 * MCP authorization (`spec/authorization.md`): every route but the metadata needs a verified
+	 * token, and every command context carries the request's credentials.
+	 */
+	auth?: AuthLayer;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -121,6 +128,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		onError,
 		modern,
 		confirmations,
+		auth,
 	} = deps;
 	const unconfirmed = createHttpConfirmationCheck(confirmations);
 	const metaKeys = metaArgumentKeys(contextFields);
@@ -151,12 +159,20 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		if (!sessions) return undefined;
 		const id = req.headers['mcp-session-id'];
 		if (id === undefined) return null;
-		const state = sessions.get(String(id));
+		const state = sessions.get(String(id), sessionOwner(req));
 		if (state) return state;
 		throw new HttpRequestError(404, 'Unknown or expired MCP session', {
 			rpcCode: JsonRpcErrorCode.SESSION_NOT_FOUND,
 			suggestion: 'Send a new initialize request without Mcp-Session-Id to start a new session',
 		});
+	}
+
+	/**
+	 * Who owns the sessions `req` creates and may use: with MCP authorization, its verified
+	 * credentials' issuer, subject and client, so one caller's session is unknown to another.
+	 */
+	function sessionOwner(req: IncomingMessage): string | undefined {
+		return auth ? credentialsBinding(auth.credentialsFor(req)) : undefined;
 	}
 
 	function scoped(context: CommandContext, state: ContextState | null | undefined): CommandContext {
@@ -178,7 +194,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		res.once('close', () => {
 			if (!res.writableFinished) controller.abort(new Error('Client disconnected'));
 		});
-		const custom = await requestContextValues(createContext, req);
+		const custom = await requestContextValues(createContext, req, auth?.credentialsFor(req));
 		// Declared fields from `_meta` first, so a value `createContext` sets wins.
 		const declared = contextFieldValues(contextFields, meta);
 		return scoped({ ...declared, ...custom, signal: controller.signal, interface: 'mcp' }, state);
@@ -254,7 +270,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	async function handleMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		if (message.method === 'initialize' && !message.notification) {
-			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create());
+			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create(sessionOwner(req)));
 			json(
 				res,
 				200,
@@ -396,13 +412,19 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				'Access-Control-Allow-Headers',
 				'Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Mcp-Method, Mcp-Name, Afd-Confirm'
 			);
-			res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+			res.setHeader(
+				'Access-Control-Expose-Headers',
+				auth ? 'Mcp-Session-Id, WWW-Authenticate' : 'Mcp-Session-Id'
+			);
 		}
+		// A CORS preflight carries no token and reaches nothing.
 		if (req.method === 'OPTIONS') {
 			res.writeHead(204);
 			res.end();
 			return;
 		}
+		// M1, M2 and M7: the metadata is public; every other route needs a verified token.
+		if (auth && !(await auth.admit(req, res, url))) return;
 		if (url.pathname === '/mcp' && modern) {
 			await modern.handle(req, res);
 			return;

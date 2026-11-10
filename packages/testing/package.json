@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-testing",
-	"version": "2.3.0",
+	"version": "2.4.0",
 	"description": "Testing utilities for Agent-First Development",
 	"type": "module",
 	"exports": {

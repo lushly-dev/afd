@@ -110,7 +110,7 @@ export const SUITES = [
 			// AFD's identity path, phase 3's E9.
 			{
 				gate: 'run',
-				run: 'pnpm -F @lushly-dev/afd-server exec vitest run src/verified-credentials.test.ts --reporter=verbose',
+				run: 'pnpm -F @lushly-dev/afd-server exec vitest run src/authorization-cases.test.ts src/mcp-auth.test.ts src/mcp-auth-verifier.test.ts src/verified-credentials.test.ts --reporter=verbose',
 			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/afd-auth exec vitest run --reporter=verbose' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-theme theme:check' },
