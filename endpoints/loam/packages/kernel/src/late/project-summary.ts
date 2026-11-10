@@ -15,7 +15,6 @@ import * as z from 'zod/mini';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelCallFields, KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { actorKey } from '../scope/access.js';
 import { projectNotFound } from '../scope/middleware.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { AppSummaryV2, CallOptionsV1 } from '../types.js';
@@ -62,7 +61,7 @@ export function createProjectSummaryCommand(deps: ProjectSummaryDeps): ZodComman
 		async handler(input, context: CommandContext) {
 			const project = scope.project(input.project);
 			const at = { workspace: scope.workspace.id, project: project?.id as string };
-			if (!project || !scope.allows(actorKey(context), at)) return projectNotFound();
+			if (!project || !scope.allows(context.actor, at)) return projectNotFound();
 			let rows: typeof import('./project-summary-rows.js');
 			try {
 				rows = await import('./project-summary-rows.js');
@@ -80,7 +79,8 @@ export function createProjectSummaryCommand(deps: ProjectSummaryDeps): ZodComman
 				deps,
 				at,
 				context.traceId ?? '',
-				context.interface === 'agent' ? 'agent' : 'palette'
+				context.interface === 'agent' ? 'agent' : 'palette',
+				context.actor
 			);
 			const warnings = rows.droppedWarnings(summaries);
 			return success({ project: shown, summaries }, warnings.length > 0 ? { warnings } : {});

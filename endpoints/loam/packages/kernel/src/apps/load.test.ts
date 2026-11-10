@@ -15,9 +15,9 @@ import {
 	probeDeployment,
 	probeViewManifest,
 } from '../testing.js';
-import type { AppDetailV1, AppInstanceV1, AppSummaryV1, LoamKernelV2 } from '../types.js';
+import type { AppDetailV1, AppInstanceV1, AppSummaryV1, LoamKernelV3 } from '../types.js';
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -78,7 +78,7 @@ const mountedManifest = (id = 'umbel', transport: 'http' | 'stdio' = 'http') =>
 		mount: { prefix: id, transport },
 	});
 
-async function statusOf(kernel: LoamKernelV2, instance: string): Promise<AppSummaryV1 | undefined> {
+async function statusOf(kernel: LoamKernelV3, instance: string): Promise<AppSummaryV1 | undefined> {
 	const { data } = await kernel.call<{ apps: AppSummaryV1[] }>('app-list');
 	return data?.apps.find((app) => app.instance === instance);
 }

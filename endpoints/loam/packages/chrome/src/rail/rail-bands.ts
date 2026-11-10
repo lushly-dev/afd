@@ -12,7 +12,7 @@
  * from {@link RailBands.fresh}, so one read serves both.
  */
 
-import type { AppSummaryV2, KernelEventV2, ScopeChangeV2 } from '@lushly-dev/loam-kernel';
+import type { AppSummaryV2, KernelEventV3, ScopeChangeV2 } from '@lushly-dev/loam-kernel';
 import type { LoamAppEntry } from '../elements/app-entry.js';
 import type { LoamAppNav } from '../elements/app-nav.js';
 import type { LoamProjectSwitcher } from '../elements/project-switcher.js';
@@ -58,7 +58,7 @@ export class RailBands {
 	}
 
 	/** Each kernel event, from the shell's one subscription. */
-	heard(event: KernelEventV2): void {
+	heard(event: KernelEventV3): void {
 		if (event.mutation || !event.success) this.#changes++;
 		if (
 			event.scopeChanged ||

@@ -12,7 +12,7 @@ import type { BatchOperation, DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { actorKey } from '../scope/access.js';
+import { personOf } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import { archivedRefusal, canOpen, mismatchRefusal } from './main-state.js';
@@ -262,7 +262,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			!record ||
 			record.workspace !== here.workspace ||
 			(call.caller !== undefined && !sameScope(record.scope, here)) ||
-			!scope.allows(actorKey(call), record.scope)
+			!scope.allows(call.actor, record.scope)
 		) {
 			return documentNotFound();
 		}
@@ -354,7 +354,7 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, id);
 			if (!record) return;
 			// So `document-list`'s recents are right however the content changes (3).
-			await put({ ...record, updatedAt: callNow(call), updatedBy: actorKey(call) });
+			await put({ ...record, updatedAt: callNow(call), updatedBy: personOf(call) });
 			scope.note(call.traceId, { document: record.id });
 		},
 	};

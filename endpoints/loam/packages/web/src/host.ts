@@ -13,8 +13,8 @@ import {
 import {
 	createKernel,
 	type KernelEnvironmentV0,
-	type KernelOptionsV2,
-	type LoamKernelV2,
+	type KernelOptionsV3,
+	type LoamKernelV3,
 } from '@lushly-dev/loam-kernel';
 
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
@@ -57,16 +57,16 @@ export interface HostKernelOptions {
 	 * What `readBoot` read of `deployment.json`, and what stage B reads: the kernel resolves after stage
 	 * A, the same for every deployment (phase 2 specification, 2.2).
 	 */
-	boot?: KernelOptionsV2['boot'];
-	appsLoader?: KernelOptionsV2['appsLoader'];
+	boot?: KernelOptionsV3['boot'];
+	appsLoader?: KernelOptionsV3['appsLoader'];
 	/** The URL's project, by slug, or `null` for workspace level (phase 2 specification, 6.3). */
-	initialScope?: KernelOptionsV2['initialScope'];
+	initialScope?: KernelOptionsV3['initialScope'];
 }
 
 const LOCK_RETRY_MS = 100;
 
 export type HostKernel =
-	| { kind: 'ready'; kernel: LoamKernelV2; journal: IndexedDbJournalSink }
+	| { kind: 'ready'; kernel: LoamKernelV3; journal: IndexedDbJournalSink }
 	| { kind: 'locked'; error: IndexedDbJournalError };
 
 /** Take the journal's writer lock, then create the kernel over the IndexedDB stores. */

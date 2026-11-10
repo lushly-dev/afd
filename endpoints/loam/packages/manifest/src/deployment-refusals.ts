@@ -10,7 +10,7 @@ import { pointerOf, refusesKey, reportedErrors, type ValidatorError } from './va
 const EXPOSE_KEY = /^\/apps\/[^/]+\/(?:commands\/[^/]+\/)?expose\/(apps|mcp|cli)$/;
 
 /** A schema the readers report against: a deployment file of either version, or the projection. */
-export type DeploymentSchema = 'deployment' | 'deploymentV2' | 'projection';
+export type DeploymentSchema = 'deployment' | 'deploymentV2' | 'deploymentV3' | 'projection';
 
 const PROJECT_KEY = /^\/apps\/[^/]+\/projects\/\d+$/;
 
@@ -42,6 +42,14 @@ function versionTwoRow(pointer: string, key: string): Omit<DeploymentRefusal, 'k
 	return undefined;
 }
 
+/** Any `[identity]` key out of shape (phase 3 specification, 2.2). */
+const identityRow = (key: string): Omit<DeploymentRefusal, 'key'> => ({
+	code: 'DEPLOYMENT_IDENTITY_INVALID',
+	message: `\`${key}\` is not an identity this shell reads.`,
+	suggestion:
+		'Write `[identity]` with `mode`, `provider = "better-auth"`, `organization`, `path` and `methods`, and nothing else.',
+});
+
 function deploymentRow(
 	pointer: string,
 	error: ValidatorError,
@@ -53,10 +61,12 @@ function deploymentRow(
 			return {
 				code: 'DEPLOYMENT_VERSION_UNSUPPORTED',
 				message: `\`deployment_version\` ${error.message ?? 'is not served'}.`,
-				suggestion: 'This shell reads `deployment_version = 1` and `deployment_version = 2`.',
+				suggestion:
+					'This shell reads `deployment_version = 1`, `2` and `3`; `3` is needed only for `[identity]`.',
 			};
 		}
-		const versionTwo = schema === 'deploymentV2' ? versionTwoRow(pointer, key) : undefined;
+		if (schema === 'deploymentV3' && pointer.startsWith('/identity')) return identityRow(key);
+		const versionTwo = schema !== 'deployment' ? versionTwoRow(pointer, key) : undefined;
 		if (versionTwo) return versionTwo;
 		const expose = pointer.match(EXPOSE_KEY)?.[1];
 		if (expose) {

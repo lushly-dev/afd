@@ -36,7 +36,7 @@ import {
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { KernelEventV2, LoamKernelV2 } from '../types.js';
+import type { KernelEventV3, LoamKernelV3 } from '../types.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import {
 	buildDocumentTypes,
@@ -47,7 +47,7 @@ import {
 import { createDocumentCommands } from './documents.js';
 import { createLateParts, createOverlayStore } from './index.js';
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -435,7 +435,7 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 		const workspace = await documents({ store: adapterOf() });
 		const { kernel } = workspace;
 		const record = await created(workspace);
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		await kernel.call('probe-content-get', { document: record.id });
 		expect(
@@ -739,7 +739,7 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 		const { kernel } = workspace;
 		const checkedOne = await created(workspace, { type: 'probe', title: 'Checked' });
 		const other = await created(workspace, { type: 'probe', title: 'Other' });
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		expect(
 			(await kernel.call('probe-content-swap', { document: checkedOne.id, other: other.id }))

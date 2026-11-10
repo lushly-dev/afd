@@ -15,7 +15,7 @@ import type { LayoutStateV0 } from '../layout.js';
 import { createFixedEnvironment, createSeededRandom, createSteppingClock } from '../session.js';
 import { replayKernel } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { AppSummaryV2, LoamKernelV2, ProjectSummaryResultV1, ProjectV1 } from '../types.js';
+import type { AppSummaryV2, LoamKernelV3, ProjectSummaryResultV1, ProjectV1 } from '../types.js';
 import { readProjectSummary, readResourceLink, summaryRows } from './project-summary-rows.js';
 
 const EMPTY = { type: 'object', properties: {}, additionalProperties: false };
@@ -185,7 +185,7 @@ const ports = (stopped = false, aborted: number[] = []) => {
 	);
 };
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

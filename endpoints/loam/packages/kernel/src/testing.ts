@@ -28,7 +28,7 @@ import { createKernelParts, type KernelPartsInternals } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
 import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
-import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV2 } from './types.js';
+import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV3 } from './types.js';
 
 /** The link index, which A4 builds from the reference workspace's links (documents specification, 9.3). */
 export { createDocumentIndex, type DocumentIndex, LINK_TABLE } from './late/links.js';
@@ -134,7 +134,7 @@ export interface ReplayKernelResult {
 	/** `appearance-get` after the last entry. */
 	appearance: AppearanceV0;
 	/** The replayed kernel, when `keep` was set; the caller disposes it. */
-	kernel?: LoamKernelV2;
+	kernel?: LoamKernelV3;
 }
 
 /**

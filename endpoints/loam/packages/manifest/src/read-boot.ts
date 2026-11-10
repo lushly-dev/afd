@@ -26,10 +26,24 @@ export interface BootAppV2 {
 	refusal: BootRefusalV2 | null;
 }
 
+/** A way to sign in to a `provider` deployment (phase 3 specification, 2.2; D99). */
+export type IdentityMethodV1 = 'passkey' | 'password' | `oidc:${string}`;
+
+/**
+ * A deployment's identity as its projection carries it (phase 3 specification, 2.1 and 2.2): `local`, a
+ * personal store where every actor is a member and an owner, or `provider`, with the bound organization's
+ * slug for display only, the provider's path relative to `site.base_path`, and the ways in.
+ */
+export type IdentityV1 =
+	| { mode: 'local'; organization?: undefined }
+	| { mode: 'provider'; organization: string; path: string; methods: IdentityMethodV1[] };
+
 export interface BootProjectionV2 {
 	generation: string;
 	workspace: { id: string; name: string };
 	apps: BootAppV2[];
+	/** Version 3's `identity`; `readBoot` always sets it, `local` for a version 2 projection or none (2.2). */
+	identity?: IdentityV1;
 }
 
 /** An instance id or app id, as the projection's schema has it. */
@@ -40,6 +54,11 @@ const ID = /^[a-z][a-z0-9]{0,31}$/;
  */
 const WORKSPACE_ID = /^(?!(?:apps|assets|mounts|sandbox|p)$)[a-z0-9][a-z0-9-]{0,62}$/;
 const ICON = /^[a-z][a-z0-9-]{0,30}\/[a-z0-9][a-z0-9-]{0,31}$/;
+/** The bound organization's slug, as the deployment file has it (2.2). */
+const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
+/** `path` relative to `site.base_path`: no leading `/`, no `.` or `..` segment (2.2). */
+const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/;
+const METHOD = /^(passkey|password|oidc:[a-z0-9][a-z0-9-]{0,31})$/;
 
 type Unchecked = Record<string, unknown>;
 
@@ -103,7 +122,28 @@ function appOf(value: unknown): BootAppV2 | undefined {
 }
 
 /**
- * Undefined when `raw` is not a version 2 projection at all. Each field is checked as it is read, as
+ * A version 3 projection's `identity`, checked as it is read: absent is `local`; one out of shape is
+ * undefined, and so is the whole projection, so a `provider` deployment never boots as `local` by a field
+ * stage A could not read (2.1).
+ */
+function identityOf(value: unknown): IdentityV1 | undefined {
+	const identity = recordOf(value);
+	if (value === undefined || identity?.mode === 'local') return { mode: 'local' };
+	const { organization, path, methods } = identity ?? {};
+	return identity?.mode === 'provider' &&
+		typeof organization === 'string' &&
+		SLUG.test(organization) &&
+		typeof path === 'string' &&
+		AUTH_PATH.test(path) &&
+		Array.isArray(methods) &&
+		methods.length > 0 &&
+		methods.every((method) => typeof method === 'string' && METHOD.test(method))
+		? { mode: 'provider', organization, path, methods: [...new Set(methods)] }
+		: undefined;
+}
+
+/**
+ * Undefined when `raw` is not a version 2 or 3 projection at all. Each field is checked as it is read, as
  * `unavailableApps` did: a display field out of shape takes its default, after the entry's own `title`
  * and `order` where it has them, and the entry stays listed,
  * since stage B will refuse it with its reason. An entry whose `instance` or `app` fails its pattern,
@@ -113,8 +153,12 @@ export function readBoot(raw: unknown): BootProjectionV2 | undefined {
 	const projection = recordOf(raw);
 	const workspace = recordOf(projection?.workspace);
 	const id = workspace?.id;
+	const version = projection?.deployment_version;
+	const identity = version === 3 ? identityOf(projection?.identity) : { mode: 'local' as const };
 	if (
-		projection?.deployment_version !== 2 ||
+		!projection ||
+		(version !== 2 && version !== 3) ||
+		identity === undefined ||
 		!Array.isArray(projection.apps) ||
 		typeof id !== 'string' ||
 		!WORKSPACE_ID.test(id)
@@ -133,5 +177,6 @@ export function readBoot(raw: unknown): BootProjectionV2 | undefined {
 		generation: typeof projection.generation === 'string' ? projection.generation : '',
 		workspace: { id, name: text(workspace?.name, 80) ?? id },
 		apps,
+		identity,
 	};
 }

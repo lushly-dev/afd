@@ -4,7 +4,7 @@
  * 5.2, 5.3 and 5.5).
  */
 
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
 import {
 	type AppCallContextV1,
@@ -40,7 +40,7 @@ export interface NativeHostOptions {
 	granted: ReadonlySet<string>;
 	commands: readonly string[];
 	/** A handler's `context.client`: its calls carry `parent`, and the call's effective scope (3.2). */
-	nestedClient(parent: string, scope: ScopeV1): LoamClientV1;
+	nestedClient(parent: string, scope: ScopeV1, actor: Actor | undefined): LoamClientV1;
 }
 
 export interface NativeHost {
@@ -115,7 +115,7 @@ export function createNativeHost(options: NativeHostOptions): NativeHost {
 	function callContext(name: string, context: CommandContext): AppCallContextV1 {
 		const traceId = context.traceId ?? '';
 		const scope = scopeOf(context);
-		const client = options.nestedClient(traceId, scope);
+		const client = options.nestedClient(traceId, scope, context.actor);
 		return {
 			traceId,
 			config,

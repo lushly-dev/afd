@@ -18,12 +18,12 @@ import {
 	type ScopedWorkspace,
 	type ScopedWorkspaceOptions,
 } from '../testing.js';
-import type { KernelEventV2, LoamKernelV2 } from '../types.js';
+import type { KernelEventV3, LoamKernelV3 } from '../types.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createEditorParts } from './editor-commands.js';
 import { type EditorStateV1, emptyEditorState } from './editor-state.js';
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -248,7 +248,7 @@ describe('P2-D5: the editor commands', () => {
 	it('P2-D5: opens, activates, pins, moves and closes, each with its undo, moving the URL as 6.3 says, and replays the same', async () => {
 		const workspace = await documents();
 		const { kernel } = workspace;
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		const a = await probe(workspace, 'Alpha');
 		const b = await probe(workspace, 'Beta');
@@ -455,7 +455,7 @@ describe('P2-D5: the editor commands', () => {
 	it('P2-D5: trashing a document closes its tabs, and moving one closes them in the scope it leaves', async () => {
 		const workspace = await documents();
 		const { kernel, scopes } = workspace;
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		const a = await probe(workspace, 'Alpha');
 		const b = await probe(workspace, 'Beta');

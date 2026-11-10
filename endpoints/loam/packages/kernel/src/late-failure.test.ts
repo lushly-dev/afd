@@ -12,13 +12,13 @@ const EMPTY_BOOT = {
 	apps: [],
 };
 
-import type { KernelOptionsV2 } from './types.js';
+import type { KernelOptionsV3 } from './types.js';
 
 vi.mock('./late/index.js', () => {
 	throw new Error('The chunk did not load');
 });
 
-function options(overrides: Partial<KernelOptionsV2> = {}): KernelOptionsV2 {
+function options(overrides: Partial<KernelOptionsV3> = {}): KernelOptionsV3 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',

@@ -641,8 +641,8 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		const { scope } = context as KernelFieldContext;
 		const slug = scope?.project && host.scope.projects.get(scope.project)?.slug;
 		// Through the runtime, so this chunk imports nothing of first paint's and the bundler parts its
-		// shared chunks as before.
-		const actor = host.scope.actorKey(context);
+		// shared chunks as before. The call's whole actor: the person it is for, and its agent member (3.3).
+		const { actor } = context;
 		const refused = unlistedProject(entry, slug, (listed) => {
 			const project = host.scope.projects.all().find((candidate) => candidate.slug === listed);
 			return (

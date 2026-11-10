@@ -409,18 +409,96 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 		],
 		"/apps/*/commands/*/effects": []
 	},
-	"projection": {
+	"deploymentV3": {
 		"": [
 			"deployment_version",
-			"generation",
 			"workspace",
-			"sandbox_origin",
+			"site",
+			"sandbox",
+			"identity",
 			"apps"
 		],
 		"/workspace": [
 			"id",
 			"name"
 		],
+		"/site": [
+			"base_path"
+		],
+		"/sandbox": [
+			"origin"
+		],
+		"/identity": [
+			"mode",
+			"provider",
+			"organization",
+			"path",
+			"methods"
+		],
+		"/identity/methods": [],
+		"/apps": [],
+		"/apps/*": [
+			"app",
+			"package",
+			"order",
+			"title",
+			"config",
+			"prefix",
+			"audience",
+			"transport",
+			"url",
+			"bearer_file",
+			"bearer_env",
+			"command",
+			"cwd",
+			"projects",
+			"space",
+			"expose",
+			"commands"
+		],
+		"/apps/*/command": [],
+		"/apps/*/projects": [],
+		"/apps/*/space": [],
+		"/apps/*/expose": [
+			"agent",
+			"palette",
+			"mcp",
+			"cli"
+		],
+		"/apps/*/commands": [],
+		"/apps/*/commands/*": [
+			"expose",
+			"effects",
+			"destructive"
+		],
+		"/apps/*/commands/*/expose": [
+			"agent",
+			"palette",
+			"mcp",
+			"cli"
+		],
+		"/apps/*/commands/*/effects": []
+	},
+	"projection": {
+		"": [
+			"deployment_version",
+			"generation",
+			"workspace",
+			"sandbox_origin",
+			"identity",
+			"apps"
+		],
+		"/workspace": [
+			"id",
+			"name"
+		],
+		"/identity": [
+			"mode",
+			"organization",
+			"path",
+			"methods"
+		],
+		"/identity/methods": [],
 		"/apps": [],
 		"/apps/*": [
 			"instance",

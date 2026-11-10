@@ -11,7 +11,7 @@
  */
 
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
-import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { KernelEventV3, LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type {
 	DocumentRecordV1,
 	DocumentRefV1,
@@ -219,14 +219,14 @@ export class LoamEmbed extends FASTElement {
 		const { documents, embeds } = this.#around();
 		// A stop names its document only once the reader may read it, so it says nothing of a refused one.
 		if (embeds + 1 > EMBED_DEPTH_MAX || documents.includes(this.document)) {
-			const kernel = this.#shell?.kernel as LoamKernelV2 | undefined;
+			const kernel = this.#shell?.kernel as LoamKernelV3 | undefined;
 			const read = await kernel?.call<DocumentRecordV1>('document-get', {
 				document: this.document,
 			});
 			if (turn === this.#rendering) this.#fail('deep', read?.data?.title ?? 'This document');
 			return;
 		}
-		const kernel = this.#shell?.kernel as LoamKernelV2 | undefined;
+		const kernel = this.#shell?.kernel as LoamKernelV3 | undefined;
 		if (!kernel) return this.#fail('unavailable');
 		this.#stop ??= kernel.subscribe((event) => this.#heard(event));
 		const read = await kernel.call<DocumentRecordV1>('document-get', { document: this.document });
@@ -292,7 +292,7 @@ export class LoamEmbed extends FASTElement {
 		reference: DocumentRefV1
 	): Promise<LoamMount | LoamViewFrame | null> {
 		const shell = this.#shell as LoamShell;
-		const kernel = shell.kernel as LoamKernelV2;
+		const kernel = shell.kernel as LoamKernelV3;
 		try {
 			if (declared.resource !== undefined) {
 				const { documentView } = await import('../view/view.js');
@@ -316,7 +316,7 @@ export class LoamEmbed extends FASTElement {
 	}
 
 	/** A change the kernel announces: the target's own re-reads it, and access is checked again (9.2). */
-	#heard(event: KernelEventV2): void {
+	#heard(event: KernelEventV3): void {
 		if (event.document === this.document && event.success) {
 			const change = {
 				document: event.document,

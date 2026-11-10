@@ -21,7 +21,7 @@ import type { AppsRuntime } from '../apps-runtime.js';
 import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { actorKey } from '../scope/access.js';
+import { personOf } from '../scope/access.js';
 import { type LateScope, projectNotFound } from '../scope/middleware.js';
 import type {
 	ProjectAccessV1,
@@ -235,8 +235,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 	/** The project `ref` names, if the call's actor may enter it; else undefined, missing or refused alike. */
 	const named = (ref: string, context: CommandContext): ProjectV1 | undefined => {
 		const project = scope.project(ref);
-		return project &&
-			scope.allows(actorKey(context), { workspace: workspaceId, project: project.id })
+		return project && scope.allows(context.actor, { workspace: workspaceId, project: project.id })
 			? project
 			: undefined;
 	};
@@ -260,7 +259,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			tenant: null,
 			createdAt: at,
 			updatedAt: at,
-			updatedBy: actorKey(context),
+			updatedBy: personOf(context),
 		});
 	}
 
@@ -284,7 +283,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				'Use one of ICONS_V1, such as system/folder'
 			);
 		}
-		if (asked?.mode === 'restricted' && !asked.members.includes(actorKey(context))) {
+		if (asked?.mode === 'restricted' && !asked.members.includes(personOf(context))) {
 			return kernelFailure(
 				'PROJECT_MEMBER_SELF_REQUIRED',
 				'A restricted project must list you among its members',
@@ -303,7 +302,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			...project,
 			status,
 			updatedAt: now(context),
-			updatedBy: actorKey(context),
+			updatedBy: personOf(context),
 		};
 		await stores.putProject(next);
 		return next;
@@ -344,7 +343,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			}
 			await ensureWorkspace(context);
 			const at = now(context);
-			const actor = actorKey(context);
+			const actor = personOf(context);
 			const project: ProjectV1 = {
 				id: projectId(context),
 				workspace: workspaceId,
@@ -444,7 +443,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				...changes,
 				...(changes.access !== undefined ? { memberEpoch: project.memberEpoch + 1 } : {}),
 				updatedAt: now(context),
-				updatedBy: actorKey(context),
+				updatedBy: personOf(context),
 			};
 			await stores.putProject(next);
 			const undoArgs: Record<string, unknown> = { project: project.id };
@@ -734,14 +733,16 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				...record,
 				overrides,
 				updatedAt: now(context),
-				updatedBy: actorKey(context),
+				updatedBy: personOf(context),
 			};
 			await stores.putWorkspaceApp(next);
 			// Enabled again: a mounted instance left undiscovered while disabled is discovered now (4.1). The
 			// change stands whatever discovery answers, and a failed one is the result's warning.
 			const found =
 				record.overrides.enabled === false && overrides.enabled !== false
-					? await deps.apps().refreshEnabled?.(input.instance, context.traceId as string)
+					? await deps
+							.apps()
+							.refreshEnabled?.(input.instance, context.traceId as string, context.actor)
 					: undefined;
 			return success(next, {
 				undoCommand: 'workspace-app-set',
@@ -794,7 +795,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				});
 			}
 			const at = now(context);
-			const actor = actorKey(context);
+			const actor = personOf(context);
 			const counts = { added: 0, changed: 0, unlisted: 0 };
 			const listed = new Set<string>();
 			for (const item of input.entries) {

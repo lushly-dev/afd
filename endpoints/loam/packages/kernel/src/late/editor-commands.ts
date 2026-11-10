@@ -116,15 +116,7 @@ function selectionFits(selection: unknown, shape: string): boolean {
 
 export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): EditorParts {
 	const { scope, state, store, check } = deps;
-	const {
-		kernelFailure,
-		success,
-		sameScope,
-		setMain,
-		marked,
-		actorKey,
-		table: DOCUMENT_TABLE,
-	} = kit;
+	const { kernelFailure, success, sameScope, setMain, marked, table: DOCUMENT_TABLE } = kit;
 	const {
 		strictObject,
 		string,
@@ -670,7 +662,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 					// The documents section's path is the active tab's document, or none with no tab (5.1); only for a
 					// call in this page whose actor may enter the active scope, so a server's caller learns no id.
 					const active = scope.active();
-					if (!marked(context) || !scope.allows(actorKey(context), active)) {
+					if (!marked(context) || !scope.allows(context.actor, active)) {
 						return success({ ...data, path: '' });
 					}
 					await ensure(active.project);

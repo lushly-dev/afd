@@ -8,10 +8,15 @@
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
-import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
+import {
+	type CommandContext,
+	type CommandMiddleware,
+	type CommandResult,
+	failure,
+} from '@lushly-dev/afd-core';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { actorKey, LOCAL_ACTOR } from './access.js';
+import { type AccessActorV1, AGENT_MEMBER_PREFIX, inWorkspace } from './access.js';
 import type { ScopeChangeV2, ScopeV1 } from './records.js';
 import type { ScopeRuntime } from './runtime.js';
 
@@ -29,6 +34,12 @@ export interface LateScope {
 	 * entry, so first paint needs neither.
 	 */
 	before(call: CommandContext & KernelFieldContext, name: string): void;
+	/**
+	 * Whether line 0 decides `name` (phase 3 specification, 3.3): every command but the signed-out and
+	 * member-exempt lists, `INTERNAL_COMMANDS` and the kernel's own settle commands. The lists load here, with
+	 * the late commands: stage A holds only boot commands, which are all signed-out ones (13).
+	 */
+	gated(name: string): boolean;
 	/** Lines 2 to 6 of an owned command, the handler, and after an `auth-*` command, its actor (3.4). */
 	run(
 		name: string,
@@ -60,22 +71,53 @@ export const projectNotFound = (): CommandResult<never> =>
 		'List the projects you can open with project-list'
 	);
 
-/** The actor the adapter reports now, as a key. */
-export const sessionActor = (auth: AuthAdapter): string => {
+/**
+ * The person the adapter reports now, as the auth middleware would stamp them, or undefined signed out. An
+ * expired session, a malformed expiry, or a user id starting `agt_`, which no person's may (3.2), is none.
+ */
+export const sessionActor = (auth: AuthAdapter): AccessActorV1 => {
 	const state = auth.getSession();
-	// As the auth middleware reads it: an expired session, or a malformed expiry, is no session.
 	const expiry = state.session?.expiresAt;
 	return state.status === 'authenticated' &&
+		!state.user.id.startsWith(AGENT_MEMBER_PREFIX) &&
 		(expiry === undefined || new Date(expiry).getTime() > Date.now())
-		? state.user.id
-		: LOCAL_ACTOR;
+		? { kind: 'human', id: state.user.id }
+		: undefined;
 };
+
+/**
+ * Line 0's refusal (phase 3 specification, 3.3): signed out, afd-auth's `UNAUTHORIZED`; an agent or another
+ * caller acting for no one, or a person who is not a member, `WORKSPACE_NOT_MEMBER`.
+ */
+function notMember(actor: AccessActorV1): CommandResult<never> {
+	if (actor === undefined) {
+		return failure({
+			code: 'UNAUTHORIZED',
+			message: 'Authentication required',
+			suggestion: 'Sign in with auth-sign-in to access this command',
+			retryable: false,
+		});
+	}
+	return kernelFailure(
+		'WORKSPACE_NOT_MEMBER',
+		actor.kind === 'human'
+			? 'You are not a member of this workspace'
+			: `This ${actor.kind === 'agent' ? 'agent' : 'caller'} acts for no member of the workspace`,
+		'Ask an owner of the workspace to invite you, and list your invitations with account-invitation-list'
+	);
+}
 
 export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddleware {
 	const { scope } = deps;
 	return async (name, input, context, next) => {
 		const call = context as CommandContext & KernelFieldContext;
 		const late = deps.late();
+		// Line 0, before everything else about the call, journaled with the scope it asked for (3.3).
+		if (late?.gated(name) && !inWorkspace(scope.membership, call.actor)) {
+			call.scope ??= { workspace: scope.workspace.id };
+			scope.note(call.traceId, { scope: call.scope });
+			return notMember(call.actor);
+		}
 		late?.before(call, name);
 		// Absent is the workspace: no server holds an active scope (3.3).
 		const requested: ScopeV1 = call.scope ?? { workspace: scope.workspace.id };
@@ -89,7 +131,7 @@ export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddlew
 			);
 		}
 		// `layout-*` reads the call's scope's record, so the access decision comes first (3.4).
-		if (name.startsWith('layout-') && !scope.allows(actorKey(call), requested)) {
+		if (name.startsWith('layout-') && !scope.allows(call.actor, requested)) {
 			return projectNotFound();
 		}
 		return late ? late.run(name, input, call, next) : next();

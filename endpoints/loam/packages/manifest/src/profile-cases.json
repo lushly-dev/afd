@@ -1966,6 +1966,17 @@
 			"key": "plugin.id"
 		},
 		{
+			"id": "id-reserved-member",
+			"base": "native",
+			"set": {
+				"/plugin/id": "member",
+				"/plugin/domains": ["member"]
+			},
+			"accepted": false,
+			"code": "MANIFEST_ID_RESERVED",
+			"key": "plugin.id"
+		},
+		{
 			"id": "id-reserved-p",
 			"base": "native",
 			"set": {

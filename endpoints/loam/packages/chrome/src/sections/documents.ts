@@ -9,7 +9,7 @@
  */
 
 import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
-import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 import { syncInspector } from './documents-inspector.js';
 import { documentsSectionDefinition, LoamDocumentsSection } from './documents-section.js';
@@ -89,7 +89,7 @@ export function syncDocuments(shell: LoamShell): Promise<void> {
 }
 
 async function sync(shell: LoamShell): Promise<void> {
-	const kernel = shell.kernel as LoamKernelV2;
+	const kernel = shell.kernel as LoamKernelV3;
 	const root = shell.shadowRoot;
 	const main = root?.querySelector<HTMLElement & FASTElement>('loam-main');
 	const part = root?.querySelector<HTMLElement>('loam-sidebar');

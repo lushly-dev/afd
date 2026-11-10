@@ -20,10 +20,10 @@ import {
 } from '../testing.js';
 import { PROBE_DOCUMENTS_DEFINITION, PROBE_DOCUMENTS_MANIFEST } from '../testing-documents.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { LoamKernelV2 } from '../types.js';
+import type { LoamKernelV3 } from '../types.js';
 import { createNewParts, newRecentId } from './new-list.js';
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

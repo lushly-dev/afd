@@ -17,7 +17,7 @@ import {
 import type {
 	AppInstanceV1,
 	KernelPortsV1,
-	LoamKernelV2,
+	LoamKernelV3,
 	McpToolCallResult,
 	MountTransportV2,
 } from '../types.js';
@@ -203,7 +203,7 @@ async function boot(
 	return { ...parts, journal, deployment, packages, asked };
 }
 
-async function instance(kernel: LoamKernelV2, name = 'work'): Promise<AppInstanceV1 | undefined> {
+async function instance(kernel: LoamKernelV3, name = 'work'): Promise<AppInstanceV1 | undefined> {
 	const { data } = await kernel.call<{ instances: AppInstanceV1[] }>('app-instance-list');
 	return data?.instances.find((row) => row.instance === name);
 }
@@ -1228,7 +1228,6 @@ describe('P2-E6: (kernel unit) a mounted call carries its scope, and stays in it
 			runAs: async () => ({ success: true }),
 			scope: {
 				active: () => ({ workspace: 'personal' }),
-				actorKey: () => 'local',
 				allows: () => true,
 				projects: { get: () => undefined, all: () => [] },
 				workspaceApps: { get: () => undefined },
