@@ -2750,7 +2750,14 @@ on another local branch and push to that remote name.
     (code, manifest, schemas, skill, tests); a struct field in `context`'s source and in the test support of
     `context`, `curator`, `knowledge` and `umbel-first-party`. The afd crate did not change. Choices are in the
     specification's [Amendments from step 10](phases/5-auth-hosted/spec.md#amendments-from-step-10).
-  - VERIFIED_PLACEHOLDER
+  - Verified 2026-11-10 on the branch, each exit code captured directly: `cargo fmt --all --check`; clippy
+    `-D warnings` on every `umbel.yml` leg (the workspace, the three `--no-default-features` legs, the SDK and hello
+    leg, the `wasm32-wasip2` leg, the two plugin jobs' with the knowledge `--no-default-features` leg) and the
+    `umbel-store` `wasm32` check; the component builds and `hello-mcp`; Umbel's host tests in batches; the other
+    crates' tests in batches (the shared machine's disk ran short, so they ran in smaller batches with the build
+    output pruned between them), conformance (34 of 34 on each lane, 5 of 5 confirmations) and external clients;
+    `pnpm check`; Loam's web build and `test:mounted` (24 tests). All exited 0; `plugin_mounted` passed without a
+    rerun. The afd crate did not change, so `rust.yml` was not run.
 - **Not done:** steps 11 and 12 of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan).
 - **Next:** 11 needs 3 (and builds its outbox row into the erasure steps step 10 shares between forget and erase);
   12 needs all. Heavy steps follow the plan's build note. Steps 5 to 12 take `umbel-testkit-idp` from

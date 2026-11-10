@@ -28,7 +28,8 @@ fn a_person(cx: &Cx) -> bool {
 }
 
 /// Refuse a change of `id` in `space` when it is another principal's record and the caller is
-/// not a person. A record the caller cannot read passes, so the host answers it as absent.
+/// not a person. A record the caller cannot read passes, so the host answers it as absent, and so
+/// does a person's record, whose authority the host checks first.
 pub(crate) fn may_change(cx: &Cx, space: &str, id: &str) -> Result<(), Outcome> {
     let current = match cx.memory_history(space, id) {
         Ok(versions) => versions
@@ -42,7 +43,11 @@ pub(crate) fn may_change(cx: &Cx, space: &str, id: &str) -> Result<(), Outcome> 
         return Ok(());
     };
     let me = effective_principal(cx.call());
-    if owns(cx, me.as_deref(), &current.scope.principal) || a_person(cx) {
+    // Phase 3 section 6.3's order holds: authority first, so a person's record is left to the
+    // host, which refuses a caller below `person` with `MEMORY_AUTHORITY_TOO_LOW` before it looks
+    // at the owner.
+    let persons_record = current.authority() == Some(umbel_store::Authority::Person);
+    if owns(cx, me.as_deref(), &current.scope.principal) || a_person(cx) || persons_record {
         return Ok(());
     }
     Err(not_owned())

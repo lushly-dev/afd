@@ -324,9 +324,10 @@ pub async fn run(ws: &mut Ws) -> usize {
     let still = ws.call(ada(), "memory-show", json!({ "id": shared })).await;
     assert_eq!(data(&still)["state"], "live");
     assert_eq!(data(&still)["record"]["recordVersion"], 1, "{still}");
-    // bo, a person through the library, is a sharing writer (3.2) and so may invalidate a
-    // record bo reads (6.3): a new version, with ada's version kept in its history and the text
-    // unchanged (step 10's amendment 1).
+    // bo, a person through the library and a sharing writer (3.2), may not invalidate a record of
+    // ada's person either: since phase 5's owner decision 10 (section 8.3) another principal's
+    // record changes only for a person the memory_write grant lists under `editors` (none here),
+    // and through the library only for the operator's person. Nothing changes.
     let by_bo = ws
         .call(
             bo(),
@@ -334,7 +335,7 @@ pub async fn run(ws: &mut Ws) -> usize {
             json!({ "id": shared, "reason": "wrong" }),
         )
         .await;
-    assert_eq!(data(&by_bo)["recordVersion"], 2, "{by_bo}");
+    assert_eq!(code(&by_bo), "MEMORY_NOT_OWNED", "{by_bo}");
     let history = ws
         .call(
             ada(),
@@ -342,8 +343,7 @@ pub async fn run(ws: &mut Ws) -> usize {
             json!({ "id": shared, "history": true }),
         )
         .await;
-    let versions = data(&history)["history"].as_array().unwrap();
-    assert_eq!(versions.len(), 2, "{history}");
+    assert_eq!(data(&history)["record"]["recordVersion"], 1, "{history}");
     assert_eq!(
         data(&history)["record"]["text"],
         format!("{SHARED} the shared probe fact")
