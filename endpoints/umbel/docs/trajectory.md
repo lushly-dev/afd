@@ -58,7 +58,7 @@ seam for it without implementing a draft.
 | R8 | Proposals recorded as decision traces | 4, 5 | Architecture section 5; phase 4 |
 | R9 | Mounted MCP servers as the federation path with indexed and live modes | 4 | After phase 2, its own specification |
 | R10 | Telemetry in the GenAI semantic conventions with trace context carried into stored records; usage events in the event log | 5 | Architecture sections 5 and 6 |
-| R11 | A server card, the well-known catalog file and a registry entry | 1 | Phase 7 |
+| R11 | A server card, the well-known catalog file and a registry entry | 1 | Phase 7. Noted 2026-11-09: Loam's [phase 6 specification](../../loam/docs/phases/6-hosts/spec.md#115-the-server-card-the-catalog-and-the-guide) (proposed) serves a SEP-2127 card at `<mcp-url>/server-card` and an optional AI catalog; when Umbel's lands, check that the two use the extension's fields the same way |
 
 ## Watchlist
 
