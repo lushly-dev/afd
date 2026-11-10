@@ -19,6 +19,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
+      - '.github/actions/cpp-dependencies/**'
   pull_request:
     branches: [main]
     paths:
@@ -31,6 +32,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
+      - '.github/actions/cpp-dependencies/**'
   workflow_dispatch:
 
 permissions:
@@ -64,7 +66,7 @@ jobs:
       - id: rust
         run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .cargo/config.toml --path .github/workflows/conformance.yml
       - id: cpp
-        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .github/workflows/conformance.yml --path .github/actions/cpp-dependencies/
 
   todo:
     name: Todo conformance (TypeScript + Python)
@@ -233,6 +235,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: ./.github/actions/cpp-dependencies
 
       # CMake and a C++20 compiler are preinstalled on GitHub-hosted runners.
       - name: Build the C++ backend and its tests

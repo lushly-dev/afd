@@ -16,6 +16,7 @@ on:
       # The format job also checks the C++ todo backend.
       - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
+      - '.github/actions/cpp-dependencies/**'
   pull_request:
     branches: [main]
     paths:
@@ -28,6 +29,7 @@ on:
       # The format job also checks the C++ todo backend.
       - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
+      - '.github/actions/cpp-dependencies/**'
   # The macOS, Windows, TSan, packaging, benchmark, fuzz and Emscripten legs run daily and on
   # demand rather than on every pull request and push.
   schedule:
@@ -102,6 +104,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: ./.github/actions/cpp-dependencies
+
       - name: Install pinned LLVM for clang-cl
         if: matrix.name == 'windows-clang-cl'
         shell: pwsh
@@ -161,6 +165,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: ./.github/actions/cpp-dependencies
+
       # Install afd (and the nlohmann/json it downloads) to a prefix, then build the quickstart
       # as an outside project twice: once through find_package, once through FetchContent.
       - name: Build and install
@@ -197,6 +203,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: ./.github/actions/cpp-dependencies
 
       - name: Build benchmarks (release preset)
         env:
@@ -241,6 +249,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: ./.github/actions/cpp-dependencies
+
       - name: Build fuzz targets (libFuzzer, ASan, UBSan)
         env:
           CXX: clang++
@@ -268,6 +278,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: ./.github/actions/cpp-dependencies
 
       - name: Cache emsdk
         id: emsdk-cache
