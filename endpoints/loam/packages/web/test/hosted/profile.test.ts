@@ -26,9 +26,9 @@ const HTML = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8';
 /**
  * Section 14's ceilings, enforced only in `loam.yml`'s `Hosted development profile` job (`CI=true`), the
  * place section 14 measures: the maximum of at least three `ubuntu-latest` samples, plus 25%, approved by
- * the coordinator 2026-11-10. Until the samples are taken they are the proposed bounds.
+ * the coordinator 2026-11-10: samples of 301, 285 and 283 ms, all at 93 MB, so 377 ms and 117 MB.
  */
-const SECTION_14_CEILINGS = { coldStartMs: 3_000, residentMb: 300 };
+const SECTION_14_CEILINGS = { coldStartMs: 377, residentMb: 117 };
 /** Elsewhere, a developer's machine under any load: the proposed bounds, with the measurement logged. */
 const LOCAL_BOUNDS = { coldStartMs: 3_000, residentMb: 300 };
 
