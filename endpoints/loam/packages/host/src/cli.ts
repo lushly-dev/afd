@@ -1,15 +1,30 @@
 /**
  * @fileoverview The `loam-host` bin (phase 6 specification, 3.8): `loam-host <command> [options]`. Output is
- * a `CommandResult` as JSON, and the exit code is 0 on success, 1 on failure, as `loam`'s is. Step 1 has
- * `check` and `doctor`; `dev`, `start`, `bootstrap` and `health` come with the steps that build them.
+ * a `CommandResult` as JSON, and the exit code is 0 on success, 1 on failure, as `loam`'s is. `dev` prints
+ * its result once it serves, then serves until `SIGINT` or `SIGTERM`, and closes, releasing the lock. Step 1
+ * has `check` and `doctor` and step 2 `dev`; `start`, `bootstrap` and `health` come with their steps.
  */
 
 import { parseArgs } from 'node:util';
 import { type CommandResult, failure } from '@lushly-dev/afd-server/define';
-import { hostCheckCommand, hostDoctorCommand } from './commands.js';
+import { hostCheckCommand, hostDevCommand, hostDoctorCommand, takeStartedDev } from './commands.js';
 
 export interface HostCliIO {
 	stdout?: (text: string) => void;
+	/** For `dev`: resolves when the profile should stop; `SIGINT` or `SIGTERM` by default. */
+	untilStopped?: () => Promise<void>;
+}
+
+function untilSignal(): Promise<void> {
+	return new Promise((done) => {
+		const stop = () => {
+			process.off('SIGINT', stop);
+			process.off('SIGTERM', stop);
+			done();
+		};
+		process.once('SIGINT', stop);
+		process.once('SIGTERM', stop);
+	});
 }
 
 interface Subcommand {
@@ -28,6 +43,11 @@ const SUBCOMMANDS: Readonly<Record<string, Subcommand>> = {
 		command: hostDoctorCommand,
 		usage: 'loam-host doctor --server <file> --deployment <file>',
 		options: ['server', 'deployment'],
+	},
+	dev: {
+		command: hostDevCommand,
+		usage: 'loam-host dev --deployment <file> [--data <dir>] [--port <n>] [--dist <dir>]',
+		options: ['deployment', 'data', 'port', 'dist'],
 	},
 };
 
@@ -81,5 +101,10 @@ export async function runHostCli(args: string[], io: HostCliIO = {}): Promise<nu
 		});
 	}
 	stdout(`${JSON.stringify(result, null, '\t')}\n`);
+	const profile = takeStartedDev();
+	if (profile) {
+		await (io.untilStopped ?? untilSignal)();
+		await profile.host.close();
+	}
 	return result.success ? 0 : 1;
 }

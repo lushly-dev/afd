@@ -1,6 +1,8 @@
 /**
  * @fileoverview `createLoamHost` (phase 6 specification, 3.1): one Node process on Hono 4.13 through
- * `@hono/node-server` 2.1's `serve`, with `node:https` when the server terminates TLS. One process per
+ * `@hono/node-server` 2.1's request listener, with `node:https` when the server terminates TLS. The
+ * development profile binds its sockets before its configuration exists (5.1), so the host serves on
+ * servers it creates or is handed, rather than through `serve`, which binds as it creates. One process per
  * data directory, one deployment per process. Step 1 serves the written shell and, on the sandbox's
  * origin, its `sandbox/`; the provider, MCP, the trust-record transport and the relay come in later steps,
  * and their paths answer 404 until then (3.3).
@@ -8,11 +10,10 @@
 
 import { readFileSync } from 'node:fs';
 import { readFile as readFileAsync } from 'node:fs/promises';
-import { createServer as createHttpServer, type IncomingMessage, type Server } from 'node:http';
-import { createServer as createHttpsServer } from 'node:https';
+import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join } from 'node:path';
-import { type HttpBindings, serve } from '@hono/node-server';
+import { getRequestListener, type HttpBindings } from '@hono/node-server';
 import type { MountAccess } from '@lushly-dev/loam-cli/deployment';
 import {
 	readServerConfig,
@@ -35,6 +36,7 @@ import {
 	shellPagePolicy,
 	siteCacheControl,
 } from './headers.js';
+import { bindServer, createHostServer, HOST_INTERNALS, type HostInternals } from './internal.js';
 import { acquireDataLock, type DataLock } from './lock.js';
 import type { ResolvedSecrets } from './secrets.js';
 import { type SiteAnswer, serveSite } from './site.js';
@@ -238,7 +240,28 @@ function bindHost(listen: string): string {
  * (section 16): any refusal of 3.2 or 3.3, a locked data directory, or an unreadable secret. It takes the
  * data directory's lock and writes the site before it returns, and holds the lock until `close()`.
  */
-export async function createLoamHost(config: LoamHostConfig & TestOnlyOptions): Promise<LoamHost> {
+export async function createLoamHost(
+	config: LoamHostConfig & TestOnlyOptions & HostInternals
+): Promise<LoamHost> {
+	const internals = config[HOST_INTERNALS] ?? {};
+	try {
+		return await construct(config, internals);
+	} catch (cause) {
+		// What the caller handed over is the host's: a failed start releases and closes it.
+		internals.lock?.release();
+		await stopAll(
+			[internals.servers?.shell, internals.servers?.sandbox].filter(
+				(server): server is Server => !!server
+			)
+		);
+		throw cause;
+	}
+}
+
+async function construct(
+	config: LoamHostConfig & TestOnlyOptions,
+	internals: NonNullable<HostInternals[typeof HOST_INTERNALS]>
+): Promise<LoamHost> {
 	const read = readServerConfig(config.server);
 	if (!read.ok) throw new HostError(read.refusals);
 	const server = read.server;
@@ -248,6 +271,7 @@ export async function createLoamHost(config: LoamHostConfig & TestOnlyOptions): 
 		dist: config.dist,
 		purpose: 'serve',
 		serveStatic: config[SERVE_STATIC_DEPLOYMENT] === true,
+		...(internals.sandboxOrigin ? { sandboxOrigin: internals.sandboxOrigin } : {}),
 	});
 	if (checked.refusals.length > 0) throw new HostError(checked.refusals);
 	// Held in memory only, never written (section 13, 3.3): the secrets, the limits, and the mounts with
@@ -259,7 +283,7 @@ export async function createLoamHost(config: LoamHostConfig & TestOnlyOptions): 
 	} = { secrets: checked.secrets, limits: read.limits, mounts: [] };
 
 	await ensureDataDirectory(server.data);
-	const lock: DataLock = acquireDataLock(server.data);
+	const lock: DataLock = internals.lock ?? acquireDataLock(server.data);
 	// Everything between the lock and a returned host is inside this `try`, so a failure releases the lock.
 	let listeners: Listener[];
 	let origin: string;
@@ -271,6 +295,7 @@ export async function createLoamHost(config: LoamHostConfig & TestOnlyOptions): 
 			data: server.data,
 			deployment: config.deployment,
 			dist: config.dist,
+			...(internals.sandboxOrigin ? { sandboxOrigin: internals.sandboxOrigin } : {}),
 		});
 		if (!written.ok) throw new HostError(written.refusals);
 		memory.mounts = written.mounts;
@@ -297,9 +322,12 @@ export async function createLoamHost(config: LoamHostConfig & TestOnlyOptions): 
 		tls = memory.secrets?.tls;
 		if (server.tls && !tls) throw new Error('The TLS certificate and key were not read.');
 	} catch (cause) {
-		lock.release();
+		if (!internals.lock) lock.release();
 		throw cause;
 	}
+	const adopted = internals.servers;
+	if (adopted && Boolean(adopted.sandbox) !== listeners.length > 1)
+		throw new Error('The sockets handed over do not match the listeners the configuration names.');
 
 	const servers: Server[] = [];
 	let closed = false;
@@ -310,33 +338,20 @@ export async function createLoamHost(config: LoamHostConfig & TestOnlyOptions): 
 			if (closed) throw new Error('The host is closed.');
 			if (servers.length > 0) return;
 			try {
-				for (const listener of listeners) {
-					const allowed = new Set(listener.apps.keys());
-					// `serve` hands its listener to `createServer`; the gate wraps it, so it runs first.
-					const wrap = (options: object, next: NodeListener) =>
-						tls
-							? createHttpsServer(options, gate(allowed, common, next))
-							: createHttpServer(options, gate(allowed, common, next));
-					const started = serve({
-						fetch: socketApp(listener.apps).fetch,
-						hostname: bindHost(listener.listen),
-						port: splitListen(listener.listen).port,
-						// A request with no `Host` reaches the gate, which answers it 421, not Node's own 400.
-						...(tls
-							? {
-									createServer: wrap as unknown as typeof createHttpsServer,
-									serverOptions: { cert: tls.cert, key: tls.key, requireHostHeader: false },
-								}
-							: {
-									createServer: wrap as unknown as typeof createHttpServer,
-									serverOptions: { requireHostHeader: false },
-								}),
-					}) as Server;
-					servers.push(started);
-					await new Promise<void>((done, fail) => {
-						started.once('listening', () => done());
-						started.once('error', fail);
-					});
+				for (const [index, listener] of listeners.entries()) {
+					const given = adopted ? (index === 0 ? adopted.shell : adopted.sandbox) : undefined;
+					const server = given ?? createHostServer(tls);
+					server.on(
+						'request',
+						gate(
+							new Set(listener.apps.keys()),
+							common,
+							getRequestListener(socketApp(listener.apps).fetch) as NodeListener
+						)
+					);
+					servers.push(server);
+					if (!given)
+						await bindServer(server, bindHost(listener.listen), splitListen(listener.listen).port);
 				}
 			} catch (cause) {
 				// Nothing half-started stays: whatever listened is closed, and `listen()` may run again.

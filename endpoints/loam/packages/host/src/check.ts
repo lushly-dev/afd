@@ -66,6 +66,8 @@ export interface CheckHostOptions {
 	purpose: 'start' | 'serve';
 	/** Test-only, until step 3: a version 1 to 3 deployment, read as `static`, is served. */
 	serveStatic?: boolean;
+	/** The development profile's: the deployment is read as if its `[sandbox] origin` were this one (5.1). */
+	sandboxOrigin?: string;
 	environment?: NodeJS.ProcessEnv;
 }
 
@@ -214,7 +216,10 @@ export async function checkHost(options: CheckHostOptions): Promise<HostCheck> {
 	const warnings: HostFinding[] = [...read.warnings];
 	const resolved = resolveSecrets(server, options.environment);
 	refusals.push(...resolved.refusals);
-	const analysis = await analyzeDeployment(options.deployment);
+	const analysis = await analyzeDeployment(
+		options.deployment,
+		options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }
+	);
 	if (analysis.refusals.length > 0 || !analysis.deployment) {
 		refusals.push(...analysis.refusals);
 	} else {

@@ -269,6 +269,30 @@ package = "hello"
 		expect(readFileSync(join(noView.out, 'index.html'), 'utf8')).toContain("frame-src 'none'");
 	});
 
+	it("writes the site with the sandbox origin it is given, in the projection and frame-src, the file's own replaced", async () => {
+		const paths = await layout(SPEC_FILE, SPEC_PACKAGES);
+		const written = await writeDeployment({
+			config: paths.config,
+			dist: paths.dist,
+			out: paths.out,
+			sandboxOrigin: 'https://127.0.0.1:8444',
+		});
+		expect(written.ok).toBe(true);
+		const page = readFileSync(join(paths.out, 'index.html'), 'utf8');
+		expect(page).toContain("frame-src https://127.0.0.1:8444; object-src 'none'");
+		expect(page).not.toContain('sandbox.example.com');
+		expect(
+			JSON.parse(readFileSync(join(paths.out, 'deployment.json'), 'utf8')).sandbox_origin
+		).toBe('https://127.0.0.1:8444');
+		const refused = await writeDeployment({
+			config: paths.config,
+			dist: paths.dist,
+			out: paths.out,
+			sandboxOrigin: 'https://127.0.0.1:8444/path',
+		});
+		expect(refused.ok).toBe(false);
+	});
+
 	it('carries a refused or missing package, warning of each, so the rail can show it', async () => {
 		const paths = await layout(
 			`deployment_version = 1

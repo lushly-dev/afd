@@ -549,6 +549,12 @@ describe('TLS and HSTS (3.1, 3.5)', () => {
 		});
 		expect(named.status).toBe(200);
 		expect(named.headers['strict-transport-security']).toBe('max-age=31536000');
+		const port443 = await raw(remote.port, '/', {
+			host: 'loam.example.test:443',
+			accept: HTML,
+			tls: true,
+		});
+		expect(port443.status).toBe(200);
 		const misdirected = await raw(remote.port, '/', { host: SHELL_HOST, tls: true });
 		expect(misdirected.status).toBe(421);
 		expect(misdirected.headers['strict-transport-security']).toBe('max-age=31536000');

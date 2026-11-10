@@ -65,6 +65,8 @@ export function gate(
 			);
 			return;
 		}
+		// What follows reads the authority the gate decided on, `:443` already left out.
+		incoming.headers.host = authority;
 		next(incoming, outgoing);
 	};
 }

@@ -2,7 +2,7 @@
 	"name": "@lushly-dev/loam-host",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Loam's hosted server: one Node process on Hono serving a deployment's shell from its data directory, with its configuration, lock, headers and checks",
+	"description": "Loam's hosted server: one Node process on Hono serving a deployment's shell from its data directory, with its configuration, lock, headers, checks and development profile",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -16,6 +16,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./testing": {
+			"types": "./dist/testing/index.d.ts",
+			"import": "./dist/testing/index.js"
 		}
 	},
 	"scripts": {
@@ -33,7 +37,6 @@
 		"zod": "^4.6.6"
 	},
 	"devDependencies": {
-		"@lushly-dev/loam-web": "workspace:*",
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^5.1.0",
 		"happy-dom": "^21.0.4",

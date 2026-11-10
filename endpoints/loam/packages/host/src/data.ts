@@ -34,6 +34,8 @@ export async function writeSite(options: {
 	data: string;
 	deployment: string;
 	dist: string;
+	/** The development profile's sandbox origin, written in place of the file's (5.1). */
+	sandboxOrigin?: string;
 }): Promise<WriteDeploymentResult & { site: string }> {
 	const publicDirectory = join(options.data, PUBLIC_DIRECTORY);
 	const site = join(options.data, SITE_DIRECTORY);
@@ -43,6 +45,7 @@ export async function writeSite(options: {
 		config: options.deployment,
 		dist: options.dist,
 		out: site,
+		...(options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }),
 	});
 	if (written.ok) await makePrivate(publicDirectory);
 	return { ...written, site };

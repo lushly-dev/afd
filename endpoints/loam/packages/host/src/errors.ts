@@ -5,7 +5,7 @@
 
 import type { ServerConfigRefusalCode } from '@lushly-dev/loam-manifest/server';
 
-/** Every code this package raises. Step 1 raises the codes of 3.2, 3.3 and section 4 it builds. */
+/** Every code this package raises: steps 1 and 2 raise the codes of 3.2, 3.3, section 4 and 5.1 they build. */
 export type HostErrorCode =
 	| ServerConfigRefusalCode
 	| 'HOST_SECRET_PERMISSIONS'
@@ -14,7 +14,9 @@ export type HostErrorCode =
 	| 'HOST_IDENTITY_LOCAL'
 	| 'HOST_DATA_LOCKED'
 	| 'HOST_ORIGIN_SHARED'
-	| 'HOST_MISDIRECTED';
+	| 'HOST_MISDIRECTED'
+	| 'HOST_PORT_TAKEN'
+	| 'HOST_DEV_PORT_CHANGED';
 
 /** A refusal or warning, keyed as `loam deployment check` keys its findings. */
 export interface HostFinding {

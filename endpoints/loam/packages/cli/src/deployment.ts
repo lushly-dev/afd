@@ -30,6 +30,7 @@ import {
 import { copyListed, isWithin, listCopy, OUTPUT_MARKER, realish, replaceable } from './tree.js';
 
 export {
+	type AnalyzeDeploymentOptions,
 	analyzeDeployment,
 	type DeploymentAnalysis,
 	type DeploymentFinding,
@@ -45,6 +46,8 @@ export interface WriteDeploymentOptions {
 	out: string;
 	/** Where the CLI writes the `mounts` list, mode 0600 and outside everything served. */
 	mountsOut?: string;
+	/** Write the site as if the file's `[sandbox] origin` were this one (`AnalyzeDeploymentOptions`). */
+	sandboxOrigin?: string;
 }
 
 export type WriteDeploymentResult =
@@ -327,7 +330,10 @@ async function planCopy(
 export async function writeDeployment(
 	options: WriteDeploymentOptions
 ): Promise<WriteDeploymentResult> {
-	const analysis = await analyzeDeployment(options.config);
+	const analysis = await analyzeDeployment(
+		options.config,
+		options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }
+	);
 	const warnings = [...analysis.instanceRefusals, ...analysis.warnings];
 	const stop = (refusals: DeploymentFinding[]): WriteDeploymentResult => ({
 		ok: false,

@@ -51,6 +51,8 @@ export const EXTRA_INPUTS = [
 	// Loam's profile is checked against the plugin manifest core, and records the contract version.
 	{ prefix: 'spec/plugin-manifest', except: PROSE, packages: ['@lushly-dev/loam-manifest'] },
 	{ prefix: 'spec/VERSION', packages: ['@lushly-dev/loam-manifest'] },
+	// The hosted server's header unit reads the web host's page source, whose policy `<meta>` it carries.
+	{ prefix: 'endpoints/loam/packages/web/index.html', packages: ['@lushly-dev/loam-host'] },
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];
