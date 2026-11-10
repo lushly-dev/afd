@@ -1,6 +1,6 @@
-import { matchesGlob } from '@lushly-dev/violet-core/engine';
 import {
 	InheritanceResolutionError,
+	matchesGlob,
 	resolveInheritance,
 	resolveValue,
 } from '@lushly-dev/violet-core/engine';

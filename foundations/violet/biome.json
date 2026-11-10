@@ -1,12 +1,19 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-	"organizeImports": {
-		"enabled": true
+	"$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": {
+					"level": "on",
+					"options": { "identifierOrder": "lexicographic" }
+				}
+			}
+		}
 	},
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true,
+			"preset": "recommended",
 			"complexity": {
 				"noExcessiveCognitiveComplexity": "warn"
 			},
@@ -32,16 +39,23 @@
 			"semicolons": "always"
 		}
 	},
+	"overrides": [
+		{
+			"includes": ["**/index.ts"],
+			"assist": { "actions": { "source": { "organizeImports": "off" } } }
+		}
+	],
 	"files": {
-		"ignore": [
-			"node_modules",
-			"dist",
-			"*.d.ts",
-			"coverage",
-			".turbo",
-			".vercel",
-			"test-results",
-			"playwright-report"
+		"includes": [
+			"**",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/*.d.ts",
+			"!**/coverage",
+			"!**/.turbo",
+			"!**/.vercel",
+			"!**/test-results",
+			"!**/playwright-report"
 		]
 	}
 }

@@ -37,7 +37,7 @@ export interface CommandDefinition<TSchema extends z.ZodType, TOutput> {
 	inputSchema: TSchema;
 
 	/** Zod schema for output type (for documentation) */
-	outputSchema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
+	outputSchema: z.ZodType<TOutput, unknown>;
 
 	/**
 	 * The command handler

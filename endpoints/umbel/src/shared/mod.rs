@@ -5,15 +5,16 @@
 //! calls. Phase 5 step 2a adds the limit counters the per-IP limit needs ([`limits`]); step 3
 //! adds their byte counters for the read limit ([`read_limit`]) and the nonce store
 //! ([`nonces`]: approval nonces and relay evidence now, gateway `jti`s in step 4 and spent person
-//! decisions in step 5). Person decisions (`person.sqlite3`, step 5) and tasks
-//! (`tasks.sqlite3`, step 8) arrive with the steps that use them, each behind a trait here, beside
-//! these. A wait past `store.lock_timeout_ms` is [`codes::WORKSPACE_SHARED_TIMEOUT`], retryable,
-//! and the request it served fails closed.
+//! decisions in step 5), person decisions (`person.sqlite3`, step 5, [`person`]) and tasks
+//! (`tasks.sqlite3`, step 8, [`tasks`]: AFD's own `TaskStore` trait). A wait past
+//! `store.lock_timeout_ms` is [`codes::WORKSPACE_SHARED_TIMEOUT`], retryable, and the request it
+//! served fails closed (a task store's, as AFD's `TaskStoreError::Unavailable`).
 
 pub(crate) mod limits;
 pub(crate) mod nonces;
 pub(crate) mod person;
 pub(crate) mod read_limit;
+pub(crate) mod tasks;
 
 use std::fs::{self, DirBuilder};
 use std::path::Path;

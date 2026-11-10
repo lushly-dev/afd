@@ -1,5 +1,9 @@
-import { resolutionCacheFor, withResolutionCache } from '@lushly-dev/violet-core/engine';
-import { InheritanceResolutionError, resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
+import {
+	InheritanceResolutionError,
+	resolutionCacheFor,
+	resolveNodeTokenMap,
+	withResolutionCache,
+} from '@lushly-dev/violet-core/engine';
 import { ConstraintSeveritySchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';

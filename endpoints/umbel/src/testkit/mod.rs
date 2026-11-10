@@ -400,3 +400,33 @@ fn copy_dir(from: &Path, to: &Path) {
         }
     }
 }
+
+/// Every host service a task's call asked for since the process started, by command: how many
+/// passed a task's guard and how many it refused (phase 5 step 8). A test that runs a command as a
+/// task reads it to know that the command's handler is running, or that it was refused after its
+/// task stopped.
+static TASK_SERVICES: std::sync::Mutex<std::collections::BTreeMap<String, (usize, usize)>> =
+    std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+pub(crate) fn note_task_service(command: &str, refused: bool) {
+    let mut counts = TASK_SERVICES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let entry = counts.entry(command.to_owned()).or_default();
+    if refused {
+        entry.1 += 1;
+    } else {
+        entry.0 += 1;
+    }
+}
+
+/// How many host services calls of `command`, run as tasks, were given (`.0`) and refused (`.1`)
+/// by the task guard in this process.
+pub fn task_services(command: &str) -> (usize, usize) {
+    TASK_SERVICES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(command)
+        .copied()
+        .unwrap_or_default()
+}

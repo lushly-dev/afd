@@ -1,10 +1,11 @@
-import { createMemoryDatabase } from '@lushly-dev/violet-core/engine';
 import {
+	InheritanceResolutionError,
 	ResolutionCache,
+	createMemoryDatabase,
 	resolutionCacheFor,
+	resolveInheritance,
 	withResolutionCache,
 } from '@lushly-dev/violet-core/engine';
-import { InheritanceResolutionError, resolveInheritance } from '@lushly-dev/violet-core/engine';
 import type { OperationRecord } from '@lushly-dev/violet-core/types';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { seedRealisticSystem } from '../../demo/realistic-system.js';

@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use afd::server::{
-    InMemoryTaskStore, McpServer, TaskChange, TaskOptions, TaskOwner, TaskRecord, TaskStore,
-    TaskStoreError, ToolStrategy, TASKS_EXTENSION_ID,
+    failure_result, InMemoryTaskStore, McpServer, TaskCall, TaskChange, TaskOptions, TaskOwner,
+    TaskRecord, TaskStore, TaskStoreError, ToolStrategy, TASKS_EXTENSION_ID,
 };
 use afd::{
     error_codes, failure, fixed_clock, success, Actor, ActorKind, ApprovalPolicy,
@@ -1189,6 +1189,236 @@ async fn a_finished_task_is_gone_at_its_ttl_even_when_the_store_keeps_it() {
     for method in ["tasks/get", "tasks/cancel"] {
         assert_unknown(&send(&server, method, task(&id), true, &[]).await);
     }
+}
+
+/// A store that keeps what `create_for` saw of each call: the command, the input and the actor.
+#[derive(Default)]
+struct SeesCalls {
+    inner: InMemoryTaskStore,
+    seen: Mutex<Vec<(String, Value, Option<String>)>>,
+}
+
+#[async_trait]
+impl TaskStore for SeesCalls {
+    async fn create(&self, _record: TaskRecord) -> Result<(), TaskStoreError> {
+        Err(TaskStoreError::Unavailable(
+            "the server must call create_for".into(),
+        ))
+    }
+    async fn create_for(
+        &self,
+        record: TaskRecord,
+        call: TaskCall<'_>,
+    ) -> Result<(), TaskStoreError> {
+        self.seen.lock().unwrap().push((
+            call.command.name.clone(),
+            call.input.clone(),
+            call.context
+                .actor
+                .as_ref()
+                .and_then(|actor| actor.id.clone()),
+        ));
+        self.inner.create(record).await
+    }
+    async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError> {
+        self.inner.get(id, owner).await
+    }
+    async fn update(
+        &self,
+        id: &str,
+        owner: &TaskOwner,
+        change: TaskChange,
+    ) -> Result<(), TaskStoreError> {
+        self.inner.update(id, owner, change).await
+    }
+    async fn expire(&self, now: i64) -> Result<u64, TaskStoreError> {
+        self.inner.expire(now).await
+    }
+}
+
+#[tokio::test]
+async fn the_store_is_given_the_call_it_records_a_task_for() {
+    let fixture = fixture();
+    let store = Arc::new(SeesCalls::default());
+    let server = fixture.hooked().with_task_store(Arc::clone(&store));
+    let owner: &[(&str, &str)] = &[("x-actor", "a1")];
+    let id = created(
+        &send(
+            &server,
+            "tools/call",
+            call("job-echo", json!({ "note": "n" })),
+            true,
+            owner,
+        )
+        .await,
+    );
+    assert_eq!(
+        settle_over_http(&server, &id, owner).await["result"]["status"],
+        "completed"
+    );
+    assert_eq!(
+        *store.seen.lock().unwrap(),
+        [(
+            "job-echo".to_owned(),
+            json!({ "note": "n" }),
+            Some("a1".to_owned())
+        )]
+    );
+}
+
+#[test]
+fn a_failure_result_is_the_call_tool_result_of_an_inline_failure() {
+    let error = CommandError::new("TASK_LOST", "Lost")
+        .with_suggestion("Start it again.")
+        .with_retryable(true);
+    let result = failure_result(error).unwrap();
+    assert_eq!(result["isError"], json!(true));
+    assert_eq!(
+        result["structuredContent"]["error"]["code"],
+        json!("TASK_LOST")
+    );
+    assert_eq!(result["structuredContent"]["success"], json!(false));
+}
+
+/// A store another process can end a task in (as a host's store does when it finds a lease run
+/// out), counting the runner's heartbeats.
+#[derive(Default)]
+struct Shared {
+    inner: InMemoryTaskStore,
+    owners: Mutex<Vec<(String, TaskOwner)>>,
+    heartbeats: AtomicUsize,
+}
+
+impl Shared {
+    /// End task `id` as another process would: completed, with a result this runner never made.
+    async fn end_elsewhere(&self, id: &str) {
+        let owner = self
+            .owners
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(known, _)| known == id)
+            .map(|(_, owner)| owner.clone())
+            .unwrap();
+        let mut result = serde_json::Map::new();
+        result.insert("content".into(), json!([]));
+        result.insert("isError".into(), json!(true));
+        self.inner
+            .update(id, &owner, TaskChange::Completed { result, at: NOW_MS })
+            .await
+            .unwrap();
+    }
+}
+
+#[async_trait]
+impl TaskStore for Shared {
+    async fn create(&self, record: TaskRecord) -> Result<(), TaskStoreError> {
+        self.owners
+            .lock()
+            .unwrap()
+            .push((record.id.clone(), record.owner.clone()));
+        self.inner.create(record).await
+    }
+    async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError> {
+        self.inner.get(id, owner).await
+    }
+    async fn update(
+        &self,
+        id: &str,
+        owner: &TaskOwner,
+        change: TaskChange,
+    ) -> Result<(), TaskStoreError> {
+        self.inner.update(id, owner, change).await
+    }
+    async fn expire(&self, now: i64) -> Result<u64, TaskStoreError> {
+        self.inner.expire(now).await
+    }
+    async fn heartbeat(
+        &self,
+        _id: &str,
+        _owner: &TaskOwner,
+        _now: i64,
+    ) -> Result<(), TaskStoreError> {
+        self.heartbeats.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_runner_whose_task_another_process_ended_stops_and_writes_nothing() {
+    let fixture = fixture();
+    let store = Arc::new(Shared::default());
+    let server = fixture.hooked().with_task_store(Arc::clone(&store));
+    let id = created(
+        &send(
+            &server,
+            "tools/call",
+            call("job-wait", json!({})),
+            true,
+            &[],
+        )
+        .await,
+    );
+    let runs = Arc::clone(&fixture.runs);
+    eventually(|| Runs::count(&runs.started) == 1).await;
+    // The runner heartbeats while it runs; a poll does not.
+    eventually(|| store.heartbeats.load(Ordering::SeqCst) > 0).await;
+    store.end_elsewhere(&id).await;
+    // The runner reads the ended record at its next check, stops the handler and writes nothing
+    // over the end the store holds.
+    eventually(|| Runs::count(&runs.dropped) == 1).await;
+    eventually(|| Runs::count(&runs.signalled) == 1).await;
+    let body = get_over_http(&server, &id, &[]).await;
+    assert_eq!(body["result"]["status"], "completed", "{body}");
+    assert_eq!(body["result"]["result"]["isError"], json!(true), "{body}");
+    assert_eq!(body["result"]["result"]["content"], json!([]), "{body}");
+    let beats = store.heartbeats.load(Ordering::SeqCst);
+    for _ in 0..3 {
+        get_over_http(&server, &id, &[]).await;
+    }
+    assert_eq!(
+        store.heartbeats.load(Ordering::SeqCst),
+        beats,
+        "polls never heartbeat"
+    );
+}
+
+#[tokio::test]
+async fn cancel_stops_a_runner_whose_task_the_store_holds_ended() {
+    let fixture = fixture();
+    let store = Arc::new(Shared::default());
+    // Checks far apart, so the runner does not see the ended record before the cancel arrives.
+    let server = identifying(
+        McpServer::new(Arc::clone(&fixture.registry), "jobs", "1.0.0")
+            .with_clock(fixture.clock.clone())
+            .with_task_options(options().with_check_interval_ms(3_600_000))
+            .with_task_store(Arc::clone(&store)),
+        Arc::new(Mutex::new(Vec::new())),
+    );
+    let id = created(
+        &send(
+            &server,
+            "tools/call",
+            call("job-wait", json!({})),
+            true,
+            &[],
+        )
+        .await,
+    );
+    let runs = Arc::clone(&fixture.runs);
+    eventually(|| Runs::count(&runs.started) == 1).await;
+    store.end_elsewhere(&id).await;
+    assert_eq!(Runs::count(&runs.dropped), 0);
+    let ack = send(&server, "tasks/cancel", task(&id), true, &[]).await;
+    assert_eq!(
+        ack.body["result"],
+        json!({ "resultType": "complete" }),
+        "{}",
+        ack.text
+    );
+    eventually(|| Runs::count(&runs.dropped) == 1).await;
+    let body = get_over_http(&server, &id, &[]).await;
+    assert_eq!(body["result"]["status"], "completed", "{body}");
 }
 
 // ─── Ownership ───────────────────────────────────────────────────────────────────────────────
