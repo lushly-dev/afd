@@ -83,10 +83,10 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-host --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml
       # The same, and an Umbel or `afd` crate change, which reaches this job and not the one below.
       - id: mounted
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-host --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
 
   loam:
     name: Build, unit and Chromium
@@ -102,8 +102,9 @@ jobs:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The hosted server and its dependencies too: its units read the built shell and the CLI.
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-web..." build
+        run: pnpm -F "@lushly-dev/loam-web..." -F "@lushly-dev/loam-host..." build
       - name: Typecheck the packages and apps
         run: pnpm -F "./endpoints/loam/packages/*" -F "./endpoints/loam/apps/*" typecheck
       # Verbose, so each test's title is in the log for the exit check (scripts/loam-exit-check.mjs).

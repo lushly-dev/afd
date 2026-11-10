@@ -309,6 +309,7 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		'console',
 		'chrome',
 		'web',
+		'host',
 		'app-hello',
 		'app-tally',
 		'app-tasks',

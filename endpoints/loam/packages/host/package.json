@@ -1,0 +1,49 @@
+{
+	"name": "@lushly-dev/loam-host",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Loam's hosted server: one Node process on Hono serving a deployment's shell from its data directory, with its configuration, lock, headers and checks",
+	"license": "MIT",
+	"type": "module",
+	"sideEffects": false,
+	"engines": {
+		"node": ">=22.13.0"
+	},
+	"bin": {
+		"loam-host": "./bin/loam-host.mjs"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"clean": "rimraf dist coverage",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@hono/node-server": "2.1.6",
+		"@lushly-dev/afd-server": "workspace:*",
+		"@lushly-dev/loam-cli": "workspace:*",
+		"@lushly-dev/loam-manifest": "workspace:*",
+		"hono": "4.13.17",
+		"zod": "^4.6.6"
+	},
+	"devDependencies": {
+		"@lushly-dev/loam-web": "workspace:*",
+		"@types/node": "^26.6.6",
+		"@vitest/coverage-v8": "^5.1.0",
+		"happy-dom": "^21.0.4",
+		"rimraf": "^6.1.4",
+		"typescript": "^7.0.2",
+		"vitest": "^5.1.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/loam/packages/host"
+	}
+}

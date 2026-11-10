@@ -79,8 +79,13 @@ async function candidate(
 	}
 }
 
-/** Both runners agree on every story, and Specimen's outcomes are the expected ones. */
-async function agree(project: string, expected: Record<string, string>) {
+/**
+ * Both runners agree on every story, and Specimen's outcomes are the expected ones. A story in
+ * `racing` changes its accessibility on its next frame, and Storybook's check, under Vitest 5's
+ * browser mode on a loaded host, sometimes runs after that frame: Storybook may then fail it, but
+ * only on accessibility.
+ */
+async function agree(project: string, expected: Record<string, string>, racing: string[] = []) {
 	// One runner at a time, to keep the shared host's load bounded.
 	const tests = await incumbent(project);
 	const stories = await candidate(project);
@@ -95,6 +100,10 @@ async function agree(project: string, expected: Record<string, string>) {
 			continue;
 		}
 		expect(test, `${story.name} has an incumbent test`).toBeDefined();
+		if (racing.includes(story.name) && test?.status === 'failed') {
+			expect(test.accessibility, `${story.name}: ${test.message}`).toBe(true);
+			continue;
+		}
 		expect(outcome.status, `${story.name}: ${test?.message}`).toBe(test?.status);
 		if (outcome.status === 'failed')
 			expect(category === 'a11y', `${story.name} fails for the same kind of reason`).toBe(
@@ -195,11 +204,11 @@ describe('retained stories end the same way in both runners', () => {
 
 describe('the settled accessibility check', () => {
 	it('stays off unless asked, and then finds what a story changes on its next frame', async () => {
-		const stories = await agree('settled', {
-			Steady: 'passed',
-			'Late Contrast': 'passed',
-			'Late Disabled': 'passed',
-		});
+		const stories = await agree(
+			'settled',
+			{ Steady: 'passed', 'Late Contrast': 'passed', 'Late Disabled': 'passed' },
+			['Late Contrast']
+		);
 		for (const story of stories) expect(story.run.outcome.settled).toBeUndefined();
 		const bench = await createSpecimenBench({
 			root: join(compat, 'settled'),

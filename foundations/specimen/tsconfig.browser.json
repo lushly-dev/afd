@@ -1,0 +1,20 @@
+{
+	// The bench page's runtime and the entries stories import (test, evidence, preview), which run
+	// in the browser, checked without Node's globals or `node:` modules (#811). tsconfig.json keeps
+	// Node's types for the bench, host and CLI-facing code beside them.
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"types": []
+	},
+	"include": [
+		"src/browser/**/*",
+		"src/test.ts",
+		"src/evidence.ts",
+		"src/preview.ts",
+		"src/csf-types.ts",
+		"src/types.ts",
+		"src/schema.ts"
+	],
+	"exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

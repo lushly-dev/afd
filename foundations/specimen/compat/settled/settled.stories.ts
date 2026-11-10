@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import '../elements/late-style.js';
 
-// Each story dims its text one frame after it renders. Storybook's check, and Specimen's at the
-// same moment, sees the text before it dims; the settled check sees it after.
+// Each story dims its text one frame after it renders. Specimen's check at Storybook's moment sees
+// the text before it dims, as Storybook's usually does: under Vitest 5 on a loaded host, Storybook's
+// sometimes runs after that frame. The settled check always sees it after.
 const meta = {
 	title: 'Fixtures/Settled',
 } satisfies Meta;
