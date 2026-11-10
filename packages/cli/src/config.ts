@@ -83,9 +83,13 @@ export function getConfig(): StoredConfig {
 }
 
 /**
- * Set a configuration value.
+ * Set a configuration value. Use `deleteConfig()` to clear one: Conf throws
+ * on `undefined`.
  */
-export function setConfig<K extends keyof StoredConfig>(key: K, value: StoredConfig[K]): void {
+export function setConfig<K extends keyof StoredConfig>(
+	key: K,
+	value: Exclude<StoredConfig[K], undefined>
+): void {
 	store.set(key, value);
 }
 
