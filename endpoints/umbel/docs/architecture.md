@@ -148,7 +148,8 @@ organization.
 | Host services | The grants in the catalog below; provenance enforcement on every store write; permission filtering on every store read | Domain logic |
 | Workspace | Deployer-owned directory: configuration; spaces, each with its content roots, schema, packs, plugin settings and backend; the plugin list; the scale profile | Anything company-specific inside the binary |
 | Store traits | Document store, search index, graph, memory store, instantiated per space; a conformance suite every backend passes | Choosing a vendor for the deployer |
-| Embedded reference backend | Fielded lexical index, embedded key-value store, in-memory graph loaded from it, a memory store with its own lexical lane in SQLite FTS5 and per-record keys in a separate key file ([D70](decisions.md), [D82](decisions.md), [D83](decisions.md)), optional local embeddings | Multi-instance hosting; that is an alternative backend's job |
+| Embedded reference backend | Fielded lexical index, embedded key-value store, in-memory graph loaded from it, a memory store with its own lexical lane in SQLite FTS5 and per-record keys in a separate key file ([D70](decisions.md), [D82](decisions.md), [D83](decisions.md)), optional local embeddings. *Proposed 2026-11-09 with the [phase 6 specification](phases/6-backends/spec.md), in review:* certified against store traits version 3 ([D134](decisions.md)) | Multi-instance hosting; that is an alternative backend's job |
+| PostgreSQL backend | *Proposed 2026-11-09 with the [phase 6 specification](phases/6-backends/spec.md), in review ([D131](decisions.md) to [D141](decisions.md)):* every store trait on PostgreSQL 16 or later, one schema per space, every content value sealed before it reaches the database with daily epoch keys kept in a separate keyring, forced row security behind the in-query filter, the embedded backend's tantivy index over a database-backed directory, and certification on the deployer's own server; with owner question 2, the host's state for several machines ([D145](decisions.md)) | Reading content in SQL; choosing a hosting provider for the deployer |
 | knowledge plugin | Ingest, chunk, index, structural graph, search, open, find, metadata, citations; the proposal, approve and reject commands for the knowledge base; the eval harness | Writing to the knowledge base outside a proposal |
 | memory plugin | Scoped, bitemporal, expiring memory in three classes; capture from harness hooks; recall; invalidate, confirm, forget and sweep; import and export of harness memory | Promoting anything to the knowledge base |
 | context plugin | Budgeted context bundles assembled from the stores through host grants ([D78](decisions.md)) | Calling the knowledge or memory plugins; writing anything |
@@ -281,7 +282,9 @@ sequenceDiagram
   follows the [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.spec.md)
   fields where they apply. Settled as `umbel-plugin.toml`, manifest version 1
   ([D37](decisions.md)); connectors and backends are reserved keys until
-  their phases. Manifest version 4 adds a pipeline's `expose` and
+  their phases. *Proposed 2026-11-09 with the [phase 6 specification](phases/6-backends/spec.md):* backends are host
+  build features, never plugin contributions, so `backends` stays reserved
+  ([D132](decisions.md)). Manifest version 4 adds a pipeline's `expose` and
   `result` ([D105](decisions.md)) and a command's `confirm_preview`
   ([D97](decisions.md)).
 - **Host WIT world.** The imports a component may use, each gated by a grant,
@@ -293,7 +296,11 @@ sequenceDiagram
   conformance suite; the embedded backend is the reference implementation.
   Version 1 of the first three, per space and synchronous, with the suite in
   `umbel-store`, is settled by phase 2 ([D51](decisions.md)); version 2 adds
-  the memory store, phase 3's ([D70](decisions.md)).
+  the memory store, phase 3's ([D70](decisions.md)). *Proposed 2026-11-09
+  with the [phase 6 specification](phases/6-backends/spec.md):* version 3 adds `Backend`, `StoreAdmin` and the
+  host-state traits, makes phase 5's exactness an obligation of every
+  backend, and certifies a backend by a suite run with no failure and no skip
+  ([D133](decisions.md), [D134](decisions.md)).
 - **Principal.** Projected onto AFD's command context: the `actor`, with the
   agent and the person it acts for as `onBehalfOf`, and the verified
   `credentials` that MCP Authorization proposes. Umbel's additions travel in
@@ -416,6 +423,7 @@ sequenceDiagram
 | HTTP | the SDK's tower service, mounted in an HTTP server | The auth layer composes there | |
 | Lexical index | tantivy 0.27 (features `mmap`, `stopwords`, `stemmer`, `lz4-compression`) and `tantivy-query-grammar` 0.27 | Fielded BM25 with boolean, phrase, field, boost, range and bounded prefix syntax, embedded; Umbel builds queries from the grammar's AST, because tantivy's own parser refuses a bare `term*` and sets no limits ([D58](decisions.md)) | Rust 1.88; one writer per index across processes through its lock file, which the backend waits on and which serialises indexers ([D51](decisions.md)) |
 | Embedded storage | SQLite through rusqlite 0.41 with `bundled` (SQLite 3.54.1), in WAL mode with `synchronous=FULL`, one database per space ([D51](decisions.md)), and a second per space for memory, with FTS5 and `secure_delete` ([D70](decisions.md)), and a key file beside it ([D83](decisions.md)) | Single-directory deployments, transactions, no service | Chosen in phase 2 as [D28](decisions.md) required: several host processes open one workspace, many readers and one writer at a time, waiting up to `store.lock_timeout_ms`; no daemon; a local filesystem, as the workspace lock already requires; MSRV 1.89 |
+| Networked storage | *Proposed 2026-11-09 with the [phase 6 specification](phases/6-backends/spec.md):* PostgreSQL 16, 17 and 18 through `tokio-postgres` 0.7 with `tokio-postgres-rustls` 0.14 (`aws-lc-rs`) and `deadpool-postgres` 0.14 ([D135](decisions.md)) | Every store trait and, for several machines, the host's state in one transactional, widely hosted database | TLS with `verify-full` checks and SCRAM with channel binding required; a runtime role without owner, superuser or `BYPASSRLS` rights |
 | Memory sealing | XChaCha20-Poly1305 from RustCrypto's `chacha20poly1305` 0.11 ([D82](decisions.md)) | Per-record keys, so a forget also reaches `store-backup` copies of the database, though not file-level copies, which hold live text in clear; on macOS memory is excluded from Time Machine by default and backed up by `store-backup` ([D87](decisions.md)); pure Rust | MSRV 1.85; one NCC Group audit recorded in its README, predating 0.11 |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
 | Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
@@ -557,7 +565,9 @@ material, from loosest to strongest:
   records and run report ([D92](decisions.md)); phase 5 adds principal version 1, workspace configuration version 5,
   manifest version 5, envelope version 3 with event version 3, memory record
   version 2 and proposal record version 3, cursor version 1, locator version 2,
-  the task record, the usage event and the person decision.
+  the task record, the usage event and the person decision; phase 6
+  (proposed) adds workspace configuration version 6, the space archive, the
+  move record and the certification report, with store traits version 3.
 - **Repository placement.** Umbel lives in `endpoints/umbel/`, following
   Botcore's layout: the host runtime, plugin SDK, first-party plugins and
   binary are endpoint units, beside these documents. An engine with no AFD
@@ -607,7 +617,7 @@ flowchart LR
 | 3. Memory and context | Memory with class labels, scoped by space and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 2 (version 1 came with phase 2's stores, [D55](decisions.md)); adapter contract; bundle budget rules; hygiene and redaction policy |
 | 4. Curator | Settling window, candidates and conflict sets per space, curator proposals as decision traces, deterministic auto-approval rules per area, scheduled re-verification and inconsistency proposals, rejection feedback, scheduled runs | A curator proposal approved from the CLI lands in the knowledge base with full provenance (amended 2026-11-01: phase 2 already lands person-written proposals, [D62](decisions.md)) | The curator's proposal fields on proposal record ~~version 1~~ version 2 (amended 2026-11-03: version 1, which phase 2 settles with the person rule and the CLI apply command, [D62](decisions.md), is closed with `rule` constant `person`, so the fields need a new version, [D92](decisions.md)); auto-approval rules; the MCP approval relay on the apply command; settling and re-verification defaults; the optional model configuration |
 | 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events, the MCP approval relay on approve and reject (moved from phase 4, [D99](decisions.md)) | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile. Written in the [phase 5 specification](phases/5-auth-hosted/spec.md) (approved 2026-11-04), with D106 to D130 |
-| 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends |
+| 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends. Written in the [phase 6 specification](phases/6-backends/spec.md) (draft 2026-11-09, in review), with D131 to D148 proposed |
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
 Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
@@ -616,7 +626,8 @@ Phase specifications: [phase 0, host skeleton](phases/0-host-skeleton/spec.md)
 [phase 2, knowledge](phases/2-knowledge/spec.md) (approved, merged in #625);
 [phase 3, memory and context](phases/3-memory-context/spec.md) (approved 2026-11-02 under the owner's delegation, with the owner's answers; #685);
 [phase 4, curator](phases/4-curator/spec.md) (approved 2026-11-03 under the owner's delegation, with the owner's answers of 2026-11-03, after an independent review and a revision);
-[phase 5, auth and hosted](phases/5-auth-hosted/spec.md) (approved 2026-11-04 under the owner's delegation, with the owner's answers of 2026-11-04, after an independent review and a revision).
+[phase 5, auth and hosted](phases/5-auth-hosted/spec.md) (approved 2026-11-04 under the owner's delegation, with the owner's answers of 2026-11-04, after an independent review and a revision);
+[phase 6, backends](phases/6-backends/spec.md) (draft 2026-11-09, in review; not approved).
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
 phase 2, is the first plugin, because every deployment needs it first and it
@@ -684,6 +695,13 @@ document needs as an amendment.
 | Surface | A way callers reach the registry: MCP over stdio or Streamable HTTP, the CLI, or in-process. Loam (`endpoints/loam/`) uses "surface" for a region of its shell UI; its glossary records the difference |
 | Connector | A plugin's binding to an external system or source |
 | Backend | A swappable implementation behind a store trait |
+| Backend instance | One `[backends.<id>]` entry of `umbel.toml`, a kind (`embedded` or `postgres`) and its connection settings, named by spaces (proposed, phase 6) |
+| Certification | A conformance suite run with no failure and no skip against one backend kind, recorded with what it ran against (proposed, phase 6) |
+| Epoch | A period during which one key wraps a PostgreSQL space's data keys; retired epoch keys are destroyed after the recovery window (proposed, phase 6) |
+| Keyring | The store of epoch keys and shared host keys, kept apart from the content database (proposed, phase 6) |
+| Space archive | The portable, backend-neutral copy of one space written by `store-backup` (proposed, phase 6) |
+| Deployment mode | `single` (one machine) or `shared` (several machines behind one URL sharing a state backend) (proposed, phase 6) |
+| Store-held collection | A collection whose documents live in the document store as their source, moved to and from files only at the CLI (proposed, phase 6) |
 | Adapter | An infrastructure binding, such as auth or a harness adapter |
 | Workspace | The deployer-owned directory for one deployment: configuration, spaces, plugin list, profile. Always Umbel's; the Rust one is the "Cargo workspace" |
 | State directory | The workspace's `state/` directory, which only the host writes: the journal, event streams, cursors, keys and the workspace lock |
