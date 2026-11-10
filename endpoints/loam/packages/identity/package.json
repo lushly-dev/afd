@@ -1,0 +1,50 @@
+{
+	"name": "@lushly-dev/loam-identity",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Loam's identity on the server: Better Auth's options for a deployment, Loam's own provider endpoints and hooks, and a test-only auth host. Never reaches a browser",
+	"license": "MIT",
+	"type": "module",
+	"sideEffects": false,
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./testing": {
+			"types": "./dist/testing/index.d.ts",
+			"import": "./dist/testing/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"clean": "rimraf dist coverage",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@better-auth/passkey": "1.7.18",
+		"@lushly-dev/loam-manifest": "workspace:*",
+		"better-auth": "1.7.18"
+	},
+	"devDependencies": {
+		"@lushly-dev/afd-auth": "workspace:*",
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/loam-kernel": "workspace:*",
+		"@lushly-dev/local-db": "workspace:*",
+		"@types/node": "^26.6.6",
+		"@vitest/coverage-v8": "^4.1.12",
+		"rimraf": "^6.1.3",
+		"tsx": "4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.12"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/loam/packages/identity"
+	}
+}
