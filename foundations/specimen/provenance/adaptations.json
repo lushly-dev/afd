@@ -2256,11 +2256,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "b0848d4feaaca30a90fcb52927974dedefa8cced4cbb3597e884b16a5ac93909",
+      "current_import_sha256": "8ca137a102f377baeea2d31f92cefcc4327256da4c6114e3f4ffc060a8d61616",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); The settled check's comparison accepts Storybook's racing verdict on the late-contrast story under Vitest 5 and Storybook 10.6.6"
     },
     {
       "path": "foundations/specimen/src/csf.test.ts",
@@ -3360,11 +3360,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "3f756c058f686c9419357622db999014b2609ffd5e0334099b15b8952749786e",
+      "current_import_sha256": "b433a5c570cd94aa35d90c847ff6277b1d41f51676c7305bc6f5753634025262",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T08 rehearsal: run one side alone, and record the result; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Built and staged the prebuilt hosts in the release route, with a local packing rehearsal (Specimens G13); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Recorded the early merge of the preview's release PR and the publisher-authority fix (#790); Recorded the preview's failed first upload, the publishers and the retry (#796); Recorded the empty first preview and the release-gate fix (#803); Install sections, the host's missing-browser message, and the .1 preview's record"
+      "import_reason": "T08 rehearsal: run one side alone, and record the result; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Built and staged the prebuilt hosts in the release route, with a local packing rehearsal (Specimens G13); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Recorded the early merge of the preview's release PR and the publisher-authority fix (#790); Recorded the preview's failed first upload, the publishers and the retry (#796); Recorded the empty first preview and the release-gate fix (#803); Install sections, the host's missing-browser message, and the .1 preview's record; The settled check's comparison accepts Storybook's racing verdict on the late-contrast story under Vitest 5 and Storybook 10.6.6"
     },
     {
       "path": "foundations/specimen/compat/native/.storybook/main.ts",
@@ -3688,11 +3688,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ce9698826dd8dfb01f302307273b3188608fc083b67f132c1aeed810d0540a8a",
+      "current_import_sha256": "295c4b7607c3d75db39703564ea7f637b7e7beb0ec42b7c784c8ae9ae227e1f4",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); The settled check's comparison accepts Storybook's racing verdict on the late-contrast story under Vitest 5 and Storybook 10.6.6"
     },
     {
       "path": "foundations/specimen/compat/settled/specimen.config.json",
