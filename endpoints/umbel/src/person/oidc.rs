@@ -44,15 +44,36 @@ use crate::workspace::PersonLogin;
 /// What `auth.person` found for one namespace's login against its provider's document: the
 /// failures (the namespace's verified commands are not served while there is one) and the
 /// warnings. The doctor and the person page both run it, so the doctor passes exactly what is
-/// served.
+/// served. `strict` (mode `gateway`, amendment from step 5b) fails a login whose `acr_values`
+/// names a class that is not phishing-resistant; otherwise such a class warns.
 pub(crate) fn login_findings(
     ns: &str,
     at: &str,
     login: &PersonLogin,
     document: &Map<String, Value>,
+    strict: bool,
 ) -> (Vec<String>, Vec<String>) {
     let mut failures = Vec::new();
     let mut warnings = Vec::new();
+    let phishable: Vec<&str> = login
+        .acr_values
+        .iter()
+        .map(String::as_str)
+        .filter(|acr| !crate::auth::PHISHING_RESISTANT_ACR.contains(acr))
+        .collect();
+    if !phishable.is_empty() {
+        if strict {
+            failures.push(format!(
+                "namespace {ns}: its person login allows {}, a class that is not phishing-resistant (phr or phrh); in mode gateway the page's link reaches the person through the gateway, which could swap it for a look-alike page and relay a phishable login",
+                phishable.join(", ")
+            ));
+        } else {
+            warnings.push(format!(
+                "namespace {ns}: its person login allows {}, a class that is not phishing-resistant (phr or phrh); the page's link reaches the person through the MCP client, which could swap it for a look-alike page and relay a phishable login",
+                phishable.join(", ")
+            ));
+        }
+    }
     if login.acr_values.is_empty() {
         failures.push(format!(
             "namespace {ns}: its person login's acr_values is empty"
@@ -240,6 +261,9 @@ pub(crate) struct Provider {
     timeout: Duration,
     skew_s: i64,
     secret: Option<String>,
+    /// Mode `gateway` (amendment from step 5b): every class asked for, and the `acr` of every ID
+    /// token, must be phishing-resistant.
+    phishing_resistant: bool,
     state: Mutex<DocState>,
     fetching: Arc<tokio::sync::Mutex<()>>,
 }
@@ -300,9 +324,17 @@ impl Provider {
             timeout: environment.timeout,
             skew_s: i64::try_from(skew_s).unwrap_or(i64::MAX),
             secret,
+            phishing_resistant: false,
             state: Mutex::new(DocState::default()),
             fetching: Arc::new(tokio::sync::Mutex::new(())),
         }
+    }
+
+    /// The provider requiring phishing-resistant classes (mode `gateway`, step 5b), at
+    /// `auth.person` and on every ID token.
+    pub(crate) fn with_phishing_resistance(mut self, required: bool) -> Self {
+        self.phishing_resistant = required;
+        self
     }
 
     /// The trusted document and the check's verdict at `now`, if the cache holds one.
@@ -463,6 +495,7 @@ impl Provider {
                     &provider.alias,
                     &provider.login,
                     &document,
+                    provider.phishing_resistant,
                 );
                 if let Some(failure) = failures.into_iter().next() {
                     return Err((Some(doc), failure));
@@ -724,6 +757,11 @@ impl Provider {
         if !self.login.acr_values.iter().any(|value| value == acr) {
             return Err(Refusal::Acr);
         }
+        // Mode `gateway` (step 5b): a class that is not phishing-resistant is refused at return
+        // too, whatever the configuration asked for.
+        if self.phishing_resistant && !crate::auth::PHISHING_RESISTANT_ACR.contains(&acr) {
+            return Err(Refusal::Acr);
+        }
         let verified_by = claims
             .get("amr")
             .and_then(Value::as_array)
@@ -771,8 +809,13 @@ mod tests {
     #[test]
     fn auth_person_fails_on_a_missing_class_or_claim_and_warns_on_silence() {
         let document = |value: Value| value.as_object().unwrap().clone();
-        let (failures, warnings) =
-            login_findings("corp", "idp", &login(), &document(serde_json::json!({})));
+        let (failures, warnings) = login_findings(
+            "corp",
+            "idp",
+            &login(),
+            &document(serde_json::json!({})),
+            false,
+        );
         assert!(failures.is_empty());
         assert_eq!(warnings.len(), 2);
         let (failures, _) = login_findings(
@@ -782,6 +825,7 @@ mod tests {
             &document(
                 serde_json::json!({ "acr_values_supported": ["other"], "claims_supported": ["acr", "amr"] }),
             ),
+            false,
         );
         assert_eq!(failures.len(), 1, "{failures:?}");
         let (failures, _) = login_findings(
@@ -791,6 +835,7 @@ mod tests {
             &document(
                 serde_json::json!({ "acr_values_supported": ["phr"], "claims_supported": ["acr"] }),
             ),
+            false,
         );
         assert_eq!(failures.len(), 1, "{failures:?}");
         let (failures, warnings) = login_findings(
@@ -800,7 +845,83 @@ mod tests {
             &document(
                 serde_json::json!({ "acr_values_supported": ["phr"], "claims_supported": ["acr", "amr"] }),
             ),
+            false,
         );
         assert!(failures.is_empty() && warnings.is_empty());
+    }
+
+    #[test]
+    fn a_phishable_class_fails_in_mode_gateway_and_warns_elsewhere() {
+        let document = serde_json::json!({ "acr_values_supported": ["phr", "phrh", "mfa"], "claims_supported": ["acr", "amr"] });
+        let document = document.as_object().unwrap();
+        let mut login = login();
+        login.acr_values = vec!["phr".into(), "mfa".into()];
+        let (failures, warnings) = login_findings("corp", "idp", &login, document, true);
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(failures[0].contains("mfa"), "{failures:?}");
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let (failures, warnings) = login_findings("corp", "idp", &login, document, false);
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        login.acr_values = vec!["phr".into(), "phrh".into()];
+        for strict in [true, false] {
+            let (failures, warnings) = login_findings("corp", "idp", &login, document, strict);
+            assert!(failures.is_empty() && warnings.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn in_mode_gateway_an_id_token_with_a_phishable_class_is_refused_at_return() {
+        let kit = umbel_testkit_idp::TestIdp::start().await.unwrap();
+        let environment = crate::auth::fetch::AuthEnvironment {
+            roots: vec![kit.ca().certificate_pem().as_bytes().to_vec()],
+            ..crate::auth::fetch::AuthEnvironment::default()
+        };
+        let fetcher = Fetcher::new(&environment).unwrap();
+        // A configuration allowing a phishable class, as auth.person would refuse in mode
+        // gateway: the return refuses it on its own.
+        let mut login = login();
+        login.acr_values = vec!["phr".into(), "mfa".into()];
+        let provider = |strict: bool| {
+            Provider::new(
+                "corp",
+                "idp",
+                kit.identity_provider().issuer(),
+                vec!["RS256".into()],
+                login.clone(),
+                fetcher.clone(),
+                &environment,
+                60,
+                Some("secret".into()),
+            )
+            .with_phishing_resistance(strict)
+        };
+        let token = |acr: &str| {
+            kit.identity_provider()
+                .id_token("ada", "page")
+                .nonce("n-1")
+                .claim("acr", serde_json::json!(acr))
+                .claim("amr", serde_json::json!(["pin"]))
+                .sign()
+        };
+        let now_ms = afd::Clock::now(&afd::SYSTEM_CLOCK);
+        let expected = Expected {
+            nonce: "n-1",
+            started_ms: now_ms - 5_000,
+        };
+        let gateway = provider(true);
+        assert_eq!(
+            gateway.verify(&token("mfa"), &expected).await.err(),
+            Some(Refusal::Acr)
+        );
+        assert!(Refusal::Acr.insufficient());
+        assert!(gateway.verify(&token("phr"), &expected).await.is_ok());
+        // Elsewhere the configured class passes.
+        assert!(
+            provider(false)
+                .verify(&token("mfa"), &expected)
+                .await
+                .is_ok()
+        );
     }
 }

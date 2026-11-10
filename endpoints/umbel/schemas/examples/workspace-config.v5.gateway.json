@@ -18,6 +18,15 @@
 			"key": "/etc/umbel/tls/key.pem",
 			"client_auth": "ca",
 			"client_ca": "/etc/umbel/tls/gateway-ca.pem"
+		},
+		"person": {
+			"bind": "[::]:8444",
+			"public_url": "https://umbel-person.example:8444",
+			"allowed_hosts": ["umbel-person.example:8444"],
+			"tls": {
+				"cert": "/etc/umbel/person-tls/cert.pem",
+				"key": "/etc/umbel/person-tls/key.pem"
+			}
 		}
 	},
 	"auth": {
@@ -28,7 +37,7 @@
 					"issuer": "corp-idp",
 					"client_id": "umbel-person-page",
 					"client_secret_env": "UMBEL_PERSON_SECRET",
-					"acr_values": ["urn:example:acr:mfa-uv"],
+					"acr_values": ["phr"],
 					"uv_amr": ["pin", "fpt"]
 				}
 			}

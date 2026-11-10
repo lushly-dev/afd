@@ -16,9 +16,9 @@ use super::PluginsConfig;
 use super::access::{AccessToken, ReaderEntry, check_member, is_group_id};
 use super::error::WorkspaceError;
 use super::hosted::{
-    AuthConfig, GROUP_KEYS_V5, GroupClaim, HTTP_KEYS_V5, PRINCIPAL_KEYS_V5, RateLimits,
-    TOP_KEYS_V5, TlsConfig, UsageConfig, check_bind, check_channel, check_hosted, check_public_url,
-    group_claim, is_v5_key,
+    AuthConfig, GROUP_KEYS_V5, GroupClaim, HTTP_KEYS_V5, PRINCIPAL_KEYS_V5, PersonListener,
+    RateLimits, TOP_KEYS_V5, TlsConfig, UsageConfig, check_bind, check_channel, check_hosted,
+    check_public_url, group_claim, is_v5_key,
 };
 use super::plugins_config::{
     GRANT_KEYS, INSTANCE_KEYS, INSTANCE_KEYS_V3, INSTANCE_RESERVED, LIMITS_KEYS,
@@ -256,6 +256,9 @@ pub struct HttpConfig {
     /// version 2 header, which supplies the client address the per-IP limit keys on (amendment
     /// from phase 5 step 3). Empty by default: every connection is keyed on its own peer address.
     pub trusted_proxies: Vec<std::net::IpAddr>,
+    /// Version 5, mode `gateway` only: `[http.person]`, the person page's own listener (amendment
+    /// from phase 5 step 5b). Without it mode `gateway` serves no verified command.
+    pub person: Option<PersonListener>,
 }
 
 /// `[journal]`.
@@ -353,15 +356,21 @@ pub struct Overrides {
     pub http_bind: Option<String>,
     /// `--log` or `UMBEL_LOG`, a `tracing` filter.
     pub log_filter: Option<String>,
+    /// `--person-bind` or `UMBEL_HTTP_PERSON_BIND`: `http.person.bind`, the person page's own
+    /// listener in mode `gateway`, so several processes can serve one workspace (phase 5 section
+    /// 6.2, amendment from step 5b). Only where `[http.person]` is set.
+    pub http_person_bind: Option<String>,
 }
 
 impl Overrides {
-    /// The environment variables `UMBEL_HTTP_BIND` and `UMBEL_LOG`; an empty one counts as unset.
+    /// The environment variables `UMBEL_HTTP_BIND`, `UMBEL_LOG` and `UMBEL_HTTP_PERSON_BIND`; an
+    /// empty one counts as unset.
     pub fn from_env() -> Self {
         let read = |name| std::env::var(name).ok().filter(|value| !value.is_empty());
         Self {
             http_bind: read("UMBEL_HTTP_BIND"),
             log_filter: read("UMBEL_LOG"),
+            http_person_bind: read("UMBEL_HTTP_PERSON_BIND"),
         }
     }
 
@@ -371,6 +380,7 @@ impl Overrides {
         Self {
             http_bind: self.http_bind.or(lower.http_bind),
             log_filter: self.log_filter.or(lower.log_filter),
+            http_person_bind: self.http_person_bind.or(lower.http_person_bind),
         }
     }
 }
@@ -762,7 +772,7 @@ impl ConfigFile {
         }
         let address = parse_bind(&bind, "umbel.toml")?;
         check_bind(address, mode, tls.is_some(), &bind, "umbel.toml")?;
-        Ok(HttpConfig {
+        let mut http = HttpConfig {
             bind: address,
             path,
             allowed_hosts,
@@ -771,7 +781,12 @@ impl ConfigFile {
             public_url,
             tls,
             trusted_proxies,
-        })
+            person: None,
+        };
+        if self.version >= 5 {
+            http.person = super::hosted::person_listener(section, mode, &http)?;
+        }
+        Ok(http)
     }
 
     fn general(&self, root: &Path) -> Result<(String, String), WorkspaceError> {
@@ -1366,7 +1381,8 @@ impl Config {
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` when the bind override is not a socket address, or is not
     /// loopback where `http.bind` must be (phase 5 section 2.2), or breaks the gateway's channel
-    /// rule.
+    /// rule; or when the person bind override is set without `[http.person]`, is not a socket
+    /// address, or shares a port with `http.bind` (step 5b).
     pub fn with_overrides(mut self, overrides: &Overrides) -> Result<Self, WorkspaceError> {
         if let Some(bind) = &overrides.http_bind {
             let source = "--bind or UMBEL_HTTP_BIND";
@@ -1380,6 +1396,26 @@ impl Config {
             )?;
             self.http.bind = address;
             check_channel(&self.auth, &self.http)?;
+        }
+        if let Some(bind) = &overrides.http_person_bind {
+            let source = "--person-bind or UMBEL_HTTP_PERSON_BIND";
+            let Some(person) = self.http.person.as_mut() else {
+                return Err(WorkspaceError::config_invalid(
+                    "http.person.bind",
+                    format!(
+                        "is overridden by {source}, but [http.person] is not set: only mode gateway's person page has a listener of its own"
+                    ),
+                ));
+            };
+            person.bind = bind.parse().map_err(|_| {
+                WorkspaceError::config_invalid(
+                    "http.person.bind",
+                    format!("must be a socket address such as 0.0.0.0:8444, not `{bind}` (from {source})"),
+                )
+            })?;
+        }
+        if let Some(person) = &self.http.person {
+            super::hosted::check_person_bind(person, self.http.bind)?;
         }
         if let Some(filter) = &overrides.log_filter {
             self.log.filter_override = Some(filter.clone());
@@ -1411,7 +1447,7 @@ fn check_path(path: &str) -> Result<(), String> {
 }
 
 /// A host name or IP literal, optionally with a port; an IPv6 literal is bracketed.
-fn check_host(entry: &str) -> Result<(), String> {
+pub(super) fn check_host(entry: &str) -> Result<(), String> {
     let bad = |why: &str| Err(format!("entry `{entry}` {why}"));
     if entry.contains('*') {
         return bad("holds a wildcard, which is refused");
@@ -1441,6 +1477,11 @@ fn check_host(entry: &str) -> Result<(), String> {
                 .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-'));
     if !host_ok || !(port.is_empty() || port.parse::<u16>().is_ok()) {
         return bad("is not a host name or IP literal with an optional port");
+    }
+    // What the public URLs' own parser reads (no empty port, port 0, or a name starting with
+    // `.` or `-`), so an entry can always be compared with them.
+    if super::hosted::split_authority(entry).is_none() {
+        return bad("is not a host name or IP literal with an optional port of 1 to 65535");
     }
     Ok(())
 }
@@ -1618,10 +1659,12 @@ mod tests {
         let flags = Overrides {
             http_bind: Some("127.0.0.1:1".into()),
             log_filter: None,
+            http_person_bind: None,
         };
         let env = Overrides {
             http_bind: Some("127.0.0.1:2".into()),
             log_filter: Some("debug".into()),
+            http_person_bind: None,
         };
         let merged = flags.or(env);
         assert_eq!(merged.http_bind.as_deref(), Some("127.0.0.1:1"));

@@ -65,6 +65,9 @@ async fn serve_http(
     // Everything that can refuse (the mode, the TLS files, the token, the shared stores) refuses
     // before the address is bound.
     let server = host.http_server()?;
+    // The person page's own listener in mode `gateway` (phase 5 step 5b), built before anything
+    // binds too.
+    let person = host.person_server()?;
     let bind = workspace.config().http.bind;
     let listener = TcpListener::bind(bind)
         .await
@@ -72,6 +75,18 @@ async fn serve_http(
     let address = listener
         .local_addr()
         .map_err(|error| start_failed("Reading the bound address", error))?;
+    let person = match (person, &workspace.config().http.person) {
+        (Some(server), Some(config)) => {
+            let listener = TcpListener::bind(config.bind)
+                .await
+                .map_err(|error| start_failed(&format!("Binding {}", config.bind), error))?;
+            let address = listener
+                .local_addr()
+                .map_err(|error| start_failed("Reading the bound address", error))?;
+            Some((server, listener, address, config.public_url.clone()))
+        }
+        _ => None,
+    };
     // Signal handlers are installed above, before this line: a client that waits for it can
     // stop the server straight away.
     let scheme = if server.is_tls() { "https" } else { "http" };
@@ -95,24 +110,39 @@ async fn serve_http(
             token_file.display()
         );
     }
+    if let Some((_, _, address, public_url)) = &person {
+        eprintln!(
+            "umbel person page listening on https://{address} (public origin {public_url}; browsers reach it directly, never through the gateway)"
+        );
+    }
     if print_token {
         let token = workspace.http_token()?;
         let _ = writeln!(out, "{token}");
         let _ = out.flush();
     }
 
-    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-    let serving = server.serve(listener, async move {
-        let _ = stopped.await;
-    });
+    let (stop, stopped) = tokio::sync::watch::channel(false);
+    let until = |mut stopped: tokio::sync::watch::Receiver<bool>| async move {
+        let _ = stopped.wait_for(|stop| *stop).await;
+    };
+    let serving = server.serve(listener, until(stopped.clone()));
     tokio::pin!(serving);
+    // The person listener beside it, stopped by the same signal; without one, never ending.
+    let page = async {
+        match person {
+            Some((server, listener, _, _)) => server.serve(listener, until(stopped)).await,
+            None => std::future::pending().await,
+        }
+    };
+    tokio::pin!(page);
     let interrupted = async {
         signals.wait().await;
-        let _ = stop.send(());
+        let _ = stop.send(true);
         tokio::time::sleep(GRACE).await;
     };
     tokio::select! {
         result = &mut serving => result.map_err(|error| start_failed("The HTTP server", error)),
+        result = &mut page => result.map_err(|error| start_failed("The person page's server", error)),
         () = interrupted => Ok(()),
     }
 }

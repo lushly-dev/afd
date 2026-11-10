@@ -42,13 +42,13 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// What the CLI reads from its surroundings: the current directory, `UMBEL_WORKSPACE`, the
-/// `UMBEL_LOG` and `UMBEL_HTTP_BIND` overrides, and the terminal.
+/// `UMBEL_LOG`, `UMBEL_HTTP_BIND` and `UMBEL_HTTP_PERSON_BIND` overrides, and the terminal.
 pub struct Environment {
     /// The current directory: where `init` creates a workspace and the upward search starts.
     pub cwd: PathBuf,
     /// `UMBEL_WORKSPACE`.
     pub workspace: Option<OsString>,
-    /// `UMBEL_LOG` and `UMBEL_HTTP_BIND`.
+    /// `UMBEL_LOG`, `UMBEL_HTTP_BIND` and `UMBEL_HTTP_PERSON_BIND`.
     pub overrides: Overrides,
     /// Where prompts go and answers come from, and where `@-` reads its input.
     pub console: Arc<dyn Console>,
@@ -203,23 +203,26 @@ where
             stdio,
             http,
             bind,
+            person_bind,
             print_token,
         } => {
             let mode = match (stdio, http) {
-                (true, false) if bind.is_none() && !print_token => serve::Mode::Stdio,
+                (true, false) if bind.is_none() && person_bind.is_none() && !print_token => {
+                    serve::Mode::Stdio
+                }
                 (false, true) => serve::Mode::Http { print_token },
                 _ => {
                     return fail_on_stderr(&output::pre_run_failure(
                         error_codes::INVALID_INPUT,
-                        "Choose exactly one transport: --stdio, or --http with the optional --bind and --print-token",
-                        "Run umbel serve --stdio, or umbel serve --http [--bind <addr>] [--print-token].",
+                        "Choose exactly one transport: --stdio, or --http with the optional --bind, --person-bind and --print-token",
+                        "Run umbel serve --stdio, or umbel serve --http [--bind <addr>] [--person-bind <addr>] [--print-token].",
                     ));
                 }
             };
             return serve_host(
                 &cli.workspace,
                 &cli.log,
-                bind,
+                (bind, person_bind),
                 environment,
                 configure,
                 mode,
@@ -362,7 +365,7 @@ fn fail_on_stderr(result: &CommandResult<Value>) -> i32 {
 async fn serve_host(
     flag: &Option<PathBuf>,
     log: &Option<String>,
-    bind: Option<String>,
+    bind: (Option<String>, Option<String>),
     environment: &Environment,
     configure: impl FnOnce(HostBuilder) -> HostBuilder,
     mode: serve::Mode,
@@ -420,7 +423,7 @@ async fn open_host(
     writers: &mut Writers<'_>,
     command: Option<&str>,
 ) -> Option<Host> {
-    let (sealed, located, catalog) = build_host(flag, log, None, environment, configure);
+    let (sealed, located, catalog) = build_host(flag, log, (None, None), environment, configure);
     match sealed {
         Ok(host) => Some(host),
         Err(error) => {
@@ -443,7 +446,7 @@ async fn open_host(
 fn build_host(
     flag: &Option<PathBuf>,
     log: &Option<String>,
-    bind: Option<String>,
+    bind: (Option<String>, Option<String>),
     environment: &Environment,
     configure: impl FnOnce(HostBuilder) -> HostBuilder,
 ) -> (
@@ -473,13 +476,14 @@ fn build_host(
 fn open_with(
     located: &Result<Located, WorkspaceError>,
     log: &Option<String>,
-    bind: Option<String>,
+    (bind, person_bind): (Option<String>, Option<String>),
     environment: &Environment,
 ) -> Result<Workspace, HostError> {
     let located = located.clone().map_err(HostError::from)?;
     let flags = Overrides {
         http_bind: bind,
         log_filter: log.clone(),
+        http_person_bind: person_bind,
     };
     Workspace::open_located(&located, &flags.or(environment.overrides.clone()))
         .map_err(HostError::from)

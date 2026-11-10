@@ -41,6 +41,7 @@ pub(super) const HTTP_KEYS_V5: &[&str] = &[
     "public_url",
     "tls",
     "trusted_proxies",
+    "person",
 ];
 /// `[principal]`'s keys from version 5.
 pub(super) const PRINCIPAL_KEYS_V5: &[&str] =
@@ -48,6 +49,11 @@ pub(super) const PRINCIPAL_KEYS_V5: &[&str] =
 /// An access group's keys from version 5.
 pub(super) const GROUP_KEYS_V5: &[&str] = &["members", "claim"];
 const TLS_KEYS: &[&str] = &["cert", "key", "client_auth", "client_ca"];
+/// `[http.person]`'s keys (amendment from phase 5 step 5b).
+const PERSON_LISTENER_KEYS: &[&str] = &["bind", "public_url", "allowed_hosts", "tls"];
+/// `[http.person.tls]`'s keys: a certificate and its key. No client certificate is asked of a
+/// browser, so there is no `client_auth` or `client_ca`.
+const PERSON_TLS_KEYS: &[&str] = &["cert", "key"];
 const AUTH_KEYS: &[&str] = &[
     "mode",
     "scope_prefix",
@@ -219,6 +225,24 @@ pub struct TlsConfig {
     pub client_auth: ClientAuth,
     /// The CA file client certificates chain to; set exactly when `client_auth = "ca"`.
     pub client_ca: Option<String>,
+}
+
+/// `[http.person]` (amendment from phase 5 step 5b, the owner's decision of 2026-11-09): in mode
+/// `gateway`, the person page's own listener, with its own TLS and its own public origin, which
+/// browsers reach directly and never through the gateway. Mode `gateway` serves verified commands
+/// only with it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PersonListener {
+    /// The socket address the listener binds.
+    pub bind: SocketAddr,
+    /// The page's public origin, `https://<host>[:<port>]`, with no path: a host of its own,
+    /// which `http.public_url` and `http.allowed_hosts` never name.
+    pub public_url: String,
+    /// The `Host` values the listener answers; the public origin's host among them.
+    pub allowed_hosts: Vec<String>,
+    /// Its TLS: a certificate and key of its own; `client_auth` is always `none`.
+    pub tls: TlsConfig,
 }
 
 /// An issuer's `verify`: how its tokens are checked (3.2).
@@ -804,6 +828,14 @@ impl ConfigFile {
         {
             scan_table(tls, "http.tls", TLS_KEYS, &[], scan);
         }
+        if let Some(Value::Table(http)) = table.get("http")
+            && let Some(Value::Table(person)) = http.get("person")
+        {
+            scan_table(person, "http.person", PERSON_LISTENER_KEYS, &[], scan);
+            if let Some(Value::Table(tls)) = person.get("tls") {
+                scan_table(tls, "http.person.tls", PERSON_TLS_KEYS, &[], scan);
+            }
+        }
         for (name, keys) in [("limits", LIMITS_KEYS), ("usage", USAGE_KEYS)] {
             if let Some(Value::Table(section)) = table.get(name) {
                 scan_table(section, name, keys, &[], scan);
@@ -871,7 +903,13 @@ pub(super) fn is_v5_key(key: &str) -> bool {
                 && super::plugins_config::MEMORY_WRITE_GRANT_KEYS_V5.contains(&name)
         });
     TOP_KEYS_V5.contains(&top)
-        || ["principal.equivalents", "http.public_url", "http.tls"].contains(&key)
+        || [
+            "principal.equivalents",
+            "http.public_url",
+            "http.tls",
+            "http.person",
+        ]
+        .contains(&key)
         || (key.starts_with("access.groups.") && key.ends_with(".claim"))
         || memory_write
 }
@@ -1399,6 +1437,22 @@ pub(super) fn check_hosted(
     usage: &UsageConfig,
 ) -> Result<(), WorkspaceError> {
     check_channel(auth, http)?;
+    // The person page's own host is not the gateway's own (its `iss`), a host the gateway is
+    // known to serve (amendment from step 5b).
+    if let (Some(person), Some(gateway)) = (&http.person, &auth.gateway)
+        && let (Ok((page_host, _, _)), Ok((gateway_host, _, _))) = (
+            split_https_url(&person.public_url),
+            split_https_url(&gateway.issuer),
+        )
+        && page_host.eq_ignore_ascii_case(gateway_host)
+    {
+        return Err(WorkspaceError::config_invalid(
+            "http.person.public_url",
+            format!(
+                "names the host `{page_host}`, which auth.gateway.issuer names: the person page needs a host the gateway neither serves nor holds a certificate for"
+            ),
+        ));
+    }
     if auth.mode.is_hosted() {
         let namespaced = |key: &str, value: &str| -> Result<(), WorkspaceError> {
             match split_namespaced(value) {
@@ -1618,17 +1672,273 @@ pub(crate) fn check_public_url(
     if url_path != path {
         return Err(format!("`{url}` must have the path http.path, `{path}`"));
     }
-    let admitted = allowed_hosts.iter().any(|entry| {
-        split_authority(entry).is_some_and(|(allowed, allowed_port)| {
-            allowed.eq_ignore_ascii_case(host) && allowed_port.is_none_or(|p| Some(p) == port)
-        })
-    });
-    if !admitted {
+    if !hosts_admit(allowed_hosts, host, port) {
         return Err(format!(
             "`{url}` names the host `{host}`, which no http.allowed_hosts entry admits"
         ));
     }
     Ok(())
+}
+
+/// Whether one of `allowed_hosts` admits `host` (case-insensitively) on `port`: an entry without
+/// a port admits every port.
+fn hosts_admit(allowed_hosts: &[String], host: &str, port: Option<&str>) -> bool {
+    allowed_hosts.iter().any(|entry| {
+        split_authority(entry).is_some_and(|(allowed, allowed_port)| {
+            allowed.eq_ignore_ascii_case(host) && allowed_port.is_none_or(|p| Some(p) == port)
+        })
+    })
+}
+
+/// Whether `host` is written as a URL parser serialises it (WHATWG URL, `url::Host`): an IPv6
+/// literal in brackets in its shortest form; an IPv4 address in dotted decimal, and any host whose
+/// last label is a number is read as one (so `127.1`, `2130706433` and `0x7f.1` are refused);
+/// otherwise a lowercase name of letters, digits and hyphens, labels of 1 to 63 characters
+/// neither starting nor ending with a hyphen, no trailing dot, at most 253 characters. The person
+/// page's origin is compared byte for byte, so it has one spelling (amendment from step 5b).
+pub(crate) fn check_canonical_host(host: &str) -> Result<(), String> {
+    if let Some(inner) = host.strip_prefix('[') {
+        let ip = inner
+            .strip_suffix(']')
+            .and_then(|inner| inner.parse::<std::net::Ipv6Addr>().ok())
+            .ok_or_else(|| format!("`{host}` is not a bracketed IPv6 address"))?;
+        let canonical = format!("[{ip}]");
+        return if canonical == host {
+            Ok(())
+        } else {
+            Err(format!("`{host}` must be written `{canonical}`"))
+        };
+    }
+    let last = host.rsplit('.').next().unwrap_or_default();
+    let numeric = !last.is_empty()
+        && (last.bytes().all(|b| b.is_ascii_digit())
+            || last.starts_with("0x")
+            || last.starts_with("0X"));
+    if numeric {
+        return match host.parse::<std::net::Ipv4Addr>() {
+            Ok(ip) if ip.to_string() == host => Ok(()),
+            Ok(ip) => Err(format!("`{host}` must be written `{ip}`")),
+            Err(_) => Err(format!(
+                "`{host}` ends in a number, so a browser reads it as an IPv4 address: write the address in dotted decimal"
+            )),
+        };
+    }
+    let label_ok = |label: &str| {
+        !label.is_empty()
+            && label.len() <= 63
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    };
+    if host.is_empty() || host.len() > 253 || !host.split('.').all(label_ok) {
+        return Err(format!(
+            "`{host}` must be a lowercase host name (letters, digits and hyphens, no empty label or trailing dot) or an IP address in its canonical form"
+        ));
+    }
+    Ok(())
+}
+
+/// The host part of an `allowed_hosts` entry, lowercase.
+fn entry_host(entry: &str) -> Option<String> {
+    split_authority(entry).map(|(host, _)| host.to_ascii_lowercase())
+}
+
+/// `[http.person]` (amendment from phase 5 step 5b): the person page's own listener in mode
+/// `gateway`. Refused in every other mode; when set, each rule below is checked at open, each a
+/// `WORKSPACE_CONFIG_INVALID` naming its key:
+///
+/// - `bind`, a socket address, required; it shares no port with `http.bind` on an address both
+///   could hold;
+/// - `public_url`, required: an origin, `https://<host>[:<port>]`, lowercase, with no path (not
+///   even `/`), no user information, query or fragment, and no explicit default port; its host is
+///   one of the listener's own `allowed_hosts`, and **not `http.public_url`'s host**: browsers send
+///   a host's cookies to every port of it (RFC 6265 8.5), so the page needs a host the gateway
+///   never serves;
+/// - `allowed_hosts`, required and non-empty, each a host name or IP literal with an optional
+///   port, **none naming a host `http.allowed_hosts` names**;
+/// - `[http.person.tls]`, required, with `cert` and `key` only: its own TLS, asking browsers for no
+///   client certificate.
+pub(super) fn person_listener(
+    http: Option<&Table>,
+    mode: AuthMode,
+    facing: &HttpConfig,
+) -> Result<Option<PersonListener>, WorkspaceError> {
+    let key = "http.person";
+    let table = match http.and_then(|http| http.get("person")) {
+        None => return Ok(None),
+        Some(Value::Table(table)) => table,
+        Some(_) => return Err(WorkspaceError::config_invalid(key, "must be a table")),
+    };
+    if mode != AuthMode::Gateway {
+        return Err(WorkspaceError::config_invalid(
+            key,
+            format!(
+                "applies only in auth.mode = \"gateway\", where it is the person page's own listener; auth.mode = \"{}\" {}",
+                mode.as_str(),
+                if mode == AuthMode::Oauth {
+                    "serves the person page beside the MCP path, at http.public_url"
+                } else {
+                    "serves no person page"
+                }
+            ),
+        ));
+    }
+    let reader = Reader::new(Some(table), key);
+    let bind_text = reader.string("bind")?.ok_or_else(|| {
+        WorkspaceError::config_invalid(
+            "http.person.bind",
+            "is required: the socket address browsers reach the person page on",
+        )
+    })?;
+    let bind: SocketAddr = bind_text.parse().map_err(|_| {
+        WorkspaceError::config_invalid(
+            "http.person.bind",
+            format!("must be a socket address such as 0.0.0.0:8444, not `{bind_text}`"),
+        )
+    })?;
+    let allowed_hosts = reader.string_array("allowed_hosts")?.unwrap_or_default();
+    if allowed_hosts.is_empty() {
+        return Err(WorkspaceError::config_invalid(
+            "http.person.allowed_hosts",
+            "is required and must not be empty: the Host values the person page answers, its public origin's host among them",
+        ));
+    }
+    for entry in &allowed_hosts {
+        super::config::check_host(entry)
+            .map_err(|p| WorkspaceError::config_invalid("http.person.allowed_hosts", p))?;
+        let (host, _) = split_authority(entry).unwrap_or((entry, None));
+        check_canonical_host(host).map_err(|p| {
+            WorkspaceError::config_invalid("http.person.allowed_hosts", format!("entry {p}"))
+        })?;
+    }
+    let public_url = reader.string("public_url")?.ok_or_else(|| {
+        WorkspaceError::config_invalid(
+            "http.person.public_url",
+            "is required: the person page's own https origin, https://<host>[:<port>]",
+        )
+    })?;
+    let host = check_person_origin(&public_url, &allowed_hosts)
+        .map_err(|p| WorkspaceError::config_invalid("http.person.public_url", p))?;
+    if let Some(facing_url) = &facing.public_url
+        && let Ok((facing_host, _, _)) = split_https_url(facing_url)
+        && facing_host.eq_ignore_ascii_case(&host)
+    {
+        return Err(WorkspaceError::config_invalid(
+            "http.person.public_url",
+            format!(
+                "names the host `{host}`, which http.public_url names too: browsers send a host's cookies to every port of it (RFC 6265 8.5), so the person page needs a host of its own that the gateway never serves"
+            ),
+        ));
+    }
+    let facing_hosts: Vec<String> = facing
+        .allowed_hosts
+        .iter()
+        .filter_map(|entry| entry_host(entry))
+        .collect();
+    if let Some(shared) = allowed_hosts
+        .iter()
+        .filter_map(|entry| entry_host(entry))
+        .find(|host| facing_hosts.contains(host))
+    {
+        return Err(WorkspaceError::config_invalid(
+            "http.person.allowed_hosts",
+            format!(
+                "admits `{shared}`, which http.allowed_hosts admits too: the person page and the gateway-facing endpoint answer host names of their own"
+            ),
+        ));
+    }
+    let tls = match table.get("tls") {
+        Some(Value::Table(tls)) => {
+            let reader = Reader::new(Some(tls), "http.person.tls");
+            let path = |name: &str| -> Result<String, WorkspaceError> {
+                let at = format!("http.person.tls.{name}");
+                let value = reader.string(name)?.ok_or_else(|| {
+                    WorkspaceError::config_invalid(&at, "is required: the path of a PEM file")
+                })?;
+                check_file_path(&value)
+                    .map_err(|problem| WorkspaceError::config_invalid(&at, problem))?;
+                Ok(value)
+            };
+            TlsConfig {
+                cert: path("cert")?,
+                key: path("key")?,
+                client_auth: ClientAuth::None,
+                client_ca: None,
+            }
+        }
+        Some(_) => {
+            return Err(WorkspaceError::config_invalid(
+                "http.person.tls",
+                "must be a table",
+            ));
+        }
+        None => {
+            return Err(WorkspaceError::config_invalid(
+                "http.person.tls",
+                "is required: the person page serves its own TLS (cert and key), never the gateway's",
+            ));
+        }
+    };
+    let listener = PersonListener {
+        bind,
+        public_url,
+        allowed_hosts,
+        tls,
+    };
+    check_person_bind(&listener, facing.bind)?;
+    Ok(Some(listener))
+}
+
+/// The person listener's bind shares no port with `http.bind` on an address both could hold: the
+/// same address, or either one unspecified. Port 0 picks a free port, so it never clashes.
+/// Checked at open and again after a bind override.
+pub(super) fn check_person_bind(
+    person: &PersonListener,
+    facing: SocketAddr,
+) -> Result<(), WorkspaceError> {
+    let (ours, theirs) = (person.bind, facing);
+    // An IPv4-mapped IPv6 address is the IPv4 address it maps.
+    let (our_ip, their_ip) = (ours.ip().to_canonical(), theirs.ip().to_canonical());
+    let clash = ours.port() != 0
+        && ours.port() == theirs.port()
+        && (our_ip == their_ip || our_ip.is_unspecified() || their_ip.is_unspecified());
+    if clash {
+        return Err(WorkspaceError::config_invalid(
+            "http.person.bind",
+            format!(
+                "is `{ours}`, which takes the port of http.bind (`{theirs}`): the person page listens on an address of its own"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// `http.person.public_url`: an origin, `https://<host>[:<port>]`, lowercase, no path, no default
+/// port written, its host one of `allowed_hosts` admits. Returns the host.
+pub(crate) fn check_person_origin(url: &str, allowed_hosts: &[String]) -> Result<String, String> {
+    let (host, port, path) = split_https_url(url)?;
+    if !path.is_empty() {
+        return Err(format!(
+            "`{url}` must be an origin, https://<host>[:<port>], with no path (not even `/`): the page's routes are /d/... under it"
+        ));
+    }
+    check_canonical_host(host).map_err(|problem| format!("`{url}`: {problem}"))?;
+    if let Some(port) = port {
+        let canonical = port.parse::<u16>().map(|p| p.to_string()).ok();
+        if canonical.as_deref() != Some(port) || port == "443" {
+            return Err(format!(
+                "`{url}` must write its port as a browser's Origin does: no leading zero, and no :443"
+            ));
+        }
+    }
+    if !hosts_admit(allowed_hosts, host, port) {
+        return Err(format!(
+            "`{url}` names the host `{host}`, which no http.person.allowed_hosts entry admits"
+        ));
+    }
+    Ok(host.to_owned())
 }
 
 /// An absolute `https` URL as an issuer or the resource is written: `https://host[:port][path]`
@@ -1651,7 +1961,7 @@ fn split_https_url(url: &str) -> Result<(&str, Option<&str>, &str), String> {
 }
 
 /// `host[:port]` or `[ipv6][:port]`: a host name or IP literal and a port of 1 to 65535.
-fn split_authority(authority: &str) -> Option<(&str, Option<&str>)> {
+pub(super) fn split_authority(authority: &str) -> Option<(&str, Option<&str>)> {
     let (host, port) = if let Some(rest) = authority.strip_prefix('[') {
         let (ip, tail) = rest.split_once(']')?;
         ip.parse::<std::net::Ipv6Addr>().ok()?;

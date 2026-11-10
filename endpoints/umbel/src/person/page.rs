@@ -1,6 +1,10 @@
 //! The person page's routes (phase 5 specification, sections 6.3 layer 4, 7.2 and 7.4; D115),
-//! beside the MCP path and never behind the bearer or gateway layer: they authenticate by their
-//! own login.
+//! never behind the bearer or gateway layer: they authenticate by their own login. In mode
+//! `oauth` they are mounted beside the MCP path, `<path>` being `http.path`; in mode `gateway`
+//! they are the whole of the page's own listener (`[http.person]`, step 5b,
+//! `crate::surfaces::http::person`), `<path>` empty, so the gateway never carries them. Every
+//! check below is the same on both; "the public URL" is the page's (`http.public_url`, or
+//! `http.person.public_url`).
 //!
 //! | Route | What |
 //! | --- | --- |
@@ -62,7 +66,7 @@ h1{font-size:1.4rem}dl{display:grid;grid-template-columns:max-content 1fr;gap:.2
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f0f4;padding:1rem;border-radius:.4rem}\
 button{font-size:1rem;padding:.5rem 1.2rem;margin-right:.8rem}@media (prefers-color-scheme:dark){body{background:#151518;color:#e9e9ee}pre{background:#24242a}}";
 
-/// What the routes need: the service and the public URL's parts.
+/// What the routes need: the service and the page's public URL's parts.
 #[derive(Clone)]
 pub(crate) struct PersonPage {
     service: Arc<PersonService>,
@@ -122,13 +126,14 @@ fn with_headers(mut response: Response) -> Response {
 }
 
 impl PersonPage {
-    /// The routes of `service`, under `http.path`.
+    /// The routes of `service`, under `path` (`http.path` in mode `oauth`, empty on the page's own
+    /// listener).
     pub(crate) fn new(
         service: Arc<PersonService>,
         path: &str,
         limit: Arc<crate::surfaces::http::layers::SlidingLimit>,
     ) -> Option<Self> {
-        let url = reqwest::Url::parse(service.public_url()).ok()?;
+        let url = reqwest::Url::parse(service.page_url()).ok()?;
         let host = url.host_str()?.to_ascii_lowercase();
         let port = url.port();
         let origin = match port {
