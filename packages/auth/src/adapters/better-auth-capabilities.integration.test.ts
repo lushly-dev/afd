@@ -32,12 +32,14 @@ async function startProvider() {
 		passkey: [],
 	};
 	const server = createServer();
-	onTestFinished(async () => {
+	const stop = async () => {
+		if (!server.listening) return;
 		server.closeAllConnections();
 		await new Promise<void>((resolve, reject) =>
 			server.close((error) => (error ? reject(error) : resolve()))
 		);
-	});
+	};
+	onTestFinished(stop);
 	server.listen(0, '127.0.0.1');
 	await once(server, 'listening');
 	const address = server.address();
@@ -53,7 +55,7 @@ async function startProvider() {
 		plugins: [organization(), passkey({ rpID: '127.0.0.1', origin: baseURL })],
 	});
 	server.on('request', toNodeHandler(auth));
-	return { baseURL, database };
+	return { baseURL, database, stop };
 }
 
 /** A client with its own cookie jar, as one browser profile, and the adapter over it. */
@@ -278,4 +280,22 @@ it('lists, renames and removes passkeys at the provider; WebAuthn-less is unsupp
 	await expect(ada.adapter.signIn({ method: 'passkey' })).rejects.toMatchObject({
 		code: 'PASSKEY_UNSUPPORTED',
 	});
+}, 20_000);
+
+it('refresh() rejects with NETWORK_ERROR when the provider is unreachable, keeping the session', async () => {
+	const { baseURL, stop } = await startProvider();
+	const ada = signedInClient(baseURL, CHROME_MAC);
+	await ada.client.signUp.email({
+		email: 'ada@example.test',
+		password: 'pw-ada-123456',
+		name: 'Ada',
+	});
+	await settle(ada.adapter, 'authenticated');
+	await expect(ada.adapter.refresh()).resolves.toBeUndefined();
+
+	await stop();
+	// Better Auth's refetch resolves here and keeps the stale session; refresh() must not.
+	await expect(ada.client.useSession.get().refetch()).resolves.toBeUndefined();
+	await expect(ada.adapter.refresh()).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+	expect(ada.adapter.getSession().status).toBe('authenticated');
 }, 20_000);

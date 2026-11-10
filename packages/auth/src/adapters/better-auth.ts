@@ -31,7 +31,8 @@ import {
 	mapThrownError,
 	passkeyCeremonyError,
 } from './better-auth-client.js';
-import { hasWebAuthn } from './session-rows.js';
+import { isKnownNetworkFailure } from './provider-errors.js';
+import { hasConditionalMediation, hasWebAuthn } from './session-rows.js';
 
 export type { BetterAuthClient } from './better-auth-client.js';
 
@@ -67,15 +68,19 @@ export class BetterAuthAdapter implements AuthAdapter {
 	readonly sessions: SessionManagement;
 	readonly passkeys: PasskeyManagement;
 	readonly organization: OrganizationAccess;
+	/** Drops the session handles' tokens: on sign-out and when the user changes. */
+	private readonly forgetSessions: () => void;
 
 	constructor(options: BetterAuthAdapterOptions) {
 		this.client = options.client;
 		this.initial = options.initial;
 		this.listeners = new ListenerSet(options.onListenerError);
-		this.sessions = betterAuthSessions(this.client, () => {
+		const sessions = betterAuthSessions(this.client, () => {
 			const state = this.currentState;
 			return state.status === 'authenticated' ? state.session.id : undefined;
 		});
+		this.sessions = sessions.sessions;
+		this.forgetSessions = sessions.forget;
 		this.passkeys = betterAuthPasskeys(this.client);
 		this.organization = betterAuthOrganization(this.client);
 		this.setupSubscription();
@@ -87,6 +92,10 @@ export class BetterAuthAdapter implements AuthAdapter {
 			if (options.method === 'passkey') {
 				const { signIn } = this.client;
 				if (!signIn.passkey || !hasWebAuthn()) throw passkeyUnsupported();
+				// Autofill that cannot be offered would wait for nothing, then read as cancelled.
+				if (options.autoFill === true && !(await hasConditionalMediation())) {
+					throw passkeyUnsupported();
+				}
 				result = await signIn.passkey(
 					options.autoFill === undefined ? undefined : { autoFill: options.autoFill }
 				);
@@ -134,18 +143,29 @@ export class BetterAuthAdapter implements AuthAdapter {
 
 	/**
 	 * Fetch the session from the provider now, through the session store's `refetch`. Resolves
-	 * once the store holds the answer, which reaches `getSession()` and the listeners.
+	 * once the store holds the provider's answer, which reaches `getSession()` and the listeners:
+	 * the session, or none after a 401. Rejects when the provider did not answer, since Better
+	 * Auth's `refetch` resolves anyway and keeps the stale session: `NETWORK_ERROR` for a transport
+	 * failure, `REFRESH_FAILED` for any other (a 5xx), so a caller never reads "unreachable" as
+	 * "the session was kept".
 	 */
 	async refresh(): Promise<void> {
-		const refetch = this.store?.get().refetch;
-		if (!refetch) return;
+		const store = this.store;
+		const refetch = store?.get().refetch;
+		if (!store || !refetch) return;
 		try {
 			await refetch();
 		} catch (error) {
 			throw mapThrownError(error);
 		}
-		const store = this.store;
-		if (store) this.updateState(store.get());
+		const value = store.get();
+		this.updateState(value);
+		const { error } = value;
+		if (error === undefined || error === null || statusOf(error) === 401) return;
+		const message = error instanceof Error ? error.message : describeStoreError(error);
+		throw isKnownNetworkFailure(error, message)
+			? AuthAdapterError.networkError()
+			: AuthAdapterError.refreshFailed();
 	}
 
 	getSession(): AuthSessionState {
@@ -188,6 +208,14 @@ export class BetterAuthAdapter implements AuthAdapter {
 	private updateState(value: BetterAuthSessionValue): void {
 		const newState = this.mapToState(value);
 		if (areSessionStatesEqual(newState, this.currentState)) return;
+		const before = this.currentState;
+		if (
+			newState.status !== 'authenticated' ||
+			before.status !== 'authenticated' ||
+			before.user.id !== newState.user.id
+		) {
+			this.forgetSessions();
+		}
 
 		this.currentState = newState;
 		this.listeners.emit(newState);
@@ -233,4 +261,21 @@ function toSignInOutcome(result: BetterAuthMethodResponse): SignInOutcome {
 		return url === undefined ? { kind: 'redirect' } : { kind: 'redirect', url };
 	}
 	return { kind: 'signed-in' };
+}
+
+/** The HTTP status of a stored session error, when it has one. */
+function statusOf(error: unknown): number | undefined {
+	return typeof error === 'object' && error !== null && 'status' in error
+		? Number((error as { status: unknown }).status)
+		: undefined;
+}
+
+/** A stored session error's text, for network-failure matching. */
+function describeStoreError(error: unknown): string {
+	if (typeof error === 'object' && error !== null) {
+		const { message, statusText } = error as { message?: unknown; statusText?: unknown };
+		if (typeof message === 'string') return message;
+		if (typeof statusText === 'string') return statusText;
+	}
+	return String(error);
 }

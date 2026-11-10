@@ -410,8 +410,12 @@ permitted action is `COMMAND_NOT_ALLOWED`.
 object afd-server put on a call after verifying the call's token. The brand is
 a private `WeakSet`, so a copy, an object built with the same fields, the
 `credentials` a direct-registry caller passes, and those a host's
-`createContext` sets are never recognised. No entry exports the function that
-brands; until the server verifies tokens itself, nothing is branded.
+`createContext` sets are never recognised. Branded credentials are frozen, and
+stop being recognised once their `expiresAt` has passed (`isVerifiedCredentials(value, now?)`,
+`now` defaulting to `Date.now()`) or their request has ended. No entry exports
+the functions that brand and unbrand; until the server verifies tokens itself,
+nothing is branded. A nested call keeps the brand only if it is given the same
+object.
 
 A host that serves MCP with token authorization through afd-auth's middleware
 passes it there, so a token's call keeps its actor rather than the session's:

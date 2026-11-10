@@ -49,7 +49,7 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
 | `loading` | `UNAUTHORIZED`, retryable |
 | `authenticated`, `session.expiresAt` at or before now (or not a valid date) | `TOKEN_EXPIRED`, retryable |
 | `authenticated` | sets `context.auth`, fills `context.actor` from the session user and runs the command |
-| any state, with `credentials` afd-server verified (below) | deletes `context.auth`, keeps `context.actor` and runs the command, without reading the session |
+| any state, with `credentials` afd-server verified (below) | deletes `context.auth`, keeps `context.actor` and runs the command, without reading the session; `auth-*` commands are `UNAUTHORIZED` |
 
 - The built-in commands `auth-sign-in`, `auth-sign-out` and `auth-session-get`
   (`AUTH_COMMAND_NAMES`) always run, so a signed-out caller can sign in.
@@ -66,6 +66,10 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
   augmentation.
 - `Session.expiresAt` is optional. A session without it (Convex) is never
   rejected as expired; the provider manages the token lifetime.
+- `clock` (afd-core's `Clock`, default the system clock) is the time
+  `expiresAt` is compared with. A host that gives `MockAuthAdapter` a clock of
+  its own, as a kernel with a fake or replayed clock does, passes the same one
+  here.
 
 ### Calls authorized by a token
 
@@ -83,7 +87,12 @@ const middleware = createAuthMiddleware(adapter, { isVerifiedCredentials });
   must pass it. Without it, a token's call is gated on the adapter's session
   and its actor is stamped with the session user, as for any other call.
 - afd-server marks the `credentials` object it sets after verifying a token
-  with a private brand; `isVerifiedCredentials` recognises only that object.
+  with a private brand, and freezes it; `isVerifiedCredentials` recognises only
+  that object, and only until its `expiresAt` (or the end of its request).
+- A nested call keeps the brand only if it is given the same `credentials`
+  object; a copy is an ordinary caller's.
+- The built-in auth commands are refused for such a call with `UNAUTHORIZED`:
+  a token has no session to read, sign in to or sign out of.
   `credentials` a caller puts on the context itself (on a direct registry, say),
   a copy of branded ones, and those a host's `createContext` sets are not
   recognised and get the session treatment above.
@@ -187,13 +196,21 @@ const adapter = new BetterAuthAdapter({ client, initial }); // initial: optional
   `redirect` outcome.
 - `initial` is the state to report until the client's session store first
   answers, such as a session the page read from its server. `refresh()` calls
-  the store's `refetch`.
+  the store's `refetch`. Better Auth's `refetch` resolves even when the
+  provider did not answer, keeping the stale session, so `refresh()` rejects
+  then: `NETWORK_ERROR` for a transport failure, `REFRESH_FAILED` otherwise. A
+  401 is an answer: the session is gone.
 - It has all three capabilities. `passkeys` and passkey sign-in need
   `passkeyClient()` and the server's `passkey()` plugin, `organization` needs
   `organizationClient()` and `organization()`; without them the provider
   answers `PROVIDER_ERROR`. `sessions` uses Better Auth's own routes, and
   `/list-sessions` needs a fresh session.
-- Passkey calls check for WebAuthn first (`PASSKEY_UNSUPPORTED`).
+- Passkey calls check for WebAuthn first (`PASSKEY_UNSUPPORTED`), and
+  `autoFill: true` checks `PublicKeyCredential.isConditionalMediationAvailable()`
+  too. Better Auth's client reports a network failure while verifying an
+  assertion as a cancelled ceremony, so `PASSKEY_CANCELLED` can also mean that.
+- Session handles are forgotten on sign-out and whenever the user changes.
+- `removeMember` takes a membership id; one containing `@` is a `TypeError`.
 - Better Auth lists and accepts invitations only for a verified email.
 
 ### Mock
@@ -217,10 +234,10 @@ const adapter = withMockCapabilities(new MockAuthAdapter({ clock }), {
 ```
 
 - It attaches all three, in memory and on the Mock's clock, to the same
-  adapter, and throws if they are already attached.
+  adapter. Call it once per Mock: a second call throws a `TypeError`.
 - `roles` is `{ [organizationId]: { [userId]: role } }`. Owners and admins
-  manage members and invitations; the last owner can neither leave nor be
-  demoted.
+  manage members and invitations; only an owner makes or changes an owner, and
+  the last owner can neither leave nor be demoted.
 - A passkey sign-in signs in the holder of the passkey added last, and with
   none is `PASSKEY_CANCELLED`. `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')`
   sets how later ceremonies end.

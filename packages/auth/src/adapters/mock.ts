@@ -51,8 +51,6 @@ export class MockAuthAdapter implements AuthAdapter {
 	private readonly delay: number;
 	/** The clock the Mock times sessions on; `withMockCapabilities` reads it too. */
 	readonly clock: Clock;
-	/** When the current session began. */
-	private sessionStartedAt = new Date(0);
 	// `declare`: no field is emitted, so each stays `undefined` until attached.
 	declare readonly sessions?: SessionManagement;
 	declare readonly passkeys?: PasskeyManagement;
@@ -124,11 +122,6 @@ export class MockAuthAdapter implements AuthAdapter {
 		this.startSession(user, session);
 	}
 
-	/** When the current session began, for `withMockCapabilities`' session list. */
-	_sessionStartedAt(): Date {
-		return this.sessionStartedAt;
-	}
-
 	_setLoading(): void {
 		this.setState(LOADING);
 	}
@@ -156,7 +149,6 @@ export class MockAuthAdapter implements AuthAdapter {
 
 	private startSession(user: User, session: Partial<Session> = {}): void {
 		const now = this.clock.now();
-		this.sessionStartedAt = new Date(now);
 		this.setState({
 			status: 'authenticated',
 			session: {

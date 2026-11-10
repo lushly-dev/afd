@@ -305,6 +305,45 @@ describe('MockAuthAdapter organization', () => {
 		expect(await adapter.organization.membership('acme')).toBeNull();
 	});
 
+	it('lets only an owner make or change an owner, as Better Auth does', async () => {
+		const adapter = await signedIn(
+			'cy@example.test',
+			mock({
+				roles: { acme: { [ADA]: 'owner', [BEA]: 'member', 'mock-user-cy@example.test': 'admin' } },
+			})
+		);
+		const members = await adapter.organization.listMembers('acme');
+		const id = (userId: string) => members.find((m) => m.userId === userId)?.id ?? '';
+
+		// An admin may change a member, but not make an owner or change one.
+		await adapter.organization.setRole('acme', id(BEA), 'admin');
+		await expect(adapter.organization.setRole('acme', id(BEA), 'owner')).rejects.toThrow(
+			/YOU_ARE_NOT_ALLOWED_TO_UPDATE_THIS_MEMBER/
+		);
+		await expect(adapter.organization.setRole('acme', id(ADA), 'member')).rejects.toThrow(
+			/YOU_ARE_NOT_ALLOWED_TO_UPDATE_THIS_MEMBER/
+		);
+		expect(await adapter.organization.listMembers('acme')).toEqual(
+			expect.arrayContaining([expect.objectContaining({ userId: ADA, role: 'owner' })])
+		);
+
+		await adapter.signIn({ method: 'credentials', email: 'ada@example.test' });
+		await adapter.organization.setRole('acme', id(BEA), 'owner');
+		expect(
+			(await adapter.organization.listMembers('acme')).find((m) => m.userId === BEA)?.role
+		).toBe('owner');
+	});
+
+	it('names members by membership id only', async () => {
+		const adapter = await signedIn('ada@example.test', mock({ roles }));
+		for (const memberId of ['ada@example.test', '']) {
+			await expect(adapter.organization.removeMember('acme', memberId)).rejects.toThrow(TypeError);
+			await expect(adapter.organization.setRole('acme', memberId, 'admin')).rejects.toThrow(
+				TypeError
+			);
+		}
+	});
+
 	it('lets a member who is not the last owner leave', async () => {
 		const adapter = await signedIn(
 			'bea@example.test',

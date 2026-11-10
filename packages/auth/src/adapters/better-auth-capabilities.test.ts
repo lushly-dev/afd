@@ -37,8 +37,13 @@ function stubClient(overrides: Partial<BetterAuthClient> = {}) {
 	return { client, emit, refetch };
 }
 
-function withWebAuthn() {
-	vi.stubGlobal('PublicKeyCredential', function PublicKeyCredential() {});
+/** A browser with WebAuthn; `conditional` is what `isConditionalMediationAvailable` answers, or absent. */
+function withWebAuthn(conditional: boolean | 'absent' = true) {
+	const PublicKeyCredential = Object.assign(
+		function PublicKeyCredential() {},
+		conditional === 'absent' ? {} : { isConditionalMediationAvailable: async () => conditional }
+	);
+	vi.stubGlobal('PublicKeyCredential', PublicKeyCredential);
 	vi.stubGlobal('navigator', { credentials: { get: () => undefined, create: () => undefined } });
 }
 
@@ -78,6 +83,41 @@ describe('BetterAuthAdapter passkey sign-in', () => {
 			client: { ...client, signIn: { social: vi.fn(), email: vi.fn() } },
 		});
 		await expect(adapter.signIn({ method: 'passkey' })).rejects.toMatchObject({
+			code: 'PASSKEY_UNSUPPORTED',
+		});
+		adapter.dispose();
+	});
+
+	it.each([
+		[false, 'false'],
+		['absent', 'missing'],
+	] as const)(
+		'is PASSKEY_UNSUPPORTED for autoFill when conditional mediation is %s (%s)',
+		async (conditional, _label) => {
+			withWebAuthn(conditional);
+			const { client } = stubClient();
+			const adapter = new BetterAuthAdapter({ client });
+			await expect(adapter.signIn({ method: 'passkey', autoFill: true })).rejects.toMatchObject({
+				code: 'PASSKEY_UNSUPPORTED',
+			});
+			expect(client.signIn.passkey).not.toHaveBeenCalled();
+			// Without autoFill, the dialog ceremony does not need conditional mediation.
+			await adapter.signIn({ method: 'passkey' });
+			expect(client.signIn.passkey).toHaveBeenCalledWith(undefined);
+			adapter.dispose();
+		}
+	);
+
+	it('is PASSKEY_UNSUPPORTED for autoFill when the availability check throws', async () => {
+		withWebAuthn();
+		(
+			globalThis.PublicKeyCredential as unknown as { isConditionalMediationAvailable: () => never }
+		).isConditionalMediationAvailable = () => {
+			throw new Error('not here');
+		};
+		const { client } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		await expect(adapter.signIn({ method: 'passkey', autoFill: true })).rejects.toMatchObject({
 			code: 'PASSKEY_UNSUPPORTED',
 		});
 		adapter.dispose();
@@ -144,7 +184,39 @@ describe('BetterAuthAdapter initial and refresh', () => {
 		adapter.dispose();
 	});
 
-	it('refresh() maps a network failure', async () => {
+	// Better Auth 1.7.18's session atom (client/session-atom.mjs): `refetch` never rejects. On a
+	// transport failure it stores the thrown value as `error`, on a 5xx `{ status, ... }`, keeps
+	// the stale `data`, and resolves; a 401 stores the error and clears `data`.
+	it.each([
+		['a transport failure', new TypeError('Failed to fetch'), 'NETWORK_ERROR'],
+		['a 5xx', { status: 503, statusText: 'Service Unavailable' }, 'REFRESH_FAILED'],
+		['an unknown failure', new Error('boom'), 'REFRESH_FAILED'],
+	])('refresh() rejects after %s, which the store resolves with', async (_, error, code) => {
+		const { client, emit, refetch } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		refetch.mockImplementation(async () => {
+			emit({ ...SIGNED_IN, error });
+		});
+		await expect(adapter.refresh()).rejects.toMatchObject({ code, retryable: true });
+		// The stale session is still what the store holds; the rejection is what says so.
+		expect(adapter.getSession().status).toBe('authenticated');
+		adapter.dispose();
+	});
+
+	it('refresh() resolves on a 401, with the session gone', async () => {
+		const { client, emit, refetch } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		refetch.mockImplementation(async () => {
+			emit({ data: null, isPending: false, error: { status: 401, statusText: 'Unauthorized' } });
+		});
+		await expect(adapter.refresh()).resolves.toBeUndefined();
+		expect(adapter.getSession().status).toBe('unauthenticated');
+		adapter.dispose();
+	});
+
+	it('refresh() maps a refetch that does reject', async () => {
 		const { client, refetch } = stubClient();
 		const adapter = new BetterAuthAdapter({ client });
 		refetch.mockRejectedValue(new TypeError('fetch failed'));
@@ -367,6 +439,104 @@ describe('BetterAuthAdapter capabilities over a stubbed client', () => {
 			code: 'PROVIDER_ERROR',
 		});
 		expect(organization.cancelInvitation).not.toHaveBeenCalled();
+	});
+});
+
+describe('BetterAuthAdapter session handles and member ids', () => {
+	const OTHER = {
+		id: 's-other',
+		token: 'token-other',
+		createdAt: '2026-11-01',
+		updatedAt: '2026-11-01',
+	};
+
+	function sessionsClient() {
+		const listSessions = vi.fn(async () => ({ data: [OTHER] }));
+		const revokeSession = vi.fn(async () => ({ data: { status: true } }));
+		return { listSessions, revokeSession, ...stubClient({ listSessions, revokeSession }) };
+	}
+
+	it.each([
+		['sign-out', { data: null, isPending: false }],
+		[
+			'a change of user',
+			{
+				data: {
+					session: { id: 's-bea', expiresAt: '2026-12-31T00:00:00Z' },
+					user: { id: 'u2', email: 'bea@example.test' },
+				},
+				isPending: false,
+			},
+		],
+	] as const)('forgets the handles on %s', async (_, next) => {
+		const { client, emit, listSessions, revokeSession } = sessionsClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		const [row] = await adapter.sessions.listSessions();
+		expect(listSessions).toHaveBeenCalledTimes(1);
+
+		emit(next);
+		listSessions.mockResolvedValueOnce({ data: [] });
+		// The handle is no longer mapped: revoking lists again, finds nothing, and refuses.
+		await expect(adapter.sessions.revokeSession(row?.handle ?? '')).rejects.toMatchObject({
+			code: 'PROVIDER_ERROR',
+		});
+		expect(listSessions).toHaveBeenCalledTimes(2);
+		expect(revokeSession).not.toHaveBeenCalled();
+		adapter.dispose();
+	});
+
+	it('keeps the handles while the same user’s session slides', async () => {
+		const { client, emit, listSessions, revokeSession } = sessionsClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		const [row] = await adapter.sessions.listSessions();
+		emit({
+			data: {
+				session: { id: 's-current', expiresAt: '2027-01-31T00:00:00Z' },
+				user: { id: 'u1', email: 'ada@example.test', name: 'Ada' },
+			},
+			isPending: false,
+		});
+		await adapter.sessions.revokeSession(row?.handle ?? '');
+		expect(listSessions).toHaveBeenCalledTimes(1);
+		expect(revokeSession).toHaveBeenCalledWith({ token: 'token-other' });
+		adapter.dispose();
+	});
+
+	it('does not restore handles from a list that began before a sign-out', async () => {
+		const { client, emit, listSessions, revokeSession } = sessionsClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		let release: () => void = () => {};
+		listSessions.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					release = () => resolve({ data: [OTHER] });
+				})
+		);
+		const listing = adapter.sessions.listSessions();
+		emit({ data: null, isPending: false });
+		release();
+		const [row] = await listing;
+		listSessions.mockResolvedValueOnce({ data: [] });
+		await expect(adapter.sessions.revokeSession(row?.handle ?? '')).rejects.toMatchObject({
+			code: 'PROVIDER_ERROR',
+		});
+		expect(revokeSession).not.toHaveBeenCalled();
+		adapter.dispose();
+	});
+
+	it('refuses a member id with @, which Better Auth would read as an email', async () => {
+		const removeMember = vi.fn();
+		const organization = { removeMember } as unknown as BetterAuthClient['organization'];
+		const { client } = stubClient({ organization });
+		const adapter = new BetterAuthAdapter({ client });
+		for (const id of ['bea@example.test', '', undefined as unknown as string]) {
+			await expect(adapter.organization.removeMember('org-1', id)).rejects.toThrow(TypeError);
+		}
+		expect(removeMember).not.toHaveBeenCalled();
+		adapter.dispose();
 	});
 });
 

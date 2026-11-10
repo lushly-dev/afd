@@ -58,3 +58,18 @@ export function hasWebAuthn(): boolean {
 		typeof globalThis.navigator?.credentials?.get === 'function'
 	);
 }
+
+/**
+ * Whether the browser can offer passkeys in its autofill (WebAuthn's conditional mediation).
+ * Missing or false means a `{ autoFill: true }` ceremony would never be offered.
+ */
+export async function hasConditionalMediation(): Promise<boolean> {
+	const credential = globalThis.PublicKeyCredential as
+		| { isConditionalMediationAvailable?: () => Promise<boolean> }
+		| undefined;
+	try {
+		return (await credential?.isConditionalMediationAvailable?.()) === true;
+	} catch {
+		return false;
+	}
+}

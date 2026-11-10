@@ -38,6 +38,11 @@ export interface BetterAuthSessionData {
 export interface BetterAuthSessionValue {
 	data: BetterAuthSessionData | null;
 	isPending: boolean;
+	/**
+	 * The last fetch's failure. Better Auth's `refetch` never rejects: on a network failure or a
+	 * 5xx it stores the error here, keeps the stale `data` and resolves. A 401 clears `data`.
+	 */
+	error?: unknown;
 	/** Better Auth's session atom fetches the session again through this. */
 	refetch?: () => Promise<unknown>;
 }

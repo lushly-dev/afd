@@ -29,16 +29,21 @@ import {
 import { deviceLabel, hasWebAuthn, sessionHandle, toDate } from './session-rows.js';
 
 /**
- * Sessions through Better Auth's `/list-sessions` and `/revoke-*` routes, or `undefined` when the
- * client has none of them. Handles map to tokens in memory only, refreshed by every list.
+ * Sessions through Better Auth's `/list-sessions` and `/revoke-*` routes. Handles map to tokens
+ * in memory only, refreshed by every list; `forget` drops them, which the adapter does on
+ * sign-out and whenever the signed-in user changes, so one person's handles never name another's
+ * sessions.
  */
 export function betterAuthSessions(
 	client: BetterAuthClient,
 	currentSessionId: () => string | undefined
-): SessionManagement {
+): { sessions: SessionManagement; forget(): void } {
 	let tokens = new Map<string, string>();
+	// A list that started before a `forget` must not restore the tokens it read.
+	let generation = 0;
 
 	const list = async (): Promise<SessionRow[]> => {
+		const started = generation;
 		const rows = (await call(() => routes(client.listSessions)())) ?? [];
 		const next = new Map<string, string>();
 		const current = currentSessionId();
@@ -56,11 +61,16 @@ export function betterAuthSessions(
 				...(device ? { device } : {}),
 			});
 		}
-		tokens = next;
+		if (started === generation) tokens = next;
 		return sessions;
 	};
 
-	return {
+	const forget = () => {
+		generation += 1;
+		tokens = new Map();
+	};
+
+	const sessions: SessionManagement = {
 		listSessions: list,
 		async revokeSession(target) {
 			if (target === 'all') {
@@ -81,6 +91,7 @@ export function betterAuthSessions(
 			tokens.delete(target);
 		},
 	};
+	return { sessions, forget };
 }
 
 /**
@@ -181,6 +192,14 @@ function named(organizationId: string): string {
 	return organizationId;
 }
 
+/** A membership id: Better Auth would read a value with `@` as an email. */
+function membership(memberId: string): string {
+	if (typeof memberId !== 'string' || memberId.length === 0 || memberId.includes('@')) {
+		throw new TypeError('memberId must be a membership id, not an email');
+	}
+	return memberId;
+}
+
 const NOT_A_MEMBER = 'YOU_ARE_NOT_A_MEMBER_OF_THIS_ORGANIZATION';
 
 /**
@@ -243,7 +262,8 @@ export function betterAuthOrganization(client: BetterAuthClient): OrganizationAc
 			await call(() => organization().cancelInvitation({ invitationId }));
 		},
 		async removeMember(organizationId, memberId) {
-			const body = { organizationId: named(organizationId), memberIdOrEmail: memberId };
+			// Better Auth reads an `@` as an email: members are named by membership id only.
+			const body = { organizationId: named(organizationId), memberIdOrEmail: membership(memberId) };
 			await call(() => organization().removeMember(body));
 		},
 		async setRole(organizationId, memberId, role) {

@@ -40,6 +40,9 @@ export type MockAuthAdapterWithCapabilities = MockAuthAdapter & {
  * clock, with `roles` for its organizations. Returns the same adapter. Once attached, a passkey
  * sign-in signs in the holder of the passkey added last, or is `PASSKEY_CANCELLED` with none.
  *
+ * Call it once per Mock: a second call on the same Mock throws, rather than replacing records a
+ * caller may already hold. A host that may reach it twice checks `mock.sessions` first.
+ *
  * @throws TypeError when the capabilities are already attached
  */
 export function withMockCapabilities(

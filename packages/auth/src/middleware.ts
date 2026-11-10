@@ -2,7 +2,7 @@
  * @fileoverview Auth middleware for gating commands behind authentication
  */
 
-import type { Actor, CommandMiddleware } from '@lushly-dev/afd-core';
+import type { Actor, Clock, CommandMiddleware } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
 import { AUTH_COMMAND_NAMES } from './command-names.js';
 import { isSessionExpired } from './session-state.js';
@@ -19,6 +19,8 @@ declare module '@lushly-dev/afd-core' {
 		auth?: AuthenticatedSessionState;
 	}
 }
+
+const SESSION_COMMANDS: ReadonlySet<string> = new Set(AUTH_COMMAND_NAMES);
 
 export interface AuthMiddlewareOptions {
 	/**
@@ -39,8 +41,24 @@ export interface AuthMiddlewareOptions {
 	 * every call is gated on the session, as before. `credentials` a caller put on the context
 	 * itself (a direct-registry call, say) are never recognised, since only afd-server can mark
 	 * them.
+	 *
+	 * Such a call has no session, so the built-in auth commands (`auth-sign-in`, `auth-sign-out`,
+	 * `auth-session-get`) are refused for it with `UNAUTHORIZED`, before the adapter is read. A
+	 * nested call keeps the brand only when it is given the same `credentials` object.
+	 *
+	 * @param now - the middleware's clock, in milliseconds since the epoch, so credentials past
+	 * their `expiresAt` are not recognised.
 	 */
-	isVerifiedCredentials?: (credentials: unknown) => boolean;
+	isVerifiedCredentials?: (credentials: unknown, now: number) => boolean;
+
+	/**
+	 * The clock a session's `expiresAt` is compared with, and the `now` given to
+	 * `isVerifiedCredentials`. Default: the system clock. A kernel that times the adapter on a
+	 * clock of its own (a fake one in tests, a recorded one in a replay) passes the same clock to
+	 * `MockAuthAdapter` and here, or every gated call compares the Mock's `expiresAt` with the
+	 * wrong time.
+	 */
+	clock?: Clock;
 }
 
 /**
@@ -77,22 +95,33 @@ export function createAuthMiddleware(
 	options: AuthMiddlewareOptions = {}
 ): CommandMiddleware {
 	const excluded = new Set<string>([...AUTH_COMMAND_NAMES, ...(options.exclude ?? [])]);
-	const isVerifiedCredentials = options.isVerifiedCredentials;
+	const { isVerifiedCredentials, clock } = options;
 
 	return async (commandName, _input, context, next) => {
+		const now = clock ? clock.now() : Date.now();
 		if (
 			context.credentials !== undefined &&
 			isVerifiedCredentials !== undefined &&
-			isVerifiedCredentials(context.credentials) === true
+			isVerifiedCredentials(context.credentials, now) === true
 		) {
 			// The token is the caller: no session decides this call or names its actor.
 			delete context.auth;
+			if (SESSION_COMMANDS.has(commandName)) {
+				// A token has no session to read, sign in to or sign out of.
+				return failure({
+					code: 'UNAUTHORIZED',
+					message: 'Not available to a token',
+					suggestion:
+						'This call is authorized by a token; session commands need a signed-in session',
+					retryable: false,
+				});
+			}
 			return next();
 		}
 
 		const state = adapter.getSession();
 		const verified =
-			state.status === 'authenticated' && !isSessionExpired(state.session) ? state : undefined;
+			state.status === 'authenticated' && !isSessionExpired(state.session, now) ? state : undefined;
 
 		// Overwrite or remove whatever the caller put in the context.
 		if (verified) {

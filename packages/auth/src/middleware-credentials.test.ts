@@ -5,7 +5,7 @@
  */
 
 import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
-import { success } from '@lushly-dev/afd-core';
+import { fixedClock, success } from '@lushly-dev/afd-core';
 import { createDirectRegistry, defineCommand } from '@lushly-dev/afd-server';
 import { isVerifiedCredentials } from '@lushly-dev/afd-server/credentials';
 import { describe, expect, it } from 'vitest';
@@ -13,8 +13,12 @@ import { z } from 'zod';
 // Test-only: no entry exports the brand, so reach afd-server's built module directly. It is the
 // same module `@lushly-dev/afd-server/credentials` imports (pnpm links the workspace package),
 // so what it brands is what `isVerifiedCredentials` recognises.
-import { brandVerifiedCredentials } from '../node_modules/@lushly-dev/afd-server/dist/verified-credentials.js';
+import {
+	brandVerifiedCredentials,
+	unbrandVerifiedCredentials,
+} from '../node_modules/@lushly-dev/afd-server/dist/verified-credentials.js';
 import { MockAuthAdapter } from './adapters/mock.js';
+import { AUTH_COMMAND_NAMES } from './command-names.js';
 import { createAuthMiddleware } from './middleware.js';
 import type { AuthenticatedSessionState } from './types.js';
 
@@ -221,5 +225,120 @@ describe('createAuthMiddleware with forged credentials', () => {
 			{ actor: { ...tokenActor }, credentials: brandVerifiedCredentials(credentialsFields()) }
 		);
 		expect(verified.data).toEqual({ actor: tokenActor });
+	});
+});
+
+describe('createAuthMiddleware: a token has no session', () => {
+	it.each([...AUTH_COMMAND_NAMES])(
+		'refuses a verified %s without reading the adapter',
+		async (name) => {
+			const adapter = new MockAuthAdapter();
+			adapter._setUser({ id: 'session-user', email: 'session@example.com' });
+			let reads = 0;
+			const getSession = adapter.getSession.bind(adapter);
+			adapter.getSession = () => {
+				reads += 1;
+				return getSession();
+			};
+			const middleware = createAuthMiddleware(adapter, { isVerifiedCredentials });
+			let ran = false;
+			const context: CommandContext = {
+				actor: { ...tokenActor },
+				credentials: brandVerifiedCredentials(credentialsFields()),
+				auth: forgedAuth,
+			};
+
+			const result = await middleware(name, {}, context, () => {
+				ran = true;
+				return Promise.resolve(success({ ok: true }));
+			});
+
+			expect(result.success).toBe(false);
+			expect(result.error).toMatchObject({
+				code: 'UNAUTHORIZED',
+				retryable: false,
+				suggestion: 'This call is authorized by a token; session commands need a signed-in session',
+			});
+			expect(ran).toBe(false);
+			expect(reads).toBe(0);
+			expect(context.auth).toBeUndefined();
+			expect(context.actor).toEqual(tokenActor);
+		}
+	);
+
+	it('still lets an unbranded caller run the auth commands, as before', async () => {
+		const adapter = new MockAuthAdapter();
+		const middleware = createAuthMiddleware(adapter, { isVerifiedCredentials });
+		const result = await middleware(
+			'auth-session-get',
+			{},
+			{ credentials: credentialsFields() },
+			() => Promise.resolve(success({ ok: true }))
+		);
+		expect(result.success).toBe(true);
+	});
+});
+
+describe('createAuthMiddleware clock', () => {
+	// Far from wall time either way, so the system clock would answer differently.
+	const PAST = Date.parse('2001-01-01T00:00:00Z');
+	const FUTURE = Date.parse('2101-01-01T00:00:00Z');
+
+	it('compares the Mock’s expiresAt with the clock it is given', async () => {
+		const clock = fixedClock(PAST);
+		const adapter = new MockAuthAdapter({ clock });
+		await adapter.signIn({ method: 'credentials', email: 'ada@example.test' });
+		const next = () => Promise.resolve(success({ ok: true }));
+
+		// The Mock's session expires in 2001: on the system clock every gated call would fail.
+		expect((await createAuthMiddleware(adapter)('todo-list', {}, {}, next)).error?.code).toBe(
+			'TOKEN_EXPIRED'
+		);
+		const middleware = createAuthMiddleware(adapter, { clock });
+		expect((await middleware('todo-list', {}, {}, next)).success).toBe(true);
+		clock.advance(3600_000);
+		expect((await middleware('todo-list', {}, {}, next)).error?.code).toBe('TOKEN_EXPIRED');
+	});
+
+	it('expires a session in the clock’s future that the system clock would keep', async () => {
+		const clock = fixedClock(FUTURE);
+		const adapter = new MockAuthAdapter({ clock });
+		await adapter.signIn({ method: 'credentials', email: 'ada@example.test' });
+		clock.advance(3600_000);
+		const next = () => Promise.resolve(success({ ok: true }));
+		expect((await createAuthMiddleware(adapter)('todo-list', {}, {}, next)).success).toBe(true);
+		expect(
+			(await createAuthMiddleware(adapter, { clock })('todo-list', {}, {}, next)).error?.code
+		).toBe('TOKEN_EXPIRED');
+	});
+
+	it('gives isVerifiedCredentials its clock, so expired credentials get no pass', async () => {
+		const credentials = brandVerifiedCredentials(credentialsFields());
+		const expiry = credentialsFields().expiresAt * 1000;
+		const adapter = new MockAuthAdapter();
+		const next = () => Promise.resolve(success({ ok: true }));
+		const before = createAuthMiddleware(adapter, {
+			isVerifiedCredentials,
+			clock: fixedClock(expiry - 1),
+		});
+		expect((await before('todo-list', {}, { credentials }, next)).success).toBe(true);
+		const after = createAuthMiddleware(adapter, {
+			isVerifiedCredentials,
+			clock: fixedClock(expiry),
+		});
+		// Signed out and expired: the session treatment, so UNAUTHORIZED.
+		expect((await after('todo-list', {}, { credentials }, next)).error?.code).toBe('UNAUTHORIZED');
+	});
+
+	it('gives no pass to credentials whose request has ended', async () => {
+		const credentials = brandVerifiedCredentials(credentialsFields());
+		const adapter = new MockAuthAdapter();
+		const middleware = createAuthMiddleware(adapter, { isVerifiedCredentials });
+		const next = () => Promise.resolve(success({ ok: true }));
+		expect((await middleware('todo-list', {}, { credentials }, next)).success).toBe(true);
+		unbrandVerifiedCredentials(credentials);
+		expect((await middleware('todo-list', {}, { credentials }, next)).error?.code).toBe(
+			'UNAUTHORIZED'
+		);
 	});
 });

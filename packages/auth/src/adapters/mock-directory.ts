@@ -7,6 +7,7 @@
 import type { Clock } from '@lushly-dev/afd-core';
 import { AuthAdapterError, passkeyCancelled, passkeyUnsupported } from '../errors.js';
 import type {
+	AuthSessionState,
 	OrganizationAccess,
 	OrganizationInvitation,
 	OrganizationMember,
@@ -50,6 +51,8 @@ interface StoredMember {
 /** The Mock's provider-side records, shared by its capabilities. */
 export class MockDirectory {
 	ceremony: MockPasskeyCeremony = 'complete';
+	private sessionId: string | undefined;
+	private sessionStartedAt = new Date(0);
 	private readonly clock: Clock;
 	private readonly passkeyRecords: StoredPasskey[] = [];
 	private readonly members = new Map<string, Map<string, StoredMember>>();
@@ -61,6 +64,10 @@ export class MockDirectory {
 		roles: MockRoles = {}
 	) {
 		this.clock = mock.clock;
+		// When each session began, read on the Mock's clock as the session appears: the Mock keeps
+		// no such record itself, so its first paint stays small.
+		this.noteSession(mock.getSession());
+		mock.onAuthStateChange((state) => this.noteSession(state));
 		for (const [organizationId, byUser] of Object.entries(roles)) {
 			for (const [userId, role] of Object.entries(byUser)) {
 				this.addMember(organizationId, mockUser(userId), role);
@@ -81,7 +88,7 @@ export class MockDirectory {
 		listSessions: async () => {
 			const state = this.mock.getSession();
 			if (state.status !== 'authenticated') return [];
-			const createdAt = this.mock._sessionStartedAt();
+			const createdAt = this.sessionStartedAt;
 			return [
 				{
 					handle: await sessionHandle(state.session.id),
@@ -188,8 +195,12 @@ export class MockDirectory {
 			this.organizationMembers(organizationId).delete(member.user.id);
 		},
 		setRole: async (organizationId, memberId, role) => {
-			this.requireManager(organizationId);
+			const caller = this.requireManager(organizationId);
 			const member = this.memberById(organizationId, memberId);
+			// As Better Auth: only an owner makes an owner, or changes one.
+			if ((role === 'owner' || member.role === 'owner') && caller.role !== 'owner') {
+				throw this.fail('YOU_ARE_NOT_ALLOWED_TO_UPDATE_THIS_MEMBER');
+			}
 			if (role !== 'owner') {
 				this.checkNotLastOwner(
 					organizationId,
@@ -228,6 +239,14 @@ export class MockDirectory {
 
 	private fail(details: string): AuthAdapterError {
 		return AuthAdapterError.providerError('mock', details);
+	}
+
+	private noteSession(state: AuthSessionState): void {
+		const id = state.status === 'authenticated' ? state.session.id : undefined;
+		if (id !== this.sessionId) {
+			this.sessionId = id;
+			this.sessionStartedAt = this.now();
+		}
 	}
 
 	private now(): Date {
@@ -282,13 +301,19 @@ export class MockDirectory {
 		return member;
 	}
 
-	private requireManager(organizationId: string): void {
-		if (!MANAGERS.has(this.requireMember(organizationId).role)) {
+	private requireManager(organizationId: string): StoredMember {
+		const caller = this.requireMember(organizationId);
+		if (!MANAGERS.has(caller.role)) {
 			throw this.fail('YOU_ARE_NOT_ALLOWED_TO_MANAGE_THIS_ORGANIZATION');
 		}
+		return caller;
 	}
 
 	private memberById(organizationId: string, memberId: string): StoredMember {
+		// As the Better Auth adapter: members are named by membership id, never an email.
+		if (typeof memberId !== 'string' || memberId.length === 0 || memberId.includes('@')) {
+			throw new TypeError('memberId must be a membership id, not an email');
+		}
 		for (const member of this.organizationMembers(organizationId).values()) {
 			if (member.id === memberId) return member;
 		}
