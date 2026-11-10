@@ -14,7 +14,7 @@ import type {
 	SpecimenModule,
 	Target,
 } from '../types.js';
-import { captureDocument, colorSchemeOf, contextMismatches, openElements } from './capture.js';
+import { captureDocument, colorSchemeOf, contextMismatches, customElementsIn } from './capture.js';
 import { type EventRecorder, recordEvents } from './events.js';
 import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
@@ -258,11 +258,12 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	let installedPlugins: BrowserObservation['plugins'] = [];
 
 	async function settle(): Promise<void> {
-		const tags = new Set<string>();
-		for (const element of openElements(mountRoot)) {
-			if (element.localName.includes('-')) tags.add(element.localName);
-		}
-		const defined = Promise.all([...tags].map((tag) => customElements.whenDefined(tag)));
+		// Each element's own registry: a name defined only in a scoped one never reaches the global
+		// registry, so waiting there would hold the story to its deadline (#707).
+		const found = [...customElementsIn(mountRoot)];
+		const defined = Promise.all(
+			found.flatMap(([registry, tags]) => [...tags].map((tag) => registry.whenDefined(tag)))
+		);
 		if (story) {
 			// A component may define an element only on intent, such as opening a disclosure, so a
 			// story can hold a tag that stays undefined. Storybook does not wait for one either.
@@ -270,7 +271,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				defined,
 				new Promise((resolve) => setTimeout(resolve, UNDEFINED_ELEMENT_GRACE_MS)),
 			]);
-			for (const tag of tags) if (!customElements.get(tag)) undefinedTags.add(tag);
+			for (const [registry, tags] of found)
+				for (const tag of tags) if (!registry.get(tag)) undefinedTags.add(tag);
 		} else await defined;
 		instrumentation.setMotionMode(motion);
 		await document.fonts.ready;
@@ -533,9 +535,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				if (handle.ready && specimen.ready)
 					throw new Error('Declare readiness on the mount handle or specimen, not both.');
 				mountRoot.append(handle.element);
-				for (const element of openElements(mountRoot)) {
-					if (element.localName.includes('-')) await customElements.whenDefined(element.localName);
-				}
+				for (const [registry, tags] of customElementsIn(mountRoot))
+					for (const tag of tags) await registry.whenDefined(tag);
 				readyHook = handle.ready !== undefined || specimen.ready !== undefined;
 				await handle.ready;
 				await specimen.ready?.();

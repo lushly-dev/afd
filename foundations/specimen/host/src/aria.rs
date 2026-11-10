@@ -7,9 +7,13 @@
 //! line. A child list that is only text is written inline, or omitted when it repeats the
 //! name. Text fields show their value instead of their editor's contents. States are
 //! Playwright's: checked, disabled, expanded, level, pressed and selected.
+//!
+//! While a modal dialog is open, Chromium leaves the inert rest of the page out of the tree,
+//! the mount root with it, and hangs the dialog from the document. The snapshot is then what
+//! stays exposed inside the mount root: the dialog, as assistive technology meets it.
 
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 const FLATTENED: &[&str] = &["generic", "none", "presentation"];
 const VALUED: &[&str] = &["textbox", "searchbox", "combobox", "spinbutton", "slider"];
@@ -263,23 +267,20 @@ fn element(nodes: &HashMap<String, Value>, node: &Value, role: &str) -> Vec<Stri
     }
 }
 
-/// The snapshot of the subtree rooted at the DOM node whose backend id is `root_backend_id`.
-pub fn snapshot(tree: &Value, root_backend_id: i64) -> String {
-    let nodes: HashMap<String, Value> = tree
-        .get("nodes")
+fn nodes_of(tree: &Value) -> HashMap<String, Value> {
+    tree.get("nodes")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .filter_map(|node| Some((node.get("nodeId")?.as_str()?.to_string(), node.clone())))
-        .collect();
-    let Some(root) = nodes
-        .values()
-        .find(|node| node.get("backendDOMNodeId").and_then(Value::as_i64) == Some(root_backend_id))
-    else {
-        return String::new();
-    };
-    let mut items = Vec::new();
-    collect(&nodes, root, &mut items);
+        .collect()
+}
+
+fn backend_id(node: &Value) -> Option<i64> {
+    node.get("backendDOMNodeId").and_then(Value::as_i64)
+}
+
+fn write(items: Vec<Item>) -> String {
     let mut lines = Vec::new();
     for item in items {
         match item {
@@ -290,10 +291,45 @@ pub fn snapshot(tree: &Value, root_backend_id: i64) -> String {
     lines.join("\n")
 }
 
+/// The snapshot of the subtree rooted at the DOM node whose backend id is `root_backend_id`,
+/// or `None` when the tree leaves that node out, as it does behind a modal dialog.
+pub fn snapshot(tree: &Value, root_backend_id: i64) -> Option<String> {
+    let nodes = nodes_of(tree);
+    let root = nodes
+        .values()
+        .find(|node| backend_id(node) == Some(root_backend_id))?;
+    let mut items = Vec::new();
+    collect(&nodes, root, &mut items);
+    Some(write(items))
+}
+
+/// The snapshot of the exposed nodes whose DOM nodes are in `inside`, the mount root's
+/// subtree, in tree order: each one outermost, so a nested one is written once, under it.
+pub fn exposed_within(tree: &Value, inside: &HashSet<i64>) -> String {
+    let nodes = nodes_of(tree);
+    let mut items = Vec::new();
+    let mut pending: Vec<&Value> = nodes
+        .values()
+        .filter(|node| node.get("parentId").is_none())
+        .collect();
+    pending.reverse();
+    while let Some(node) = pending.pop() {
+        if backend_id(node).is_some_and(|id| inside.contains(&id)) {
+            collect(&nodes, node, &mut items);
+            continue;
+        }
+        let mut children = children_of(&nodes, node);
+        children.reverse();
+        pending.extend(children);
+    }
+    write(items)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::snapshot;
+    use super::{exposed_within, snapshot};
     use serde_json::json;
+    use std::collections::HashSet;
 
     fn node(id: &str, role: &str, extra: serde_json::Value) -> serde_json::Value {
         let kind = if role.chars().next().is_some_and(char::is_uppercase) {
@@ -331,7 +367,7 @@ mod tests {
             node("15", "StaticText", json!({ "name": { "value": "Soon" } })),
         ]});
         assert_eq!(
-            snapshot(&tree, 10),
+            snapshot(&tree, 10).unwrap(),
             [
                 "- main:",
                 "  - button \"Save\" [pressed]",
@@ -355,7 +391,7 @@ mod tests {
             node("5", "StaticText", json!({ "name": { "value": "42" } })),
         ]});
         assert_eq!(
-            snapshot(&tree, 10),
+            snapshot(&tree, 10).unwrap(),
             "- main:\n  - 'image \"Current plan: Garden\"': GARDEN\n  - paragraph: \"42\""
         );
     }
@@ -375,13 +411,37 @@ mod tests {
     }
 
     #[test]
-    fn ignored_nodes_are_flattened_and_a_missing_root_is_empty() {
+    fn ignored_nodes_are_flattened_and_a_missing_root_is_none() {
         let tree = json!({ "nodes": [
             node("1", "main", json!({ "backendDOMNodeId": 10, "childIds": ["2"] })),
             json!({ "nodeId": "2", "ignored": true, "role": { "type": "role", "value": "none" }, "childIds": ["3"] }),
             node("3", "StaticText", json!({ "name": { "value": "only" } })),
         ]});
-        assert_eq!(snapshot(&tree, 10), "- main: only");
-        assert_eq!(snapshot(&tree, 11), "");
+        assert_eq!(snapshot(&tree, 10).unwrap(), "- main: only");
+        assert_eq!(snapshot(&tree, 11), None);
+    }
+
+    /// Chromium's tree with a modal dialog open in the mount root (backend 5): the root and the
+    /// paragraph beside the dialog are left out, and the dialog hangs from the document.
+    #[test]
+    fn behind_a_modal_the_exposed_dialog_in_the_mount_root_is_the_snapshot() {
+        let tree = json!({ "nodes": [
+            node("1", "RootWebArea", json!({ "backendDOMNodeId": 1, "childIds": ["2"] })),
+            json!({ "nodeId": "2", "parentId": "1", "ignored": true, "backendDOMNodeId": 2,
+                "role": { "type": "role", "value": "none" }, "childIds": ["3", "7"] }),
+            node("3", "dialog", json!({ "parentId": "2", "backendDOMNodeId": 7, "childIds": ["4", "6"] })),
+            node("4", "heading", json!({ "parentId": "3", "backendDOMNodeId": 8, "name": { "value": "Palette" }, "childIds": ["5"],
+                "properties": [{ "name": "level", "value": { "type": "integer", "value": 2 } }] })),
+            node("5", "StaticText", json!({ "parentId": "4", "name": { "value": "Palette" } })),
+            node("6", "button", json!({ "parentId": "3", "backendDOMNodeId": 9, "name": { "value": "Run" } })),
+            node("7", "dialog", json!({ "parentId": "2", "backendDOMNodeId": 40, "name": { "value": "Elsewhere" } })),
+        ]});
+        assert_eq!(snapshot(&tree, 5), None);
+        let inside: HashSet<i64> = [5, 6, 7, 8, 9].into();
+        assert_eq!(
+            exposed_within(&tree, &inside),
+            "- dialog:\n  - heading \"Palette\" [level=2]\n  - button \"Run\""
+        );
+        assert_eq!(exposed_within(&tree, &HashSet::new()), "");
     }
 }

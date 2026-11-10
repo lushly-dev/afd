@@ -84,6 +84,31 @@ export function openElements(root: Element): Element[] {
 	return elements;
 }
 
+/**
+ * The registry that defines an element: its own, for one created in a scoped registry, or its
+ * shadow root's, or the global one. The scoped-registry polyfill names the root's `customElements`.
+ */
+export function registryOf(element: Element): CustomElementRegistry {
+	const scoped = (owner: unknown) =>
+		(owner as { customElementRegistry?: CustomElementRegistry | null }).customElementRegistry ??
+		(owner instanceof ShadowRoot
+			? (owner as { customElements?: CustomElementRegistry }).customElements
+			: undefined);
+	return scoped(element) ?? scoped(element.getRootNode()) ?? customElements;
+}
+
+/** The custom elements in `root`'s open tree, each with the registry that defines it. */
+export function customElementsIn(root: Element): Map<CustomElementRegistry, Set<string>> {
+	const found = new Map<CustomElementRegistry, Set<string>>();
+	for (const element of openElements(root)) {
+		if (!element.localName.includes('-')) continue;
+		const registry = registryOf(element);
+		const tags = found.get(registry) ?? new Set<string>();
+		found.set(registry, tags.add(element.localName));
+	}
+	return found;
+}
+
 function focusedElement(): Element | null {
 	let focused = document.activeElement;
 	while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement;

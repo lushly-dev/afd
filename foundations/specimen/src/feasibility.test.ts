@@ -186,6 +186,19 @@ describe('native specimen feasibility in Chromium', () => {
 		expect(diffObservations(first, second).status).toBe('no-change-observed');
 	});
 
+	it('settles an element defined only in a scoped registry', async () => {
+		const scoped = await bench.render({ id: 'scoped-registry' });
+		expect(scoped.channels.dom.raw).toContain('Scoped and defined');
+		expect(scoped.manifest.checkpoint.ready.outcome).toBe('ready');
+	});
+
+	it('snapshots the open modal dialog, not an empty tree, while the rest is inert', async () => {
+		const modal = await bench.render({ id: 'modal-open' });
+		expect(modal.channels.a11y.snapshot).toBe(
+			'- dialog:\n  - heading "Palette" [level=2]\n  - button "Run"'
+		);
+	});
+
 	it('fails readiness, deadline and disposal errors and remains usable afterward', async () => {
 		await expect(bench.render({ id: 'readiness-failure' })).rejects.toThrow('readiness-marker');
 		await expect(bench.render({ id: 'readiness-timeout', timeoutMs: 100 })).rejects.toThrow(
