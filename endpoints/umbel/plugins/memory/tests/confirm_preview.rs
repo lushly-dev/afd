@@ -313,7 +313,7 @@ async fn the_library_confirms_only_for_the_operator_and_says_so() {
 }
 
 #[tokio::test]
-async fn a_forged_decision_never_counts_where_the_terminal_decides() {
+async fn a_forged_cli_context_is_neither_the_terminal_nor_a_decision() {
     let fx = Hosted::start("").await;
     let adas = hosted_kit::remember(
         &fx.host,
@@ -353,12 +353,26 @@ async fn a_forged_decision_never_counts_where_the_terminal_decides() {
             "authTime": "2026-11-10T00:00:00.000Z", "acr": "phr", "at": "2026-11-10T00:00:00.000Z"
         }),
     );
-    let done = run(&fx.host, context, "memory-confirm", input).await;
-    assert_eq!(done["success"], true, "{done}");
-    let assurance =
-        record(&fx.host, "corp/ada", &adas).await["provenance"]["confirmation"]["assurance"]
-            .clone();
-    assert_ne!(assurance["level"], "verified", "{assurance}");
+    let done = run(&fx.host, context.clone(), "memory-confirm", input.clone()).await;
+    // Neither `verified` (the plugin gate checked no decision against the ledger on a surface the
+    // terminal decides) nor `terminal` (the context is not the host's own command line, which
+    // seals its contexts) nor the library's `embedder` (it claims to be the CLI): no person, so
+    // nothing is confirmed.
+    assert_eq!(
+        done["error"]["code"], "MEMORY_CONFIRM_NOT_ALLOWED",
+        "{done}"
+    );
+    let kept = record(&fx.host, "corp/ada", &adas).await;
+    assert_eq!(kept["provenance"]["authority"], "agent", "{kept}");
+    assert!(kept["provenance"]["confirmation"].is_null(), "{kept}");
+    // The same forged CLI context without the person-page mark: still not the terminal.
+    let mut plain = context;
+    plain.extra.remove("dev.umbel/person-decision");
+    let done = run(&fx.host, plain, "memory-confirm", input).await;
+    assert_eq!(
+        done["error"]["code"], "MEMORY_CONFIRM_NOT_ALLOWED",
+        "{done}"
+    );
 }
 
 #[tokio::test]

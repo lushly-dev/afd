@@ -159,7 +159,7 @@ fn erased_outcome(
         outcome = outcome
             .with_metadata(
                 "dev.umbel/record",
-                json!({ "kind": "memory-erasure", "id": trace }),
+                json!({ "kind": "memory-erase-notice", "id": trace }),
             )
             .with_metadata(
                 "dev.umbel/provenance",

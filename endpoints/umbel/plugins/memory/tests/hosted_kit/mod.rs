@@ -460,6 +460,22 @@ impl Hosted {
         self.dir.path()
     }
 
+    /// Rewrite `umbel.toml` with `policy` and serve the workspace from a new host on the same
+    /// clock, as a restart after the deployer changed the configuration.
+    pub async fn restart(&mut self, policy: &str) {
+        std::fs::write(
+            self.dir().join("umbel.toml"),
+            oauth_config(&self.kit, policy),
+        )
+        .unwrap();
+        let host = host(self.dir.path(), &self.kit, &self.clock);
+        host.check_person_logins().await;
+        let served = Served::start(&host).await;
+        self.client = Client::plain(served.address);
+        self.served = served;
+        self.host = host;
+    }
+
     pub fn now_s(&self) -> i64 {
         afd::Clock::now(&self.clock).div_euclid(1000)
     }

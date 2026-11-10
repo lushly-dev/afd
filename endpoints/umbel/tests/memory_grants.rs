@@ -844,3 +844,35 @@ async fn the_erase_service_answers_only_a_person_decision_for_memory_erase_itsel
         assert!(message.contains("MEMORY_ERASE_NOT_ALLOWED"), "{outcome:?}");
     }
 }
+
+#[tokio::test]
+async fn editors_are_persons_and_the_library_only_for_the_operator() {
+    // Phase 5 section 8.3 at the host's services, with no plugin check in front: another
+    // principal's record changes only for a person holding an `editors` token. An agent acting
+    // for an editor is not one, whatever `agents_may_share` and `writers` say; through the library
+    // only the operator's person (`principal.local_id`) counts.
+    let text = config(
+        "default_access = \"space\"\neditors = [\"principal:human:ada\", \"principal:human:bo\"]\nwriters = [\"principal:human:bo\", \"principal:human:ada\"]\nagents_may_share = true",
+        "",
+    )
+    .replacen("config_version = 4", "config_version = 5", 1);
+    let (_dir, host) = make(&text);
+    let change = |id: &str| json!({ "op": "invalidate", "id": id });
+    let cys = remember(&host, agent_for("c1", "cy"), json!({ "n": 1 })).await;
+    for actor in [agent_for("a1", "ada"), agent_for("b1", "bo")] {
+        let outcome = run(&host, actor, "mem-change", change(&cys)).await;
+        assert!(
+            refusal(&outcome).1.contains("MEMORY_NOT_OWNED"),
+            "{outcome:?}"
+        );
+    }
+    // Bo is an editor, but not the operator: through the library, refused.
+    let outcome = run(&host, human("bo"), "mem-change", change(&cys)).await;
+    assert!(
+        refusal(&outcome).1.contains("MEMORY_NOT_OWNED"),
+        "{outcome:?}"
+    );
+    // Ada is the operator's person and an editor.
+    let outcome = run(&host, human("ada"), "mem-change", change(&cys)).await;
+    assert_eq!(data(&outcome)["result"], 2, "{outcome:?}");
+}

@@ -10,7 +10,9 @@ mod support;
 
 use support::open_memory;
 use umbel_store::conformance::samples;
-use umbel_store::memory::{AsOf, Erase, EraseOutcome, EraseRequest, WalState, erase_plan};
+use umbel_store::memory::{
+    AsOf, Erase, EraseDryRun, EraseOutcome, EraseRequest, WalState, erase_plan,
+};
 use umbel_store::{MemoryStore, ReadFlags, ReaderFilter};
 use umbel_store_embedded::StoreOptions;
 
@@ -125,7 +127,7 @@ fn the_erase_runs_only_for_the_plan_and_leaves_others_alone() {
 }
 
 #[test]
-fn a_request_is_taken_once_and_a_stale_plan_voids_it() {
+fn a_request_is_taken_once_and_only_changed_records_void_it() {
     let dir = tempfile::tempdir().unwrap();
     let m = seeded(dir.path());
     let plan = erase_plan(&m.erase_targets(&owners(), None).unwrap());
@@ -140,21 +142,14 @@ fn a_request_is_taken_once_and_a_stale_plan_voids_it() {
         m.erase_request(PLAN_ID, T0 + 1).unwrap(),
         Some(request(&plan, T0 + 600_000))
     );
-    // A request for another plan is voided, and nothing is erased.
+    // Another plan presented erases nothing and leaves the request as it was.
     let other = erase_plan(&m.erase_targets(&[BO.to_owned()], None).unwrap());
     assert_eq!(
         m.erase(erase(&other, Some(PLAN_ID))).unwrap(),
         EraseOutcome::PlanStale
     );
-    assert_eq!(m.erase_request(PLAN_ID, T0 + 1).unwrap(), None);
-    assert_eq!(
-        m.erase(erase(&plan, Some(PLAN_ID))).unwrap(),
-        EraseOutcome::RequestGone
-    );
-    assert_eq!(m.erase_targets(&owners(), None).unwrap().len(), 3);
-    // A fresh request runs once; the second erase finds it gone.
-    m.erase_request_create(request(&plan, T0 + 600_000), T0)
-        .unwrap();
+    assert!(m.erase_request(PLAN_ID, T0 + 1).unwrap().is_some());
+    // It runs once; the second erase finds it gone.
     assert!(matches!(
         m.erase(erase(&plan, Some(PLAN_ID))).unwrap(),
         EraseOutcome::Erased(_)
@@ -163,6 +158,79 @@ fn a_request_is_taken_once_and_a_stale_plan_voids_it() {
     assert_eq!(
         m.erase(erase(&plan, Some(PLAN_ID))).unwrap(),
         EraseOutcome::RequestGone
+    );
+}
+
+#[test]
+fn records_that_changed_void_the_request_in_the_erases_own_transaction() {
+    let dir = tempfile::tempdir().unwrap();
+    let m = seeded(dir.path());
+    let plan = erase_plan(&m.erase_targets(&owners(), None).unwrap());
+    m.erase_request_create(request(&plan, T0 + 600_000), T0)
+        .unwrap();
+    m.write(samples::memory_batch(
+        T0,
+        vec![samples::memory_entry(5, BO, &["space"], "new", "bo new")],
+    ))
+    .unwrap();
+    assert_eq!(
+        m.erase(erase(&plan, Some(PLAN_ID))).unwrap(),
+        EraseOutcome::PlanStale
+    );
+    assert_eq!(m.erase_request(PLAN_ID, T0 + 1).unwrap(), None, "voided");
+    assert_eq!(m.erase_targets(&owners(), None).unwrap().len(), 4);
+}
+
+#[test]
+fn a_dry_run_is_its_erasers_and_is_used_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let m = seeded(dir.path());
+    let plan = erase_plan(&m.erase_targets(&owners(), None).unwrap());
+    let run = EraseDryRun {
+        eraser: "human:corp/cy".to_owned(),
+        target: BO.to_owned(),
+        plan: plan.clone(),
+        at: T0,
+        expires_at: T0 + 600_000,
+    };
+    m.erase_dry_run_record(run).unwrap();
+    // Another eraser, another target or another plan has none.
+    assert!(
+        !m.erase_dry_run("human:corp/ada", BO, &plan, T0 + 1, false)
+            .unwrap()
+    );
+    assert!(
+        !m.erase_dry_run("human:corp/cy", CY, &plan, T0 + 1, false)
+            .unwrap()
+    );
+    assert!(
+        !m.erase_dry_run("human:corp/cy", BO, &erase_plan(&[]), T0 + 1, false)
+            .unwrap()
+    );
+    // Looked at, it stays; taken, it is gone; expired, it is not there.
+    assert!(
+        m.erase_dry_run("human:corp/cy", BO, &plan, T0 + 1, false)
+            .unwrap()
+    );
+    assert!(
+        m.erase_dry_run("human:corp/cy", BO, &plan, T0 + 1, true)
+            .unwrap()
+    );
+    assert!(
+        !m.erase_dry_run("human:corp/cy", BO, &plan, T0 + 1, true)
+            .unwrap()
+    );
+    let late = EraseDryRun {
+        eraser: "human:corp/cy".to_owned(),
+        target: BO.to_owned(),
+        plan: plan.clone(),
+        at: T0,
+        expires_at: T0 + 600_000,
+    };
+    m.erase_dry_run_record(late).unwrap();
+    assert!(
+        !m.erase_dry_run("human:corp/cy", BO, &plan, T0 + 600_000, false)
+            .unwrap()
     );
 }
 
@@ -200,4 +268,31 @@ fn an_unwritten_store_has_no_targets_and_no_requests() {
         Err(umbel_store::StoreError::NotProvisioned)
     ));
     assert!(!dir.path().join("memory.sqlite3").exists());
+}
+
+#[test]
+fn a_write_and_a_sweep_purge_what_has_expired() {
+    let dir = tempfile::tempdir().unwrap();
+    let m = seeded(dir.path());
+    let plan = erase_plan(&m.erase_targets(&owners(), None).unwrap());
+    m.erase_request_create(request(&plan, T0 + 600_000), T0)
+        .unwrap();
+    // A write at the window's end purges the request, though nothing asked for it: read back as
+    // of an earlier instant, it is gone.
+    let mut late = samples::memory_entry(6, CY, &["space"], "late", "a later note");
+    late.valid_from = T0 + 600_000;
+    samples::agree(&mut late);
+    m.write(samples::memory_batch(T0 + 600_000, vec![late]))
+        .unwrap();
+    assert_eq!(m.erase_request(PLAN_ID, T0 + 1).unwrap(), None);
+    // A sweep does too.
+    m.erase_request_create(request(&plan, T0 + 1_200_000), T0 + 600_000)
+        .unwrap();
+    m.sweep(umbel_store::memory::Sweep {
+        now: T0 + 1_200_000,
+        limit: 10,
+        retention: umbel_store::memory::Retention::default(),
+    })
+    .unwrap();
+    assert_eq!(m.erase_request(PLAN_ID, T0 + 600_001).unwrap(), None);
 }

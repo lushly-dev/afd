@@ -351,13 +351,23 @@ async fn two_erasers_erase_only_together_and_the_same_person_never_twice() {
 }
 
 #[tokio::test]
-async fn a_changed_plan_voids_the_request() {
+async fn records_changed_before_the_run_void_the_request() {
     let fx = Hosted::start(&policy(2)).await;
     bos_records(&fx.host).await;
     let plan = plan_of(&fx, "ada", 3).await;
     let (first, _) = decided(&fx, "ada", "ada-client", erase(&plan)).await;
     let request = first["data"]["request"].as_str().unwrap().to_owned();
-    // Bo writes another record: the plan no longer names bo's records.
+    // Cy runs their own dry run and approves on the page while the plan holds.
+    assert_eq!(plan_of(&fx, "cy", 3).await, plan);
+    let input = approve(&plan, &request);
+    let begun = fx
+        .call("cy", "cy-client", "memory-erase", input.clone(), json!({}))
+        .await;
+    let prompt = asked(&begun);
+    let (page, reply) = fx.decide(&prompt.path(), "cy", "approve").await;
+    assert!(page.contains("Erase 3 memory records"), "{page}");
+    assert_eq!(reply.status, 200, "{}", reply.text);
+    // Bo writes another record before the run: the plan no longer names bo's records.
     hosted_kit::remember(
         &fx.host,
         agent_for("bo-bot", "bo"),
@@ -367,20 +377,18 @@ async fn a_changed_plan_voids_the_request() {
         None,
     )
     .await;
-    let new_plan = plan_of(&fx, "cy", 4).await;
-    assert_ne!(new_plan, plan);
-    let stale = fx
+    let run = fx
         .call(
             "cy",
             "cy-client",
             "memory-erase",
-            approve(&plan, &request),
-            json!({}),
+            input,
+            accepted(&prompt.state),
         )
         .await;
-    assert!(!asks(&stale), "{stale}");
-    assert_eq!(code(&stale), "MEMORY_ERASE_PLAN_STALE", "{stale}");
-    // The request was voided with it: the new plan cannot ride on it.
+    assert_eq!(code(&run), "MEMORY_ERASE_PLAN_STALE", "{run}");
+    // The request is void: the new plan cannot ride on it.
+    let new_plan = plan_of(&fx, "cy", 4).await;
     let voided = fx
         .call(
             "cy",
@@ -390,8 +398,136 @@ async fn a_changed_plan_voids_the_request() {
             json!({}),
         )
         .await;
+    assert!(!asks(&voided), "{voided}");
     assert_eq!(code(&voided), "MEMORY_ERASE_REQUEST_EXPIRED", "{voided}");
     assert_eq!(store(&fx).erase_targets(&owners(), None).unwrap().len(), 4);
+}
+
+#[tokio::test]
+async fn a_wrong_plan_never_voids_another_erasers_request() {
+    let fx = Hosted::start(&policy(2)).await;
+    bos_records(&fx.host).await;
+    let plan = plan_of(&fx, "ada", 3).await;
+    let (first, _) = decided(&fx, "ada", "ada-client", erase(&plan)).await;
+    let request = first["data"]["request"].as_str().unwrap().to_owned();
+    // An eraser's agent presenting another plan with the request: stale, before anyone is asked,
+    // and the request stands.
+    let wrong = format!("sha256:{}", "0".repeat(64));
+    let answer = fx
+        .call(
+            "cy",
+            "cy-client",
+            "memory-erase",
+            approve(&wrong, &request),
+            json!({}),
+        )
+        .await;
+    assert!(!asks(&answer), "{answer}");
+    assert_eq!(code(&answer), "MEMORY_ERASE_PLAN_STALE", "{answer}");
+    assert_eq!(plan_of(&fx, "cy", 3).await, plan);
+    let (second, _) = decided(&fx, "cy", "cy-client", approve(&plan, &request)).await;
+    assert_eq!(second["data"]["erased"], 3, "{second}");
+}
+
+#[tokio::test]
+async fn an_erase_needs_the_erasers_own_dry_run() {
+    let fx = Hosted::start(&policy(2)).await;
+    bos_records(&fx.host).await;
+    let plan = plan_of(&fx, "ada", 3).await;
+    let (first, _) = decided(&fx, "ada", "ada-client", erase(&plan)).await;
+    let request = first["data"]["request"].as_str().unwrap().to_owned();
+    // Cy has the plan (it is in the journal's kept input) but ran no dry run: refused before
+    // anyone is asked.
+    let answer = fx
+        .call(
+            "cy",
+            "cy-client",
+            "memory-erase",
+            approve(&plan, &request),
+            json!({}),
+        )
+        .await;
+    assert!(!asks(&answer), "{answer}");
+    assert_eq!(code(&answer), "MEMORY_ERASE_PLAN_STALE", "{answer}");
+    // Ada's own dry run was used up by her request: she cannot present the plan again either.
+    let again = fx
+        .call("ada", "ada-laptop", "memory-erase", erase(&plan), json!({}))
+        .await;
+    assert_eq!(code(&again), "MEMORY_ERASE_PLAN_STALE", "{again}");
+    assert_eq!(store(&fx).erase_targets(&owners(), None).unwrap().len(), 3);
+}
+
+#[tokio::test]
+async fn before_a_decision_an_eraser_learns_nothing_of_the_records() {
+    let fx = Hosted::start(&policy(1)).await;
+    bos_records(&fx.host).await;
+    // The plan of nothing, presented for bo (who has records) and for dee (who has none): the
+    // host's check before anyone is asked reads no record, so both are asked alike.
+    let empty = erase_plan_of_nothing();
+    let mut answers = Vec::new();
+    for target in ["human:corp/bo", "human:corp/dee"] {
+        let answer = fx
+            .call(
+                "ada",
+                "ada-client",
+                "memory-erase",
+                json!({ "space": "alpha", "principal": target, "dryRun": false, "plan": empty }),
+                json!({}),
+            )
+            .await;
+        answers.push(asks(&answer));
+    }
+    assert_eq!(answers, [true, true]);
+    // On the page, which a verified eraser opens, bo's case cannot be approved.
+    let begun = fx
+        .call(
+            "ada",
+            "ada-client",
+            "memory-erase",
+            erase(&empty),
+            json!({}),
+        )
+        .await;
+    let prompt = asked(&begun);
+    let logged = fx.log_in(&prompt.path(), "ada").await;
+    assert!(logged.form.is_some());
+    assert!(
+        logged.page.text.contains("could not be shown"),
+        "{}",
+        logged.page.text
+    );
+}
+
+/// The plan of no record.
+fn erase_plan_of_nothing() -> String {
+    umbel_store::memory::erase_plan(&[])
+}
+
+#[tokio::test]
+async fn a_first_eraser_removed_from_erasers_leaves_a_request_no_one_approves() {
+    let mut fx = Hosted::start(&policy(2)).await;
+    bos_records(&fx.host).await;
+    let plan = plan_of(&fx, "ada", 3).await;
+    let (first, _) = decided(&fx, "ada", "ada-client", erase(&plan)).await;
+    let request = first["data"]["request"].as_str().unwrap().to_owned();
+    // The deployer removes ada from the erasers within the window.
+    fx.restart(
+        "erasers = [\"principal:human:corp/cy\"]\nerase_approvals = 2\nerase_approval_window_s = 600",
+    )
+    .await;
+    assert_eq!(plan_of(&fx, "cy", 3).await, plan);
+    let answer = fx
+        .call(
+            "cy",
+            "cy-client",
+            "memory-erase",
+            approve(&plan, &request),
+            json!({}),
+        )
+        .await;
+    assert!(!asks(&answer), "{answer}");
+    assert_eq!(code(&answer), "MEMORY_ERASE_REQUEST_EXPIRED", "{answer}");
+    assert_eq!(store(&fx).erase_targets(&owners(), None).unwrap().len(), 3);
 }
 
 #[tokio::test]
@@ -425,6 +561,7 @@ async fn a_request_expiring_between_the_decision_and_the_run_erases_nothing() {
     let (first, _) = decided(&fx, "ada", "ada-client", erase(&plan)).await;
     let request = first["data"]["request"].as_str().unwrap().to_owned();
     fx.advance(500_000).await;
+    assert_eq!(plan_of(&fx, "cy", 3).await, plan);
     // Cy begins while the request is pending, and approves on the page.
     let input = approve(&plan, &request);
     let begun = fx
@@ -573,7 +710,10 @@ async fn the_library_and_a_terminal_never_erase() {
     bos_records(&fx.host).await;
     // An embedder's person, an eraser: no decision on the person page, no erase.
     let library_call = library(&fx.host, human("corp/ada"), "memory-erase", dry_run()).await;
-    assert_ne!(library_call["success"], true, "{library_call}");
+    assert_eq!(
+        library_call["error"]["code"], "CONFIRMATION_REQUIRED",
+        "{library_call}"
+    );
     let mut marked = fx
         .host
         .context(human("corp/ada"))
@@ -586,7 +726,7 @@ async fn the_library_and_a_terminal_never_erase() {
         json!("memory-erase"),
     );
     let marked = hosted_kit::run(&fx.host, marked, "memory-erase", dry_run()).await;
-    assert_ne!(marked["success"], true, "{marked}");
+    assert_eq!(marked["error"]["code"], "CONFIRMATION_REQUIRED", "{marked}");
     assert_eq!(store(&fx).erase_targets(&owners(), None).unwrap().len(), 3);
 }
 

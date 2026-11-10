@@ -108,17 +108,78 @@ pub(crate) fn caller_is_person(
     }
 }
 
-/// Whether the caller is a person at the CLI's terminal for `command`: a human at the CLI whose
-/// human-present mark covers it (the terminal check alone, never the library).
+/// Whether the caller is a person at the CLI's terminal for `command`: the host's own command line
+/// ([`seal_cli`]), a human there whose human-present mark covers it (the terminal check alone,
+/// never the library).
 pub(crate) fn terminal_person(
     context: &CommandContext,
     command: Option<&str>,
     prompts: &Prompts,
 ) -> bool {
+    // The host's own command line, sealed: a library context that wrote the CLI's principal and
+    // marks is not one (step 10's review).
+    if !cli_sealed(context) {
+        return false;
+    }
     match (cli_mark(context), command) {
         (Some(marked), Some(command)) => prompts.covers(marked, command),
         _ => false,
     }
+}
+
+/// `CommandContext.extra` key: the CLI's seal on a context the host's own command line built
+/// ([`seal_cli`]). Only the host computes it, under a key of this process that never leaves it, so
+/// an embedding application that writes the CLI's principal and marks into a library context
+/// cannot make it (phase 5 step 10's review). It is no declared context field, so no journal keeps
+/// it.
+pub(crate) const CLI_SEAL_KEY: &str = "dev.umbel/cli-seal";
+
+/// This process's key for [`seal_cli`]: 32 bytes from the operating system, drawn once.
+fn cli_seal_key() -> Option<&'static [u8; 32]> {
+    static KEY: std::sync::OnceLock<Option<[u8; 32]>> = std::sync::OnceLock::new();
+    KEY.get_or_init(|| {
+        let mut key = [0_u8; 32];
+        getrandom::fill(&mut key).ok().map(|()| key)
+    })
+    .as_ref()
+}
+
+/// The seal of a CLI context with trace id `trace`: the hex SHA-256 of the key and the trace id.
+fn cli_seal(trace: &str) -> Option<String> {
+    use sha2::{Digest, Sha256};
+    let key = cli_seal_key()?;
+    let mut digest = Sha256::new();
+    digest.update(b"umbel-cli-seal-v1\0");
+    digest.update(key);
+    digest.update(trace.as_bytes());
+    Some(
+        digest
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect(),
+    )
+}
+
+/// Seal `context`, which the host's own command line built, as the CLI's.
+#[cfg_attr(not(feature = "cli"), allow(dead_code))]
+pub(crate) fn seal_cli(context: &mut CommandContext) {
+    if let Some(seal) = context.trace_id.as_deref().and_then(cli_seal) {
+        context
+            .extra
+            .insert(CLI_SEAL_KEY.to_owned(), Value::String(seal));
+    }
+}
+
+/// Whether `context` carries the seal of the host's own command line for its trace id.
+fn cli_sealed(context: &CommandContext) -> bool {
+    let (Some(trace), Some(seal)) = (
+        context.trace_id.as_deref(),
+        context.extra.get(CLI_SEAL_KEY).and_then(Value::as_str),
+    ) else {
+        return false;
+    };
+    cli_seal(trace).is_some_and(|expected| expected == seal)
 }
 
 /// Whether a remember at the CLI reaches `person` (D86): the human-present mark and the

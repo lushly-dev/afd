@@ -357,4 +357,22 @@ impl MemoryStore for SqliteMemoryStore {
     fn erase_request_void(&self, id: &str) -> Result<bool, StoreError> {
         self.do_erase_request_void(id)
     }
+
+    fn erase_dry_run_record(
+        &self,
+        run: umbel_store::memory::EraseDryRun,
+    ) -> Result<(), StoreError> {
+        self.do_erase_dry_run_record(run)
+    }
+
+    fn erase_dry_run(
+        &self,
+        eraser: &str,
+        target: &str,
+        plan: &str,
+        now: Millis,
+        take: bool,
+    ) -> Result<bool, StoreError> {
+        self.do_erase_dry_run(eraser, target, plan, now, take)
+    }
 }

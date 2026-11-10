@@ -13,10 +13,10 @@ use umbel_sdk::{
     MemoryWriteRequest,
 };
 use umbel_store::memory::{
-    Confirm, DAY_MS, Erase, EraseOutcome, EraseRequest, Forget, ForgetReceipt, Invalidate,
-    KeyFileState, LeftOut, MemoryChange, MemoryCounts, MemoryList, MemoryPage, MemoryReceipt,
-    MemoryUsage, MemoryVersionMeta, Quota, RecallPage, RecallQuery, ReindexReceipt, Retention,
-    Sweep, SweepReceipt, check_erase_ids, check_principal, erase_plan, format_instant,
+    Confirm, DAY_MS, Erase, EraseDryRun, EraseOutcome, EraseRequest, Forget, ForgetReceipt,
+    Invalidate, KeyFileState, LeftOut, MemoryChange, MemoryCounts, MemoryList, MemoryPage,
+    MemoryReceipt, MemoryUsage, MemoryVersionMeta, Quota, RecallPage, RecallQuery, ReindexReceipt,
+    Retention, Sweep, SweepReceipt, check_erase_ids, check_principal, erase_plan, format_instant,
     is_erase_plan, is_erase_request_id,
 };
 use umbel_store::{
@@ -680,6 +680,41 @@ impl CallServices {
         Ok(receipt)
     }
 
+    /// Whether a request's first eraser still holds an `erasers` token by the configuration: a
+    /// `principal:` entry or a named group member (with equivalents). A group that takes members
+    /// from a token's claim cannot be re-checked without that token, so its holders are taken as
+    /// still holding it.
+    fn still_eraser(&self, first: &str) -> bool {
+        let config = self.shared.workspace.config();
+        let identities = crate::access::identities(config, Some(first));
+        self.policy().erasers.iter().any(|token| {
+            if let Some(named) = token.strip_prefix("principal:") {
+                return identities.iter().any(|identity| identity == named);
+            }
+            token.strip_prefix("group:").is_some_and(|group| {
+                config
+                    .access
+                    .groups
+                    .iter()
+                    .find(|declared| declared.id == group)
+                    .is_some_and(|declared| {
+                        declared.claim.is_some()
+                            || declared
+                                .members
+                                .iter()
+                                .any(|member| identities.contains(member))
+                    })
+            })
+        })
+    }
+
+    /// `erase_approval_window_s` in milliseconds: how long an erase request, and a dry run, last.
+    fn erase_window_ms(&self) -> i64 {
+        i64::try_from(self.policy().erase_approval_window_s)
+            .unwrap_or(i64::MAX)
+            .saturating_mul(1000)
+    }
+
     /// `MEMORY_ERASE_NOT_ALLOWED` unless `principal` holds an `erasers` token (section 8.4).
     fn check_eraser(&self, principal: &str) -> Result<()> {
         if self.holds_role(&self.policy().erasers, principal) {
@@ -794,6 +829,23 @@ impl CallServices {
         }
     }
 
+    /// Whether `person` ran a dry run of `target` giving `plan` that is still good; with `take`,
+    /// used up.
+    fn dry_run_of(
+        store: &dyn MemoryStore,
+        person: &str,
+        target: &str,
+        plan: &str,
+        now: Millis,
+        take: bool,
+    ) -> Result<bool> {
+        match store.erase_dry_run(person, target, plan, now, take) {
+            Ok(found) => Ok(found),
+            Err(StoreError::NotProvisioned) => Ok(false),
+            Err(error) => Err(host_error(error)),
+        }
+    }
+
     /// [`erase_step`]'s refusal as the plugin answers it, voiding a stale request when told to.
     fn erase_refusal(
         &self,
@@ -831,7 +883,20 @@ impl CallServices {
         let now = self.now();
         let current = Self::erase_targets_now(store.as_ref(), &owners, ids.as_deref())?;
         let current_plan = erase_plan(&current);
+        let person = self.person_of(&principal);
         if call.dry_run {
+            // The eraser's own dry run, which their erase (first or second) must then use (8.4).
+            if !current.is_empty() {
+                store
+                    .erase_dry_run_record(EraseDryRun {
+                        eraser: person,
+                        target: call.principal.clone(),
+                        plan: current_plan.clone(),
+                        at: now,
+                        expires_at: now.saturating_add(self.erase_window_ms()),
+                    })
+                    .map_err(host_error)?;
+            }
             return Ok(EraseAnswer::Planned {
                 count: current.len() as u64,
                 plan: current_plan,
@@ -847,19 +912,27 @@ impl CallServices {
             &plan,
             &current_plan,
             policy.erase_approvals,
-            &|a, b| self.person_of(a) == self.person_of(b),
+            &Persons {
+                same: &|a, b| self.person_of(a) == self.person_of(b),
+                still_eraser: &|first| self.still_eraser(first),
+            },
         )
         .map_err(|refusal| self.erase_refusal(store.as_ref(), &call, refusal))?;
+        // This eraser's own dry run of this target and plan, used up now: without one, the plan
+        // is not theirs (8.4: each eraser runs their own dry run, which must give the same plan).
+        // A plan of nothing erases nothing and needs none.
+        if !current.is_empty()
+            && !Self::dry_run_of(store.as_ref(), &person, &call.principal, &plan, now, true)?
+        {
+            return Err(Self::plan_stale());
+        }
         let first = match step {
             Step::Request => {
                 // The first of two erasers: nothing is erased; a request waits for a second.
                 let request = new_request_id().ok_or_else(|| {
                     ServiceError::Io("no random bits for an erase request's id".to_owned())
                 })?;
-                let window = i64::try_from(policy.erase_approval_window_s)
-                    .unwrap_or(i64::MAX)
-                    .saturating_mul(1000);
-                let expires_at = now.saturating_add(window);
+                let expires_at = now.saturating_add(self.erase_window_ms());
                 store
                     .erase_request_create(
                         EraseRequest {
@@ -925,11 +998,13 @@ impl CallServices {
 
     /// What `memory-erase-preview` may show (section 8.4). Run as the host's check before a
     /// decision for `memory-erase` is begun (`CallContext::person_check`), it first makes every
-    /// check the erase makes but the decision itself (the eraser, the call's shape, [`erase_step`]),
-    /// voiding a request whose plan no longer holds, so no person is asked about an erase that
-    /// cannot run. On the page and at the command line it applies [`erase_step`] too, and reads,
-    /// blind, only what the plan presented already names: the count while the plan still holds,
-    /// and a pending request's first eraser and expiry.
+    /// check the erase makes that needs no reading of the target's records: the eraser, the call's
+    /// shape, the request named (pending, this target, another person still holding the role, the
+    /// plan presented) and the eraser's own dry run, so no person is asked about an erase that
+    /// cannot run, and an agent learns nothing of the records without a person's decision. It
+    /// never voids anything. On the page and at the command line it applies [`erase_step`] to the
+    /// records as they are, and reads, blind, only what the plan presented already names: the
+    /// count while the plan still holds, and a pending request's first eraser and expiry.
     pub(super) fn svc_memory_erase_preview(
         &self,
         space: &str,
@@ -952,22 +1027,54 @@ impl CallServices {
             });
         }
         let plan = call.plan.clone().unwrap_or_default();
-        let current = Self::erase_targets_now(store.as_ref(), &owners, ids.as_deref())?;
         let named = self.named_request(store.as_ref(), &call)?;
-        erase_step(
-            named.as_ref().map(Option::as_ref),
-            &call.principal,
-            &principal,
-            &plan,
-            &erase_plan(&current),
-            approvals,
-            &|a, b| self.person_of(a) == self.person_of(b),
-        )
-        .map_err(|refusal| match refusal {
-            // Only the host's own check of a listed eraser's call voids a request.
-            Refusal::Stale { .. } if !checking => Self::plan_stale(),
-            refusal => self.erase_refusal(store.as_ref(), &call, refusal),
-        })?;
+        let persons = Persons {
+            same: &|a, b| self.person_of(a) == self.person_of(b),
+            still_eraser: &|first| self.still_eraser(first),
+        };
+        let step = |current: &str| {
+            erase_step(
+                named.as_ref().map(Option::as_ref),
+                &call.principal,
+                &principal,
+                &plan,
+                current,
+                approvals,
+                &persons,
+            )
+            .map_err(|refusal| match refusal {
+                Refusal::Expired => Self::request_expired(),
+                Refusal::SecondEraser => Self::second_eraser_required(),
+                Refusal::Stale { .. } => Self::plan_stale(),
+            })
+        };
+        if checking {
+            // The records are not read: the plan presented stands in for them here.
+            step(&plan)?;
+            // A plan of nothing needs no dry run, and the empty plan is the only one that names
+            // nothing, so this says nothing of the records either.
+            let empty = plan == erase_plan(&[]);
+            let person = self.person_of(&principal);
+            if !empty
+                && !Self::dry_run_of(
+                    store.as_ref(),
+                    &person,
+                    &call.principal,
+                    &plan,
+                    self.now(),
+                    false,
+                )?
+            {
+                return Err(Self::plan_stale());
+            }
+            return Ok(ErasePreview {
+                count: None,
+                request: None,
+                approvals,
+            });
+        }
+        let current = Self::erase_targets_now(store.as_ref(), &owners, ids.as_deref())?;
+        step(&erase_plan(&current))?;
         Ok(ErasePreview {
             count: Some(current.len() as u64),
             request: named
@@ -1035,13 +1142,25 @@ pub(crate) enum Step {
     },
 }
 
+/// Who the two-person rule compares (section 8.4): whether two principals are one person, and
+/// whether a request's first eraser still holds the role.
+pub(crate) struct Persons<'a> {
+    /// Whether two principals are one person, through `[principal.equivalents]`.
+    pub(crate) same: &'a dyn Fn(&str, &str) -> bool,
+    /// Whether a request's first eraser still holds an `erasers` token, as far as the
+    /// configuration can say without their token.
+    pub(crate) still_eraser: &'a dyn Fn(&str) -> bool,
+}
+
 /// The two-person rule and the plan for an erase presenting `plan` as the eraser `principal`
 /// (section 8.4, owner decision 9's strengthening), apart from the stores so every rule is held by
 /// a test of its own. `named` is the request the call names, read back (`None`: it names none;
-/// `Some(None)`: not pending). A named request must be pending for this `target`, by another
-/// person (`same_person`, through equivalents), for this plan, which the records must still
-/// have, else it is voided; without one, the plan must hold, and with `approvals` of 2 the call
-/// only records a request.
+/// `Some(None)`: not pending); `current` is the plan the target's records have now. A named request
+/// must be pending for this `target`, by another person whose role still holds (else it is not
+/// one this call may approve), for the plan presented (else stale, the request left as it is),
+/// which the records must still have (else stale, and the request is voided, since it can never
+/// run). Without one, the plan must hold, and with `approvals` of 2 the call only records a
+/// request.
 pub(crate) fn erase_step(
     named: Option<Option<&EraseRequest>>,
     target: &str,
@@ -1049,15 +1168,17 @@ pub(crate) fn erase_step(
     plan: &str,
     current: &str,
     approvals: u64,
-    same_person: &dyn Fn(&str, &str) -> bool,
+    persons: &Persons<'_>,
 ) -> std::result::Result<Step, Refusal> {
     match named {
         Some(None) => Err(Refusal::Expired),
         Some(Some(pending)) if pending.target != target => Err(Refusal::Expired),
-        Some(Some(pending)) if same_person(&pending.first, principal) => Err(Refusal::SecondEraser),
-        Some(Some(pending)) if pending.plan != plan || current != plan => {
-            Err(Refusal::Stale { void: true })
+        Some(Some(pending)) if (persons.same)(&pending.first, principal) => {
+            Err(Refusal::SecondEraser)
         }
+        Some(Some(pending)) if !(persons.still_eraser)(&pending.first) => Err(Refusal::Expired),
+        Some(Some(pending)) if pending.plan != plan => Err(Refusal::Stale { void: false }),
+        Some(Some(_)) if current != plan => Err(Refusal::Stale { void: true }),
         Some(Some(pending)) => Ok(Step::Erase {
             first: Some(pending.first.clone()),
         }),
@@ -1103,36 +1224,38 @@ mod tests {
     }
 
     /// One person when the legacy `human:ada` maps to `human:corp/ada`, as `[principal.equivalents]`
-    /// says.
-    fn same(a: &str, b: &str) -> bool {
-        let person = |p: &str| {
-            if p == "human:ada" {
-                "human:corp/ada"
-            } else {
-                p
-            }
-            .to_owned()
-        };
-        person(a) == person(b)
+    /// says; every first eraser still holds the role but `human:corp/gone`.
+    fn persons() -> Persons<'static> {
+        fn same(a: &str, b: &str) -> bool {
+            let person = |p: &str| {
+                if p == "human:ada" {
+                    "human:corp/ada"
+                } else {
+                    p
+                }
+                .to_owned()
+            };
+            person(a) == person(b)
+        }
+        fn still(first: &str) -> bool {
+            first != "human:corp/gone"
+        }
+        Persons {
+            same: &same,
+            still_eraser: &still,
+        }
     }
+
+    const BO: &str = "human:corp/bo";
 
     #[test]
     fn one_eraser_erases_when_the_plan_holds_and_two_record_a_request_first() {
-        let step = |approvals| {
-            erase_step(
-                None,
-                "human:corp/bo",
-                "human:corp/ada",
-                "P",
-                "P",
-                approvals,
-                &same,
-            )
-        };
+        let step =
+            |approvals| erase_step(None, BO, "human:corp/ada", "P", "P", approvals, &persons());
         assert_eq!(step(1), Ok(Step::Erase { first: None }));
         assert_eq!(step(2), Ok(Step::Request));
         // A plan the records no longer have erases nothing and records nothing.
-        let stale = erase_step(None, "human:corp/bo", "human:corp/ada", "P", "Q", 2, &same);
+        let stale = erase_step(None, BO, "human:corp/ada", "P", "Q", 2, &persons());
         assert_eq!(stale, Err(Refusal::Stale { void: false }));
     }
 
@@ -1147,31 +1270,31 @@ mod tests {
                 plan,
                 current,
                 2,
-                &same,
+                &persons(),
             )
         };
         assert_eq!(
-            second("human:corp/cy", "P", "P", "human:corp/bo"),
+            second("human:corp/cy", "P", "P", BO),
             Ok(Step::Erase {
                 first: Some("human:corp/ada".to_owned())
             })
         );
         // The same person, as any client of theirs or through a legacy equivalent.
         assert_eq!(
-            second("human:corp/ada", "P", "P", "human:corp/bo"),
+            second("human:corp/ada", "P", "P", BO),
             Err(Refusal::SecondEraser)
         );
         assert_eq!(
-            second("human:ada", "P", "P", "human:corp/bo"),
+            second("human:ada", "P", "P", BO),
             Err(Refusal::SecondEraser)
         );
-        // Another plan, or records that changed, void the request.
+        // Another plan presented is stale and leaves the request; records that changed void it.
         assert_eq!(
-            second("human:corp/cy", "Q", "Q", "human:corp/bo"),
-            Err(Refusal::Stale { void: true })
+            second("human:corp/cy", "Q", "Q", BO),
+            Err(Refusal::Stale { void: false })
         );
         assert_eq!(
-            second("human:corp/cy", "P", "Q", "human:corp/bo"),
+            second("human:corp/cy", "P", "Q", BO),
             Err(Refusal::Stale { void: true })
         );
         // A request for another target is not this one; one not pending has expired.
@@ -1180,14 +1303,20 @@ mod tests {
             Err(Refusal::Expired)
         );
         assert_eq!(
+            erase_step(Some(None), BO, "human:corp/cy", "P", "P", 2, &persons()),
+            Err(Refusal::Expired)
+        );
+        // A first eraser who no longer holds the role made a request no one may approve.
+        let gone = request("human:corp/gone", "P");
+        assert_eq!(
             erase_step(
-                Some(None),
-                "human:corp/bo",
+                Some(Some(&gone)),
+                BO,
                 "human:corp/cy",
                 "P",
                 "P",
                 2,
-                &same
+                &persons()
             ),
             Err(Refusal::Expired)
         );
@@ -1195,12 +1324,12 @@ mod tests {
         assert_eq!(
             erase_step(
                 Some(Some(&pending)),
-                "human:corp/bo",
+                BO,
                 "human:corp/cy",
                 "P",
                 "P",
                 1,
-                &same
+                &persons()
             ),
             Ok(Step::Erase {
                 first: Some("human:corp/ada".to_owned())

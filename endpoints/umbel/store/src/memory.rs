@@ -27,7 +27,7 @@ use crate::envelope::{Actor, Authority, Envelope, Origin, Sensitivity};
 use crate::error::{Result, StoreError};
 
 pub use erase::{
-    Erase, EraseOutcome, EraseRequest, EraseTarget, MAX_ERASE_OWNERS, check_erase_ids,
+    Erase, EraseDryRun, EraseOutcome, EraseRequest, EraseTarget, MAX_ERASE_OWNERS, check_erase_ids,
     check_erase_owners, erase_plan, is_erase_plan, is_erase_request_id,
 };
 pub use instant::{DAY_MS, HOUR_MS, Millis, format_instant, parse_instant};
@@ -1306,6 +1306,33 @@ pub trait MemoryStore: Send + Sync {
     /// `NotProvisioned`; `Busy`; `Io`.
     fn erase_request(&self, id: &str, now: Millis) -> Result<Option<EraseRequest>> {
         let _ = (id, now);
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// Record an eraser's dry run (section 8.4), replacing an earlier one of the same eraser,
+    /// target and plan, first purging the expired ones.
+    ///
+    /// # Errors
+    /// `Invalid` for a malformed dry run; `NotProvisioned`; `Busy`; `Io`.
+    fn erase_dry_run_record(&self, run: EraseDryRun) -> Result<()> {
+        let _ = run;
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// Whether `eraser` ran a dry run of `target` giving `plan` that has not expired at `now`;
+    /// with `take`, it is used up (`secure_delete`).
+    ///
+    /// # Errors
+    /// `NotProvisioned`; `Busy`; `Io`.
+    fn erase_dry_run(
+        &self,
+        eraser: &str,
+        target: &str,
+        plan: &str,
+        now: Millis,
+        take: bool,
+    ) -> Result<bool> {
+        let _ = (eraser, target, plan, now, take);
         Err(StoreError::invalid("this memory backend does not erase"))
     }
 

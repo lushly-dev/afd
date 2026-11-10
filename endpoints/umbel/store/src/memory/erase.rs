@@ -148,12 +148,50 @@ impl Erase {
 pub enum EraseOutcome {
     /// The records were erased (or, for an empty plan, nothing was there to erase).
     Erased(ForgetReceipt),
-    /// The targets no longer have the plan: nothing was erased, and the request named, if any,
-    /// was voided.
+    /// The targets no longer have the plan, or the request named holds another plan: nothing was
+    /// erased. A request whose plan the records no longer have was voided; one holding another
+    /// plan than the one presented was left as it was.
     PlanStale,
     /// The request named is not pending (it ran, expired, was voided, or never existed), or names
     /// another plan: nothing was erased.
     RequestGone,
+}
+
+/// One eraser's dry run (section 8.4: "a second eraser runs their own dry run, which must produce
+/// the same plan"): who ran it, for which target and plan, until when. An erase takes it once; a
+/// person's erase without one of their own for that target and plan is refused as stale.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EraseDryRun {
+    /// The eraser's person: the namespaced principal a legacy one maps to, else itself.
+    pub eraser: String,
+    /// The target principal as named.
+    pub target: String,
+    /// The plan the dry run gave.
+    pub plan: String,
+    /// When it ran.
+    pub at: Millis,
+    /// When it may no longer be used.
+    pub expires_at: Millis,
+}
+
+impl EraseDryRun {
+    /// The dry run's own checks.
+    ///
+    /// # Errors
+    /// [`StoreError::Invalid`].
+    pub fn check(&self) -> Result<()> {
+        check_principal("a dry run's eraser", &self.eraser)?;
+        check_principal("a dry run's target", &self.target)?;
+        if !is_erase_plan(&self.plan) {
+            return Err(StoreError::invalid(
+                "a dry run's plan is sha256: and 64 hex digits",
+            ));
+        }
+        if self.expires_at <= self.at {
+            return Err(StoreError::invalid("a dry run expires after it runs"));
+        }
+        Ok(())
+    }
 }
 
 /// One erase request of the two-person rule (section 8.4): ids and a hash, never text.
@@ -218,7 +256,11 @@ mod tests {
         let plan = erase_plan(&[a.clone(), b.clone()]);
         assert!(is_erase_plan(&plan));
         assert_eq!(plan, erase_plan(&[b.clone(), a.clone()]), "order-free");
-        assert_ne!(plan, erase_plan(&[a.clone()]), "a record more or less");
+        assert_ne!(
+            plan,
+            erase_plan(std::slice::from_ref(&a)),
+            "a record more or less"
+        );
         assert_ne!(
             plan,
             erase_plan(&[a.clone(), target("mem-000000000000000000000002", 4)]),

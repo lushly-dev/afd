@@ -20,8 +20,8 @@
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, params_from_iter};
 use umbel_store::memory::{
-    Erase, EraseOutcome, EraseRequest, EraseTarget, check_erase_ids, check_erase_owners,
-    erase_plan, is_erase_request_id,
+    Erase, EraseDryRun, EraseOutcome, EraseRequest, EraseTarget, check_erase_ids,
+    check_erase_owners, erase_plan, is_erase_request_id,
 };
 use umbel_store::{Millis, StoreError};
 
@@ -42,6 +42,25 @@ const ERASE_REQUESTS: &str = "CREATE TABLE IF NOT EXISTS erase_requests (
     expires_at INTEGER NOT NULL
 ) STRICT, WITHOUT ROWID";
 
+/// The dry runs' table: the eraser's person, the target, the plan's hash and two times.
+const ERASE_DRY_RUNS: &str = "CREATE TABLE IF NOT EXISTS erase_dry_runs (
+    eraser     TEXT NOT NULL,
+    target     TEXT NOT NULL,
+    plan       TEXT NOT NULL,
+    at         INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    PRIMARY KEY (eraser, target, plan)
+) STRICT, WITHOUT ROWID";
+
+/// Whether the dry runs' table exists.
+fn has_dry_runs(conn: &Connection) -> Result<bool, Fail> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'erase_dry_runs')",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
 /// Whether the table exists (a reader never creates it).
 fn has_requests(conn: &Connection) -> Result<bool, Fail> {
     Ok(conn.query_row(
@@ -51,9 +70,14 @@ fn has_requests(conn: &Connection) -> Result<bool, Fail> {
     )?)
 }
 
-/// Delete the requests expired at `now`.
+/// Delete the requests and dry runs expired at `now`, from the tables that exist.
 fn purge_expired(conn: &Connection, now: Millis) -> Result<(), Fail> {
-    conn.execute("DELETE FROM erase_requests WHERE expires_at <= ?1", [now])?;
+    if has_requests(conn)? {
+        conn.execute("DELETE FROM erase_requests WHERE expires_at <= ?1", [now])?;
+    }
+    if has_dry_runs(conn)? {
+        conn.execute("DELETE FROM erase_dry_runs WHERE expires_at <= ?1", [now])?;
+    }
     Ok(())
 }
 
@@ -132,21 +156,20 @@ impl SqliteMemoryStore {
                             |r| r.get(0),
                         )
                         .optional()?;
-                    // Taken (or voided) here, in the erase's own first transaction, so two
-                    // second erasers cannot both run it.
-                    tx.execute("DELETE FROM erase_requests WHERE id = ?1", [request])?;
                     match plan {
                         None => {
                             tx.commit()?;
                             return Ok(EraseOutcome::RequestGone);
                         }
-                        // Another plan voids the request (section 8.4).
-                        Some(plan) if plan != req.plan => {
-                            tx.commit()?;
-                            return Ok(EraseOutcome::PlanStale);
-                        }
+                        // A plan other than the request's erases nothing and leaves the request:
+                        // only records that changed void it (below).
+                        Some(plan) if plan != req.plan => return Ok(EraseOutcome::PlanStale),
                         Some(_) => {}
                     }
+                    // Taken here, in the erase's own first transaction, so two second erasers
+                    // cannot both run it; if the records no longer have its plan, it stays taken,
+                    // which voids it (section 8.4).
+                    tx.execute("DELETE FROM erase_requests WHERE id = ?1", [request])?;
                 }
                 let selected = targets(&tx, &req.owners, req.ids.as_deref())?;
                 if erase_plan(&selected) != req.plan {
@@ -256,5 +279,71 @@ impl SqliteMemoryStore {
             tx.commit()?;
             Ok(gone == 1)
         })
+    }
+
+    pub(super) fn do_erase_dry_run_record(&self, run: EraseDryRun) -> Result<(), StoreError> {
+        run.check()?;
+        self.pool.read(|_| Ok(()))?;
+        self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            tx.execute_batch(ERASE_DRY_RUNS)?;
+            purge_expired(&tx, run.at)?;
+            tx.execute(
+                "INSERT OR REPLACE INTO erase_dry_runs (eraser, target, plan, at, expires_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![run.eraser, run.target, run.plan, run.at, run.expires_at],
+            )?;
+            tx.commit()?;
+            Ok(())
+        })
+    }
+
+    pub(super) fn do_erase_dry_run(
+        &self,
+        eraser: &str,
+        target: &str,
+        plan: &str,
+        now: Millis,
+        take: bool,
+    ) -> Result<bool, StoreError> {
+        self.pool.read(|_| Ok(()))?;
+        self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            if !has_dry_runs(&tx)? {
+                return Ok(false);
+            }
+            purge_expired(&tx, now)?;
+            let found = if take {
+                tx.execute(
+                    "DELETE FROM erase_dry_runs WHERE eraser = ?1 AND target = ?2 AND plan = ?3",
+                    params![eraser, target, plan],
+                )? == 1
+            } else {
+                tx.query_row(
+                    "SELECT EXISTS (SELECT 1 FROM erase_dry_runs \
+                     WHERE eraser = ?1 AND target = ?2 AND plan = ?3)",
+                    params![eraser, target, plan],
+                    |r| r.get(0),
+                )?
+            };
+            tx.commit()?;
+            Ok(found)
+        })
+    }
+
+    /// Delete the expired erase requests and dry runs at `now`, in a transaction of its own, for
+    /// the sweep and each write (so a request no one touches again does not outlive its window
+    /// for long). Best effort: a busy lock leaves it for the next.
+    pub(super) fn purge_erase_state(&self, now: Millis) -> Result<(), StoreError> {
+        let result = self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            purge_expired(&tx, now)?;
+            tx.commit()?;
+            Ok(())
+        });
+        match result {
+            Ok(()) | Err(StoreError::Busy) => Ok(()),
+            Err(other) => Err(other),
+        }
     }
 }

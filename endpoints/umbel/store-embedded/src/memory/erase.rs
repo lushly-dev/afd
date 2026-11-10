@@ -430,6 +430,7 @@ impl SqliteMemoryStore {
         check_limit("sweep", req.limit, MAX_SWEEP_LIMIT)?;
         self.pool.read(|_| Ok(()))?;
         self.roll_forward()?;
+        self.purge_erase_state(req.now)?;
         let (purged, remaining) = self.purge(req.now, req.retention, req.limit, true)?;
         Ok(SweepReceipt { purged, remaining })
     }

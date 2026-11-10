@@ -565,8 +565,19 @@ fn sanitize(
         .filter(|_| success)
         .unwrap_or(Value::Null);
     // The erased principal's notice of a `memory-erase` (phase 5 section 8.4), from the erase the
-    // host performed, and only then.
+    // host performed, and only then. The record kind `memory-erase-notice` is that notice's alone: a
+    // result naming it for a call in which the host erased nothing loses the record, so no plugin
+    // can put a look-alike notice in anyone's stream (step 10's review).
     let erasure = record.erasure.clone().filter(|_| success);
+    let notice_kind = metadata
+        .extra
+        .get(RECORD_KEY)
+        .and_then(|record| record.get("kind"))
+        .and_then(Value::as_str)
+        == Some("memory-erase-notice");
+    if notice_kind && erasure.is_none() {
+        metadata.extra.remove(RECORD_KEY);
+    }
     if !authority.is_null() || !confirmation.is_null() || erasure.is_some() {
         let mut host = json!({ "authority": authority, "confirmation": confirmation });
         if let Some(erasure) = erasure {
