@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** written 2026-11-09 by the design sub-agent; revised the same day after two independent reviews, a trust and security review and a general review, each of whose findings is answered in [Review 2026-11-09](#review-2026-11-09). Not yet approved. **Six questions were asked of the owner on 2026-11-09. The owner answered four the same day** (Q1, Q3, Q5's recovery and Q6), recorded here as owner decisions D95 to D98; **Q2 and Q4 still await answers**, and the text is written to their recommendations, marking where an answer changes it ([Questions for the owner](#questions-for-the-owner)). The ways to sign in are the coordinator's decision of 2026-11-09, D99. Decisions D84 to D94 are in the [decision log](../../decisions.md), "proposed, pending review". The order relative to phase 6 is the coordinator's decision; [10.3](#103-the-order-recommended-for-the-coordinator-to-decide) recommends one.
+- **State:** written 2026-11-09 by the design sub-agent; revised the same day after two independent reviews, a trust and security review and a general review, each of whose findings is answered in [Review 2026-11-09](#review-2026-11-09); an independent re-check of `a08572ea` found four blockers and fourteen should-fix items, answered there too, from Better Auth 1.7.18's published passkey and OAuth provider packages. Not yet approved. **Six questions were asked of the owner on 2026-11-09. The owner answered four the same day** (Q1, Q3, Q5's recovery and Q6), recorded here as owner decisions D95 to D98; **Q2 and Q4 still await answers**, and the text is written to their recommendations, marking where an answer changes it ([Questions for the owner](#questions-for-the-owner)). The ways to sign in are the coordinator's decision of 2026-11-09, D99. Decisions D84 to D94 are in the [decision log](../../decisions.md), "proposed, pending review". The order relative to phase 6 is the coordinator's decision; [10.3](#103-the-order-recommended-for-the-coordinator-to-decide) recommends one.
 - **Last verified:** 2026-11-09 against `main` at `4eee0af8`, from this evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
     - `kernel.ts:325-329` (the chain: afd-auth's middleware with every held command excluded, so nothing needs a session; the journal; scope), `:330-353` (both registries and the boot registry share it), `:509-511` (`runAs`: a port's and a nested call run on the `palette` registry with only `KernelCallFields`), `:89-94` (`UNJOURNALED_COMMANDS`), `:113-119` (`redactJournalRecord`), `:768-774` (`resetSession`);
@@ -31,8 +31,8 @@
 ## What this phase serves
 
 - **Principles:** 3, everything is a command; 5, scope is shell-level; 7, identity once; 8, agents are first-class users; 13, deterministic core; 15, AFD first; 19, live sessions revalidate when membership changes (its seam, not the service).
-- **Decisions it depends on:** D4 (the active project narrows, never grants); D11 (identity once on `@lushly-dev/afd-auth`, Better Auth first, persona never a grant, the persona id in Loam's context fields); D15 (AFD first); D32 (single-tenant, workspaces bound to the provider's organizations); D36 (the hosted server on Hono, Better Auth among its routes); D40 (agent members: a human sponsor, installed by an owner, scoped to projects, not a seat, unable to sign in or administer; identities here, delegation in phase 5); D46 (membership epochs); D54 (native apps are trusted code); D55 and its consequence (phase 3 must restrict `project-create` for a slug a team instance lists, and such a project's members, to an owner); D56 (a `stdio` instance on the hosted server by the deployer's configuration); D63 and D73 (`workspace-app-set`, which "phase 3 restricts to an owner"); D64 (a test-only stand-in, named as such wherever its result is recorded); D71 and D72 (scope, the order of a call, `applyScopeChange`); D77 and D83 (the ports). The architecture glossary's **Sponsor**: "the person accountable for an agent member and named in its `onBehalfOf`".
-- **New decisions this specification proposes:** D84 to D95, in [Amendments](#amendments-to-the-architecture-and-the-decision-log). Every trust question is in [Questions for the owner](#questions-for-the-owner), and the decisions that depend on an answer say so.
+- **Decisions it depends on:** D4 (the active project narrows, never grants); D11 (identity once on `@lushly-dev/afd-auth`, Better Auth first, persona never a grant, the persona id in Loam's context fields); D15 (AFD first); D32 (single-tenant, workspaces bound to the provider's organizations); D36 (the hosted server on Hono, Better Auth among its routes); D40 (agent members: a human sponsor, installed by an owner, scoped to projects, not a seat, unable to sign in or administer; identities here, delegation in phase 5); D46 (membership epochs); D54 (native apps are trusted code); D55 and its consequence (phase 3 must restrict `project-create` for a slug a team instance lists, and such a project's members, to an owner); D56 (a `stdio` instance on the hosted server by the deployer's configuration, **narrowed by D95**, the owner's decision of 2026-11-09, to refuse one in a `provider`-mode workspace); D63 and D73 (`workspace-app-set`, which "phase 3 restricts to an owner"); D64 (a test-only stand-in, named as such wherever its result is recorded); D71 and D72 (scope, the order of a call, `applyScopeChange`); D77 and D83 (the ports). The architecture glossary's **Sponsor**: "the person accountable for an agent member and named in its `onBehalfOf`".
+- **Decisions this specification records:** D84 to D94, proposed, pending review; D95 to D98, decided by the owner on 2026-11-09; D99, decided by the coordinator on 2026-11-09; all in [Amendments](#amendments-to-the-architecture-and-the-decision-log). The two open trust questions, Q2 and Q4, are in [Questions for the owner](#questions-for-the-owner), and the decisions that depend on them say so.
 
 ### Carried from phase 2, answered here
 
@@ -88,7 +88,7 @@ One new package, private and quarantined:
 
 | Directory | Package | Responsibility | Depends on |
 | --- | --- | --- | --- |
-| `endpoints/loam/packages/identity/` | `@lushly-dev/loam-identity` | **Server side only.** `createLoamAuthOptions(config)`: Better Auth's options for a deployment ([2.6](#26-the-providers-configuration)); `loamServerPlugin`, Better Auth endpoints and hooks of Loam's own (`whoami`, `binding`, `revoke-person`, recovery, invitation tokens); `createMcpAuth(config)`, AFD's `auth` option for `createMcpHandler` ([9.3](#93-scopes)); `principalOf` ([9.2](#92-the-hosted-principal-mapping)); `createMcpChain` ([9.5](#95-the-mcp-chain)); and, under `/testing`, `startTestAuthHost()` ([2.4](#24-the-test-only-auth-host)) | `better-auth`, `@better-auth/passkey`, `@better-auth/oauth-provider`, `@better-auth/cimd`, all pinned to `1.7.18` together; `@lushly-dev/afd-server`, `@lushly-dev/afd-core`; dev: `@lushly-dev/loam-kernel`, `@lushly-dev/afd-client` |
+| `endpoints/loam/packages/identity/` | `@lushly-dev/loam-identity` | **Server side only.** `createLoamAuthOptions(config)`: Better Auth's options for a deployment ([2.6](#26-the-providers-configuration)); `loamServerPlugin`, Better Auth endpoints and hooks of Loam's own (`whoami`, `binding`, `revoke-person`, recovery, invitation tokens); `createMcpAuth(config)`, AFD's `auth` option for `createMcpHandler` ([9.3](#93-scopes)); `principalOf` ([9.2](#92-the-hosted-principal-mapping)); `createServerKernel`, `credentialsGate` and `principalGate` ([9.5](#95-the-server-kernel-and-its-chain)); `bootstrapOrganization` ([5.6](#56-enrolment)); and, under `/testing`, `startTestAuthHost()` ([2.4](#24-the-test-only-auth-host)) | `better-auth`, `@better-auth/passkey`, `@better-auth/oauth-provider`, `@better-auth/cimd`, all pinned to `1.7.18` together; `@lushly-dev/afd-server`, `@lushly-dev/afd-core`; dev: `@lushly-dev/loam-kernel`, `@lushly-dev/afd-client` |
 
 It never reaches a browser: E13's scan refuses any import of it from `web/src`, `chrome/src` or `kernel/src`. The dependency runs one way, `identity` to `kernel` as a dev dependency, so **E8's test lives in `identity/src/`**, where it can import both. Phase 6's hosted lane imports `identity`.
 
@@ -220,7 +220,7 @@ A browser kernel runs commands against the browser's own IndexedDB, and **nothin
 | Enforcement point | What it holds and refuses |
 | --- | --- |
 | **The provider** (Better Auth, with `loamServerPlugin`) | Accounts, credentials, sessions, consents and tokens; organization membership and roles, by the bound id; the binding; Loam's rules on its own endpoints ([7.5](#75-the-providers-own-endpoints)) |
-| **The hosted server's MCP handler and its kernel** (phase 6) | Every MCP call: the token ([9.5](#95-the-mcp-chain)), then `decideAccess` version 2 against the server's records |
+| **The hosted server's MCP handler and its kernel** (phase 6) | Every MCP call: the token ([9.5](#95-the-server-kernel-and-its-chain)), then `decideAccess` version 2 against the server's records |
 | **The mount relay** (phase 6, `mounts/<instance>/mcp`, D64) | Every browser call to a mounted instance: the session, then `decideAccess` version 2 against the server's records, with membership read on the server, before forwarding ([10.2](#102-what-phase-6-must-deliver-first)) |
 
 **Which store is authoritative for each trust record:**
@@ -239,6 +239,8 @@ A browser kernel runs commands against the browser's own IndexedDB, and **nothin
 
 - **Cookies and sessions:** the cookie cache off; `session.freshAge` 300 seconds ([5.2](#52-passkeys)); no `bearer` plugin, so a session token is never a bearer credential.
 - **Origins:** `baseURL` the deployment's exact origin and path; `trustedOrigins` exactly that origin, no other; **passkey `rpID` the exact host** (never a parent domain), `origin` set explicitly to the same origin, `attestation: 'none'`, `authenticatorSelection: { residentKey: 'required', userVerification: 'required' }`.
+- **Passkey registration:** `registration: { requireSession: false, resolveUser, afterVerification }`, with `loamServerPlugin`'s hooks restoring every session and freshness check that setting removes ([5.8](#58-registration-at-the-provider)).
+- **Disabled routes:** `disabledPaths` holds the JWT plugin's `/token`, `/request-password-reset`, `/reset-password`, `/reset-password/:token`, `/forget-password/email-otp` and `/change-email` (5.7, 9.4); `user.changeEmail` is off.
 - **Sign-up:** none open. `emailAndPassword` only when `methods` holds `password`, with `disableSignUp: true` and `requireEmailVerification: true`; a `databaseHooks.user.create.before` hook that refuses any new user who is not completing an invitation ([5.6](#56-enrolment)) or a configured OIDC sign-in with a verified email.
 - **Organization:** `allowUserToCreateOrganization: false`; `requireEmailVerificationOnInvitation: true`; `sendInvitationEmail` through `mail` with Loam's join link ([5.6](#56-enrolment)); custom access control and `organizationHooks` ([7.5](#75-the-providers-own-endpoints)).
 - **OIDC (`methods` holds `oidc:<id>`):** `genericOAuth` for that provider; `account.accountLinking` enabled only for that provider, only when its ID token says `email_verified: true`, and never to a different email.
@@ -255,7 +257,7 @@ A browser kernel runs commands against the browser's own IndexedDB, and **nothin
 | `kernel.call` (the palette, the chrome) | `{ kind: 'human', id: <user id>, label: <name> }` from the session; `local` signed out: none | The same |
 | `kernel.agent.call` | **`{ kind: 'agent', id: options.agent ?? 'shell-agent', onBehalfOf: <user id> }`**: the agent registry sets the kind and id; afd-auth's middleware sets `onBehalfOf` from the session (`middleware.ts:38-44`) | Runs as the human: the agent registry sets no actor, and the middleware fills a missing one as `human` |
 | **An app's port, a surface's port, a nested call** | **The outer call's actor, copied:** `KernelCallFields` gains `actor`, which `checkedCall` (`apps/port.ts:128-171`), the nested client and the surface port set from the calling context, and `execute` puts on the call's context before the chain | **Lost:** `runAs` runs them on the `palette` registry with only `caller`, `parent` and `scope` (`kernel.ts:509-511`, `context-fields.ts:23-30`), so afd-auth's middleware makes every one the signed-in human, even under an agent's call |
-| MCP on the hosted server | From the token, kept by the MCP chain ([9.5](#95-the-mcp-chain)); no token, no call | `{ kind: 'agent' }`, no id, then overwritten by the kernel adapter's session user |
+| MCP on the hosted server, and every nested call under it | The request's principal, from the token ([9.5](#95-the-server-kernel-and-its-chain)); no token, no call | `{ kind: 'agent' }`, no id, then overwritten by the kernel adapter's session user |
 | Replay | The entry's recorded actor (`actorOf`), as phase 2's 10 | The same |
 
 afd-auth's middleware already keeps an agent's id and replaces only its `onBehalfOf` with the session user; a copied human actor is the session user anyway. So the copied actor survives the chain on every in-process path.
@@ -301,7 +303,7 @@ export const personKey = (actor: AccessInputV2['actor']): string | undefined;
 
 So **an agent never has more access than the person it acts for, and an agent member never more than its record or its sponsor:** the intersection, as D4's "narrows, never grants" reads for agents, and as D40 requires.
 
-**Where it runs.** `decideAccess` stays pure and in first paint. The scope middleware gains **line 0**, before phase 2's line 1, for every command not in `SIGNED_OUT_COMMANDS`, `MEMBER_EXEMPT_COMMANDS`, `INTERNAL_COMMANDS` or `session-settle`: steps 1 and 2 alone, journaled. Lines 1 to 8 of phase 2's 3.4 are unchanged; line 2 passes `AccessInputV2`, and its refusal stays `PROJECT_NOT_FOUND`. `ProjectCache`, `canOpen`, `opensIn` and `project-list`'s filter take the actor. On the MCP chain, line 0 reads the **token's person** and the server's membership ([9.5](#95-the-mcp-chain)), never `sessionActor`.
+**Where it runs.** `decideAccess` stays pure and in first paint. The scope middleware gains **line 0**, before phase 2's line 1, for every command not in `SIGNED_OUT_COMMANDS`, `MEMBER_EXEMPT_COMMANDS`, `INTERNAL_COMMANDS` or `session-settle`: steps 1 and 2 alone, journaled. Lines 1 to 8 of phase 2's 3.4 are unchanged; line 2 passes `AccessInputV2`, and its refusal stays `PROJECT_NOT_FOUND`. `ProjectCache`, `canOpen`, `opensIn` and `project-list`'s filter take the actor. On the MCP chain, line 0 reads the **token's person** and the server's membership ([9.5](#95-the-server-kernel-and-its-chain)), never `sessionActor`.
 
 **Stage A** decides with the probe's membership ([4.2](#42-first-paint-the-probe)), so a removed member's probe answers `membership: null`, line 0 refuses, and no restricted project is painted.
 
@@ -312,15 +314,16 @@ So **an agent never has more access than the person it acts for, and an agent me
 | Commands | Person | Agent | Port | MCP | Replay |
 | --- | --- | --- | --- | --- | --- |
 | `account-get`, `persona-list`, `member-list`, `agent-member-list`, `agent-member-get` | Own account; any member | For its person | `CALL_NOT_GRANTED` | Served, for the token's person | From the entry |
-| Human commands: `account-update`, `account-passkey-add`, `-rename`, `-remove`, `account-invitation-accept`, `-reject`, `account-agent-disconnect`, `session-revoke`, `persona-create`, `-update`, `-remove`, `-set`, `member-leave`, `agent-member-confirm`, `-decline`, and every owner command | Own records; the sponsor for `agent-member-confirm` and `-decline` | `HUMAN_REQUIRED` | `CALL_NOT_GRANTED` | Not served | From the entry |
-| `account-passkey-list`, `account-invitation-list`, `account-agent-list`, `session-list` | Own | `HUMAN_REQUIRED`: each lists a person's credentials or devices | `CALL_NOT_GRANTED` | Not served | From the entry |
-| Owner commands: `member-invite`, `-invitation-list`, `-invitation-cancel`, `-remove`, `-role-set`, `agent-member-add`, `-update`, `-remove`, `workspace-app-set`; `project-create` and `project-update { access }` on a listed slug; `project-update { access }` on another project, pending [Q2](#q2-who-may-change-a-projects-members) | An owner; others `OWNER_REQUIRED` | `HUMAN_REQUIRED` | `CALL_NOT_GRANTED` | Not served | From the entry |
+| Human commands: `account-update`, `account-passkey-add`, `-rename`, `-remove`, `account-invitation-accept`, `-reject`, `account-agent-disconnect`, `session-revoke`, `persona-create`, `-update`, `-remove`, `-set`, `member-leave`, `agent-member-confirm`, `-decline`, and every owner command | Own records; the sponsor for `agent-member-confirm` and `-decline` | `HUMAN_REQUIRED` | `CALL_NOT_GRANTED` | Not served | Provider-only ones from the entry; `persona-*` and `agent-member-confirm`, `-decline` re-run |
+| `account-passkey-list`, `account-invitation-list`, `account-agent-list`, `session-list` (human commands too) | Own | `HUMAN_REQUIRED`: each lists a person's credentials or devices | `CALL_NOT_GRANTED` | Not served | From the entry |
+| Owner commands: `member-invite`, `-invitation-list`, `-invitation-cancel`, `-remove`, `-role-set`, `agent-member-add`, `-update`, `-remove`, `workspace-app-set` | An owner; others `OWNER_REQUIRED` | `HUMAN_REQUIRED` | `CALL_NOT_GRANTED` | Not served | `member-*` from the entry; `agent-member-*` and `workspace-app-set` re-run |
+| Owner cases of shared commands: `project-create` and `project-update { access }` on a listed slug; `project-update { access }` on another project, pending [Q2](#q2-who-may-change-a-projects-members) | An owner; others `OWNER_REQUIRED` | `HUMAN_REQUIRED` | `CALL_NOT_GRANTED`, as today | **Served:** the commands are; these cases answer `HUMAN_REQUIRED` from the handler, since a token's call is always an agent's | Re-run |
 | `session-settle`, `agent-member-settle` (internal) | Kernel only | Never | Never | Never | Their entries |
 
 - **Why human commands are human.** D40 says an agent member "cannot … administer"; this specification reads it for every agent, a person's own included. A persona is the person's lens, and the proposal says "the switch is explicit and visible", so an agent does not switch or edit it; `account-update` changes how a person is shown to others; credentials, sessions, invitations and connected agents are a person's own keys. An agent may read the person's account and personas, and nothing more of these.
-- **Not served over MCP** means left out of `mcpOptions().commands`, as `PERSON_SESSION` is: `COMMAND_NOT_FOUND`. `HUMAN_COMMANDS` and `OWNER_COMMANDS` are frozen lists in `late-identity`.
+- **Not served over MCP** means left out of `mcpOptions().commands`, as `PERSON_SESSION` is: `COMMAND_NOT_FOUND`. `HUMAN_COMMANDS` (this table's second and third rows) and `OWNER_COMMANDS` (its fourth) are frozen lists in `late-identity`. The fifth row's commands stay served, and their owner cases refuse in the handler.
 - **The ports** are unchanged: none of these is in `APP_CALLABLE_SHELL_COMMANDS_V1` or a grant's list. **Apps receive the actor and the scope, never credentials** (principle 7).
-- **Replay never reaches the provider.** Every command that calls the adapter's account, session, passkey, organization or consent methods is in the kernel's recorded table, as `app-instance-refresh` is (phase 2's 10): a replay answers it from its entry, and one with no entry stops as `REPLAY_NOT_RECORDED`. The replay's Mock is driven by the recorded `auth-sign-in`, `auth-sign-out` and `session-settle` entries ([4.4](#44-hearing-the-adapter-d88)).
+- **Replay never reaches the provider, and re-runs what writes Loam's store.** A command whose whole effect is at the provider (`account-*`, `session-list`, `session-revoke`, `member-*`) is in the kernel's recorded table, as `app-instance-refresh` is (phase 2's 10): a replay answers it from its entry, and one with no entry stops as `REPLAY_NOT_RECORDED`. **A command that writes Loam's store is never recorded,** owner commands included (`agent-member-*`, `workspace-app-set`, `project-*`, `persona-*`): a replay re-runs it, so its writes replay. Their owner check and line 0 read membership from the replay's journaled membership (4.4). The replay's Mock is driven by the recorded `auth-sign-in`, `auth-sign-out` and `session-settle` entries.
 - **Every new command** joins `kernel/src/scope/call-scope.test.ts`'s table, through a person, an agent and two surface ports, on twin workspaces.
 
 ## 4. Sessions
@@ -367,7 +370,7 @@ export interface AuthAdapter {
 - **A session's handle is never its token:** the first 16 hex characters of SHA-256 over it, mapped in memory. `device` is a label from the user agent. **No IP address leaves the adapter.**
 - **`BetterAuthAdapter`** implements all three with the organization and passkey client plugins; a dismissed ceremony is `AuthAdapterError` `PASSKEY_CANCELLED`, no WebAuthn `PASSKEY_UNSUPPORTED`. It takes an `initial` state from the probe.
 - **`MockAuthAdapter`** implements all three in memory, roles from its options, and an `expiresAt` the kernel's clock reads.
-- **`createAuthMiddleware`, one change: a call whose context already holds `credentials` keeps its actor and `auth`,** since MCP authorization verified it, and the adapter's session is not its caller. This is the backstop; Loam's MCP chain has no session gate at all ([9.5](#95-the-mcp-chain)).
+- **`createAuthMiddleware`, one change: a call whose `credentials` afd-server set itself keeps its actor,** since MCP authorization verified it and the adapter's session is not its caller. afd-server marks the credentials it sets after verification with a module-private brand (a `WeakSet` in `@lushly-dev/afd-server`, read through an exported `isVerifiedCredentials`), so a direct-registry caller passing its own `credentials` object gets no such treatment, and the middleware still deletes any caller-supplied `auth` in both cases. This is the backstop; Loam's server kernel has no session gate at all ([9.5](#95-the-server-kernel-and-its-chain)).
 - **`spec/error-codes.md`'s** auth package codes gain `PASSKEY_CANCELLED` and `PASSKEY_UNSUPPORTED` in step 0b. Loam's own codes ([15](#15-failure-modes-and-error-codes)) are kernel codes and stay out of it.
 
 ### 4.2 First paint: the probe
@@ -386,12 +389,14 @@ export interface AuthAdapter {
 
 ### 4.4 Hearing the adapter (D88)
 
-- **The listener.** `createKernelParts` subscribes to `auth.onAuthStateChange`. When the verified person differs from the last one the kernel settled, and the change did not come from an `auth-*` command (which settles inside itself, as phase 2's middleware caller does), it runs the internal **`session-settle`**, journaled, on the `palette` interface.
-- **The expiry timer (#854).** On every settle, the kernel sets one timer for the session's `expiresAt` **on the kernel's clock** (`options.clock`, through a `schedule(at, fn)` port the web host implements with `setTimeout` and tests and replay with a fake), which runs `session-settle` when it fires. A replay never fires it; it replays the entry.
-- **Its input is the change, as data:** `{ person: string | null; role: 'owner' | 'admin' | 'member' | null; membershipDigest: string | null; reason: 'provider' | 'expiry' | 'tab' }`, computed by the kernel before it runs. So a replay reads the person and membership from the entry, never from a provider, and drives its Mock to the recorded person.
-- **Its handler** does at least what a sign-out does, whenever the person changes: closes the active app by `app-close`'s rules and dismisses app-owned overlays as `app-switch`; clears selections; holds the leaving person's unsaved drafts (4.5); runs `applyScopeChange(…, 'actor')`; then, for a new person, hydrates their records (4.5). With no session in `provider` mode, main shows "Sign in". Its result is `{ person: string | null; left: string | null }`.
+- **Where it lives.** The listener, the expiry timer and the membership refresh are `late`'s, attached when stage B loads, so they add no first-paint code; before then no late command can run, and stage A decides with the probe. First paint holds only the person captured in `run` (below).
+- **The listener.** `late` subscribes to `auth.onAuthStateChange`. When the verified person differs from the last one the kernel settled, and the change did not come from an `auth-*` command (which settles inside itself, as phase 2's middleware caller does), it runs the internal **`session-settle`**, journaled, on the `palette` interface.
+- **The expiry timer (#854).** The kernel keeps one timer for the session's `expiresAt`, **on the kernel's clock** (`options.clock`, through a `schedule(at, fn)` port the web host implements with `setTimeout` and tests and replay with a fake). It **re-arms whenever the adapter reports a different `expiresAt`**, since Better Auth slides a session's expiry as it is used. A delay past 2³¹−1 ms is clamped, and the timer re-arms when it wakes early. **When it fires, the kernel calls `adapter.refresh()` first**, and runs `session-settle` only if the person really changed or the session is gone. A replay never fires it; it replays the entry.
+- **Membership is journaled when it changes.** Whenever the kernel re-reads `MembershipV1` (before each owner command, and on 4.3's refresh) and its `digest` differs from the last one journaled, it runs `session-settle` with `reason: 'membership'` before anything else, so line 0 and `isOwner` replay from the journal, never from a provider.
+- **Its input is the change, as data:** `{ person: string | null; role: 'owner' | 'admin' | 'member' | null; membershipDigest: string | null; reason: 'provider' | 'expiry' | 'tab' | 'membership' }`, computed by the kernel before it runs. A replay reads the person, role and digest from the entry and drives its Mock and its `MembershipV1` to them.
+- **Its handler** does at least what a sign-out does, whenever the person changes: closes the active app by `app-close`'s rules and dismisses app-owned overlays as `app-switch`; clears selections; holds the leaving person's unsaved drafts (4.5); runs `applyScopeChange(…, 'actor')`; then, for a new person, hydrates their records (4.5). With no session in `provider` mode, main shows "Sign in". With `reason: 'membership'` and the same person, it only replaces `MembershipV1` and, if the active project is no longer allowed, runs `applyScopeChange`. Its result is `{ person: string | null; left: string | null }`.
 - **No coalescing across people.** Two changes to the same person make one call; a change to a different person is never merged away.
-- **Calls queued across a change.** `run` captures the person when a call is queued; a call that would run after a change of person is refused `SESSION_CHANGED`, retryable, journaled, so nothing one person queued runs as another.
+- **Calls queued across a change.** `run` captures the person when a call is queued, and a call that would run after a change of person is refused `SESSION_CHANGED`, retryable, journaled, so nothing one person queued runs as another. **Two exemptions keep the ordinary paths working:** a call queued behind an `auth-*` call from the same interface takes the person that `auth-*` call leaves, so the chrome's sign-in followed by its reads (phase 0 to 2's signed-out-to-Mock path, E12) runs as the signed-in person; and the kernel's own internal commands are never refused. **A nested call whose copied person differs from the session's current person is refused `SESSION_CHANGED`**, since afd-auth's `actorForSession` would otherwise re-stamp it as the new human.
 - **Its event** carries `actorChanged: true` in `KernelEventV3`; the chrome re-reads the rail and every section on it. That closes #864.
 - **Not served,** not callable through a port, refused on the agent interface.
 
@@ -441,7 +446,7 @@ export interface AccountV1 {
 | `account-passkey-remove` | mutation, recorded, human, fresh | `{ passkey }` | `{ removed: true }`. No undo. **`PASSKEY_LAST`** when it is the person's only passkey and `AccountV1.recovery` is `none` with no other method in `identity.methods` |
 
 - **User verification is required** on every ceremony, by `authenticatorSelection.userVerification: 'required'` and by the provider's check of the assertion's UV flag. E1 holds that an assertion without user verification is refused.
-- **Fresh.** `account-passkey-add`, `account-passkey-remove` and `session-revoke { 'others' | 'all' }` need a session created within `freshAge` (300 seconds). `loamServerPlugin` adds a `before` hook on `/passkey/add-passkey`, `/passkey/delete-passkey`, `/revoke-other-sessions`, `/revoke-sessions` and its own `revoke-person` that refuses an older session, so the rule holds at the provider; the kernel answers `REAUTH_REQUIRED` first, and the chrome asks for a passkey sign-in, which makes a fresh session, then retries once. **A person who holds a passkey must re-authenticate with one:** a fresh password or OIDC session is not user-verified (D99) and does not satisfy these hooks for them. A person with no passkey yet may add their first from a fresh password or OIDC session, which is how a password or single sign-on account enrols one.
+- **Fresh.** `account-passkey-add`, `account-passkey-remove` and `session-revoke { 'others' | 'all' }` need a session created within `freshAge` (300 seconds), and, for a person who already holds a passkey, **a session made by a passkey** (D99: a password or OIDC session is not user-verified). The provider enforces it ([5.8](#58-registration-at-the-provider)); the kernel answers `REAUTH_REQUIRED` first, and the chrome asks for a passkey sign-in, which makes a fresh session, then retries once. A person with no passkey yet may add their first from a fresh password or OIDC session, which is how such an account enrols one. The only other way a person who holds a passkey registers another without one is the single sign-on recovery ceremony (5.7).
 - **A person's gesture.** The chrome calls `account-passkey-add` from a button press; WebAuthn refuses a ceremony without transient activation (`PASSKEY_CANCELLED`).
 - **Signals.** After a removal, where `PublicKeyCredential.signalUnknownCredential` exists, the chrome signals it (W32).
 - **The sign-in dialog,** `loam-sign-in-dialog`: "Sign in with a passkey" first; the email field with `autocomplete="username webauthn"` for autofill, started when the dialog opens if `PublicKeyCredential.isConditionalMediationAvailable()` says so; then each other allowed method. A shell modal through the overlay manager.
@@ -488,31 +493,57 @@ and the rules in `loam-rules.ts`: `surface` names a declared surface of a native
 
 **There is no open sign-up** in `provider` mode. A person gets an account in one of two ways:
 
-1. **By invitation.** An owner's `member-invite` ([7.2](#72-member-commands)) creates the provider's invitation, and `loamServerPlugin` creates a single-use join token, 32 random bytes, stored as a SHA-256 hash, expiring with the invitation (48 hours). `sendInvitationEmail` sends the link `<origin><base_path>~/join?invitation=<id>&token=<token>` through `createLoamAuthOptions`' `mail`; the development profile and the test host use a mail sink.
-   - **The join page** (`account` chunk, top level, `frame-ancestors 'none'` on the hosted lane) shows the organization and role, and offers "Create a passkey" first.
-   - **Passkey-first enrolment** uses the passkey plugin's `registration: { requireSession: false, resolveUser }`: `resolveUser` checks the join token against its hash, that the invitation is pending and unexpired, and creates the user with the invitation's email and `emailVerified: true`, **since holding the emailed token proves the mailbox**. The passkey is registered, the token consumed, the invitation accepted, a session created, all in one server transaction.
-   - With `password` allowed, the same page may set a password instead; with `oidc:<id>`, "Continue with <provider>" signs in through it, and the invitation is accepted only when the provider's email is verified and equals the invitation's.
+1. **By invitation.** An owner's `member-invite` ([7.2](#72-member-commands)) creates the provider's invitation, and `loamServerPlugin` creates a single-use join token, 32 random bytes, stored as a SHA-256 hash, expiring with the invitation (48 hours), with a `pendingUserId` it reserves for the new account. `sendInvitationEmail` sends the link `<origin><base_path>~/join?invitation=<id>&token=<token>` through `createLoamAuthOptions`' `mail`; the development profile and the test host use a mail sink.
+   - **The join page** (`account` chunk, top level, `frame-ancestors 'none'` on the hosted lane) shows the organization and role, and offers "Create a passkey" first. **With any session present it stops and says "Sign out first"**, since the provider would attribute a registration to that session's person ([5.8](#58-registration-at-the-provider)).
+   - **An invitation to an email that already has an account** (a person removed and invited again, or one created by single sign-on) never enrols a credential: the page says "You already have an account. Sign in, then accept the invitation in your account", and the person does that with `account-invitation-accept` (5.3).
+   - **Passkey-first enrolment** registers with `context` `join:<invitation>.<token>` ([5.8](#58-registration-at-the-provider)). Holding the emailed token proves the mailbox, so the new account's email is verified.
+   - With `password` allowed, the same page may set a password instead, through `loamServerPlugin`'s own `join/password` endpoint, which checks the token the same way; with `oidc:<id>`, "Continue with <provider>" signs in through it, and the invitation is accepted only when the provider's email is verified and equals the invitation's.
 2. **By the deployer's single sign-on.** A configured OIDC provider may create a user only with `email_verified: true`. That user is **not a member** until invited.
 
 **Email verification is required everywhere:** for a password account (`requireEmailVerification`), for accepting any invitation, and for linking an OIDC account to an existing one.
 
+**The first organization and its first owner.** With sign-up and organization creation off, the deployer creates both, once, with `bootstrapOrganization({ slug, name, ownerEmail })` from `@lushly-dev/loam-identity`, which phase 6's hosted lane exposes as a one-time server command (10.2's item 2): it creates the organization through the provider's server API, pins the binding (2.3), and sends an `owner` invitation to `ownerEmail`, which enrols as above. It refuses when a binding exists. The test-only auth host seeds through the same function.
+
 ### 5.7 Recovery
 
-**Decided by the owner on 2026-11-09 (D97, [Q5](#q5-ways-to-sign-in-and-who-may-restore-access)):** a person restores their own access by an **emailed one-time link to their verified email**, or through the company's **single sign-on** where the deployer set it up. **No owner can restore another person's account:** no command, owner or otherwise, starts a recovery for someone else, and no recovery link goes to any address but the account's own verified one.
+**Decided by the owner on 2026-11-09 (D97, [Q5](#q5-ways-to-sign-in-and-who-may-restore-access)):** a person restores their own access by an **emailed one-time link to their verified email**, or through the company's **single sign-on** where the deployer set it up. **No owner can restore another person's account:** no command, owner or otherwise, starts a recovery for someone else, and no recovery link goes to any address but the account's own verified one. D97 is the owner's and wins over the coordinator's D99 where they meet: single sign-on recovery may register a passkey for a person who holds one.
 
-| Path | How |
+**One transaction, whichever path,** in `loamServerPlugin`, called the **recovery transaction**: every other session, every OAuth consent and every refresh token of the person is revoked; their connected agents are suspended; `recoveredAt` is recorded on the provider's user; an email goes to the account's verified address ("Your access to Acme was restored on <date>. If this wasn't you, contact an owner"), and the account section shows a notice at the next sign-in. The kernel journals the resulting `session-settle` with `reason: 'provider'`, and `account-get` reports `recoveredAt`.
+
+**By email.**
+
+- The person asks on the sign-in dialog's "Can't sign in?" with their email. **The answer is the same, after the same fixed delay (1,000 ms from the request), whether the email has an account, has none, or is past its limit:** at most three recovery emails per account per hour, and past that the request is dropped silently. The provider's default rate limit applies per client address.
+- The link carries a recovery token: 32 random bytes, stored hashed, **single use, valid 15 minutes**, at most one outstanding per person (a new one cancels the old). It goes only to the account's verified email.
+- The recovery page (top level, `frame-ancestors 'none'`) **with any session present stops and says "Sign out first"**, then registers a new passkey with `context` `recover:<token>` (5.8), which runs the recovery transaction.
+
+**By single sign-on: an explicit ceremony.**
+
+- "Can't sign in? Use <provider>" calls `loamServerPlugin`'s `recover/oidc/start`, which signs out any session in this browser and sends the person through the deployer's OIDC sign-in with a callback to `~/recover?via=oidc`.
+- On return, the page calls `recover/oidc/complete`. It succeeds only for a session **created within the last 300 seconds by that OIDC provider's sign-in**, whose provider reports `email_verified: true` and an email equal to the account's verified email. It runs the recovery transaction, keeping only this session, and marks this session `recovery` for 300 seconds in its own table.
+- The page then registers a new passkey with that session. **This is the only path on which a session not made by a passkey may register a passkey for a person who already holds one** (5.8).
+
+**Password reset is the same ceremony.** Better Auth's own `/request-password-reset`, `/reset-password`, `/reset-password/:token` and `/forget-password/email-otp` are in `disabledPaths`; with `password` allowed, "Can't sign in?" sends the same recovery link, and its page offers "Set a new password" beside "Create a passkey", each running the recovery transaction. **`/change-email` is disabled** (`user.changeEmail` off and in `disabledPaths`), so the address recovery trusts never changes by a session alone.
+
+**`PASSKEY_LAST`** reads `AccountV1.recovery`: removing the last passkey is refused only when the person would have no way back in. With D97, recovery by email is open to a verified account, so `recovery` is `email` (or `oidc` where single sign-on is set up), and `PASSKEY_LAST` applies only to an account whose email is not verified.
+
+### 5.8 Registration at the provider
+
+Better Auth 1.7.18's passkey plugin registers in two requests, `/passkey/generate-register-options` then `/passkey/verify-registration`, and deletes with `/passkey/delete-passkey` (read from its published package). With `registration.requireSession: false`, which the join and recovery paths need, the plugin **drops its own session and freshness checks for every registration**; a present session still wins over `resolveUser`; `resolveUser` runs when the options are generated, one request before verification; and `afterVerification` may return the `userId` the passkey is for, which the plugin refuses when a session of another person is present. So `createLoamAuthOptions` sets `requireSession: false` and `loamServerPlugin` puts back, at the provider, everything that removed:
+
+| Request | `before` hook on `/passkey/generate-register-options` and `/passkey/verify-registration` |
 | --- | --- |
-| Email | The person asks on the sign-in dialog's "Can't sign in?" with their email; the link goes only to that account's verified email. The answer is the same whether or not the email has an account, so the form reveals nothing |
-| Single sign-on | No link: signing in through the deployer's OIDC with the same verified email is the recovery, and enrols a passkey on the same page |
+| No `context`, a session present | The session must be fresh (300 s), and if the person holds a passkey, made by a passkey, unless it is marked `recovery` (5.7). Otherwise `401 REAUTH_REQUIRED`. This is the plugin's own check restored, plus D99 |
+| No `context`, no session | `401` |
+| `context` `join:…` or `recover:…`, **any session present** | `400 SIGN_OUT_FIRST` |
+| `context` `join:…` | The token matches its hash, unconsumed, unexpired; the invitation pending; **no account has the invitation's email** (else `409 ACCOUNT_EXISTS`) |
+| `context` `recover:…` | The token matches its hash, unconsumed, unexpired |
 
-**The ceremony,** in `loamServerPlugin`:
+- **`resolveUser`** (at generation) only names the user the options are for: for `join:` the token's `pendingUserId` and the invitation's email, for `recover:` the token's person. It writes nothing.
+- **`afterVerification`** (at verification) does the work, after the authenticator has proved itself: it checks the token again, then, in one database transaction, for `join:` creates the user with `pendingUserId`, the invitation's email and `emailVerified: true`, accepts the invitation and consumes the token; for `recover:` runs the recovery transaction and consumes the token. It returns `{ userId }`. The page sends `createSession: true`, so the plugin creates the session after storing the passkey. If storing the passkey fails after the transaction, the token is already spent and the account exists with no passkey; the person uses "Can't sign in?", which the page says.
+- **Deleting:** a `before` hook on `/passkey/delete-passkey` applies the first row's freshness and passkey rule.
+- **Sessions:** the same freshness and passkey rule on `/revoke-other-sessions`, `/revoke-sessions` and `revoke-person`.
 
-- A recovery token: 32 random bytes, stored hashed, **single use, valid 15 minutes**, at most one outstanding per person (a new one cancels the old).
-- The recovery page (top level, `frame-ancestors 'none'`) registers a new passkey with `requireSession: false` and `resolveUser` resolving the token's person.
-- On success, in one transaction: the token is consumed; **every other session, every OAuth consent and every refresh token of the person is revoked**, and their connected agents are suspended, as `session-revoke 'all'` does; a new session is created.
-- **Journaled and announced to the person:** an email to the account's verified address ("Your access to Acme was restored on <date>. If this wasn't you, contact an owner"); a notice in the account section at the next sign-in. The provider keeps the recovery as a dated record; the kernel journals the resulting `session-settle` with `reason: 'provider'`, and `account-get` reports `recoveredAt`.
-- **The request is rate-limited:** at most three recovery emails per account per hour, and per client address the provider's default rate limit.
-- **`PASSKEY_LAST`** reads `AccountV1.recovery`: removing the last passkey is refused only when the person would have no way back in. With D97, recovery by email is always open to a verified account, so `recovery` is `email` (or `oidc` where single sign-on is set up), and `PASSKEY_LAST` applies only to an account whose email is not verified.
+E17 and E18 test each row at the provider, by direct requests that bypass the shell.
 
 ## 6. Persona (D89)
 
@@ -579,7 +610,7 @@ export interface PersonaV1 {
 
 **Owners can enter every project** (D96): an owner may add themselves to any project's members, a restricted one or one a team instance serves, by `project-update { access }`, journaled; `decideAccess` gives an owner nothing a member list does not, so the record says who entered and when.
 
-**The last owner.** Better Auth 1.7 refuses leaving as the only owner (`YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER`, `…_WITHOUT_AN_OWNER`); Loam maps both to `MEMBER_LAST_OWNER`, and its `beforeRemoveMember` and `beforeUpdateMemberRole` hooks refuse removing or demoting the last `owner` too, the cases the provider's errors do not name.
+**The last owner.** Better Auth 1.7 refuses leaving as the only owner (`YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER`, `…_WITHOUT_AN_OWNER`); Loam maps both to `MEMBER_LAST_OWNER` when the caller is leaving or demoting the last owner, and maps `YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER` to `OWNER_REQUIRED` when an `admin` is removing an `owner`, which only an `owner` may do. Its `beforeRemoveMember` and `beforeUpdateMemberRole` hooks refuse removing or demoting the last `owner` too, the cases the provider's errors do not name.
 
 ### 7.2 Member commands
 
@@ -693,16 +724,25 @@ Table `agent-member` in the workspace store, indexed by `sponsor` and `client.id
 
 ### 9.2 The hosted principal mapping
 
-**Decided by the owner on 2026-11-09 (D98, [Q3](#q3-a-persons-own-external-agent-over-mcp)):** a person may connect their own external agent over MCP **without an owner's approval**. It is a **connected agent**, an agent member the person sponsors, so D40 holds for it: its access is at most the person's own; it never gets owner actions or changes to anyone's access, sign-in or sessions (`HUMAN_REQUIRED`, and those commands are not served over MCP); every action names both the agent and the person; owners see it in the members tab; and the person or an owner can disconnect it. `principalOf(credentials, server)`, called by the MCP chain:
+**Decided by the owner on 2026-11-09 (D98, [Q3](#q3-a-persons-own-external-agent-over-mcp)):** a person may connect their own external agent over MCP **without an owner's approval**. It is a **connected agent**, an agent member the person sponsors, so D40 holds for it: its access is at most the person's own; it never gets owner actions or changes to anyone's access, sign-in or sessions (`HUMAN_REQUIRED`, and those commands are not served over MCP); every action names both the agent and the person; owners see it in the members tab; and the person or an owner can disconnect it. The mapping is in two places, so that a refusal that is about the token is an HTTP 401 and one that is about Loam is a tool error:
+
+**In `createMcpAuth`'s verifier** (the HTTP layer, before any command):
 
 1. `credentials.issuer` equals the provider's issuer exactly. Otherwise `PRINCIPAL_ISSUER_UNKNOWN`, **a 401 with `error="invalid_token"`**, as M5 allows, failing closed.
 2. `credentials.subject` is a person's id; an `agt_` subject is `AGENT_CANNOT_SIGN_IN`, a 401. **Pairwise subjects are forbidden:** `createLoamAuthOptions` sets no `pairwiseSecret`, and a client registering `subject_type: "pairwise"` is refused at registration.
-3. The connected agent is the `agent-member` record with `kind: 'connected'`, `client.id === credentials.clientId` and `sponsor === credentials.subject`. None, or not `active`: `AGENT_NOT_CONNECTED`, a tool error naming the account section's agents tab, since the token was valid.
+
+**In `credentialsGate`** (the first middleware of the server kernel's chain, 9.5), `principalOf(credentials, server)`:
+
+3. The connected agent is the record with `client.id === credentials.clientId` and `sponsor === credentials.subject` in `loamServerPlugin`'s connected-agent table (below). None, or not `active`: `AGENT_NOT_CONNECTED`, a tool error naming the account section's agents tab, since the token was valid.
 4. **The actor is `{ kind: 'agent', id: <its agt_ id>, label: <its name>, onBehalfOf: credentials.subject }`.**
-5. `decideAccess` decides as for any agent member (3.3): the subject's membership, read on the server, the project, and the record's `access`, which for a connected agent is `{ workspace: true, projects: 'sponsor' }` unless its person narrowed it.
+5. **The principal** is `{ actor, person: credentials.subject, membership }`, with `membership` the subject's member row for the bound id, read on the server for this request (7.6). `decideAccess` decides as for any agent member (3.3), with the record's `access`, which for a connected agent is `{ workspace: true, projects: 'sponsor' }` unless its person narrowed it.
 6. `credentials` is on the context, never journaled, never in a result, never forwarded to a mounted instance (M4).
 
-**Connecting** creates the record: the consent page ([9.4](#94-connected-agents-and-their-pages)), on the person's approval, runs `connectAgent`, which `loamServerPlugin` writes to the server's store with `sponsor` and `installedBy` the person and status `active`. **The sponsor confirmation of Q4 does not apply,** since the sponsor is the person connecting it. **Disconnecting:** the person by `account-agent-disconnect` (5.3), an owner by `agent-member-remove`, which for a connected agent also deletes its consent and revokes its refresh tokens.
+**Where connected agents live.** A connected agent exists only for the hosted server, so its record is in **`loamServerPlugin`'s own `loam_connected_agent` table in the provider's database**, authoritative in every phase, with `AgentMemberV1`'s shape and `kind: 'connected'`. The kernel's `agent-member` table holds installed agent members. `account-agent-list` and `member-list` read connected agents from the provider (`loamServerPlugin`'s `connected-agents` endpoint, by the session in a browser, by the server API on the server) and merge them with installed ones.
+
+**Connecting** creates the record: the consent page ([9.4](#94-connected-agents-and-their-pages)), on the person's approval, runs `connectAgent`, which writes it to `loam_connected_agent` with `sponsor` and `installedBy` the person and status `active`. **`connectAgent` refuses a person who is not a workspace member** (`WORKSPACE_NOT_MEMBER`), so a token is never issued to a non-member's new connection. **The sponsor confirmation of Q4 does not apply,** since the sponsor is the person connecting it. **Disconnecting:** the person by `account-agent-disconnect` (5.3), an owner by `agent-member-remove`, each of which deletes the client's consent and revokes its refresh tokens. **An owner's removal keeps the record as `suspended: 'owner'`, and `connectAgent` refuses the same client for the same person while it stands** (`AGENT_DISCONNECTED_BY_OWNER`), so the person cannot simply reconnect what an owner removed; an owner lifts it with `agent-member-remove { agent, forget: true }`, which deletes the record. A person's own disconnect deletes the record, so they may reconnect.
+
+**Served for the token's person with no session.** On the server, `account-get`, `persona-list`, `member-list` and `agent-member-list` read the provider through its server API by `principal.person`, never through a session, since a token's call has none.
 
 **No autonomy policy before phase 5.** The autonomy policy (D41) is enforced from phase 5, so until then **a connected agent with `loam:write` can make any change its person can, without asking**, within the person's access and never an owner or human command. The consent page says so in words (9.4).
 
@@ -713,7 +753,7 @@ Table `agent-member` in the workspace store, indexed by `sponsor` and `client.id
 | `loam:read` | Every request (`requiredScopes`) and every query |
 | `loam:write` | Every mutation, by `createMcpAuth`'s resolver reading the registry's `mutation` flag; a mounted instance's unreported command counts as one (D65) |
 
-`scopesSupported: ['loam:read', 'loam:write']`, `filterToolsByScope: false`, so `tools/list` stays one list. Human and owner commands are not served, so no scope reaches them.
+`scopesSupported: ['loam:read', 'loam:write']`, `filterToolsByScope: false`, so `tools/list` stays one list. Human and owner commands are not served, so no scope reaches them; `project-create` and `project-update` are served, and refuse their owner cases with `HUMAN_REQUIRED` from the handler (3.4).
 
 ### 9.4 Connected agents and their pages
 
@@ -722,7 +762,9 @@ The provider is the authorization server: `oauthProvider` with the JWT plugin an
 - **One resource:** the hosted server's canonical MCP URI, `https://<host><base_path>mcp`, the only entry in `resources`, so every token's `aud` is exactly it (M3.1). **The JWT plugin's own `/token` route is disabled** (`disabledPaths: ['/token']`), and an access token issued without `resource` is opaque, which `createMcpAuth`'s JWT-only verifier refuses.
 - **Lifetimes:** `accessTokenExpiresIn: 600` (10 minutes); `refreshTokenExpiresIn` 30 days, rotating on use, so the window slides with each refresh; `idTokenExpiresIn` default. JWT access tokens cannot be revoked (S86), hence the short lifetime.
 - **Registration,** in MCP 2026-07-28's order: pre-registration by the deployer; then **Client ID Metadata Documents** (`@better-auth/cimd`); `allowDynamicClientRegistration: false` unless the deployer turns it on.
-- **PKCE S256 required for every client**, confidential ones included: no exemption is configured.
+- **Grants:** `grantTypes: ["authorization_code", "refresh_token"]`, so `client_credentials` is off and every token has a person.
+- **PKCE S256 required for every client**, confidential ones included: no exemption is configured, and a `before` hook on client registration and on the admin client APIs refuses `requirePKCE: false`.
+- **The login page's flow:** the authorize endpoint sends a person with no session to `loginPage` with the signed authorization request; the page shows the sign-in dialog's methods (passkey first); on sign-in it resumes the authorization through `oauthProviderClient`, which continues the signed request to the consent page or the client. It never accepts a redirect target of its own.
 - **`loginPage` and `consentPage`** are `<base_path>~/oauth/login` and `<base_path>~/oauth/consent`, rendered as **top-level pages** by the shell (`account` chunk), served by the hosted lane with `frame-ancestors 'none'` and `form-action 'self'` in their response CSP. The consent page shows:
   - **the client id's host** (the metadata document's URL host, or "registered by the deployer"), in bold;
   - the client's name **marked "name given by the app"**, since it is self-asserted;
@@ -733,22 +775,21 @@ The provider is the authorization server: `oauthProvider` with the JWT plugin an
   Approve calls `/oauth2/consent` with `accept: true` by `fetch`, then navigates to the returned redirect; Deny the same with `accept: false`.
 - **The person sees and disconnects them** in the account section's agents tab (5.3).
 
-### 9.5 The MCP chain
+### 9.5 The server kernel and its chain
 
-**The server's kernel never runs a token's call as whoever its adapter has signed in.** `createMcpChain({ kernelParts, server })` builds what the hosted lane passes to `createMcpHandler`, replacing phase 2's `mcpOptions().middleware` there:
+**The server's kernel never runs a call as whoever an adapter has signed in, and every call on it, top-level or nested, runs under the request's principal.**
 
-```ts
-[credentialsGate, journal, scopeMiddleware]
-```
-
-- **`credentialsGate`**, in place of afd-auth's session middleware: refuses a call with no `context.credentials` (`UNAUTHORIZED`; the HTTP layer has already answered 401 for a missing token, so this is the fail-closed backstop), runs `principalOf`, and sets `context.actor` from it. Nothing reads the kernel's adapter.
-- **The server kernel's adapter** is `createNoSessionAdapter()`, in `identity`: always `unauthenticated`, no listeners, no sign-in. The server holds no person's session, so `sessionActor` there is never a person, `session-settle` never runs, and phase 2's page-event middleware hears no page.
-- **Line 0 and every `decideAccess`** read `personKey(context.actor)`, the token's person, and `MembershipV1` from `server.membership(person)`, read per request (7.6).
-- **Commands:** `mcpOptions().commands`, less `HUMAN_COMMANDS` and `OWNER_COMMANDS`.
+- **`createServerKernel(options)`**, in `identity`, builds the hosted server's kernel with `identity` **required and `mode: 'provider'`**: it refuses `local`, so line 0 can never read everyone as a member and owner there.
+- **One chain for every registry.** `createKernelParts` gains `gate: 'session' | 'principal'`, default `'session'` (the browser's, as today). With `'principal'`, the palette, agent and boot registries are all built over `[principalGate, journal, scopeMiddleware]`, so **a port call, a nested call and a handler's client go through the same gate as the top-level call** (`checkedCall` → `runAs` → `execute('palette')`, `kernel.ts:509-511`). No afd-auth middleware is on the server kernel at all; its `auth` option is `createNoSessionAdapter()`, always `unauthenticated`, which nothing reads.
+- **The principal travels.** `KernelCallFields` gains `principal: { actor, person, membership }`, a kernel-only field never declared to a server or journaled whole (the journal keeps `actor`). `credentialsGate` sets it on the MCP call's context; `checkedCall`, the nested client and the surface port copy it with `actor` (3.1); `principalGate` refuses a call without it (`UNAUTHORIZED`) and sets `context.actor` from it.
+- **`credentialsGate`** is the MCP handler's own first middleware: it refuses a call with no `context.credentials` (the HTTP layer has already answered 401 for a missing token; this is the fail-closed backstop), runs `principalOf` (9.2, steps 3 to 6), and sets `context.principal`.
+- **Membership comes from the call.** The scope runtime (`scopeMiddleware`, `ScopeRuntime.allows`, `canOpen`, `opensIn`, `checkResource`, `project-list`'s filter) and `isOwner` read membership through one accessor, `membershipOf(context)`: on the server, `context.principal.membership`; in a browser, the kernel's `MembershipV1`. Nothing on the server reads kernel-wide membership state.
+- **No change-of-actor logic on the server.** `late.before`'s change-of-actor step (phase 2's 3.4, the middleware caller of `applyScopeChange`) and `session-settle` are skipped with `gate: 'principal'`: the server holds no active scope and no person's session.
+- **Commands:** `mcpOptions().commands`, less `HUMAN_COMMANDS` (3.4's second and third rows) and `OWNER_COMMANDS`; `project-create` and `project-update` stay, refusing their owner cases from the handler (3.4).
 
 ### 9.6 Proof before the hosted lane
 
-**E8, through a test-only handler:** a real `createMcpHandler` from step 0a with `createMcpChain` and `createMcpAuth`, on loopback `node:http`, over a kernel whose adapter is a Mock **with a different person signed in**; a test-only auth host issuing real tokens from Better Auth's `oauthProvider`; AFD's `StreamableHttpTransport`. It lives in `identity/src/mcp-identity.test.ts`.
+**E8, through a test-only handler:** a real `createMcpHandler` from step 0a with `createServerKernel` and `createMcpAuth`, on loopback `node:http`, over `createServerKernel` given a Mock adapter **with a different person signed in**, so any read of an adapter would show; a test-only auth host issuing real tokens from Better Auth's `oauthProvider`; AFD's `StreamableHttpTransport`. It lives in `identity/src/mcp-identity.test.ts`.
 
 ## 10. The dependency on phase 6's hosted lane (D84)
 
@@ -756,16 +797,16 @@ The provider is the authorization server: `oauthProvider` with the JWT plugin an
 
 | Part | Criterion | Proved by | Needs |
 | --- | --- | --- | --- |
-| **Local** | Passkey sign-in; persona changes emphasis and never what anyone may do; a revoked session signs out every tab; an owner's agent member appears with its sponsor and cannot sign in; a token for the wrong audience is refused by AFD's layer | P3-E1 to P3-E19, through a test-only auth host and a test-only handler, in `loam.yml` | Nothing outside this phase |
-| **Hosted** | The same on the hosted lane's development profile, with the server's kernel and the mount relay enforcing the rules against the server's records | P3-H1 to P3-H4 | Phase 6's development profile (10.2) |
+| **Local** | Passkey sign-in; persona changes emphasis and never what anyone may do; a revoked session signs out every tab; an owner's agent member appears with its sponsor and cannot sign in; a token for the wrong audience is refused by AFD's layer | P3-E1 to P3-E20, through a test-only auth host and a test-only handler, in `loam.yml` | Nothing outside this phase |
+| **Hosted** | The same on the hosted lane's development profile, with the server's kernel and the mount relay enforcing the rules against the server's records | P3-H1 to P3-H5 | Phase 6's development profile (10.2) |
 
 **Phase 3 exits when both pass.** The local run is recorded as "local criterion met, through a test-only auth host and handler", which unblocks nothing: phase 5 needs phase 3's exit and phase 6's hosted lane anyway, and phase 4 needs neither.
 
 ### 10.2 What phase 6 must deliver first
 
 1. One Node process on Hono (D36) serving the built shell under `base_path`, with phase 0's CSP as response headers, `frame-ancestors` among them, and the OAuth pages' stricter CSP (9.4).
-2. Better Auth at `<base_path><identity.path>`, from `createLoamAuthOptions`, with its database in the profile's data directory and a mail sink.
-3. `createMcpHandler` at `<base_path>mcp`, through Hono's Node adapter, with `createMcpChain` and `createMcpAuth`; RFC 9728 metadata at its well-known path.
+2. Better Auth at `<base_path><identity.path>`, from `createLoamAuthOptions`, with its database in the profile's data directory and a mail sink; and a one-time server command that runs `bootstrapOrganization` (5.6), the only way the first organization, its binding and its first owner come to exist.
+3. `createMcpHandler` at `<base_path>mcp`, through Hono's Node adapter, over `createServerKernel` with `credentialsGate` and `createMcpAuth` (9.5); RFC 9728 metadata at its well-known path.
 4. **A server kernel whose store is authoritative** for `ProjectV1.access`, `AgentMemberV1` and `WorkspaceAppV1.overrides` (2.5), and the transport by which a browser's trust-record commands run there.
 5. **The mount relay enforces:** each browser request to `mounts/<instance>/mcp` carries the session cookie; the relay verifies the session with the provider, reads membership on the server, runs `decideAccess` version 2 and phase 2's 9.2 against the server's records for the request's `dev.loam/scope`, and refuses (`PROJECT_NOT_FOUND`, `WORKSPACE_NOT_MEMBER`, `MOUNT_PROJECT_NOT_LISTED`) before forwarding.
 6. A development profile over HTTPS on `localhost` with a generated certificate, started by one command, and a `loam.yml` job named **`Hosted development profile`** whose step **`Hosted criterion against the development profile`** runs Chromium against it with the verbose reporter, which the exit check reads.
@@ -801,19 +842,20 @@ Against phase 2's [2.4](../2-scope-projects/spec.md#24-the-budget-and-the-rule):
 
 | Step | First-paint parts | Allowance (bytes, gzip) |
 | --- | --- | --- |
-| 1 | `decideAccess` version 2, `personKey`, `isOwner` (~500); reading `identity` and `MembershipV1` from boot (~300); line 0 (~150) | 1,000, 400 |
+| 1 | `decideAccess` version 2, `personKey`, `isOwner` (~500); reading `identity` and `MembershipV1` from boot (~300); line 0 (~150); `personalRecordId` (~150); the person captured in `run` for `SESSION_CHANGED` (~80). **`SIGNED_OUT_COMMANDS` and `MEMBER_EXEMPT_COMMANDS` are not first paint:** stage A holds only boot commands, which the chain already excludes as today, and the lists load with `late`, where the late commands register | 1,200, 500 |
+| 2 | **None.** The listener, the expiry timer, the `schedule` port's use and the membership refresh are `late`'s (4.4) | 0, 0 |
 | 3 | The probe and `DeferredAuthAdapter` (~900); the signed-out main's button (~450); the not-a-member and binding notices (~350); stage A's `whoami` read wired into boot (~200) | 1,950, 800 |
 | 5 | Persona emphasis in `bandFor` (~500); stage A's read of `loam.persona~<person>` (~200) | 750, 300 |
-| **Total** | | **3,700, 1,500**: first paint to about 289,800 and 89,700, under 300,000 and 91,000 |
+| **Total** | | **3,900, 1,600**: first paint to about 290,000 and 89,800, under 300,000 and 91,000 |
 
-The ceiling stays: 289,800 is 97% of it, above phase 0's 70% lowering threshold.
+The ceiling stays: 290,000 is 97% of it, above phase 0's 70% lowering threshold.
 
 | Row | Where | Estimate | Note |
 | --- | --- | --- | --- |
-| `kernelMinified` | The kernel alone | +900 | 111,761 of 113,401; step 1 measures first and moves `session-settle`'s subscription into `late` if needed |
+| `kernelMinified` | The kernel alone | +1,100 | Step 1's first-paint parts but the boot read, which is the web host's: 111,761 to about 112,860 of 113,401. Step 1 measures first; if the row would pass, it moves `personalRecordId` into `late` (stage A reads only the signed-out key) before amending anything |
 | `auth` (new) | Stage B, `provider` only | 58,500 | Better Auth 1.7.18's client with both plugins measured 54,636; `BetterAuthAdapter` ~2,400; `SessionSync` ~1,500 |
 | `late-identity` (new) | Inside `loadLate`, in both modes | 16,000 | Every command of sections 4 to 8, `session-settle` and `agent-member-settle` |
-| `late` | | +1,500 | Owner checks in `project-*` and `workspace-app-set`, `HUMAN_COMMANDS` and `OWNER_COMMANDS` in `mcpOptions`, `SESSION_CHANGED`. 67,609 of 75,000 |
+| `late` | | +3,500 | Owner checks in `project-*` and `workspace-app-set`, `HUMAN_COMMANDS` and `OWNER_COMMANDS` in `mcpOptions`, the auth gate's two lists (~650), the listener, expiry timer and membership refresh of 4.4 (~1,200). 67,609 of 75,000 |
 | `sign-in` (new) | When "Sign in" is pressed | 5,000 | |
 | `account-menu` (new) | When the account button is pressed | 4,000 | |
 | `account` (new) | The account section, the join and recovery pages, the OAuth pages | 46,000 | `sections` is not touched |
@@ -848,6 +890,8 @@ Every code has a suggestion and is added to `LoamKernelErrorCode`, afd-auth's `A
 | `AGENT_CANNOT_SIGN_IN` | A person id or token subject starting `agt_` | Signed out; a 401 | Agent members act through delegation or a connection |
 | `AGENT_NAME_RESERVED` | `options.agent` reserved (3.1) | A failure | Choose another name |
 | `AGENT_NOT_CONNECTED` | A token's client with no active connected agent for its subject | A tool error | Connect it in the account section |
+| `AGENT_DISCONNECTED_BY_OWNER` | `connectAgent` for a client an owner removed for this person (9.2) | Refused on the consent page | Ask an owner |
+| `SIGN_OUT_FIRST`, `ACCOUNT_EXISTS` | A join or recovery registration with a session present; a join for an email with an account (5.8) | 400, 409 at the provider | Sign out; sign in and accept the invitation |
 | `AGENT_MEMBER_NOT_FOUND`, `AGENT_SPONSOR_INVALID`, `AGENT_MEMBER_SPONSOR_ONLY` | Section 8 | A failure | Per row |
 | `PROJECT_MEMBER_NOT_PERSON`, `PROJECT_SLUG_UNAVAILABLE` | 7.3 | A failure | Per row |
 | `MEMBER_LAST_OWNER` | 7.1, and Better Auth's two last-owner errors mapped | A failure | Make another owner first |
@@ -894,7 +938,7 @@ Every code has a suggestion and is added to `LoamKernelErrorCode`, afd-auth's `A
 
 ## 18. Exit criterion and tests
 
-The phase exits when every test below passes on `main` in the place its row names, and STATUS.md records the runs, with "through a test-only auth host" beside the rows that use it and "through a test-only handler" beside E8, each named as what it does not prove. **Every exit test's title starts `P3-E<n>:` or `P3-H<n>:`.** Places, as `scripts/loam-exit-check.mjs` matches a job and a step by name:
+The phase exits when every test below passes on `main` in the place its row names, and STATUS.md records the runs, with "through a test-only auth host" beside the rows that use it and "through a test-only handler" beside E8, each named as what it does not prove. **Every exit test's title starts `P3-E<n>:` or `P3-H<n>:`, but E12's, which are phase 2's own.** Places, as `scripts/loam-exit-check.mjs` matches a job and a step by name:
 
 | Place | Job | Step |
 | --- | --- | --- |
@@ -904,6 +948,7 @@ The phase exits when every test below passes on `main` in the place its row name
 | Budget | `Build, unit and Chromium` | `Bundle budget` |
 | Mounted | `Mounted against Umbel` | `E3, E4 and E9's mounted part, through a test-only relay` |
 | Hosted | `Hosted development profile` (phase 6) | `Hosted criterion against the development profile` |
+| Editor walk | `Editor walk` | `The editor area's seeded walk, every seed, thirteen invariants after each step` (phase 2's, for E12 only) |
 
 | # | Criterion | Place | Test |
 | --- | --- | --- | --- |
@@ -914,22 +959,24 @@ The phase exits when every test below passes on `main` in the place its row name
 | P3-E5 | **An agent member installed by an owner appears with its sponsor and cannot sign in**, through a test-only auth host | Chromium; Units | An owner adds one with Bea as sponsor: pending, "Agent · Sponsored by Bea", confirmed by Bea; the provider's user table has no row for it. Non-owner `OWNER_REQUIRED`; agent `HUMAN_REQUIRED`. Units: an adapter user id `agt_…` signed out with `AGENT_CANNOT_SIGN_IN`; `AGENT_NAME_RESERVED`; line 4 in every case, the intersection with the sponsor, `onBehalfOf` not the sponsor refused; widening access returns it to pending; a sponsor's removal persisted by `agent-member-settle`; `PROJECT_MEMBER_NOT_PERSON`; list and get filtered to the caller's projects; no agent counted as a seat |
 | P3-E6 | **Owners, and #852 in the kernel** | Units; Chromium | Non-owner `project-create` with a listed slug and `project-update { access }` on a listed project, `OWNER_REQUIRED`; an owner's succeed. `workspace-app-set` by a non-owner refused. `PROJECT_SLUG_UNAVAILABLE` byte-identical for a restricted project's slug, a visible one's and a reserved one. Q2's rule as answered. `MEMBER_LAST_OWNER` from Loam's hooks and from Better Auth's own error, each mapped. The owner role re-read before an owner command, so a demoted owner is refused at once |
 | P3-E7 | **Membership, the binding, and the ports** | Chromium; Units | A signed-in member of another organization sees "You are not a member of Acme" and their invitation, accepts it (verified email), enters. Units: line 0 for every command not exempt; **an `agt_` actor's nested workspace read through a port refused, the nested call journaled as the agent**; the actor copied on every port, surface port and nested path; every new command through a port `CALL_NOT_GRANTED`; `call-scope.test.ts` |
-| P3-E8 | **Identity over MCP, and the wrong audience refused**, through a test-only handler (#853) | Units (`identity/src/mcp-identity.test.ts`) | A kernel whose Mock has **another person** signed in; tokens from the test host: no token 401; another audience 401; a JWT-plugin `/token` token refused; an opaque token issued without `resource` refused; another issuer 401 `invalid_token`; a pairwise registration refused. The right token runs as the connected agent (`agt_…`) acting for the token's subject, never the kernel's person: it enters the subject's restricted project, a non-member's token gets `PROJECT_NOT_FOUND`, a non-member of the organization `WORKSPACE_NOT_MEMBER`, a token whose client is not connected `AGENT_NOT_CONNECTED`; a read-only token's mutation 403; human and owner commands `COMMAND_NOT_FOUND`; `tools/list` equal across tokens; no entry or result holds a token or `credentials` |
+| P3-E8 | **Identity over MCP, and the wrong audience refused**, through a test-only handler (#853) | Units (`identity/src/mcp-identity.test.ts`) | `createServerKernel` given a Mock with **another person** signed in; tokens from the test host: no token 401; another audience 401; a JWT-plugin `/token` token refused; an opaque token issued without `resource` refused; another issuer 401 `invalid_token`; a pairwise registration refused; `connectAgent` for a non-member refused. The right token runs as the connected agent (`agt_…`) acting for the token's subject, never the kernel's person: it enters the subject's restricted project; a non-member of that project gets `PROJECT_NOT_FOUND`; **a `probe` app command, called over MCP, makes a nested read in a restricted project: allowed for the token's person, refused for another person's token, and the nested entry journaled with the `agt_` actor**; `project-create` with a listed slug over MCP is `HUMAN_REQUIRED`; a token whose client is not connected `AGENT_NOT_CONNECTED`; **`WORKSPACE_NOT_MEMBER`** for a connected agent whose person's member row the test then deletes directly in the host's database, as a provider-side removal that bypassed Loam's hooks would; a read-only token's mutation 403; human and owner commands `COMMAND_NOT_FOUND`; `createServerKernel` refuses `local`; `tools/list` equal across tokens; no entry or result holds a token or `credentials` |
 | P3-E9 | **AFD's TypeScript layer conforms** | Identity path | `packages/server`'s suite loads every case 0a and 0c name and one test per M3 rule; `packages/auth`'s covers the capabilities, the credentials backstop (4.1), and `BetterAuthAdapter` over a stubbed client |
 | P3-E10 | **Budgets** | Budget; Chromium | Every row of section 13 under its ceiling. Chromium: an empty `local` shell's first paint requests exactly phase 2's chunks, and stage B loads `late-identity` beside `late-documents` but never `auth`, `sign-in`, `account-menu` or `account`; a `provider` shell's first paint adds only `identity.ts`'s code and the probe's request |
 | P3-E11 | **Accessibility and captures** | Chromium | Section 14's elements and pages under axe and Specimen; the keyboard path through sign-in, enrolment, passkey add, revoke, persona switch and consent |
-| P3-E12 | **What exited stays exited** | Chromium; Units; Mounted | Phases 0's, 1's and 2's exit tests pass in `local` mode, amended only by 2.1's table, each amendment listed in the step that makes it |
+| P3-E12 | **What exited stays exited** | Phase 2's places and minimums | Phases 0's, 1's and 2's exit tests pass in `local` mode, amended only by 2.1's table, each amendment listed in the step that makes it. **The exit check reuses phase 2's rows and minimums for this row,** reading the `P2-E<n>:` and `P2-D<n>:` titles in the jobs and steps `loam-exit-check.minimums.json` names, the `Editor walk` job included; there is no `P3-E12:` title |
 | P3-E13 | **Placement and inputs** | Units | No import of `@lushly-dev/loam-identity` from `web/src`, `chrome/src` or `kernel/src`; no input property named `token`, `password` (but `auth-sign-in`'s), `secret`, `code` or `cookie` |
 | P3-E14 | **An app's account section** | Chromium; Units | Hello's `ui.account` renders at workspace level with a project active, its port refusing any other scope; a case per schema branch and refusal |
 | P3-E15 | **No secret in the journal or the store** | Chromium; Units | After E1's, E3's, E8's, E17's and E18's sessions: no seeded password, cookie value, token, join or recovery token, assertion bytes or IP address in any journal entry, store row or `localStorage` value |
 | P3-E16 | **No job was skipped** | The exit step | `node scripts/loam-exit-check.mjs --phase 3`, for the local part; again with the hosted job for the hosted part |
-| P3-E17 | **Enrolment by invitation only**, through a test-only auth host | Chromium; Units | An owner invites a new email; the mail sink holds the link; the invitee creates a passkey from it with no password and no prior session, and is a member with a verified email; the link fails a second time and after expiry; a direct sign-up call to the provider is refused; an OIDC sign-in with `email_verified: false` creates no user and links nothing; accepting an invitation unverified is refused |
-| P3-E18 | **Recovery** (D97), through a test-only auth host | Chromium; Units | By email and by single sign-on: a recovery link, sent only to the verified email, restores access with a new passkey, revokes every other session, consent and refresh token, suspends connected agents, sends the announcement and shows the notice; it fails a second time and after 15 minutes; a second link cancels the first; the request form answers the same for an unknown email; no command lets an owner start another person's recovery (a scan of the registry and the provider's routes); `PASSKEY_LAST` follows `recovery` |
+| P3-E17 | **Enrolment by invitation only**, through a test-only auth host | Chromium; Units | An owner invites a new email; the mail sink holds the link; the invitee creates a passkey from it with no password and no prior session, and is a member with a verified email; the link fails a second time and after expiry; a direct sign-up call to the provider is refused; an OIDC sign-in with `email_verified: false` creates no user and links nothing; accepting an invitation unverified is refused. **At the provider, by direct requests:** a registration with a session older than 300 s, or a password session for a person who holds a passkey, is `REAUTH_REQUIRED`; a join registration with another person's session present is `SIGN_OUT_FIRST`; a join link for an email that already has an account is `ACCOUNT_EXISTS` and enrols nothing; a token is not consumed by option generation alone |
+| P3-E18 | **Recovery** (D97), through a test-only auth host | Chromium; Units | By email and by single sign-on: a recovery link, sent only to the verified email, restores access with a new passkey, revokes every other session, consent and refresh token, suspends connected agents, sends the announcement and shows the notice; it fails a second time and after 15 minutes; a second link cancels the first; the request form answers the same for an unknown email; no command lets an owner start another person's recovery (a scan of the registry and the provider's routes); past the per-account limit the request is dropped with the same answer and timing; a recovery registration with another person's session present is `SIGN_OUT_FIRST`; **the single sign-on ceremony** runs the whole recovery transaction and lets that fresh OIDC session register a passkey for a person who holds one, while an ordinary fresh OIDC session for the same person is `REAUTH_REQUIRED`; Better Auth's password-reset and change-email routes answer 404; `PASSKEY_LAST` follows `recovery` |
 | P3-E19 | **A re-created organization grants nothing**, through a test-only auth host | Units; Chromium | With the binding pinned: the bound organization's slug change and deletion refused by the provider; a new organization created directly in the host's database with the bound slug, and its members, are not members of the workspace; `IDENTITY_BINDING_MISMATCH` reported |
+| P3-E20 | **The OAuth login and consent pages** (9.4), through a test-only auth host | Chromium; Units | The consent page shows the client id's host in bold, the name marked "name given by the app", each scope in words, the redirect host, the loopback warning for a `localhost` redirect, and the `loam:write` autonomy sentence; Deny returns `access_denied`; a client without PKCE, or one registering `requirePKCE: false`, is refused; `client_credentials` is refused; the login page signs in and resumes the authorization; the test host's responses for both pages carry `frame-ancestors 'none'` and `form-action 'self'` |
 | P3-H1 | **The hosted server refuses a token for the wrong audience** | Hosted | With a second configured resource on the same provider: its token is a 401 at the MCP endpoint with the challenge naming the metadata; a token from another issuer, 401; the right one, 200 |
 | P3-H2 | **A person signs in with a passkey on the hosted lane** | Hosted | E1's and E17's passkey paths against the profile's own provider, over HTTPS, no test-only host |
 | P3-H3 | **A connected agent acts for its person, and no more; the relay enforces** | Hosted | A client registered by a metadata document, approved on the consent page, enters its person's restricted project and not another's; an owner command `COMMAND_NOT_FOUND`; a browser request through the mount relay for a project the session's person may not enter is refused before forwarding, by the instance's log |
 | P3-H4 | **Revocation on the hosted lane** | Hosted | After `session-revoke 'all'` and after `member-remove`: the revoked session's next MCP, provider and relay requests are refused at once; the person's refresh token fails; their last access token is accepted until it expires and refused after |
+| P3-H5 | **The server enforces the trust records** | Hosted | Sent straight to the server's transport for browser trust-record commands (10.2's item 4), once by a signed-in non-owner and once by an agent: `project-create` of a listed slug, `project-update { access }` and `workspace-app-set` answer `OWNER_REQUIRED` and `HUMAN_REQUIRED`, and the server's records are unchanged, read back from the server's store. **#852 closes on this row** |
 
 ## 19. Implementation plan
 
@@ -941,15 +988,15 @@ Each step is one pull request, merged on green. It updates this status block and
 | 0b | AFD: afd-auth's passkey method, capabilities and the credentials backstop | 4.1 on Better Auth 1.7.18, pinned with `@better-auth/passkey`; the Mock; the hosted fixture moved to 1.7.18; `spec/error-codes.md`'s auth list; README and the `afd-auth` skill; a changeset | `pnpm check`, `pnpm test:hosted:local` |
 | 0c | AFD: TypeScript MCP authorization, scopes | 9.1's second bullet; the table's three rows | `pnpm check`, `pnpm verify` |
 | 1 | Identity core | `loam-identity` with `createLoamAuthOptions`, `loamServerPlugin` (whoami, the binding, the hooks of 7.5) and `startTestAuthHost`; deployment and projection version 3; `decideAccess` version 2, `MembershipV1`, `personKey`, `isOwner`, line 0, the auth gate's lists; `KernelCallFields.actor`; the agent interface's actor; `personalRecordId`; the tables; kernel interface version 3; `member`; `call-scope.test.ts`; the architecture's amendments; 2.1's amendments to E12; E13; E7's, E5's and E6's units so far; E19's units | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
-| 2 | `session-settle` | 4.4: the listener, the expiry timer, the input as data, the change-of-person rule, `SESSION_CHANGED`; E4. Closes #854 and #864 | `pnpm check`, `loam.yml` |
-| 3 | Sign-in, the probe and sessions | 4.2, 4.3, 4.6, 5.2; `identity.ts`, `auth` with `SessionSync`, `loam-sign-in-dialog`, the signed-out main, the account menu without personas; the harness's `authHost`, HTTPS on `localhost`, virtual authenticator and mail sink; `revoke-person`; freshness hooks; E1, E3, E10 so far, E11 and E15 so far. **Trust review: the gate, the probe, revocation** | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
-| 4 | The account section, members and owners | 5.1, 5.3, 5.4, 5.6, 5.7, section 7; the `account` chunk with the join and recovery pages; E6, E7, E17, E18, E19. #852's rule in the kernel | `pnpm check`, `loam.yml`, `budget` |
+| 2 | `session-settle` | 4.4: the listener, the expiry timer with its re-arming and refresh, the membership journaling, the input as data, the change-of-person rule, `SESSION_CHANGED` and its exemptions, all in `late`; E4. Closes #854 and #864 | `pnpm check`, `loam.yml`, `budget` |
+| 3 | Sign-in, the probe and sessions | 4.2, 4.3, 4.6, 5.2; `identity.ts`, `auth` with `SessionSync`, `loam-sign-in-dialog`, the signed-out main, the account menu without personas; the harness's `authHost`, HTTPS on `localhost`, virtual authenticator and mail sink; `revoke-person`; 5.8's hooks on the real registration and delete routes; E1, E3, E10 so far, E11 and E15 so far. **Trust review: the gate, the probe, revocation** | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
+| 4 | The account section, members and owners | 5.1, 5.3, 5.4, 5.6, 5.7, 5.8's join and recovery paths and the single sign-on ceremony, `bootstrapOrganization`, section 7; the `account` chunk with the join and recovery pages; E6, E7, E17, E18, E19. #852's rule in the kernel | `pnpm check`, `loam.yml`, `budget` |
 | 5 | Persona | Section 6; the context field; emphasis in the rail and palette; E2 | `pnpm check`, `loam.yml`, `budget`, `lint:tokens` |
 | 6 | Agent members | Section 8, `agent-member-settle`; E5. **Trust review: line 4 and the sponsor rules** | `pnpm check`, `loam.yml`, `budget` |
-| 7 | Identity over MCP | Section 9: `createMcpAuth`, `createMcpChain`, `createNoSessionAdapter`, `principalOf`, the scopes, connected agents and `connectAgent`, the OAuth provider's options, the login and consent pages and their tests (the page's fields, a loopback warning, Deny, no PKCE refused, the response CSP asserted by the test host); E8. **Trust review: the MCP chain.** #853's design complete; it closes at step 10 | `pnpm check`, `pnpm verify`, `loam.yml` |
+| 7 | Identity over MCP | Section 9: `createMcpAuth` with 9.2's verifier steps, `createServerKernel` with `gate: 'principal'`, `principalGate`, `credentialsGate`, `KernelCallFields.principal`, `membershipOf`, `createNoSessionAdapter`, `principalOf`, the scopes, connected agents in `loam_connected_agent` and `connectAgent`, the OAuth provider's options, the login and consent pages; E8, E20. **Trust review: the server kernel's chain and nested calls.** #853's design complete; it closes at step 10 | `pnpm check`, `pnpm verify`, `loam.yml` |
 | 8 | An app's account section | 5.5: the schema branch, the rules, `refusal-map.ts`; `apps`' row measured and amended or code moved first; hello's section; E14 | `pnpm check`, `loam.yml`, `budget` |
 | 9 | Local exit | `scripts/loam-exit-check.mjs --phase 3`, with `loam-exit-check.p3.minimums.json` and 18's places; every `P3-E` row; `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`; STATUS.md records "local criterion met" | The check exits 0 |
-| 10 | Hosted criterion and exit | **Waits for phase 6's development profile** (10.2). P3-H1 to P3-H4; the check gains the hosted job; STATUS.md records the exit; **#852 and #853 close**; follow-ups filed | The check exits 0 for both parts |
+| 10 | Hosted criterion and exit | **Waits for phase 6's development profile** (10.2). P3-H1 to P3-H5; the check gains the hosted job; STATUS.md records the exit; **#852 and #853 close**; follow-ups filed | The check exits 0 for both parts |
 
 Order: 0a, 0b and 0c in parallel, first (D15). Step 1 needs 0b. Step 2 needs 1. Step 3 needs 0b and 2. Steps 4, 5 and 6 need 3, 6 after 4. Step 7 needs 0a, 0c, 4 and 6. Step 8 needs 4. Step 9 after 1 to 8. Step 10 after 9 and phase 6's profile. An exit test named in several steps closes in the last.
 
@@ -1022,7 +1069,7 @@ Proposed; applied when the coordinator approves this specification, in step 1:
 - **Architecture section 8, Security:** where `provider` mode is enforced (2.5).
 - **Architecture section 9:** phase 3's row gains "local criterion through a test-only auth host and handler; hosted criterion on phase 6's development profile (D84)"; phase 6's row gains 10.2's minimum.
 - **Architecture glossary:** "Owner (workspace)", "Identity mode", "Connected agent", "Enforcement point".
-- **Decision log:** D84 to D94, "proposed, pending review"; D95 to D98, decided by the owner on 2026-11-09; D99, decided by the coordinator on 2026-11-09. D11, D40, D55 and D73 gain notes pointing to them. **D56 is narrowed by D95,** the owner's decision: "Narrowed by the owner on 2026-11-09 (D95): refused in a provider-mode workspace." D54, D55, D57 and D58 are not altered.
+- **Decision log:** D84 to D94, "proposed, pending review"; D95 to D98, decided by the owner on 2026-11-09; D99, decided by the coordinator on 2026-11-09. D11, D55 and D73 gain notes pointing to them; **D40 is annotated now**: "an agent member a person connects for themselves needs no owner (D98, owner 2026-11-09)". **D56 is narrowed by D95,** the owner's decision: "Narrowed by the owner on 2026-11-09 (D95): refused in a provider-mode workspace." D54, D55, D57 and D58 are not altered.
 
 | ID | Decision |
 | --- | --- |
@@ -1041,7 +1088,7 @@ Proposed; applied when the coordinator approves this specification, in step 1:
 | D96 | **Decided by the owner, 2026-11-09 (Q1).** Loam's owners are the provider's `owner` and `admin` roles, with the provider's admin powers kept consistent; owners can enter every project |
 | D97 | **Decided by the owner, 2026-11-09 (Q5, recovery).** A person restores their own access by an emailed one-time link to their verified email, or through the deployer's single sign-on; no owner can restore another person's account |
 | D98 | **Decided by the owner, 2026-11-09 (Q3).** A person may connect their own external agent over MCP without an owner's approval, as an agent member they sponsor, at most their own access, never an owner or human command |
-| D99 | **Decided by the coordinator, 2026-11-09.** Ways in: passkeys, the deployer's single sign-on if set up, passwords off by default and the deployer's to turn on; password and OIDC sessions carry no user verification |
+| D99 | **Decided by the coordinator, 2026-11-09.** Ways in: passkeys, the deployer's single sign-on if set up, passwords off by default and the deployer's to turn on; password and OIDC sessions carry no user verification, except in the single sign-on recovery ceremony of D97, which wins |
 
 ## Review 2026-11-09
 
@@ -1049,7 +1096,7 @@ Two independent reviews of `ede753e1`, a trust and security review and a general
 
 | Finding | Where answered |
 | --- | --- |
-| MCP ran a token's call as the kernel's signed-in person | 9.5 (`createMcpChain`, `credentialsGate`, `createNoSessionAdapter`), 4.1's backstop, 3.3, E8 |
+| MCP ran a token's call as the kernel's signed-in person | 9.5 (`createServerKernel`, `credentialsGate`, `createNoSessionAdapter`), 4.1's backstop, 3.3, E8 |
 | Nested and port calls lost the actor | 3.1, 12 (`KernelCallFields.actor`), E7 |
 | The binding by a renamable, claimable slug | 2.3, 2.6, 7.5, E2's scan, E19 |
 | Where `provider` mode is enforced; authoritative stores; the relay; #852's closing | 2.5, 7.3, 10.2 items 4 and 5, 16, step 10, H3 |
@@ -1074,6 +1121,32 @@ Two independent reviews of `ede753e1`, a trust and security review and a general
 | Budget arithmetic and 2.4's rule | 13 |
 | The SDK's `actor`; `HUMAN_REQUIRED` on personas and the profile; 5.2's citation | 12, 3.4, 5.2 (citation dropped) |
 | Nits: S80's quote, S81's versions, S85's order, token lifetimes, store versions, STATUS's decision row, re-invited members, Q3's wording, line 3's agent message | Sources and trajectory; 9.4; 12; STATUS.md; 7.2; Q3; 3.3 |
+
+### Re-check 2026-11-09
+
+An independent re-check of `a08572ea` confirmed most findings fixed and the owner's decisions recorded faithfully, and found:
+
+| Finding | Where answered |
+| --- | --- |
+| B1: nested calls under an MCP call had no chain on the server kernel | 9.5 (`createServerKernel`, `gate: 'principal'`, `KernelCallFields.principal`, `membershipOf`, no change-of-actor step), 3.1, E8's nested read |
+| B2: freshness, enrolment and recovery against the passkey plugin's real routes and `requireSession: false` | 5.8, 5.6, 5.7, 5.2; E17's and E18's provider cases |
+| B3: single sign-on recovery against D99 | 5.7's ceremony; D99 amended (decision log) |
+| B4: no hosted test of server-held trust records | H5; #852 closes on it |
+| S1: replay of owner commands and membership | 3.4's replay rule; 4.4's `reason: 'membership'` |
+| S2: the expiry timer | 4.4 |
+| S3: `SESSION_CHANGED`'s exemptions and nested calls | 4.4 |
+| S4: the recovery form past its limit | 5.7 |
+| S5: `project-create` and `project-update` over MCP; `HUMAN_COMMANDS` | 3.4, 9.3, 9.5, E8 |
+| S6: first paint for step 2; step 1's parts; `kernelMinified` | 13, 4.4 |
+| S7: afd-auth's backstop and forged credentials | 4.1 |
+| S8: grant types, PKCE, the login page, E20 | 9.4, E20 |
+| S9: D40 annotated | Decision log |
+| S10: the first organization and owner | 5.6's `bootstrapOrganization`, 10.2's item 2 |
+| S11: Better Auth's reset and change-email routes | 5.7 |
+| S12: connected-agent records before phase 6; an owner's removal; serving the token's person | 9.2 |
+| S13: `principalOf` split between the verifier and the gate | 9.2 |
+| S14: E12 and the exit check | 18 |
+| N1 to N4 | What this phase serves; 7.1; E8; D56's line |
 
 ## Follow-ups
 
