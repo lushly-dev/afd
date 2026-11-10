@@ -103,6 +103,18 @@
 			"exportName": "Closed"
 		},
 		{
+			"id": "scoped-registry",
+			"title": "Feasibility/ScopedRegistry",
+			"module": "./probe.stories.ts",
+			"exportName": "ScopedRegistry"
+		},
+		{
+			"id": "modal-open",
+			"title": "Feasibility/ModalOpen",
+			"module": "./probe.stories.ts",
+			"exportName": "ModalOpen"
+		},
+		{
 			"id": "async-ready",
 			"title": "Feasibility/AsyncReady",
 			"module": "./probe.stories.ts",
