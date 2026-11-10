@@ -1,7 +1,8 @@
 /**
  * @fileoverview The child process `startDevHost` runs (phase 6 specification, 5.2): the development profile,
  * with the test-only option that serves a version 1 to 3 deployment until step 3. It reports one line,
- * `ready` or `failed`, then serves until `SIGTERM`, when it closes the host and releases the lock.
+ * `ready` or `failed`, then serves until `SIGTERM`, when it closes the host and releases the lock. It runs
+ * only in a child, so `vitest.config.ts` leaves it out of the units' coverage; the hosted suite runs it.
  */
 
 import { runDev } from '../dev.js';
