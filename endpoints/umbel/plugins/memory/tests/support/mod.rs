@@ -414,12 +414,13 @@ impl jsonschema::Retrieve for Siblings {
     }
 }
 
-/// A validator of `memory-record.v1.json`, with the envelope it refers to.
+/// A validator of `memory-record.v2.json`, with the envelope it refers to (every version written
+/// since phase 5 step 5).
 pub fn record_validator() -> jsonschema::Validator {
     let parse = |text: &str| -> Value { serde_json::from_str(text).unwrap() };
-    let record = parse(include_str!("../../../../schemas/memory-record.v1.json"));
+    let record = parse(include_str!("../../../../schemas/memory-record.v2.json"));
     let envelope = parse(include_str!(
-        "../../../../schemas/provenance-envelope.v2.json"
+        "../../../../schemas/provenance-envelope.v3.json"
     ));
     let siblings = [&record, &envelope]
         .into_iter()

@@ -874,6 +874,7 @@ impl MemoryStore for FakeMemory {
                 by: req.by.clone(),
                 at: format_instant(recorded),
                 prior_authority: prior,
+                assurance: None,
             });
         });
         let rec = rec.clone();

@@ -30,9 +30,10 @@ pub use document::{
     check_identifier, check_record, is_slug, record_target,
 };
 pub use envelope::{
-    Actor, ActorKind, Authority, ByAt, Confirmation, DerivedFrom, ENVELOPE_VERSION, Envelope,
-    MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS, MAX_ENVELOPE_LIST, MAX_REDACTIONS, Origin, Redaction,
-    Sensitivity, Source,
+    Actor, ActorKind, Assurance, Authority, ByAt, ChainLink, Confirmation, DerivedFrom,
+    ENVELOPE_VERSION, Envelope, LATEST_ENVELOPE_VERSION, MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS,
+    MAX_DELEGATION_CHAIN, MAX_ENVELOPE_LIST, MAX_REDACTIONS, MEMORY_ENVELOPE_VERSION, Origin,
+    Redaction, Sensitivity, Source,
 };
 pub use error::{Result, StoreError};
 pub use graph::{

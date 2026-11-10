@@ -51,6 +51,7 @@ pub(crate) fn envelope(
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     }
 }
 

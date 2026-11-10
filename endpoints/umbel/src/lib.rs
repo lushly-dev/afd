@@ -25,6 +25,7 @@ mod host;
 #[cfg(feature = "cli")]
 mod logging;
 mod middleware;
+mod person;
 #[cfg(feature = "auth")]
 mod shared;
 mod store;

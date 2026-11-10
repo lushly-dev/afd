@@ -82,6 +82,18 @@ impl Layout {
         self.keys_dir().join("cursor.key")
     }
 
+    /// `state/keys/person.key`: the person page's key (phase 5 sections 7.2 and 10.2): the MAC of
+    /// a login's `state` and of a decision form's CSRF token.
+    pub fn person_key(&self) -> PathBuf {
+        self.keys_dir().join("person.key")
+    }
+
+    /// `state/keys/relay.key`: the key that seals the MCP approval relay's `requestState` (phase 5
+    /// sections 7.3 and 10.2).
+    pub fn relay_key(&self) -> PathBuf {
+        self.keys_dir().join("relay.key")
+    }
+
     /// `state/shared/`: the stores every process behind one URL shares (phase 5 section 10.2).
     pub fn shared_dir(&self) -> PathBuf {
         self.state_dir().join("shared")
@@ -90,6 +102,12 @@ impl Layout {
     /// `state/shared/limits.sqlite3`: the rate limits' counters (phase 5 sections 10.2 and 11).
     pub fn limits_store(&self) -> PathBuf {
         self.shared_dir().join("limits.sqlite3")
+    }
+
+    /// `state/shared/person.sqlite3`: person decisions and their logins (phase 5 sections 7.2
+    /// and 10.2).
+    pub fn person_store(&self) -> PathBuf {
+        self.shared_dir().join("person.sqlite3")
     }
 
     /// `state/shared/nonces.sqlite3`: single-use values every process spends once (phase 5

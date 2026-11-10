@@ -178,7 +178,7 @@ async fn the_index_is_journaled_as_a_mutation_with_a_record() {
         .iter()
         .find(|event| event["command"] == "knowledge-index")
         .unwrap_or_else(|| panic!("no knowledge-index event in {events}"));
-    assert_eq!(index["version"], 2, "{index}");
+    assert_eq!(index["version"], 3, "{index}");
     assert_eq!(index["record"]["kind"], "index");
     assert_eq!(index["record"]["id"], "main");
 }

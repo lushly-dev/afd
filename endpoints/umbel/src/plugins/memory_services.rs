@@ -374,6 +374,21 @@ impl CallServices {
             self.access_for(request.path, request.share.as_deref(), &principal, &filter)?;
         let now = self.now();
         let agent = self.agent_actor();
+        // The writing principal's chain (envelope version 3, phase 5 section 2.4), from the
+        // principal the host set; empty without a token or assertion.
+        let chain: Vec<umbel_store::ChainLink> =
+            crate::principal::Principal::from_context(&self.context)
+                .map(|principal| {
+                    principal
+                        .delegation_chain
+                        .iter()
+                        .map(|entry| umbel_store::ChainLink {
+                            kind: entry.kind.as_str().to_owned(),
+                            id: entry.id.clone(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
         let mut batch = request.batch;
         batch.at = now;
         batch.quota = cap_quota(batch.quota);
@@ -406,7 +421,8 @@ impl CallServices {
                     Origin::AgentInferred
                 };
             }
-            envelope.version = 2;
+            envelope.version = umbel_store::MEMORY_ENVELOPE_VERSION;
+            envelope.delegation_chain = Some(chain.clone());
             envelope.space = space.to_owned();
             envelope.plugin = Some(self.shared.instance.clone());
             envelope.agent = agent.clone();
@@ -486,6 +502,16 @@ impl CallServices {
         request.at = self.now();
         request.by = principal;
         request.trace_id = self.trace();
+        // How the person was proven (envelope version 3, phase 5 sections 2.4 and 7.1): a decision
+        // on the person page for this very command, else the terminal check that `person` passed
+        // (the library's embedder person, phase 3's D86, is recorded at the same level).
+        request.assurance = Some(
+            crate::person::PersonMark::of(&self.context)
+                .filter(|mark| Some(mark.command.as_str()) == self.command.as_deref())
+                .map_or_else(umbel_store::Assurance::terminal, |mark| {
+                    umbel_store::Assurance::verified(&mark.namespace, &mark.auth_time, &mark.acr)
+                }),
+        );
         let meta = store.confirm(request, &filter).map_err(host_error)?;
         self.note_memory(meta.rev, meta.rev, 1);
         // The event carries the confirmation the host performed and the authority it gave.

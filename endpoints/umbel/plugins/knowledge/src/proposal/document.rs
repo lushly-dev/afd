@@ -125,6 +125,7 @@ pub(crate) fn build(
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     };
     Ok(DocumentWrite {
         version: 1,

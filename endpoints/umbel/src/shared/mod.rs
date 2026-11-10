@@ -12,6 +12,7 @@
 
 pub(crate) mod limits;
 pub(crate) mod nonces;
+pub(crate) mod person;
 pub(crate) mod read_limit;
 
 use std::fs::{self, DirBuilder};

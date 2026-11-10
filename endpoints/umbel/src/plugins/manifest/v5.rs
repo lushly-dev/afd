@@ -4,8 +4,9 @@
 //! This module parses, validates and stores them. Whether a pipeline's steps admit its values is
 //! decided at seal (`pipelines::plan`), where the steps are known. What acts on the keys is
 //! later steps': the person page and the MCP exposure of a `require-human` command (step 5),
-//! and tasks (step 8). Until step 5, a `require-human` command is not served over MCP whatever
-//! its `person` says (`CommandDecl::mcp_exposed`), so mode `none` behaves as phases 2 to 4.
+//! and tasks (step 8). A `require-human` command with `person.mcp` is registered for MCP only in a
+//! hosted mode, host-verified (the loader's `mcp_registered`), so mode `none` behaves as phases 2
+//! to 4.
 
 use std::collections::BTreeSet;
 
@@ -324,6 +325,21 @@ impl Manifest {
             let Some(preview) = self.commands.iter().find(|command| &command.name == name) else {
                 continue;
             };
+            // The page renders the preview through the registry, which journals it: only a digest
+            // journal keeps none of its text, as "nothing of the preview is stored but its
+            // SHA-256" requires (7.2, step 4; step 5's review).
+            if !preview
+                .journal
+                .as_ref()
+                .is_some_and(|journal| journal.mode == JournalMode::Digest)
+            {
+                return Err(bad(
+                    "confirm_preview",
+                    format!(
+                        "names `{name}`, which must be journaled with mode = \"digest\": the person page renders it, and nothing of a preview is stored but its hash"
+                    ),
+                ));
+            }
             let schema = match (&preview.input_schema, files) {
                 (SchemaRef::Inline(value), _) => value.clone(),
                 (schema @ SchemaRef::File(_), Some(files)) => {

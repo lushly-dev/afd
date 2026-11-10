@@ -791,6 +791,7 @@ fn tombstone_envelope() -> umbel_store::Envelope {
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     }
 }
 

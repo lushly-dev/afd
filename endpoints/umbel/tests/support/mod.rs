@@ -6,6 +6,7 @@ pub mod hosted;
 pub mod mcp;
 pub mod memory;
 pub mod oauth;
+pub mod person;
 pub mod plugins;
 pub mod process;
 pub mod store;

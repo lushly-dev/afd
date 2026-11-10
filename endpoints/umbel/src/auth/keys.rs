@@ -101,6 +101,37 @@ pub(crate) async fn discover(fetcher: &Fetcher, issuer: &str) -> Result<Fetched,
     Err(DiscoveryError::NotFound)
 }
 
+/// The verified OpenID Connect discovery document of `issuer` (OIDC Discovery 4, RFC 8414 5):
+/// with the issuer's path inserted after `/.well-known/openid-configuration`, then appended, only
+/// a 404 moving on, its `issuer` exactly this one. A relying party reads its provider here, never
+/// in RFC 8414 metadata, which an OpenID Connect provider's discovery document may contradict.
+pub(crate) async fn discover_openid(
+    fetcher: &Fetcher,
+    issuer: &str,
+) -> Result<Fetched, DiscoveryError> {
+    for url in metadata_urls(issuer).into_iter().skip(1) {
+        match fetcher.get(&url).await {
+            Ok(fetched) => {
+                if fetched.document.get("issuer").and_then(Value::as_str) != Some(issuer) {
+                    return Err(DiscoveryError::IssuerMismatch);
+                }
+                return Ok(fetched);
+            }
+            Err(FetchError::NotFound) => {}
+            Err(error) => return Err(DiscoveryError::Fetch(error)),
+        }
+    }
+    Err(DiscoveryError::NotFound)
+}
+
+/// Where an issuer's keys are found: its RFC 8414 metadata first (an authorization server, 3.3),
+/// or only its OpenID Connect discovery document (a person login's provider, 7.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Discovery {
+    Metadata,
+    OpenId,
+}
+
 /// The `https` URL a metadata document gives under `member`.
 pub(crate) fn metadata_url(document: &Fetched, member: &str) -> Result<String, DiscoveryError> {
     let url = document
@@ -170,6 +201,7 @@ struct Inner {
     fetcher: Fetcher,
     clock: Arc<dyn afd::Clock>,
     timeout: std::time::Duration,
+    discovery: Discovery,
     state: Mutex<State>,
     fetching: Arc<tokio::sync::Mutex<()>>,
 }
@@ -199,6 +231,17 @@ impl IssuerKeys {
         fetcher: Fetcher,
         environment: &super::fetch::AuthEnvironment,
     ) -> Self {
+        Self::with_discovery(alias, issuer, fetcher, environment, Discovery::Metadata)
+    }
+
+    /// The keys of `issuer`, found as `discovery` says.
+    pub(crate) fn with_discovery(
+        alias: &str,
+        issuer: &str,
+        fetcher: Fetcher,
+        environment: &super::fetch::AuthEnvironment,
+        discovery: Discovery,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 alias: alias.to_owned(),
@@ -206,6 +249,7 @@ impl IssuerKeys {
                 fetcher,
                 clock: Arc::clone(&environment.clock),
                 timeout: environment.timeout,
+                discovery,
                 state: Mutex::new(State::default()),
                 fetching: Arc::new(tokio::sync::Mutex::new(())),
             }),
@@ -249,7 +293,10 @@ impl Inner {
     /// Discovery and the key set, within the time limit.
     async fn fetch(&self) -> Result<Cached, DiscoveryError> {
         let work = async {
-            let metadata = discover(&self.fetcher, &self.issuer).await?;
+            let metadata = match self.discovery {
+                Discovery::Metadata => discover(&self.fetcher, &self.issuer).await?,
+                Discovery::OpenId => discover_openid(&self.fetcher, &self.issuer).await?,
+            };
             let jwks_uri = metadata_url(&metadata, "jwks_uri")?;
             let jwks = self
                 .fetcher

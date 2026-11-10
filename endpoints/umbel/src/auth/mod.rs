@@ -114,25 +114,9 @@ pub const DEFAULT_TASK_TTL_MS: u64 = 3_600_000;
 #[allow(clippy::cast_possible_truncation)]
 pub const MAX_MEMORY_MATCHES: usize = umbel_store::memory::MAX_RECALL_MATCHES as usize;
 
-/// A `verified` command with no person login to prove the person (phase 5 section 10.5).
+/// A `verified` command with no person login to prove the person, or no namespaced caller (phase 5
+/// section 10.5; `crate::person::unavailable`).
 pub const PERSON_VERIFICATION_UNAVAILABLE: &str = "PERSON_VERIFICATION_UNAVAILABLE";
-
-/// `PERSON_VERIFICATION_UNAVAILABLE` for a command or pipeline whose `person.cli` is `verified`
-/// (section 7.1). The person page that proves such a person is phase 5 step 5's; until it exists
-/// no call to the command can be proven, so every call is refused, never run on the terminal
-/// check alone.
-pub fn person_verification_unavailable(command: &str) -> afd::CommandError {
-    afd::CommandError::new(
-        PERSON_VERIFICATION_UNAVAILABLE,
-        format!(
-            "'{command}' needs a person verified on the person page, and this build cannot verify one"
-        ),
-    )
-    .with_suggestion(
-        "A person.cli = \"verified\" command waits for the person page (phase 5 step 5); until then it cannot run. Use a build with the person page, a namespaced principal.local_id and that namespace's person login.",
-    )
-    .with_retryable(false)
-}
 
 /// One scope verb (5.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

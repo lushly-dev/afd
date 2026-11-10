@@ -33,7 +33,8 @@
 //!    relay. `accept` means only that the user agreed to open the link (MCP: URL mode is out of
 //!    band and never authorizes a user by itself), so the server calls [`HumanRelay::resume`]:
 //!    [`RelayOutcome::Approved`] runs the command with relay evidence on its context, so one
-//!    decision also covers an approval policy; [`RelayOutcome::Declined`] is
+//!    decision also covers an approval policy, and with the relay's
+//!    [`HumanRelay::approved_context`] fields in its `extra`; [`RelayOutcome::Declined`] is
 //!    `CONFIRMATION_DECLINED`; [`RelayOutcome::Pending`] asks again with its prompt;
 //!    [`RelayOutcome::Invalid`] begins again.
 //!
@@ -102,6 +103,24 @@ pub trait HumanRelay: Send + Sync {
     /// What has become of the decision `state` names, for `call` (the same command, input digest
     /// and principal it was issued to, or [`RelayOutcome::Invalid`]).
     async fn resume(&self, state: &str, call: &RelayCall) -> RelayOutcome;
+
+    /// Host-owned context fields for a call [`HumanRelay::resume`] approved with `decision_id`:
+    /// the server sets each in the call's [`CommandContext::extra`] (replacing a field of the same
+    /// name) after the gate's checks and before the registry runs anything, so the host's own
+    /// layers and the handler can tell how the person was proven (Umbel records the person
+    /// decision and `humanPresent` there). Called once per `Approved`. The default sets nothing.
+    ///
+    /// These fields are not evidence: AFD reads none of them, and unlike relay evidence they stay
+    /// on the context of any command the handler runs in process with it, so a host that reads
+    /// them must check that they name the command and input it is looking at.
+    async fn approved_context(
+        &self,
+        decision_id: &str,
+        call: &RelayCall,
+    ) -> serde_json::Map<String, Value> {
+        let _ = (decision_id, call);
+        serde_json::Map::new()
+    }
 }
 
 /// One call a [`HumanRelay`] is asked about.
@@ -119,6 +138,14 @@ pub struct RelayCall {
     pub credentials: Option<Arc<Credentials>>,
     /// The client capabilities the request declared.
     pub client_capabilities: Option<ClientCapabilities>,
+    /// The input validated against the command's schema, defaults applied: the input
+    /// [`Self::input_digest`] names, so a host can keep what its person must be shown of it (for
+    /// example a preview's identifiers). `null` on a call built with [`RelayCall::new`] alone.
+    pub input: Value,
+    /// The context the command would run with: after the context hook, with the verified
+    /// credentials, its trace id and the host's own `extra`. Relay evidence is never on it. A host
+    /// reads its own fields here (who the caller is, by its own mapping), never a request's.
+    pub context: CommandContext,
 }
 
 impl RelayCall {
@@ -136,7 +163,23 @@ impl RelayCall {
             actor,
             credentials,
             client_capabilities,
+            input: Value::Null,
+            context: CommandContext::new(),
         }
+    }
+
+    /// The same call with the validated `input` its digest names.
+    #[must_use]
+    pub fn with_input(mut self, input: Value) -> Self {
+        self.input = input;
+        self
+    }
+
+    /// The same call with the `context` the command would run with.
+    #[must_use]
+    pub fn with_context(mut self, context: CommandContext) -> Self {
+        self.context = context;
+        self
     }
 
     /// The call's principal binding ([`crate::principal_binding`]), which the relay's state must
@@ -164,7 +207,7 @@ impl fmt::Debug for RelayCall {
             .field("actor", &self.actor.as_ref().map(|actor| actor.kind))
             .field("credentials", &self.credentials)
             .field("client_capabilities", &self.client_capabilities)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -224,8 +267,9 @@ pub enum RelayOutcome {
 
 /// What the gate decided for a call to a host-verified command.
 pub(crate) enum RelayDecision {
-    /// Run the command with this evidence on its context.
-    Proceed(RelayEvidence),
+    /// Run the command with this evidence on its context, and the relay's
+    /// [`HumanRelay::approved_context`] fields in its `extra`.
+    Proceed(RelayEvidence, serde_json::Map<String, Value>),
     /// Answer with this failure.
     Refuse(CommandError),
     /// Answer with this `input_required` result.
@@ -384,6 +428,8 @@ pub(crate) async fn check(gate: RelayGate<'_>, input: Value) -> RelayDecision {
         actor: execution.actor.clone(),
         credentials: execution.credentials.clone(),
         client_capabilities: gate.context.client_capabilities(),
+        input: validated,
+        context: execution.clone(),
     };
 
     if let (Some(responses), Some(state)) =
@@ -402,13 +448,17 @@ pub(crate) async fn check(gate: RelayGate<'_>, input: Value) -> RelayDecision {
                     if decision_id.is_empty() {
                         return RelayDecision::Internal;
                     }
-                    return RelayDecision::Proceed(RelayEvidence {
-                        command: name,
-                        input_digest: call.input_digest,
-                        actor: crate::credentials::actor_binding_json(execution.actor.as_ref()),
-                        credentials_binding,
-                        decision_id,
-                    });
+                    let extra = relay.approved_context(&decision_id, &call).await;
+                    return RelayDecision::Proceed(
+                        RelayEvidence {
+                            command: name,
+                            input_digest: call.input_digest,
+                            actor: crate::credentials::actor_binding_json(execution.actor.as_ref()),
+                            credentials_binding,
+                            decision_id,
+                        },
+                        extra,
+                    );
                 }
                 RelayOutcome::Declined => return RelayDecision::Refuse(declined(names)),
                 RelayOutcome::Pending(prompt) => return present(&gate, prompt),

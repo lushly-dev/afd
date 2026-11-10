@@ -459,6 +459,11 @@ pub(crate) fn hook(
         context
             .extra
             .insert(CLAIM_GROUPS_KEY.to_owned(), Value::from(claim_groups));
+        // A person decision is the host's to record, after the relay approves a call (phase 5
+        // section 7.2): never anything a request brought, whatever context fields are declared.
+        context
+            .extra
+            .insert(crate::person::PERSON_DECISION_KEY.to_owned(), Value::Null);
         if let Some(clock) = &clock {
             context.clock = Some(Arc::clone(clock));
         }
