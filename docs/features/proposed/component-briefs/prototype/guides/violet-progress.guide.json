@@ -1,0 +1,27 @@
+{
+	"tag": "violet-progress",
+	"summary": "Linear progress bar on the native progress element, determinate or indeterminate.",
+	"import": "@lushly-dev/violet-elements/dist/progress/violet-progress.js",
+	"usage": [
+		{
+			"id": "progress.indeterminate",
+			"text": "Set value=\"\" for indeterminate. With no value attribute it shows 0, the default, and a value that is not a number is treated as 0."
+		},
+		{
+			"id": "progress.value",
+			"text": "The value is clamped to 0 through max. While determinate, a rounded percentage is shown beside the label."
+		}
+	],
+	"a11y": [
+		{
+			"id": "progress.name",
+			"text": "The label attribute is shown and names the bar; without it the name is \"Progress\". The value-text attribute sets aria-valuetext."
+		}
+	],
+	"rules": ["import.root", "theme.install"],
+	"evidence": {
+		"progress.indeterminate": "src/progress/violet-progress.ts:178",
+		"progress.value": "src/progress/violet-progress.ts:187",
+		"progress.name": "src/progress/violet-progress.ts:192"
+	}
+}

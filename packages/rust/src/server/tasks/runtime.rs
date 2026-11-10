@@ -157,6 +157,9 @@ enum Stop {
     TokenExpired,
     /// Its `ttlMs` ended, or its record is gone.
     TtlEnded,
+    /// The store holds it finished though it still runs here: another process ended it (a
+    /// host's store that found its lease run out). It stops, and writes nothing.
+    Lost,
 }
 
 /// A task running in this process.
@@ -391,7 +394,8 @@ impl McpServer {
         };
         let registered = Registered(Arc::clone(&runtime), id.clone());
         // Durable before the server answers; a store that cannot record it fails the call.
-        match runtime.store.create(record).await {
+        let call = super::TaskCall::new(command, &input, &context);
+        match runtime.store.create_for(record, call).await {
             Ok(()) => {}
             Err(TaskStoreError::OwnerLimit { .. } | TaskStoreError::TotalLimit { .. }) => {
                 return refused(task_limit());
@@ -559,10 +563,15 @@ impl McpServer {
     ) -> Result<(), ErrorData> {
         let caller = self.task_caller::<CancelTaskMethod>(context).await?;
         let record = self.find_task(&caller, &params.task_id, false).await?;
+        let runtime = &self.inner.tasks;
         if record.status.is_terminal() {
+            // Finished in the store, but still running here (another process ended it): stop it,
+            // and write nothing over the end the store holds.
+            if let Some(running) = runtime.running(&record.id) {
+                running.stop(Stop::Lost);
+            }
             return Ok(());
         }
-        let runtime = &self.inner.tasks;
         runtime
             .store
             .update(&record.id, &caller.owner, TaskChange::CancelRequested)
@@ -668,6 +677,8 @@ async fn run(job: Job) {
             let _ = store.expire(now).await;
             return;
         }
+        // Its record already holds its end, which this runner did not write.
+        Outcome::Stopped(Stop::Lost, _) => return,
         Outcome::Internal => TaskChange::Failed {
             error: internal_error_object(),
             at: now,
@@ -723,8 +734,12 @@ async fn drive(job: Job) -> Outcome {
                     .update(&id, &owner, TaskChange::Progress { message, at: now })
                     .await;
             }
-            // A cancellation recorded by another process, or a record that is gone.
+            // The runner is alive: a host's shared store renews its lease.
+            let _ = store.heartbeat(&id, &owner, now).await;
+            // A cancellation recorded by another process, a record another process finished,
+            // or a record that is gone.
             match store.get(&id, &owner).await {
+                Ok(Some(record)) if record.status.is_terminal() => running.stop(Stop::Lost),
                 Ok(Some(record)) if record.cancel_requested => running.stop(Stop::Cancelled),
                 Ok(Some(record)) if record.is_expired(now) => running.stop(Stop::TtlEnded),
                 Ok(None) => running.stop(Stop::TtlEnded),
@@ -816,7 +831,7 @@ fn completion(result: &CommandResult<Value>, limit: usize, at: i64) -> TaskChang
 }
 
 /// The `CallToolResult` an inline call returns for `result`, as a JSON object.
-fn call_tool_result(result: &CommandResult<Value>) -> Option<Map<String, Value>> {
+pub(super) fn call_tool_result(result: &CommandResult<Value>) -> Option<Map<String, Value>> {
     match router::tool_result(result, !result.success) {
         Ok(CallToolResponse::Complete(call)) => match serde_json::to_value(call) {
             Ok(Value::Object(object)) => Some(object),

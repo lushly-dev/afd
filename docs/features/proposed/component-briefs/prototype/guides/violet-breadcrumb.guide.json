@@ -1,0 +1,22 @@
+{
+	"tag": "violet-breadcrumb",
+	"summary": "Navigation landmark that lays out violet-breadcrumb-item children as a trail.",
+	"import": "@lushly-dev/violet-elements/dist/breadcrumb/violet-breadcrumb.js",
+	"usage": [
+		{
+			"id": "breadcrumb.current",
+			"text": "The last item is marked current automatically. If items set the current attribute themselves, the last of those wins and it is cleared on the others."
+		}
+	],
+	"a11y": [
+		{
+			"id": "breadcrumb.name",
+			"text": "It renders a nav landmark named by the label attribute, default \"Breadcrumb\"."
+		}
+	],
+	"rules": ["import.root", "theme.install"],
+	"evidence": {
+		"breadcrumb.current": "src/breadcrumb/violet-breadcrumb.ts:80",
+		"breadcrumb.name": "src/breadcrumb/violet-breadcrumb.ts:30"
+	}
+}

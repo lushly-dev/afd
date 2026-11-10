@@ -116,6 +116,12 @@ impl Layout {
         self.shared_dir().join("nonces.sqlite3")
     }
 
+    /// `state/shared/tasks.sqlite3`: MCP tasks, owner-checked and leased (phase 5 sections 10.2
+    /// and 12.2).
+    pub fn tasks_store(&self) -> PathBuf {
+        self.shared_dir().join("tasks.sqlite3")
+    }
+
     /// `state/spaces/`.
     pub fn space_states_dir(&self) -> PathBuf {
         self.state_dir().join("spaces")

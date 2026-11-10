@@ -6,8 +6,8 @@ import {
 } from '@lushly-dev/violet-core/types';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import type { CommandResult } from '../../types/command-result.js';
+import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { selectSubtree } from '../node/scope.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import { analyzeViolationsCommand } from './violations.js';

@@ -1,0 +1,33 @@
+{
+	"tag": "violet-popover",
+	"summary": "Anchored floating surface with light dismiss, for non-modal content opened from a trigger.",
+	"import": "@lushly-dev/violet-elements/dist/popover/violet-popover.js",
+	"usage": [
+		{
+			"id": "popover.trigger",
+			"text": "Put the toggle element in the trigger slot, or point the anchor attribute at an outside element; a click on either toggles the surface. From script use show(), hide(), toggle() or the reflected open attribute."
+		},
+		{
+			"id": "popover.dismiss",
+			"text": "The surface is a native popover=\"auto\": an outside press or Escape closes it, and the open attribute and the open-change event follow."
+		}
+	],
+	"a11y": [
+		{
+			"id": "popover.semantics",
+			"text": "The component gives the surface no role or name and sets no aria-expanded on the trigger. Put a role and label on the slotted content, and update the trigger's aria-expanded from the open-change event."
+		}
+	],
+	"rules": [
+		"import.root",
+		"theme.install",
+		"overlay.anchor",
+		"overlay.positioning",
+		"overlay.open-change"
+	],
+	"evidence": {
+		"popover.trigger": "src/popover/violet-popover.ts:106",
+		"popover.dismiss": "src/popover/violet-popover.ts:112",
+		"popover.semantics": "src/popover/violet-popover.ts:108"
+	}
+}

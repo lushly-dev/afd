@@ -66,7 +66,7 @@ The integration depends on the workspace `@lushly-dev/afd-core` (`workspace:^2.2
 ## Validation routes
 
 - `pnpm check` builds all five packages and runs their store-free suites.
-- [`violet.yml`](../../../../.github/workflows/violet.yml) runs the full upstream suites with the SQLite legs (`test:db`), a `stores` job with the Postgres and Neon driver legs, the upstream Biome 1.9 lint and the packed-artifact consumers in [`tests/consumers/violet`](../../../../tests/consumers/violet/verify-artifacts.mjs): Violet only (no AFD, no storage driver, Chromium HTML and runtime), integration absent/present/incompatible/unavailable, AFD 2.x beside it, and the two binaries.
+- [`violet.yml`](../../../../.github/workflows/violet.yml) runs the full upstream suites with the SQLite legs (`test:db`), a `stores` job with the Postgres and Neon driver legs, the Violet Biome lint (its own Biome 2 configuration) and the packed-artifact consumers in [`tests/consumers/violet`](../../../../tests/consumers/violet/verify-artifacts.mjs): Violet only (no AFD, no storage driver, Chromium HTML and runtime), integration absent/present/incompatible/unavailable, AFD 2.x beside it, and the two binaries.
 
 ## Limits and in-flight source changes
 

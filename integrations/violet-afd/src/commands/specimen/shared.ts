@@ -1,6 +1,5 @@
 import { SPECIMEN_COMPONENTS, SPECIMEN_ROLE_NAMES } from '@lushly-dev/violet-core/css';
-import type { Node } from '@lushly-dev/violet-core/types';
-import type { OperationRecord } from '@lushly-dev/violet-core/types';
+import type { Node, OperationRecord } from '@lushly-dev/violet-core/types';
 import { selectSubtree } from '../node/scope.js';
 import type { Database } from '../registry.js';
 import { collectDefinitions } from '../token/definitions.js';

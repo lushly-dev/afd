@@ -47,12 +47,12 @@
 		"@lushly-dev/violet-core": "workspace:*",
 		"@lushly-dev/violet-server": "workspace:*",
 		"chalk": "^5.6.2",
-		"commander": "^12.1.0",
-		"nanoid": "^5.1.16",
+		"commander": "^15.1.0",
+		"nanoid": "^6.0.2",
 		"yaml": "^2.9.1"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^1.9.4",
+		"@biomejs/biome": "^2.5.14",
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^5.1.0",
 		"typescript": "^7.0.2",

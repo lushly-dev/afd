@@ -417,7 +417,7 @@ export class WebhookDispatcher {
 			try {
 				// Get webhook
 				const webhook = await this.db.getWebhook(delivery.webhookId);
-				if (!webhook || !webhook.active) {
+				if (!webhook?.active) {
 					// Webhook deleted or disabled: stop retrying
 					await this.db.updateDelivery(delivery.id, {
 						nextRetryAt: null,

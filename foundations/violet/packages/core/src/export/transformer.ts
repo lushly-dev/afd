@@ -1,5 +1,5 @@
-import { isUnsafePathSegment } from '../types/token-id.js';
 import type { ResolvedToken } from '../types/token.js';
+import { isUnsafePathSegment } from '../types/token-id.js';
 
 /**
  * Transform options for export

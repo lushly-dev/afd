@@ -14,7 +14,7 @@ The Violet API, web, Figma applications, the test workspace and the patched FAST
 
 ## Configuration
 
-`tsconfig.json` and `biome.json` here are the upstream root configurations, unchanged; the five packages extend them. Violet keeps its own toolchain: Biome 1.9, Vitest 3, Zod 3 and TypeScript bundler resolution. The root Biome configuration does not lint these directories.
+`tsconfig.json` and `biome.json` here are the upstream root configurations, adapted as `provenance/adaptations.json` records; the five packages extend them. Violet's tool versions match the workspace (Biome 2, Vitest 5, Zod 4, TypeScript 7), but it keeps TypeScript bundler resolution and its own Biome configuration, which the root Biome configuration does not lint: the root's formatter (`trailingCommas: "es5"`) and stricter rules would rewrite most imported files before the upstream reconcile. Biome sorts imports, not the export lists of `index.ts` barrels. `violet-runtime` targets browsers and names `types: []`; the other four units use Node's types.
 
 ## Gates
 

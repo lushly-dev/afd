@@ -1,5 +1,5 @@
-import { findUnsafeTokenIdSegment } from '../../types/token-id.js';
 import type { ResolvedToken } from '../../types/token.js';
+import { findUnsafeTokenIdSegment } from '../../types/token-id.js';
 import type { TransformOptions, Transformer } from '../transformer.js';
 import { buildNestedTokenObject, groupByCategory } from '../transformer.js';
 

@@ -1,0 +1,45 @@
+{
+	"tag": "violet-tree",
+	"summary": "Single-selection tree view of nested violet-tree-item elements.",
+	"import": "@lushly-dev/violet-elements/dist/tree/violet-tree.js",
+	"usage": [
+		{
+			"id": "tree.structure",
+			"text": "Children are violet-tree-item elements; nest an item inside another to make a branch."
+		},
+		{
+			"id": "tree.value",
+			"text": "The tree's value attribute selects the item whose value matches, or whose label text matches when the item has no value. With no tree value, an item marked selected is used."
+		},
+		{
+			"id": "tree.events",
+			"text": "A change event fires on user selection with detail { value, itemId }. An expanded-change event fires only when the user expands or collapses a branch, not when script sets expanded."
+		},
+		{
+			"id": "tree.not-form",
+			"text": "It is not form-associated. The error text is shown whenever error-text is set; there is no invalid attribute."
+		}
+	],
+	"a11y": [
+		{
+			"id": "tree.name",
+			"text": "With neither a label nor an aria-label attribute the tree is named \"Tree\"."
+		}
+	],
+	"rules": [
+		"import.root",
+		"theme.install",
+		"a11y.managed",
+		"field.label",
+		"field.aria-label",
+		"field.supporting-text",
+		"variant.appearance"
+	],
+	"evidence": {
+		"tree.structure": "src/tree/violet-tree.ts:396",
+		"tree.value": "src/tree/violet-tree.ts:237",
+		"tree.events": "src/tree/violet-tree.ts:483",
+		"tree.not-form": "src/tree/violet-tree.ts:124",
+		"tree.name": "src/tree/violet-tree.ts:174"
+	}
+}
