@@ -30,7 +30,11 @@ fn hello_files() -> Vec<(String, Vec<u8>)> {
 }
 
 fn sha256(bytes: &[u8]) -> String {
-    format!("sha256:{:x}", Sha256::digest(bytes))
+    let hex: String = Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    format!("sha256:{hex}")
 }
 
 fn data(result: &afd::CommandResult<Value>) -> Value {

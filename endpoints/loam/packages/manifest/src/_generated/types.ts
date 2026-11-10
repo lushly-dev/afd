@@ -1116,3 +1116,48 @@ export interface ProjectionV3 {
 		};
 	}[];
 }
+
+export interface ServerConfigV1 {
+	server_version: 1;
+	origin: string;
+	listen: string;
+	data: string;
+	tls?: {
+		cert_file: string;
+		key_file: string;
+	};
+	sandbox?: {
+		origin: string;
+		listen?: string;
+	};
+	auth?: {
+		secret_file?: string;
+		secret_env?: string;
+	};
+	mail?: {
+		transport: 'sink' | 'smtp';
+		from?: string;
+		smtp_url_env?: string;
+		smtp_url_file?: string;
+	};
+	oidc?: {
+		[k: string]: {
+			issuer: string;
+			client_id: string;
+			client_secret_file?: string;
+			client_secret_env?: string;
+		};
+	};
+	limits?: {
+		request_body_bytes?: number;
+		relay_response_bytes?: number;
+		relay_concurrency_per_person?: number;
+		relay_timeout_ms?: number;
+		relay_session_idle_ms?: number;
+	};
+	discovery?: {
+		server_card?: boolean;
+		ai_catalog?: boolean;
+		agent_guide?: boolean;
+	};
+}

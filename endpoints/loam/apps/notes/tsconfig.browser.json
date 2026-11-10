@@ -1,0 +1,10 @@
+{
+	// The code that runs in the browser, checked without Node's globals or `node:` modules (#811).
+	// tsconfig.json keeps Node's types for the tests and Vite/Vitest configs, which run under Node.
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"types": []
+	},
+	"include": ["specimens/**/*", "src/**/*"],
+	"exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-helper.ts"]
+}

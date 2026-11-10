@@ -2,7 +2,7 @@
 	"name": "@lushly-dev/loam-manifest",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Loam's manifest profile, deployment file and browser projection: schemas, generated types, standalone validators, the readers and refusals, and the catalogs",
+	"description": "Loam's manifest profile, deployment file and browser projection: schemas, generated types, standalone validators, the readers and refusals, the catalogs, and the hosted server's configuration",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -18,6 +18,10 @@
 			"types": "./dist/validate.d.ts",
 			"import": "./dist/validate.js"
 		},
+		"./server": {
+			"types": "./dist/server.d.ts",
+			"import": "./dist/server.js"
+		},
 		"./schemas/app-manifest.v1.json": "./schemas/app-manifest.v1.json",
 		"./schemas/app-manifest.v2.json": "./schemas/app-manifest.v2.json",
 		"./schemas/deployment.v1.json": "./schemas/deployment.v1.json",
@@ -25,7 +29,8 @@
 		"./schemas/deployment.v3.json": "./schemas/deployment.v3.json",
 		"./schemas/projection.v1.json": "./schemas/projection.v1.json",
 		"./schemas/projection.v2.json": "./schemas/projection.v2.json",
-		"./schemas/projection.v3.json": "./schemas/projection.v3.json"
+		"./schemas/projection.v3.json": "./schemas/projection.v3.json",
+		"./schemas/server.v1.json": "./schemas/server.v1.json"
 	},
 	"scripts": {
 		"build": "node scripts/schema-build.mjs && tsc",
@@ -36,6 +41,7 @@
 	},
 	"dependencies": {
 		"ajv": "^8.20.0",
+		"tldts": "7.4.19",
 		"zod": "^4.6.6"
 	},
 	"devDependencies": {

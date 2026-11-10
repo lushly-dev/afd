@@ -780,6 +780,27 @@
 			]
 		},
 		{
+			"id": "loam-host",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "a5d9c784e292bce59c8c823b546b5b762246e671",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-host",
+					"registry": "npm",
+					"manifest": "endpoints/loam/packages/host/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "loam-app-hello",
 			"family": "loam",
 			"protocol": "npm-changesets",
