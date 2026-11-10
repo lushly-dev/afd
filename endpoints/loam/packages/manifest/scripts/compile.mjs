@@ -279,7 +279,6 @@ export function generateFacts() {
 		['deployment', 1, 'deployment'],
 		['deployment', 2, 'deploymentV2'],
 		['projection', 2, 'projection'],
-		['server', 1, 'server'],
 	]) {
 		const document = readSchema(schema, schemaVersion);
 		admitted[name] = admittedKeys(withoutRefused(flatten(document, document, core)));
