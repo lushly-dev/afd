@@ -130,8 +130,13 @@ export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddlew
 				`Use '${scope.workspace.id}'`
 			);
 		}
-		// `layout-*` reads the call's scope's record, so the access decision comes first (3.4).
-		if (name.startsWith('layout-') && !scope.allows(call.actor, requested)) {
+		// `layout-*` reads the call's scope's record, so the access decision comes first (3.4): a project's.
+		// A workspace-level layout is a signed-out command's in `provider` mode (phase 3 specification, 2.1).
+		if (
+			name.startsWith('layout-') &&
+			requested.project !== undefined &&
+			!scope.allows(call.actor, requested)
+		) {
 			return projectNotFound();
 		}
 		return late ? late.run(name, input, call, next) : next();

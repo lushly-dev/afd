@@ -51,6 +51,10 @@ export const EXTRA_INPUTS = [
 	// Loam's profile is checked against the plugin manifest core, and records the contract version.
 	{ prefix: 'spec/plugin-manifest', except: PROSE, packages: ['@lushly-dev/loam-manifest'] },
 	{ prefix: 'spec/VERSION', packages: ['@lushly-dev/loam-manifest'] },
+	// Loam's identity scans what a browser loads for an import of it (phase 3 specification, E13); the
+	// kernel's sources reach it as a dependency already.
+	{ prefix: 'endpoints/loam/packages/web/src/', packages: ['@lushly-dev/loam-identity'] },
+	{ prefix: 'endpoints/loam/packages/chrome/src/', packages: ['@lushly-dev/loam-identity'] },
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];
