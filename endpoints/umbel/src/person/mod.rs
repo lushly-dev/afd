@@ -45,6 +45,13 @@ use crate::workspace::Config;
 /// Only the host sets it.
 pub(crate) const PERSON_DECISION_KEY: &str = "dev.umbel/person-decision";
 
+/// The `CommandContext.extra` key of the host's own run of a gated command's `confirm_preview`,
+/// as the caller, before a decision is begun (step 6): `{ "command", "preview", "surface" }`. The
+/// plugin sees it as `CallContext::person_check` ([`check_of`]) and answers a failure for a call
+/// it would refuse, so no person is asked about it. It only ever adds refusals; even so, only the
+/// host sets it (the context hook clears it on every MCP call).
+pub(crate) const PERSON_CHECK_KEY: &str = "dev.umbel/person-check";
+
 /// The CLI's decision expired before it was decided (section 10.5): retryable.
 #[cfg_attr(not(all(feature = "auth", feature = "cli")), allow(dead_code))]
 pub(crate) const PERSON_DECISION_EXPIRED: &str = "PERSON_DECISION_EXPIRED";
@@ -234,6 +241,72 @@ pub(crate) fn for_of_cli(
         issuer: None,
         namespace: namespace.to_owned(),
         subject: subject.to_owned(),
+    })
+}
+
+/// The person decision `context` carries for a run of `command` with the validated `input`, as
+/// the host attests it to the plugin (`CallContext::person_decision`, step 6): the mark the relay
+/// (or the CLI) set names this command, the surface the call came on and the digest of this
+/// input, `humanPresent` says the same, and the person the caller acts for is in the mark's
+/// namespace. The plugin gate has already admitted (and spent) the decision for this call; this
+/// repeats its checks without the ledger, so that no other call (a command the handler runs in
+/// process with the same context, another input) is told a person decided it.
+pub(crate) fn attested(
+    config: &Config,
+    command: &str,
+    input: &Value,
+    context: &CommandContext,
+) -> Option<umbel_sdk::PersonDecision> {
+    let mark = PersonMark::of(context)?;
+    let (surface, interface) = match mark.surface {
+        Surface::Mcp => ("mcp", CommandInterface::Mcp),
+        Surface::Cli => ("cli", CommandInterface::Cli),
+    };
+    let digest = afd::input_digest(input).ok()?;
+    if mark.command != command
+        || context.interface != Some(interface)
+        || mark.input_digest != digest
+        || mark.level != "verified"
+        || mark.method != "person-page"
+    {
+        return None;
+    }
+    let present = Principal::from_context(context)
+        .and_then(|principal| principal.human_present)
+        .is_some_and(|present| present.level == "verified" && present.method == "person-page");
+    if !present {
+        return None;
+    }
+    let who = match mark.surface {
+        Surface::Mcp => for_of_mcp(context),
+        Surface::Cli => for_of_cli(config, context),
+    }
+    .ok()?;
+    if who.namespace != mark.namespace {
+        return None;
+    }
+    Some(umbel_sdk::PersonDecision {
+        surface: surface.to_owned(),
+        person: format!("{}/{}", who.namespace, who.subject),
+        namespace: mark.namespace,
+        auth_time: mark.auth_time,
+        acr: mark.acr,
+    })
+}
+
+/// The call a person is about to be asked to decide, when this run of `command` is that call's
+/// preview run by the host before begin ([`PERSON_CHECK_KEY`]); `None` otherwise.
+pub(crate) fn check_of(command: &str, context: &CommandContext) -> Option<umbel_sdk::PersonCheck> {
+    let value = context.extra.get(PERSON_CHECK_KEY)?;
+    let preview = value.get("preview").and_then(Value::as_str)?;
+    let gated = value.get("command").and_then(Value::as_str)?;
+    let surface = value
+        .get("surface")
+        .and_then(Value::as_str)
+        .filter(|surface| matches!(*surface, "mcp" | "cli"))?;
+    (preview == command && !gated.is_empty()).then(|| umbel_sdk::PersonCheck {
+        command: gated.to_owned(),
+        surface: surface.to_owned(),
     })
 }
 
@@ -456,6 +529,71 @@ mod tests {
             .is_err()
         );
         assert!(admit(&config, "gate-approve", &input(), &good, Surface::Mcp, None).is_err());
+    }
+
+    #[test]
+    fn the_plugin_is_told_of_a_decision_for_its_own_call_only() {
+        let config = config();
+        let good = context("gate-approve", &input(), true);
+        let decided = attested(&config, "gate-approve", &input(), &good).unwrap();
+        assert_eq!(decided.person, "corp/ada");
+        assert_eq!(decided.surface, "mcp");
+        assert_eq!(decided.namespace, "corp");
+        assert_eq!(decided.acr, "phr");
+        assert_eq!(decided.auth_time, "2026-11-08T00:00:00.000Z");
+        // Another command (one the handler runs in process with the same context), another
+        // input, no humanPresent, another interface or no mark: not told.
+        assert!(attested(&config, "gate-reject", &input(), &good).is_none());
+        assert!(
+            attested(
+                &config,
+                "gate-approve",
+                &serde_json::json!({ "proposal": "p-2" }),
+                &good
+            )
+            .is_none()
+        );
+        let absent = context("gate-approve", &input(), false);
+        assert!(attested(&config, "gate-approve", &input(), &absent).is_none());
+        let mut cli = good.clone();
+        cli.interface = Some(CommandInterface::Cli);
+        assert!(attested(&config, "gate-approve", &input(), &cli).is_none());
+        let mut unmarked = good.clone();
+        unmarked.extra.remove(PERSON_DECISION_KEY);
+        assert!(attested(&config, "gate-approve", &input(), &unmarked).is_none());
+        // A mark of another namespace than the person the caller acts for.
+        let mut elsewhere = good.clone();
+        let mut mark = PersonMark::of(&good).unwrap();
+        mark.namespace = "else".into();
+        elsewhere.extra.insert(
+            PERSON_DECISION_KEY.to_owned(),
+            serde_json::to_value(mark).unwrap(),
+        );
+        assert!(attested(&config, "gate-approve", &input(), &elsewhere).is_none());
+    }
+
+    #[test]
+    fn the_hosts_check_is_named_only_to_the_preview_it_runs() {
+        let mut context = CommandContext::new();
+        assert!(check_of("gate-preview", &context).is_none());
+        context.extra.insert(
+            PERSON_CHECK_KEY.to_owned(),
+            serde_json::json!({ "command": "gate-approve", "preview": "gate-preview", "surface": "mcp" }),
+        );
+        let check = check_of("gate-preview", &context).unwrap();
+        assert_eq!(check.command, "gate-approve");
+        assert_eq!(check.surface, "mcp");
+        // Any other command run with the context, or a surface that is not one: none.
+        assert!(check_of("gate-approve", &context).is_none());
+        context.extra.insert(
+            PERSON_CHECK_KEY.to_owned(),
+            serde_json::json!({ "command": "gate-approve", "preview": "gate-preview", "surface": "web" }),
+        );
+        assert!(check_of("gate-preview", &context).is_none());
+        context
+            .extra
+            .insert(PERSON_CHECK_KEY.to_owned(), Value::Null);
+        assert!(check_of("gate-preview", &context).is_none());
     }
 
     #[test]

@@ -1,9 +1,11 @@
-//! Proposal record version 2 (phase 4 specification, section 2.1; D92): every new proposal is
-//! version 2, with `drafter`, `conflictSet`, `withdrawal` and `redacted`, `decision.channel` and
-//! envelope version 2, each stored record valid against `schemas/proposal.v2.json`; a version 1
-//! record phase 2 stored is read, retried by key, decided, withdrawn and applied, and stays
-//! version 1, valid against `schemas/proposal.v1.json`. `knowledge-propose` never takes memory
-//! evidence, which needs a drafter's attestation.
+//! Proposal record versions 2 and 3 (phase 4 specification, section 2.1, D92; phase 5 sections
+//! 2.4 and 7.3, D116): every new proposal is version 3 (from phase 5 step 6), with version 2's
+//! `drafter`, `conflictSet`, `withdrawal` and `redacted`, `decision.channel` and, on a person's
+//! decision, `decision.assurance`, and envelope version 3, each stored record valid against
+//! `schemas/proposal.v3.json`; a version 1 record phase 2 stored, or a version 2 one phase 4
+//! stored, is read, retried by key, decided, withdrawn and applied, and stays in its own version,
+//! valid against its own schema. `knowledge-propose` never takes memory evidence, which needs a
+//! drafter's attestation.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -76,7 +78,7 @@ fn stored(fx: &Fx, id: &str) -> Value {
 }
 
 #[tokio::test]
-async fn a_new_proposal_is_version_2_with_its_fields_null() {
+async fn a_new_proposal_is_version_3_with_its_fields_null() {
     let fx = fixture().await;
     let base = hash_of(&fx, "handbook/runbook").await;
     let ops = [
@@ -88,12 +90,15 @@ async fn a_new_proposal_is_version_2_with_its_fields_null() {
     for (n, change) in ops.into_iter().enumerate() {
         let id = propose(&fx, agent_of("ada"), &format!("k{n}"), change).await;
         let body = stored(&fx, &id);
-        assert_eq!(body["version"], 2, "{body}");
+        // Version 3 from phase 5 step 6: version 2's fields, envelope version 3.
+        assert_eq!(body["version"], 3, "{body}");
         for key in VERSION_2_KEYS {
             assert_eq!(body[key], Value::Null, "{key}: {body}");
         }
         let provenance = &body["provenance"];
-        assert_eq!(provenance["version"], 2);
+        assert_eq!(provenance["version"], 3);
+        // No token, so no chain: the library's caller is not delegated.
+        assert_eq!(provenance["delegationChain"], json!([]), "{provenance}");
         for key in [
             "authority",
             "derivedFrom",
@@ -109,8 +114,10 @@ async fn a_new_proposal_is_version_2_with_its_fields_null() {
         // The provenance's contentHash is the change hash, as in version 1.
         assert_eq!(provenance["contentHash"], body["changeHash"]);
         assert_eq!(body["policy"]["rule"], "person");
-        // The store's envelope is the version the body nests (D36).
-        assert_eq!(records::read(&fx, &id).envelope.version, 2);
+        // The store's envelope is the version the body nests (D36), its chain the host's.
+        let envelope = records::read(&fx, &id).envelope;
+        assert_eq!(envelope.version, 3);
+        assert_eq!(envelope.delegation_chain, Some(Vec::new()));
         // knowledge-proposal-show reads it in its version.
         let shown = fx
             .as_actor(
@@ -119,7 +126,7 @@ async fn a_new_proposal_is_version_2_with_its_fields_null() {
                 json!({ "proposal": id }),
             )
             .await;
-        assert_eq!(data(&shown)["proposal"]["version"], 2, "{shown}");
+        assert_eq!(data(&shown)["proposal"]["version"], 3, "{shown}");
         assert_eq!(data(&shown)["proposal"]["drafter"], Value::Null);
     }
 }
@@ -158,10 +165,16 @@ async fn decisions_name_their_channel_and_a_withdrawal_who_withdrew() {
     assert_eq!(body["state"], "applied");
     assert_eq!(body["decision"]["channel"], "terminal", "{body}");
     assert_eq!(body["decision"]["by"]["kind"], "human");
+    // Version 3 records how the person was proven: the terminal's check (phase 5 section 7.3).
+    assert_eq!(
+        body["decision"]["assurance"],
+        json!({ "level": "terminal", "method": "cli-terminal" }),
+        "{body}"
+    );
     assert_eq!(body["withdrawal"], Value::Null);
     assert_eq!(body["result"]["path"], "runbook.md");
     // Each later save keeps the record's envelope version.
-    assert_eq!(records::read(&fx, &applied).envelope.version, 2);
+    assert_eq!(records::read(&fx, &applied).envelope.version, 3);
 
     let result = fx
         .at_terminal(
@@ -172,6 +185,7 @@ async fn decisions_name_their_channel_and_a_withdrawal_who_withdrew() {
     assert_eq!(data(&result)["rejected"], true, "{result}");
     let body = stored(&fx, &rejected);
     assert_eq!(body["decision"]["channel"], "terminal");
+    assert_eq!(body["decision"]["assurance"]["level"], "terminal");
     assert_eq!(body["decision"]["reason"], "Not needed.");
 
     let result = fx
@@ -297,6 +311,35 @@ async fn a_version_1_proposal_stays_version_1_through_every_decision() {
 }
 
 #[tokio::test]
+async fn a_version_2_proposal_stays_version_2_when_a_person_decides_it_at_a_terminal() {
+    let fx = fixture().await;
+    let drafted = records::drafted(&Draft {
+        candidate: "7d4e5f60718293041526",
+        canary: "bilby",
+        promoted_by: None,
+        conflict_set: None,
+    });
+    assert_valid("proposal.v2", &drafted);
+    records::seed(&fx, &drafted);
+    let id = drafted["id"].as_str().unwrap();
+    let result = fx
+        .at_terminal(
+            "knowledge-reject",
+            json!({ "proposal": id, "reason": "Not now." }),
+        )
+        .await;
+    assert_eq!(data(&result)["rejected"], true, "{result}");
+    // Version 2 cannot hold an assurance: the record keeps its version, a terminal channel and
+    // no assurance (proposal.v2.json refuses one).
+    let now = stored(&fx, id);
+    assert_eq!(now["version"], 2, "{now}");
+    assert_eq!(now["decision"]["channel"], "terminal", "{now}");
+    assert!(now["decision"].get("assurance").is_none(), "{now}");
+    assert_eq!(records::read(&fx, id).envelope.version, 2);
+    assert_eq!(records::read(&fx, id).envelope.delegation_chain, None);
+}
+
+#[tokio::test]
 async fn memory_evidence_needs_a_drafter_and_an_unknown_version_is_not_read() {
     let fx = fixture().await;
     let base = hash_of(&fx, "handbook/runbook").await;
@@ -352,7 +395,7 @@ async fn memory_evidence_needs_a_drafter_and_an_unknown_version_is_not_read() {
         promoted_by: None,
         conflict_set: None,
     });
-    future["version"] = json!(3);
+    future["version"] = json!(4);
     future["id"] = json!("p-ffffffffffffffffffff");
     records::seed(&fx, &future);
     let shown = fx

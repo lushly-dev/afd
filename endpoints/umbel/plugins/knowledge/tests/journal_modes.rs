@@ -18,7 +18,7 @@ const REASON_CANARY: &str = "bilbyreason";
 const PLAIN_CANARY: &str = "dingoplain";
 
 /// The digest set and the input keys each keeps.
-const DIGEST: [(&str, &[&str]); 9] = [
+const DIGEST: [(&str, &[&str]); 10] = [
     // Phase 4 step 3b: the drafted path. The batch has no proposal input, and the feed's `after`
     // is a store revision.
     ("knowledge-propose-batch", &["space"]),
@@ -29,6 +29,8 @@ const DIGEST: [(&str, &[&str]); 9] = [
     ),
     ("knowledge-proposal-show", &["space", "proposal"]),
     ("knowledge-proposal-preview", &["space", "proposal"]),
+    // Phase 5 step 6: reject's preview, whose reason is shown, never kept.
+    ("knowledge-rejection-preview", &["space", "proposal"]),
     ("knowledge-approve", &["space", "proposal"]),
     ("knowledge-reject", &["space", "proposal"]),
     ("knowledge-withdraw", &["space", "proposal"]),

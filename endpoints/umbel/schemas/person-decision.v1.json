@@ -106,18 +106,23 @@
 			"pattern": "^[A-Za-z0-9_-]{43}$"
 		},
 		"properties": {
-			"description": "Only the preview's declared properties, each a string, a number, a boolean or a list of at most 100 strings, as journal.keep keeps them; at most 16.",
+			"description": "Only the preview's declared properties, at most 16: each it reads as an id (in journal.keep) a string of at most 512 characters with no control character, a number, a boolean or a list of at most 100 such strings, as journal.keep keeps them; each it shows as text (in journal.show, phase 5 step 6: a rejection's reason) a string of at most 2000 characters with no control character but line ends and tabs, held for the decision's life and never journaled.",
 			"type": "object",
 			"maxProperties": 16,
 			"propertyNames": {
 				"pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$"
 			},
 			"additionalProperties": {
-				"oneOf": [
+				"anyOf": [
 					{
 						"type": "string",
 						"maxLength": 512,
 						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+					},
+					{
+						"type": "string",
+						"maxLength": 2000,
+						"pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f]*$"
 					},
 					{
 						"type": "number"

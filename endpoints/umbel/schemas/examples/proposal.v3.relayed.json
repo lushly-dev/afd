@@ -91,6 +91,7 @@
 		"principal": "human:corp/U019488227",
 		"at": "2026-11-08T10:00:00.000Z",
 		"reason": "Matches the runbook.",
+		"reasonSource": "client",
 		"traceId": "7a8b9c0d1e2f30415263748596a7b8c9",
 		"proposerKind": "human",
 		"channel": "mcp-elicitation",

@@ -96,15 +96,23 @@ impl Seen {
     }
 }
 
-/// The preview of proposal `proposal`.
-fn preview_of(proposal: &str) -> afd::CommandResult<Value> {
+/// The preview of proposal `proposal`; `checking` when the host runs it as the caller before it
+/// begins a decision (step 6), which carries `dev.umbel/person-check`.
+fn preview_of(proposal: &str, checking: bool) -> afd::CommandResult<Value> {
     match proposal {
         "xss" => afd::success(json!({
             "preview": "<script>alert(1)</script>\"><img src=x onerror=alert(2)> & 'q'",
         })),
-        "fail" => afd::failure(
+        // Fails on the page only: the host's check before begin passes.
+        "fail" if !checking => afd::failure(
             afd::CommandError::new("PREVIEW_BROKEN", "the preview broke")
                 .with_suggestion("Fix the preview."),
+        ),
+        // Refuses the caller: the host's check before begin fails, so no person is asked.
+        "refuse" => afd::failure(
+            afd::CommandError::new("GATE_REFUSED", "the gate refuses this proposal")
+                .with_suggestion("Ask someone else.")
+                .with_retryable(false),
         ),
         "canary" => afd::success(json!({ "preview": format!("Proposal {PREVIEW_CANARY}") })),
         other => afd::success(json!({ "preview": format!("Proposal {other}: apply it") })),
@@ -127,10 +135,15 @@ pub fn plugin_with(seen: &Seen, manifest: String) -> Raw {
                     "input": input,
                     "principal": context.extra.get("dev.umbel/principal"),
                     "mark": context.extra.get("dev.umbel/person-decision"),
+                    "check": context.extra.get("dev.umbel/person-check"),
                     "interface": format!("{:?}", context.interface),
                 }));
                 if name == "gate-preview" {
-                    preview_of(input["proposal"].as_str().unwrap_or_default())
+                    let checking = context
+                        .extra
+                        .get("dev.umbel/person-check")
+                        .is_some_and(|check| !check.is_null());
+                    preview_of(input["proposal"].as_str().unwrap_or_default(), checking)
                 } else {
                     afd::success(json!({ "done": input["proposal"] }))
                 }
@@ -150,6 +163,15 @@ pub const REST: &str = "[spaces.other]\n\n[plugins]\nenabled = [\"gate\"]\n";
 
 /// The extra `[mcp]`-free settings: confirmations that never prove a person.
 pub const AUTH: &str = "";
+
+/// Make the kit's identity provider sign ID tokens on `clock`, the host's, so a login's times
+/// never depend on the wall time.
+pub fn follow(kit: &TestIdp, clock: &ManualClock) {
+    let clock = clock.clone();
+    kit.identity_provider().follow_clock(Some(Arc::new(move || {
+        afd::Clock::now(&clock).div_euclid(1000)
+    })));
+}
 
 /// A served `oauth` workspace with the gate plugin, the kit's person login and a browser.
 pub struct Page {
@@ -190,6 +212,7 @@ impl Page {
         );
         let dir = super::workspace(&super::oauth::config(&kit, &setup));
         let clock = afd::fixed_clock(now_ms());
+        follow(&kit, &clock);
         let seen = Seen::default();
         let host = host(dir.path(), &kit, &clock, &seen);
         host.check_person_logins().await;

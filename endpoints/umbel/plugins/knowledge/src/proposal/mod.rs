@@ -37,7 +37,7 @@ pub(crate) fn dispatch(name: &str, input: &Value, cx: &mut Cx) -> Option<Outcome
         "knowledge-proposal-feed" => feed::run(input, cx),
         "knowledge-proposal-list" => review::list(input, cx),
         "knowledge-proposal-show" => review::show(input, cx),
-        "knowledge-proposal-preview" => preview::run(input, cx),
+        "knowledge-proposal-preview" | "knowledge-rejection-preview" => preview::run(input, cx),
         "knowledge-withdraw" => review::withdraw(input, cx),
         "knowledge-approve" => apply::approve(input, cx),
         "knowledge-auto-approve" => auto::run(input, cx),

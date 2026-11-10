@@ -183,6 +183,22 @@ fn document(space: &str, args: &Value) -> DocumentWrite {
     doc.envelope.principal = Some("human:forged".to_owned());
     doc.envelope.plugin = Some("forged".to_owned());
     doc.envelope.trace_id = Some("forged".to_owned());
+    if let Some(version) = args.get("version").and_then(Value::as_u64) {
+        doc.envelope.version = u32::try_from(version).unwrap();
+    }
+    // A delegation chain and a confirmation, which only the host fills (phase 5 section 2.4).
+    if args.get("forge_chain").is_some() {
+        doc.envelope.delegation_chain = Some(vec![umbel_store::ChainLink {
+            kind: "agent".to_owned(),
+            id: "corp/forged".to_owned(),
+        }]);
+        doc.envelope.confirmation = Some(umbel_store::Confirmation {
+            by: "human:forged".to_owned(),
+            at: "2026-01-01T00:00:00.000Z".to_owned(),
+            prior_authority: umbel_store::Authority::Agent,
+            assurance: Some(umbel_store::Assurance::terminal()),
+        });
+    }
     doc
 }
 
@@ -204,6 +220,9 @@ fn read(cx: &Cx, space: &str, op: &str, args: &Value) -> Outcome {
         "record-get" => cx
             .record_get(space, text(args, "kind"), text(args, "id"))
             .map(|record| json!(record.map(|r| r.body))),
+        "record-envelope" => cx
+            .record_get(space, text(args, "kind"), text(args, "id"))
+            .map(|record| json!(record.map(|r| serde_json::to_value(&r.envelope).unwrap()))),
         "record-list" => cx
             .record_list(space, text(args, "kind"), None, 100)
             .map(|page| json!(page.items.iter().map(|r| r.id.clone()).collect::<Vec<_>>())),

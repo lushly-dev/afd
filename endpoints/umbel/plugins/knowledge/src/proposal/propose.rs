@@ -472,9 +472,10 @@ pub(crate) fn submit(
     } else {
         caller.origin()
     };
-    // Envelope version 2, nested in proposal version 2 (phase 4 section 2.1): `authority` null,
-    // as for every record. A draft citing memory names its verified sources in `derivedFrom`
-    // (D81); the result's `dev.umbel/provenance` never carries it (section 11.2).
+    // Envelope version 3, nested in proposal version 3 (phase 5 section 2.4): `authority` null,
+    // as for every record, and the caller's `delegationChain` as the host gives it. A draft
+    // citing memory names its verified sources in `derivedFrom` (D81); the result's
+    // `dev.umbel/provenance` never carries it (section 11.2).
     let provenance = json!({
         "version": super::model::VERSION,
         "origin": origin,
@@ -498,6 +499,7 @@ pub(crate) fn submit(
         "redactions": null,
         "constraints": null,
         "confirmation": null,
+        "delegationChain": cx.call().delegation_chain,
     });
     let proposal = Proposal {
         version: super::model::VERSION,
