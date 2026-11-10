@@ -26,7 +26,7 @@ name = "afd"
 version = "0.2.1"
 dependencies = [
  "async-trait",
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "chrono",
  "futures-util",
