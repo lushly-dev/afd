@@ -43,9 +43,53 @@ enum Pending {
 
 impl Pending {
     fn name(&self) -> &str {
+        &self.definition().name
+    }
+
+    fn definition(&self) -> &CommandDefinition {
         match self {
-            Self::Plain(command) | Self::Schema(command, _) => &command.name,
+            Self::Plain(command) | Self::Schema(command, _) => command,
         }
+    }
+}
+
+/// In a hosted mode, a task's lease (phase 5 section 12.2, ten seconds) must outlast the longest
+/// wait for another process's write by a clear margin: a runner's renewal that waits
+/// `store.lock_timeout_ms` must still land before the lease runs out, or a live task would be
+/// declared lost. So `store.lock_timeout_ms` may be at most half the lease.
+#[cfg(feature = "auth")]
+fn task_lease_outlasts_lock_wait(config: &crate::workspace::Config) -> Result<(), HostError> {
+    let wait = config.store.lock_timeout_ms;
+    let most = crate::shared::tasks::MAX_LOCK_WAIT_MS;
+    if config.auth.mode.is_hosted() && wait > most {
+        return Err(HostError::from(
+            crate::workspace::WorkspaceError::config_invalid(
+                "store.lock_timeout_ms",
+                format!(
+                    "is {wait}, longer than a hosted workspace allows ({most}): a task's lease lasts {} ms, and a renewal waiting this long for another process's write could let a live task be declared lost; set it to {most} or less",
+                    crate::shared::tasks::LEASE_MS
+                ),
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Why an embedder's command may not run as an MCP task, if it may not (phase 5 section 12.2,
+/// as manifest version 5 refuses `task` on a plugin's command, section 2.3): only a command
+/// exposed to MCP becomes a task, and a read's result carries content, which a task record must
+/// not keep. AFD's registration refuses the rest (a confirmation, an approval).
+fn task_refusal(command: &CommandDefinition) -> Option<&'static str> {
+    if !command.task_support().allows_task() {
+        None
+    } else if !command.expose.mcp {
+        Some("may run as a task but is not exposed to MCP: only an MCP tools/call becomes a task")
+    } else if !command.mutation {
+        Some(
+            "may run as a task but is not a mutation: a read's result carries content, which a task record must not keep",
+        )
+    } else {
+        None
     }
 }
 
@@ -224,6 +268,8 @@ impl HostBuilder {
     /// reserved CLI verb or a name collision; the `PLUGIN_*` code of the first required plugin
     /// instance that fails to load (an optional one is skipped and reported by `plugin-list`).
     pub fn seal(self) -> Result<Host, HostError> {
+        #[cfg(feature = "auth")]
+        task_lease_outlasts_lock_wait(self.workspace.config())?;
         let workspace = Arc::new(self.workspace);
         let registry = Arc::new(CommandRegistry::new());
         let first_class_cell = Arc::new(OnceLock::new());
@@ -291,6 +337,13 @@ impl HostBuilder {
             register(&registry, Pending::Schema(definition, schema))?;
         }
         for pending in self.commands {
+            if let Some(problem) = task_refusal(pending.definition()) {
+                return Err(HostError::config_invalid(
+                    &format!("Command `{}`", pending.name()),
+                    problem,
+                    "Run it inline (TaskSupport::Never), or make it a mutation exposed to MCP whose result holds counts and ids, never content.",
+                ));
+            }
             if let Some(verb) = reserved_verb(pending.name()) {
                 return Err(HostError::config_invalid(
                     &format!("Command `{}`", pending.name()),
@@ -943,6 +996,8 @@ impl Host {
             &self.auth_environment,
             #[cfg(feature = "auth")]
             self.person.as_ref(),
+            #[cfg(feature = "auth")]
+            self.clock.as_ref(),
         )
     }
 

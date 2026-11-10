@@ -1419,6 +1419,11 @@ fn definitions(
             definition =
                 definition.with_confirmation_mode(afd::CommandConfirmationMode::HostVerified);
         }
+        // `task` (manifest version 5, section 12.2), with step 1's refusals applied at parse: AFD
+        // runs the command as a task only for a request that declares the extension, from a
+        // caller the server can tell apart (step 8).
+        // The manifest decides, whatever a compiled plugin's own definition said.
+        definition = definition.with_task(command.task.support());
         // The budget the manifest declares (version 2, compiled plugins only): AFD checks it in
         // the innermost link of the middleware chain and the handler fits its result to it.
         if let Some(budget) = command.output_budget {

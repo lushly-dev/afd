@@ -89,12 +89,21 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::{CommandContext, CommandDefinition, CommandError};
+
 pub use rmcp::model::TASKS_EXTENSION_ID;
 
 mod runtime;
 pub(crate) use runtime::{
     declares_tasks, missing_capability, unidentified_callers, without_tasks, TaskRuntime,
 };
+
+/// The `CallToolResult` an inline call returns for a command that failed with `error`, as a
+/// task's result holds it (`completed`, with `isError`): for a host's store that ends a task
+/// itself, as one whose process died. `None` only when the result cannot be serialized.
+pub fn failure_result(error: CommandError) -> Option<Map<String, Value>> {
+    runtime::call_tool_result(&crate::failure(error))
+}
 
 /// A task's default `ttlMs`: one hour, as Umbel's tasks (its section 12.2).
 pub const DEFAULT_TASK_TTL_MS: u64 = 3_600_000;
@@ -396,6 +405,47 @@ impl fmt::Display for TaskStoreError {
 
 impl std::error::Error for TaskStoreError {}
 
+/// The call a task is created for, as [`TaskStore::create_for`] sees it: the command, the input
+/// as the request gave it (validated later, when the task runs), and the context the command will
+/// run with (after the context hook, with the verified credentials and the host's own `extra`).
+///
+/// It is for a host's store to keep **its own** fields beside the record (who the caller is by
+/// its own mapping, which of its spaces the call names). A store must never keep the input, the
+/// credentials or anything else of the context beyond such fields.
+#[derive(Clone, Copy)]
+#[non_exhaustive]
+pub struct TaskCall<'a> {
+    /// The command the task runs.
+    pub command: &'a CommandDefinition,
+    /// The input as the request gave it; the registry validates it when the task runs.
+    pub input: &'a Value,
+    /// The context the command will run with.
+    pub context: &'a CommandContext,
+}
+
+impl<'a> TaskCall<'a> {
+    /// A call, for a host testing its store; the server builds the calls it creates tasks for.
+    pub fn new(
+        command: &'a CommandDefinition,
+        input: &'a Value,
+        context: &'a CommandContext,
+    ) -> Self {
+        Self {
+            command,
+            input,
+            context,
+        }
+    }
+}
+
+impl fmt::Debug for TaskCall<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TaskCall")
+            .field("command", &self.command.name)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Where task records live (`spec/command-metadata.md`, "Tasks"; Umbel phase 5, section 3.3).
 ///
 /// Each method must keep these rules, which the server relies on:
@@ -413,10 +463,25 @@ impl std::error::Error for TaskStoreError {}
 ///   store may purge lazily.
 /// - **No content beyond the record.** The record holds no token or credentials; a store must
 ///   not add them.
+///
+/// The server creates a task with [`Self::create_for`], which gives the store the call too; its
+/// default is [`Self::create`], so a store that keeps only the record implements `create` alone.
 #[async_trait]
 pub trait TaskStore: Send + Sync {
     /// Record a new task, durably, before returning.
     async fn create(&self, record: TaskRecord) -> Result<(), TaskStoreError>;
+
+    /// Record a new task for `call`, durably, before returning, as [`Self::create`] does: the
+    /// method the server calls. A host's store overrides it to keep its own fields from the call
+    /// ([`TaskCall`]); the default ignores the call.
+    async fn create_for(
+        &self,
+        record: TaskRecord,
+        call: TaskCall<'_>,
+    ) -> Result<(), TaskStoreError> {
+        let _ = call;
+        self.create(record).await
+    }
 
     /// The task `id` when `owner` owns it; `None` otherwise.
     async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError>;
@@ -431,6 +496,16 @@ pub trait TaskStore: Send + Sync {
 
     /// Remove every task whose `ttlMs` ended by `now`; returns how many.
     async fn expire(&self, now: i64) -> Result<u64, TaskStoreError>;
+
+    /// The runner of task `id`, owned by `owner`, is alive at `now`: the server calls it from the
+    /// runner itself, at every check while the task runs ([`TaskOptions::with_check_interval_ms`])
+    /// and never from a `tasks/*` request, so a store shared by several processes can lease a
+    /// task to the process running it and find a dead or hung runner by its silence. The default
+    /// does nothing.
+    async fn heartbeat(&self, id: &str, owner: &TaskOwner, now: i64) -> Result<(), TaskStoreError> {
+        let _ = (id, owner, now);
+        Ok(())
+    }
 }
 
 /// A shared store: several servers (one per connection, or one per process behind a test) can
@@ -439,6 +514,14 @@ pub trait TaskStore: Send + Sync {
 impl<T: TaskStore + ?Sized> TaskStore for std::sync::Arc<T> {
     async fn create(&self, record: TaskRecord) -> Result<(), TaskStoreError> {
         (**self).create(record).await
+    }
+
+    async fn create_for(
+        &self,
+        record: TaskRecord,
+        call: TaskCall<'_>,
+    ) -> Result<(), TaskStoreError> {
+        (**self).create_for(record, call).await
     }
 
     async fn get(&self, id: &str, owner: &TaskOwner) -> Result<Option<TaskRecord>, TaskStoreError> {
@@ -456,6 +539,10 @@ impl<T: TaskStore + ?Sized> TaskStore for std::sync::Arc<T> {
 
     async fn expire(&self, now: i64) -> Result<u64, TaskStoreError> {
         (**self).expire(now).await
+    }
+
+    async fn heartbeat(&self, id: &str, owner: &TaskOwner, now: i64) -> Result<(), TaskStoreError> {
+        (**self).heartbeat(id, owner, now).await
     }
 }
 
