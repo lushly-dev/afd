@@ -1,0 +1,16 @@
+{
+	"tag": "violet-tab-panel",
+	"summary": "Content region inside violet-tabs, shown while its tab is active.",
+	"import": "@lushly-dev/violet-elements/dist/tab-panel/violet-tab-panel.js",
+	"usage": [
+		{
+			"id": "tab-panel.usage",
+			"text": "Use it only as a direct child of violet-tabs; it has no attributes. It belongs to the tab at the same position, and violet-tabs toggles its hidden attribute. A panel with no matching tab stays hidden."
+		}
+	],
+	"a11y": [],
+	"rules": ["import.root", "theme.install", "a11y.managed"],
+	"evidence": {
+		"tab-panel.usage": "src/tabs/violet-tabs.ts:371"
+	}
+}

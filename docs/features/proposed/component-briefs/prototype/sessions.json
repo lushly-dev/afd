@@ -1,0 +1,2818 @@
+[
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [
+			{
+				"story": "Page",
+				"kind": "play",
+				"text": "play: AssertionError: expected null to be 'editor' // Object.is equality"
+			}
+		],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [
+			{
+				"story": "Page",
+				"kind": "play",
+				"text": "play: AssertionError: expected null to be 'editor' // Object.is equality"
+			}
+		],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [
+			{
+				"story": "Page",
+				"kind": "play",
+				"text": "play: AssertionError: expected null to be 'accepted' // Object.is equality"
+			}
+		],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "b",
+		"run": 1,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "b",
+		"run": 2,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "b",
+		"run": 3,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "b",
+		"run": 4,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-option",
+			"violet-select",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "b",
+		"run": 5,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 19,
+			"finiteValues": 4,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 70,
+			"finiteValues": 7,
+			"slots": 13,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 18,
+			"finiteValues": 4,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 70,
+			"finiteValues": 7,
+			"slots": 13,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 17,
+			"finiteValues": 2,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 66,
+			"finiteValues": 4,
+			"slots": 12,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 19,
+			"finiteValues": 4,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 70,
+			"finiteValues": 7,
+			"slots": 13,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 14,
+			"finiteValues": 2,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 66,
+			"finiteValues": 4,
+			"slots": 12,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "d",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 5,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "d",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 3,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "d",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 5,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [
+			{
+				"story": "Invalid",
+				"kind": "play",
+				"text": "play: AssertionError: expected false to be true // Object.is equality"
+			}
+		],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "d",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 4,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "d",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 6,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": []
+	},
+	{
+		"task": "t1",
+		"arm": "e",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 1,
+		"asked": [
+			"violet-button",
+			"violet-card",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 15,
+			"finiteValues": 2,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 70,
+			"finiteValues": 4,
+			"slots": 15,
+			"events": 8,
+			"imports": 8,
+			"usage": 16,
+			"a11y": 9,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "e",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 16,
+			"finiteValues": 2,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 66,
+			"finiteValues": 4,
+			"slots": 12,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "e",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 16,
+			"finiteValues": 2,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 66,
+			"finiteValues": 4,
+			"slots": 12,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "e",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-card",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-card",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 17,
+			"finiteValues": 4,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 74,
+			"finiteValues": 7,
+			"slots": 16,
+			"events": 8,
+			"imports": 8,
+			"usage": 16,
+			"a11y": 9,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "e",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 16,
+			"finiteValues": 2,
+			"slots": 0,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 66,
+			"finiteValues": 4,
+			"slots": 12,
+			"events": 8,
+			"imports": 7,
+			"usage": 14,
+			"a11y": 8,
+			"rules": 19
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "b",
+		"run": 1,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "b",
+		"run": 2,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "Closed",
+				"kind": "play",
+				"text": "play: AssertionError: expected false to be true // Object.is equality"
+			},
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "b",
+		"run": 3,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "b",
+		"run": 4,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "b",
+		"run": 5,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 8,
+			"finiteValues": 2,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 9,
+			"finiteValues": 1,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 8,
+			"finiteValues": 1,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 7,
+			"finiteValues": 1,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 0,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 0,
+			"finiteValues": 0,
+			"slots": 0,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 29,
+			"finiteValues": 4,
+			"slots": 16,
+			"events": 5,
+			"imports": 8,
+			"usage": 17,
+			"a11y": 11,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "d",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 3,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "d",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 3,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "d",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 4,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "d",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 3,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "d",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 4,
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"]
+	},
+	{
+		"task": "t2",
+		"arm": "e",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 10,
+			"finiteValues": 2,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "e",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 8,
+			"finiteValues": 1,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "e",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 9,
+			"finiteValues": 2,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "e",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 3,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [
+			{
+				"story": "ConfirmOpen",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Elements must meet minimum color contrast ratio thresholds (color-contrast) at span[slot=\"ti"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["color-contrast"],
+		"used": {
+			"attributes": 8,
+			"finiteValues": 2,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "e",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 2,
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 9,
+			"finiteValues": 1,
+			"slots": 2,
+			"events": 1,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 26,
+			"finiteValues": 4,
+			"slots": 14,
+			"events": 4,
+			"imports": 7,
+			"usage": 15,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [
+			{
+				"story": "Page",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Heading levels should only increase by one (heading-order) at violet-empty-state,.heading,h3"
+			}
+		],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": ["heading-order"]
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "b",
+		"run": 1,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "b",
+		"run": 2,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-progress",
+			"violet-skeleton",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "b",
+		"run": 3,
+		"packReads": 3,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [
+			{
+				"story": "Page",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Heading levels should only increase by one (heading-order) at violet-empty-state,.heading,h3"
+			}
+		],
+		"consoleErrors": [],
+		"axe": ["heading-order"]
+	},
+	{
+		"task": "t3",
+		"arm": "b",
+		"run": 4,
+		"packReads": 1,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "b",
+		"run": 5,
+		"packReads": 2,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 0,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [
+			{
+				"story": "Page",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Heading levels should only increase by one (heading-order) at violet-empty-state,.heading,h3"
+			}
+		],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": ["heading-order"]
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": [],
+		"used": {
+			"attributes": 14,
+			"finiteValues": 2,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-progress",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 15,
+			"finiteValues": 2,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 47,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 13,
+			"usage": 24,
+			"a11y": 10,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 0,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": [],
+		"used": {
+			"attributes": 16,
+			"finiteValues": 3,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 0,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": [],
+		"used": {
+			"attributes": 20,
+			"finiteValues": 4,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 0,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": [],
+		"used": {
+			"attributes": 15,
+			"finiteValues": 1,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "d",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 3,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "d",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 6,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "d",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 4,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "d",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 4,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "d",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 0,
+		"briefCalls": 0,
+		"checkRuns": 4,
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": []
+	},
+	{
+		"task": "t3",
+		"arm": "e",
+		"run": 1,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 2,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 15,
+			"finiteValues": 2,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "e",
+		"run": 2,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 2,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": [],
+		"axe": [],
+		"used": {
+			"attributes": 14,
+			"finiteValues": 1,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "e",
+		"run": 3,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 3,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": [],
+		"used": {
+			"attributes": 15,
+			"finiteValues": 2,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "e",
+		"run": 4,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 2,
+		"checkRuns": 3,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [
+			{
+				"story": "Page",
+				"kind": "settled-a11y",
+				"text": "settled-a11y: Once settled: Heading levels should only increase by one (heading-order) at violet-empty-state,.heading,h3"
+			}
+		],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": ["heading-order"],
+		"used": {
+			"attributes": 13,
+			"finiteValues": 2,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "e",
+		"run": 5,
+		"packReads": 0,
+		"briefLists": 1,
+		"briefCalls": 1,
+		"checkRuns": 2,
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"failures": [],
+		"consoleErrors": ["tab.syncPresentation is not a function"],
+		"axe": [],
+		"used": {
+			"attributes": 14,
+			"finiteValues": 2,
+			"slots": 1,
+			"events": 0,
+			"imports": 0
+		},
+		"offered": {
+			"attributes": 43,
+			"finiteValues": 13,
+			"slots": 19,
+			"events": 5,
+			"imports": 12,
+			"usage": 22,
+			"a11y": 9,
+			"rules": 10
+		}
+	}
+]

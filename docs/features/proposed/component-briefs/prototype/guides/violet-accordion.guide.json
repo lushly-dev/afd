@@ -1,0 +1,26 @@
+{
+	"tag": "violet-accordion",
+	"summary": "Stack of collapsible sections made of violet-accordion-item children.",
+	"import": "@lushly-dev/violet-elements/dist/accordion/violet-accordion.js",
+	"usage": [
+		{
+			"id": "accordion.mode",
+			"text": "The expand-mode attribute is multi (default) or single. In single mode, opening an item collapses the others."
+		},
+		{
+			"id": "accordion.change",
+			"text": "A change event fires on user toggles with detail { item, expanded }, where item is the violet-accordion-item element."
+		},
+		{
+			"id": "accordion.keys",
+			"text": "Arrow keys, Home and End are captured for any keydown inside an item, panel content included, and move focus between headers. Text inputs and other arrow-key controls placed in a panel lose those keys."
+		}
+	],
+	"a11y": [],
+	"rules": ["import.root", "theme.install", "a11y.managed"],
+	"evidence": {
+		"accordion.mode": "src/accordion/violet-accordion.ts:70",
+		"accordion.change": "src/accordion/violet-accordion.ts:79",
+		"accordion.keys": "src/accordion/violet-accordion.ts:86"
+	}
+}

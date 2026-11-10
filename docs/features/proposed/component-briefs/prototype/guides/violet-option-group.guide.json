@@ -1,0 +1,16 @@
+{
+	"tag": "violet-option-group",
+	"summary": "Labelled group of violet-option elements inside a select, combobox or listbox.",
+	"import": "@lushly-dev/violet-elements/dist/option-group/violet-option-group.js",
+	"usage": [
+		{
+			"id": "option-group.label",
+			"text": "The label attribute renders a visible heading and names the group. The disabled attribute on the group disables every option inside it."
+		}
+	],
+	"a11y": [],
+	"rules": ["import.root", "theme.install", "a11y.managed", "state.disabled"],
+	"evidence": {
+		"option-group.label": "src/listbox/violet-selection-helpers.ts:8"
+	}
+}

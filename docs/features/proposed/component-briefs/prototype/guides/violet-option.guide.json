@@ -1,0 +1,31 @@
+{
+	"tag": "violet-option",
+	"summary": "One choice inside violet-select, violet-combobox or violet-listbox.",
+	"import": "@lushly-dev/violet-elements/dist/option/violet-option.js",
+	"usage": [
+		{
+			"id": "option.value",
+			"text": "The value attribute defaults to the option's text when omitted. Selection is matched by value, so every option under one parent needs a distinct value."
+		},
+		{
+			"id": "option.label",
+			"text": "The label attribute replaces the slotted text as the option's text for the select trigger, the combobox input, filtering and type-ahead. The slotted content still renders in the list."
+		},
+		{
+			"id": "option.slots",
+			"text": "Slots (absent from the manifest): default for the label, before and after for inline content, description for a second line."
+		},
+		{
+			"id": "option.parent",
+			"text": "It does nothing alone: a click emits an internal request-select event that the parent select, combobox or listbox consumes. Listen for the change event on the parent instead."
+		}
+	],
+	"a11y": [],
+	"rules": ["import.root", "theme.install", "a11y.managed", "state.disabled"],
+	"evidence": {
+		"option.value": "src/option/violet-option.ts:229",
+		"option.label": "src/option/violet-option.ts:209",
+		"option.slots": "src/option/violet-option.ts:129",
+		"option.parent": "src/option/violet-option.ts:205"
+	}
+}
