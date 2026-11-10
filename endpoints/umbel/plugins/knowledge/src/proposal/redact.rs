@@ -348,6 +348,7 @@ pub(crate) fn redact_body(proposal: &mut Proposal, at: &str) {
     proposal.evidence = proposal.evidence.iter().map(redacted_entry).collect();
     if let Some(decision) = proposal.decision.as_mut() {
         decision.reason = None;
+        decision.reason_source = None;
     }
     let hash = super::model::redacted_hash(&proposal.id);
     proposal.change_hash.clone_from(&hash);

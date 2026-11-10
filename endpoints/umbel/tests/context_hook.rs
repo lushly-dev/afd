@@ -82,12 +82,13 @@ async fn stdio_calls_are_the_local_agent_with_process_authentication() {
         );
         expect_valid(&validator, &data["principal"]);
         assert_eq!(data["interface"], "mcp");
-        // The principal, the (here empty) claim groups and the (here null) person decision are the
-        // only keys the hook adds.
+        // The principal, the (here empty) claim groups and the (here null) person decision and the
+        // (here null) check before a decision are the only keys the hook adds.
         assert_eq!(
             data["extraKeys"],
             json!([
                 "dev.umbel/claim-groups",
+                "dev.umbel/person-check",
                 "dev.umbel/person-decision",
                 "dev.umbel/principal"
             ])
@@ -144,6 +145,7 @@ async fn http_calls_are_the_loopback_agent_with_no_authentication() {
             data["extraKeys"],
             json!([
                 "dev.umbel/claim-groups",
+                "dev.umbel/person-check",
                 "dev.umbel/person-decision",
                 "dev.umbel/principal"
             ])
@@ -301,7 +303,8 @@ async fn the_journal_keeps_the_expected_actor_and_a_digest_of_the_expected_conte
             .with_random(SYSTEM_RANDOM)
             .with_extra("dev.umbel/principal", principal)
             .with_extra("dev.umbel/claim-groups", json!([]))
-            .with_extra("dev.umbel/person-decision", Value::Null);
+            .with_extra("dev.umbel/person-decision", Value::Null)
+            .with_extra("dev.umbel/person-check", Value::Null);
         assert_eq!(
             entry.context_digest.hash,
             create_context_digest(&expected).hash,

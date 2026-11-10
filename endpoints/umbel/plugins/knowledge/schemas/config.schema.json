@@ -102,10 +102,31 @@
 							"enum": ["deprecate-declared"]
 						},
 						"description": "The auto-approval rules the area opts into (phase 4 section 8.3, owner decision 1); default [], off. The one kind, deprecate-declared, lets knowledge-auto-approve apply a drafted deprecate whose declaration a person's applied proposal wrote; nothing else is ever applied without a person"
+					},
+					"approve_over_mcp": {
+						"type": "boolean",
+						"default": false,
+						"description": "Whether an approver may approve and reject this area's proposals over MCP (phase 5 section 7.3, owner decision 7): the client gets a link to the person page, where the approver logs in again with user verification, sees the proposal's preview and decides. Default false: over MCP knowledge-approve and knowledge-reject answer APPROVAL_RELAY_DISABLED before anyone is asked. Served only in a hosted workspace whose namespace has a person login; it needs a non-empty approvers list, since over MCP approvers must be listed"
 					}
 				},
 				"required": ["space", "collection"],
-				"additionalProperties": false
+				"additionalProperties": false,
+				"if": {
+					"properties": {
+						"approve_over_mcp": {
+							"const": true
+						}
+					},
+					"required": ["approve_over_mcp"]
+				},
+				"then": {
+					"properties": {
+						"approvers": {
+							"minItems": 1
+						}
+					},
+					"required": ["approvers"]
+				}
 			}
 		}
 	},

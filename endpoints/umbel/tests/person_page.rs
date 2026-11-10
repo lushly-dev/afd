@@ -43,10 +43,11 @@ async fn a_verified_decision_runs_the_call_once_with_human_present() {
         prompt.url
     );
     assert_eq!(prompt.id().len(), 26);
-    // The message carries only ids (7.4): the command and the space.
+    // The message carries only ids (7.4): the command, the id its preview reads (step 6) and the
+    // space.
     assert_eq!(
         prompt.message,
-        "Open the link to review gate-approve in main"
+        "Open the link to review gate-approve (proposal p-1) in main"
     );
     assert_eq!(page.seen.runs("gate-approve"), 0);
 
@@ -737,7 +738,13 @@ async fn the_page_never_shows_or_keeps_what_it_must_not() {
     let opened = open(&page.client, &prompt.path()).await;
     assert!(!opened.reply.text.contains("gate-approve"));
     // The message names no content.
-    assert!(!prompt.message.contains(PREVIEW_CANARY) && !prompt.message.contains("canary"));
+    // The message names the id the preview reads (step 6), never the preview's text nor an input
+    // the preview does not read.
+    assert_eq!(
+        prompt.message,
+        "Open the link to review gate-approve (proposal canary) in main"
+    );
+    assert!(!prompt.message.contains(PREVIEW_CANARY) && !prompt.message.contains("reason"));
     // An unknown id is the same answer as an expired one.
     let unknown = page
         .client
@@ -1005,6 +1012,19 @@ async fn the_cli_prints_the_link_and_runs_once_the_person_approves() {
     assert_eq!(runs[0]["principal"]["humanPresent"]["level"], "verified");
     assert_eq!(runs[0]["mark"]["surface"], "cli");
     assert_eq!(runs[0]["principal"]["transport"], "cli");
+    // The host's check before begin ran as the operator at the command line (step 6): the CLI's
+    // interface and principal, under the call's own trace, naming the CLI surface.
+    let checks: Vec<Value> = page
+        .seen
+        .of("gate-preview")
+        .into_iter()
+        .filter(|call| !call["check"].is_null())
+        .collect();
+    assert_eq!(checks.len(), 1, "{checks:?}");
+    assert_eq!(checks[0]["interface"], "Some(Cli)");
+    assert_eq!(checks[0]["check"]["surface"], "cli");
+    assert_eq!(checks[0]["principal"]["transport"], "cli");
+    assert_eq!(checks[0]["principal"]["authentication"], "process");
 }
 
 #[tokio::test]
@@ -1118,6 +1138,52 @@ async fn no_person_is_asked_about_a_space_the_caller_cannot_read() {
     );
     assert_eq!(undeclared["error"], refused["error"]);
     assert!(!page.dir.path().join("state/shared/person.sqlite3").exists());
+}
+
+#[tokio::test]
+async fn the_commands_own_preview_refuses_a_call_before_anyone_is_asked() {
+    let page = Page::start().await;
+    let ada = page.token("ada");
+    // The plugin's preview, run as the caller before begin (step 6), refuses: its answer is the
+    // call's, and no decision is begun.
+    let refused = result(
+        &call(
+            &page.client,
+            &ada,
+            "gate-approve",
+            json!({ "proposal": "refuse", "reason": "why" }),
+            json!({}),
+            true,
+        )
+        .await,
+    );
+    assert_eq!(refused["error"]["code"], "GATE_REFUSED", "{refused}");
+    assert_eq!(refused["error"]["retryable"], false, "{refused}");
+    assert!(!page.dir.path().join("state/shared/person.sqlite3").exists());
+    assert_eq!(page.seen.runs("gate-approve"), 0);
+    // It ran once, as the caller, with only the preview's declared properties, as the host's
+    // own in-process call (no interface), naming the command it checks; never with a decision.
+    let checks = page.seen.of("gate-preview");
+    assert_eq!(checks.len(), 1, "{checks:?}");
+    let check = &checks[0];
+    assert_eq!(check["input"], json!({ "proposal": "refuse" }));
+    assert_eq!(check["interface"], "None");
+    assert_eq!(
+        check["check"],
+        json!({ "command": "gate-approve", "preview": "gate-preview", "surface": "mcp" })
+    );
+    assert_eq!(check["mark"], Value::Null);
+    assert_eq!(check["principal"]["actor"]["onBehalfOf"], "corp/ada");
+    assert_eq!(check["principal"]["authentication"], "verified");
+    // A preview that passes the check is asked as usual, and the page's own rendering, as the
+    // person, carries no check.
+    let prompt = begin(&page, &ada, approve_input()).await;
+    page.script(ScriptedLogin::user("ada"));
+    let logged = login(&page, &page.client, &prompt.path()).await;
+    assert_eq!(logged.page.status, 200, "{}", logged.page.text);
+    let rendered = page.seen.of("gate-preview").pop().unwrap();
+    assert_eq!(rendered["check"], Value::Null, "{rendered}");
+    assert_eq!(rendered["principal"]["actor"]["kind"], "human");
 }
 
 #[tokio::test]
@@ -1294,6 +1360,11 @@ async fn the_hook_sets_the_person_decision_field_itself() {
     let keys = page.extra_keys(&page.token("ada")).await;
     assert!(
         keys.contains(&"dev.umbel/person-decision".to_owned()),
+        "{keys:?}"
+    );
+    // So is the host's own check before begin (step 6).
+    assert!(
+        keys.contains(&"dev.umbel/person-check".to_owned()),
         "{keys:?}"
     );
 }

@@ -112,15 +112,35 @@ fn command<'a>(manifest: &'a toml::Table, name: &str) -> &'a toml::Table {
 #[test]
 fn approve_and_reject_declare_the_preview_and_verify_does_not() {
     let manifest = manifest();
-    assert_eq!(manifest["manifest_version"].as_integer(), Some(4));
-    for gated in ["knowledge-approve", "knowledge-reject"] {
+    assert_eq!(manifest["manifest_version"].as_integer(), Some(5));
+    for (gated, previewed) in [
+        ("knowledge-approve", PREVIEW),
+        ("knowledge-reject", "knowledge-rejection-preview"),
+    ] {
         assert_eq!(
             command(&manifest, gated)
                 .get("confirm_preview")
                 .and_then(toml::Value::as_str),
-            Some(PREVIEW),
+            Some(previewed),
             "{gated}"
         );
+        // Over MCP only a person verified on the person page decides (phase 5 section 7.3); the
+        // command line keeps its terminal check.
+        let person = command(&manifest, gated)["person"].as_table().unwrap();
+        assert_eq!(person["cli"].as_str(), Some("terminal"), "{gated}");
+        assert_eq!(person["mcp"].as_str(), Some("verified"), "{gated}");
+        let expose = command(&manifest, gated)["expose"].as_table().unwrap();
+        assert_eq!(expose["mcp"].as_bool(), Some(true), "{gated}");
+        assert_eq!(expose["agent"].as_bool(), Some(false), "{gated}");
+    }
+    // Nothing else a person decides is served over MCP.
+    for terminal_only in ["knowledge-verify", "knowledge-auto-approve"] {
+        assert_eq!(
+            command(&manifest, terminal_only)["expose"]["mcp"].as_bool(),
+            Some(false),
+            "{terminal_only}"
+        );
+        assert!(command(&manifest, terminal_only).get("person").is_none());
     }
     // Verify takes a document, not a proposal: the person attests it as it stands.
     assert!(
@@ -149,7 +169,7 @@ async fn the_preview_shows_what_is_decided() {
     let id = proposal["id"].as_str().unwrap();
     let text = preview(&fx, id).await;
     for wanted in [
-        format!("Proposal {id} (version 2), pending"),
+        format!("Proposal {id} (version 3), pending"),
         "  op: update".to_owned(),
         "  document: handbook/runbook".to_owned(),
         "  area: handbook".to_owned(),
@@ -391,7 +411,7 @@ async fn the_command_line_shows_the_preview_before_approves_and_rejects_prompts(
     assert_eq!(console.order(), ["show", "ask"]);
     let shown = console.shown().concat();
     assert!(
-        shown.contains(&format!("> Proposal {id} (version 2), pending\n")),
+        shown.contains(&format!("> Proposal {id} (version 3), pending\n")),
         "{shown}"
     );
     assert!(
@@ -412,7 +432,8 @@ async fn the_command_line_shows_the_preview_before_approves_and_rejects_prompts(
     assert_eq!(data(&applied)["applied"], true, "{applied}");
     assert_eq!(&console.order()[..2], ["show", "ask"]);
 
-    // Reject: the reason is never passed to the preview, and the preview shows the proposal.
+    // Reject: its own preview (phase 5 step 6) shows the person's reason first, as they gave
+    // it, then the proposal; the journal keeps none of the reason.
     let second = propose(
         &fx,
         "k2",
@@ -428,8 +449,12 @@ async fn the_command_line_shows_the_preview_before_approves_and_rejects_prompts(
     assert_eq!(data(&rejected)["rejected"], true, "{rejected}");
     let shown = console.shown().concat();
     assert!(shown.contains("> | +Watch it.\n"), "{shown}");
-    assert!(!shown.contains("pangolin"), "{shown}");
-    let previews = records::journal_entries(&fx, PREVIEW);
+    assert!(
+        shown.contains("> Reason, as you gave it (recorded with the rejection):\n"),
+        "{shown}"
+    );
+    assert!(shown.contains(&format!("> | {reason}\n")), "{shown}");
+    let previews = records::journal_entries(&fx, "knowledge-rejection-preview");
     let last = previews.last().unwrap();
     assert_eq!(last["input"]["dev.umbel/journal"], "digest", "{last}");
     assert_eq!(last["input"]["keep"]["proposal"], second["id"], "{last}");
@@ -449,5 +474,5 @@ async fn the_command_line_shows_the_preview_before_approves_and_rejects_prompts(
         )
         .await;
     assert_eq!(code(&again), "PROPOSAL_STATE_INVALID", "{again}");
-    assert!(console.shown().concat().contains("(version 2), applied"));
+    assert!(console.shown().concat().contains("(version 3), applied"));
 }

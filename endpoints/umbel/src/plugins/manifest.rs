@@ -111,7 +111,9 @@ const COMMAND_KEYS_V3: &[(&str, &str)] = &[
 /// The pipeline keys manifest version 3 adds.
 const PIPELINE_KEYS_V3: &[(&str, &str)] =
     &[("journal", "a journal mode needs manifest_version = 3")];
-const JOURNAL_KEYS: &[&str] = &["mode", "keep"];
+const JOURNAL_KEYS: &[&str] = &["mode", "keep", "show"];
+/// The most inputs `journal.show` names (manifest version 5).
+const MAX_JOURNAL_SHOW: usize = 4;
 /// The most input keys a `journal.keep` list names (phase 3 section 2.3).
 pub const MAX_JOURNAL_KEEP: usize = 16;
 /// The longest `authority_prompt`, in characters.
@@ -459,6 +461,11 @@ pub struct JournalDecl {
     /// string, a number, a boolean or a list of at most 100 strings; at most
     /// [`MAX_JOURNAL_KEEP`].
     pub keep: Vec<String>,
+    /// Manifest version 5, with `digest` only, on a command decided on the person page: the
+    /// top-level input keys the person reads as written (a rejection's reason). Its preview
+    /// declares each; the decision holds each for its life and the page shows it; the journal
+    /// never keeps one (phase 5 step 6). At most [`MAX_JOURNAL_SHOW`], none in `keep`.
+    pub show: Vec<String>,
 }
 
 impl CommandDecl {
@@ -1600,7 +1607,35 @@ fn journal(table: &Tbl<'_>) -> Result<Option<JournalDecl>, PluginError> {
             return Err(journal.bad("keep", format!("names `{key}` twice")));
         }
     }
-    Ok(Some(JournalDecl { mode, keep }))
+    let show = journal.string_array("show")?;
+    if show.is_some() && table.manifest_version < 5 {
+        return Err(journal.bad("show", "needs manifest_version = 5"));
+    }
+    if show.is_some() && mode == JournalMode::Plain {
+        return Err(journal.bad(
+            "show",
+            "goes with mode = \"digest\" only: a plain entry keeps its whole input",
+        ));
+    }
+    let show = show.unwrap_or_default();
+    if show.len() > MAX_JOURNAL_SHOW {
+        return Err(journal.bad(
+            "show",
+            format!("names {} keys; the limit is {MAX_JOURNAL_SHOW}", show.len()),
+        ));
+    }
+    for (index, key) in show.iter().enumerate() {
+        if show[..index].contains(key) {
+            return Err(journal.bad("show", format!("names `{key}` twice")));
+        }
+        if keep.contains(key) {
+            return Err(journal.bad(
+                "show",
+                format!("names `{key}`, which keep names: a shown input is never journaled"),
+            ));
+        }
+    }
+    Ok(Some(JournalDecl { mode, keep, show }))
 }
 
 /// `output_budget = { default_bytes, max_bytes }` (manifest version 2). A component plugin's
@@ -1819,6 +1854,12 @@ fn pipelines(root: &Tbl<'_>, plugin: &PluginInfo) -> Result<Vec<PipelineDecl>, P
                 .effects("effects", true)?
                 .ok_or_else(|| table.bad("effects", "is required"))?;
             let journal = journal(table)?;
+            if journal.as_ref().is_some_and(|journal| !journal.show.is_empty()) {
+                return Err(table.bad(
+                    "journal",
+                    "may not name show on a pipeline: no pipeline is decided on the person page",
+                ));
+            }
             let expose = v4::pipeline_expose(table)?;
             let person = v5::pipeline_person(table)?;
             let task =

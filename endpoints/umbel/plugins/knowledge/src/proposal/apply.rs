@@ -1,5 +1,16 @@
 //! Deciding a proposal and applying it (specification sections 9.2 and 9.3): `knowledge-approve`,
-//! `knowledge-reject` and `knowledge-verify`, all CLI-only, all for a person at a terminal.
+//! `knowledge-reject` and `knowledge-verify`, each for a person. Verify is decided at a terminal
+//! only. Approve and reject are decided at a terminal, or (phase 5 section 7.3, owner decision 7,
+//! D116) over MCP through the approval relay in an area that sets `approve_over_mcp`: the person
+//! logs in again on the person page, with user verification, sees the preview and decides, and
+//! the host attests that decision on the call ([`umbel_sdk::CallContext::person_decision`]). Before
+//! the host asks the person, it runs `knowledge-proposal-preview` as the caller with the same
+//! checks ([`check`]), so no person is asked about a call this module would refuse. Every check
+//! of a terminal decision holds over MCP: approvers and readers, self-approval through the
+//! person's equivalents (D62, D102, section 4.6), approve's re-checks of a draft (D102, D103).
+//! Only a version 3 proposal can record a decision over MCP (`decision.channel =
+//! "mcp-elicitation"`, `decision.assurance` `verified`); a version 1 or 2 one is decided at a
+//! terminal.
 //!
 //! Approving is a short sequence, each step safe to run again: check the current file against the
 //! proposal's `baseHash`, record the decision (`approved`), write the file through the `content`
@@ -28,7 +39,10 @@ use super::area::{self, Area};
 use super::checks;
 use super::common::{self, Caller};
 use super::document::{self, Inherit};
-use super::model::{ActorRef, CHANNEL_POLICY, Change, Decision, Op, Policy, Proposal, State};
+use super::model::{
+    ActorRef, CHANNEL_MCP, CHANNEL_POLICY, CHANNEL_TERMINAL, Change, Decision, Op, Policy,
+    Proposal, REASON_CLIENT, REASON_PERSON, State,
+};
 use super::propose::{self, file_path, unavailable};
 use crate::fail;
 
@@ -174,29 +188,154 @@ fn is_author(
         || authors.contains(actor)
 }
 
-/// Whether `caller`, as `own` (its effective principal, or its actor for a proposer), wrote one
-/// of `authors`, its legacy principals (`CallContext::equivalents`) included.
+/// Whether the person deciding on `caller`'s call, as `own` (its effective principal, or its
+/// actor for a proposer) and as the actor text `actor`, wrote one of `authors`, its legacy
+/// principals (`CallContext::equivalents`) included.
 fn caller_wrote(
     authors: &std::collections::BTreeSet<String>,
     caller: &Caller<'_>,
     own: &str,
+    actor: &str,
 ) -> bool {
-    is_author(
-        authors,
-        own,
-        &caller.cx.call().equivalents,
-        &caller.actor.text(),
-    )
+    is_author(authors, own, &caller.cx.call().equivalents, actor)
 }
 
-/// The checks every decision shares: a person, approve's reader rules ([`readable`]), the area's
-/// approvers.
-fn gate(caller: &Caller<'_>, id: &str) -> Result<Gate, Outcome> {
-    if !caller.is_human() || caller.actor.id.is_none() {
-        return Err(not_approver(
-            "only a person at a terminal decides a proposal",
-        ));
+/// How the person deciding a proposal on this call is proven (phase 5 sections 7.1 and 7.3).
+#[derive(Debug, Clone)]
+pub(crate) enum Proof {
+    /// At the command line: the host's terminal check (D71, D86), not an attestation.
+    Terminal,
+    /// On the person page, reached over MCP through the approval relay: a fresh login with user
+    /// verification by the person the call is for, as the host attests it.
+    Verified(umbel_sdk::PersonDecision),
+    /// Not yet decided: the host's check before it asks the person (step 6), over MCP.
+    Asking,
+}
+
+/// The person deciding a proposal on this call.
+#[derive(Debug, Clone)]
+pub(crate) struct Person {
+    /// `decision.by`: a human. At a terminal the caller; over MCP the person the calling client
+    /// acts for, who logged in on the person page.
+    pub(crate) actor: ActorRef,
+    pub(crate) proof: Proof,
+}
+
+impl Person {
+    /// Whether the decision is made over MCP, through the relay.
+    fn over_mcp(&self) -> bool {
+        matches!(self.proof, Proof::Verified(_) | Proof::Asking)
     }
+
+    /// `decision.channel` in `proposal`'s version.
+    fn channel(&self, proposal: &Proposal) -> Option<String> {
+        if self.over_mcp() {
+            Some(CHANNEL_MCP.to_owned())
+        } else {
+            proposal.is_v2().then(|| CHANNEL_TERMINAL.to_owned())
+        }
+    }
+
+    /// `decision.reasonSource` of a rejection, in a version 3 proposal only: `client` over MCP,
+    /// where the asking client wrote the reason and the person saw it on the page; `person` at a
+    /// terminal.
+    fn reason_source(&self, proposal: &Proposal) -> Option<String> {
+        proposal.is_v3().then(|| {
+            if self.over_mcp() {
+                REASON_CLIENT.to_owned()
+            } else {
+                REASON_PERSON.to_owned()
+            }
+        })
+    }
+
+    /// `decision.assurance`, in a version 3 proposal only.
+    fn assurance(&self, proposal: &Proposal) -> Option<umbel_store::Assurance> {
+        if !proposal.is_v3() {
+            return None;
+        }
+        match &self.proof {
+            Proof::Terminal => Some(umbel_store::Assurance::terminal()),
+            Proof::Verified(decided) => Some(umbel_store::Assurance::verified(
+                &decided.namespace,
+                &decided.auth_time,
+                &decided.acr,
+            )),
+            Proof::Asking => None,
+        }
+    }
+}
+
+/// The person who decides a proposal on this call, and how they are proven, or the refusal:
+/// at a terminal, a human caller with an id and no person-page decision; over MCP, a decision the
+/// host attests for this very call, by the person the client acts for. `checking` is the host's
+/// check before it asks (step 6), and only [`check`] passes it: then, and only then, the call must
+/// carry the host's check mark, for the relay, as the host's own in-process call (no interface),
+/// and the person is the one the client acts for. Anything else decides nothing.
+pub(crate) fn person_of(caller: &Caller<'_>, checking: bool) -> Result<Person, Outcome> {
+    let call = caller.cx.call();
+    let refuse = || {
+        not_approver(
+            "only a person decides a proposal: at a terminal, or on the person page over MCP in an area that sets approve_over_mcp",
+        )
+    };
+    let human = |id: &str| ActorRef {
+        kind: "human".to_owned(),
+        id: Some(id.to_owned()),
+        on_behalf_of: None,
+    };
+    if checking || call.person_check.is_some() {
+        return match (&call.person_check, &caller.actor.on_behalf_of) {
+            (Some(check), Some(person))
+                if checking
+                    && check.surface == "mcp"
+                    && call.interface.is_empty()
+                    && call.person_decision.is_none() =>
+            {
+                Ok(Person {
+                    actor: human(person),
+                    proof: Proof::Asking,
+                })
+            }
+            _ => Err(refuse()),
+        };
+    }
+    match (call.interface.as_str(), &call.person_decision) {
+        ("cli", None) if caller.is_human() && caller.actor.id.is_some() => Ok(Person {
+            actor: caller.actor.clone(),
+            proof: Proof::Terminal,
+        }),
+        ("mcp", Some(decided))
+            if decided.surface == "mcp"
+                && !decided.person.is_empty()
+                && caller.actor.on_behalf_of.as_deref() == Some(decided.person.as_str()) =>
+        {
+            Ok(Person {
+                actor: human(&decided.person),
+                proof: Proof::Verified(decided.clone()),
+            })
+        }
+        _ => Err(refuse()),
+    }
+}
+
+/// `APPROVAL_RELAY_DISABLED` (phase 5 sections 7.3 and 10.5): a decision over MCP in an area
+/// that does not set `approve_over_mcp`. Its `details.area` names the area, which the caller
+/// could already learn by reading the proposal.
+fn relay_disabled(area: &Area) -> Outcome {
+    failure(
+        "APPROVAL_RELAY_DISABLED",
+        "this proposal's area does not let its approvers decide over MCP",
+        "Approve or reject it with the umbel command at a terminal, or ask the operator to set approve_over_mcp for the area in umbel.toml.",
+    )
+    .with_retryable(false)
+    .with_error_details(json!({ "area": area.id }))
+}
+
+/// The checks every decision shares: a person ([`person_of`]), approve's reader rules
+/// ([`readable`]), over MCP the area's opt-in and a version that can record it, and the area's
+/// approvers.
+fn gate(caller: &Caller<'_>, person: &Person, id: &str) -> Result<Gate, Outcome> {
     let (proposal, record) = readable(caller, id)?;
     let areas = area::load(caller.cx)?;
     let area = area::by_id(&areas, &proposal.area)
@@ -209,15 +348,46 @@ fn gate(caller: &Caller<'_>, id: &str) -> Result<Gate, Outcome> {
                 "Declare an area for its collection in [plugins.knowledge.config.areas] in umbel.toml.",
             )
         })?;
+    // The approvers first, so a caller who may not decide learns nothing of the area's opt-in.
     let tokens = caller.tokens().map_err(|e| host(&e))?;
     if !area.admits(&tokens) {
         return Err(not_approver("it is not among the area's approvers"));
+    }
+    if person.over_mcp() {
+        if !area.approve_over_mcp {
+            return Err(relay_disabled(&area));
+        }
+        if !proposal.is_v3() {
+            return Err(common::wrong_state(
+                &proposal,
+                "a version 1 or 2 proposal is decided only at a terminal: its version cannot record a decision made over MCP",
+            )
+            .with_error_details(json!({ "reason": "proposal-version" })));
+        }
     }
     Ok(Gate {
         proposal,
         record,
         area,
     })
+}
+
+/// The command a person is asked to decide, in the host's check before it asks (step 6).
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Asked {
+    Approve,
+    Reject,
+}
+
+/// The host's check before it asks a person on the person page (step 6): every check the
+/// decision itself makes before it writes anything, for the person the client acts for, so a
+/// call that would be refused is refused now and no person is asked about it.
+pub(crate) fn check(caller: &Caller<'_>, asked: Asked, id: &str) -> Result<(), Outcome> {
+    let person = person_of(caller, true)?;
+    match asked {
+        Asked::Approve => approve_checks(caller, &person, id).map(|_| ()),
+        Asked::Reject => reject_checks(caller, &person, id).map(|_| ()),
+    }
 }
 
 pub(crate) fn approve(input: &Value, cx: &mut Cx) -> Outcome {
@@ -236,11 +406,37 @@ pub(crate) fn approve(input: &Value, cx: &mut Cx) -> Outcome {
 }
 
 fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
+    let person = person_of(caller, false)?;
+    let (
+        Gate {
+            proposal,
+            record,
+            area,
+        },
+        exception,
+    ) = approve_checks(caller, &person, id)?;
+    apply(
+        caller,
+        proposal,
+        record,
+        &area,
+        exception,
+        Decider::Person(&person),
+    )
+}
+
+/// Approve's checks before anything is written: [`gate`], the state, a redaction, a draft's
+/// re-checks (section 8.2) and self-approval, with the self-approval exception to record.
+fn approve_checks(
+    caller: &Caller<'_>,
+    person: &Person,
+    id: &str,
+) -> Result<(Gate, Option<String>), Outcome> {
     let Gate {
         proposal,
         record,
         area,
-    } = gate(caller, id)?;
+    } = gate(caller, person, id)?;
     // A redacted draft (an approved one whose source was forgotten before its apply landed)
     // holds nothing to apply (phase 4 section 9.1; step 3b, amendment 12).
     if proposal.redacted.is_some() {
@@ -259,15 +455,19 @@ fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
     // A draft's authors are its sources' principals, read from the store now, and its
     // `promotedBy` (section 8.2, D102); nothing in the comparison is the drafter's word, and the
     // runner of the drafter's pipeline is not an author. Before that, 8.2's re-checks: the
-    // target's readers, then each source.
+    // target's readers, then each source. The approving actor is the person (D62): at a terminal
+    // the caller, over MCP the person who logged in on the page, not the client that asked (a
+    // person approving their own agent's proposal is allowed and recorded, D62). Their legacy
+    // principals are the same person (section 4.6).
+    let approver = person.actor.text();
     let self_approval = if proposal.drafter.is_some() {
         let authors = checks::recheck(caller, &proposal)?;
-        caller_wrote(&authors, caller, &caller.principal)
+        caller_wrote(&authors, caller, &caller.principal, &approver)
     } else {
         // A verification is the approver's own attestation, not a change someone else wrote
         // (decision D63): applying one's own is not self-approval.
         let proposer = std::collections::BTreeSet::from([proposal.proposer.actor.text()]);
-        caller_wrote(&proposer, caller, &caller.actor.text()) && proposal.change.op != Op::Verify
+        caller_wrote(&proposer, caller, &approver, &approver) && proposal.change.op != Op::Verify
     };
     let exception = if self_approval {
         if !area.allow_self_approval {
@@ -281,15 +481,22 @@ fn approve_inner(caller: &Caller<'_>, id: &str) -> Result<Outcome, Outcome> {
     } else {
         None
     };
-    apply(caller, proposal, record, &area, exception, Decider::Person)
+    Ok((
+        Gate {
+            proposal,
+            record,
+            area,
+        },
+        exception,
+    ))
 }
 
 /// Who records the decision an apply starts with.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Decider<'r> {
-    /// The caller, a person at a terminal: `decision.by` is the caller, `channel = "terminal"`,
-    /// `policy.rule = "person"`.
-    Person,
+    /// A person ([`Person`]): `decision.by` is the person, `channel` `terminal` or
+    /// `mcp-elicitation` with the matching `assurance` (version 3), `policy.rule = "person"`.
+    Person(&'r Person),
     /// The area's auto-approval rule (phase 4 section 8.3; step 1, amendment 8): `decision.by` is
     /// `{ kind: "service", id: "policy:<area>" }`, its `principal` the effective principal of the
     /// call that ran the rule, `channel = "policy"` and `policy.rule = "auto:<rule>"`. Never a
@@ -298,9 +505,9 @@ pub(crate) enum Decider<'r> {
 }
 
 impl Decider<'_> {
-    fn actor(self, caller: &Caller<'_>, area: &Area) -> ActorRef {
+    fn actor(self, area: &Area) -> ActorRef {
         match self {
-            Self::Person => caller.actor.clone(),
+            Self::Person(person) => person.actor.clone(),
             Self::Policy(_) => ActorRef {
                 kind: "service".to_owned(),
                 id: Some(format!("policy:{}", area.id)),
@@ -311,14 +518,22 @@ impl Decider<'_> {
 
     fn channel(self, proposal: &Proposal) -> Option<String> {
         match self {
-            Self::Person => proposal.terminal_channel(),
+            Self::Person(person) => person.channel(proposal),
             Self::Policy(_) => Some(CHANNEL_POLICY.to_owned()),
+        }
+    }
+
+    /// `decision.assurance`: a person's, in a version 3 proposal; a policy has none.
+    fn assurance(self, proposal: &Proposal) -> Option<umbel_store::Assurance> {
+        match self {
+            Self::Person(person) => person.assurance(proposal),
+            Self::Policy(_) => None,
         }
     }
 
     fn policy(self, area: &Area) -> Policy {
         match self {
-            Self::Person => propose::policy_of(area),
+            Self::Person(_) => propose::policy_of(area),
             Self::Policy(rule) => propose::policy_auto(area, rule),
         }
     }
@@ -385,7 +600,7 @@ fn apply(
     // Who decided and when: a resumed apply keeps the first decision, so the same bytes result.
     let (by, at) = match (&proposal.state, &proposal.decision) {
         (State::Approved, Some(decision)) => (decision.by.text(), decision.at.clone()),
-        _ => (decider.actor(caller, area).text(), caller.now.clone()),
+        _ => (decider.actor(area).text(), caller.now.clone()),
     };
     let change = proposal.change.clone();
     let text_now = current
@@ -438,13 +653,15 @@ fn apply(
     if proposal.state == State::Pending {
         proposal.state = State::Approved;
         proposal.decision = Some(Decision {
-            by: decider.actor(caller, area),
+            by: decider.actor(area),
             principal: caller.principal.clone(),
             at: caller.now.clone(),
             reason: None,
             trace_id: caller.cx.call().trace_id.clone(),
             proposer_kind: proposal.proposer.actor.kind.clone(),
             channel: decider.channel(&proposal),
+            assurance: decider.assurance(&proposal),
+            reason_source: None,
         });
         proposal.exception = exception;
         proposal.policy = decider.policy(area);
@@ -680,12 +897,8 @@ pub(crate) fn reject(input: &Value, cx: &mut Cx) -> Outcome {
         .get("reason")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    if reason.trim().is_empty() || reason.chars().count() > 2000 {
-        return failure(
-            "PROPOSAL_REASON_REQUIRED",
-            "a rejection carries a reason of 1 to 2000 characters",
-            "Say why: the curator reads the reason on its next run.",
-        );
+    if !reason_valid(Some(reason)) {
+        return reason_required();
     }
     match reject_inner(&caller, id, reason) {
         Ok(outcome) | Err(outcome) => outcome,
@@ -693,26 +906,23 @@ pub(crate) fn reject(input: &Value, cx: &mut Cx) -> Outcome {
 }
 
 fn reject_inner(caller: &Caller<'_>, id: &str, reason: &str) -> Result<Outcome, Outcome> {
+    let person = person_of(caller, false)?;
     let Gate {
         mut proposal,
         record,
         area,
-    } = gate(caller, id)?;
-    if proposal.state != State::Pending {
-        return Err(common::wrong_state(
-            &proposal,
-            "only a pending proposal is rejected",
-        ));
-    }
+    } = reject_checks(caller, &person, id)?;
     proposal.state = State::Rejected;
     proposal.decision = Some(Decision {
-        by: caller.actor.clone(),
+        by: person.actor.clone(),
         principal: caller.principal.clone(),
         at: caller.now.clone(),
         reason: Some(reason.to_owned()),
         trace_id: caller.cx.call().trace_id.clone(),
         proposer_kind: proposal.proposer.actor.kind.clone(),
-        channel: proposal.terminal_channel(),
+        channel: person.channel(&proposal),
+        assurance: person.assurance(&proposal),
+        reason_source: person.reason_source(&proposal),
     });
     proposal.policy = propose::policy_of(&area);
     proposal.updated_at.clone_from(&caller.now);
@@ -735,16 +945,53 @@ fn reject_inner(caller: &Caller<'_>, id: &str, reason: &str) -> Result<Outcome, 
     ))
 }
 
-/// Apply a proposal the caller just submitted as their own verification: no self-approval
-/// exception, because a verification is the approver's attestation, not a change someone else
-/// wrote (D63).
+/// Whether `reason` is a rejection's reason: 1 to 2000 characters, not blank.
+pub(crate) fn reason_valid(reason: Option<&str>) -> bool {
+    reason.is_some_and(|reason| !reason.trim().is_empty() && reason.chars().count() <= 2000)
+}
+
+/// `PROPOSAL_REASON_REQUIRED`.
+pub(crate) fn reason_required() -> Outcome {
+    failure(
+        "PROPOSAL_REASON_REQUIRED",
+        "a rejection carries a reason of 1 to 2000 characters",
+        "Say why: the curator reads the reason on its next run.",
+    )
+}
+
+/// Reject's checks before anything is written: [`gate`] and the state.
+fn reject_checks(caller: &Caller<'_>, person: &Person, id: &str) -> Result<Gate, Outcome> {
+    let gate = gate(caller, person, id)?;
+    if gate.proposal.state != State::Pending {
+        return Err(common::wrong_state(
+            &gate.proposal,
+            "only a pending proposal is rejected",
+        ));
+    }
+    Ok(gate)
+}
+
+/// Apply a proposal the caller, a person at a terminal, just submitted as their own
+/// verification: no self-approval exception, because a verification is the approver's
+/// attestation, not a change someone else wrote (D63).
 pub(crate) fn apply_own(
     caller: &Caller<'_>,
     proposal: Proposal,
     record: Record,
     area: &Area,
 ) -> Result<Outcome, Outcome> {
-    apply(caller, proposal, record, area, None, Decider::Person)
+    let person = Person {
+        actor: caller.actor.clone(),
+        proof: Proof::Terminal,
+    };
+    apply(
+        caller,
+        proposal,
+        record,
+        area,
+        None,
+        Decider::Person(&person),
+    )
 }
 
 #[cfg(test)]
@@ -778,7 +1025,10 @@ mod author_tests {
                 },
                 principal: "human:corp/ada".into(),
             };
-            assert_eq!(caller_wrote(&legacy, &caller, "human:corp/ada"), expected);
+            assert_eq!(
+                caller_wrote(&legacy, &caller, "human:corp/ada", "human:corp/ada"),
+                expected
+            );
         }
     }
 
@@ -803,5 +1053,237 @@ mod author_tests {
             &[],
             "agent:x"
         ));
+    }
+}
+
+#[cfg(test)]
+mod person_tests {
+    use super::{Proof, person_of};
+    use crate::proposal::common::Caller;
+    use crate::proposal::model::{ActorRef, Proposal};
+    use umbel_sdk::{CallContext, Cx, PersonCheck, PersonDecision};
+
+    fn decided(person: &str, surface: &str) -> PersonDecision {
+        PersonDecision {
+            surface: surface.into(),
+            person: person.into(),
+            namespace: "corp".into(),
+            auth_time: "2026-11-09T00:00:00.000Z".into(),
+            acr: "phr".into(),
+        }
+    }
+
+    /// The person deciding on a call through `interface` by an actor of `kind` (`corp/ada` for a
+    /// human; `corp/agent` acting for `corp/ada` otherwise), or `None` when refused.
+    fn person(
+        kind: &str,
+        interface: &str,
+        decision: Option<PersonDecision>,
+        check: Option<&str>,
+        checking: bool,
+    ) -> Option<(ActorRef, Proof)> {
+        let (id, on_behalf_of) = match kind {
+            "human" => ("corp/ada", None),
+            _ => ("corp/agent", Some("corp/ada".to_owned())),
+        };
+        let cx = Cx::without_grants(CallContext {
+            actor_kind: kind.into(),
+            actor_id: Some(id.into()),
+            on_behalf_of: on_behalf_of.clone(),
+            interface: interface.into(),
+            person_decision: decision,
+            person_check: check.map(|surface| PersonCheck {
+                command: "knowledge-approve".into(),
+                surface: surface.into(),
+            }),
+            ..CallContext::default()
+        });
+        let caller = Caller {
+            cx: &cx,
+            space: "alpha".into(),
+            now: String::new(),
+            now_ms: 0,
+            actor: ActorRef {
+                kind: kind.into(),
+                id: Some(id.into()),
+                on_behalf_of,
+            },
+            principal: "human:corp/ada".into(),
+        };
+        person_of(&caller, checking)
+            .ok()
+            .map(|person| (person.actor, person.proof))
+    }
+
+    #[test]
+    fn over_mcp_only_a_decision_for_the_person_the_client_acts_for_decides() {
+        let (actor, proof) = person(
+            "agent",
+            "mcp",
+            Some(decided("corp/ada", "mcp")),
+            None,
+            false,
+        )
+        .unwrap_or_else(|| {
+            panic!("the attested decision decides");
+        });
+        assert_eq!(actor.text(), "human:corp/ada");
+        assert!(matches!(proof, Proof::Verified(_)));
+        // No decision, another person's, or one made for the command line: nothing decides.
+        assert!(person("agent", "mcp", None, None, false).is_none());
+        assert!(person("agent", "mcp", Some(decided("corp/bo", "mcp")), None, false).is_none());
+        assert!(
+            person(
+                "agent",
+                "mcp",
+                Some(decided("corp/ada", "cli")),
+                None,
+                false
+            )
+            .is_none()
+        );
+        assert!(person("agent", "mcp", Some(decided("", "mcp")), None, false).is_none());
+        // A human over MCP acts for no one: no decision is theirs to carry.
+        assert!(
+            person(
+                "human",
+                "mcp",
+                Some(decided("corp/ada", "mcp")),
+                None,
+                false
+            )
+            .is_none()
+        );
+        // Elsewhere (an in-process agent, the library) nothing decides.
+        assert!(
+            person(
+                "agent",
+                "agent",
+                Some(decided("corp/ada", "mcp")),
+                None,
+                false
+            )
+            .is_none()
+        );
+        assert!(person("human", "", None, None, false).is_none());
+    }
+
+    #[test]
+    fn at_a_terminal_the_person_is_the_caller_and_never_with_a_page_decision() {
+        let (actor, proof) = person("human", "cli", None, None, false).unwrap_or_else(|| {
+            panic!("the terminal decides");
+        });
+        assert_eq!(actor.text(), "human:corp/ada");
+        assert!(matches!(proof, Proof::Terminal));
+        assert!(person("agent", "cli", None, None, false).is_none());
+        assert!(
+            person(
+                "human",
+                "cli",
+                Some(decided("corp/ada", "cli")),
+                None,
+                false
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn the_hosts_check_before_it_asks_is_for_the_relay_alone() {
+        let (actor, proof) = person("agent", "", None, Some("mcp"), true).unwrap_or_else(|| {
+            panic!("the relay's check");
+        });
+        assert_eq!(actor.text(), "human:corp/ada");
+        assert!(matches!(proof, Proof::Asking));
+        assert!(person("agent", "", None, Some("cli"), true).is_none());
+        assert!(person("human", "", None, Some("mcp"), true).is_none());
+        assert!(
+            person(
+                "agent",
+                "",
+                Some(decided("corp/ada", "mcp")),
+                Some("mcp"),
+                true
+            )
+            .is_none()
+        );
+        // The check only through `check`: the mark alone, as approve and reject see it, decides
+        // nothing, even with the host's gate bypassed; `check` without the mark, or from an
+        // interface, decides nothing either.
+        assert!(person("agent", "", None, Some("mcp"), false).is_none());
+        assert!(person("agent", "mcp", None, Some("mcp"), false).is_none());
+        assert!(
+            person(
+                "agent",
+                "mcp",
+                Some(decided("corp/ada", "mcp")),
+                Some("mcp"),
+                false
+            )
+            .is_none()
+        );
+        assert!(person("human", "cli", None, Some("mcp"), false).is_none());
+        assert!(person("agent", "", None, None, true).is_none());
+        assert!(person("agent", "mcp", None, Some("mcp"), true).is_none());
+        assert!(person("agent", "mcp", Some(decided("corp/ada", "mcp")), None, true).is_none());
+    }
+
+    #[test]
+    fn the_channel_and_assurance_follow_the_proof_and_the_version() {
+        let terminal = super::Person {
+            actor: ActorRef {
+                kind: "human".into(),
+                id: Some("corp/ada".into()),
+                on_behalf_of: None,
+            },
+            proof: Proof::Terminal,
+        };
+        let verified = super::Person {
+            proof: Proof::Verified(decided("corp/ada", "mcp")),
+            ..terminal.clone()
+        };
+        let body = |version: u32| -> Proposal {
+            let mut value = serde_json::json!({
+                "version": version, "id": "p-0", "idempotencyKey": "k", "changeHash": "h",
+                "space": "alpha", "area": "handbook", "state": "pending",
+                "change": { "op": "verify", "doc": "handbook/x", "baseHash": "h" },
+                "diff": "", "rationale": "r", "evidence": [], "provenance": {},
+                "policy": { "area": "handbook", "version": "v", "rule": "person" },
+                "exception": null, "proposer": { "actor": { "kind": "agent" }, "principal": "agent:x" },
+                "confidence": null, "decision": null, "result": null, "flags": [],
+                "createdAt": "", "updatedAt": "",
+            });
+            if version >= 2 {
+                for key in ["drafter", "conflictSet", "withdrawal", "redacted"] {
+                    value[key] = serde_json::Value::Null;
+                }
+            }
+            Proposal::from_value(&value).unwrap_or_else(|| panic!("a proposal {version}"))
+        };
+        assert_eq!(terminal.channel(&body(3)).as_deref(), Some("terminal"));
+        assert_eq!(
+            terminal.assurance(&body(3)),
+            Some(umbel_store::Assurance::terminal())
+        );
+        assert_eq!(terminal.channel(&body(2)).as_deref(), Some("terminal"));
+        assert_eq!(terminal.assurance(&body(2)), None);
+        assert_eq!(terminal.channel(&body(1)), None);
+        assert_eq!(
+            verified.channel(&body(3)).as_deref(),
+            Some("mcp-elicitation")
+        );
+        assert_eq!(
+            verified.assurance(&body(3)),
+            Some(umbel_store::Assurance::verified(
+                "corp",
+                "2026-11-09T00:00:00.000Z",
+                "phr"
+            ))
+        );
+        assert_eq!(verified.assurance(&body(2)), None);
+        // Who wrote a rejection's reason, in version 3 alone: the client over MCP.
+        assert_eq!(verified.reason_source(&body(3)).as_deref(), Some("client"));
+        assert_eq!(terminal.reason_source(&body(3)).as_deref(), Some("person"));
+        assert_eq!(verified.reason_source(&body(2)), None);
     }
 }

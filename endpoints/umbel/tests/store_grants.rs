@@ -426,6 +426,47 @@ async fn the_gate_sets_changes_from_what_the_call_wrote_and_the_event_carries_th
 }
 
 #[tokio::test]
+async fn the_delegation_chain_and_a_confirmation_are_the_hosts_alone() {
+    // Phase 5 step 6: a version 3 record's chain is the writing caller's, whatever the plugin
+    // sent; an earlier version holds none; no document or record is ever confirmed.
+    let (_dir, host) = standard();
+    for (id, version, chain) in [
+        ("r3", 3, json!([])),
+        ("r2", 2, Value::Null),
+        ("r1", 1, Value::Null),
+    ] {
+        let mut args = json!({ "kind": "note", "id": id, "version": version, "forge_chain": true });
+        args["body"] = json!({ "n": id });
+        let written = run(&host, "sp-write", "main", "record-put", args).await;
+        assert!(written.success, "{id}: {written:?}");
+        let envelope = result(
+            &run(
+                &host,
+                "sp-read",
+                "main",
+                "record-envelope",
+                json!({ "kind": "note", "id": id }),
+            )
+            .await,
+        );
+        assert_eq!(envelope["version"], version, "{envelope}");
+        // The library caller has no token: an empty chain in version 3, none before it.
+        assert_eq!(
+            envelope
+                .get("delegationChain")
+                .cloned()
+                .unwrap_or(Value::Null),
+            chain,
+            "{id}: {envelope}"
+        );
+        assert!(
+            envelope.get("confirmation").is_none_or(Value::is_null),
+            "{id}: {envelope}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn host_owned_keys_cannot_be_forged_through_the_gate() {
     let (dir, host) = standard();
     let forged = run(&host, "sp-forge", "main", "x", json!({})).await;

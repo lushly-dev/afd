@@ -48,7 +48,7 @@ pub use ca::{IssuedCertificate, TestCa};
 pub use gateway::GatewaySigner;
 pub use keys::{Algorithm, KeyKind, KeySet};
 pub use role::{
-    AuthorizationServer, Client, Endpoint, Fault, IdentityProvider, Issuer, LoginScript,
+    AuthorizationServer, Client, Endpoint, Fault, IdentityProvider, Issuer, KitClock, LoginScript,
     MetadataUrls, ResponseIss, ScriptedLogin, User,
 };
 pub use token::{Break, IntrospectionAnswer, RequiredClaim, TokenBuilder, TokenKind};

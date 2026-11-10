@@ -945,10 +945,50 @@ fn principals(config: &Config) -> Check {
 
 // ── auth.person ─────────────────────────────────────────────────────────────────────────────────
 
+/// The areas that let a person approve and reject over MCP (`approve_over_mcp = true`, phase 5
+/// section 7.3), as `plugins.<instance>.config.areas.<area>`: read at the knowledge plugin's
+/// documented place, for the instances of the knowledge plugin alone (`compiled:knowledge`, or
+/// an instance `knowledge` with the default source), so the doctor names them without the
+/// loaded plugins and never reads another plugin's `areas` as knowledge's.
+fn relay_areas(config: &Config) -> Vec<String> {
+    let mut areas = Vec::new();
+    for instance in &config.plugins.instances {
+        let knowledge = match instance.source.as_deref() {
+            Some(source) => source == "compiled:knowledge",
+            None => instance.id == "knowledge",
+        };
+        if !knowledge {
+            continue;
+        }
+        let Some(tables) = instance.config.get("areas").and_then(Value::as_object) else {
+            continue;
+        };
+        for (area, table) in tables {
+            if table.get("approve_over_mcp").and_then(Value::as_bool) == Some(true) {
+                areas.push(format!("plugins.{}.config.areas.{area}", instance.id));
+            }
+        }
+    }
+    areas
+}
+
 fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
     let auth = &inputs.config.auth;
     let mut found = Findings::default();
     let gated = inputs.person_mcp.unwrap_or_default();
+    // The areas whose approvals the relay serves (step 6): each is served only where the person
+    // page is, to callers whose namespace's login passes this check.
+    let relayed = relay_areas(inputs.config);
+    let relay_note = |what: &str| {
+        if relayed.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "; {what} cannot approve or reject in the approve_over_mcp areas {}",
+                listed(&relayed)
+            )
+        }
+    };
     let mut valid = Vec::new();
     // Mode gateway: every class must be phishing-resistant (step 5b), as the page requires.
     let strict = auth.mode == crate::workspace::AuthMode::Gateway;
@@ -959,22 +999,27 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
         .any(|namespace| namespace.person.is_some());
     if auth.mode == crate::workspace::AuthMode::Gateway
         && inputs.config.http.person.is_none()
-        && (logins || !gated.is_empty())
+        && (logins || !gated.is_empty() || !relayed.is_empty())
     {
-        found.warn(
-            "mode gateway without [http.person] serves no person page (through the gateway, the gateway would stand between the person and the page), so no verified command is served"
-                .to_owned(),
-        );
+        found.warn(format!(
+            "mode gateway without [http.person] serves no person page (through the gateway, the gateway would stand between the person and the page), so no verified command is served{}",
+            relay_note("no caller")
+        ));
     }
     let page_listed = match auth.mode {
         crate::workspace::AuthMode::Oauth => true,
         crate::workspace::AuthMode::Gateway => inputs.config.http.person.is_some(),
         crate::workspace::AuthMode::None => false,
     };
-    if page_listed && !auth.filter_tools_by_scope && !gated.is_empty() {
+    if page_listed && !auth.filter_tools_by_scope && (!gated.is_empty() || !relayed.is_empty()) {
+        let commands = if gated.is_empty() {
+            "no verified command is served".to_owned()
+        } else {
+            format!("{} (person.mcp) are not served", listed(gated))
+        };
         found.warn(format!(
-            "auth.filter_tools_by_scope is false, so the person page is not served and {} (person.mcp) are not served",
-            listed(gated)
+            "auth.filter_tools_by_scope is false, so the person page is not served and {commands}{}",
+            relay_note("no caller")
         ));
     }
     for namespace in &auth.namespaces {
@@ -988,6 +1033,12 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
                 found.warn(format!(
                     "namespace {ns} has token callers and no person login, so {} (person.mcp) are not served to them",
                     listed(gated)
+                ));
+            }
+            if has_callers && !relayed.is_empty() {
+                found.warn(format!(
+                    "namespace {ns} has token callers and no person login, so they cannot approve or reject over MCP in the approve_over_mcp areas {}",
+                    listed(&relayed)
                 ));
             }
             continue;
@@ -1039,10 +1090,15 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
         }
         if found.failures.len() == failures {
             valid.push(ns.clone());
-        } else if !gated.is_empty() {
+        } else if !gated.is_empty() || !relayed.is_empty() {
             found.note(format!(
-                "while this fails, namespace {ns}'s verified commands ({}) are not served",
-                listed(gated)
+                "while this fails, namespace {ns}'s verified commands ({}) are not served{}",
+                if gated.is_empty() {
+                    "none loaded".to_owned()
+                } else {
+                    listed(gated)
+                },
+                relay_note("its callers")
             ));
         }
     }
@@ -1542,6 +1598,44 @@ fn confirmations(config: &Config) -> Check {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn the_relays_areas_are_the_knowledge_plugins_alone() {
+        let config = crate::workspace::ConfigFile::parse(
+            r#"config_version = 5
+
+[plugins]
+enabled = ["knowledge", "kb", "other"]
+
+[plugins.knowledge.config.areas.a]
+approve_over_mcp = true
+
+[plugins.knowledge.config.areas.b]
+approve_over_mcp = false
+
+[plugins.kb]
+source = "compiled:knowledge"
+
+[plugins.kb.config.areas.c]
+approve_over_mcp = true
+
+[plugins.other]
+source = "compiled:other"
+
+[plugins.other.config.areas.d]
+approve_over_mcp = true
+"#,
+        )
+        .and_then(|file| file.into_config(Path::new("/w")))
+        .unwrap_or_else(|error| panic!("{error}"));
+        assert_eq!(
+            relay_areas(&config),
+            [
+                "plugins.knowledge.config.areas.a",
+                "plugins.kb.config.areas.c"
+            ]
+        );
+    }
 
     /// The checks as JSON, keyed by id.
     fn by_id(checks: &[Check]) -> BTreeMap<String, Value> {

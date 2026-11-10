@@ -1,10 +1,14 @@
 //! The proposal record (phase 2 specification section 9.1, phase 4 section 2.1; D62, D92): a
 //! decision trace kept as a record of kind `proposal` in the knowledge instance's namespace.
 //!
-//! New proposals are version 2 (`schemas/proposal.v2.json`), which adds `drafter`, `conflictSet`,
-//! `withdrawal`, `redacted` and `decision.channel` and nests envelope version 2. A version 1
-//! record (`schemas/proposal.v1.json`) is read and stays version 1 when it is decided, withdrawn
-//! or applied: it is written back without any of version 2's fields.
+//! New proposals are version 3 (`schemas/proposal.v3.json`, phase 5 sections 2.4 and 7.3): version
+//! 2 nesting envelope version 3, with `decision.channel` gaining `mcp-elicitation` (a person on the
+//! person page, reached over MCP) and every person's decision carrying `decision.assurance`, how
+//! that person was proven. Version 2 (`schemas/proposal.v2.json`) added `drafter`, `conflictSet`,
+//! `withdrawal`, `redacted` and `decision.channel` and nests envelope version 2. A version 1 or 2
+//! record is read and stays in its own version when it is decided, withdrawn or applied: it is
+//! written back without the later versions' fields, and only at a terminal or by a policy, since
+//! neither can record a decision made over MCP.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -13,15 +17,18 @@ use umbel_store::{ContentHash, canonical_json};
 /// The record kind.
 pub(crate) const KIND: &str = "proposal";
 /// The version a new proposal is written in.
-pub(crate) const VERSION: u32 = 2;
+pub(crate) const VERSION: u32 = 3;
 /// The versions this plugin reads; each is written back in its own version.
-pub(crate) const VERSIONS: [u32; 2] = [1, VERSION];
+pub(crate) const VERSIONS: [u32; 3] = [1, 2, VERSION];
 /// The top-level keys version 2 adds; a version 1 record never holds them.
 const VERSION_2_KEYS: [&str; 4] = ["drafter", "conflictSet", "withdrawal", "redacted"];
 /// `decision.channel` of a person's decision at a terminal.
 pub(crate) const CHANNEL_TERMINAL: &str = "terminal";
 /// `decision.channel` of an area's auto-approval rule (phase 4 section 8.3).
 pub(crate) const CHANNEL_POLICY: &str = "policy";
+/// `decision.channel` of a person's decision on the person page, reached over MCP through the
+/// approval relay (version 3, phase 5 section 7.3).
+pub(crate) const CHANNEL_MCP: &str = "mcp-elicitation";
 
 /// Where a proposal is in its life.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,10 +166,24 @@ pub(crate) struct Decision {
     pub(crate) reason: Option<String>,
     pub(crate) trace_id: String,
     pub(crate) proposer_kind: String,
-    /// Version 2: `terminal` or `policy`. A version 1 decision has none.
+    /// Version 2: `terminal` or `policy`; version 3 adds `mcp-elicitation`. A version 1 decision
+    /// has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) channel: Option<String>,
+    /// Version 3: how the person who decided was proven, on every person's decision (`terminal`
+    /// at the command line, `verified` on the person page); a policy's decision has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) assurance: Option<umbel_store::Assurance>,
+    /// Version 3: who wrote `reason`, beside it: `person` at a terminal, `client` over MCP,
+    /// where the asking client wrote it and the person saw it on the page and confirmed it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) reason_source: Option<String>,
 }
+
+/// `decision.reasonSource` of a reason the person gave at a terminal.
+pub(crate) const REASON_PERSON: &str = "person";
+/// `decision.reasonSource` of a reason the asking client wrote, which the person saw on the page.
+pub(crate) const REASON_CLIENT: &str = "client";
 
 /// The curator instance a drafted proposal came from (version 2). `plugin`, `instance`,
 /// `pipeline` and `run` are attested by the host; `mode`, `candidate` and `promoted_by` are
@@ -302,18 +323,25 @@ impl Proposal {
         VERSIONS.contains(&proposal.version).then_some(proposal)
     }
 
-    /// The record body in the proposal's own version: version 2 holds its four keys, `null` when
-    /// unset; version 1 holds none of them, and no `decision.channel`.
+    /// The record body in the proposal's own version: version 2 and later hold its four keys,
+    /// `null` when unset; version 1 holds none of them, and no `decision.channel`; only version 3
+    /// holds `decision.assurance`.
     pub(crate) fn to_value(&self) -> Value {
         let mut value = serde_json::to_value(self).unwrap_or(Value::Null);
-        if self.version < 2
-            && let Some(map) = value.as_object_mut()
-        {
-            for key in VERSION_2_KEYS {
-                map.remove(key);
+        if let Some(map) = value.as_object_mut() {
+            if self.version < 2 {
+                for key in VERSION_2_KEYS {
+                    map.remove(key);
+                }
             }
             if let Some(decision) = map.get_mut("decision").and_then(Value::as_object_mut) {
-                decision.remove("channel");
+                if self.version < 2 {
+                    decision.remove("channel");
+                }
+                if !self.is_v3() {
+                    decision.remove("assurance");
+                    decision.remove("reasonSource");
+                }
             }
         }
         value
@@ -324,9 +352,10 @@ impl Proposal {
         self.version >= 2
     }
 
-    /// `decision.channel` for a person's decision at a terminal, in this proposal's version.
-    pub(crate) fn terminal_channel(&self) -> Option<String> {
-        self.is_v2().then(|| CHANNEL_TERMINAL.to_owned())
+    /// Whether the proposal is version 3 or later, so records how a person was proven and can
+    /// record a decision made over MCP.
+    pub(crate) fn is_v3(&self) -> bool {
+        self.version >= 3
     }
 
     /// The document's collection and the path inside it.

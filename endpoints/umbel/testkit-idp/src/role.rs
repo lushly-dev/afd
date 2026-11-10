@@ -410,7 +410,14 @@ pub(crate) struct Role {
     pub(crate) registry: Arc<Registry>,
     pub(crate) partner: Partner,
     pub(crate) state: Mutex<RoleState>,
+    /// The clock the ID tokens it issues follow ([`Issuer::follow_clock`]); the wall clock when
+    /// `None`.
+    pub(crate) clock: Mutex<Option<KitClock>>,
 }
+
+/// A clock in Unix seconds, for the times of the ID tokens an issuer signs: a test's host
+/// clock, so that the tokens never depend on the wall time.
+pub type KitClock = Arc<dyn Fn() -> i64 + Send + Sync>;
 
 impl Role {
     pub(crate) fn new(
@@ -430,7 +437,14 @@ impl Role {
             registry: Arc::new(Registry::default()),
             partner,
             state: Mutex::new(RoleState::default()),
+            clock: Mutex::new(None),
         })
+    }
+
+    /// Now, in Unix seconds, on the role's clock ([`Issuer::follow_clock`]).
+    pub(crate) fn now(&self) -> i64 {
+        let clock = lock(&self.clock).clone();
+        clock.map_or_else(now, |clock| clock())
     }
 
     pub(crate) fn add_user(&self, user: User) {
@@ -549,7 +563,7 @@ impl Role {
     }
 
     pub(crate) fn id_token(&self, subject: &str, client_id: &str) -> TokenBuilder {
-        let now = now();
+        let now = self.now();
         let mut claims = Map::new();
         claims.insert("iss".into(), json!(self.issuer));
         claims.insert("sub".into(), json!(subject));
@@ -635,6 +649,13 @@ impl Issuer {
     /// match, an `http` `jwks_uri`, no `claims_supported`, ...
     pub fn set_metadata_patch(&self, patch: Option<Value>) {
         lock(&self.role.state).metadata_patch = patch;
+    }
+
+    /// Sign ID tokens (their `iat`, `exp` and a login's default `auth_time`) on `clock`, Unix
+    /// seconds, rather than the wall clock: a test's host clock, so a login is as fresh to the
+    /// host as the test means it to be. `None` returns to the wall clock.
+    pub fn follow_clock(&self, clock: Option<KitClock>) {
+        *lock(&self.role.clock) = clock;
     }
 
     /// The role's signing keys.
