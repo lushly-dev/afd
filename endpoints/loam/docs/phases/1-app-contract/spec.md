@@ -831,7 +831,7 @@ phase 1 does; the enforcement column is D54's distinction.
 | `collaboration` | The collaboration specification | |
 | `events`, `calls` | Phase 5 | |
 | `http` | Phase 5, with the hosted lane | |
-| `secrets` | Phase 6 | |
+| `secrets` | Phase 5, with `http` (amended by the [phase 6 specification](../6-hosts/spec.md#13-secrets-d108), approved 2026-11-09, D108): a named secret the kernel attaches to an outbound `http` request through the hosted server, never given to app code | |
 
 - **A store record** is `{ key, value, app, instance, actor, updatedAt, scope: null }`, the kernel filling
   everything but `key` and `value` (architecture section 7), with `updatedAt` from the command's clock so

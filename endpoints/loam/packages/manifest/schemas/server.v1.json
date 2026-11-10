@@ -1,0 +1,169 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/loam/schemas/server.v1.json",
+	"title": "Loam server configuration, version 1",
+	"description": "The hosted server's loam.server.toml, read as JSON (phase 6 specification, 3.2): what only the server reads, never served and never in a projection. Closed at every depth.",
+	"type": "object",
+	"properties": {
+		"server_version": {
+			"const": 1
+		},
+		"origin": {
+			"type": "string",
+			"minLength": 1
+		},
+		"listen": {
+			"$ref": "#/$defs/listen"
+		},
+		"data": {
+			"type": "string",
+			"minLength": 1
+		},
+		"tls": {
+			"type": "object",
+			"properties": {
+				"cert_file": {
+					"type": "string",
+					"minLength": 1
+				},
+				"key_file": {
+					"type": "string",
+					"minLength": 1
+				}
+			},
+			"required": ["cert_file", "key_file"],
+			"additionalProperties": false
+		},
+		"sandbox": {
+			"type": "object",
+			"properties": {
+				"origin": {
+					"type": "string",
+					"minLength": 1
+				},
+				"listen": {
+					"$ref": "#/$defs/listen"
+				}
+			},
+			"required": ["origin"],
+			"additionalProperties": false
+		},
+		"auth": {
+			"type": "object",
+			"properties": {
+				"secret_file": {
+					"type": "string",
+					"minLength": 1
+				},
+				"secret_env": {
+					"$ref": "#/$defs/env"
+				}
+			},
+			"additionalProperties": false
+		},
+		"mail": {
+			"type": "object",
+			"properties": {
+				"transport": {
+					"enum": ["sink", "smtp"]
+				},
+				"from": {
+					"type": "string",
+					"minLength": 1
+				},
+				"smtp_url_env": {
+					"$ref": "#/$defs/env"
+				},
+				"smtp_url_file": {
+					"type": "string",
+					"minLength": 1
+				}
+			},
+			"required": ["transport"],
+			"additionalProperties": false
+		},
+		"oidc": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9-]{0,31}$"
+			},
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"issuer": {
+						"type": "string",
+						"minLength": 1
+					},
+					"client_id": {
+						"type": "string",
+						"minLength": 1
+					},
+					"client_secret_file": {
+						"type": "string",
+						"minLength": 1
+					},
+					"client_secret_env": {
+						"$ref": "#/$defs/env"
+					}
+				},
+				"required": ["issuer", "client_id"],
+				"additionalProperties": false
+			}
+		},
+		"limits": {
+			"type": "object",
+			"properties": {
+				"request_body_bytes": {
+					"$ref": "#/$defs/positive"
+				},
+				"relay_response_bytes": {
+					"$ref": "#/$defs/positive"
+				},
+				"relay_concurrency_per_person": {
+					"$ref": "#/$defs/positive"
+				},
+				"relay_timeout_ms": {
+					"$ref": "#/$defs/positive"
+				},
+				"relay_session_idle_ms": {
+					"$ref": "#/$defs/positive"
+				}
+			},
+			"additionalProperties": false
+		},
+		"discovery": {
+			"type": "object",
+			"properties": {
+				"server_card": {
+					"type": "boolean"
+				},
+				"ai_catalog": {
+					"type": "boolean"
+				},
+				"agent_guide": {
+					"type": "boolean"
+				}
+			},
+			"additionalProperties": false
+		}
+	},
+	"required": ["server_version", "origin", "listen", "data"],
+	"additionalProperties": false,
+	"$defs": {
+		"listen": {
+			"description": "host:port, an IPv6 host in brackets.",
+			"type": "string",
+			"pattern": "^(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9.-]+):[0-9]{1,5}$"
+		},
+		"env": {
+			"description": "The name of an environment variable.",
+			"type": "string",
+			"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+		},
+		"positive": {
+			"type": "integer",
+			"minimum": 1
+		}
+	}
+}

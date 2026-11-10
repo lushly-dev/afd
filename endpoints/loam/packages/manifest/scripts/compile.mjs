@@ -48,6 +48,13 @@ export function schemaAjv(options = {}) {
 	return ajv;
 }
 
+/** An Ajv instance with only `loam.server.toml`'s schema, which nothing in the page reads. */
+export function serverAjv(options = {}) {
+	const ajv = createAjv(options);
+	ajv.addSchema(readSchema('server'));
+	return ajv;
+}
+
 /**
  * Standalone output still `require`s Ajv's small runtime helpers; turn them into imports. Nothing
  * reads an error's `schemaPath`, and dropping it saves a tenth of what the page loads.
@@ -73,8 +80,9 @@ function toModule(source) {
  * The standalone validators as ESM source, by file name in dist/. A schema that does not compile
  * strictly, or a `$ref` that does not resolve against spec/, throws here and fails the build.
  *
- * Three files, because the package has `sideEffects: false`: a page that imports only `readManifest`
- * and `readProjection` carries neither the core's validator nor the deployment file's.
+ * Four files, because the package has `sideEffects: false`: a page that imports only `readManifest`
+ * and `readProjection` carries neither the core's validator nor the deployment file's, and nothing but the hosted
+ * server loads the server configuration's.
  */
 export function compileValidators() {
 	const code = { source: true, esm: true, lines: false };
@@ -99,6 +107,10 @@ export function compileValidators() {
 		),
 		'validate-shape.generated.js': toModule(
 			standalone(shape, { validateSchemaShape: readShapeSchema().$id })
+		),
+		// The hosted server's own file (phase 6 specification, 3.2): only `/server` loads it.
+		'validate-server.generated.js': toModule(
+			standalone(serverAjv({ code }), { validateServerConfig: readSchema('server').$id })
 		),
 	};
 }
@@ -230,6 +242,7 @@ export async function generateTypes() {
 		['projection', 1, 'ProjectionV1'],
 		['deployment', 2, 'DeploymentV2'],
 		['projection', 2, 'ProjectionV2'],
+		['server', 1, 'ServerConfigV1'],
 	]) {
 		const document = readSchema(schema, version);
 		const { title: _title, ...flat } = closeForTypes(
