@@ -1,10 +1,10 @@
 # Specimens status
 
-Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-11-04** against fetched main `f37da589`, which contains every pull request named below. Named source SHAs retain the measured/reviewed checkpoints.
+Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-11-09** against fetched main `8258e0fc`, which contains every pull request named below. Named source SHAs retain the measured/reviewed checkpoints.
 
 ## Where the epic stands
 
-Specimen works end to end on AFD's own FAST-AF stories, which run only on Specimen, and it is marked as a preview. Lushly has not moved yet. On 2026-11-04 the owner approved the release as a preview: Specimen's units, the FAST-AF plugin and `fast-element` are [admitted for the npm `preview` prerelease](t08-cutover.md#the-preview-release), `2.2.0-preview.0` first. Nothing is on npm until the owner sets up the publishers and merges its release PR. The prebuilt native hosts publish with it, and AFD's stories pass the settled accessibility check.
+Specimen works end to end on AFD's own FAST-AF stories, which run only on Specimen, and it is marked as a preview. On 2026-11-04 the owner approved the release as a preview, and since 2026-11-08 it is [on npm](t08-cutover.md#the-preview-release): Specimen's four units at `2.2.0-preview.1`, the FAST-AF plugin at `0.1.0-preview.1` and `fast-element` at `3.0.1-preview.1`, with the prebuilt native hosts. `latest` and `preview` both point at them, so a plain install gets the preview, and AFD's stories pass the settled accessibility check. Lushly's move, [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116), started on 2026-11-09 in Lushly's repository.
 
 ### What is done
 
@@ -30,21 +30,18 @@ Specimen works end to end on AFD's own FAST-AF stories, which run only on Specim
 - **The FAST-AF plugin's distribution:** publish it with Specimen. It is public now, and `fast-element`, which it needs, publishes with it.
 - **A settled accessibility check:** add it, separately from the check that matches Storybook's timing, and fix the 3 stories with `color-contrast` failures on disabled text that it finds. [Done](t08-cutover.md#the-settled-accessibility-check) for AFD's 2, both fixed in the components; Lushly's 1 is in Lushly's repository.
 
-**Still the owner's:**
-
-1. **Set up the nine trusted publishers,** each new name starting from a placeholder, which the owner is doing with computer use. Then **merge the preview's release PR** once its checks pass, and point `latest` at the preview ([the steps](t08-cutover.md#the-preview-release)).
+**Still the owner's:** merging each release PR. The publishers, the preview's release and `latest` are done ([the record](t08-cutover.md#the-preview-release)). A fix to a preview unit needs a changeset, and its release PR publishes the next preview build.
 
 The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple"), after asking on 2026-11-03 for the page to be styled. It groups stories by component, filters them and has its own small stylesheet, which no story's frame loads. [The FAST-AF README](../../../../foundations/fast-af/README.md) has the commands to build and serve it.
 
-**Blocked until the packages can be installed:**
+**In Lushly's repository, now that the packages install:**
 
 - **Lushly's move,** [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116): the codemod and what it cannot reach, three qualifying pairs, Lushly's normal gates, rollback checkpoints, its legacy Fluent exceptions and the `hover-rim` story that fails under load in both runners. Native metadata cleanup stays a separate, reversible change.
 
 **An agent can do these without a decision:**
 
-- Once the release PR opens, check it (the version step records its provenance itself, and nothing should be pushed to it); after the publication, verify the nine packages on npm and move the install docs to `@preview`.
 - Measure full suites under T04's policy and profile the per-story time. The owner accepts the extra CPU for now (1.59× and 1.84× per verified case), and the proposal's resource goal stands.
-- Fix [#707](https://github.com/lushly-dev/afd/issues/707), `settle` hanging on an element only a scoped registry holds, and [#662](https://github.com/lushly-dev/afd/issues/662), the empty ARIA snapshot while a modal dialog is open.
+- Release the fixes for [#707](https://github.com/lushly-dev/afd/issues/707) (`settle` hung on an element only a scoped registry holds) and [#662](https://github.com/lushly-dev/afd/issues/662) (the ARIA snapshot was empty while a modal dialog was open) as `2.2.0-preview.2`, with the corrected missing-browser message.
 - Add Windows support for the native host (G13), and take on the smaller items under [Follow-ups not yet issues](#follow-ups-not-yet-issues).
 
 **Optional, and not needed for cutover:** T09, T10 and T11, along with pixel comparison.
@@ -53,7 +50,7 @@ The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple")
 
 Written against main `a5830b4d`. Read [what is done](#what-is-done) and [what is left](#what-is-left) first; this section adds how to pick the work up.
 
-**Immediate work:** the owner answered three of the decisions on 2026-11-02 (above), reviewed the index on 2026-11-04 and approved the release as a preview the same day. The preview route is in place and rehearsed. The owner set up the nine publishers on 2026-11-07 and #796 published the preview, empty; [#803](https://github.com/lushly-dev/afd/pull/803) fixed the release gate, and `.1` published from [#802](https://github.com/lushly-dev/afd/pull/802) on 2026-11-08. Start any new work on a fresh branch from `origin/main`.
+**Immediate work:** the owner answered three of the decisions on 2026-11-02 (above), reviewed the index on 2026-11-04 and approved the release as a preview the same day. The preview route is in place and rehearsed. The owner set up the nine publishers on 2026-11-07 and #796 published the preview, empty; [#803](https://github.com/lushly-dev/afd/pull/803) fixed the release gate, and `.1` published from [#802](https://github.com/lushly-dev/afd/pull/802) on 2026-11-08. The owner deprecated the empty `.0` versions and pointed `latest` at `.1`, and AFD 2.3.0 published from [#812](https://github.com/lushly-dev/afd/pull/812) the same day. Start any new work on a fresh branch from `origin/main`.
 
 **To show the owner the review page,** follow [the FAST-AF README](../../../../foundations/fast-af/README.md). A background server stops at its time limit, so say so when handing over the link.
 
@@ -61,10 +58,10 @@ Written against main `a5830b4d`. Read [what is done](#what-is-done) and [what is
 
 | Work | Notes |
 | --- | --- |
-| The preview's publication | `.1` is published and verified from npm ([T08](t08-cutover.md#the-preview-release)). The owner deprecates the five empty `.0` versions and points `latest` at `.1`. The host's corrected missing-browser message and the READMEs' install sections ship with the next preview. AFD 2.3.0's release PR ([#812](https://github.com/lushly-dev/afd/pull/812)) is the owner's to merge |
+| The next preview, `.2` | The fixes for #707 and #662 and the host's corrected missing-browser message, with a changeset; the owner merges its release PR. Verify it from npm afterwards, as for `.1` ([T08](t08-cutover.md#the-preview-release)) |
 | Full-suite measurement and per-story profile | Under T04's policy, on `random`, in its isolated copy and after the quiet gate |
-| [#707](https://github.com/lushly-dev/afd/issues/707), [#662](https://github.com/lushly-dev/afd/issues/662) | Both raised by Loam |
-| Lushly's move | [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) is Lushly's work, in its repository, once the packages can be installed |
+| Lushly's move | [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116) is Lushly's work, in its repository, started on 2026-11-09. Its qualifying pairs and the review of its `specimen build` page need the owner |
+| Windows host (G13) | Then the smaller follow-ups below |
 
 **Rules the owner set for this epic:** commit, open pull requests, auto-fix and merge on green, and keep going between tasks without asking. **Still ask the owner about:** publishing (merging a release PR is the owner's) or admitting another unit, consumer-repository changes the owner owns, physical or host actions, and genuinely new decisions. Do not reopen confirmed values: T01's tolerances, the probe gate and T03's font and browser condition.
 
