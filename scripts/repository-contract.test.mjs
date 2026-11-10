@@ -411,6 +411,7 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 		['loam', 'run'],
 		['walk', 'run'],
 		['mounted', 'mounted'],
+		['hosted', 'run'],
 	]) {
 		const block = new RegExp(
 			`^ {2}${job}:\\n[\\s\\S]*?(?=^ {2}[\\w-]+:\\n|$(?![\\s\\S]))`,
@@ -436,7 +437,7 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 		)
 	);
 	// test:browser chains two runs, so a flag would reach only the last: each config names the reporter.
-	for (const config of ['browser', 'conformance', 'mounted', 'walk'])
+	for (const config of ['browser', 'conformance', 'mounted', 'walk', 'hosted'])
 		assert.match(
 			read(`endpoints/loam/packages/web/vitest.${config}.config.ts`),
 			/^\t\treporters: process\.env\.GITHUB_ACTIONS === 'true' \? \['verbose', 'github-actions'\] : \['verbose'\],$/m,

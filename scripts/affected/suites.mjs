@@ -88,7 +88,7 @@ export const SUITES = [
 	},
 	{
 		workflow: 'loam.yml',
-		// `openssl` makes the certificate the hosted server's TLS unit serves (phase 6, step 1).
+		// `openssl` makes the certificates of the hosted server's TLS unit and its development profile.
 		tools: ['chromium', 'cargo', 'openssl'],
 		steps: [
 			{ gate: 'mounted', run: 'pnpm -F "@lushly-dev/loam-web..." build' },
@@ -116,6 +116,8 @@ export const SUITES = [
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:walk' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web budget' },
 			{ gate: 'mounted', run: 'pnpm -F @lushly-dev/loam-web test:mounted' },
+			// Phase 6's hosted criterion against the development profile; `openssl` makes its certificate.
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:hosted' },
 		],
 	},
 	{
