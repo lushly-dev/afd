@@ -495,5 +495,57 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"message",
 			"suggestion"
 		]
+	},
+	"server": {
+		"": [
+			"server_version",
+			"origin",
+			"listen",
+			"data",
+			"tls",
+			"sandbox",
+			"auth",
+			"mail",
+			"oidc",
+			"limits",
+			"discovery"
+		],
+		"/tls": [
+			"cert_file",
+			"key_file"
+		],
+		"/sandbox": [
+			"origin",
+			"listen"
+		],
+		"/auth": [
+			"secret_file",
+			"secret_env"
+		],
+		"/mail": [
+			"transport",
+			"from",
+			"smtp_url_env",
+			"smtp_url_file"
+		],
+		"/oidc": [],
+		"/oidc/*": [
+			"issuer",
+			"client_id",
+			"client_secret_file",
+			"client_secret_env"
+		],
+		"/limits": [
+			"request_body_bytes",
+			"relay_response_bytes",
+			"relay_concurrency_per_person",
+			"relay_timeout_ms",
+			"relay_session_idle_ms"
+		],
+		"/discovery": [
+			"server_card",
+			"ai_catalog",
+			"agent_guide"
+		]
 	}
 };
