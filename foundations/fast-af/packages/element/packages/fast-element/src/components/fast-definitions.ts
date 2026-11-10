@@ -28,7 +28,7 @@ function normalizeShadowOptions(
     }
 
     if (normalized.registry === void 0 && normalized.customElementRegistry !== void 0) {
-        normalized.registry = normalized.customElementRegistry;
+        normalized.registry = normalized.customElementRegistry as CustomElementRegistry;
     }
 
     return normalized;

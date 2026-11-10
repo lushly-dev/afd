@@ -705,12 +705,12 @@
       "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
-      "current_import_sha256": "2b924de0b8d47cc3f6656a2c68e612a46c74b7bff7072d2f0ab34c22e5f205c3",
-      "manifest_shape_sha256": "9e832cc9a719ee72f8144ba9435877a98436aa6f45d2e0ab92794f7ec17cadf4",
+      "current_import_sha256": "6aa047bd652a0d586fe99be624c0b6fac193cb5f0c85e9ba1e761a1f49a6f542",
+      "manifest_shape_sha256": "061ce257927599fb371f0bfbb4a33b33dfb9ff0c91b5914e1995452547b55327",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; scripts call each other with pnpm run instead of npm run, and start vite and playwright from their bins instead of npx, so a run under pnpm does not print npm's unknown-config warnings (npm's next major version rejects that config); test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af)"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; scripts call each other with pnpm run instead of npm run, and start vite and playwright from their bins instead of npx, so a run under pnpm does not print npm's unknown-config warnings (npm's next major version rejects that config); test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #806: typescript moves from upstream ~5.9.3 to the workspace's ^7.0.2; @rollup/plugin-typescript and its tslib peer are removed because rollup.config.js now bundles tsc's dist/esm output and nothing else imports tslib"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -754,11 +754,11 @@
       "upstream_sha256": "5da69eb7e38e9e75bd957c1c2956de1e297b3b69584c37cd762ceb9ea523ebd4",
       "staged_path": "packages/element/packages/fast-element/rollup.config.js",
       "staged_sha256": "5da69eb7e38e9e75bd957c1c2956de1e297b3b69584c37cd762ceb9ea523ebd4",
-      "current_import_sha256": "5da69eb7e38e9e75bd957c1c2956de1e297b3b69584c37cd762ceb9ea523ebd4",
+      "current_import_sha256": "734b435f3c480b0f7fd62bba9a81be7ca20fb98ae95e8e2193198cc74a32c697",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#806: TypeScript 7 exports no compiler API, which @rollup/plugin-typescript needs; the bundles start from the dist/esm JavaScript build:tsc emits (build runs it first), so one compiler produces every output. tsc inlines __rest per module where the plugin imported tslib's, so two modules each carry a copy; the bundles are otherwise the same code. onwarn drops only the THIS_IS_UNDEFINED warning for tsc's `(this && this.__helper)` pattern"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/scripts/check-path-exports-docs.js",
@@ -1222,11 +1222,11 @@
       "upstream_sha256": "6b4e95645dda031444c43306131caeddb74cf2a315f9b8ff55967ab4b0d199a6",
       "staged_path": "packages/element/packages/fast-element/src/components/fast-definitions.ts",
       "staged_sha256": "6b4e95645dda031444c43306131caeddb74cf2a315f9b8ff55967ab4b0d199a6",
-      "current_import_sha256": "6b4e95645dda031444c43306131caeddb74cf2a315f9b8ff55967ab4b0d199a6",
+      "current_import_sha256": "ecc4fb5d61e79574f6dc5a7a00bf341653896c29ae0a60f6fa5b70dd063bc7e8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#806: TypeScript 7's DOM types declare ShadowRootInit.customElementRegistry as CustomElementRegistry | null, which is not assignable to the registry alias (TS2322); a type assertion keeps the runtime value (null stays null) and the emitted JavaScript byte-identical"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/fast-element-registry.pw.spec.ts",
@@ -5266,11 +5266,11 @@
       "upstream_sha256": "ba51591cd689e5ba4ce5e14810f745bfbce6c0a5aaf2e16d5ba13d37524e6d7c",
       "staged_path": "packages/element/tsconfig.json",
       "staged_sha256": "ba51591cd689e5ba4ce5e14810f745bfbce6c0a5aaf2e16d5ba13d37524e6d7c",
-      "current_import_sha256": "ba51591cd689e5ba4ce5e14810f745bfbce6c0a5aaf2e16d5ba13d37524e6d7c",
+      "current_import_sha256": "bf553723a0223132bf13dc398cf40390f3fd98e8a046c08718e32b6aaed898a7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#806: TypeScript 7 removed moduleResolution node (TS5108); bundler, which every config extending this base already sets"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/LICENSE",
@@ -5566,12 +5566,12 @@
       "upstream_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
       "staged_path": "packages/violet-elements/package.json",
       "staged_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
-      "current_import_sha256": "52b2aec88e65fb4cc9eed937970994e9f12e3209d4d2ffed06acc46eca32131e",
-      "manifest_shape_sha256": "39671ebd60c62b68f93e306a81f5fec729a91c1bcc5bfb11d2eeae2ee009a839",
+      "current_import_sha256": "8740b7c643e664a5a68753d10b6ae645d5b7c456e2fb9992295e5aa2aff99e24",
+      "manifest_shape_sha256": "d9f52e0311beae4d5e8cdcb69daae04af9d22af20ba8e1f9f26dc0945362fa4a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #600: engines.node raised from the upstream >=20.0.0 (Node 20 is end-of-life) to AFD's >=22.12.0 floor; devDependency @biomejs/biome moves from upstream ^2.4.7 to the workspace's ^2.5.14"
+      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #600: engines.node raised from the upstream >=20.0.0 (Node 20 is end-of-life) to AFD's >=22.12.0 floor; devDependency @biomejs/biome moves from upstream ^2.4.7 to the workspace's ^2.5.14; #806: typescript moves from upstream ^5.9.3 to the workspace's ^7.0.2; devDependency @typescript/typescript6 (the workspace's ^6.0.2) supplies the compiler API that scripts/verify-package-exports.mjs uses"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/scripts/build-icons.mjs",
@@ -5639,11 +5639,11 @@
       "upstream_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
       "staged_path": "packages/violet-elements/scripts/verify-package-exports.mjs",
       "staged_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
-      "current_import_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
+      "current_import_sha256": "657c5196f5ce81f068ff1fb9e5ae1662f8ca29fc283ec3c482563dbdfadfcfe5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Added upstream after the import; Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #235)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#806: TypeScript 7 exports no compiler API; ts.resolveModuleName comes from @typescript/typescript6, which resolves with the same Bundler rules"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/specimen.config.json",
