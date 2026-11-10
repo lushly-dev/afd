@@ -8,7 +8,7 @@
  */
 
 import { Observable, Updates } from '@lushly-dev/fast-element';
-import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { KernelEventV3, LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type {
 	DocumentRecordV1,
 	DocumentRefV1,
@@ -32,7 +32,7 @@ const held = new WeakMap<LoamShell, Held>();
 const heard = new WeakSet<LoamShell>();
 
 /** The active group's active tab's document, from `editor-get`, or undefined with none. */
-async function activeDocument(kernel: LoamKernelV2): Promise<string | undefined> {
+async function activeDocument(kernel: LoamKernelV3): Promise<string | undefined> {
 	const read = await kernel.call<{
 		activeGroup: string;
 		groups: Array<{
@@ -71,7 +71,7 @@ export async function syncInspector(
 	shows: boolean,
 	resync: () => void
 ): Promise<boolean> {
-	const kernel = shell.kernel as LoamKernelV2;
+	const kernel = shell.kernel as LoamKernelV3;
 	const part = shell.shadowRoot?.querySelector<HTMLElement>('loam-inspector');
 	if (!heard.has(shell)) {
 		heard.add(shell);
@@ -183,7 +183,7 @@ function watchDrawer(shell: LoamShell): void {
 function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): void {
 	const open = opened;
 	opened = false;
-	const kernel = shell.kernel as LoamKernelV2;
+	const kernel = shell.kernel as LoamKernelV3;
 	requestAnimationFrame(async () => {
 		// With no inspector to take it, the part is about to hide: focus goes to the active editor, else main (S2).
 		const read =
@@ -214,7 +214,7 @@ function focusAfter(shell: LoamShell, part: HTMLElement, mount?: LoamMount): voi
 }
 
 /** A change to the inspector's document or its links reaches it, as an editor's does (5.7). */
-function hear(shell: LoamShell, event: KernelEventV2, resync: () => void): void {
+function hear(shell: LoamShell, event: KernelEventV3, resync: () => void): void {
 	const now = held.get(shell);
 	const surface = now?.mount?.surface as LoamEditorElementV1 | null | undefined;
 	// A mutation's, never a query's: the inspector's own reads are queries, and would read again forever.

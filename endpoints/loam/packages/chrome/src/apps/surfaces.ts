@@ -16,8 +16,8 @@ import type {
 	AppPortV2,
 	AppSummaryV2,
 	KernelEventV1,
-	KernelEventV2,
-	LoamKernelV2,
+	KernelEventV3,
+	LoamKernelV3,
 	SelectionV2,
 } from '@lushly-dev/loam-kernel';
 import type { AppContextV1 } from '@lushly-dev/loam-sdk';
@@ -106,7 +106,7 @@ const mainWithApp = css`
 
 export class AppSurfaces implements ShellApps {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV2;
+	readonly #kernel: LoamKernelV3;
 	readonly #cleanup: Array<() => void> = [];
 	readonly #held = new Map<string, HeldApp>();
 	#queue: Promise<void> = Promise.resolve();
@@ -132,7 +132,7 @@ export class AppSurfaces implements ShellApps {
 	readonly #status = new StatusItems();
 	readonly #overlays: OverlaySurfaces;
 
-	constructor(shell: LoamShell, kernel: LoamKernelV2) {
+	constructor(shell: LoamShell, kernel: LoamKernelV3) {
 		this.#shell = shell;
 		this.#kernel = kernel;
 		this.#overlays = new OverlaySurfaces(shell, kernel);
@@ -307,10 +307,10 @@ export class AppSurfaces implements ShellApps {
 			command === 'app-open' ||
 			command === 'app-close' ||
 			command === 'section-open' ||
-			(event as KernelEventV2).scopeChanged?.left !== undefined;
+			(event as KernelEventV3).scopeChanged?.left !== undefined;
 		// A change of actor moves the scope before a call that may then fail (3.4), so a failed call's
 		// `scopeChanged` recreates and drops as a successful one's does (7.6).
-		const rescoped = (event as KernelEventV2).scopeChanged !== undefined;
+		const rescoped = (event as KernelEventV3).scopeChanged !== undefined;
 		if (rescoped) {
 			this.#rescoped = true;
 			// At once, so a press in a list made in the scope left selects nothing (7.6).
@@ -320,7 +320,7 @@ export class AppSurfaces implements ShellApps {
 		if (!this.#rendered) {
 			// Anything that moved main or the scope before these surfaces rendered, the URL's own
 			// `scope-set { project, app }` among them (N4), is read again once they have.
-			if (switched || rescoped || (event as KernelEventV2).mainChanged) this.#missedSwitch = true;
+			if (switched || rescoped || (event as KernelEventV3).mainChanged) this.#missedSwitch = true;
 			return;
 		}
 		// From anyone: an agent's, or the automatic one. The console says what it found (7.3).
@@ -339,7 +339,7 @@ export class AppSurfaces implements ShellApps {
 		if (switched) this.#enqueue(() => this.#sync());
 		// A kept app: every surface is recreated in the new scope (7.6). A route is a property (below).
 		else if (rescoped) this.#enqueue(() => this.#sync(true));
-		else if ((event as KernelEventV2).mainChanged && event.success) {
+		else if ((event as KernelEventV3).mainChanged && event.success) {
 			this.#enqueue(() => this.#readRoute());
 		}
 		if (
@@ -958,7 +958,7 @@ export class AppSurfaces implements ShellApps {
 }
 
 /** Create the controller, once the chunk's elements are defined. */
-export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV2): Promise<ShellApps> {
+export async function attachSurfaces(shell: LoamShell, kernel: LoamKernelV3): Promise<ShellApps> {
 	await defineAppElements();
 	// `ICONS_V1` is registered now: the rail's entries show their icons (2.4).
 	shell.rail.showIcons();

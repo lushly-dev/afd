@@ -9,7 +9,7 @@
  */
 
 import { css, FASTElement, html, observable, Updates, when } from '@lushly-dev/fast-element';
-import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import { formatRoute } from '../route-format.js';
 import { documentsStyles } from './documents-styles.js';
@@ -86,13 +86,13 @@ const template = html<LoamDocumentsSection>`
 
 /** What the section reads of the shell, so it imports nothing first paint holds but FAST (2.4). */
 export interface DocumentsHost {
-	readonly kernel: LoamKernelV2 | null;
+	readonly kernel: LoamKernelV3 | null;
 	readonly shadowRoot: ShadowRoot | null;
 	readonly ownerDocument: Document;
 }
 
 export class LoamDocumentsSection extends FASTElement {
-	kernel: LoamKernelV2 | null = null;
+	kernel: LoamKernelV3 | null = null;
 	/** The shell, which the inline New items create through. */
 	host: DocumentsHost | null = null;
 	base = '';
@@ -171,7 +171,7 @@ export class LoamDocumentsSection extends FASTElement {
 	}
 
 	/** The first `#limit` rows, 200 a read, as `document-list` bounds one (4.1). */
-	async #list(kernel: LoamKernelV2): Promise<{
+	async #list(kernel: LoamKernelV3): Promise<{
 		success: boolean;
 		error?: { message?: string };
 		data?: { documents: DocumentRecordV1[]; total: number };

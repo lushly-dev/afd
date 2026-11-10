@@ -2,7 +2,7 @@ import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import type { JournalEntry } from '@lushly-dev/afd-core';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ManifestV1, ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
 import { INTERNAL_COMMANDS } from '../commands.js';
@@ -17,7 +17,7 @@ import {
 import type {
 	AppInstanceV1,
 	KernelPortsV1,
-	LoamKernelV2,
+	LoamKernelV3,
 	McpToolCallResult,
 	MountTransportV2,
 } from '../types.js';
@@ -164,7 +164,7 @@ async function boot(
 		workspace: { id: 'personal', name: 'Personal' },
 		sandbox_origin: null,
 		apps: entries,
-	} as ProjectionV2;
+	} as ProjectionV3;
 	const parts = await createKernelParts({
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -203,7 +203,7 @@ async function boot(
 	return { ...parts, journal, deployment, packages, asked };
 }
 
-async function instance(kernel: LoamKernelV2, name = 'work'): Promise<AppInstanceV1 | undefined> {
+async function instance(kernel: LoamKernelV3, name = 'work'): Promise<AppInstanceV1 | undefined> {
 	const { data } = await kernel.call<{ instances: AppInstanceV1[] }>('app-instance-list');
 	return data?.instances.find((row) => row.instance === name);
 }
@@ -602,6 +602,34 @@ describe('a mounted call', () => {
 		now += 1;
 		await kernel.call('work-a-read', {});
 		expect(await refreshes()).toBe(3);
+	});
+
+	it("P3-E7: re-discovers as the call's own actor: an agent's call journals the refresh as that agent", async () => {
+		const notFound: McpToolCallResult = {
+			structuredContent: {
+				success: false,
+				error: { code: 'COMMAND_NOT_FOUND', message: 'Gone', suggestion: 'afd-discover' },
+			},
+		};
+		const transport = fakeTransport({ 'a-read': { mutation: false } }, { answer: () => notFound });
+		const { kernel, journal } = await boot({ work: () => transport });
+		await kernel.startInstances();
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		expect((await kernel.agent.call('work-a-read', {}, { agent: 'helper' })).error?.code).toBe(
+			'COMMAND_NOT_FOUND'
+		);
+		const refresh = (await journal.read()).filter(
+			({ command }) => command === 'app-instance-refresh'
+		);
+		expect(refresh.at(-1)?.actor).toEqual({
+			kind: 'agent',
+			id: 'helper',
+			onBehalfOf: 'mock-user-person@example.com',
+		});
 	});
 
 	it('takes its own refresh past the queue when the call it answers is queued behind stage B', async () => {
@@ -1228,7 +1256,6 @@ describe('P2-E6: (kernel unit) a mounted call carries its scope, and stays in it
 			runAs: async () => ({ success: true }),
 			scope: {
 				active: () => ({ workspace: 'personal' }),
-				actorKey: () => 'local',
 				allows: () => true,
 				projects: { get: () => undefined, all: () => [] },
 				workspaceApps: { get: () => undefined },
@@ -1732,7 +1759,7 @@ describe('R1 and R3: a replay reaches no port, and a kept kernel is live again',
 			const { replay: _replay, ...context } = entry.context as Record<string, unknown>;
 			return { ...entry, context } as JournalEntry;
 		});
-	const replayed = async (entries: JournalEntry[], deployment: ProjectionV2, ports: object) =>
+	const replayed = async (entries: JournalEntry[], deployment: ProjectionV3, ports: object) =>
 		replayKernel(entries, { deployment, ports: ports as KernelPortsV1 }).then(
 			() => undefined,
 			(error: { code?: string; details?: { report?: KernelReplayReport } }) => error

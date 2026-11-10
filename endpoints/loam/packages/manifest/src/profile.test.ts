@@ -157,9 +157,9 @@ describe("Loam's profile", () => {
 			const v1 = validateV1(document);
 			const v1Errors = errorsOf(validateV1.errors);
 			const v2 = validateManifest(document);
-			// Step 4 reserves these ids for the shell (phase 2 specification, 4.3), in both versions.
+			// Step 4 reserves these ids for the shell (phase 2 specification, 4.3), and phase 3 `member` (12).
 			if (
-				['workspace', 'section', 'editor', 'new', 'p'].includes(
+				['workspace', 'section', 'editor', 'new', 'member', 'p'].includes(
 					String(valueAt(document, '/plugin/id'))
 				)
 			) {

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
 import { KERNEL_CONTEXT_FIELDS } from '../context-fields.js';
+import { LOCAL_MEMBERSHIP } from '../scope/access.js';
 import { createScopeRuntime } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import { DOCUMENTS_LAYOUT_ID, registerShellState } from '../shell-state.js';
@@ -18,7 +19,7 @@ async function definitions() {
 	const auth = new MockAuthAdapter();
 	const environment = createFixedEnvironment();
 	const apps = () => EMPTY_APPS;
-	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
+	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' }, LOCAL_MEMBERSHIP);
 	const boot = createBootCommands({ state, environment, auth, apps, scope, summaries: () => [] });
 	return {
 		boot,

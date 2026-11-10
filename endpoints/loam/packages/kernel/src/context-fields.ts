@@ -4,6 +4,7 @@
  * keeps them all.
  */
 
+import type { Actor } from '@lushly-dev/afd-core';
 import type { DirectRegistryOptions } from '@lushly-dev/afd-server/direct';
 import * as z from 'zod/mini';
 import { id, SCOPE_FIELD } from './scope/field.js';
@@ -27,6 +28,12 @@ export interface KernelCallFields {
 	parent?: string;
 	/** The requested scope: a surface's, or a nested call's outer effective scope (phase 2 specification, 3.2). */
 	scope?: ScopeV1;
+	/**
+	 * The outer call's actor, copied onto a port's, a surface port's or a nested call (phase 3 specification,
+	 * 3.1): `execute` puts it on the call's context before the chain, so the call is decided for the person,
+	 * and the agent, the outer call was for. Absent: the session's person, or the agent interface's agent.
+	 */
+	actor?: Actor;
 }
 
 /** The fields a handler reads back from its command context. */

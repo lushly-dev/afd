@@ -90,7 +90,7 @@ export function createDocumentCommands(
 		define: defineWithSchema,
 		success,
 		kernelFailure,
-		actorKey,
+		personOf,
 		projectNotFound,
 		archivedRefusal,
 		documentContentKey,
@@ -211,12 +211,11 @@ export function createDocumentCommands(
 	): ScopeV1 | CommandResult<never> {
 		const here = callOf(context).scope as ScopeV1;
 		// The call's own scope, which the middleware already decided; decided here too, as a named one is.
-		if (named === undefined)
-			return scope.allows(actorKey(context), here) ? here : projectNotFound();
+		if (named === undefined) return scope.allows(context.actor, here) ? here : projectNotFound();
 		if (named === null) return { workspace };
 		const found = scope.project(named);
 		const at = { workspace, project: found?.id as string };
-		return found && scope.allows(actorKey(context), at) ? at : projectNotFound();
+		return found && scope.allows(context.actor, at) ? at : projectNotFound();
 	}
 
 	/** An archived project's documents change no more (4.2); a refusal, or undefined. */
@@ -269,7 +268,7 @@ export function createDocumentCommands(
 		context: CommandContext
 	): DocumentRecordV1 {
 		const when = callNow(context);
-		const actor = actorKey(context);
+		const actor = personOf(context);
 		return {
 			id: documentId(context),
 			workspace,
@@ -304,7 +303,7 @@ export function createDocumentCommands(
 			...record,
 			...changes,
 			updatedAt: callNow(context),
-			updatedBy: actorKey(context),
+			updatedBy: personOf(context),
 		};
 		await check.put(next);
 		return success(next, { undoCommand: undo.command, undoArgs: undo.args });
@@ -450,7 +449,7 @@ export function createDocumentCommands(
 			}
 			const at = all ? here : target(named, context);
 			if (isRefusal(at)) return at;
-			const actor = actorKey(context);
+			const { actor } = context;
 			const status = input.status ?? 'active';
 			const query = input.query?.toLowerCase();
 			const rows = (await store.list<DocumentRecordV1>(DOCUMENT_TABLE)).data.filter(
@@ -556,7 +555,7 @@ export function createDocumentCommands(
 					scopeKey: scopeKeyOf(to),
 					epoch: record.epoch + 1,
 					updatedAt: callNow(context),
-					updatedBy: actorKey(context),
+					updatedBy: personOf(context),
 				};
 				// The content row whole, read only to move it: the shell does not look inside it (3).
 				const key = documentContentKey(record.id);
@@ -661,7 +660,11 @@ export function createDocumentCommands(
 				command,
 				{ document: record.id },
 				{},
-				{ parent: context.traceId ?? '', scope: record.scope }
+				{
+					parent: context.traceId ?? '',
+					scope: record.scope,
+					...(context.actor ? { actor: context.actor } : {}),
+				}
 			);
 			if (!exported.success) return exported as CommandResult<never>;
 			const data = exported.data as { content?: unknown } | undefined;

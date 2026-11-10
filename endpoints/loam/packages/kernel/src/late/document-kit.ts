@@ -24,7 +24,7 @@ import {
 	unknown,
 } from 'zod/mini';
 import { kernelFailure } from '../errors.js';
-import { actorKey } from '../scope/access.js';
+import { personOf } from '../scope/access.js';
 import { projectNotFound } from '../scope/middleware.js';
 import { CALL_MARK } from '../scope/runtime.js';
 import { scopeKeyOf, storeRecordId } from '../scope/store-id.js';
@@ -42,7 +42,7 @@ export const DOCUMENT_KIT = Object.freeze({
 	define: defineCommandWithSchema,
 	success,
 	kernelFailure,
-	actorKey,
+	personOf,
 	projectNotFound,
 	archivedRefusal,
 	setMain,

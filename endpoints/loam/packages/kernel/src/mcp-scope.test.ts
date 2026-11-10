@@ -6,8 +6,11 @@
  * journal holds each call's scope and a restricted project is refused, and a mutation's event reaches the
  * page's listeners. What it does not prove: anything only `run` does (a default scope from the active one,
  * the wait for stage B, a failure's or a query's event, `dev.loam/seq`),
- * identity over MCP, which is phase 3's (a server's actor has no id, and reads as `local`), or a hosted
- * server, which is phase 6's.
+ * identity over MCP, which is phase 3's step 7, or a hosted server, which is phase 6's.
+ *
+ * Amended in phase 3's step 1 (phase 3 specification, 2.1's `decideAccess` row): a server's actor is an
+ * agent with no id, whose `onBehalfOf` afd-auth's middleware sets to the page's person, and `personKey`
+ * decides for that person, so until step 7's principal a server's call here is the page's person's.
  */
 
 import { createServer } from 'node:http';
@@ -26,7 +29,7 @@ import {
 	documentsPorts,
 	type ScopedWorkspace,
 } from './testing.js';
-import type { KernelEventV2 } from './types.js';
+import type { KernelEventV3 } from './types.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -342,7 +345,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		const mine = await create('Mine');
 		const theirs = await create('Theirs');
 		await kernel.call('document-open', { document: mine });
-		const heard: KernelEventV2[] = [];
+		const heard: KernelEventV3[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		const at = { 'dev.loam/scope': { workspace: 'personal' } };
@@ -390,7 +393,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		const note = (
 			await kernel.call<{ id: string }>('document-create', { type: 'probe', title: 'Only' })
 		).data?.id as string;
-		const heard: KernelEventV2[] = [];
+		const heard: KernelEventV3[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		await client.call(
@@ -440,7 +443,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		expect(editor.data?.groups[0]?.tabs[0]?.dirty).toBe(true);
 	});
 
-	it("emits nothing to the page of a server's mutation in a project the page's actor may not enter", async () => {
+	it("refuses, and emits nothing of, a server's mutation in a project the page's person may not enter", async () => {
 		const workspace = await createScopedWorkspace({
 			deployment: documentsDeployment(),
 			ports: documentsPorts(),
@@ -457,7 +460,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			email: 'person@example.com',
 			password: 'x',
 		});
-		const heard: KernelEventV2[] = [];
+		const heard: KernelEventV3[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		const made = await client.call<{ id: string }>(
@@ -465,7 +468,8 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			{ type: 'probe', title: 'Unseen' },
 			{ 'dev.loam/scope': { workspace: 'personal', project: hidden.data?.id } }
 		);
-		expect(made.success, JSON.stringify(made)).toBe(true);
+		// The server's call is for the page's person, who may not enter it (phase 3 specification, 3.1).
+		expect(made.error?.code, JSON.stringify(made)).toBe('PROJECT_NOT_FOUND');
 		expect(heard).toEqual([]);
 		// One in the workspace, which the person may enter, is heard.
 		await client.call(
@@ -476,7 +480,7 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		expect(heard.map((event) => event.command)).toEqual(['document-create']);
 	});
 
-	it("tells the page of a server's call that takes the page's actor out of the call's scope", async () => {
+	it("tells the page of a server's change to a project its person stays in, and never takes them out", async () => {
 		const workspace = await createScopedWorkspace();
 		const { kernel } = workspace;
 		// Signed out, the page's actor is `local`, as a server's is: a project both it and the person may enter.
@@ -490,17 +494,25 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 			email: 'person@example.com',
 			password: 'x',
 		});
-		const heard: KernelEventV2[] = [];
+		const heard: KernelEventV3[] = [];
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		const project = shared.data?.id as string;
-		const updated = await client.call(
+		// The server's call is for the page's person (3.1), so it cannot take them out of the project.
+		const out = await client.call(
 			'project-update',
 			{ project, access: { mode: 'restricted', members: ['local'] } },
 			{ 'dev.loam/scope': { workspace: 'personal', project } }
 		);
+		expect(out.error?.code, JSON.stringify(out)).toBe('PROJECT_MEMBER_SELF_REQUIRED');
+		expect(heard).toEqual([]);
+		const updated = await client.call(
+			'project-update',
+			{ project, access: { mode: 'restricted', members: ['mock-user-person@example.com'] } },
+			{ 'dev.loam/scope': { workspace: 'personal', project } }
+		);
 		expect(updated.success, JSON.stringify(updated)).toBe(true);
-		// The person may no longer enter it, and still hears that it changed.
+		// The person may still enter it, and hears that it changed.
 		expect(heard.map((event) => event.command)).toEqual(['project-update']);
 	});
 

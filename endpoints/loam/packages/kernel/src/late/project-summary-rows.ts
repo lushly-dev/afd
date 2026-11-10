@@ -5,7 +5,7 @@
  * bound. One app's failure is that row's error alone. The shell never reads an app's resources.
  */
 
-import type { CommandResult } from '@lushly-dev/afd-core';
+import type { Actor, CommandResult } from '@lushly-dev/afd-core';
 import type { ProjectSummaryV1, ResourceLinkV1 } from '@lushly-dev/loam-sdk';
 import type { ScopeV1 } from '../scope/records.js';
 import type { AppSummaryV2, ProjectSummaryRowV1 } from '../types.js';
@@ -243,7 +243,8 @@ export function summaryRows(
 	deps: ProjectSummaryDeps,
 	at: Required<ScopeV1>,
 	parent: string,
-	iface: 'palette' | 'agent'
+	iface: 'palette' | 'agent',
+	actor?: Actor
 ): Promise<ProjectSummaryRowV1[]> {
 	const { scope } = deps;
 	const deadline = deps.deadlineMs ?? PROJECT_SUMMARY_DEADLINE_MS;
@@ -264,7 +265,13 @@ export function summaryRows(
 		try {
 			result = await Promise.race([
 				// On the outer call's interface, so a summary hidden from the model is no agent's to read.
-				deps.run(iface, command, {}, { signal: controller.signal }, { parent, scope: at }),
+				deps.run(
+					iface,
+					command,
+					{},
+					{ signal: controller.signal },
+					actor ? { parent, scope: at, actor } : { parent, scope: at }
+				),
 				late,
 			]);
 		} catch (cause) {

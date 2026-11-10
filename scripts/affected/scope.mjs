@@ -53,6 +53,10 @@ export const EXTRA_INPUTS = [
 	{ prefix: 'spec/VERSION', packages: ['@lushly-dev/loam-manifest'] },
 	// The hosted server's header unit reads the web host's page source, whose policy `<meta>` it carries.
 	{ prefix: 'endpoints/loam/packages/web/index.html', packages: ['@lushly-dev/loam-host'] },
+	// Loam's identity scans what a browser loads for an import of it (phase 3 specification, E13); the
+	// kernel's sources reach it as a dependency already.
+	{ prefix: 'endpoints/loam/packages/web/src/', packages: ['@lushly-dev/loam-identity'] },
+	{ prefix: 'endpoints/loam/packages/chrome/src/', packages: ['@lushly-dev/loam-identity'] },
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];

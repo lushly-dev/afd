@@ -1,5 +1,12 @@
 # @lushly-dev/afd-view-state
 
+## 2.4.0
+
+### Patch Changes
+
+- Updated dependencies [[`eba33ef`](https://github.com/lushly-dev/afd/commit/eba33efa826865dabd1770941f61e1f9e86ce544), [`7aebc3f`](https://github.com/lushly-dev/afd/commit/7aebc3f5dd9cdb730f34af0d8c2620fdc1324663)]:
+  - @lushly-dev/afd-server@2.4.0
+
 ## 2.3.0
 
 ### Minor Changes

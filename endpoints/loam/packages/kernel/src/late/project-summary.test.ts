@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ManifestV2, ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ import type { LayoutStateV0 } from '../layout.js';
 import { createFixedEnvironment, createSeededRandom, createSteppingClock } from '../session.js';
 import { replayKernel } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { AppSummaryV2, LoamKernelV2, ProjectSummaryResultV1, ProjectV1 } from '../types.js';
+import type { AppSummaryV2, LoamKernelV3, ProjectSummaryResultV1, ProjectV1 } from '../types.js';
 import { readProjectSummary, readResourceLink, summaryRows } from './project-summary-rows.js';
 
 const EMPTY = { type: 'object', properties: {}, additionalProperties: false };
@@ -155,7 +155,7 @@ const APPS = [
 	['hid', 80],
 ] as const;
 
-const deployment = (): ProjectionV2 => ({
+const deployment = (): ProjectionV3 => ({
 	deployment_version: 2,
 	generation: 'summaries',
 	workspace: { id: 'personal', name: 'Personal' },
@@ -185,7 +185,7 @@ const ports = (stopped = false, aborted: number[] = []) => {
 	);
 };
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });

@@ -11,7 +11,7 @@
  */
 
 import { css, FASTElement, html, Observable, observable } from '@lushly-dev/fast-element';
-import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type { LoamEditorFrame } from './editor-frame.js';
 import type { LoamEditorGroup } from './editor-group.js';
 import type { Life, notSaved, place } from './editor-parts.js';
@@ -21,7 +21,7 @@ export interface ViewMove {
 	/** The group its frame is in, which its tab left. */
 	from: LoamEditorGroup;
 	life: Life;
-	kernel: LoamKernelV2;
+	kernel: LoamKernelV3;
 	/** Its save, which only the person's own move asks for: another's never saves the person's draft (T-S2). */
 	save(): Promise<boolean>;
 	/** Whether the person moved it, by the tab's menu, or chose Save in its placeholder. */

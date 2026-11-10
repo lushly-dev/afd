@@ -5,7 +5,7 @@
  * {@link createAppPort}'s `checkedCall`, which every path of an app's call goes through.
  */
 
-import { type CommandResult, failure } from '@lushly-dev/afd-core';
+import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { BOOT_ONLY } from '../commands.js';
@@ -76,11 +76,13 @@ interface Binding {
 	readOnly?: boolean;
 	/** The outer call's trace ID, for a handler's nested call. */
 	parent?: string;
+	/** The outer call's actor, for a handler's nested call (phase 3 specification, 3.1). */
+	actor?: Actor;
 }
 
 export function createAppPort(options: AppPortOptions): {
 	port: AppPortV2;
-	nestedClient(parent: string, scope: ScopeV1): LoamClientV1;
+	nestedClient(parent: string, scope: ScopeV1, actor: Actor | undefined): LoamClientV1;
 } {
 	const { record, manifest, config, packageUrl, host, ports, granted } = options;
 	const { instance } = record;
@@ -131,6 +133,7 @@ export function createAppPort(options: AppPortOptions): {
 		const fields: KernelCallFields = {
 			caller: instance,
 			...(binding.parent !== undefined ? { parent: binding.parent } : {}),
+			...(binding.actor !== undefined ? { actor: binding.actor } : {}),
 			...(binding.scope !== undefined || wide
 				? { scope: wide ? { workspace: bound.workspace } : bound }
 				: {}),
@@ -267,8 +270,9 @@ export function createAppPort(options: AppPortOptions): {
 	};
 	return {
 		port,
-		nestedClient: (parent, scope) => ({
-			call: (name, input, callOptions) => checkedCall(name, input, callOptions, { parent, scope }),
+		nestedClient: (parent, scope, actor) => ({
+			call: (name, input, callOptions) =>
+				checkedCall(name, input, callOptions, { parent, scope, ...(actor ? { actor } : {}) }),
 		}),
 	};
 }

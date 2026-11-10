@@ -12,13 +12,13 @@ const EMPTY_BOOT = {
 	apps: [],
 };
 
-import type { KernelOptionsV2 } from './types.js';
+import type { KernelOptionsV3 } from './types.js';
 
 vi.mock('./late/index.js', () => {
 	throw new Error('The chunk did not load');
 });
 
-function options(overrides: Partial<KernelOptionsV2> = {}): KernelOptionsV2 {
+function options(overrides: Partial<KernelOptionsV3> = {}): KernelOptionsV3 {
 	return {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
@@ -49,6 +49,15 @@ describe('the late chunk failing to load', () => {
 		expect(await kernel.call('layout-get')).toMatchObject({ success: true });
 		expect(await kernel.call('app-list')).toMatchObject({ success: true });
 		await kernel.appsReady;
+		await kernel.dispose();
+	});
+
+	it('refuses the agent interface, whose actor `late/` names, rather than run it unnamed (phase 3, 3.1)', async () => {
+		const kernel = await createKernel(options());
+		expect(await kernel.agent.call('layout-get')).toMatchObject({
+			success: false,
+			error: { code: 'LATE_COMMANDS_UNAVAILABLE' },
+		});
 		await kernel.dispose();
 	});
 

@@ -5,7 +5,7 @@
  * a status button keeps focus when its value changes.
  */
 
-import type { AppDetailV1, LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { AppDetailV1, LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type { LoamStatusAction } from '../elements/status-action.js';
 import type { LoamStatusItem } from '../elements/status-item.js';
 
@@ -34,7 +34,7 @@ export class StatusItems {
 
 	/** Make `instance`'s items in `bar` once, then show their values; `current` says it is still showing. */
 	async read(
-		kernel: LoamKernelV2,
+		kernel: LoamKernelV3,
 		bar: HTMLElement,
 		instance: string,
 		declared: readonly Declared[],

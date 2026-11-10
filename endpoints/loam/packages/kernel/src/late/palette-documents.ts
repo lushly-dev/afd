@@ -10,6 +10,7 @@
 import type { DocumentRecordV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { createPaletteIndex, type PaletteIndex, type PaletteItem } from '../palette-index.js';
+import type { AccessActorV1 } from '../scope/access.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import { DOCUMENT_TABLE } from './document-types.js';
 
@@ -17,7 +18,7 @@ export interface DocumentRows {
 	/** A record changed: the next query reads the store again. */
 	changed(): void;
 	/** The active documents `actor` may read whose title matches `query`, best first, at most `limit`. */
-	search(query: string, actor: string, limit: number): Promise<PaletteItem[]>;
+	search(query: string, actor: AccessActorV1, limit: number): Promise<PaletteItem[]>;
 }
 
 export function createDocumentRows(

@@ -203,7 +203,7 @@ export function createAppCommands(deps: AppCommandDeps): ZodCommandDefinition[] 
 									const project = scope.project(slug);
 									return (
 										!project ||
-										!scope.allows(scope.actorKey(context), {
+										!scope.allows(context.actor, {
 											workspace: scope.workspace.id,
 											project: project.id,
 										})

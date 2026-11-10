@@ -7,14 +7,14 @@
  * (documents specification, 7 and 8.2).
  */
 
-import type { CommandSummaryV0, LoamKernelV2, PaletteItem } from '@lushly-dev/loam-kernel';
+import type { CommandSummaryV0, LoamKernelV3, PaletteItem } from '@lushly-dev/loam-kernel';
 import type { NewItemV1 } from '@lushly-dev/loam-sdk';
 import type { NewHost } from '../new/new-menu.js';
 import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
 
 /** What the host reads of the shell. */
 interface PaletteShell extends NewHost {
-	readonly kernel: LoamKernelV2 | null;
+	readonly kernel: LoamKernelV3 | null;
 	readonly palette: LoamPalette;
 }
 

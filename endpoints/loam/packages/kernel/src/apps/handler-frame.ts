@@ -4,7 +4,7 @@
  * test passes one that runs the same definition in process.
  */
 
-import type { CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
+import type { Actor, CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { AppStoreV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
@@ -45,7 +45,7 @@ export interface FrameHostOptions {
 	/** Whether the app's own `name` may be called from a view. */
 	visibleToApp(name: string): boolean;
 	/** A handler's `context.client`: its calls carry `parent`, and the call's effective scope (3.2). */
-	nestedClient(parent: string, scope: ScopeV1): LoamClientV1;
+	nestedClient(parent: string, scope: ScopeV1, actor: Actor | undefined): LoamClientV1;
 }
 
 export interface FrameHost {
@@ -228,7 +228,7 @@ export function createFrameHost(options: FrameHostOptions): FrameHost {
 		// The call's scope, or the workspace when the frame asks for that level and nothing wider (3.2).
 		const level = meta?.['dev.loam/level'] === 'workspace' ? { level: 'workspace' as const } : {};
 		const result = await options
-			.nestedClient(call.traceId ?? '', scopeOf(call))
+			.nestedClient(call.traceId ?? '', scopeOf(call), call.actor)
 			.call(name, input.value, level);
 		return toolCallResult(result);
 	}

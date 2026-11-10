@@ -350,9 +350,14 @@ export function createOperations(
 			);
 		},
 		// Nested in the call that enabled it, so a replay answers it from that call's entries (4.1).
-		refreshEnabled: (instance, parent) =>
+		refreshEnabled: (instance, parent, actor) =>
 			records.get(instance)?.mounted
-				? host.runAs('app-instance-refresh', { instance }, undefined, { parent })
+				? host.runAs(
+						'app-instance-refresh',
+						{ instance },
+						undefined,
+						actor ? { parent, actor } : { parent }
+					)
 				: undefined,
 		selection(instance, project) {
 			const record = records.get(instance);
