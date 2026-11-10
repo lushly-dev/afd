@@ -82,9 +82,8 @@ function agentActor(name: string | undefined): Actor | CommandResult<never> {
 	}
 	return failure({
 		code: 'AGENT_NAME_RESERVED',
-		message: `The agent name '${String(name).slice(0, 64)}' is the kernel's, or not an agent name`,
-		suggestion:
-			'Choose another name: 1 to 64 lowercase letters, digits and hyphens, not local, signed-out or shell-agent',
+		message: 'Not an agent name the agent interface takes',
+		suggestion: 'Name it with 1 to 64 of a-z, 0-9 and -, not local, signed-out or shell-agent',
 		retryable: false,
 	});
 }

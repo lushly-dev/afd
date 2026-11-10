@@ -8,15 +8,10 @@
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
-import {
-	type CommandContext,
-	type CommandMiddleware,
-	type CommandResult,
-	failure,
-} from '@lushly-dev/afd-core';
+import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { type AccessActorV1, AGENT_MEMBER_PREFIX, inWorkspace } from './access.js';
+import { type AccessActorV1, AGENT_MEMBER_PREFIX } from './access.js';
 import type { ScopeChangeV2, ScopeV1 } from './records.js';
 import type { ScopeRuntime } from './runtime.js';
 
@@ -29,17 +24,13 @@ export interface LateScope {
 		context: CommandContext
 	): CommandResult<never> | undefined;
 	/**
-	 * Before line 1: a replay's recorded actor (10), then a change of actor that refuses the active project
-	 * leaves it, and a call made in it runs where it lands (3.4). A replay loads `late/` before its first
-	 * entry, so first paint needs neither.
+	 * Before line 1: line 0 (phase 3 specification, 3.3), whose refusal it returns, journaled with the scope
+	 * the call asked for; then a replay's recorded actor (10), then a change of actor that refuses the active
+	 * project leaves it, and a call made in it runs where it lands (3.4). Line 0 is here, not in first paint,
+	 * by 13's rule for the kernel's row: stage A holds only boot commands, all signed-out ones, which line 0
+	 * exempts. A replay loads `late/` before its first entry.
 	 */
-	before(call: CommandContext & KernelFieldContext, name: string): void;
-	/**
-	 * Whether line 0 decides `name` (phase 3 specification, 3.3): every command but the signed-out and
-	 * member-exempt lists, `INTERNAL_COMMANDS` and the kernel's own settle commands. The lists load here, with
-	 * the late commands: stage A holds only boot commands, which are all signed-out ones (13).
-	 */
-	gated(name: string): boolean;
+	before(call: CommandContext & KernelFieldContext, name: string): CommandResult<never> | undefined;
 	/** Lines 2 to 6 of an owned command, the handler, and after an `auth-*` command, its actor (3.4). */
 	run(
 		name: string,
@@ -85,40 +76,14 @@ export const sessionActor = (auth: AuthAdapter): AccessActorV1 => {
 		: undefined;
 };
 
-/**
- * Line 0's refusal (phase 3 specification, 3.3): signed out, afd-auth's `UNAUTHORIZED`; an agent or another
- * caller acting for no one, or a person who is not a member, `WORKSPACE_NOT_MEMBER`.
- */
-function notMember(actor: AccessActorV1): CommandResult<never> {
-	if (actor === undefined) {
-		return failure({
-			code: 'UNAUTHORIZED',
-			message: 'Authentication required',
-			suggestion: 'Sign in with auth-sign-in to access this command',
-			retryable: false,
-		});
-	}
-	return kernelFailure(
-		'WORKSPACE_NOT_MEMBER',
-		actor.kind === 'human'
-			? 'You are not a member of this workspace'
-			: `This ${actor.kind === 'agent' ? 'agent' : 'caller'} acts for no member of the workspace`,
-		'Ask an owner of the workspace to invite you, and list your invitations with account-invitation-list'
-	);
-}
-
 export function createScopeMiddleware(deps: ScopeMiddlewareDeps): CommandMiddleware {
 	const { scope } = deps;
 	return async (name, input, context, next) => {
 		const call = context as CommandContext & KernelFieldContext;
 		const late = deps.late();
-		// Line 0, before everything else about the call, journaled with the scope it asked for (3.3).
-		if (late?.gated(name) && !inWorkspace(scope.membership, call.actor)) {
-			call.scope ??= { workspace: scope.workspace.id };
-			scope.note(call.traceId, { scope: call.scope });
-			return notMember(call.actor);
-		}
-		late?.before(call, name);
+		// Line 0 first, then a replay's actor and a change of actor, all `late/`'s (phase 3 specification, 3.3).
+		const refused = late?.before(call, name);
+		if (refused) return refused;
 		// Absent is the workspace: no server holds an active scope (3.3).
 		const requested: ScopeV1 = call.scope ?? { workspace: scope.workspace.id };
 		call.scope = requested;

@@ -74,24 +74,19 @@ export type {
 	PaletteIndex,
 	PaletteItem,
 } from './palette-index.js';
+// What only `late/` reads stays out of the kernel's own row (phase 3 specification, 13).
 export {
 	type AccessActorV1,
 	type AccessDecisionV2,
 	type AccessInputV2,
-	AGENT_MEMBER_PREFIX,
 	decideAccess,
-	inWorkspace,
-	isOwner,
 	LOCAL_ACTOR,
-	LOCAL_MEMBERSHIP,
 	type MemberRoleV1,
 	type MembershipV1,
 	personKey,
-	personOf,
 } from './scope/access.js';
 export { MCP_CONTEXT_FIELDS, SCOPE_V1 } from './scope/field.js';
 export { personalRecordId } from './scope/personal.js';
-export { AGENT_MEMBER_TABLE, PERSONA_TABLE } from './scope/records.js';
 export { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 export { APPS_VIEW_STATE_ID, type MainStateV2, SCOPE_VIEW_STATE_ID } from './shell-state.js';
 export {

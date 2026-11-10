@@ -66,16 +66,6 @@ export const personKey = (actor: AccessActorV1): string | undefined =>
 export const personOf = (context: { actor?: AccessActorV1 }): string =>
 	personKey(context.actor) ?? LOCAL_ACTOR;
 
-/**
- * Whether `person` is a Loam owner: in `provider` mode, a member whose role is `owner` or `admin` (D96);
- * in `local` mode, every actor. The only reader of an owner's role (7.1).
- */
-export const isOwner = (membership: MembershipV1, person: string | undefined): boolean => {
-	if (membership.mode === 'local') return true;
-	const role = person === undefined ? undefined : membership.members.get(person);
-	return role === 'owner' || role === 'admin';
-};
-
 const refuse = (reason: 'workspace' | 'project'): AccessDecisionV2 => ({ allowed: false, reason });
 
 /**

@@ -29,28 +29,29 @@ const PERSONAL = /^loam\.(scope|apps|editor|layout)($|[.@~])/;
  */
 export function personalStore(store: DataAdapter, person: () => string | undefined): DataAdapter {
 	const key = (id: string) => (PERSONAL.test(id) ? personalRecordId(id, person()) : id);
-	const named = <T>(row: T | null, id: string): T | null => row && { ...row, id };
+	const as = (row: object | null, id: string) => row && { ...row, id };
 	return {
-		get: async <T>(table: string, id: string) => named(await store.get<T>(table, key(id)), id),
-		update: async <T>(table: string, id: string, patch: Partial<T>) =>
-			named(await store.update<T>(table, key(id), patch), id) as T,
-		create: <T>(table: string, data: Partial<T>) => {
-			const { id } = data as { id?: string };
-			return store.create<T>(table, id === undefined ? data : { ...data, id: key(id) });
-		},
-		remove: (table, id) => store.remove(table, key(id)),
-		async list<T>(table: string, params?: Parameters<DataAdapter['list']>[1]) {
-			const listed = await store.list<T & { id: string }>(table, params);
+		get: async (table: string, id: string) => as(await store.get(table, key(id)), id),
+		update: async (table: string, id: string, patch: object) =>
+			as(await store.update(table, key(id), patch), id),
+		create: (table: string, data: { id: string }) =>
+			store.create(table, { ...data, id: key(data.id) }),
+		remove: (table: string, id: string) => store.remove(table, key(id)),
+		async list(table: string, params?: Parameters<DataAdapter['list']>[1]) {
+			const listed = await store.list<{ id: string }>(table, params);
 			const suffix = personalRecordId('', person());
 			const data = listed.data.flatMap((row) => {
-				const id = row.id.endsWith(suffix) ? row.id.slice(0, -suffix.length) : undefined;
-				if (id !== undefined && PERSONAL.test(id)) return [{ ...row, id }];
+				const id = row.id.slice(0, -suffix.length);
 				// Unsuffixed, or another person's: not this person's record.
-				return PERSONAL.test(row.id) ? [] : [row];
+				return row.id.endsWith(suffix) && PERSONAL.test(id)
+					? [{ ...row, id }]
+					: PERSONAL.test(row.id)
+						? []
+						: [row];
 			});
 			return { ...listed, data, total: data.length };
 		},
-		batch: (operations) => store.batch(operations),
+		batch: (operations: never) => store.batch(operations),
 		health: () => store.health(),
-	};
+	} as unknown as DataAdapter;
 }

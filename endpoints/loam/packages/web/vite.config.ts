@@ -34,10 +34,13 @@ export default defineConfig({
 							// would otherwise give it a first-paint chunk of its own, and the entry an import line: 93
 							// bytes and 149 gzip, measured on step 8's base. The four chrome modules are named by path:
 							// one renamed or moved leaves this group, and `budget` fails unless first paint holds exactly
-							// one `events-` chunk with the helper and all four, and no `preload-helper-` chunk.
+							// one `events-` chunk with the helper and all four, and no `preload-helper-` chunk. The manifest's
+							// `read-boot` joins it for the same reason: stage A reads a boot record with it, and from phase 3
+							// `readProjection` reads a version 3 projection's `identity` with it too (phase 3 specification,
+							// 2.2), which would otherwise give it a first-paint chunk of its own.
 							name: 'events',
 							includeDependenciesRecursively: false,
-							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js)/,
+							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js|manifest[\\/]dist[\\/]read-boot\.js)/,
 						},
 					],
 				},

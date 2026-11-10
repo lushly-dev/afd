@@ -305,11 +305,19 @@ export function readDeployment(json: unknown): DeploymentRead {
 				? ([validateDeploymentV2, 'deploymentV2'] as const)
 				: ([validateDeployment, 'deployment'] as const);
 	if (!validate(json)) {
-		return {
-			ok: false,
-			refusals: deploymentRefusals(validate.errors ?? [], schema),
-			warnings: [],
-		};
+		// Any `[identity]` key out of shape is its own code (2.2), here and not in the page's shared rows.
+		const refusals = deploymentRefusals(validate.errors ?? [], schema).map((refusal) =>
+			schema === 'deploymentV3' && refusal.key.startsWith('identity')
+				? {
+						...refusal,
+						code: 'DEPLOYMENT_IDENTITY_INVALID' as const,
+						message: `\`${refusal.key}\` is not an identity this shell reads.`,
+						suggestion:
+							'Write `[identity]` with `mode`, `provider = "better-auth"`, `organization`, `path` and `methods`, and nothing else.',
+					}
+				: refusal
+		);
+		return { ok: false, refusals, warnings: [] };
 	}
 	const deployment = json as DeploymentV1 | DeploymentV2 | DeploymentV3;
 	const named = deployment.deployment_version !== 1 ? deployment.workspace : undefined;

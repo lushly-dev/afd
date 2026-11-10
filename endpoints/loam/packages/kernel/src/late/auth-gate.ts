@@ -6,13 +6,19 @@
  */
 
 import { type AuthAdapter, createAuthMiddleware } from '@lushly-dev/afd-auth';
-import type { CommandMiddleware } from '@lushly-dev/afd-core';
+import {
+	type CommandContext,
+	type CommandMiddleware,
+	type CommandResult,
+	failure,
+} from '@lushly-dev/afd-core';
 import { isVerifiedCredentials } from '@lushly-dev/afd-server/credentials';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import { kernelFailure } from '../errors.js';
-import { AGENT_MEMBER_PREFIX } from '../scope/access.js';
+import { type AccessActorV1, AGENT_MEMBER_PREFIX, inWorkspace } from '../scope/access.js';
+import type { ScopeRuntime } from '../scope/runtime.js';
 
 /** Run with no session in `provider` mode: every call the chrome makes on the signed-out main (2.1). */
 export const SIGNED_OUT_COMMANDS = [
@@ -74,6 +80,43 @@ const UNGATED: ReadonlySet<string> = new Set([...SESSIONLESS, ...MEMBER_EXEMPT_C
 
 /** Whether line 0 decides `name`: every command not in the lists, `INTERNAL_COMMANDS` or the settle commands. */
 export const gatedByLineZero = (name: string): boolean => !UNGATED.has(name);
+
+/**
+ * Line 0's refusal (phase 3 specification, 3.3): signed out, afd-auth's `UNAUTHORIZED`; an agent or another
+ * caller acting for no one, or a person who is not a member, `WORKSPACE_NOT_MEMBER`.
+ */
+function notMember(actor: AccessActorV1): CommandResult<never> {
+	if (actor === undefined) {
+		return failure({
+			code: 'UNAUTHORIZED',
+			message: 'Authentication required',
+			suggestion: 'Sign in with auth-sign-in to access this command',
+			retryable: false,
+		});
+	}
+	return kernelFailure(
+		'WORKSPACE_NOT_MEMBER',
+		actor.kind === 'human'
+			? 'You are not a member of this workspace'
+			: `This ${actor.kind === 'agent' ? 'agent' : 'caller'} acts for no member of the workspace`,
+		'Ask an owner of the workspace to invite you, and list your invitations with account-invitation-list'
+	);
+}
+
+/**
+ * Line 0 (3.3): for every gated command, steps 1 and 2 of `decideAccess` alone, the call's person a member
+ * of the workspace. Its refusal is journaled with the scope the call asked for, before any other line.
+ */
+export function lineZero(
+	scope: Pick<ScopeRuntime, 'membership' | 'workspace' | 'note'>,
+	call: CommandContext & { scope?: { workspace: string; project?: string } },
+	name: string
+): CommandResult<never> | undefined {
+	if (!gatedByLineZero(name) || inWorkspace(scope.membership, call.actor)) return undefined;
+	call.scope ??= { workspace: scope.workspace.id };
+	scope.note(call.traceId, { scope: call.scope });
+	return notMember(call.actor);
+}
 
 export interface AuthGateOptions {
 	identity: IdentityV1;

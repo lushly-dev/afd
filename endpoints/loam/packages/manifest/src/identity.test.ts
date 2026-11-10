@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { readSchema, schemaAjv } from '../scripts/compile.mjs';
 import { readBoot } from './read-boot.js';
 import { readDeployment } from './read-deployment.js';
 import { readProjection } from './read-projection.js';
@@ -140,6 +141,40 @@ describe('readProjection, version 3', () => {
 		['a leading slash', { ...EMPTY, identity: { ...PROVIDER, path: '/api/auth' } }],
 	])('refuses %s', (_name, json) => {
 		expect(readProjection(json).ok).toBe(false);
+	});
+});
+
+describe('projection.v3.json and readProjection agree', () => {
+	it('on every identity case: the schema is the contract, the reader its hand-written check', () => {
+		const validate = schemaAjv().getSchema(readSchema('projection', 3).$id);
+		const cases: unknown[] = [
+			undefined,
+			{ mode: 'local' },
+			PROVIDER,
+			{ ...PROVIDER, methods: ['passkey', 'password', 'oidc:okta'] },
+			{ ...PROVIDER, path: 'auth/v1' },
+			{ mode: 'local', path: 'api/auth' },
+			{ mode: 'local', organization: 'acme' },
+			{ mode: 'provider' },
+			{ ...PROVIDER, organization: 'Acme' },
+			{ ...PROVIDER, path: '/api/auth' },
+			{ ...PROVIDER, path: 'api/../auth' },
+			{ ...PROVIDER, path: './auth' },
+			{ ...PROVIDER, methods: [] },
+			{ ...PROVIDER, methods: ['passkey', 'passkey'] },
+			{ ...PROVIDER, methods: ['magic'] },
+			{ ...PROVIDER, methods: 'passkey' },
+			{ ...PROVIDER, secret: 'x' },
+			{ mode: 'team' },
+			'provider',
+			null,
+		];
+		for (const identity of cases) {
+			const json = identity === undefined ? EMPTY : { ...EMPTY, identity };
+			expect(readProjection(json).ok, JSON.stringify(identity)).toBe(validate?.(json) === true);
+		}
+		expect(validate?.({ ...EMPTY, deployment_version: 2, identity: PROVIDER })).toBe(false);
+		expect(readProjection({ ...EMPTY, deployment_version: 2, identity: PROVIDER }).ok).toBe(false);
 	});
 });
 

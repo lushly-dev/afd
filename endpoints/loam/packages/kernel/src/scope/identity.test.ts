@@ -16,15 +16,16 @@ import { INTERNAL_COMMANDS } from '../commands.js';
 import {
 	gatedByLineZero,
 	KERNEL_SETTLE_COMMANDS,
+	lineZero,
 	MEMBER_EXEMPT_COMMANDS,
 	SIGNED_OUT_COMMANDS,
 } from '../late/auth-gate.js';
+import { isOwner } from '../late/owners.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type { LoamKernelV3 } from '../types.js';
 import {
 	type AccessActorV1,
 	decideAccess,
-	isOwner,
 	LOCAL_ACTOR,
 	LOCAL_MEMBERSHIP,
 	type MembershipV1,
@@ -294,8 +295,7 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 		const runtime = createScopeRuntime({ id: 'personal', name: 'Personal' }, ACME);
 		const ran: string[] = [];
 		const late = {
-			gated: gatedByLineZero,
-			before() {},
+			before: (call: CommandContext, name: string) => lineZero(runtime, call, name),
 			run: (_name: string, _input: unknown, _call: unknown, next: () => Promise<CommandResult>) =>
 				next(),
 		} as unknown as LateScope;

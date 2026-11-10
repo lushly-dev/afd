@@ -88,9 +88,10 @@ export function compileValidators() {
 		'validate.generated.js': toModule(
 			standalone(schemaAjv({ code }), {
 				validateManifest: readSchema('app-manifest', 2).$id,
-				// Version 3 of the projection reads 2 and 3 (phase 3 specification, 2.2): `dist` and its
-				// projection are written together.
-				validateProjection: readSchema('projection', 3).$id,
+				// Version 2's: `readProjection` reads a version 3 projection's `identity` by hand, as stage A
+				// does, and the rest with this (phase 3 specification, 2.2 and 13). `dist` and its projection are
+				// written together.
+				validateProjection: readSchema('projection', 2).$id,
 			})
 		),
 		'validate-host.generated.js': toModule(
@@ -271,8 +272,9 @@ export function generateFacts() {
 	for (const [schema, schemaVersion, name] of [
 		['app-manifest', 2, 'manifest'],
 		['deployment', 1, 'deployment'],
+		// Version 3's keys are version 2's and `identity`'s, which `readDeployment` reports itself, so the
+		// page's `apps` row carries no table of them (phase 3 specification, 13).
 		['deployment', 2, 'deploymentV2'],
-		['deployment', 3, 'deploymentV3'],
 		['projection', 3, 'projection'],
 	]) {
 		const document = readSchema(schema, schemaVersion);

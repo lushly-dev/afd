@@ -57,7 +57,7 @@ const ICON = /^[a-z][a-z0-9-]{0,30}\/[a-z0-9][a-z0-9-]{0,31}$/;
 /** The bound organization's slug, as the deployment file has it (2.2). */
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** `path` relative to `site.base_path`: no leading `/`, no `.` or `..` segment (2.2). */
-const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/;
+const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[\w.~-]+(\/[\w.~-]+)*$/;
 const METHOD = /^(passkey|password|oidc:[a-z0-9][a-z0-9-]{0,31})$/;
 
 type Unchecked = Record<string, unknown>;
@@ -122,23 +122,30 @@ function appOf(value: unknown): BootAppV2 | undefined {
 }
 
 /**
- * A version 3 projection's `identity`, checked as it is read: absent is `local`; one out of shape is
- * undefined, and so is the whole projection, so a `provider` deployment never boots as `local` by a field
- * stage A could not read (2.1).
+ * A version 3 projection's `identity`, checked as `projection.v3.json` has it, which stage A and stage B
+ * both read with this rather than a generated validator (2.2): absent is `local`; one out of shape, or with
+ * any other key, is undefined, and so is the whole projection, so a `provider` deployment never boots as
+ * `local` by a field stage A could not read (2.1).
  */
-function identityOf(value: unknown): IdentityV1 | undefined {
+export function identityOf(value: unknown): IdentityV1 | undefined {
+	if (value === undefined) return { mode: 'local' };
 	const identity = recordOf(value);
-	if (value === undefined || identity?.mode === 'local') return { mode: 'local' };
+	const keys = Object.keys(identity ?? {})
+		.sort()
+		.join();
+	if (identity?.mode === 'local') return keys === 'mode' ? { mode: 'local' } : undefined;
 	const { organization, path, methods } = identity ?? {};
 	return identity?.mode === 'provider' &&
+		keys === 'methods,mode,organization,path' &&
 		typeof organization === 'string' &&
 		SLUG.test(organization) &&
 		typeof path === 'string' &&
 		AUTH_PATH.test(path) &&
 		Array.isArray(methods) &&
 		methods.length > 0 &&
+		new Set(methods).size === methods.length &&
 		methods.every((method) => typeof method === 'string' && METHOD.test(method))
-		? { mode: 'provider', organization, path, methods: [...new Set(methods)] }
+		? { mode: 'provider', organization, path, methods }
 		: undefined;
 }
 

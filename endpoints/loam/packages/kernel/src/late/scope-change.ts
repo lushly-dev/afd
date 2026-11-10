@@ -21,7 +21,7 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { gatedByLineZero } from './auth-gate.js';
+import { lineZero } from './auth-gate.js';
 import type { DocumentCheck } from './document-types.js';
 import {
 	archivedRefusal,
@@ -225,6 +225,8 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		 * person's `layout-get` keeps working.
 		 */
 		before(call, name) {
+			const refused = lineZero(scope, call, name);
+			if (refused) return refused;
 			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
 			const recorded = deps.internals?.actorOf?.(call.traceId);
 			if (recorded) {
@@ -330,6 +332,5 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		forgetActor() {
 			lastActor = undefined;
 		},
-		gated: gatedByLineZero,
 	};
 }
