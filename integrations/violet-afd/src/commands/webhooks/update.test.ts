@@ -23,7 +23,7 @@ describe('webhooks.update command', () => {
 			},
 			context,
 		);
-		webhookId = result.data?.webhook.id!;
+		webhookId = result.data!.webhook.id;
 	});
 
 	it('should update webhook URL', async () => {

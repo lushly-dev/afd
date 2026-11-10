@@ -1,0 +1,27 @@
+{
+	"tag": "violet-icon",
+	"summary": "Renders an SVG glyph from the icon registry by name; use inside buttons, badges and labels.",
+	"import": "@lushly-dev/violet-elements/dist/icon/violet-icon.js",
+	"usage": [
+		{
+			"id": "icon.registry",
+			"text": "The icon attribute is a registry name such as system/close. An unregistered name renders an X-shaped fallback. The registry is read when the element renders or the attribute changes, so register first."
+		},
+		{
+			"id": "icon.register",
+			"text": "Importing the icon module registers no icons. Add one with registerVioletIcon({ name, svg, sourceId, originalFile }); the generated registerSystem*Icon() helpers are in dist/icon/generated/index.js, not the package root."
+		}
+	],
+	"a11y": [
+		{
+			"id": "icon.name",
+			"text": "Unless decorative, the glyph has role img named by the label attribute. With no label the registry name itself (for example \"system/search\") is announced, so set one or the other."
+		}
+	],
+	"rules": ["import.root", "theme.install", "a11y.decorative"],
+	"evidence": {
+		"icon.registry": "src/icon/violet-icon.ts:57",
+		"icon.register": "src/icon/icon-registry.ts:19",
+		"icon.name": "src/icon/violet-icon.ts:54"
+	}
+}

@@ -1,5 +1,6 @@
-import type { NodeStatus, NodeType } from '@lushly-dev/violet-core/types';
 import type {
+	NodeStatus,
+	NodeType,
 	TokenCategory,
 	TokenMetadata,
 	TokenTier,

@@ -2,7 +2,7 @@ import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from '
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, createServer, type Plugin, type ViteDevServer } from 'vite';
+import { build, createServer, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
 import type { SpecimenEntry } from './types.js';
 
@@ -101,6 +101,83 @@ export async function prepareBenchSite(config: LoadedConfig): Promise<BenchSite>
 	};
 }
 
+/**
+ * Vite's dependency optimizer writes its bundle into `<root>/.vite/deps_temp_*`, and
+ * `server.close()` can resolve while that write is still running: cancelling a run stops it only
+ * before its write begins, and a run Vite stops tracking at the end of the import crawl is not
+ * cancelled at all. Removing the root then fails with ENOTEMPTY, or the write recreates it after
+ * removal. Each optimizer build gets its own tracker, from its start to the one hook that ends
+ * it, so teardown removes the root once no write is running, and again after any later build.
+ */
+export function optimizerWrites(root: string): {
+	plugin: Rolldown.Plugin;
+	dispose(): Promise<void>;
+} {
+	let running = 0;
+	let started = 0;
+	let disposed = false;
+	let idle: PromiseWithResolvers<void> | undefined;
+	// One removal at a time, so a late build's cleanup never races teardown's.
+	let removal: Promise<void> = Promise.resolve();
+	const remove = () => {
+		removal = removal.catch(() => undefined).then(() => rm(root, { recursive: true, force: true }));
+		return removal;
+	};
+	const tracker = (): Rolldown.Plugin => {
+		let state: 'pending' | 'running' | 'ended' = 'pending';
+		const end = async () => {
+			if (state !== 'running') return;
+			state = 'ended';
+			if (--running) return;
+			if (idle) {
+				idle.resolve();
+				idle = undefined;
+			} else if (disposed) {
+				// A build that began after teardown removed the root: nobody awaits this, and
+				// failing here would only fail Vite's own run, which is already discarded.
+				await remove().catch(() => undefined);
+			}
+		};
+		return {
+			name: 'afd-specimen-optimizer-write',
+			buildStart() {
+				state = 'running';
+				running++;
+				started++;
+			},
+			// Exactly one of these ends a build; closeBundle covers a failed write.
+			buildEnd: (error) => (error ? end() : undefined),
+			renderError: end,
+			writeBundle: end,
+			closeBundle: end,
+		};
+	};
+	return {
+		plugin: {
+			name: 'afd-specimen-optimizer-writes',
+			// A fresh tracker per build: Rolldown's hooks do not say which build called them.
+			options: (options) => ({ ...options, plugins: [options.plugins, tracker()] }),
+		},
+		async dispose() {
+			disposed = true;
+			for (;;) {
+				if (running) {
+					idle ??= Promise.withResolvers<void>();
+					await idle.promise;
+				}
+				const before = started;
+				try {
+					await remove();
+					return;
+				} catch (error) {
+					// Only a build that began during the removal may write into it; wait for it.
+					if (started === before) throw error;
+				}
+			}
+		},
+	};
+}
+
 export async function startBenchServer(
 	config: LoadedConfig,
 	options: { automation?: boolean } = {}
@@ -128,13 +205,17 @@ export async function startBenchServer(
 			return { code: `${code}\n`, map };
 		},
 	};
+	const writes = optimizerWrites(root);
 	const server = await createServer({
 		configFile: false,
 		root,
 		plugins: [plugin, cachedDevMaps],
 		// The HTML references a virtual entry; scan its actual import roots before
 		// dynamic specimen loading can discover dependencies and reload the page.
-		optimizeDeps: { entries: [runtime, ...new Set(Object.values(bundled(config).modules))] },
+		optimizeDeps: {
+			entries: [runtime, ...new Set(Object.values(bundled(config).modules))],
+			rolldownOptions: { plugins: [writes.plugin] },
+		},
 		logLevel: 'silent',
 		server: {
 			host: '127.0.0.1',
@@ -150,12 +231,13 @@ export async function startBenchServer(
 		await server.listen();
 	} catch (error) {
 		await server.close();
-		await rm(root, { recursive: true, force: true });
+		await writes.dispose();
 		throw error;
 	}
 	const address = server.httpServer?.address();
 	if (!address || typeof address === 'string') {
 		await server.close();
+		await writes.dispose();
 		throw new Error('Bench server did not bind a TCP port');
 	}
 	return {
@@ -165,7 +247,8 @@ export async function startBenchServer(
 			try {
 				await server.close();
 			} finally {
-				await rm(root, { recursive: true, force: true });
+				// After the optimizer's last write, which can outlive `server.close()`.
+				await writes.dispose();
 			}
 		},
 		build: site.build,

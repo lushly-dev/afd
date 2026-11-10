@@ -1,4 +1,4 @@
-manifest_version = 2
+manifest_version = 5
 protocol = 1
 
 [plugin]
@@ -41,6 +41,8 @@ input_schema = "schemas/sources-sync.input.json"
 category = "sources"
 tags = ["knowledge", "ingest"]
 version = "1.0.0"
+# A long sync may run as an MCP task (phase 5 section 12.2): its result is counts and ids.
+task = "optional"
 examples = [{ title = "Sync one collection", input = { collection = "handbook" } }]
 
 [[commands]]

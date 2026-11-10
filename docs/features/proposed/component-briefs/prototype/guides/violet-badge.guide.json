@@ -1,0 +1,22 @@
+{
+	"tag": "violet-badge",
+	"summary": "Compact inline label for a status, category or count.",
+	"import": "@lushly-dev/violet-elements/dist/badge/violet-badge.js",
+	"usage": [
+		{
+			"id": "badge.content",
+			"text": "Short text goes in the default slot. The icon attribute is a registered icon name rendered before the text and always treated as decorative."
+		}
+	],
+	"a11y": [
+		{
+			"id": "badge.label",
+			"text": "The label attribute gives the badge role img with that name, which replaces the slotted text for assistive technology. Use it when the text alone, such as a bare count, is not meaningful."
+		}
+	],
+	"rules": ["import.root", "theme.install", "a11y.decorative", "variant.appearance"],
+	"evidence": {
+		"badge.content": "src/badge/violet-badge.ts:121",
+		"badge.label": "src/badge/violet-badge.ts:183"
+	}
+}

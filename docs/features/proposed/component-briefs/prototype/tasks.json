@@ -1,0 +1,24 @@
+{
+	"preamble": "Work in `foundations/fast-af/packages/violet-elements`. Write one new file, the path given below, and change no other file. It is a story file like the others in `src/`, using `@lushly-dev/specimen/types` and `@lushly-dev/specimen/test`. Build the page from this library's components wherever one fits, and plain HTML elsewhere. Add no dependency. Each named story renders the whole page. When you are done, say so and stop; do not run the test suites.",
+	"tasks": {
+		"t1": {
+			"file": "foundations/fast-af/packages/violet-elements/src/phase0/member-settings.stories.ts",
+			"text": "File: `src/phase0/member-settings.stories.ts`. Stories: `Page` and `Invalid`.\n\nA form titled \"Member settings\" with: a required text field \"Name\"; a multi-line field \"Bio\"; a \"Role\" choice of Viewer, Editor and Admin, with Editor chosen; an \"Email notifications\" on/off toggle, on; a checkbox \"I accept the terms\"; and two buttons, \"Save\", which submits the form and is the primary action, and \"Cancel\". Every control takes part in the form under a name of its own. A second story, `Invalid`, shows the same form with \"Name\" empty, marked invalid, and the message \"Enter a name.\""
+		},
+		"t2": {
+			"file": "foundations/fast-af/packages/violet-elements/src/phase0/project-actions.stories.ts",
+			"text": "File: `src/phase0/project-actions.stories.ts`. Stories: `Closed` and `ConfirmOpen`.\n\nA toolbar with a button \"Actions\" that has a leading icon and opens a menu of three items: Rename, Duplicate and Delete. Beside it, an icon-only button whose purpose is \"Help\", which shows the text \"Deleting a project cannot be undone.\" when the user asks for it. Choosing Delete opens a confirmation dialog titled \"Delete project?\" with the text \"This removes the project and its files.\" and two buttons, \"Cancel\" and \"Delete\". `Closed` shows the page as it loads. `ConfirmOpen` shows it with the confirmation dialog open."
+		},
+		"t3": {
+			"file": "foundations/fast-af/packages/violet-elements/src/phase0/project-browser.stories.ts",
+			"text": "File: `src/phase0/project-browser.stories.ts`. One story, `Page`.\n\nA page with: a breadcrumb of three levels, Home, Projects and \"Atlas\", where Atlas is the current page; a tree with two folders, \"src\", expanded, holding \"index.ts\" and \"app.ts\" with \"app.ts\" selected, and \"docs\", collapsed; and three tabs, Files, Activity and Settings, with Activity selected. The Activity tab shows a count of 3. The Activity panel is an empty state that says \"No activity yet\" and offers a button \"Invite a teammate\". The Files panel shows that it is loading."
+		}
+	},
+	"arms": {
+		"a": "",
+		"b": "Before you write, read the whole file at `{dir}/pack.json`. It describes every component in this library.",
+		"c": "Before you write, run `node {dir}/brief.mjs <the tags you will use>` once for the whole page, and work from its answer. `node {dir}/brief.mjs --list` lists every tag.",
+		"d": "After you write, run `node {dir}/check.mjs <your file>` and fix what it reports.",
+		"e": "Before you write, run `node {dir}/brief.mjs <the tags you will use>` once for the whole page, and work from its answer. `node {dir}/brief.mjs --list` lists every tag. After you write, run `node {dir}/check.mjs <your file>` and fix what it reports."
+	}
+}

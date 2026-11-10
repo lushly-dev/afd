@@ -215,7 +215,14 @@ fn build(
 
     // 4. Build every document's chunks and graph contribution in memory. A store whose applied
     // revision is already at or past a document's last change skips it.
-    let found = cx.content_collections(space).unwrap_or_default();
+    // The `content` grant is optional: without it the space's collections are unknown, and no
+    // more. Every other refusal stops the run (a stopped task's host refusing it included), so a
+    // refused call never reads as an empty answer.
+    let found = match cx.content_collections(space) {
+        Ok(found) => found,
+        Err(HostError::NotGranted(text)) if text.contains("grant `content`") => Vec::new(),
+        Err(error) => return Err(error.into()),
+    };
     let collections = found.iter().map(|c| c.id.clone()).collect::<Vec<_>>();
     // Mentions of symbols are stored only in a space that has a code collection.
     let mentions = found.iter().any(|c| c.kind == "code");

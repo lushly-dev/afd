@@ -2,8 +2,7 @@
  * @fileoverview Export must agree with tokens.resolve (the source of truth for inheritance)
  */
 
-import { createMemoryDatabase } from '@lushly-dev/violet-core/engine';
-import { initializeExport } from '@lushly-dev/violet-core/engine';
+import { createMemoryDatabase, initializeExport } from '@lushly-dev/violet-core/engine';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nodeCreateCommand } from '../node/create.js';
 import type { CommandContext } from '../registry.js';

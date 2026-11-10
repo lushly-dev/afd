@@ -36,7 +36,7 @@ const OutputSchema = z.object({
 
 type Output = z.infer<typeof OutputSchema>;
 
-const has = (record: object, key: string) => Object.prototype.hasOwnProperty.call(record, key);
+const has = (record: object, key: string) => Object.hasOwn(record, key);
 
 /** The stored map with `changes` applied; null entries remove roles */
 function applyChanges(

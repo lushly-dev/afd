@@ -44,6 +44,17 @@ pub enum TaskMode {
 }
 
 impl TaskMode {
+    /// AFD's task support of the mode, which the host registers the command with (section 12.2):
+    /// AFD then runs it as a task when the request declares the extension and the server can
+    /// tell its caller apart.
+    pub fn support(self) -> afd::TaskSupport {
+        match self {
+            Self::Never => afd::TaskSupport::Never,
+            Self::Optional => afd::TaskSupport::Optional,
+            Self::Required => afd::TaskSupport::Required,
+        }
+    }
+
     /// The manifest spelling.
     pub fn as_str(self) -> &'static str {
         match self {
