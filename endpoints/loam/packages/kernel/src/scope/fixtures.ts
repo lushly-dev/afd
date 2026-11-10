@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { IdentityV1, ManifestV2, ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, failure, success } from '@lushly-dev/loam-sdk';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { createKernelParts, type KernelParts, type KernelPartsInternals } from '../kernel.js';
@@ -218,7 +218,7 @@ export const SCOPED_PROJECTS: readonly ProjectV1[] = [
 	}),
 ];
 
-export const scopedDeployment = (): ProjectionV2 => ({
+export const scopedDeployment = (): ProjectionV3 => ({
 	deployment_version: 2,
 	generation: 'scoped',
 	workspace: { id: 'personal', name: 'Personal' },
@@ -270,7 +270,7 @@ export interface ScopedWorkspaceOptions {
 	/** Create no project. */
 	empty?: boolean;
 	internals?: KernelPartsInternals;
-	deployment?: ProjectionV2;
+	deployment?: ProjectionV3;
 	/** Default: a stepping clock from 2026-01-01. A reload's starts later, so its trace IDs differ. */
 	clock?: () => number;
 	/** The URL's project, by slug, as the web host passes it (6.3). */

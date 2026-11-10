@@ -6,7 +6,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ManifestV2, ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, success } from '@lushly-dev/loam-sdk';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -155,7 +155,7 @@ const APPS = [
 	['hid', 80],
 ] as const;
 
-const deployment = (): ProjectionV2 => ({
+const deployment = (): ProjectionV3 => ({
 	deployment_version: 2,
 	generation: 'summaries',
 	workspace: { id: 'personal', name: 'Personal' },

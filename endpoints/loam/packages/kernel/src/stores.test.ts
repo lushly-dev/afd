@@ -5,7 +5,7 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import { type BootProjectionV2, type ProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
+import { type BootProjectionV2, type ProjectionV3, readBoot } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
@@ -156,7 +156,7 @@ describe.each(adapters)('P2-E10: the stores over %s', (_name, adapter) => {
 	it('applies a new generation once: it adds, changes and unlists, keeping overrides, journaled', async () => {
 		const store = adapter();
 		const journal = new MemoryJournalSink();
-		const boot = async (deployment: ProjectionV2) => {
+		const boot = async (deployment: ProjectionV3) => {
 			const kernel = await createKernel({
 				store,
 				storeKind: 'memory',
@@ -221,7 +221,7 @@ describe('P2-E10: the workspace store across boots', () => {
 	async function bootOver(
 		store: DataAdapter,
 		journal: MemoryJournalSink,
-		loader: () => Promise<{ deployment: ProjectionV2; ports: ReturnType<typeof scopedPorts> }>,
+		loader: () => Promise<{ deployment: ProjectionV3; ports: ReturnType<typeof scopedPorts> }>,
 		day: number
 	) {
 		const kernel = await createKernel({
@@ -322,7 +322,7 @@ describe('P2-E10: the workspace store across boots', () => {
 	it('counts an entry listed again, as it was, as changed', async () => {
 		const store = new MemoryAdapter();
 		const journal = new MemoryJournalSink();
-		const boot = async (deployment: ProjectionV2, day: number) => {
+		const boot = async (deployment: ProjectionV3, day: number) => {
 			const kernel = await createKernel({
 				store,
 				storeKind: 'memory',

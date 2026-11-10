@@ -7,7 +7,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
-import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
 import type { Browser, BrowserContext, BrowserContextOptions, Frame, Page } from 'playwright';
 import { createMountRelay, type MountRelay } from '../mounted/mount-relay';
 
@@ -178,7 +178,7 @@ export interface DeploymentSite extends HeldRequests {
 	log: LoggedRequest[];
 	/** The directory `writeDeployment` wrote. */
 	out: string;
-	projection: ProjectionV2;
+	projection: ProjectionV3;
 	/** With `sandbox: true`, the second origin that serves `sandbox/`, and its log. */
 	sandbox?: { origin: string; log: LoggedRequest[] };
 	/** With `mounts: true`, the test-only relay at `mounts/<instance>/mcp`, and its log. */
@@ -198,7 +198,7 @@ export async function serveDeployment(options: {
 	sandbox?: true;
 	mounts?: true;
 	/** Serve this in place of the projection `writeDeployment` wrote: a hostile or lying one (E1). */
-	rewrite?: (projection: ProjectionV2) => unknown;
+	rewrite?: (projection: ProjectionV3) => unknown;
 	/** `site.base_path`, written into the file and served as the site's prefix (6.2). Default `/`. */
 	basePath?: string;
 }): Promise<DeploymentSite> {

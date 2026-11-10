@@ -6,7 +6,7 @@
  * Exported from `@lushly-dev/loam-kernel/testing`.
  */
 
-import type { ManifestV2, ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import {
 	type AppCallContextV1,
 	defineApp,
@@ -197,7 +197,7 @@ export const PROBE_DOCUMENTS_DEFINITION = defineApp({
 });
 
 /** The scoped workspace's deployment, with `probe` after its three apps. */
-export const documentsDeployment = (): ProjectionV2 => {
+export const documentsDeployment = (): ProjectionV3 => {
 	const scoped = scopedDeployment();
 	return {
 		...scoped,
