@@ -194,7 +194,7 @@ function packageJson(id: string, kind: AppKind, depSpec: string): string {
 			'@types/node': '^26.6.6',
 			typescript: '^7.0.2',
 			vite: '^8.3.0',
-			vitest: '^4.1.12',
+			vitest: '^5.1.0',
 		},
 	});
 }
