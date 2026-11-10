@@ -465,10 +465,60 @@ describe('P3-E9: jwksKeySource: the host loads the JWKS; AFD opens no socket', (
 		}
 	});
 
+	it('answers unavailable once its last good keys are older than maxStaleMs and loads still fail', async () => {
+		const clock = fixedClock(Date.now());
+		const keys = jwksKeySource(fetchJwks, {
+			clock,
+			maxAgeMs: 1000,
+			maxStaleMs: 10_000,
+			minRefetchIntervalMs: 0,
+		});
+		expect(await keys.key(as.issuer, as.keys.RS256.kid)).toHaveProperty('key');
+		as.publish(null);
+		try {
+			clock.advance(9_999);
+			expect(await keys.key(as.issuer, as.keys.RS256.kid)).toHaveProperty('key');
+			clock.advance(1);
+			expect(await keys.key(as.issuer, as.keys.RS256.kid)).toEqual({ error: 'unavailable' });
+		} finally {
+			as.publish(Object.values(as.keys).map((key) => key.publicJwk));
+		}
+		// A load that succeeds again restores it.
+		expect(await keys.key(as.issuer, as.keys.RS256.kid)).toHaveProperty('key');
+		expect(() => jwksKeySource(fetchJwks, { maxAgeMs: 10, maxStaleMs: 5 })).toThrow(/maxStaleMs/);
+	});
+
 	it('refuses a fixed document that is not a key set', () => {
 		expect(() => jwksKeySource({})).toThrow(/"keys" array/);
 		expect(() => jwksKeySource({ keys: [{ kty: 'RSA' }] })).toThrow(/non-empty kid/);
 		expect(() => jwksKeySource({ keys: [{ kid: 'a' }, { kid: 'a' }] })).toThrow(/more than once/);
+	});
+});
+
+describe('P3-E9: M3, the configuration a verifier refuses', () => {
+	it('refuses an introspection verifier with another audience or binding requirement', () => {
+		const introspect = async () => ({});
+		const make = (rules: TokenRulesOptions) =>
+			verifier({
+				introspection: createIntrospectionVerifier({ issuer: as.issuer, rules, introspect }),
+			});
+		expect(() => make({ resource: 'https://elsewhere.example/mcp' })).toThrow(/introspection/);
+		expect(() => make({ resource: RESOURCE, requireBoundTokens: true })).toThrow(/introspection/);
+		expect(make({ resource: RESOURCE }).issuers).toEqual([as.issuer, as.issuer]);
+	});
+
+	it('refuses two issuers that share one key source', () => {
+		const keys = jwksKeySource(as.jwks());
+		expect(
+			() =>
+				new JwtVerifier({
+					rules: { resource: RESOURCE },
+					issuers: [
+						{ issuer: as.issuer, algorithms: ['RS256'], keys },
+						{ issuer: 'https://other.example', algorithms: ['RS256'], keys },
+					],
+				})
+		).toThrow(/shares its key source/);
 	});
 });
 

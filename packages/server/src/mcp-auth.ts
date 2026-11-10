@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { TLSSocket } from 'node:tls';
-import type { Actor } from '@lushly-dev/afd-core';
+import { type Actor, type Clock, systemClock } from '@lushly-dev/afd-core';
 import { HttpRequestError } from './http-security.js';
 import { extractBearer } from './mcp-auth-bearer.js';
 import type { TokenVerifier } from './mcp-auth-jwt.js';
@@ -22,7 +22,7 @@ import {
 	isScopeToken,
 	type ProtectedResource,
 } from './mcp-auth-resource.js';
-import { type Credentials, withRedactedInspect } from './mcp-auth-rules.js';
+import { type AuthRuleCode, type Credentials, withRedactedInspect } from './mcp-auth-rules.js';
 import { brandVerifiedCredentials, unbrandVerifiedCredentials } from './verified-credentials.js';
 
 /** A refused token, as {@link McpAuthOptions.onRefusal} receives it. Never the token or a claim. */
@@ -90,6 +90,8 @@ export interface AuthLayer {
 }
 
 const SAFE_RULE = /^[A-Za-z0-9_.:-]{1,64}$/;
+/** What an issuer alias may be (`JwtVerifier`'s rule): visible ASCII, at most 256 characters. */
+const SAFE_ALIAS = /^[\x21-\x7E]{1,256}$/;
 
 function defaultRefusal({ rule, issuer }: AuthRefusal): void {
 	console.warn(`[afd] refused a request's bearer token: rule=${rule} issuer=${issuer ?? '-'}`);
@@ -154,12 +156,28 @@ const isWhole = (value: unknown): value is number =>
 	typeof value === 'number' && Number.isSafeInteger(value);
 const isName = (value: unknown): value is string => typeof value === 'string' && value !== '';
 
+/** What the layer holds a verifier's credentials to, whatever verifier made them. */
+interface Admission {
+	resource: string;
+	requireBoundTokens: boolean;
+	/** The TLS client certificate's thumbprint on this request, when there is one. */
+	certificate: string | undefined;
+	/** Whole seconds since the epoch. */
+	now: number;
+	/** The verifier's clock skew in seconds (its rules'), else none. */
+	skewS: number;
+}
+
 /**
- * A fresh copy of a verifier's credentials when they have M4's shape for `resource`, else
- * `undefined`: a host verifier's mistake fails closed, and nothing it keeps can change them.
+ * A fresh copy of a verifier's credentials when they have M4's shape for the resource and still
+ * hold on this request, else the rule they break: a host verifier whose own rules are looser
+ * fails closed (`claims` for the shape; `binding` for a bound token's missing or other
+ * certificate, or no binding where one is required; `expired` past `expiresAt` and the skew).
+ * Nothing the verifier keeps can change the copy.
  */
-function admissible(value: unknown, resource: string): Credentials | undefined {
-	if (!value || typeof value !== 'object') return undefined;
+function admissible(value: unknown, admission: Admission): Credentials | AuthRuleCode {
+	const { resource } = admission;
+	if (!value || typeof value !== 'object') return 'claims';
 	const c = value as Record<string, unknown>;
 	const scopes = c.scopes;
 	const cnf = c.cnf as Record<string, unknown> | undefined;
@@ -180,8 +198,12 @@ function admissible(value: unknown, resource: string): Credentials | undefined {
 				Object.keys(cnf).join() !== 'x5t#S256' ||
 				!isName(cnf['x5t#S256'])))
 	) {
-		return undefined;
+		return 'claims';
 	}
+	// M3 rules 8 and 10 again, against this layer's own settings and this request.
+	if (cnf !== undefined && cnf['x5t#S256'] !== admission.certificate) return 'binding';
+	if (cnf === undefined && admission.requireBoundTokens) return 'binding';
+	if (admission.now >= (c.expiresAt as number) + admission.skewS) return 'expired';
 	return withRedactedInspect({
 		issuer: c.issuer,
 		subject: c.subject,
@@ -204,7 +226,11 @@ function admissible(value: unknown, resource: string): Credentials | undefined {
  *   or an M6 option (`requiredScopes`, `resolver`, `filterToolsByScope`), which this version
  *   does not enforce
  */
-export function createAuthLayer(options: McpAuthOptions, maxBodyBytes: number): AuthLayer {
+export function createAuthLayer(
+	options: McpAuthOptions,
+	maxBodyBytes: number,
+	clock: Clock = systemClock
+): AuthLayer {
 	for (const name of SCOPE_OPTIONS) {
 		if ((options as unknown as Record<string, unknown>)[name] !== undefined) {
 			throw new Error(
@@ -235,6 +261,14 @@ export function createAuthLayer(options: McpAuthOptions, maxBodyBytes: number): 
 		resourceName: options.resourceName,
 		requireBoundTokens,
 	});
+	const servers = new Set(options.authorizationServers ?? []);
+	for (const issuer of verifier.issuers ?? []) {
+		if (!servers.has(issuer)) {
+			throw new Error(
+				`[AFD] the verifier accepts tokens from ${JSON.stringify(issuer)}, which auth.authorizationServers does not name`
+			);
+		}
+	}
 	const onRefusal = options.onRefusal ?? defaultRefusal;
 	// Only this layer's admissions count: a request admitted by another handler's layer is not.
 	const admitted = new WeakMap<IncomingMessage, Credentials>();
@@ -251,7 +285,8 @@ export function createAuthLayer(options: McpAuthOptions, maxBodyBytes: number): 
 		try {
 			onRefusal({
 				rule: SAFE_RULE.test(rule) ? rule : 'host',
-				...(issuer !== undefined ? { issuer } : {}),
+				// A host verifier's issuer is held to the alias pattern before it is logged.
+				...(issuer !== undefined ? { issuer: SAFE_ALIAS.test(issuer) ? issuer : 'host' } : {}),
 			});
 		} catch {}
 		json(
@@ -281,17 +316,22 @@ export function createAuthLayer(options: McpAuthOptions, maxBodyBytes: number): 
 		if ('refused' in bearer) return unauthorized(res, bearer.refused);
 		removeAuthorization(req);
 		// M3: verify, then forget the token.
+		const certificate = certificateThumbprint(req);
 		let verification: Awaited<ReturnType<TokenVerifier['verify']>>;
 		try {
-			verification = await verifier.verify(bearer.token, {
-				certificate: certificateThumbprint(req),
-			});
+			verification = await verifier.verify(bearer.token, { certificate });
 		} catch {
 			return unauthorized(res, 'unavailable');
 		}
 		if (!verification.ok) return unauthorized(res, verification.rule, verification.issuer);
-		const credentials = admissible(verification.credentials, resource.resource);
-		if (!credentials) return unauthorized(res, 'claims');
+		const credentials = admissible(verification.credentials, {
+			resource: resource.resource,
+			requireBoundTokens,
+			certificate,
+			now: Math.floor(clock.now() / 1000),
+			skewS: rules?.clockSkewS ?? 0,
+		});
+		if (typeof credentials === 'string') return unauthorized(res, credentials);
 		// Every route takes JSON; a form body has served its one purpose (M2).
 		if (form !== undefined)
 			throw new HttpRequestError(415, 'Content-Type must be application/json');

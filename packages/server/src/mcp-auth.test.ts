@@ -46,7 +46,12 @@ afterEach(async () => {
 
 /** Every context a command ran with, and what `createContext` saw. */
 const seen: CommandContext[] = [];
-const hooked: { authorization: unknown; raw: string[]; credentials: unknown }[] = [];
+const hooked: {
+	authorization: unknown;
+	distinct: unknown;
+	raw: string[];
+	credentials: unknown;
+}[] = [];
 
 const whoami = defineCommand({
 	name: 'caller-get',
@@ -91,6 +96,7 @@ async function serve(options: Partial<McpHandlerOptions> = {}, auth = {}) {
 		createContext: (req: IncomingMessage, verified) => {
 			hooked.push({
 				authorization: req.headers.authorization,
+				distinct: req.headersDistinct.authorization,
 				raw: [...req.rawHeaders],
 				credentials: verified.credentials,
 			});
@@ -377,6 +383,72 @@ describe('P3-E9: M1, M2 and M5: every route needs the one bearer token', () => {
 		expect(seen).toEqual([]);
 	});
 
+	it('answers 15,000 inner spaces or tabs in the header with the M5 401, quickly', async () => {
+		const { base, refusals } = await serve();
+		for (const blank of [' ', '\t']) {
+			const started = performance.now();
+			const sent = await send(`${base}/rpc`, {
+				body: rpc('caller-get'),
+				authorization: `Bearer abc${blank.repeat(15_000)}def`,
+			});
+			expectUnauthorized(sent, true);
+			// The whole round trip, loopback included; the parser alone is held to 20 ms.
+			expect(performance.now() - started).toBeLessThan(1000);
+		}
+		expect(refusals.map((refusal) => refusal.rule)).toEqual(['token-malformed', 'token-malformed']);
+	});
+
+	it("holds a host verifier's credentials to the layer's own rules: binding and expiry", async () => {
+		const now = Math.floor(Date.now() / 1000);
+		const credentials = {
+			issuer: as.issuer,
+			subject: 'user-1',
+			clientId: 'agent-1',
+			scopes: [],
+			resource: RESOURCE,
+			issuedAt: now - 60,
+			expiresAt: now + 600,
+		};
+		const answering = (answer: Partial<Credentials>): TokenVerifier => ({
+			verify: async () => ({ ok: true, credentials: { ...credentials, ...answer } as Credentials }),
+		});
+		const cases: [Partial<Credentials>, Record<string, unknown>, string][] = [
+			// A token bound to a certificate this request did not present.
+			[{ cnf: { 'x5t#S256': 'thumb' } }, {}, 'binding'],
+			// No binding where the layer requires one.
+			[{}, { requireBoundTokens: true }, 'binding'],
+			// Already expired: the host verifier allowed what M3 rule 8 refuses.
+			[{ expiresAt: now - 1 }, {}, 'expired'],
+		];
+		for (const [answer, auth, rule] of cases) {
+			const { base, refusals } = await serve({}, { verifier: answering(answer), ...auth });
+			expectUnauthorized(
+				await send(`${base}/rpc`, { body: rpc('caller-get'), authorization: 'Bearer abc' }),
+				true
+			);
+			expect(refusals).toEqual([{ rule }]);
+		}
+		expect(seen).toEqual([]);
+		const { base } = await serve({}, { verifier: answering({}) });
+		const sent = await send(`${base}/rpc`, {
+			body: rpc('caller-get'),
+			authorization: 'Bearer abc',
+		});
+		expect(sent.status).toBe(200);
+	});
+
+	it("logs a host verifier's issuer only when it is a visible ASCII alias", async () => {
+		const naming = (issuer: string): TokenVerifier => ({
+			verify: async () => ({ ok: false, rule: 'inactive', issuer }),
+		});
+		const first = await serve({}, { verifier: naming('user@example.com\nforged line') });
+		await send(`${first.base}/rpc`, { body: rpc('caller-get'), authorization: 'Bearer abc' });
+		expect(first.refusals).toEqual([{ rule: 'inactive', issuer: 'host' }]);
+		const second = await serve({}, { verifier: naming('idp') });
+		await send(`${second.base}/rpc`, { body: rpc('caller-get'), authorization: 'Bearer abc' });
+		expect(second.refusals).toEqual([{ rule: 'inactive', issuer: 'idp' }]);
+	});
+
 	it("passes a host verifier's own rule code to the log as a 401 invalid_token", async () => {
 		const inner = verifier();
 		// What a host's wrapper does: refuse more, never accept more.
@@ -479,6 +551,7 @@ describe('P3-E9: M4: credentials on the context, never the token', () => {
 		expect(seen).toHaveLength(4);
 		for (const call of hooked) {
 			expect(call.authorization).toBeUndefined();
+			expect(call.distinct).toBeUndefined();
 			expect(call.raw.join('\n')).not.toContain(token);
 			expect(call.raw.map((name) => name.toLowerCase())).not.toContain('authorization');
 		}
@@ -566,11 +639,66 @@ describe('P3-E9: the brand: credentials afd-server verified, for one request', (
 	});
 });
 
+describe('P3-E9: HTTP sessions belong to the caller that created them', () => {
+	it("answers another principal's use of a session as an unknown session, and leaves it unchanged", async () => {
+		const { base } = await serve({ contexts: [{ name: 'edit', description: 'Editing' }] });
+		const alice = `Bearer ${await as.issue()}`;
+		const mallory = `Bearer ${await as.issue({ claims: { sub: 'user-2' } })}`;
+		const opened = await send(`${base}/message`, {
+			body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+			authorization: alice,
+		});
+		const session = opened.headers['mcp-session-id'] as string;
+		expect(session).toMatch(/^[0-9a-f-]{36}$/);
+		const call = (authorization: string, method: string, params = {}) =>
+			send(`${base}/rpc`, {
+				body: rpc(method, params),
+				authorization,
+				headers: { 'Mcp-Session-Id': session },
+			});
+		expect(
+			JSON.parse((await call(alice, 'afd-context-enter', { context: 'edit' })).text)
+		).toMatchObject({
+			result: { success: true },
+		});
+		for (const path of ['/rpc', '/message', '/batch']) {
+			const body =
+				path === '/batch'
+					? { commands: [{ command: 'afd-context-exit', input: {} }] }
+					: path === '/message'
+						? { jsonrpc: '2.0', id: 1, method: 'tools/list' }
+						: rpc('afd-context-exit');
+			const ask = (id: string) =>
+				send(`${base}${path}`, { body, authorization: mallory, headers: { 'Mcp-Session-Id': id } });
+			const unknown = await ask('00000000-0000-4000-8000-000000000000');
+			const refused = await ask(session);
+			expect(unknown.status, path).toBe(404);
+			expect(refused.status, path).toBe(unknown.status);
+			expect(refused.text, path).toBe(unknown.text);
+		}
+		const listed = JSON.parse((await call(alice, 'afd-context-list')).text);
+		expect(listed.result.data.activeContext).toBe('edit');
+	});
+});
+
 describe('P3-E9: configuration fails closed', () => {
 	const base = () => ({
 		name: 'cfg',
 		version: '1',
 		commands: [whoami],
+	});
+
+	it('refuses a verifier that accepts an issuer the metadata does not name', () => {
+		expect(() =>
+			createMcpHandler({
+				...base(),
+				auth: {
+					resource: RESOURCE,
+					authorizationServers: ['https://elsewhere.example'],
+					verifier: verifier(),
+				},
+			})
+		).toThrow(/does not name/);
 	});
 
 	it('refuses a verifier whose audience is another resource', () => {

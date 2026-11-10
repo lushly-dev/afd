@@ -60,6 +60,11 @@ export interface TokenVerifier {
 	 * the metadata publishes the same resource and binding requirement.
 	 */
 	readonly rules?: TokenRules;
+	/**
+	 * The exact `iss` strings whose tokens this verifier accepts, when it can say:
+	 * `createMcpHandler` then checks that the metadata names each in `authorizationServers`.
+	 */
+	readonly issuers?: readonly string[];
 }
 
 /** Why a {@link KeySource} gave no key: `unknown` refuses with `key`, `unavailable` fails closed. */
@@ -84,6 +89,13 @@ export interface JwksKeySourceOptions {
 	minRefetchIntervalMs?: number;
 	/** How long loaded keys are used before they are loaded again, in milliseconds. Default: 5 minutes. */
 	maxAgeMs?: number;
+	/**
+	 * How long the last good keys are kept while every load fails, in milliseconds, counted from
+	 * the load that fetched them. Past it the source answers `unavailable`, so a key the issuer
+	 * withdrew stops verifying even when its JWKS cannot be reached. Default: 1 hour; at least
+	 * `maxAgeMs`.
+	 */
+	maxStaleMs?: number;
 	/** The clock the intervals read. Default: the system clock. */
 	clock?: Clock;
 }
@@ -111,10 +123,14 @@ function readJwks(document: unknown): Map<string, Readonly<Record<string, unknow
  * A {@link KeySource} over a JWKS document (RFC 7517 5): fixed, or loaded by the host's `load`
  * (which fetches the issuer's `jwks_uri`, say). Loaded keys are used for `maxAgeMs`; an unknown
  * `kid` loads again at most once per `minRefetchIntervalMs`; a failed load keeps the last good
- * keys, and with none (or when a load for an unknown `kid` fails) answers `unavailable`.
+ * keys for up to `maxStaleMs`, and with none (or when a load for an unknown `kid` fails, or the
+ * keys are older than `maxStaleMs`) answers `unavailable`.
+ *
+ * Give each issuer a key source of its own: a `kid` names a key only within one issuer's set,
+ * and `JwtVerifier` refuses two issuers that share one.
  *
  * @throws Error for a fixed document that has no `keys` array, or a key without a non-empty
- *   `kid` or with one another key has
+ *   `kid` or with one another key has; or `maxStaleMs` shorter than `maxAgeMs`
  */
 export function jwksKeySource(jwks: unknown, options: JwksKeySourceOptions = {}): KeySource {
 	if (typeof jwks !== 'function') {
@@ -131,6 +147,8 @@ export function jwksKeySource(jwks: unknown, options: JwksKeySourceOptions = {})
 	const clock = options.clock ?? systemClock;
 	const minInterval = options.minRefetchIntervalMs ?? 30_000;
 	const maxAge = options.maxAgeMs ?? 300_000;
+	const maxStale = options.maxStaleMs ?? 3_600_000;
+	if (!(maxStale >= maxAge)) throw new Error('[AFD] maxStaleMs must be at least maxAgeMs');
 	let keys: Map<string, Readonly<Record<string, unknown>>> | undefined;
 	let loadedAt = Number.NEGATIVE_INFINITY;
 	let attemptedAt = Number.NEGATIVE_INFINITY;
@@ -166,9 +184,10 @@ export function jwksKeySource(jwks: unknown, options: JwksKeySourceOptions = {})
 			if ((keys === undefined || now - loadedAt >= maxAge) && (mayLoad || pending)) {
 				await refresh();
 			}
-			const known = keys?.get(kid);
+			// Keys older than `maxStaleMs` (every load since has failed) verify nothing.
+			if (keys === undefined || clock.now() - loadedAt >= maxStale) return { error: 'unavailable' };
+			const known = keys.get(kid);
 			if (known) return { key: known };
-			if (keys === undefined) return { error: 'unavailable' };
 			if (clock.now() - attemptedAt >= minInterval || pending) {
 				if (!(await refresh())) return { error: 'unavailable' };
 				const fetched = keys?.get(kid);
@@ -281,14 +300,17 @@ interface Issuer extends JwtIssuer {
  */
 export class JwtVerifier implements TokenVerifier {
 	readonly rules: TokenRules;
+	/** The `iss` strings accepted: the JWT issuers', then the introspection verifier's. */
+	readonly issuers: readonly string[];
 	readonly #issuers: readonly Issuer[];
 	readonly #introspection: TokenVerifier | undefined;
 	readonly #clock: Clock;
 
 	/**
 	 * @throws Error for invalid rules, no issuer, an issuer that is not an absolute `https` URL,
-	 *   one with no algorithm or an algorithm AFD cannot verify, or two issuers with the same
-	 *   `iss` string or alias
+	 *   one with no algorithm or an algorithm AFD cannot verify, two issuers with the same `iss`
+	 *   string, alias or key source object, or an introspection verifier whose rules name another
+	 *   resource or binding requirement
 	 */
 	constructor(options: JwtVerifierOptions) {
 		this.rules = createTokenRules(options.rules);
@@ -314,11 +336,33 @@ export class JwtVerifier implements TokenVerifier {
 			if (issuers.some((kept) => kept.issuer === entry.issuer || kept.alias === alias)) {
 				throw new Error(`[AFD] issuer ${JSON.stringify(alias)} is configured twice`);
 			}
+			// A kid names a key only within one issuer's set: a shared source would let one
+			// issuer's token be checked against another issuer's key.
+			if (issuers.some((kept) => kept.keys === entry.keys)) {
+				throw new Error(
+					`[AFD] issuer ${JSON.stringify(alias)} shares its key source with another issuer; give each issuer its own`
+				);
+			}
 			issuers.push(Object.freeze({ ...entry, alias, algorithms: Object.freeze(algorithms) }));
 		}
 		if (issuers.length === 0) throw new Error('[AFD] a JWT verifier needs at least one issuer');
+		const introspection = options.introspection;
+		const inner = introspection?.rules;
+		if (
+			inner &&
+			(inner.resource !== this.rules.resource ||
+				inner.requireBoundTokens !== this.rules.requireBoundTokens)
+		) {
+			throw new Error(
+				'[AFD] the introspection verifier accepts another audience or binding requirement than the JWT verifier'
+			);
+		}
 		this.#issuers = Object.freeze(issuers);
-		this.#introspection = options.introspection;
+		this.issuers = Object.freeze([
+			...issuers.map((entry) => entry.issuer),
+			...(introspection?.issuers ?? []),
+		]);
+		this.#introspection = introspection;
 		this.#clock = options.clock ?? systemClock;
 	}
 
@@ -435,6 +479,7 @@ export function createIntrospectionVerifier(options: IntrospectionVerifierOption
 
 	return {
 		rules,
+		issuers: Object.freeze([issuer]),
 		async verify(token, request = {}) {
 			let answer: unknown;
 			try {

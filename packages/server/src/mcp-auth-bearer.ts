@@ -4,17 +4,17 @@
 
 import type { AuthRuleCode } from './mcp-auth-rules.js';
 
-/** RFC 6750 2.1's `b64token`. */
-const B64TOKEN = /^[A-Za-z0-9\-._~+/]+=*$/;
+/**
+ * `Bearer 1*SP b64token` (RFC 6750 2.1), the scheme in any ASCII case, around which an HTTP parser
+ * may have left spaces or tabs. One anchored match whose parts cannot overlap (no space or tab
+ * inside a `b64token`), so it runs in time linear in the value: it reads an unauthenticated
+ * header on every route.
+ */
+const BEARER = /^[ \t]*bearer +([A-Za-z0-9\-._~+/]+=*)[ \t]*$/i;
 
-/** `Bearer 1*SP b64token`, after the HTTP parser's stripping of surrounding spaces and tabs. */
+/** The token of a `Bearer` value, or `undefined` when the value breaks M2's grammar. */
 function parseBearer(value: string): string | undefined {
-	const trimmed = value.replace(/^[ \t]+|[ \t]+$/g, '');
-	const scheme = trimmed.slice(0, 6);
-	const rest = trimmed.slice(6);
-	if (scheme.toLowerCase() !== 'bearer' || !rest.startsWith(' ')) return undefined;
-	const token = rest.replace(/^ +/, '');
-	return B64TOKEN.test(token) ? token : undefined;
+	return BEARER.exec(value)?.[1];
 }
 
 /** Percent- and `+`-decoding of one form name, bytewise. A malformed escape is kept as written. */

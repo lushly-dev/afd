@@ -485,7 +485,20 @@ const handler = createMcpHandler({
   at most 300 seconds (default 60) and the lifetime at most 3600 seconds by
   default. An opaque token goes to `createIntrospectionVerifier({ issuer, rules,
   introspect })`, given as `introspection`, whose `introspect(token)` is the
-  host's RFC 7662 call.
+  host's RFC 7662 call; its rules must name the same resource and binding
+  requirement. Give each issuer a key source of its own (a `kid` names a key
+  only within one issuer's set): two issuers sharing one are refused, and so is
+  an issuer `authorizationServers` does not name. `jwksKeySource` keeps the last
+  good keys while loads fail, for at most `maxStaleMs` (default one hour), then
+  answers `unavailable`.
+- **Whatever the verifier, the layer checks** the credentials' shape, their
+  certificate binding against this request's TLS client certificate, the
+  binding requirement, and `expiresAt` (within the verifier's skew), refusing
+  with M5's 401.
+- **HTTP sessions belong to their caller.** With `contexts`, a session that
+  `initialize` creates on `/message` is bound to the credentials' issuer,
+  subject and client; another caller presenting its `Mcp-Session-Id` is
+  answered as for an unknown session.
 - **Commands see `context.credentials`** (`issuer`, `subject`, `clientId`,
   `scopes`, `resource`, `expiresAt`, `issuedAt`, and `authTime`, `acr` and `cnf`
   when present), frozen and recognised by `isVerifiedCredentials` until the

@@ -193,7 +193,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		onError,
 	};
 	const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
-	const auth = options.auth ? createAuthLayer(options.auth, maxBodyBytes) : undefined;
+	const auth = options.auth ? createAuthLayer(options.auth, maxBodyBytes, clock) : undefined;
 	const modern = createModernHttpLane({
 		...modernDeps,
 		createContext: options.createContext,

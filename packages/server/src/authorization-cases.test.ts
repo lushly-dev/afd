@@ -95,6 +95,25 @@ describe('P3-E9: spec/authorization.json: bearer (M2)', () => {
 	});
 });
 
+describe('P3-E9: M2, the bearer parser runs in linear time', () => {
+	it.each([
+		['spaces', ' '],
+		['tabs', '\t'],
+	])('refuses 15,000 inner %s within 20 ms', (_name, blank) => {
+		for (const value of [
+			`Bearer abc${blank.repeat(15_000)}def`,
+			`Bearer${blank.repeat(15_000)}x y`,
+			`${blank.repeat(15_000)}x`,
+		]) {
+			const started = performance.now();
+			const result = extractBearer([value]);
+			const elapsed = performance.now() - started;
+			expect(result).toEqual({ refused: 'token-malformed' });
+			expect(elapsed).toBeLessThan(20);
+		}
+	});
+});
+
 describe('P3-E9: spec/authorization.json: challenges (M5)', () => {
 	it.each(cases.challenges)('$description', (entry) => {
 		const metadata = createProtectedResource({

@@ -42,6 +42,7 @@ import {
 import type { AuthLayer } from './mcp-auth.js';
 import type { ModernHttpLane } from './mcp-modern.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
+import { credentialsBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import type { CreateRequestContext } from './server-types.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
@@ -158,12 +159,20 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		if (!sessions) return undefined;
 		const id = req.headers['mcp-session-id'];
 		if (id === undefined) return null;
-		const state = sessions.get(String(id));
+		const state = sessions.get(String(id), sessionOwner(req));
 		if (state) return state;
 		throw new HttpRequestError(404, 'Unknown or expired MCP session', {
 			rpcCode: JsonRpcErrorCode.SESSION_NOT_FOUND,
 			suggestion: 'Send a new initialize request without Mcp-Session-Id to start a new session',
 		});
+	}
+
+	/**
+	 * Who owns the sessions `req` creates and may use: with MCP authorization, its verified
+	 * credentials' issuer, subject and client, so one caller's session is unknown to another.
+	 */
+	function sessionOwner(req: IncomingMessage): string | undefined {
+		return auth ? credentialsBinding(auth.credentialsFor(req)) : undefined;
 	}
 
 	function scoped(context: CommandContext, state: ContextState | null | undefined): CommandContext {
@@ -261,7 +270,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	async function handleMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		if (message.method === 'initialize' && !message.notification) {
-			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create());
+			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create(sessionOwner(req)));
 			json(
 				res,
 				200,
