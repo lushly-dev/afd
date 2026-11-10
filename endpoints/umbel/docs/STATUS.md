@@ -2561,11 +2561,12 @@ on another local branch and push to that remote name.
     web build and `test:mounted` (24 tests). All exited 0.
 - **Not done:** steps 6 and 8 to 12 of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan).
 - **Next:** step 6 (it needs 5); 8 needs 0e and 3; 9 and 11 need 3; 10 needs 5. Heavy steps follow the plan's build
-  note. Steps 5 to 12 take `umbel-testkit-idp` from `[dev-dependencies]`. A gateway user can be proven only once the
-  owner decides how the person page serves mode `gateway` (step 5's review).
-- **Waiting on the owner:** two questions from step 5 (the [follow-ups](phases/5-auth-hosted/spec.md#follow-ups)):
-  whether the person page should serve a gateway's users from a listener of its own (until then mode `gateway`
-  serves no verified command), and how a library (embedder) person's `memory-confirm` is recorded.
+  note. Steps 5 to 12 take `umbel-testkit-idp` from `[dev-dependencies]`. Step 5b (decided by the owner 2026-11-09)
+  serves the person page in mode `gateway` on a listener of its own, a separate direct address that browsers reach
+  without the gateway; until it lands, mode `gateway` serves no verified command.
+- **Waiting on the owner:** nothing. The gateway question was decided 2026-11-09 (a separate direct address, step 5b).
+  A library (embedder) person's `memory-confirm` is a technical choice, settled for step 10: it gets an assurance
+  method of its own, recorded honestly rather than as `terminal`, and is allowed only for the operator.
 - **Follow-ups:** the [specification's list](phases/5-auth-hosted/spec.md#follow-ups).
 
 ## Follow-ups not yet issues

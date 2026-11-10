@@ -111,6 +111,18 @@ async fn the_per_token_limit_keeps_each_callers_budget_its_own_across_processes(
         .collect();
     assert_eq!(tokens.len(), 3, "{keys:?}");
     assert!(!keys.contains(&unkeyed), "{keys:?}");
+    // Every per-token name is the prefix and a 64-digit lowercase hex HMAC, so no identifier
+    // can appear in it.
+    for key in &tokens {
+        let digest = key.strip_prefix("token:").unwrap();
+        assert!(
+            digest.len() == 64
+                && digest
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+            "{key}"
+        );
+    }
     for key in &keys {
         assert!(
             !key.contains(SUBJECT) && !key.contains("test-client"),
