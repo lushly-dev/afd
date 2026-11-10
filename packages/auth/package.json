@@ -38,6 +38,7 @@
 		"@lushly-dev/afd-core": "workspace:*"
 	},
 	"peerDependencies": {
+		"@better-auth/passkey": "^1.7.18",
 		"@convex-dev/auth": ">=0.0.95",
 		"@lushly-dev/afd-server": "workspace:^",
 		"better-auth": "^1.6.22",
@@ -59,16 +60,20 @@
 		},
 		"better-auth": {
 			"optional": true
+		},
+		"@better-auth/passkey": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@auth/core": "^0.41.3",
+		"@better-auth/passkey": "1.7.18",
 		"@lushly-dev/afd-server": "workspace:*",
 		"@testing-library/react": "^16.3.3",
 		"@types/react": "^19.3.0",
 		"@types/react-dom": "19.3.0",
 		"@vitest/coverage-v8": "^4.1.12",
-		"better-auth": "^1.6.22",
+		"better-auth": "1.7.18",
 		"convex": "1.32.0",
 		"esbuild": "0.28.2",
 		"jsdom": "^30.1.0",

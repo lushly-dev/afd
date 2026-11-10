@@ -27,6 +27,20 @@ export interface AuthMiddlewareOptions {
 	 * and do not need to be listed.
 	 */
 	exclude?: string[];
+
+	/**
+	 * Recognises the `credentials` that afd-server set on a call itself, after verifying the
+	 * call's token: pass `isVerifiedCredentials` from `@lushly-dev/afd-server/credentials`. Such a
+	 * call's caller is the token, not the adapter's session, so the middleware keeps the call's
+	 * actor, never reads the session for it, deletes `context.auth` and runs the command.
+	 *
+	 * A host that serves MCP with token authorization through this middleware must pass it, or
+	 * the session's user is stamped on every token's call. Without it, no call is treated so:
+	 * every call is gated on the session, as before. `credentials` a caller put on the context
+	 * itself (a direct-registry call, say) are never recognised, since only afd-server can mark
+	 * them.
+	 */
+	isVerifiedCredentials?: (credentials: unknown) => boolean;
 }
 
 /**
@@ -53,14 +67,29 @@ function actorForSession(actor: Actor | undefined, session: AuthenticatedSession
  *
  * Excluded commands, and the built-in auth commands, always run. They see
  * `context.auth` only when the adapter holds an unexpired session.
+ *
+ * A call whose `credentials` afd-server verified (see
+ * {@link AuthMiddlewareOptions.isVerifiedCredentials}) runs with its own actor, no
+ * `context.auth` and no session check.
  */
 export function createAuthMiddleware(
 	adapter: AuthAdapter,
 	options: AuthMiddlewareOptions = {}
 ): CommandMiddleware {
 	const excluded = new Set<string>([...AUTH_COMMAND_NAMES, ...(options.exclude ?? [])]);
+	const isVerifiedCredentials = options.isVerifiedCredentials;
 
 	return async (commandName, _input, context, next) => {
+		if (
+			context.credentials !== undefined &&
+			isVerifiedCredentials !== undefined &&
+			isVerifiedCredentials(context.credentials) === true
+		) {
+			// The token is the caller: no session decides this call or names its actor.
+			delete context.auth;
+			return next();
+		}
+
 		const state = adapter.getSession();
 		const verified =
 			state.status === 'authenticated' && !isSessionExpired(state.session) ? state : undefined;

@@ -356,8 +356,19 @@ export interface OrganizationAccess {
 	/** Every call names the organization by id; the session's active organization is never read. */
 	membership(organizationId: string): Promise<{ role: string } | null>;
 	listMembers(organizationId: string, options?: { limit?: number; offset?: number }): Promise<OrganizationMember[]>;
-	// invite, list and cancel invitations, remove, set role, leave: each with `organizationId`; accept and reject for the invitee
+	// Named in step 0b (the specification's comment listed them):
+	invite(organizationId: string, invitation: { email: string; role: string }): Promise<OrganizationInvitation>;
+	listInvitations(organizationId: string): Promise<OrganizationInvitation[]>;
+	cancelInvitation(organizationId: string, invitationId: string): Promise<void>;   // refused for another organization's invitation
+	removeMember(organizationId: string, memberId: string): Promise<void>;
+	setRole(organizationId: string, memberId: string, role: string): Promise<void>;
+	leave(organizationId: string): Promise<void>;
+	listOwnInvitations(): Promise<OrganizationInvitation[]>;   // the invitee's
+	acceptInvitation(invitationId: string): Promise<void>;
+	rejectInvitation(invitationId: string): Promise<void>;
 }
+export interface OrganizationMember { id: string; userId: string; role: string; createdAt: Date; user: { id: string; email: string; name?: string; image?: string } }
+export interface OrganizationInvitation { id: string; organizationId: string; email: string; role: string; status: 'pending' | 'accepted' | 'rejected' | 'canceled'; expiresAt: Date }
 
 export interface AuthAdapter {
 	// …as today, and:
@@ -369,9 +380,10 @@ export interface AuthAdapter {
 ```
 
 - **A session's handle is never its token:** the first 16 hex characters of SHA-256 over it, mapped in memory. `device` is a label from the user agent. **No IP address leaves the adapter.**
-- **`BetterAuthAdapter`** implements all three with the organization and passkey client plugins; a dismissed ceremony is `AuthAdapterError` `PASSKEY_CANCELLED`, no WebAuthn `PASSKEY_UNSUPPORTED`. It takes an `initial` state from the probe.
-- **`MockAuthAdapter`** implements all three in memory, roles from its options, and an `expiresAt` the kernel's clock reads.
+- **`BetterAuthAdapter`** implements all three with the organization and passkey client plugins; a dismissed ceremony is `AuthAdapterError` `PASSKEY_CANCELLED`, no WebAuthn `PASSKEY_UNSUPPORTED`. It takes an `initial` state from the probe. *As built in step 0b:* Better Auth's client is a path proxy that answers every property, so a missing plugin cannot be detected; the three capabilities are always present, and a provider without the plugin answers `PROVIDER_ERROR`. An unknown session handle is `PROVIDER_ERROR`. `sessions` uses Better Auth's own `/list-sessions`, which needs a fresh session; Loam's `session-list` reads `loamServerPlugin`'s endpoint instead (4.6).
+- **`MockAuthAdapter`** implements all three in memory, roles from its options, and an `expiresAt` the kernel's clock reads. *As built in step 0b:* `new MockAuthAdapter({ clock, roles })`, with `roles` as `{ [organizationId]: { [userId]: role } }`; `refresh()` signs out a session past its `expiresAt` on the clock; a passkey sign-in signs in the holder of the passkey added last, and `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how ceremonies end.
 - **`createAuthMiddleware`, one change: a call whose `credentials` afd-server set itself keeps its actor,** since MCP authorization verified it and the adapter's session is not its caller. afd-server marks the credentials it sets after verification with a module-private brand (a `WeakSet` in `@lushly-dev/afd-server`, read through an exported `isVerifiedCredentials`), so a direct-registry caller passing its own `credentials` object gets no such treatment, and the middleware still deletes any caller-supplied `auth` in both cases. This is the backstop; Loam's server kernel has no session gate at all ([9.5](#95-the-server-kernel-and-its-chain)).
+  - **Amended in step 0b (coordinator, 2026-11-09).** afd-auth reads the predicate from its options, `createAuthMiddleware(adapter, { isVerifiedCredentials })`, rather than importing afd-server: afd-server is an optional peer of afd-auth, and `@lushly-dev/afd-client`'s `DirectClient` runs middleware without it, so a static import would make it a required peer for consumers that never receive branded credentials. Without the predicate the middleware fails closed, as before: every call is gated on the session. afd-server exports `isVerifiedCredentials` from its root and from a browser-safe `@lushly-dev/afd-server/credentials` entry, and no entry exports the brand function, which step 0a's verifier calls; until then nothing is branded. **A branded call deletes `context.auth`, leaves `context.actor` untouched and runs without reading the adapter's session,** signed out, loading or expired; afd-server never brands `createContext`'s credentials, which the host admitted. Loam's server kernel has no session gate (9.5), so there this is belt and braces; **steps 1 and 7 pass the predicate wherever afd-auth's middleware runs on a registry that can receive verified credentials.**
 - **`spec/error-codes.md`'s** auth package codes gain `PASSKEY_CANCELLED` and `PASSKEY_UNSUPPORTED` in step 0b. Loam's own codes ([15](#15-failure-modes-and-error-codes)) are kernel codes and stay out of it.
 
 ### 4.2 First paint: the probe

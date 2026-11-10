@@ -160,6 +160,11 @@ describe('MockAuthAdapter', () => {
 		const error = adapter._triggerError('INVALID_CREDENTIALS');
 		expect(error.code).toBe('INVALID_CREDENTIALS');
 		expect(error.retryable).toBe(false);
+		for (const code of ['PASSKEY_CANCELLED', 'PASSKEY_UNSUPPORTED'] as const) {
+			const passkeyError = adapter._triggerError(code);
+			expect(passkeyError).toMatchObject({ code, retryable: false });
+			expect(passkeyError.suggestion).toBeTruthy();
+		}
 	});
 
 	it('tracks listener count via _getListenerCount()', () => {

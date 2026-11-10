@@ -175,6 +175,11 @@ function toSignInRequest(
 		];
 	}
 
+	if (options.method === 'passkey') {
+		// The Convex adapter has no passkey sign-in.
+		throw AuthAdapterError.passkeyUnsupported();
+	}
+
 	if (options.scopes !== undefined && options.scopes.length > 0) {
 		throw new AuthAdapterError({
 			code: 'PROVIDER_ERROR',

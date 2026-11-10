@@ -42,6 +42,10 @@ const signInInput = z.discriminatedUnion('method', [
 		scopes: z.optional(z.array(z.string())),
 		redirectTo: z.optional(z.string()),
 	}),
+	z.object({
+		method: z.literal('passkey'),
+		autoFill: z.optional(z.boolean()),
+	}),
 ]);
 
 const emptyInput = z.object({});
@@ -58,7 +62,7 @@ export function createAuthMutationCommands(
 	const signIn = defineCommandWithSchema({
 		name: 'auth-sign-in',
 		description:
-			'Sign in with credentials or OAuth provider. Returns the new session, or the current state with a warning when sign-in continues at the provider (redirect) or has not completed yet.',
+			'Sign in with credentials, an OAuth provider or a passkey. Returns the new session, or the current state with a warning when sign-in continues at the provider (redirect) or has not completed yet.',
 		category: 'auth',
 		tags: ['auth', 'session'],
 		mutation: true,
@@ -90,6 +94,14 @@ export function createAuthMutationCommands(
 						redirectTo: { type: 'string' },
 					},
 					required: ['method', 'provider'],
+				},
+				{
+					type: 'object',
+					properties: {
+						method: { type: 'string', const: 'passkey' },
+						autoFill: { type: 'boolean' },
+					},
+					required: ['method'],
 				},
 			],
 		},

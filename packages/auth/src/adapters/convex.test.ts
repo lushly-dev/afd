@@ -216,6 +216,17 @@ describe('useConvexAuthAdapter', () => {
 			expect(opts._signIn).not.toHaveBeenCalled();
 		});
 
+		it('refuses a passkey sign-in with PASSKEY_UNSUPPORTED', async () => {
+			const opts = createMockOptions();
+			const { result } = renderHook(() => useConvexAuthAdapter(opts));
+
+			await expect(result.current.signIn({ method: 'passkey' })).rejects.toMatchObject({
+				code: 'PASSKEY_UNSUPPORTED',
+				retryable: false,
+			});
+			expect(opts._signIn).not.toHaveBeenCalled();
+		});
+
 		it('reports redirect and pending outcomes', async () => {
 			const opts = createMockOptions();
 			const { result } = renderHook(() => useConvexAuthAdapter(opts));

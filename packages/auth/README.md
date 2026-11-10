@@ -46,6 +46,7 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
 | `loading` | `UNAUTHORIZED`, retryable |
 | `authenticated`, `session.expiresAt` at or before now (or not a valid date) | `TOKEN_EXPIRED`, retryable |
 | `authenticated` | sets `context.auth`, fills `context.actor` from the session user and runs the command |
+| any state, with `credentials` afd-server verified (below) | deletes `context.auth`, keeps `context.actor` and runs the command, without reading the session |
 
 - The built-in commands `auth-sign-in`, `auth-sign-out` and `auth-session-get`
   (`AUTH_COMMAND_NAMES`) always run, so a signed-out caller can sign in.
@@ -63,7 +64,38 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
 - `Session.expiresAt` is optional. A session without it (Convex) is never
   rejected as expired; the provider manages the token lifetime.
 
+### Calls authorized by a token
+
+On an MCP server that verifies tokens, a call's caller is the token, not the
+session the adapter holds. Tell the middleware which calls those are:
+
+```ts
+import { createAuthMiddleware } from '@lushly-dev/afd-auth';
+import { isVerifiedCredentials } from '@lushly-dev/afd-server/credentials';
+
+const middleware = createAuthMiddleware(adapter, { isVerifiedCredentials });
+```
+
+- A host that serves MCP with token authorization through this middleware
+  must pass it. Without it, a token's call is gated on the adapter's session
+  and its actor is stamped with the session user, as for any other call.
+- afd-server marks the `credentials` object it sets after verifying a token
+  with a private brand; `isVerifiedCredentials` recognises only that object.
+  `credentials` a caller puts on the context itself (on a direct registry, say),
+  a copy of branded ones, and those a host's `createContext` sets are not
+  recognised and get the session treatment above.
+- `@lushly-dev/afd-server/credentials` loads nothing else of the server, so
+  the import costs a browser bundle a few hundred bytes. The root import of
+  this package still needs no `@lushly-dev/afd-server`.
+
 ## Sign-in results
+
+`SignInOptions` is `{ method: 'credentials', email, password? }`,
+`{ method: 'oauth', provider, scopes?, redirectTo? }` or
+`{ method: 'passkey', autoFill? }` (`autoFill` offers passkeys in the browser's
+autofill). An adapter without passkeys throws `PASSKEY_UNSUPPORTED`; a dismissed
+or timed-out ceremony is `PASSKEY_CANCELLED`. Neither is retryable: only the
+person can try again.
 
 `AuthAdapter.signIn()` may resolve with a `SignInOutcome`:
 `{ kind: 'signed-in' }`, `{ kind: 'redirect', url? }` (OAuth continues at the
@@ -79,6 +111,26 @@ Resolving with nothing is still allowed and counts as `signed-in`.
   `signInTimeoutMs` (default 10 s), and returns the new session. If the wait
   runs out it returns the current state with a `SIGN_IN_PENDING` warning; if
   the adapter settles on no session it fails with `PROVIDER_ERROR`.
+
+## Capabilities
+
+An adapter may also offer these, each optional on `AuthAdapter`:
+
+| Member | What it does |
+| --- | --- |
+| `refresh()` | Reads the session from the provider now; resolves once `getSession()` holds the answer |
+| `sessions` | `listSessions()` and `revokeSession(handle \| 'others' \| 'all')` for the signed-in person |
+| `passkeys` | `listPasskeys()`, `addPasskey({ name? })`, `renamePasskey(id, name)`, `removePasskey(id)` |
+| `organization` | `membership(orgId)` (the role, or `null`), `listMembers`, `invite`, `listInvitations`, `cancelInvitation`, `removeMember`, `setRole`, `leave`, and for the invitee `listOwnInvitations`, `acceptInvitation`, `rejectInvitation` |
+
+- A `SessionRow` is `{ handle, current, createdAt, updatedAt, expiresAt?, device? }`.
+  The handle is the first 16 hex characters of SHA-256 over the session's
+  token; the token stays in the adapter's memory. `device` is a label read from
+  the user agent, such as `Chrome on macOS`. No IP address leaves the adapter.
+- A `PasskeyRow` is `{ id, name?, createdAt, deviceType?, backedUp? }`, with no
+  key material.
+- Every `organization` call names the organization by id. An empty id is a
+  `TypeError`, so no call can fall back to the provider's active organization.
 
 ## Adapters
 
@@ -116,9 +168,45 @@ const adapter = useConvexAuthAdapter({
 
 ### Better Auth
 
-`BetterAuthAdapter` forwards OAuth `scopes` and `redirectTo` (as
-`callbackURL`) to `signIn.social`, and reports its redirect URL as a
-`redirect` outcome.
+```ts
+import { passkeyClient } from '@better-auth/passkey/client';
+import { createAuthClient } from 'better-auth/client';
+import { organizationClient } from 'better-auth/client/plugins';
+
+const client = createAuthClient({ plugins: [organizationClient(), passkeyClient()] });
+const adapter = new BetterAuthAdapter({ client, initial }); // initial: optional
+```
+
+- Tested on Better Auth 1.7.18 with `@better-auth/passkey` 1.7.18, both pinned
+  exactly in this package's development dependencies.
+- `BetterAuthAdapter` forwards OAuth `scopes` and `redirectTo` (as
+  `callbackURL`) to `signIn.social`, and reports its redirect URL as a
+  `redirect` outcome.
+- `initial` is the state to report until the client's session store first
+  answers, such as a session the page read from its server. `refresh()` calls
+  the store's `refetch`.
+- It has all three capabilities. `passkeys` and passkey sign-in need
+  `passkeyClient()` and the server's `passkey()` plugin, `organization` needs
+  `organizationClient()` and `organization()`; without them the provider
+  answers `PROVIDER_ERROR`. `sessions` uses Better Auth's own routes, and
+  `/list-sessions` needs a fresh session.
+- Passkey calls check for WebAuthn first (`PASSKEY_UNSUPPORTED`).
+- Better Auth lists and accepts invitations only for a verified email.
+
+### Mock
+
+`MockAuthAdapter` is for tests. It takes `{ delay?, clock?, roles? }` and has
+all three capabilities in memory:
+
+- `clock` (afd-core's `Clock`) times everything it records. A session expires
+  one hour after sign-in on it, and `refresh()` signs out a session past its
+  `expiresAt`.
+- `roles` is `{ [organizationId]: { [userId]: role } }`. Owners and admins
+  manage members and invitations; the last owner can neither leave nor be
+  demoted.
+- A passkey sign-in signs in the holder of the passkey added last.
+  `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how later
+  ceremonies end.
 
 ## Session sync
 

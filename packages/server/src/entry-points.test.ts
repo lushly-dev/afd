@@ -1,5 +1,6 @@
 /**
- * @fileoverview `@lushly-dev/afd-server/define` and `/direct` must stay transport-free.
+ * @fileoverview `@lushly-dev/afd-server/define`, `/direct` and `/credentials` must stay
+ * transport-free.
  *
  * Bundles an entry that imports only one subpath with esbuild for the
  * browser. The bundle fails if anything in the module graph imports the MCP
@@ -176,6 +177,28 @@ describe('@lushly-dev/afd-server/define', () => {
 
 		const texts = result.errors.map((message) => message.text).join('\n');
 		expect(texts).toMatch(/node:(http|tls|child_process)/);
+	});
+});
+
+describe('@lushly-dev/afd-server/credentials', () => {
+	it('declares the subpath with the same conditions as the root export', () => {
+		expect(manifest.exports['./credentials']).toEqual({
+			types: './dist/credentials.d.ts',
+			import: './dist/credentials.js',
+		});
+	});
+
+	it('bundles for the browser as the brand module alone', async () => {
+		const result = await bundleForBrowser(`${PACKAGE_NAME}/credentials`);
+
+		expect(result.errors.map((message) => message.text)).toEqual([]);
+		const inputs = Object.keys(result.metafile?.inputs ?? {}).filter(
+			(input) => input !== 'browser-entry.js'
+		);
+		expect(inputs.map((input) => input.replace(/^.*\/src\//, 'src/')).sort()).toEqual([
+			'src/credentials.ts',
+			'src/verified-credentials.ts',
+		]);
 	});
 });
 

@@ -14,7 +14,9 @@ export type AuthErrorCode =
 	| 'TOKEN_EXPIRED'
 	| 'PROVIDER_ERROR'
 	| 'NETWORK_ERROR'
-	| 'REFRESH_FAILED';
+	| 'REFRESH_FAILED'
+	| 'PASSKEY_CANCELLED'
+	| 'PASSKEY_UNSUPPORTED';
 
 const RETRYABLE_CODES = new Set<AuthErrorCode>(['NETWORK_ERROR', 'REFRESH_FAILED']);
 
@@ -71,6 +73,24 @@ export class AuthAdapterError extends Error {
 			code: 'NETWORK_ERROR',
 			message: 'Network request failed',
 			suggestion: 'Check your connection and try again',
+		});
+	}
+
+	/** The person dismissed the passkey ceremony, or it timed out. Only they can try again. */
+	static passkeyCancelled(): AuthAdapterError {
+		return new AuthAdapterError({
+			code: 'PASSKEY_CANCELLED',
+			message: 'The passkey request was cancelled',
+			suggestion: 'Try again and choose a passkey, or use another sign-in method',
+		});
+	}
+
+	/** The browser has no WebAuthn, or the adapter's provider has no passkeys. */
+	static passkeyUnsupported(): AuthAdapterError {
+		return new AuthAdapterError({
+			code: 'PASSKEY_UNSUPPORTED',
+			message: 'Passkeys are not available here',
+			suggestion: 'Use a browser that supports passkeys, or another sign-in method',
 		});
 	}
 
