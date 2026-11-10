@@ -1657,9 +1657,9 @@
       "path": "foundations/violet/packages/runtime/tsconfig.json",
       "upstream_path": "packages/runtime/tsconfig.json",
       "upstream_sha256": "0b7d22345a861fc56cbb994701acb117cf3e9d037202c9c3870294633cb9a1e4",
-      "current_import_sha256": "0b7d22345a861fc56cbb994701acb117cf3e9d037202c9c3870294633cb9a1e4",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "3d051c30bb695205fa670627c0ec497ea14ba88603f5cfcfa5cac804d586246d",
+      "classification": "adapted",
+      "reason": "Names \"types\": [] (#811): the runtime targets browsers, so it no longer inherits the Node types the upstream base names for TypeScript 7; its tests are excluded here and run under Node",
       "candidate": {
         "path": "packages/runtime/tsconfig.json",
         "sha256": "0b7d22345a861fc56cbb994701acb117cf3e9d037202c9c3870294633cb9a1e4",
