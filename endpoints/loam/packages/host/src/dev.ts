@@ -17,11 +17,13 @@ import { fileURLToPath } from 'node:url';
 import { analyzeDeployment } from '@lushly-dev/loam-cli/deployment';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
 import {
+	claimDataDirectory,
 	createMailSink,
+	DEV_FILE,
+	DEV_GITIGNORE,
 	type DevPorts,
 	ensureAuthSecret,
 	ensureCertificate,
-	privateDirectory,
 	readDevPorts,
 	writeDevPorts,
 	writePrivate,
@@ -62,29 +64,39 @@ export interface DevProfile {
 	data: string;
 }
 
-function portTaken(port: number, which: string): HostError {
+/** Where a port the profile must have came from: `dev.json`, or `--port`. */
+type PortSource = { recorded: string } | 'flag';
+
+function portTaken(port: number, which: string, source: PortSource): HostError {
 	return new HostError([
-		{
-			code: 'HOST_PORT_TAKEN',
-			key: `${DEV_DATA_DIRECTORY}/dev.json`,
-			message: `Port ${port}, which \`dev.json\` records for the ${which}, is in use.`,
-			suggestion:
-				'Free the port, or remove `dev.json` and accept a new origin, which passkeys and the provider bind to.',
-		},
+		source === 'flag'
+			? {
+					code: 'HOST_PORT_TAKEN',
+					key: '--port',
+					message: `Port ${port}, which \`--port\` names for the ${which}, is in use.`,
+					suggestion: 'Free the port, or name another with `--port`, or `0` for a free one.',
+				}
+			: {
+					code: 'HOST_PORT_TAKEN',
+					key: source.recorded,
+					message: `Port ${port}, which \`dev.json\` records for the ${which}, is in use.`,
+					suggestion:
+						'Free the port, or remove `dev.json` and accept a new origin, which passkeys and the provider bind to.',
+				},
 	]);
 }
 
 async function bindRecorded(
 	server: Server,
 	port: number,
-	recorded: boolean,
+	source: PortSource | null,
 	which: string
 ): Promise<number> {
 	try {
 		await bindServer(server, '127.0.0.1', port);
 	} catch (cause) {
-		if ((cause as NodeJS.ErrnoException).code === 'EADDRINUSE' && (recorded || port !== 0))
-			throw portTaken(port, which);
+		if ((cause as NodeJS.ErrnoException).code === 'EADDRINUSE' && source !== null)
+			throw portTaken(port, which, source);
 		throw cause;
 	}
 	return (server.address() as AddressInfo).port;
@@ -105,12 +117,13 @@ export async function runDev(options: DevOptions & TestOnlyOptions): Promise<Dev
 	const data = resolve(options.data ?? join(dirname(deployment), DEV_DATA_DIRECTORY));
 	const dist = resolve(options.dist ?? WORKSPACE_DIST);
 	// 1. The lock first: nothing in the directory is written by a second process.
-	await privateDirectory(data);
+	// Only a directory that is missing, empty or already the profile's is taken.
+	await claimDataDirectory(data);
 	const lock: DataLock = acquireDataLock(data);
 	const servers: Server[] = [];
 	let handedOver = false;
 	try {
-		await writePrivate(join(data, '.gitignore'), '*\n');
+		await writePrivate(join(data, '.gitignore'), DEV_GITIGNORE);
 		// 2. The certificate and the secret, kept across runs.
 		const tls = await ensureCertificate(data);
 		const secret = await ensureAuthSecret(data);
@@ -130,10 +143,11 @@ export async function runDev(options: DevOptions & TestOnlyOptions): Promise<Dev
 		const material = { cert: readFileSync(tls.certificate), key: readFileSync(tls.key) };
 		const shell = createHostServer(material);
 		servers.push(shell);
+		const recordedAt = { recorded: join(data, DEV_FILE) };
 		const port = await bindRecorded(
 			shell,
 			recorded?.port ?? options.port ?? 0,
-			recorded !== null,
+			recorded ? recordedAt : options.port ? 'flag' : null,
 			'shell'
 		);
 		let sandboxPort: number | undefined;
@@ -145,11 +159,13 @@ export async function runDev(options: DevOptions & TestOnlyOptions): Promise<Dev
 			sandboxPort = await bindRecorded(
 				sandbox,
 				recorded?.sandboxPort ?? 0,
-				recorded?.sandboxPort !== undefined,
+				recorded?.sandboxPort !== undefined ? recordedAt : null,
 				'sandbox'
 			);
 		}
-		const ports: DevPorts = { port, ...(sandboxPort ? { sandboxPort } : {}) };
+		// A recorded sandbox port is kept while no view app needs it, so its origin stays the same.
+		const keptSandbox = sandboxPort ?? recorded?.sandboxPort;
+		const ports: DevPorts = { port, ...(keptSandbox ? { sandboxPort: keptSandbox } : {}) };
 		if (recorded?.port !== ports.port || recorded?.sandboxPort !== ports.sandboxPort)
 			await writeDevPorts(data, ports);
 		// 4. The configuration, in memory, from the bound ports.
@@ -179,8 +195,13 @@ export async function runDev(options: DevOptions & TestOnlyOptions): Promise<Dev
 			},
 			...(options[SERVE_STATIC_DEPLOYMENT] ? { [SERVE_STATIC_DEPLOYMENT]: true as const } : {}),
 		});
-		// 5. Serving.
-		await host.listen();
+		// 5. Serving. The host owns the lock and the sockets now, so a failed listen closes it.
+		try {
+			await host.listen();
+		} catch (cause) {
+			await host.close();
+			throw cause;
+		}
 		return {
 			host,
 			origin,

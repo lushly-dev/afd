@@ -330,6 +330,7 @@ async function construct(
 		throw new Error('The sockets handed over do not match the listeners the configuration names.');
 
 	const servers: Server[] = [];
+	const attached = new WeakSet<Server>();
 	let closed = false;
 	const host: LoamHost = {
 		origin,
@@ -341,6 +342,12 @@ async function construct(
 				for (const [index, listener] of listeners.entries()) {
 					const given = adopted ? (index === 0 ? adopted.shell : adopted.sandbox) : undefined;
 					const server = given ?? createHostServer(tls);
+					// A handed-over socket keeps its one handler across a retried `listen()`.
+					if (attached.has(server)) {
+						servers.push(server);
+						continue;
+					}
+					attached.add(server);
 					server.on(
 						'request',
 						gate(

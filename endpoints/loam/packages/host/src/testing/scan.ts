@@ -6,7 +6,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { SECRETS_DIRECTORY } from '../dev-files.js';
+import { SECRETS_DIRECTORY, TLS_DIRECTORY } from '../dev-files.js';
 
 /** What the scan reads of a `DevHost`: its data directory and its logs. */
 export interface ScannedHost {
@@ -21,7 +21,10 @@ export interface ScannedPage {
 
 function filesBelow(directory: string): string[] {
 	if (!existsSync(directory)) return [];
-	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+	const entries = readdirSync(directory, { withFileTypes: true }).sort((a, b) =>
+		a.name < b.name ? -1 : a.name > b.name ? 1 : 0
+	);
+	return entries.flatMap((entry) => {
 		const path = join(directory, entry.name);
 		if (entry.isDirectory()) return filesBelow(path);
 		return entry.isFile() ? [path] : [];
@@ -74,11 +77,25 @@ const PAGE_STORAGE = `(async () => {
 	return parts.join('\\n');
 })()`;
 
+/** The two files that hold the profile's own secrets: what the scan looks for, never where. */
+const SECRET_FILES = [join(SECRETS_DIRECTORY, 'auth'), join(TLS_DIRECTORY, 'key.pem')];
+
+/** A PEM file's base64 body, its lines joined: what would show if the key were copied anywhere. */
+function pemBody(path: string): string {
+	return readFileSync(path, 'utf8')
+		.split('\n')
+		.filter((line) => line && !line.startsWith('-----'))
+		.join('');
+}
+
 /**
- * Scans the served files, the projection, the server's journal, its logs, every store row and each page's
- * `localStorage` and IndexedDB for section 13's secrets: the `known` ones and the profile's generated auth
- * secret. `found` names each secret by its index in `known` (or `auth secret`) and where it was found, and
- * never its value, so a failing assertion cannot print one.
+ * Scans for section 13's secrets: the bytes of every regular file under the data directory but the two
+ * that hold the profile's own secrets (so the served files, the projection, the journal, `dev.json`,
+ * `.lock`, every store with its `-wal` and `-journal` files, and any log written there), every store's
+ * rows, the server's logs, and each page's `localStorage` and IndexedDB. It looks for the `known` secrets,
+ * the profile's generated auth secret and its TLS key's body. `found` names each secret by its index in
+ * `known` (or `auth secret`, `tls key`) and where it was found, never its value, so a failing assertion
+ * cannot print one.
  */
 export async function scanSecrets(
 	host: ScannedHost,
@@ -86,22 +103,25 @@ export async function scanSecrets(
 	known: readonly string[]
 ): Promise<{ found: string[] }> {
 	const places: Array<[string, string]> = [];
-	for (const file of filesBelow(join(host.data, 'public')))
-		places.push([`served file ${file.slice(host.data.length + 1)}`, readFileSync(file, 'utf8')]);
-	for (const file of filesBelow(host.data).filter((path) => /\.jsonl$/.test(path)))
-		places.push([`file ${file.slice(host.data.length + 1)}`, readFileSync(file, 'utf8')]);
-	// Not `lock.sqlite`: the server holds it exclusively, and it holds nothing but the time it was taken.
+	const relative = (file: string) => file.slice(host.data.length + 1);
+	for (const file of filesBelow(host.data)) {
+		if (SECRET_FILES.includes(relative(file))) continue;
+		places.push([`file ${relative(file)}`, readFileSync(file).toString('latin1')]);
+	}
+	// A store's rows too, since a value long enough spans its pages. Not `lock.sqlite`, which the server
+	// holds exclusively: its bytes are read above, and it holds nothing but the time it was taken.
 	for (const file of filesBelow(host.data).filter(
 		(path) => path.endsWith('.sqlite') && !path.endsWith('lock.sqlite')
 	))
-		if (statSync(file).size > 0)
-			places.push([`store ${file.slice(host.data.length + 1)}`, storeRows(file)]);
+		if (statSync(file).size > 0) places.push([`store ${relative(file)}`, storeRows(file)]);
 	places.push(['the server log', host.logs().join('\n')]);
 	for (const [index, page] of pages.entries())
 		places.push([`page ${index}'s storage`, String(await page.evaluate(PAGE_STORAGE))]);
 	const secrets: Array<[string, string]> = known.map((value, index) => [`known[${index}]`, value]);
 	const generated = join(host.data, SECRETS_DIRECTORY, 'auth');
 	if (existsSync(generated)) secrets.push(['auth secret', readFileSync(generated, 'utf8').trim()]);
+	const key = join(host.data, TLS_DIRECTORY, 'key.pem');
+	if (existsSync(key)) secrets.push(['tls key', pemBody(key)]);
 	const found: string[] = [];
 	for (const [name, value] of secrets) {
 		if (value.length < 8) throw new Error(`${name} is too short to scan for.`);

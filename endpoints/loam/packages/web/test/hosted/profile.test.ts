@@ -146,12 +146,19 @@ describe('P6-H1: one command, one process', () => {
 		expect((output.error as { code: string }).code).toBe('HOST_DATA_LOCKED');
 	});
 
-	it('P6-H1: after a restart the data is there, the certificate and the secret are kept, and the origin is the same', async () => {
+	it("P6-H1: after a restart the origin is the same, so the browser's data is there, and the certificate and the secret are kept", async () => {
+		// The context stays open across the restart: its storage is the origin's, which a new port would lose.
 		const opened = await openShell(browser, host.root);
 		expect(await kernelCall(opened.page, 'project-create', { name: 'Atlas' })).toMatchObject({
 			success: true,
 		});
-		await opened.context.close();
+		await opened.page.evaluate(async () => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: { flush(): Promise<void> };
+			};
+			await shell.kernel.flush();
+		});
+		await opened.page.close();
 		const before = {
 			origin: host.origin,
 			spki: host.spki,
@@ -165,7 +172,13 @@ describe('P6-H1: one command, one process', () => {
 		expect(pidOf(host)).not.toBe(before.pid);
 		expect(readFileSync(join(host.data, 'secrets', 'auth'), 'utf8')).toBe(before.secret);
 		expect(readFileSync(join(host.data, 'dev.json'), 'utf8')).toBe(before.ports);
-		expect((await hosted(host, '/loam/', { accept: HTML })).status).toBe(200);
+		const reopened = await openShell(browser, host.root, {}, opened.context);
+		const listed = (await kernelCall(reopened.page, 'project-list', { status: 'all' })) as {
+			data: { projects: Array<{ name: string }> };
+		};
+		expect(listed.data.projects.map(({ name }) => name)).toContain('Atlas');
+		expect(reopened.violations).toEqual([]);
+		await opened.context.close();
 	});
 
 	it("P6-H1: section 14's rows: cold start to the first 200 on <base>, and resident memory after boot and E1's scenario", async () => {
@@ -175,11 +188,12 @@ describe('P6-H1: one command, one process', () => {
 			Number(
 				execFileSync('ps', ['-o', 'rss=', '-p', String(pidOf(host))], { encoding: 'utf8' }).trim()
 			) / 1024;
-		// Recorded for the coordinator's ceilings (section 14: the measurement plus 25%).
+		// Section 14's ceilings, approved by the coordinator 2026-11-10: `ubuntu-latest`'s measurement in
+		// #945's `Hosted development profile` job (301 ms, 93 MB) plus 25%, rounded up.
 		console.log(
 			`P6-H1 measurement: cold start ${Math.round(coldStartMs)} ms, resident ${Math.round(residentMb)} MB`
 		);
-		expect(coldStartMs).toBeLessThanOrEqual(3_000);
-		expect(residentMb).toBeLessThanOrEqual(300);
+		expect(coldStartMs).toBeLessThanOrEqual(377);
+		expect(residentMb).toBeLessThanOrEqual(117);
 	});
 });

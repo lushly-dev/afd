@@ -9,7 +9,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DEV_DATA_DIRECTORY } from '../dev.js';
-import { ensureCertificate, privateDirectory, readMail, type SinkMessage } from '../dev-files.js';
+import {
+	claimDataDirectory,
+	DEV_GITIGNORE,
+	ensureCertificate,
+	readMail,
+	type SinkMessage,
+	writePrivate,
+} from '../dev-files.js';
 import type { Launched, Launcher } from './launcher.js';
 
 /** One entry of the server's journal, as `journal.jsonl` holds it. */
@@ -67,6 +74,25 @@ const LATER: Record<string, string> = {
 };
 
 /**
+ * The deployment file's text with `site.base_path` set: into its own `[site]` table when it has one, which
+ * must not set the path already, or as a new table.
+ */
+export function withBasePath(config: string, basePath: string | undefined): string {
+	if (basePath === undefined) return config;
+	const line = `base_path = ${JSON.stringify(basePath)}`;
+	const table = /^\[site\][ \t]*$/m.exec(config);
+	if (!table) return `${config}\n\n[site]\n${line}`;
+	const start = table.index + table[0].length;
+	const next = config.slice(start).search(/^\[/m);
+	const body = next === -1 ? config.slice(start) : config.slice(start, start + next);
+	if (/^\s*base_path\s*=/m.test(body))
+		throw new Error(
+			"startDevHost's `basePath` and the config's own `[site] base_path` disagree on who sets it."
+		);
+	return `${config.slice(0, start)}\n${line}${config.slice(start)}`;
+}
+
+/**
  * A `DevHost` over the development profile `launch` starts: `startDevHost` passes the child launcher, and
  * this package's units an in-process one. It writes the deployment file, makes the certificate before the
  * profile starts, so `NODE_EXTRA_CA_CERTS` names it from the profile's first line, and removes the whole
@@ -84,16 +110,12 @@ export async function createDevHost(
 	let running: Launched | undefined;
 	try {
 		const deployment = join(root, 'loam.deployment.toml');
-		await writeFile(
-			deployment,
-			[
-				options.config,
-				...(options.basePath ? [`[site]\nbase_path = ${JSON.stringify(options.basePath)}`] : []),
-			].join('\n\n')
-		);
+		await writeFile(deployment, withBasePath(options.config, options.basePath));
 		// The certificate exists before the child starts, so it can trust its own origin from its first line.
+		// The `.gitignore` first: it marks the directory as the profile's, which `dev` then takes as its own.
 		const data = join(root, DEV_DATA_DIRECTORY);
-		await privateDirectory(data);
+		await claimDataDirectory(data);
+		await writePrivate(join(data, '.gitignore'), DEV_GITIGNORE);
 		const { certificate } = await ensureCertificate(data);
 		const env = { ...options.env, NODE_EXTRA_CA_CERTS: certificate };
 		running = await launch(deployment, env, logs);
@@ -102,10 +124,16 @@ export async function createDevHost(
 			if (!running) throw new Error('The development profile is not running.');
 			return running;
 		};
+		// One read-only handle per database for the host's life, closed with it.
+		const handles = new Map<string, DatabaseSync>();
 		const database = (name: string): DatabaseSync => {
+			const held = handles.get(name);
+			if (held) return held;
 			const path = join(current().ready.data, name);
 			if (!existsSync(path)) throw new Error(`\`${name}\` does not exist yet.`);
-			return new DatabaseSync(path, { readOnly: true });
+			const opened = new DatabaseSync(path, { readOnly: true });
+			handles.set(name, opened);
+			return opened;
 		};
 		const host: DevHost = {
 			get origin() {
@@ -155,6 +183,8 @@ export async function createDevHost(
 				await current().stop('SIGKILL');
 			},
 			async close() {
+				for (const handle of handles.values()) handle.close();
+				handles.clear();
 				if (running) await running.stop('SIGTERM');
 				running = undefined;
 				await rm(root, { recursive: true, force: true });

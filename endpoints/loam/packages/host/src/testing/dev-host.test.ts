@@ -7,7 +7,7 @@ import { runDev } from '../dev.js';
 import { createMailSink } from '../dev-files.js';
 import { fixtureDist, raw, temporaryDirectory } from '../test-support.js';
 import { SERVE_STATIC_DEPLOYMENT } from '../testing-only.js';
-import { createDevHost, type DevHost } from './dev-host.js';
+import { createDevHost, type DevHost, withBasePath } from './dev-host.js';
 import type { Launcher } from './launcher.js';
 
 const CONFIG = 'deployment_version = 2\n\n[apps]\n';
@@ -117,8 +117,11 @@ describe('startDevHost, in-process (5.2)', () => {
 		const { auth, loam } = host.db();
 		expect(auth.prepare('SELECT count(*) AS n FROM t').get()).toEqual({ n: 0 });
 		expect(() => loam.exec('INSERT INTO t VALUES (1)')).toThrow();
-		auth.close();
-		loam.close();
+		// One handle each for the host's life, closed with it.
+		expect(host.db().auth).toBe(auth);
+		await host.close();
+		expect(auth.isOpen).toBe(false);
+		expect(loam.isOpen).toBe(false);
 	});
 
 	it('restarts with the same origin, kills, and closes, removing its directory', async () => {
@@ -159,5 +162,22 @@ describe('startDevHost, in-process (5.2)', () => {
 		).rejects.toMatchObject({ code: 'HOST_DATA_LOCKED' });
 		expect(root).not.toBe('');
 		expect(existsSync(root)).toBe(false);
+	});
+});
+
+describe("startDevHost's base path (5.2)", () => {
+	it('adds a [site] table, or sets base_path in the one the config has', () => {
+		expect(withBasePath(CONFIG, undefined)).toBe(CONFIG);
+		expect(withBasePath(CONFIG, '/loam/')).toBe(`${CONFIG}\n\n[site]\nbase_path = "/loam/"`);
+		const sited = 'deployment_version = 2\n\n[site]\n\n[apps]\n';
+		expect(withBasePath(sited, '/loam/')).toBe(
+			'deployment_version = 2\n\n[site]\nbase_path = "/loam/"\n\n[apps]\n'
+		);
+	});
+
+	it('refuses a config whose [site] sets base_path already', () => {
+		expect(() =>
+			withBasePath('deployment_version = 2\n\n[site]\nbase_path = "/a/"\n\n[apps]\n', '/loam/')
+		).toThrow('disagree');
 	});
 });
