@@ -31,7 +31,14 @@ export default defineConfig({
 		coverage: {
 			...base.test?.coverage,
 			// Browser-free suites exercise only these modules; browser modules are measured by test:browser.
-			include: ['src/diff.ts', 'src/normalize.ts', 'src/normalize-ids.ts', 'src/validate.ts'],
+			include: [
+				'src/diff.ts',
+				'src/normalize.ts',
+				'src/normalize-ids.ts',
+				'src/pack.ts',
+				'src/pack-schema.ts',
+				'src/validate.ts',
+			],
 			exclude: [],
 		},
 	},

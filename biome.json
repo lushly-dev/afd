@@ -25,6 +25,7 @@
 			"!endpoints/health-dashboard/fixtures",
 			"!endpoints/loam/packages/theme/fixtures",
 			"!foundations/specimen/provenance/*.json",
+			"!foundations/specimen/fixtures/pack",
 			"!endpoints/botcore/src/botcore/provenance/*.json",
 			"!spec/wire/*.json"
 		]

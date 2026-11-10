@@ -6,10 +6,11 @@ Umbel plugin serves it in batches.
 
 ## Status
 
-- **State:** a proposal with phase 0 done. Written 2026-11-09 against `main`
+- **State:** a proposal with phase 0 and step A1 done. Written 2026-11-09 against `main`
   at `cfb70942`, and revised the same day after the author's own review, two
   independent reviews (each: revise) and a focused check of the fixes.
-  Nothing is specified or implemented, and nothing is approved beyond the
+  Step A1 put the pack format's version 0 in Specimen (2026-11-10). Nothing
+  else is specified or implemented, and nothing is approved beyond the
   owner's decision to go on to phase A.
 - **Verified:** the facts in [What exists today](#2-what-exists-today) were
   read on `main` at `cfb70942`. The numbers in [Baseline](#3-baseline) are
@@ -27,7 +28,8 @@ Umbel plugin serves it in batches.
   The owner decided **go** on 2026-11-09 (step 0.4) on that understanding.
   Step 0.3 changed three things below: roles need a capture change first
   (step B2a), examples are checked by mounting them again, and records take
-  less from an observation. Phase A has not started.
+  less from an observation. Phase A has started: step A1 is done, step A2
+  (the specifications) has not started.
 - **Owner's decisions:** given 2026-11-09 ([For the owner](#13-for-the-owner)).
   Phase A's specifications still need the owner's approval by pull request
   (step A2).
@@ -209,7 +211,7 @@ is recorded with what it rules out.
 | 4 | One assembler, in the Umbel plugin | A second one in Specimen's CLI for use without Umbel | Two implementations of the selection and budget rules would drift. A local Umbel over stdio is one binary |
 | 5 | Specimen owns the pack format: schema, description and fixture packs in its package. The format's version is 0 through phases B and C and becomes 1 at the exit. Umbel's plugin holds a copy of the fixture pack, checked equal by a test | The format in `spec/` with vectors; or version 1 fixed before anything has used it | `spec/` is AFD's contract across four languages: and no AFD implementation reads a pack. `alfred parity` fails on a vector in `spec/vectors/` that Python and C++ do not load; a file can sit beside that directory instead (`spec/vectors/README.md`), but that still puts Specimen's format in AFD's contract. Specimen has no AFD dependency and is used outside this repository, where a library author needs the schema from its package. Fixing version 1 first would lock in guesses that phases B and C are there to test |
 | 6 | Guides are data files, not modules | Guidance exported from story modules | Specimen's rule is that listing never executes unrelated modules; data is schema-checked and each statement can be addressed by id |
-| 7 | The plugin ships no real library | Seeding it with FAST-AF's components | The host owns nothing domain-specific (principle 1) and its first-party plugins carry no company content. The default pack is a three-component example |
+| 7 | The plugin ships no real library | Seeding it with FAST-AF's components | The host owns nothing domain-specific (principle 1) and its first-party plugins carry no company content. The default pack is a small example library |
 | 8 | The committed records carry no package version, no digest and no Git revision. Those are stamped when the pack is exported for a deployment | A committed catalog with the version and input digests | A release's version bump or an edit to any story would otherwise change the committed pack, fail the drift check and conflict between branches. A committed file also cannot name the commit that contains it |
 | 9 | The plugin is written once against `umbel-sdk`, shipped compiled in `umbel-first-party`, and its component build follows when the WIT world carries a budget | A component-only plugin now | A component cannot have an output budget in world 1.0.0, and the budget is the point of the command. The source stays free of anything a component may not use, and CI compiles it for `wasm32-wasip2` from the first step |
 | 10 | Everything read from a pack is content, never instructions, and the plugin scans the statements it serves | Trusting first-party text | D67: labelled on read, scanned on write. Pack text appears only inside the part of the answer labelled `trust: "content"`. Outside it, an answer, warning or error may carry only identifiers the reader has checked against a pattern (a custom-element name, a library id, a statement or rule id, a version, a digest), and a record whose identifiers fail is refused. A pack is written outside Umbel, so no write passes through the host: the plugin runs `umbel-scan` over each statement it is about to serve and labels a flagged one with `flags`, as knowledge results are labelled. It flags and does not block, as D67 decided for a deployer's content. A plugin cannot add to `plugin-show` or doctor (the SDK gives it a manifest, assets and a handler), so the flags are in its own answers |
@@ -221,7 +223,9 @@ is recorded with what it rules out.
 Described in step A1 in Specimen's documentation, with its schema and
 fixture packs in Specimen's package. Its version is 0, and any step may
 change it, until it becomes 1 at the exit (step C4). The shape below is the
-starting point, and the values in the examples are illustrative.
+starting point, and the values in the examples are illustrative. Step A1's
+[description](../../../../foundations/specimen/docs/pack-format.md) is now the
+format; where the two differ, it holds.
 
 ```text
 packs/library/                    # the plugin's one pack, id "library"
@@ -560,7 +564,7 @@ they differ, which is what a hand-edited or half-copied export looks like.
 page, write, open a component only when the brief says something was
 omitted.
 
-**Default pack.** Three example components built by Specimen from its own
+**Default pack.** Four example components built by Specimen from its own
 fixtures, exported, and copied into the plugin's crate. Specimen's test
 proves it writes that export; an Umbel test fails when the copy differs
 from Specimen's, and the plugin's tests prove it reads it. The Umbel
@@ -695,7 +699,7 @@ costlier, or as good and cheaper. The first rule that matches decides.
 
 | Step | Deliverable | Exit |
 | --- | --- | --- |
-| A1. Pack format, version 0 | In Specimen: the format's description, its schema exported from the package, and fixture packs (the valid three-component example in both forms, and each invalid case named, including an identifier that fails its pattern). A changeset. Gate: `pnpm test:specimen`, since the package's files and exports change and its packed-artifact consumers must still pass | The fixtures validate against the schema in Specimen's browser-free tests |
+| A1. Pack format, version 0 | In Specimen: the format's description, its schema exported from the package, and fixture packs (the valid example library in both forms, and each invalid case named, including an identifier that fails its pattern). A changeset. Gate: `pnpm test:specimen`, since the package's files and exports change and its packed-artifact consumers must still pass | The fixtures validate against the schema in Specimen's browser-free tests. Done 2026-11-10: [the format](../../../../foundations/specimen/docs/pack-format.md), `@lushly-dev/specimen/pack` and its JSON Schema files, and `foundations/specimen/fixtures/pack/` with 25 invalid cases that cover all 16 problem codes `checkPack` reports. The example has four components, one deprecated with its replacement and no summary, so a reader has a valid record of each kind |
 | A2. Specifications | The Umbel plugin's specification with its decisions in the Umbel decision log; a Specimen workstream entry (T12; T09 to T11 are taken) in the [implementation plan](../../active/specimens/implementation.md) and status; this folder moved to `active/` with a `STATUS.md`. Each gets an independent review and a revision before the owner's approval | Approved by the owner by pull request (D24) |
 
 ### Phase B. Specimen builds packs

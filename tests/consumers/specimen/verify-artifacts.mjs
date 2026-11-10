@@ -204,6 +204,8 @@ assert.deepEqual(Object.keys(native.exports), [
 	'./evidence',
 	'./preview',
 	'./test',
+	'./pack',
+	'./pack/*.schema.json',
 ]);
 assert(!Object.keys(native.dependencies).some((name) => name.startsWith('@lushly-dev/')));
 assert(!Object.keys(native.scripts ?? {}).some((key) => /install|prepare/.test(key)));
@@ -292,6 +294,14 @@ assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FI
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
 assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema']);
 assert.deepEqual(Object.keys(evidence), ['claim']);
+const pack = await import('@lushly-dev/specimen/pack');
+assert.equal(pack.PACK_FORMAT_VERSION, 0);
+const packRoot = new URL('./fixtures/pack/', import.meta.url).pathname;
+for (const form of ['committed', 'exported'])
+	assert.deepEqual(pack.checkPack(await pack.readPackFiles(packRoot + form), { form }).problems, []);
+const { default: componentSchema } = await import('@lushly-dev/specimen/pack/component.schema.json', { with: { type: 'json' } });
+assert.deepEqual(componentSchema, pack.packJsonSchemas().component);
+assert.equal(pack.packComponentSchema.safeParse({ format: 0 }).success, false);
 assert.equal(evidence.claim({}, 'default', 'an-expectation'), undefined);
 const { setCustomElementsManifest } = await import('@lushly-dev/specimen/preview');
 setCustomElementsManifest({ modules: [] });

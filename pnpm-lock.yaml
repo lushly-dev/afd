@@ -1016,6 +1016,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^5.1.0
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
       lit:
         specifier: 3.3.3
         version: 3.3.3
