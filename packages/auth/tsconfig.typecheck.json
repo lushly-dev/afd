@@ -1,7 +1,6 @@
 {
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
-		// Tests and the Vitest config run under Node; the build (tsconfig.json) has no Node types.
 		"types": ["node"],
 		"noEmit": true,
 		"rootDir": "."
