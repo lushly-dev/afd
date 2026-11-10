@@ -6,7 +6,7 @@ guidance written for it, and the rules the library states once for many
 components. Every fact says where it came from. Specimen will build packs from
 what it observes when it runs a library's stories (`specimen pack`, not yet
 written), and an Umbel plugin will serve them in batches. The plan is the
-[Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/proposed/component-briefs/component-briefs.proposal.md).
+[Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/active/component-briefs/component-briefs.proposal.md).
 
 **Version 0 can change in any release.** It becomes version 1 once Specimen
 builds packs and the plugin has served them (the proposal's step C4). Until
