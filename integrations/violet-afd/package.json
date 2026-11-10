@@ -60,7 +60,7 @@
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:^2.2.0",
 		"@neondatabase/serverless": "^1.1.0",
-		"nanoid": "^5.1.16",
+		"nanoid": "^6.0.2",
 		"ws": "^8.22.0",
 		"zod": "^3.25.76",
 		"zod-to-json-schema": "^3.25.2"
