@@ -34,6 +34,10 @@ pub const PRINCIPAL_KEY: &str = "dev.umbel/principal";
 /// always sets it, so no caller can, and it lasts no longer than the request's token.
 pub const CLAIM_GROUPS_KEY: &str = "dev.umbel/claim-groups";
 
+/// The `CommandContext.extra` key the context hook always sets: the id of the HTTP request's
+/// usage slot (phase 5 section 12.1), or `null`. No caller can set it.
+pub(crate) const USAGE_KEY: &str = "dev.umbel/usage";
+
 /// How the call reached the host.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -490,6 +494,12 @@ pub(crate) fn hook(
         context
             .extra
             .insert(crate::person::PERSON_CHECK_KEY.to_owned(), Value::Null);
+        // Which request's usage record this call belongs to (section 12.1): the host's own slot,
+        // never anything a request brought.
+        #[cfg(feature = "auth")]
+        crate::usage::note_call(request.http_parts(), &mut context);
+        #[cfg(not(feature = "auth"))]
+        context.extra.insert(USAGE_KEY.to_owned(), Value::Null);
         if let Some(clock) = &clock {
             context.clock = Some(Arc::clone(clock));
         }

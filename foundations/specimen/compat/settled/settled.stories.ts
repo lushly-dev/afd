@@ -23,7 +23,7 @@ export const Steady: Story = {
 	},
 };
 
-/** Dimmed below 4.5:1 on its next frame: only the settled check finds it. */
+/** Dimmed below 4.5:1 on its next frame: the settled check always finds it. */
 export const LateContrast: Story = {
 	render: () => document.createElement('late-style'),
 };

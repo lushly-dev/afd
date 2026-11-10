@@ -26,6 +26,8 @@ mod store_doctor;
 mod store_memory;
 #[cfg(feature = "store-embedded")]
 mod store_show;
+#[cfg(feature = "auth")]
+mod usage_list;
 mod workspace_doctor;
 mod workspace_show;
 
@@ -53,6 +55,8 @@ pub(crate) use store_doctor::{
 };
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_show::store_show;
+#[cfg(feature = "auth")]
+pub(crate) use usage_list::usage_list;
 pub(crate) use workspace_doctor::workspace_doctor;
 pub(crate) use workspace_show::workspace_show;
 

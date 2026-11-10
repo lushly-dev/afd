@@ -52,7 +52,7 @@ function run(adapter: MockAuthAdapter, context: CommandContext, withPredicate = 
 	return middleware('todo-list', {}, context, next).then((result) => ({ result, seen }));
 }
 
-describe('afd-server credentials brand', () => {
+describe('P3-E9: afd-server credentials brand', () => {
 	it('recognises only the object afd-server branded', () => {
 		const branded = brandVerifiedCredentials(credentialsFields());
 		expect(isVerifiedCredentials(branded)).toBe(true);
@@ -66,7 +66,7 @@ describe('afd-server credentials brand', () => {
 	});
 });
 
-describe('createAuthMiddleware with verified credentials', () => {
+describe('P3-E9: createAuthMiddleware with verified credentials', () => {
 	it('runs a verified call with the adapter signed out, keeping its actor', async () => {
 		const adapter = new MockAuthAdapter();
 		const credentials = brandVerifiedCredentials(credentialsFields());
@@ -168,7 +168,7 @@ describe('createAuthMiddleware with verified credentials', () => {
 	});
 });
 
-describe('createAuthMiddleware with forged credentials', () => {
+describe('P3-E9: createAuthMiddleware with forged credentials', () => {
 	it('gives a caller’s own credentials no actor and no pass when signed out', async () => {
 		const adapter = new MockAuthAdapter();
 		const context: CommandContext = { actor: { ...tokenActor }, credentials: credentialsFields() };
@@ -228,7 +228,7 @@ describe('createAuthMiddleware with forged credentials', () => {
 	});
 });
 
-describe('createAuthMiddleware: a token has no session', () => {
+describe('P3-E9: createAuthMiddleware: a token has no session', () => {
 	it.each([...AUTH_COMMAND_NAMES])(
 		'refuses a verified %s without reading the adapter',
 		async (name) => {
@@ -279,7 +279,7 @@ describe('createAuthMiddleware: a token has no session', () => {
 	});
 });
 
-describe('createAuthMiddleware clock', () => {
+describe('P3-E9: createAuthMiddleware clock', () => {
 	// Far from wall time either way, so the system clock would answer differently.
 	const PAST = Date.parse('2001-01-01T00:00:00Z');
 	const FUTURE = Date.parse('2101-01-01T00:00:00Z');

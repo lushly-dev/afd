@@ -1530,13 +1530,27 @@ pub(super) fn check_hosted(
         }
     }
     for entry in &usage.readers {
-        if let Ok(ReaderEntry::Group(id)) = ReaderEntry::parse(entry)
-            && !groups.iter().any(|group| group.id == id)
-        {
-            return Err(WorkspaceError::config_invalid(
-                "usage.readers",
-                format!("names group `{id}`, which no [access.groups.{id}] table declares"),
-            ));
+        let Ok(ReaderEntry::Group(id)) = ReaderEntry::parse(entry) else {
+            continue;
+        };
+        match groups.iter().find(|group| group.id == id) {
+            None => {
+                return Err(WorkspaceError::config_invalid(
+                    "usage.readers",
+                    format!("names group `{id}`, which no [access.groups.{id}] table declares"),
+                ));
+            }
+            // A group with `*` would make usage everyone's, as `*` itself would (amendment from
+            // step 9).
+            Some(group) if group.members.iter().any(|member| member == "*") => {
+                return Err(WorkspaceError::config_invalid(
+                    "usage.readers",
+                    format!(
+                        "names group `{id}`, whose members include \"*\": everyone reads their own usage, and only named readers read everyone's"
+                    ),
+                ));
+            }
+            Some(_) => {}
         }
     }
     Ok(())

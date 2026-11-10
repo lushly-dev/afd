@@ -22,6 +22,8 @@ use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 pub const CURSOR_PREFIX: &str = "v1.";
 /// A sealed revision's prefix (`r1.`), also inside a locator version 2's `indexVersion`.
 pub const REVISION_PREFIX: &str = "r1.";
+/// A `usage-list` cursor's prefix (`u1.`, phase 5 section 12.1).
+pub const USAGE_PREFIX: &str = "u1.";
 
 /// The sealed bytes: a 24-byte nonce, an 8-byte position and a 16-byte tag.
 const SEALED_BYTES: usize = 24 + 8 + 16;
@@ -33,6 +35,9 @@ pub enum Kind {
     Cursor,
     /// A store revision of a space's document store.
     Revision,
+    /// A position in the usage store, after the last record a `usage-list` page returned. Its
+    /// "space" is what the caller reads (`own` or `all`).
+    Usage,
 }
 
 impl Kind {
@@ -40,6 +45,7 @@ impl Kind {
         match self {
             Self::Cursor => b"cursor",
             Self::Revision => b"revision",
+            Self::Usage => b"usage",
         }
     }
 
@@ -49,6 +55,7 @@ impl Kind {
         match self {
             Self::Cursor => CURSOR_PREFIX,
             Self::Revision => REVISION_PREFIX,
+            Self::Usage => USAGE_PREFIX,
         }
     }
 }

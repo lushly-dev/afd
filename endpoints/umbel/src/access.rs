@@ -136,6 +136,48 @@ fn readers_admit(
         })
 }
 
+/// Whether `caller` reads everyone's usage events (phase 5 section 12.1, `usage.readers`): an
+/// entry names it, a legacy principal it stands for (4.6), or a group that holds it by a named
+/// member or its own token's claims (4.5). A group's `*` member stands for no one here: usage is
+/// everyone's own, and only callers the configuration names read everyone's. The operator reads
+/// everyone's too; that is the caller's to add ([`Caller::is_operator`]).
+#[must_use]
+pub fn reads_everyones_usage(config: &Config, caller: &Caller) -> bool {
+    if caller.identities.is_empty() {
+        return false;
+    }
+    config
+        .usage
+        .readers
+        .iter()
+        .filter_map(|entry| ReaderEntry::parse(entry).ok())
+        .any(|entry| match entry {
+            ReaderEntry::Anyone => false,
+            ReaderEntry::Principal(text) => caller.identities.contains(&text),
+            ReaderEntry::Group(group) => {
+                caller.claim_groups.contains(&group)
+                    || config
+                        .access
+                        .groups
+                        .iter()
+                        .find(|candidate| candidate.id == group)
+                        .is_some_and(|group| {
+                            group
+                                .members
+                                .iter()
+                                .any(|member| member != "*" && caller.identities.contains(member))
+                        })
+            }
+        })
+}
+
+/// The principal strings a caller stands for: its effective principal, then each legacy
+/// principal `[principal.equivalents]` maps to it (4.6); empty for an anonymous caller.
+#[must_use]
+pub fn identities_of(caller: &Caller) -> &[String] {
+    &caller.identities
+}
+
 /// `SPACE_NOT_READABLE` for `space`, as mode `none` and the operator get it: the space is named.
 /// A hosted caller who is not the operator gets [`space_unavailable`] instead, which names
 /// nothing (phase 5 section 5.4).
@@ -532,6 +574,55 @@ mod tests {
         ConfigFile::parse(text)
             .and_then(|file| file.into_config(Path::new("/w")))
             .expect("a valid configuration")
+    }
+
+    #[test]
+    fn usage_readers_are_named_principals_and_groups_never_everyone() {
+        let mut config = config(
+            "config_version = 5\n\n[access.groups.audit]\nmembers = [\"human:dee\"]\n\n[usage]\nreaders = [\"human:ada\", \"group:audit\"]\n",
+        );
+        // 4.6's equivalents, set directly: a namespace would have to produce the target.
+        config
+            .principal
+            .equivalents
+            .insert("human:ada".to_owned(), "human:corp/ada".to_owned());
+        let caller = |config: &Config, principal: Option<&str>, claims: &[&str]| {
+            Caller::new(
+                config,
+                principal.map(str::to_owned),
+                claims.iter().map(|claim| (*claim).to_owned()).collect(),
+                Narrowing::None,
+                false,
+            )
+        };
+        // A named principal, through its equivalent; a static group; a claim group.
+        assert!(reads_everyones_usage(
+            &config,
+            &caller(&config, Some("human:corp/ada"), &[])
+        ));
+        assert!(reads_everyones_usage(
+            &config,
+            &caller(&config, Some("human:dee"), &[])
+        ));
+        assert!(reads_everyones_usage(
+            &config,
+            &caller(&config, Some("human:fay"), &["audit"])
+        ));
+        assert!(!reads_everyones_usage(
+            &config,
+            &caller(&config, Some("human:bo"), &[])
+        ));
+        assert!(
+            !reads_everyones_usage(&config, &caller(&config, None, &["audit"])),
+            "anonymous"
+        );
+        // Were `*` ever to reach it (the configuration refuses both), it names no one.
+        config.access.groups[0].members.push("*".to_owned());
+        config.usage.readers.push("*".to_owned());
+        assert!(!reads_everyones_usage(
+            &config,
+            &caller(&config, Some("human:bo"), &[])
+        ));
     }
 
     const TEXT: &str = r#"

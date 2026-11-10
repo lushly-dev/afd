@@ -106,6 +106,10 @@ pub struct HostBuilder {
     auth_environment: crate::auth::fetch::AuthEnvironment,
     /// A test's view of every held approval (`testkit` only); always `None` in a shipped build.
     approval_observer: Option<ApprovalObserver>,
+    /// How usage is recorded (phase 5 section 12.1): the system clock and the default bounds,
+    /// unless a test sets them.
+    #[cfg(feature = "auth")]
+    usage: crate::usage::Setup,
 }
 
 /// What a test sees of a held approval: AFD's request, its token included.
@@ -134,6 +138,8 @@ impl HostBuilder {
             #[cfg(feature = "auth")]
             auth_environment: crate::auth::fetch::AuthEnvironment::default(),
             approval_observer: None,
+            #[cfg(feature = "auth")]
+            usage: crate::usage::Setup::default(),
         }
     }
 
@@ -219,6 +225,42 @@ impl HostBuilder {
         self
     }
 
+    /// Time usage events, and their retention, on `clock` (phase 5 section 12.1). **Test seam**
+    /// (`testkit` only): a shipped build times them on the system clock, never on the clock of
+    /// [`Self::with_clock`], so a replay clock can neither back-date a record nor keep one past
+    /// its retention.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_usage_clock(mut self, clock: impl Clock + 'static) -> Self {
+        self.usage.clock = Arc::new(clock);
+        self
+    }
+
+    /// Bound the usage queue at `total` records, and `per_principal` of one principal, instead of
+    /// 8192 and 512. **Test seam** (`testkit` only).
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_usage_queue(mut self, total: usize, per_principal: usize) -> Self {
+        self.usage.limits = crate::usage::Limits {
+            total,
+            per_principal,
+        };
+        self
+    }
+
+    /// Call `stall` with each batch's size before the usage writer appends it: it may wait, as a
+    /// slow store does, or fail the batch, as a failing one does. **Test seam** (`testkit` only),
+    /// for the proof that a request never waits on, or fails because of, its usage record.
+    #[cfg(all(feature = "auth", feature = "testkit"))]
+    #[must_use]
+    pub fn with_usage_stall(
+        mut self,
+        stall: impl Fn(usize) -> Result<(), String> + Send + Sync + 'static,
+    ) -> Self {
+        self.usage.stall = Some(Arc::new(stall));
+        self
+    }
+
     /// Give each outbound fetch of token verification `timeout` instead of 10 seconds. **Test
     /// seam** (`testkit` only).
     #[cfg(all(feature = "auth", feature = "testkit"))]
@@ -273,6 +315,13 @@ impl HostBuilder {
         let workspace = Arc::new(self.workspace);
         let registry = Arc::new(CommandRegistry::new());
         let first_class_cell = Arc::new(OnceLock::new());
+        // Section 5.2's rules, which `usage-list` reads to leave out a command hidden from its
+        // caller; set once the middleware is installed. Weak: the rules hold every command's
+        // definition, `usage-list`'s included, so a strong reference would keep the registry, and
+        // a mounted plugin's child process, alive after the host drops.
+        #[cfg(feature = "auth")]
+        let policy_cell: Arc<OnceLock<std::sync::Weak<crate::auth::scopes::ScopePolicy>>> =
+            Arc::new(OnceLock::new());
         let plan_cell: Arc<OnceLock<surfaces::FirstClassPlan>> = Arc::new(OnceLock::new());
         let loaded_cell: Arc<OnceLock<Arc<LoadedPlugins>>> = Arc::new(OnceLock::new());
         let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
@@ -290,6 +339,12 @@ impl HostBuilder {
                 Arc::clone(&loaded_cell),
             ),
             commands::auth_show(),
+            #[cfg(feature = "auth")]
+            commands::usage_list(
+                Arc::clone(&workspace),
+                Arc::clone(&self.usage.clock),
+                Arc::clone(&policy_cell),
+            ),
             commands::plugin_list(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
             commands::plugin_show(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
             commands::skill_list(Arc::clone(&workspace), Arc::clone(&loaded_cell)),
@@ -405,6 +460,8 @@ impl HostBuilder {
             #[cfg(feature = "auth")]
             Arc::clone(&self.auth_environment.clock),
         )?;
+        #[cfg(feature = "auth")]
+        let _ = policy_cell.set(Arc::downgrade(&scope_policy));
         install_journal(
             &registry,
             &workspace,
@@ -457,6 +514,8 @@ impl HostBuilder {
             auth_environment: self.auth_environment,
             #[cfg(feature = "auth")]
             person,
+            #[cfg(feature = "auth")]
+            usage: self.usage,
         })
     }
 }
@@ -616,6 +675,11 @@ fn install_middleware(
         workspace.default_space().to_string(),
     ));
     registry.add_middleware(crate::auth::scope_gate::hidden_check(Arc::clone(&policy)));
+    // Which command ran for an HTTP request, for its usage record (phase 5 section 12.1): inside
+    // the hidden-instance check, so a hidden command is never named, and outside the space check,
+    // so the space a result names is the one it ran in.
+    #[cfg(feature = "auth")]
+    registry.add_middleware(crate::usage::middleware());
     let resolve: middleware::ResolveSpace = {
         let resolver = Arc::clone(workspace);
         Arc::new(move |input, context| {
@@ -868,6 +932,9 @@ pub struct Host {
     /// The person page's decisions, in a hosted mode (phase 5 step 5).
     #[cfg(feature = "auth")]
     person: Option<Arc<crate::person::service::PersonService>>,
+    /// How usage is recorded (phase 5 section 12.1).
+    #[cfg(feature = "auth")]
+    usage: crate::usage::Setup,
 }
 
 impl Host {
@@ -965,7 +1032,12 @@ impl Host {
     /// `[http.tls]`, which only [`Self::http_server`]'s listener serves; `WORKSPACE_KEY_INVALID`
     /// for a malformed token, `WORKSPACE_STATE_UNWRITABLE` when it cannot be created.
     pub fn http_router(&self) -> Result<axum::Router, HostError> {
-        surfaces::http::plain_router(&self.server, &self.workspace)
+        surfaces::http::plain_router(
+            &self.server,
+            &self.workspace,
+            #[cfg(feature = "auth")]
+            &self.usage,
+        )
     }
 
     /// The HTTP surface `umbel.toml` configures, ready to serve on a listener
@@ -998,6 +1070,8 @@ impl Host {
             self.person.as_ref(),
             #[cfg(feature = "auth")]
             self.clock.as_ref(),
+            #[cfg(feature = "auth")]
+            &self.usage,
         )
     }
 
