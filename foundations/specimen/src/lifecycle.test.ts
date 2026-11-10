@@ -1,12 +1,14 @@
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { SourceMap } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
+import { build, type Plugin } from 'vite';
 import { expect, it, vi } from 'vitest';
 import { createSpecimenBench } from './bench.js';
 import { loadConfig, resolveContext } from './config.js';
-import { startBenchServer } from './vite.js';
+import { optimizerWrites, startBenchServer } from './vite.js';
 
 it('keeps a cold automated document mounted when Vite requests a reload', async () => {
 	const root = await realpath(await mkdtemp(join(tmpdir(), 'specimen-cold-')));
@@ -74,6 +76,59 @@ export const Probe = { render() {
 		} finally {
 			await browser.close();
 		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('removes the root only after an optimizer write that outlives the server (#809)', async () => {
+	const root = await realpath(await mkdtemp(join(tmpdir(), 'specimen-writes-')));
+	try {
+		await writeFile(join(root, 'dependency.js'), 'export const answer = 42;');
+		const writes = optimizerWrites(root);
+		const bundle = (directory: string, plugins: Plugin[] = []) =>
+			build({
+				configFile: false,
+				root,
+				logLevel: 'silent',
+				publicDir: false,
+				plugins,
+				build: {
+					outDir: join(root, '.vite', directory),
+					emptyOutDir: false,
+					rolldownOptions: { input: join(root, 'dependency.js'), plugins: [writes.plugin] },
+				},
+			});
+		// Hold a write between its start and its files, as Vite's optimizer does when a
+		// detached or already-writing run outlives `server.close()`.
+		const held = Promise.withResolvers<void>();
+		const holding = Promise.withResolvers<void>();
+		const building = bundle('deps_temp_held', [
+			{
+				name: 'hold-write',
+				async generateBundle() {
+					holding.resolve();
+					await held.promise;
+				},
+			},
+		]);
+		await holding.promise;
+		let disposed = false;
+		const disposing = writes.dispose().then(() => {
+			disposed = true;
+		});
+		await new Promise((done) => setTimeout(done, 100));
+		expect(disposed).toBe(false);
+		expect(existsSync(root)).toBe(true);
+		held.resolve();
+		await building;
+		await disposing;
+		expect(existsSync(root)).toBe(false);
+		// A build that starts only after teardown removes what it wrote.
+		await mkdir(root);
+		await writeFile(join(root, 'dependency.js'), 'export const answer = 42;');
+		await bundle('deps_temp_late');
+		expect(existsSync(root)).toBe(false);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
