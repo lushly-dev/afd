@@ -16,6 +16,7 @@ description: >
 | `@lushly-dev/afd-auth` | the types, `createAuthMiddleware`, `AuthAdapterError`, `SessionSync`, `AUTH_COMMAND_NAMES`, `MockAuthAdapter`, `BetterAuthAdapter`, `LOADING`, `UNAUTHENTICATED` | afd-core only: no React, server or Zod |
 | `/commands` | `createAuthCommands`, `createAuthSessionGetCommand`, `createAuthMutationCommands` | peers `@lushly-dev/afd-server`, `zod` |
 | `/react` | `createAuthHooks`, `useConvexAuthAdapter` | peer `react` |
+| `/mock-capabilities` | `withMockCapabilities` | afd-core only; kept out of the root so a first paint that builds a Mock leaves it out |
 
 ## Session state and the adapter contract
 
@@ -47,7 +48,7 @@ type SignInOutcome =
 - `SignInOptions` is `{ method: 'credentials', email, password? }`, `{ method: 'oauth', provider, scopes?, redirectTo? }` or `{ method: 'passkey', autoFill? }`. Resolving `signIn()` with nothing counts as `signed-in`. An adapter without passkeys throws `passkeyUnsupported()`.
 - The capabilities are optional; check for one before using it. A `SessionRow` names a session by `handle`, the first 16 hex characters of SHA-256 over its token, never the token, with a `device` label from the user agent and no IP address. Every `OrganizationAccess` call names the organization by id, and an empty id is a `TypeError`: never let a call fall back to the provider's active organization.
 - Call each subscriber in isolation, so one that throws neither stops the others nor makes `signIn()` reject. The built-in adapters do it with `ListenerSet` (`src/listeners.ts`, not exported) and report the error to their `onListenerError` option.
-- Throw `AuthAdapterError` so commands map it: `invalidCredentials()`, `tokenExpired()`, `providerError(name, details?)`, `passkeyCancelled()` (the person dismissed the ceremony) and `passkeyUnsupported()` (no WebAuthn, or no passkeys at the provider) are not retryable; `networkError()` and `refreshFailed()` are.
+- Throw `AuthAdapterError` so commands map it: `invalidCredentials()`, `tokenExpired()`, `providerError(name, details?)`, and the exported functions `passkeyCancelled()` (the person dismissed the ceremony) and `passkeyUnsupported()` (no WebAuthn, or no passkeys at the provider; functions, not statics, so an unused one is tree-shaken) are not retryable; `networkError()` and `refreshFailed()` are.
 
 ## Middleware
 
@@ -85,11 +86,12 @@ type SignInOutcome =
 
 ## Built-in adapters
 
-**`MockAuthAdapter`** (tests): `new MockAuthAdapter({ delay?, onListenerError?, clock?, roles? })`, with `_setUser(user, sessionOverrides?)` (`{ expiresAt: new Date(0) }` for expired), `_setLoading()`, `_reset()` and `_getListenerCount()`. `_triggerError(code)` only returns an `AuthAdapterError`; it does not make `signIn` fail. The user id is `mock-user-<email>`, stable across reloads and replays.
+**`MockAuthAdapter`** (tests): `new MockAuthAdapter({ delay?, onListenerError?, clock? })`, with `_setUser(user, sessionOverrides?)` (`{ expiresAt: new Date(0) }` for expired), `_setLoading()`, `_reset()` and `_getListenerCount()`. `_triggerError(code)` only returns an `AuthAdapterError`; it does not make `signIn` fail. The user id is `mock-user-<email>`, stable across reloads and replays.
 
-- It has all three capabilities in memory. Every time it records reads `clock` (afd-core's `Clock`): a session's `expiresAt` is one hour after sign-in on it, and `refresh()` signs out a session past it. Pass the kernel's clock so an expiry falls on the kernel's time.
+- Every time it records reads `clock` (afd-core's `Clock`): a session's `expiresAt` is one hour after sign-in on it, and `refresh()` signs out a session past it. Pass the kernel's clock so an expiry falls on the kernel's time.
+- Its `sessions`, `passkeys` and `organization` are `undefined`, and a passkey sign-in is `PASSKEY_UNSUPPORTED`, until `withMockCapabilities(mock, { roles? })` from `/mock-capabilities` attaches them in memory on the same clock (once; a second call throws). Loam attaches them on its `late` path, so its first paint never bundles them: keep capability code out of `mock.ts`.
 - `roles` is `{ [organizationId]: { [userId]: role } }`; owners and admins manage members and invitations, and the last owner cannot leave or be demoted (Better Auth's error codes in the message). Ids count up (`mock-passkey-1`), so runs are deterministic.
-- A passkey sign-in signs in the holder of the passkey added last, and with none is `PASSKEY_CANCELLED`. `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how later ceremonies end.
+- Once attached, a passkey sign-in signs in the holder of the passkey added last, and with none is `PASSKEY_CANCELLED`; `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how later ceremonies end.
 
 **`useConvexAuthAdapter`** (`/react`): takes `useAuthActions`, `useConvexAuth`, `meQuery` (`() => useQuery(api.users.me)`) and `passwordProviderId` (default `'password'`, the stock `Password()` id).
 

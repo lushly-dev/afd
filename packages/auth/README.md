@@ -18,6 +18,9 @@ classic Zod nor `toJSONSchema` for them. A host that loads code in stages can ta
 `createAuthSessionGetCommand(adapter)` and `createAuthMutationCommands(adapter, options)`, the two
 parts `createAuthCommands` returns together, from the same subpath.
 
+The Mock's capabilities are attached from `@lushly-dev/afd-auth/mock-capabilities`
+(see [Mock](#mock)).
+
 React hooks are available from the optional `@lushly-dev/afd-auth/react`
 subpath:
 
@@ -195,18 +198,32 @@ const adapter = new BetterAuthAdapter({ client, initial }); // initial: optional
 
 ### Mock
 
-`MockAuthAdapter` is for tests. It takes `{ delay?, clock?, roles? }` and has
-all three capabilities in memory:
+`MockAuthAdapter` is for tests. It takes `{ delay?, clock? }`. `clock` (afd-core's
+`Clock`) times its sessions: one expires an hour after sign-in on it, and
+`refresh()` signs out a session past its `expiresAt`.
 
-- `clock` (afd-core's `Clock`) times everything it records. A session expires
-  one hour after sign-in on it, and `refresh()` signs out a session past its
-  `expiresAt`.
+Its capabilities live in their own subpath, so a host that only signs in with
+the Mock (a first paint) never bundles them. Until they are attached,
+`sessions`, `passkeys` and `organization` are `undefined` and a passkey sign-in
+is `PASSKEY_UNSUPPORTED`:
+
+```ts
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { withMockCapabilities } from '@lushly-dev/afd-auth/mock-capabilities';
+
+const adapter = withMockCapabilities(new MockAuthAdapter({ clock }), {
+  roles: { acme: { 'mock-user-ada@example.com': 'owner' } },
+});
+```
+
+- It attaches all three, in memory and on the Mock's clock, to the same
+  adapter, and throws if they are already attached.
 - `roles` is `{ [organizationId]: { [userId]: role } }`. Owners and admins
   manage members and invitations; the last owner can neither leave nor be
   demoted.
-- A passkey sign-in signs in the holder of the passkey added last.
-  `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how later
-  ceremonies end.
+- A passkey sign-in signs in the holder of the passkey added last, and with
+  none is `PASSKEY_CANCELLED`. `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')`
+  sets how later ceremonies end.
 
 ## Session sync
 

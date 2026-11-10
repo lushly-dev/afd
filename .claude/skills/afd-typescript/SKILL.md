@@ -18,6 +18,7 @@ description: >
 | `@lushly-dev/afd-server` | Node servers: `createMcpServer`, `createMcpHandler`, and everything below | Loads the MCP SDK, `node:http` and `node:tls`, so it cannot go in a browser bundle |
 | `@lushly-dev/afd-server/define` | Code that only defines commands: `defineCommand`, `defineCommandWithSchema`, `success`/`failure`/`error`, `zodToJsonSchema`, `defaultExpose` | No MCP SDK, no Node built-in |
 | `@lushly-dev/afd-server/direct` | In-process hosts (browser, worker, webview, or Node without the SDK): `/define` plus `createDirectRegistry`, `createDirectToolSurface`, `createApprovalMiddleware`, `createJournalMiddleware`, `replayJournal`, `MemoryJournalSink` and the Node-free middleware | Same guarantee; an esbuild test enforces it |
+| `@lushly-dev/afd-server/credentials` | `isVerifiedCredentials`: whether `credentials` are the object afd-server branded after verifying a token; pass it to afd-auth's `createAuthMiddleware` on a token-authorized MCP server | Browser-safe; nothing is branded until the server verifies tokens |
 | `@lushly-dev/afd-core` | Types, result helpers, `ErrorCodes`, `systemClock`/`fixedClock`, `systemRandom`/`seededRandom`, `MemoryJournalSink` | Platform helpers are not in the barrel: import `/platform` or `/connectors` (Node only) |
 | `@lushly-dev/afd-core/journal-file`, `/journal-indexeddb` | `FileJournalSink` (Node), `IndexedDbJournalSink` (browser) | |
 | `@lushly-dev/afd-client/streamable-http` | A browser calling a remote MCP server: the transport alone | The root entry also loads `McpClient` and `eventsource` |
