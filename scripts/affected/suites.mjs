@@ -118,6 +118,11 @@ export const SUITES = [
 				run: 'pnpm -F @lushly-dev/afd-server exec vitest run src/authorization-cases.test.ts src/mcp-auth.test.ts src/mcp-auth-verifier.test.ts src/verified-credentials.test.ts --reporter=verbose',
 			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/afd-auth exec vitest run --reporter=verbose' },
+			// AFD's host path, phase 6's P6-E7.
+			{
+				gate: 'run',
+				run: 'pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose',
+			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-theme theme:check' },
 			{
 				gate: 'run',

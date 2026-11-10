@@ -1,5 +1,6 @@
 /**
- * Rules shared by every adapter, so `MemoryAdapter`, `HttpAdapter` and `IndexedDbAdapter` behave
+ * Rules shared by every adapter, so `MemoryAdapter`, `HttpAdapter`, `IndexedDbAdapter` and
+ * `SqliteAdapter` behave
  * the same.
  */
 
@@ -14,8 +15,8 @@ export class DataAdapterError extends Error {
 	readonly status: number;
 	/**
 	 * Machine-readable code: `NOT_FOUND`, `INVALID_NAME`, `INVALID_PATH`,
-	 * `INVALID_BATCH_OPERATION`, `CONFLICT`, `HTTP_<status>`, or, from `IndexedDbAdapter`,
-	 * `STORAGE_UNAVAILABLE` and `STORAGE_ERROR`.
+	 * `INVALID_BATCH_OPERATION`, `CONFLICT`, `HTTP_<status>`, or, from `IndexedDbAdapter` and
+	 * `SqliteAdapter`, `STORAGE_UNAVAILABLE` and `STORAGE_ERROR`.
 	 */
 	readonly code: string;
 

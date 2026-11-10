@@ -7,6 +7,7 @@ Async data adapter with swappable backends for [Agent-First Development](https:/
 AFD commands need persistent storage, but the backend varies:
 - **Unit tests** need fast, in-memory storage with no setup
 - **Browser apps** need offline storage in IndexedDB
+- **Servers and tools** need a file on disk: SQLite through Node.js's `node:sqlite`
 - **Local dev** needs a REST API backed by SQLite or similar
 - **Production** needs a cloud database (Azure SQL, Cosmos DB, Postgres)
 
@@ -61,11 +62,12 @@ await db.remove('users', 'u1');
 |--------|----------|---------|
 | `@lushly-dev/local-db` | `DataAdapter` and its types, `MemoryAdapter`, `HttpAdapter`, `DataAdapterError` | Node.js and browsers |
 | `@lushly-dev/local-db/indexeddb` | `IndexedDbAdapter`, `createIndexedDbAdapter` | Browsers, workers and webviews (or Node.js with `fake-indexeddb`) |
+| `@lushly-dev/local-db/sqlite` | `SqliteAdapter`, `createSqliteAdapter` | Node.js 22.13 or later (`node:sqlite`) |
 | `@lushly-dev/local-db/testing` | `runDataAdapterContract`, the contract suite | Vitest, in Node.js or browser mode |
 
 ### Contract
 
-`MemoryAdapter`, `HttpAdapter` and `IndexedDbAdapter` pass one shared contract test suite, so
+`MemoryAdapter`, `HttpAdapter`, `IndexedDbAdapter` and `SqliteAdapter` pass one shared contract test suite, so
 tests written against the memory adapter describe production behavior:
 
 - **Records are JSON copies.** Changing a returned object, or the object you passed in, never
@@ -111,7 +113,8 @@ runDataAdapterContract('IndexedDbAdapter', () => {
 The entry imports `describe`, `it`, `expect`, `beforeEach` and `afterEach` from `vitest`, an
 optional peer dependency, and no Node.js builtin (a test bundles the entry for the browser), so
 the same call can run in a Vitest browser-mode suite against the real IndexedDB. This package
-runs it in Node.js for all three adapters, with `IndexedDbAdapter` over `fake-indexeddb`.
+runs it in Node.js for all four adapters, with `IndexedDbAdapter` over `fake-indexeddb` and
+`SqliteAdapter` over a temporary file.
 
 ### `QueryParams`
 
@@ -178,6 +181,31 @@ await db.destroy(); // close and delete the database
   closes its connection and reopens it on the next call.
 - **Options.** `indexedDB` takes the factory to use (default `globalThis.indexedDB`); in Node.js
   pass `new IDBFactory()` from `fake-indexeddb`. With no IndexedDB, calls reject with
+  `STORAGE_UNAVAILABLE` (503).
+
+#### `SqliteAdapter`
+
+SQLite storage in one file, for servers and tools on Node.js 22.13 or later, where `node:sqlite`
+needs no flag. It is its own entry, so the root and browser entries never load it.
+
+```ts
+import { SqliteAdapter } from '@lushly-dev/local-db/sqlite';
+
+const db = new SqliteAdapter({ path: '/var/lib/app/data.sqlite' });
+await db.update('settings', 'theme', { value: 'dark' });
+db.close(); // close the database; the next call reopens it
+```
+
+- **Its own database.** One table, `records(tbl, id, value)`, keyed by `(tbl, id)` and
+  `WITHOUT ROWID`, each value the record's JSON, so any table name works. Adapters on the same
+  file share their data, across processes too. A file that something else created is refused
+  with `STORAGE_ERROR`.
+- **Durable.** WAL mode with `synchronous = FULL`, so a committed write survives a power loss.
+- **One transaction per write**, `BEGIN IMMEDIATE … COMMIT`, so `batch()` is atomic: a failed
+  operation rolls the transaction back. `list()` filters, sorts and paginates as the other
+  adapters do, and without `sort` returns records in ID order.
+- **Options.** `busyTimeoutMs` (default 5000) is how long a write waits for another connection's
+  write before it rejects with `STORAGE_ERROR`. Without `node:sqlite`, calls reject with
   `STORAGE_UNAVAILABLE` (503).
 
 ## With AFD commands
