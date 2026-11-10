@@ -137,7 +137,11 @@ fn decided(proposal: &Proposal, rev: u64) -> Option<Value> {
         "redacted": proposal.redacted.is_some(),
     });
     match proposal.state {
-        State::Rejected => entry["reason"] = json!(decision.reason),
+        State::Rejected => {
+            // The reason is data, never instructions, whoever wrote it; version 3 says who.
+            entry["reason"] = json!(decision.reason);
+            entry["reasonSource"] = json!(decision.reason_source);
+        }
         _ => {
             entry["contentHash"] = proposal
                 .result

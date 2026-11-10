@@ -86,7 +86,7 @@ async fn an_unattested_batch_is_an_ordinary_batch_by_its_caller() {
         .as_str()
         .unwrap();
     let body = records::read(&fx, id).body;
-    records::assert_valid("proposal.v2", &body);
+    records::assert_valid("proposal.v3", &body);
     assert_eq!(body["drafter"], Value::Null);
     assert_eq!(body["proposer"]["principal"], "agent:x");
     // An ordinary batch is not held to PROPOSAL_ALREADY_OPEN: a second open proposal for the
@@ -199,7 +199,7 @@ async fn a_listed_drafters_proposal_carries_the_hosts_attestation() {
     assert_eq!(created["created"], true, "{result}");
     let id = created["proposal"]["id"].as_str().unwrap();
     let body = records::read(&fx, id).body;
-    records::assert_valid("proposal.v2", &body);
+    records::assert_valid("proposal.v3", &body);
     assert_eq!(
         body["drafter"],
         json!({ "plugin": "curator", "instance": "curator", "pipeline": "curator-submit", "run": run, "mode": "scheduled" })
@@ -653,7 +653,7 @@ async fn a_drafted_document_is_agent_inferred_and_its_runner_is_not_its_author()
         .await;
     assert_eq!(data(&approved)["applied"], true, "{approved}");
     let body = records::read(&fx, &id).body;
-    records::assert_valid("proposal.v2", &body);
+    records::assert_valid("proposal.v3", &body);
     assert_eq!(body["exception"], Value::Null);
     assert_eq!(body["decision"]["channel"], "terminal");
     assert_eq!(body["decision"]["principal"], "human:local");

@@ -163,6 +163,9 @@ pub(crate) struct GateEntry {
     pub person: Option<crate::plugins::PersonDecl>,
     /// `confirm_preview` (manifest version 4): the preview a person decision renders.
     pub preview: Option<String>,
+    /// `journal.show` (manifest version 5): the inputs a person decision holds as text and the
+    /// page shows, never journaled (phase 5 step 6).
+    pub shown: Vec<String>,
     /// Whether the command is a pipeline. Its steps are journaled and projected as the calls
     /// they are, so the pipeline itself is not projected as a second event.
     pub pipeline: bool,
@@ -438,6 +441,7 @@ fn gate_entry(
         require_human,
         person: None,
         preview: None,
+        shown: Vec::new(),
         pipeline,
         memory_writer: false,
         digest: None,
@@ -977,6 +981,11 @@ fn prepare(
                 entry.memory_writer = memory_writer;
                 entry.person = command.person;
                 entry.preview = command.confirm_preview.clone();
+                entry.shown = command
+                    .journal
+                    .as_ref()
+                    .map(|journal| journal.show.clone())
+                    .unwrap_or_default();
                 entry.digest = command
                     .journal
                     .as_ref()

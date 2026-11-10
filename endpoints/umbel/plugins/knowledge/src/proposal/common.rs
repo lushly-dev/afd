@@ -109,10 +109,11 @@ pub(crate) struct Parts {
     pub(crate) derived_from: Option<Vec<DerivedFrom>>,
 }
 
-/// The store envelope of a new proposal record, in the version its body nests (D36): version 2,
-/// with `authority`, `redactions`, `constraints` and `confirmation` null, for a version 2
+/// The store envelope of a new proposal record, in the version its body nests (D36): version 3,
+/// with `authority`, `redactions`, `constraints` and `confirmation` null, for a version 3
 /// proposal. The host overwrites the identity fields (`space`, `plugin`, `agent`, `principal`,
-/// `traceId`, `observedAt`) from the call. A later save of a record keeps its envelope's version.
+/// `traceId`, `observedAt`) from the call, and fills version 3's `delegationChain` (phase 5
+/// section 2.4). A later save of a record keeps its envelope's version.
 pub(crate) fn envelope(caller: &Caller<'_>, parts: Parts) -> Envelope {
     Envelope {
         version: super::model::VERSION,
@@ -196,10 +197,24 @@ pub(crate) fn record_provenance_meta(proposal: &Proposal, envelope: &Envelope) -
 /// The proposal `id` as the caller may read it, with the record it is stored in. `None` when it
 /// is absent or its target is not readable by the caller (one answer for both).
 pub(crate) fn get(caller: &Caller<'_>, id: &str) -> Result<Option<(Proposal, Record)>, HostError> {
+    // An id of any other shape names no proposal (the input schemas cannot carry the pattern: the
+    // host's schema checker admits no `pattern`).
+    if !is_proposal_id(id) {
+        return Ok(None);
+    }
     let Some(record) = caller.cx.record_get(&caller.space, KIND, id)? else {
         return Ok(None);
     };
     Ok(Proposal::from_value(&record.body).map(|proposal| (proposal, record)))
+}
+
+/// Whether `id` has a proposal id's shape: `p-` and 20 lowercase hexadecimal digits.
+pub(crate) fn is_proposal_id(id: &str) -> bool {
+    id.len() == 22
+        && id.starts_with("p-")
+        && id[2..]
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// Store `proposal` with the envelope `envelope`, compare-and-set against `expect`.

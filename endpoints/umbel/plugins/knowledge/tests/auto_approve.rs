@@ -238,7 +238,7 @@ async fn a_declared_deprecate_is_applied_as_the_areas_policy_decision() {
 
     // Recorded as the policy's decision, never a person's (step 1, amendment 8).
     let body = records::read(&fx, &id).body;
-    records::assert_valid("proposal.v2", &body);
+    records::assert_valid("proposal.v3", &body);
     assert_eq!(body["state"], "applied");
     assert_eq!(
         body["decision"]["by"],
@@ -838,8 +838,12 @@ fn stopped(fx: &Fx, id: &str, by: Value, channel: &str, rule: &str) {
         "by": by, "principal": "human:local", "at": "2026-01-01T00:00:00.000Z",
         "traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9", "proposerKind": "human", "channel": channel,
     });
+    // A version 3 person's decision records how the person was proven (phase 5 step 6).
+    if channel == "terminal" {
+        body["decision"]["assurance"] = json!({ "level": "terminal", "method": "cli-terminal" });
+    }
     body["policy"]["rule"] = json!(rule);
-    records::assert_valid("proposal.v2", &body);
+    records::assert_valid("proposal.v3", &body);
     records::overwrite(fx, &body);
 }
 
@@ -867,7 +871,7 @@ async fn a_stopped_policy_apply_resumes_only_when_the_rule_holds_again() {
     let result = auto(&fx).await;
     assert_eq!(applied(&result), std::slice::from_ref(&id), "{result}");
     let body = records::read(&fx, &id).body;
-    records::assert_valid("proposal.v2", &body);
+    records::assert_valid("proposal.v3", &body);
     assert_eq!(body["state"], "applied");
     assert_eq!(body["decision"]["at"], "2026-01-01T00:00:00.000Z");
     assert_eq!(body["decision"]["channel"], "policy");

@@ -106,7 +106,7 @@ async fn a_faithful_draft_is_verified_and_stored_naming_its_sources() {
     assert_eq!(result["created"], true);
     let id = result["proposal"]["id"].as_str().unwrap();
     let body = records::read(&fx, id).body;
-    records::assert_valid("proposal.v2", &body);
+    records::assert_valid("proposal.v3", &body);
     assert_eq!(body["drafter"]["mode"], "scheduled");
     assert_eq!(
         body["drafter"]["candidate"],

@@ -425,7 +425,7 @@ async fn scheduled_draft(exit: &mut Exit, report: &mut Map<String, Value>) -> (S
     assert_eq!(run["counts"]["drafted"], 1, "{run}");
     let id = run["proposals"][0].as_str().unwrap().to_owned();
     let proposal = exit.proposal(&id);
-    assert_eq!(proposal["version"], 2);
+    assert_eq!(proposal["version"], 3);
     assert_eq!(proposal["state"], "pending");
     let doc = proposal["change"]["doc"].as_str().unwrap().to_owned();
     assert_eq!(doc, format!("notes/learned/{candidate}"), "an opaque path");

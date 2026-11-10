@@ -168,12 +168,15 @@ struct SdkHandler<P: umbel_sdk::Plugin> {
 
 /// The call context a plugin receives (WIT `call-context`): the command, the trace id, the
 /// resolved space for a command with a `space` input, a summary of the actor, the host's
-/// pipeline attestation for a step (phase 4 section 10.1), and whether the host counts the caller
-/// as a person (phase 3 section 3.3). Never a credential or a token.
+/// pipeline attestation for a step (phase 4 section 10.1), whether the host counts the caller
+/// as a person (phase 3 section 3.3), the caller's delegation chain, and a person's decision on
+/// the person page for this very call with the validated `input` (phase 5 step 6). Never a
+/// credential or a token.
 pub(super) fn call_context(
     name: &str,
     has_space: bool,
     services: &super::grants::CallServices,
+    input: &Value,
     context: &CommandContext,
 ) -> CallContext {
     let actor = context.actor.clone();
@@ -201,6 +204,9 @@ pub(super) fn call_context(
         person: services.person(),
         equivalents: services.equivalents(),
         sealed_positions: services.seals_positions(),
+        delegation_chain: crate::principal::Principal::chain_of(context),
+        person_decision: services.person_decision(input),
+        person_check: services.person_check(),
     }
 }
 
@@ -215,7 +221,7 @@ fn as_text<T: serde::Serialize>(value: &T) -> String {
 impl<P: umbel_sdk::Plugin> CommandHandler for SdkHandler<P> {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
         let services = self.services.call_command(&self.name, &input, &context);
-        let call = call_context(&self.name, self.has_space, &services, &context);
+        let call = call_context(&self.name, self.has_space, &services, &input, &context);
         let plugin = Arc::clone(&self.plugin);
         let name = self.name.clone();
         let joined = tokio::task::spawn_blocking(move || {

@@ -17,10 +17,10 @@ pub use umbel_store::STORE_TRAITS_VERSION as STORE_VERSION;
 pub const DOCUMENT_VERSION: u32 = 1;
 /// The locator, version 1 (`schemas/locator.v1.json`).
 pub const LOCATOR_VERSION: u32 = 1;
-/// The proposal record version the knowledge plugin writes, 2 (`schemas/proposal.v2.json`, phase 4
-/// section 2.1, D92); version 3 (phase 5 section 7.3) from phase 5 step 6. A version 1 record
-/// stays version 1.
-pub const PROPOSAL_VERSION: u32 = 2;
+/// The proposal record version the knowledge plugin writes, 3 (`schemas/proposal.v3.json`, phase 5
+/// sections 2.4 and 7.3, from step 6): version 2 with envelope version 3 and a decision that
+/// records how its person was proven. A version 1 or 2 record stays in its own version.
+pub const PROPOSAL_VERSION: u32 = 3;
 /// Every proposal record version a deployment holds, read side by side (phase 5 section 2).
 pub const PROPOSAL_VERSIONS: &[u32] = &[1, 2, 3];
 /// The memory record this host writes, version 2 (`schemas/memory-record.v2.json`, phase 5

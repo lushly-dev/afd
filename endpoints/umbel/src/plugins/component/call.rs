@@ -41,7 +41,7 @@ pub(super) async fn run(
         ));
     }
     let services = Arc::new(runtime.services.call(&input, &context));
-    let call = call_context(name, has_space, &services, &context);
+    let call = call_context(name, has_space, &services, &input, &context);
     let record = CallContext {
         command: call.command,
         trace_id: call.trace_id,

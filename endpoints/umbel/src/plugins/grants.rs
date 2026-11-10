@@ -265,6 +265,27 @@ impl CallServices {
         crate::authority::caller_is_person(&self.context, self.command.as_deref(), prompts)
     }
 
+    /// The person decision this call carries for its own command and validated `input`, which
+    /// `CallContext.person_decision` carries to every compiled plugin's command (phase 5 step 6;
+    /// [`crate::person::attested`]). A call made with [`Services::call`], which names no command,
+    /// has none.
+    pub fn person_decision(&self, input: &Value) -> Option<umbel_sdk::PersonDecision> {
+        let command = self.command.as_deref()?;
+        crate::person::attested(
+            self.shared.workspace.config(),
+            command,
+            input,
+            &self.context,
+        )
+    }
+
+    /// The command whose person decision is about to be begun, when this call is its preview run
+    /// by the host first (phase 5 step 6; [`crate::person::check_of`]), which
+    /// `CallContext.person_check` carries.
+    pub fn person_check(&self) -> Option<umbel_sdk::PersonCheck> {
+        crate::person::check_of(self.command.as_deref()?, &self.context)
+    }
+
     /// Whether the call's caller sees positions sealed (phase 5 section 9.3), which
     /// `CallContext.sealed_positions` carries to every compiled plugin's command.
     pub fn seals_positions(&self) -> bool {

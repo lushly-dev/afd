@@ -319,6 +319,86 @@ fn a_person_page_decision_needs_a_preview_and_keeps_its_ids_only() {
     .unwrap();
 }
 
+#[test]
+fn journal_show_names_text_a_person_page_shows_and_nothing_else() {
+    // The preview reads `note` too: as text the person reads (show), never kept.
+    let reading = command(
+        "preview",
+        "\"inspect\"",
+        &format!("{SPACE_AND_CHANGE}, note = {{ type = \"string\" }}"),
+        &format!("{CLI_ONLY}\njournal = {{ mode = \"digest\", keep = [\"change\"] }}\n{RETURNS}"),
+    );
+    let gated = |journal: &str| {
+        v5(&format!(
+            "{}{reading}",
+            approve(&format!(
+                "person = {{ mcp = \"verified\" }}\n{MCP_AND_CLI}\n{journal}"
+            ))
+        ))
+    };
+    let manifest = parse(&gated(
+        "journal = { mode = \"digest\", keep = [\"space\", \"change\"], show = [\"note\"] }",
+    ))
+    .unwrap();
+    assert_eq!(
+        manifest.commands[0].journal.as_ref().unwrap().show,
+        ["note"]
+    );
+    // Without show, the preview's `note` is neither kept nor shown: refused.
+    let error = invalid(&gated(KEEP), "commands[0].journal");
+    assert!(error.message().contains("`note`"), "{error}");
+    // Shown and kept at once; named twice; with a plain journal; more than four.
+    invalid(
+        &gated(
+            "journal = { mode = \"digest\", keep = [\"space\", \"change\", \"note\"], show = [\"note\"] }",
+        ),
+        "show",
+    );
+    invalid(
+        &gated(
+            "journal = { mode = \"digest\", keep = [\"space\", \"change\"], show = [\"note\", \"note\"] }",
+        ),
+        "show",
+    );
+    invalid(
+        &gated("journal = { mode = \"plain\", show = [\"note\"] }"),
+        "show",
+    );
+    invalid(
+        &gated(
+            "journal = { mode = \"digest\", keep = [\"space\", \"change\"], show = [\"note\", \"a\", \"b\", \"c\", \"d\"] }",
+        ),
+        "show",
+    );
+    // A shown input the preview does not read.
+    let error = invalid(
+        &v5(&format!(
+            "{}{}",
+            approve(&format!(
+                "person = {{ mcp = \"verified\" }}\n{MCP_AND_CLI}\njournal = {{ mode = \"digest\", keep = [\"space\", \"change\"], show = [\"note\"] }}"
+            )),
+            preview()
+        )),
+        "commands[0].journal.show",
+    );
+    assert!(error.message().contains("`note`"), "{error}");
+    // On a command no person page decides, and below manifest version 5.
+    invalid(
+        &v5(&refresh(
+            "journal = { mode = \"digest\", keep = [\"space\"], show = [\"space2\"] }",
+        )),
+        "show",
+    );
+    invalid(
+        &format!(
+            "{}{}",
+            head(4, "compiled"),
+            refresh("journal = { mode = \"digest\", show = [\"space\"] }")
+        ),
+        "show",
+    );
+}
+
 // ── task ───────────────────────────────────────────────────────────────────────────────────────
 
 #[test]

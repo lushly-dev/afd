@@ -4133,7 +4133,13 @@ name = "umbel-plugin-knowledge"
 version = "0.1.0"
 dependencies = [
  "afd",
+ "async-trait",
+ "bytes",
  "chrono",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "jsonschema",
  "regex",
  "serde",
@@ -4144,6 +4150,7 @@ dependencies = [
  "tantivy",
  "tempfile",
  "tokio",
+ "tokio-rustls",
  "toml",
  "tree-sitter",
  "tree-sitter-python",
@@ -4156,6 +4163,8 @@ dependencies = [
  "umbel-sdk",
  "umbel-store",
  "umbel-store-embedded",
+ "umbel-testkit-idp",
+ "url",
 ]
 
 [[package]]

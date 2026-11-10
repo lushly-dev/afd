@@ -285,7 +285,7 @@ fn complete(role: &Role, pending: Pending, login: &ScriptedLogin) -> Answer {
         subject: user.subject_id().to_owned(),
         acr: login.acr.clone().unwrap_or_else(|| user.acr_value()),
         amr: login.amr.clone().unwrap_or_else(|| user.amr_values()),
-        auth_time: login.auth_time.unwrap_or_else(now),
+        auth_time: login.auth_time.unwrap_or_else(|| role.now()),
         adjust: login.adjust.clone(),
         expires: now() + CODE_LIFETIME_S,
     };

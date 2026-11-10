@@ -55,17 +55,31 @@ umbel-store = { path = "../../store" }
 umbel-sdk = { path = "../../sdk" }
 
 [dev-dependencies]
-afd = { path = "../../../../packages/rust", default-features = false }
+# `server-auth` for the hosted test kit `tests/relay.rs` shares with the host's tests
+# (`tests/support/hosted.rs`, included by path): its token verifier types.
+afd = { path = "../../../../packages/rust", default-features = false, features = ["server-auth"] }
+# `tests/relay.rs` (phase 5 step 6): knowledge-approve and knowledge-reject over MCP through the
+# person page, end to end over real sockets with the kit's identity provider, as the host's
+# `person_page.rs` drives the page. Every crate below was already in the workspace's lock.
+async-trait = "0.1"
+bytes = "1"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "http1"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+umbel-testkit-idp = { path = "../../testkit-idp" }
+url = "2"
 # The query set and the report are validated against their schemas.
 jsonschema = { version = "0.60", default-features = false }
 # `en_stem`, the index's tokenizer, to check the fixture's vocabulary under it (the stemmer
 # feature is the one the embedded backend enables).
 tantivy = { version = "0.27", default-features = false, features = ["stemmer"] }
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 # The tests boot a host with collections, readers and allow lists, and seed the graph the way
-# step 7a's indexer will.
-umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
+# step 7a's indexer will. `auth` serves the hosted workspace `tests/relay.rs` approves in.
+umbel = { path = "../..", default-features = false, features = ["auth", "store-embedded", "testkit"] }
 # `conformance` for the store suite's memory samples: the verification tests write memory records
 # through the store, as phase 3's tests do (no crate is added; `tempfile` is already here).
 umbel-store = { path = "../../store", features = ["conformance"] }

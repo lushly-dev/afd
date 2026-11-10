@@ -580,6 +580,21 @@ fn a_person_decision_holds_ids_and_a_preview_hash_never_text() {
             Value::Array(vec![json!("x"); 100]),
         ),
     );
+    // Text a decision shows (journal.show, step 6): line ends and tabs, at most 2000 characters.
+    assert_accepts(
+        &validator,
+        "a shown reason",
+        &with(
+            &pending,
+            "/properties/reason",
+            json!("line\nbreak\tand tab"),
+        ),
+    );
+    assert_accepts(
+        &validator,
+        "a shown reason of 2000 characters",
+        &with(&pending, "/properties/reason", json!("x".repeat(2000))),
+    );
     assert_accepts(
         &validator,
         "declined",
@@ -599,7 +614,9 @@ fn a_person_decision_holds_ids_and_a_preview_hash_never_text() {
                 Value::Array(vec![json!("x"); 101]),
             ),
             with(&pending, "/properties/ids", json!([1])),
-            with(&pending, "/properties/q", json!("line\nbreak")),
+            with(&pending, "/properties/q", json!("bell \u{7}")),
+            with(&pending, "/properties/q", json!("x".repeat(2001))),
+            with(&pending, "/properties/ids", json!(["line\nbreak"])),
             with(&pending, "/properties", props(17)),
             with(&pending, "/for/clientId", Value::Null),
             with(&pending, "/for/subject", json!("~abc")),

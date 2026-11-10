@@ -54,12 +54,12 @@
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@lushly-dev/fast-element": "workspace:*",
     "@lushly-dev/specimen": "workspace:*",
-    "@vitest/browser-playwright": "^4.1.11",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/browser-playwright": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.0",
     "playwright": "^1.64.0",
-    "rimraf": "^6.0.0",
+    "rimraf": "^6.1.4",
     "typescript": "^5.9.3",
     "vite": "8.3.5",
-    "vitest": "^4.1.11"
+    "vitest": "^5.1.0"
   }
 }

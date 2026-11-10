@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://afd.dev/umbel/schemas/plugin-manifest.v5.json",
 	"title": "Umbel plugin manifest, version 5",
-	"description": "umbel-plugin.toml read as JSON (D37, D54, D72, D86, D97, D105, D115, D127). Version 5 is version 4 with two command keys, each also admitted on a pipeline when every step admits its value (phase 5 specification section 2.3). task = never | optional | required (default never) lets an MCP tools/call run as a task; it is refused with digest journaling, confirm_prompt (so confirm and confirm_preview), approval or authority_prompt, without MCP exposure, on a component command or a mounted tool, and on a command whose effects are inspect alone, since read results carry content. person = { cli = terminal | verified, mcp = verified } goes on a confirm = require-human command and names the least person assurance per surface; the default is { cli = terminal }. Only with person.mcp may a require-human command be exposed to MCP (never to agents); a command with person.mcp or person.cli = verified declares confirm_preview and journals as digest, and every input property its preview declares is in journal.keep, so a person decision never stores text. A pipeline's task is admitted when every step's task is not never; its person may only be { cli = terminal } and is admitted when every step is a require-human command at the terminal (checked at seal). scopes stays reserved: scopes are resolved, never declared. It is an addition within plugin protocol 1: a phase 5 host reads manifest versions 1 to 5. Everything else is version 4's: the reserved keys (ui, connectors, backends, dependencies, signature, scopes, on_conflict, and allow in a grant) are refused until a manifest version defines them. Every top-level property is defined under $defs by its own name, so a larger manifest (Loam's app manifest) can reference each of them and add its own. Rules that need more than a schema, such as a command name starting with one of plugin.domains, keep naming each key once, what confirm_preview names, a pipeline passing a digest step's output to a plain step or exposed wider than a step, schemas that the afd crate's checker accepts, and paths that stay inside the plugin root once symlinks are resolved, are checked when the manifest is read or the plugin is sealed.",
+	"description": "umbel-plugin.toml read as JSON (D37, D54, D72, D86, D97, D105, D115, D127). Version 5 is version 4 with two command keys, each also admitted on a pipeline when every step admits its value (phase 5 specification section 2.3). task = never | optional | required (default never) lets an MCP tools/call run as a task; it is refused with digest journaling, confirm_prompt (so confirm and confirm_preview), approval or authority_prompt, without MCP exposure, on a component command or a mounted tool, and on a command whose effects are inspect alone, since read results carry content. person = { cli = terminal | verified, mcp = verified } goes on a confirm = require-human command and names the least person assurance per surface; the default is { cli = terminal }. Only with person.mcp may a require-human command be exposed to MCP (never to agents); a command with person.mcp or person.cli = verified declares confirm_preview and journals as digest, and every input property its preview declares is in journal.keep (an id) or journal.show (text the person reads as written, held in the decision for its life and never journaled; step 6), so a person decision stores nothing else. A pipeline's task is admitted when every step's task is not never; its person may only be { cli = terminal } and is admitted when every step is a require-human command at the terminal (checked at seal). scopes stays reserved: scopes are resolved, never declared. It is an addition within plugin protocol 1: a phase 5 host reads manifest versions 1 to 5. Everything else is version 4's: the reserved keys (ui, connectors, backends, dependencies, signature, scopes, on_conflict, and allow in a grant) are refused until a manifest version defines them. Every top-level property is defined under $defs by its own name, so a larger manifest (Loam's app manifest) can reference each of them and add its own. Rules that need more than a schema, such as a command name starting with one of plugin.domains, keep naming each key once, what confirm_preview names, a pipeline passing a digest step's output to a plain step or exposed wider than a step, schemas that the afd crate's checker accepts, and paths that stay inside the plugin root once symlinks are resolved, are checked when the manifest is read or the plugin is sealed.",
 	"type": "object",
 	"required": ["manifest_version", "protocol", "plugin"],
 	"additionalProperties": false,
@@ -1298,6 +1298,16 @@
 						"type": "string",
 						"minLength": 1
 					}
+				},
+				"show": {
+					"description": "Version 5, with digest only, on a command decided on the person page (phase 5 step 6): at most 4 top-level input keys, none in keep, that the person reads as written (a rejection's reason). The command's preview declares each; the decision holds each for its life and the page shows it; the journal never keeps one. Refused on a pipeline and on any other command (checked when the manifest is read).",
+					"type": "array",
+					"maxItems": 4,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
 				}
 			},
 			"if": {
@@ -1309,9 +1319,18 @@
 				"required": ["mode"]
 			},
 			"then": {
-				"not": {
-					"required": ["keep"]
-				}
+				"allOf": [
+					{
+						"not": {
+							"required": ["keep"]
+						}
+					},
+					{
+						"not": {
+							"required": ["show"]
+						}
+					}
+				]
 			}
 		},
 		"task": {

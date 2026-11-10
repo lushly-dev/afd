@@ -438,6 +438,7 @@ fn person_commands(
                 crate::person::service::PersonCommand {
                     preview,
                     properties,
+                    shown: entry.shown.clone(),
                     cli: person.cli,
                     mcp: person.mcp,
                     spaced: entry.space_command || entry.spaces_command,

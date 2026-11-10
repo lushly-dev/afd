@@ -172,14 +172,22 @@ impl CallServices {
     }
 
     /// The envelope of a write, with the identity fields the host owns filled from the call,
-    /// overwriting what the plugin sent (rule 4), and checked: version 1, an origin that is not
-    /// `unspecified`, a valid access set and a sensitivity.
+    /// overwriting what the plugin sent (rule 4): the space, plugin, agent, principal, trace id,
+    /// time and, in version 3, the delegation chain (phase 5 step 6); then checked: a known
+    /// version, an origin that is not `unspecified`, a valid access set and a sensitivity.
     fn seal(&self, space: &str, mut envelope: Envelope) -> Result<Envelope> {
         envelope.space = space.to_owned();
         envelope.plugin = Some(self.shared.instance.clone());
         envelope.agent = self.agent_actor();
         envelope.principal = effective_principal_of(&self.context);
         envelope.trace_id = self.context.trace_id.clone();
+        // Filled only by the host (phase 5 section 2.4): a version 3 envelope records the writing
+        // principal's chain, whatever the plugin sent, and no earlier version holds one. A
+        // document or a record is never confirmed (only `memory-confirm` is, by the memory
+        // services), so a confirmation a plugin sends is dropped.
+        envelope.delegation_chain =
+            (envelope.version >= 3).then(|| crate::principal::Principal::chain_of(&self.context));
+        envelope.confirmation = None;
         envelope.observed_at = chrono::DateTime::from_timestamp_millis(self.context.clock().now())
             .map(|time| time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
             .unwrap_or_default();

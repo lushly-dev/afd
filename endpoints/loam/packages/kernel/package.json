@@ -42,11 +42,11 @@
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
 		"@types/node": "^26.6.6",
-		"@vitest/coverage-v8": "^4.1.12",
+		"@vitest/coverage-v8": "^5.1.0",
 		"fake-indexeddb": "^6.2.7",
-		"rimraf": "^6.1.3",
+		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
-		"vitest": "^4.1.12"
+		"vitest": "^5.1.0"
 	},
 	"repository": {
 		"type": "git",

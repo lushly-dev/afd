@@ -79,6 +79,62 @@ pub struct CallContext {
     /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
     /// a mounted server always see `false`.
     pub sealed_positions: bool,
+    /// The caller's delegation chain, outermost first (phase 5 sections 2.1 and 2.4): the
+    /// verified client, or the RFC 8693 `act` chain of an issuer configured for it; empty without
+    /// a token or an assertion. A plugin copies it into a version 3 envelope it writes in a record
+    /// body (a proposal's `provenance`); the store envelope's own chain is the host's to fill.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see none.
+    pub delegation_chain: Vec<umbel_store::ChainLink>,
+    /// The host's attestation that a person decided this very call on the person page (phase 5
+    /// sections 7.2 and 7.3): `Some` only when the host's own mark on the call names this command,
+    /// the surface it came on and the digest of this validated input, for the person the caller
+    /// acts for, after the plugin gate admitted it once. Nothing a caller sends sets it. `None` at
+    /// a terminal (the CLI's check is [`Self::person`]'s) and everywhere else.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see none.
+    pub person_decision: Option<PersonDecision>,
+    /// The call a person is about to be asked to decide on the person page, when this call is
+    /// that command's `confirm_preview` run by the host as the caller before the decision is
+    /// begun (phase 5 step 6): the plugin answers a failure for a call it would refuse, so no
+    /// person is asked about it. `None` for every other call, the page's own rendering included.
+    /// It only ever adds refusals, so it carries no authority. The host runs this check as its own
+    /// in-process call: [`Self::interface`] is then empty, and [`PersonCheck::surface`] says where
+    /// the call it checks came from.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see none.
+    pub person_check: Option<PersonCheck>,
+}
+
+/// The call the host is about to ask a person to decide (phase 5 step 6), as
+/// [`CallContext::person_check`] names it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PersonCheck {
+    /// The gated command.
+    pub command: String,
+    /// Where its call came from: `mcp` (the approval relay) or `cli` (the command line's URL
+    /// flow).
+    pub surface: String,
+}
+
+/// A person's decision on the person page that a call carries, as the host attests it (phase 5
+/// sections 7.2 and 7.3): who decided and how they were proven, never the decision's content.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PersonDecision {
+    /// Where the call came from: `mcp` (through the approval relay) or `cli` (the command line's
+    /// URL flow).
+    pub surface: String,
+    /// The person who logged in and decided, `<namespace>/<subject>`: the person the call is for.
+    pub person: String,
+    /// The identity namespace of the login.
+    pub namespace: String,
+    /// The login's `auth_time`, ISO 8601 UTC with milliseconds.
+    pub auth_time: String,
+    /// The login's `acr`.
+    pub acr: String,
 }
 
 /// Who ran a pipeline step, as the host attests it (phase 4 specification, section 10.1): the

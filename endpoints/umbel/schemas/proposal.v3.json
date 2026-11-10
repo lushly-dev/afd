@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://afd.dev/umbel/schemas/proposal.v3.json",
 	"title": "Umbel proposal record, version 3",
-	"description": "A change to the knowledge base, proposed and then decided (D62, D17, D92), version 3 (phase 5 sections 2.4 and 7.3, D116): version 2 with a provenance envelope version 3 and a decision that records how its person was proven. channel gains mcp-elicitation, a decision made over MCP through the person page, and every person's decision carries assurance: { level: terminal, method: cli-terminal } at the CLI, and { level: verified, method: person-page, namespace, authTime, acr } over MCP; a policy decision carries none. Every version 2 field and rule keeps its meaning; version 1 and 2 records stay in their own version when decided, withdrawn or applied, and new proposals are version 3. Every version 1 field keeps its meaning; a version 1 record stays version 1 when it is decided, withdrawn or applied, and new proposals are version 2. The envelope is version 3 with authority null. drafter names the curator instance a drafted proposal came from: plugin, instance, pipeline and run are attested by the host's pipeline table; mode, candidate and promotedBy, like every memory evidence entry, are verified by the knowledge plugin against the memory store (phase 4 section 3.2). Memory evidence, a memory derivedFrom, a conflictSet and a drafter's withdrawal need a drafter. A redacted proposal (a source was forgotten) keeps no content, diff, verification note, decision reason, evidence excerpt, memory evidence beyond its reference, or derivedFrom, and its changeHash and the envelope's contentHash are sha256 of the canonical JSON { \"redacted\": \"<proposal id>\" }. Any draft that was not applied may be redacted: a withdrawn one (whoever withdrew it), a rejected one, and an approved one whose apply never landed, each keeping its decision or withdrawal; a pending one is withdrawn first, and an applied one never is. Rules that need more than a schema, such as changeHash equalling the envelope's contentHash, each derivedFrom entry matching a memory evidence entry, and the drafter's claims matching the store, are checked by the knowledge plugin.",
+	"description": "A change to the knowledge base, proposed and then decided (D62, D17, D92), version 3 (phase 5 sections 2.4 and 7.3, D116): version 2 with a provenance envelope version 3 and a decision that records how its person was proven. channel gains mcp-elicitation, a decision made over MCP through the person page, and every person's decision carries assurance: { level: terminal, method: cli-terminal } at the CLI, and { level: verified, method: person-page, namespace, authTime, acr } over MCP; a policy decision carries none. A decision's reason carries reasonSource beside it (phase 5 step 6): person at a terminal, client over MCP, where the asking client wrote it and the person read it on the person page. Every version 2 field and rule keeps its meaning; version 1 and 2 records stay in their own version when decided, withdrawn or applied, and new proposals are version 3. Every version 1 field keeps its meaning; a version 1 record stays version 1 when it is decided, withdrawn or applied, and new proposals are version 2. The envelope is version 3 with authority null. drafter names the curator instance a drafted proposal came from: plugin, instance, pipeline and run are attested by the host's pipeline table; mode, candidate and promotedBy, like every memory evidence entry, are verified by the knowledge plugin against the memory store (phase 4 section 3.2). Memory evidence, a memory derivedFrom, a conflictSet and a drafter's withdrawal need a drafter. A redacted proposal (a source was forgotten) keeps no content, diff, verification note, decision reason, evidence excerpt, memory evidence beyond its reference, or derivedFrom, and its changeHash and the envelope's contentHash are sha256 of the canonical JSON { \"redacted\": \"<proposal id>\" }. Any draft that was not applied may be redacted: a withdrawn one (whoever withdrew it), a rejected one, and an approved one whose apply never landed, each keeping its decision or withdrawal; a pending one is withdrawn first, and an applied one never is. Rules that need more than a schema, such as changeHash equalling the envelope's contentHash, each derivedFrom entry matching a memory evidence entry, and the drafter's claims matching the store, are checked by the knowledge plugin.",
 	"type": "object",
 	"required": [
 		"version",
@@ -293,7 +293,15 @@
 						},
 						"assurance": {
 							"$ref": "provenance-envelope.v3.json#/$defs/assurance"
+						},
+						"reasonSource": {
+							"description": "Who wrote reason (phase 5 step 6): person, the person who decided at a terminal; client, the MCP client that asked, whose words the person read on the person page and confirmed. Present exactly when reason is, and removed with it by a redaction.",
+							"enum": ["person", "client"]
 						}
+					},
+					"dependentRequired": {
+						"reason": ["reasonSource"],
+						"reasonSource": ["reason"]
 					},
 					"allOf": [
 						{
@@ -351,6 +359,9 @@
 												"const": "terminal"
 											}
 										}
+									},
+									"reasonSource": {
+										"const": "person"
 									}
 								}
 							}
@@ -373,6 +384,9 @@
 												"const": "verified"
 											}
 										}
+									},
+									"reasonSource": {
+										"const": "client"
 									}
 								}
 							}

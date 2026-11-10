@@ -58,12 +58,13 @@ fn every_version_constant_names_a_schema_file() {
     assert_eq!(umbel::PROPOSAL_VERSIONS, [1, 2, 3]);
     assert_eq!(umbel::CURSOR_VERSIONS, [0, 1]);
     assert_eq!(umbel::LOCATOR_VERSIONS, [1, 2]);
-    // The versions this host writes: the envelope, the event and the memory record from step 5.
+    // The versions this host writes: the envelope, the event and the memory record from step 5,
+    // the proposal from step 6.
     assert_eq!(umbel::PRINCIPAL_VERSION, 1);
     assert_eq!(umbel::PROVENANCE_VERSION, 3);
     assert_eq!(umbel::EVENT_VERSION, 3);
     assert_eq!(umbel::MEMORY_VERSION, 2);
-    assert_eq!(umbel::PROPOSAL_VERSION, 2);
+    assert_eq!(umbel::PROPOSAL_VERSION, 3);
     assert_eq!(umbel::CURSOR_VERSION, 0);
 }
 

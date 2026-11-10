@@ -51,7 +51,8 @@ pub mod build;
 
 pub use assets::Asset;
 pub use cx::{
-    CallContext, Cx, HostError, HostServices, Level, NoServices, PipelineAttestation, WalCheckpoint,
+    CallContext, Cx, HostError, HostServices, Level, NoServices, PersonCheck, PersonDecision,
+    PipelineAttestation, WalCheckpoint,
 };
 pub use memory::{LeftOutQuery, MemoryPath, MemoryWriteRequest};
 #[cfg(feature = "mounted")]

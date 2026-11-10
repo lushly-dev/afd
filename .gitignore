@@ -38,6 +38,8 @@ pnpm-debug.log*
 coverage/
 test-results/
 playwright-report/
+# Vitest 5 artifacts: failure screenshots, attachments and file reporters write under .vitest/.
+.vitest/
 
 # Environment
 .env
@@ -69,7 +71,6 @@ tmpclaude-*
 tools-response.json
 execution.review.md
 api-alignment-report.md
-# Vitest browser-mode failure artifacts; untracked Specimen files would fail its provenance test.
-foundations/specimen/.vitest-attachments/
-foundations/specimen/reference/__screenshots__/
+# Untracked Specimen files would fail its provenance test. Vitest's browser-mode failure
+# artifacts land under .vitest/ (ignored above).
 foundations/specimen/packages/*/bin/
