@@ -31,6 +31,8 @@ mod shared;
 mod store;
 mod surfaces;
 mod templates;
+#[cfg(feature = "auth")]
+mod usage;
 mod versions;
 
 #[cfg(feature = "testkit")]

@@ -288,6 +288,7 @@ pub(crate) fn router(
     policy: &Arc<crate::auth::scopes::ScopePolicy>,
     environment: &crate::auth::fetch::AuthEnvironment,
     clock: Option<&Arc<dyn afd::Clock>>,
+    observer: Arc<crate::usage::observe::Observer>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
     let lock_timeout = std::time::Duration::from_millis(config.store.lock_timeout_ms);
@@ -371,17 +372,22 @@ pub(crate) fn router(
         // and the resolver finds it in the book while the request is in flight.
         let slot = CallerSlot::default();
         request.extensions_mut().insert(slot.clone());
-        let entry = book.enter(slot);
+        let entry = book.enter(slot.clone());
+        // Usage (section 12.1), on the MCP path.
+        let watch = at_path.then(|| observer.begin(&mut request)).flatten();
         async move {
             if !at_path {
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());
             }
             let response = match service.oneshot(request).await {
-                Ok(response) => Ok(response.map(Body::new)),
+                Ok(response) => response.map(Body::new),
                 Err(never) => match never {},
             };
             drop(entry);
-            response
+            Ok(match watch {
+                Some(watch) => watch.finish(response, Some(&slot)).await,
+                None => response,
+            })
         }
     });
     let ip = Arc::new(IpGate {

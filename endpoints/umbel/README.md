@@ -445,7 +445,9 @@ read from the files. To make one person's CLI and that person's agents line up, 
 `auth.mode` (configuration version 5, not served over HTTP yet) it says `principals: "verified"`, and
 any caller but the operator at the CLI sees no workspace name or path and only the spaces it reads;
 `auth-show` tells any caller who it is to the host, and `umbel workspace doctor` adds the hosted
-profile's `auth.*` checks and answers the operator alone. Hidden
+profile's `auth.*` checks and answers the operator alone. Every metered MCP HTTP request leaves one
+content-free usage record in `state/usage/usage.sqlite3` (`[usage]`, kept `retention_days`);
+`usage-list` shows each caller its own, and everyone's to `usage.readers` and the operator. Hidden
 content and ids are never returned, but hidden counts are not fully hidden: scores, revision and
 `seq` gaps, `store-show`'s head and the totals of index-building commands can reveal how many
 hidden things exist (an accepted limit, listed in the specification's section 6).
