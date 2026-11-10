@@ -27,6 +27,7 @@ on:
       - 'spec/VERSION'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.cargo/config.toml'
       - '.github/workflows/loam.yml'
   pull_request:
     branches: [main]
@@ -51,6 +52,7 @@ on:
       - 'spec/VERSION'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.cargo/config.toml'
       - '.github/workflows/loam.yml'
   workflow_dispatch:
 
@@ -81,10 +83,10 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml
       # The same, and an Umbel or `afd` crate change, which reaches this job and not the one below.
       - id: mounted
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
 
   loam:
     name: Build, unit and Chromium

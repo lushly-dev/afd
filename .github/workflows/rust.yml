@@ -18,6 +18,7 @@ on:
       - 'spec/tool-strategies.json'
       - 'spec/mcp-resources.json'
       - 'spec/output-budgets.json'
+      - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
   pull_request:
     branches: [main]
@@ -31,6 +32,7 @@ on:
       - 'spec/tool-strategies.json'
       - 'spec/mcp-resources.json'
       - 'spec/output-budgets.json'
+      - '.cargo/config.toml'
       - '.github/workflows/rust.yml'
   # publish-rust.yml runs these same checks before `cargo publish`.
   workflow_call:

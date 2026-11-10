@@ -30,6 +30,7 @@
 		"check:all": "node scripts/affected.mjs check --all",
 		"affected": "node scripts/affected.mjs list",
 		"verify": "node scripts/affected.mjs verify",
+		"rust:sweep": "node scripts/rust-sweep.mjs",
 		"check:boundaries": "node scripts/check-boundaries.mjs",
 		"check:skills": "node scripts/skill-profiles.mjs",
 		"skills:sync": "node scripts/skill-profiles.mjs --write",
