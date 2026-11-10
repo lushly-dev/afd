@@ -135,7 +135,7 @@ export function sortRows<RowData>(options: {
     }
 
     const sortableColumn = options.columns.find(column => column.id === options.sort?.columnId);
-    if (!sortableColumn || !sortableColumn.sortable) {
+    if (!sortableColumn?.sortable) {
         return [...sourceRows];
     }
 

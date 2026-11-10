@@ -472,7 +472,7 @@ describe("violet-combobox", () => {
             expect(combobox.value).toBe("Local co-op");
             expect(getInput(combobox).value).toBe("Local co-op");
             expect(handler).toHaveBeenCalledTimes(1);
-            expect((handler.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
+            expect((handler.mock.calls[0]![0] as CustomEvent).detail).toEqual({
                 value: "Local co-op",
                 selectedValue: "coop",
                 label: "Local co-op",

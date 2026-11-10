@@ -20,7 +20,7 @@ export function isDisabledByFieldset(element: Element): boolean {
 
         const legend = Array.from(ancestor.children).find(child => child instanceof HTMLLegendElement);
 
-        if (!legend || !legend.contains(element)) {
+        if (!legend?.contains(element)) {
             return true;
         }
     }

@@ -140,7 +140,7 @@ describe("violet-checkbox", () => {
     it("toggles when its label text is clicked", async () => {
         const { checkbox } = await renderCheckbox({ label: "Accept terms" });
 
-        (checkbox.shadowRoot?.querySelector(".label") as HTMLElement).click();
+        (checkbox.shadowRoot!.querySelector(".label") as HTMLElement).click();
         await nextFrame();
 
         expect(checkbox.checked).toBe(true);
@@ -168,7 +168,7 @@ describe("violet-checkbox", () => {
         });
 
         input(checkbox).click();
-        (checkbox.shadowRoot?.querySelector(".label") as HTMLElement).click();
+        (checkbox.shadowRoot!.querySelector(".label") as HTMLElement).click();
         await nextFrame();
 
         expect(checkbox.checked).toBe(false);
@@ -242,7 +242,7 @@ describe("violet-checkbox", () => {
                 supporting: "Read the policy first.",
             });
             const assigned = (
-                withSupporting.shadowRoot?.querySelector('slot[name="supporting"]') as HTMLSlotElement
+                withSupporting.shadowRoot!.querySelector('slot[name="supporting"]') as HTMLSlotElement
             ).assignedElements();
 
             expect(withSupporting.hasSupporting).toBe(true);

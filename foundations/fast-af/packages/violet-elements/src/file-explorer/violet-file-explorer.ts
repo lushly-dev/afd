@@ -628,7 +628,7 @@ export class VioletFileExplorer extends FASTElement {
     public itemsChanged(): void {
         for (const id of [...this.#requested]) {
             const item = this.#findItem(id);
-            if (!item || item.loaded !== false) {
+            if (item?.loaded !== false) {
                 this.#requested.delete(id);
             }
         }

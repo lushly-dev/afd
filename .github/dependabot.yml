@@ -16,6 +16,12 @@ updates:
         versions:
           - '>=1.65.0'
     groups:
+      # fast-element's @playwright/test and every other unit's playwright move in one
+      # update, so the lockfile never resolves two playwright copies (#600).
+      playwright:
+        patterns:
+          - playwright
+          - '@playwright/test'
       dev-deps:
         dependency-type: development
         update-types:

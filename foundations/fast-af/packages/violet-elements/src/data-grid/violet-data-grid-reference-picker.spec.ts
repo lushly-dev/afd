@@ -400,7 +400,7 @@ describe("violet-data-grid-reference-picker", () => {
     element.handleCreateAction();
 
     expect(createSpy).toHaveBeenCalledTimes(1);
-    expect((createSpy.mock.calls[0]?.[0] as CustomEvent<{ query: string }>).detail.query).toBe(
+    expect((createSpy.mock.calls[0]![0] as CustomEvent<{ query: string }>).detail.query).toBe(
       "Fresh market dispatch",
     );
   });
@@ -448,7 +448,7 @@ describe("violet-data-grid-reference-picker", () => {
     );
     expect(input).not.toHaveBeenCalled();
     expect(query).toHaveBeenCalled();
-    expect((query.mock.lastCall?.[0] as CustomEvent).detail).toEqual({ query: "north" });
+    expect((query.mock.lastCall![0] as CustomEvent).detail).toEqual({ query: "north" });
     await userEvent.keyboard("{ArrowLeft}{Backspace}");
     expect(search.value).toBe("norh");
     expect(element.filterQuery).toBe("norh");

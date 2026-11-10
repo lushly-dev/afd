@@ -415,7 +415,7 @@ export class VioletDialog extends FASTElement {
 
     #closeDialog(): void {
         const dialog = this.#dialogElement;
-        if (!dialog || !dialog.open) {
+        if (!dialog?.open) {
             return;
         }
 
