@@ -608,7 +608,19 @@ loads the `bearer`, `challenges`, `metadataUrls`, `metadataDocuments`, `audience
 with keys generated in the test (RSA, EC P-256 and P-384, Ed25519) by a test authorization server
 serving the JWKS and introspection over loopback HTTP; `mcp-auth.test.ts` the layer end to end,
 the token never on a context, in `createContext`'s request or in the journal, and the brand.
-TypeScript does not enforce scopes (M6) yet: its scope options are refused when given.
+TypeScript enforces scopes (Loam phase 3 step 0c): a command's `scopes`, `requiredScopes`, a
+`ScopeResolver` and `filterToolsByScope`. The bearer layer decides a `POST` body before dispatch on
+`/mcp`, `/message` (whose answer is the body of its own response in TypeScript), `/rpc`, `/batch` and
+`/stream`; the routes and the router decide again after routing, before the confirmation gate; and
+with a resolver the remote engine decides every command again on its validated input, as its first
+middleware. Each admitted request gets a scope view, decided once as it arrives, which the routes,
+the router, the engine and the listings read from the command context. A host's own layer admits
+the callers it vouches for with `handler.admit` and runs the bearer layer's own decision with
+`handler.preDispatchCheck`. `mcp-auth-scopes.test.ts` loads the `staticScopes` and `batches` cases
+and covers every route, the resolver's two phases, listing, and hidden commands, each answer
+compared with a twin server's for a name it does not have; `mcp-auth-host.test.ts` the host's own
+layer, each answer compared with the bearer layer's and with the `challenges` 403. TypeScript
+serves no tasks, and a resource provider is not given the caller's credentials.
 
 The principal binding (M8) is implemented in all three languages with a confirmation gate (Umbel
 phase 5 step 0c, [#532](https://github.com/lushly-dev/afd/issues/532)), and each loads the
@@ -645,9 +657,9 @@ Rust ask again, Python answers `-32602`.
 | --- | --- | --- | --- | --- |
 | Bearer token, verification, audience, credentials (M1 to M4) | Yes (Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`) | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
 | 401 and 403, rule codes (M5) | Yes (step 0a; the 403's challenge and body are built, and sent once M6 lands; rule codes to `auth.onRefusal`) | Planned | Yes (step 0b) | N/A |
-| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
-| [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Planned | Planned | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
-| [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Planned | Planned | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
+| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Yes (Loam phase 3 step 0c; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`) | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
+| [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Yes (step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`) | Planned | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
+| [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Yes (step 0c; `ScopeResolver.known`, but no `tasks/*`: TypeScript serves no tasks; `mcp-auth-scopes.test.ts`) | Planned | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
 | Protected-resource metadata (M7) | Yes (step 0a; `createProtectedResource`) | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |
 | `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need the required scopes and run the context hook; the owner is the principal binding, checked by the `TaskStore` and again by the server; the owner must still hold the task's command's `scopes` (or its resolver `visible` and `known`), and a task whose command no longer exists for the owner answers as an unknown task; a task stops at `credentials.expiresAt` | N/A: no MCP server |

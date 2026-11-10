@@ -116,7 +116,9 @@ export const panelOpen = defineCommandWithSchema({
 - Commands get frozen `context.credentials`, never the token. `createContext(req, { credentials })` maps them to an `actor` (default `{ kind: 'agent', id: clientId, onBehalfOf: subject }`) and cannot replace them.
 - With afd-auth's middleware on the same server, pass `isVerifiedCredentials` to `createAuthMiddleware`, or every token's call is gated on the adapter's session.
 - A host verifier may wrap `JwtVerifier` to refuse more with its own rule code (logged, the same 401), never to accept more.
-- Scopes (`requiredScopes`, `resolver`, `filterToolsByScope`) are not enforced yet, and passing one throws.
+- Scopes (M6): a command's `scopes` plus `auth.requiredScopes`, compared exactly; a missing scope is a 403 before dispatch, or `INSUFFICIENT_SCOPE` after routing. A `resolver` decides instead, twice: on the arguments as sent and again on the validated input, so decide on values, not on whether they were sent.
+- `filterToolsByScope: true` filters every listing; with a resolver, a command its `known` (default `visible`) rejects answers as a missing name on every route. `visible` and `known` must be pure.
+- `handler.admit(req, credentials)` is a gateway vouching for a caller it authenticated itself, never anything the caller sent; then `handler.preDispatchCheck({ challenge, scopeSource }).decide(req, body)` and `handler(req, res, body)`.
 
 ### Tool strategies
 
