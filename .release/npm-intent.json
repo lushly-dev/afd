@@ -1,62 +1,56 @@
 {
 	"schemaVersion": 1,
-	"selectedUnits": ["afd-npm"],
-	"inventoryHash": "aaf6e40d20403f0c83cf826020f5a246852b0f1f212c39533902f784cdab32bc",
-	"sourceDigest": "a35aa05dcbd422563019b5163fb8b0062492d5e43ef95c117cb0131a0e5ae3b9",
+	"selectedUnits": ["specimen", "specimen-afd", "specimen-cli", "specimen-fast-af"],
+	"inventoryHash": "544fd3b9a3f7af873636a4490e68ca21a85de874e7feb528c3a5fc071050dcf2",
+	"sourceDigest": "ad5480b1179b46217c9a938c1acd1bdc6e648eed5274b0117d6c644c8155a4a8",
 	"distributions": [
 		{
-			"name": "@lushly-dev/afd-adapters",
-			"version": "2.3.0",
-			"manifest": "packages/adapters/package.json",
-			"manifestHash": "5c406a5cff1ea74aa621c7558b41df4c3f1294a5965d154174739e1bf3a73bc3"
+			"name": "@lushly-dev/specimen",
+			"version": "2.2.0-preview.2",
+			"manifest": "foundations/specimen/package.json",
+			"manifestHash": "c48261b7f17f48b55eb8cd654b7b7bf304040197bd2c3fd491fae5333d60959e"
 		},
 		{
-			"name": "@lushly-dev/afd-auth",
-			"version": "2.3.0",
-			"manifest": "packages/auth/package.json",
-			"manifestHash": "f18a3e12d602db89332223f9e2c272403a067694620dfead51d7db79a391c1d5"
+			"name": "@lushly-dev/specimen-host-darwin-arm64",
+			"version": "2.2.0-preview.2",
+			"manifest": "foundations/specimen/packages/host-darwin-arm64/package.json",
+			"manifestHash": "8d4a6991e42c4e5092324cd4b1fbd365c51cb45b9446e3859c26eea1fd2ba2b1"
 		},
 		{
-			"name": "@lushly-dev/afd-cli",
-			"version": "2.3.0",
-			"manifest": "packages/cli/package.json",
-			"manifestHash": "65767e9571f8b32c3125adfd5c4ab0428397a1566f634f2ec7ed68ce72aae164"
+			"name": "@lushly-dev/specimen-host-darwin-x64",
+			"version": "2.2.0-preview.2",
+			"manifest": "foundations/specimen/packages/host-darwin-x64/package.json",
+			"manifestHash": "dd40873000acb85bca2e5570e39823199d6f90e04580c1861454426d0aed8cdc"
 		},
 		{
-			"name": "@lushly-dev/afd-client",
-			"version": "2.3.0",
-			"manifest": "packages/client/package.json",
-			"manifestHash": "7cf365410972796536e5bbb5caa7dc7c047f1b19ecd9228703c20a8983522e6f"
+			"name": "@lushly-dev/specimen-host-linux-arm64-gnu",
+			"version": "2.2.0-preview.2",
+			"manifest": "foundations/specimen/packages/host-linux-arm64-gnu/package.json",
+			"manifestHash": "207a4a205e3947de5041614eae73dedbc1bb6239e55afb6389a3857c43a12d5e"
 		},
 		{
-			"name": "@lushly-dev/afd-core",
-			"version": "2.3.0",
-			"manifest": "packages/core/package.json",
-			"manifestHash": "dcdbf2065e5ecc9b0fd3ef9649b55bc80f4fd73f8dfbaa020507e3767fac74ff"
+			"name": "@lushly-dev/specimen-host-linux-x64-gnu",
+			"version": "2.2.0-preview.2",
+			"manifest": "foundations/specimen/packages/host-linux-x64-gnu/package.json",
+			"manifestHash": "ba5ad9ffb5cb0d70d7e4f45d59e2a2dee457c92ad5535481e00f1c5e431cdb04"
 		},
 		{
-			"name": "@lushly-dev/local-db",
-			"version": "2.3.0",
-			"manifest": "packages/local-db/package.json",
-			"manifestHash": "6d91aca226eed63c6d4b62171d2ad6a5aa771d442ce9630240691bf8a33ef45e"
+			"name": "@lushly-dev/specimen-afd",
+			"version": "2.2.0-preview.2",
+			"manifest": "integrations/specimen-afd/package.json",
+			"manifestHash": "6d221346cf2bbd11d04d2e1f23605e87a7bebba1ac062a2173df0c1d773af19e"
 		},
 		{
-			"name": "@lushly-dev/afd-server",
-			"version": "2.3.0",
-			"manifest": "packages/server/package.json",
-			"manifestHash": "a3cd22eb3812d476860dc11da18f856189e4011f0fd573b73223643628dd8ab6"
+			"name": "@lushly-dev/specimen-cli",
+			"version": "2.2.0-preview.2",
+			"manifest": "endpoints/specimen-cli/package.json",
+			"manifestHash": "c8fd2d929c39ab5330794166e7ef88abef28c3f3ea49d6b173919522b8f66c0e"
 		},
 		{
-			"name": "@lushly-dev/afd-testing",
-			"version": "2.3.0",
-			"manifest": "packages/testing/package.json",
-			"manifestHash": "0ae7b8cd70335b568c6925929cc4ac25df5348ed8f655b6ef6e93e3b0f8789d3"
-		},
-		{
-			"name": "@lushly-dev/afd-view-state",
-			"version": "2.3.0",
-			"manifest": "packages/view-state/package.json",
-			"manifestHash": "45184500dc58ac59d94b49565c80497dd98a24dc284842f3ca2366fdae0b9bb6"
+			"name": "@lushly-dev/specimen-fast-af",
+			"version": "0.1.0-preview.2",
+			"manifest": "integrations/specimen-fast-af/package.json",
+			"manifestHash": "31f3c6a718ccd8743d01f651b438bd2db6c437eb3b1eacd7c239f3976020424a"
 		}
 	]
 }
