@@ -9,24 +9,24 @@
 
 ## Status
 
-- **State:** written 2026-11-09 by the design sub-agent, after phase 3's approval and the coordinator's decision of the same day that phase 6's hosted lane comes first ([phase 3's 10.3](../3-identity/spec.md#103-the-order-recommended-for-the-coordinator-to-decide)). **Not yet reviewed or approved.** It proposes D100 to D108 ([decision log](../../decisions.md)), asks the owner three questions ([Questions for the owner](#questions-for-the-owner)), and proposes five amendments to phase 3's specification ([Proposed amendments to phase 3](#proposed-amendments-to-phase-3)), none of which moves a trust boundary phase 3 approved.
+- **State:** written 2026-11-09 by the design sub-agent, after phase 3's approval and the coordinator's decision of the same day that phase 6's hosted lane comes first ([phase 3's 10.3](../3-identity/spec.md#103-the-order-recommended-for-the-coordinator-to-decide)). **Revised the same day** after two independent reviews of `96e1ed9a`, a trust and security review and a general review, each of which called it approvable once fixed; every finding is answered in [Review 2026-11-09](#review-2026-11-09), with the coordinator's rulings where the reviews differed. **Not yet approved.** It proposes D100 to D108 ([decision log](../../decisions.md)), asks the owner two questions ([Questions for the owner](#questions-for-the-owner)), and proposes eight amendments to phase 3's specification ([Proposed amendments to phase 3](#proposed-amendments-to-phase-3)), none of which moves a trust boundary phase 3 approved.
 - **Last verified:** 2026-11-09 against `main` at `37f383c0`, from this evidence read in the repository:
-  - **AFD's MCP handler:** `packages/server/src/server.ts:245-248` (`createMcpHandler` returns a Node `(req, res)` handler and starts no server), `:140` and `:188` (a server's actor defaults to `{ kind: 'agent' }`); `packages/server/src/http-handler.ts:49` (`JSON_RPC_PATHS`), `:406`, `:410` and `:466` (routes matched on the absolute path: `/mcp`, `/health`, `/sse`, `/message`, `/rpc`, `/batch`, `/stream/*`); `packages/server/src/http-security.ts:30-66` (`validateHttpRequest`: the scheme is `https` only on a `TLSSocket`, `:35`; `allowedHosts` defaults to loopback names, `:39`; an `Origin` other than the request's own needs `allowedOrigins`, `:43-53`; `Sec-Fetch-Site` without `Origin`, `:56-64`).
-  - **Stores and journal:** `packages/local-db/src` has the memory, IndexedDB and HTTP adapters and no SQLite one; `packages/core/src/journal-file.ts:24-44` (`FileJournalSink`, one JSON line per entry, "do not point two sinks (or two processes) at the same file").
-  - **Kernel:** `endpoints/loam/packages/kernel/src/commands.ts:9-14` (`SHELL_EXPOSE`, `mcp: false` and `cli: false` for every shell command "until phase 6"), `kernel.ts:303-304` (applied to every boot command); `late/index.ts:66-74` (`PERSON_SESSION`), `:315-357` (`mcpOptions`); `types.ts:94-104` (`host: 'browser' | 'desktop' | 'hosted' | 'test'`, `storeKind: 'memory' | 'indexeddb'`); `apps/mounted.ts:257`, `:292` and `:320` (`pinMountedInput`, `unlistedProject` and `flagsOf`, pure and exported).
-  - **Web host and CLI:** `endpoints/loam/packages/web/index.html:5-8` (the CSP as a `<meta>`, so no `frame-ancestors`); `web/src/mount.ts:27` (the mount transport answers its own `GET` with 405, so the page opens no event stream) and `:148-155` (`close()` lets the SDK send its session `DELETE`); `web/test/mounted/mount-relay.ts:1-29` (the test-only relay forwards `POST`, `GET` and `DELETE` with an allow-list of headers); `web/test/browser/harness.ts:196-253` (`serveDeployment`); `cli/src/deployment.ts:327-420` (`writeDeployment`, with `404.html` at `:387` and the 0600 `mountsOut` at `:397`); `cli/src/deployment-analysis.ts:36-40` (`MountAccess` is `{ instance, url, bearer? }`).
+  - **AFD's MCP handler:** `packages/server/src/server.ts:245-248` (`createMcpHandler` returns a Node `(req, res)` handler and starts no server), `:140` and `:188` (a server's actor defaults to `{ kind: 'agent' }`); `packages/server/src/http-handler.ts:49` (`JSON_RPC_PATHS`), `:406`, `:410` and `:466` (routes matched on the absolute path: `/mcp`, `/health`, `/sse`, `/message`, `/rpc`, `/batch`, `/stream/*`); `packages/server/src/http-security.ts:30-66` (`validateHttpRequest`: the scheme is `https` only on a `TLSSocket`, `:35`; `allowedHosts` defaults to loopback names, `:39`; an `Origin` other than the request's own needs `allowedOrigins`, `:43-53`; `Sec-Fetch-Site` without `Origin`, `:56-64`); `packages/server/src/meta-argument.ts:5-10` (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` take a `meta` argument applied "as if the request had sent them in `_meta`"); `packages/server/src/journal.ts:259` and `:290` (the journal appends after `next()`); `packages/core/src/builtin-tools.ts:11-37` (`AFD_META_TOOL_NAMES`, `AFD_BOOTSTRAP_COMMAND_NAMES`, `AFD_CONTEXT_COMMAND_NAMES` and `AFD_BUILTIN_TOOL_NAMES`; there is no `isMetaTool`).
+  - **Stores and journal:** `packages/local-db/src` has the memory, IndexedDB and HTTP adapters and no SQLite one; `packages/core/src/journal-file.ts:24-44` (`FileJournalSink`, one JSON line per entry, "do not point two sinks (or two processes) at the same file", no `fsync`).
+  - **Kernel:** `endpoints/loam/packages/kernel/src/commands.ts:9-14` (`SHELL_EXPOSE`, `mcp: false` and `cli: false` for every shell command "until phase 6"), applied at `kernel.ts:303-305` and `:406`; `kernel.ts:195` and `:778` (`mcpOptions()` is undefined until `late/` has loaded); `late/index.ts:66-74` (`PERSON_SESSION`), `:315-357` (`mcpOptions`); `types.ts:94-104` (`host: 'browser' | 'desktop' | 'hosted' | 'test'`, `storeKind: 'memory' | 'indexeddb'`); `apps/mounted.ts:257`, `:292` and `:320` (`pinMountedInput`, `unlistedProject` and `flagsOf`, pure and exported), `:418-466` (`discoverInstance` over a `MountTransportV2`: `afd-help`, then `afd-detail` in batches, under `DISCOVERY_LIMITS`, with `mount.only`), `:682` (a command that is not first-class is called as `tools/call afd-call { command, input }`).
+  - **Web host and CLI:** `endpoints/loam/packages/web/index.html:5-8` (the CSP as a `<meta>`, so no `frame-ancestors`); `web/src/mount.ts:27` (the mount transport answers its own `GET` with 405, so the page opens no event stream), `:64-81` (a refusal maps the HTTP status alone, 401 and 403 to `MOUNT_UNAUTHORIZED`, everything else to `MOUNT_UNREACHABLE`; the body is never read) and `:148-155` (`close()` lets the SDK send its session `DELETE`); `web/test/mounted/mount-relay.ts:1-29` (the test-only relay forwards `POST`, `GET` and `DELETE` with an allow-list of headers); `web/test/browser/harness.ts:196-253` (`serveDeployment`, which writes the sandbox's origin into the file after binding its port, `:209-219`) and `:330` (`openShell(browser, origin, options, context)`); `cli/src/deployment.ts:327-420` (`writeDeployment`, with `404.html` at `:387` and the 0600 `mountsOut`, which writes the bearers' values, at `:388-399`); `cli/src/deployment-analysis.ts:36-40` (`MountAccess` is `{ instance, url, bearer? }`).
   - **Manifest:** `manifest/schemas/deployment.v2.json`: `$defs.site` holds only `base_path`; an instance has `audience`, `transport`, `url`, `bearer_file`, `bearer_env`, `command`, `cwd`, `projects`, `space`, `expose` and `commands`. The projection carries the version as `deployment_version`.
-  - **CI and tooling:** `.github/workflows/loam.yml` (jobs `Affected units`, `Build, unit and Chromium`, `Editor walk`, `Mounted against Umbel`); `scripts/loam-exit-check.mjs:36` and `:57` (`WORKFLOWS`, `LOCATIONS`); `scripts/affected/suites.mjs:90` (`loam.yml`'s local entry) and `:128` (`hosted-fixtures.yml` needs `openssl`); `packages/auth/hosted/better-auth/local.ts:80` (`openssl` makes the hosted fixture's certificate); `.nvmrc` is `26`; every Loam unit in `scripts/release/inventory.json` is `quarantined` with `routes: []`.
+  - **CI and tooling:** `.github/workflows/loam.yml` (jobs `Affected units`, `Build, unit and Chromium`, `Editor walk`, `Mounted against Umbel`); `scripts/loam-exit-check.mjs:36-47` (`WORKFLOWS`: a run's jobs must equal the list exactly, `:250-256`) and `:57` (`LOCATIONS`); `scripts/affected/suites.mjs:90` (`loam.yml`'s local entry) and `:128` (`hosted-fixtures.yml` needs `openssl`); `packages/auth/hosted/better-auth/local.ts:80-96` (`openssl` makes the hosted fixture's certificate); `scripts/repository-contract.test.mjs:323` (every Loam unit's gates must be `pnpm check`, `loam.yml`, `release-approval`); `.gitignore:48-52` (`Cargo.lock` ignored, with negations per Cargo workspace); `.nvmrc` is `26`; every Loam unit in `scripts/release/inventory.json` is `quarantined` with `routes: []`.
   - **Phase 3, approved and not yet built:** `@lushly-dev/loam-identity` with `createLoamAuthOptions`, `loamServerPlugin`, `bootstrapOrganization`, `createMcpAuth`, `createServerKernel`, `principalGate` and `credentialsGate` ([its section 1](../3-identity/spec.md#1-units-and-repository-placement)); deployment and projection version 3; steps 0a and 0c for AFD's TypeScript MCP authorization.
-  - **External:** the [trajectory refresh](#trajectory-refresh), dated 2026-11-09, and the published packages read for it: `@hono/node-server` 2.1.6 exports `HttpBindings` (`incoming`, `outgoing`) and `RESPONSE_ALREADY_SENT` (`dist/index.d.mts:37-45`, `dist/utils/response.d.mts:2`); `@better-auth/oauth-provider` 1.7.18 exports `oauthProviderAuthServerMetadata` and `oauthProviderOpenIdConfigMetadata`, documented as "Useful when basePath prevents the endpoint from being located at the root".
-- **Done:** this specification.
-- **Not done:** its review and approval; the owner's answers to Q1 to Q3; everything it specifies.
+  - **External:** the [trajectory refresh](#trajectory-refresh), dated 2026-11-09, and the published packages read for it and for the reviews: `@hono/node-server` 2.1.6 exports `HttpBindings` (`incoming`, `outgoing`) and `RESPONSE_ALREADY_SENT` (`dist/index.d.mts:37-45`, `dist/utils/response.d.mts:2`); `@better-auth/oauth-provider` 1.7.18 exports `oauthProviderAuthServerMetadata` and `oauthProviderOpenIdConfigMetadata`; `@better-auth/core` 1.7.18 reads a client's address only from `advanced.ipAddress.ipAddressHeaders`, default `x-forwarded-for` (`dist/utils/ip.mjs:196-219`), and `better-auth` 1.7.18's rate limiter keys a request with no address to one shared bucket (`dist/api/rate-limiter/index.mjs:242-248`); its `/organization/leave` deletes the member without `beforeRemoveMember` or `afterRemoveMember` and counts only the creator role as an owner (`dist/plugins/organization/routes/crud-members.mjs:404-433`, against `:211` and `:222` for removal).
+- **Done:** this specification and its revision after two reviews.
+- **Not done:** its approval; the owner's answers to Q1 and Q2; everything it specifies.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
 
 - **Principles:** 3, everything is a command; 7, identity once; 8, agents are first-class users; 13, deterministic core; 15, AFD first; the architecture's "Hosts" and "Distribution" components: browser, Tauri desktop and hosted server with the same chrome and the same kernel; a static site, desktop installers, an OCI image and an MCP registry entry, with deployers hosting it.
-- **Decisions it depends on:** D9 (three app kinds); D14 (placement under `endpoints/loam/`, every unit quarantined); D15 (AFD first); D25 (TypeScript first; the desktop is Tauri 2 with the kernel in the webview); D32 (single-tenant); D33 (Tauri mobile reserved); D36 (Hono, with AFD's `createMcpHandler` mounted by Hono's Node adapter); D46 (the collaboration service after phases 2 and 6); D52 (IndexedDB on the desktop, SQLite only on a measurement); D54 (native apps are trusted code); D55 and D56 as narrowed by **D95** (no `stdio` instance in a `provider` workspace); D62 (the sandbox proxy on a second origin); D63 (no secret in the projection); D64 (the same-origin route `mounts/<instance>/mcp`, which "the hosted lane serves in phase 6"); D65 (a mounted instance's exposure); D71 and D78 (scope over MCP and to an instance); D74 (the URL scheme, `index.html` for a path with no file); D84 (phase 3's hosted criterion on phase 6's development profile); D85 to D99, phase 3's, which phase 6 delivers and does not redesign.
+- **Decisions it depends on:** D9 (three app kinds); D14 (placement under `endpoints/loam/`, every unit quarantined); D15 (AFD first); D25 (TypeScript first; the desktop is Tauri 2 with the kernel in the webview); D32 (single-tenant); D33 (Tauri mobile reserved); D36 (Hono, with AFD's `createMcpHandler` mounted by Hono's Node adapter); D46 (the collaboration service after phases 2 and 6); D52 (IndexedDB on the desktop, SQLite only on a measurement); D54 (native apps are trusted code); D55 and D56 as narrowed by **D95** (no `stdio` instance in a `provider` workspace); D62 (the sandbox proxy on a second origin); D63 (no secret in the projection); D64 (the same-origin route `mounts/<instance>/mcp`, which "the hosted lane serves in phase 6"); D65 (a mounted instance's exposure); D71 and D78 (scope over MCP and to an instance); D74 (the URL scheme, `index.html` for a path with no file); D84 (phase 3's hosted criterion on phase 6's development profile); D85 to D99, phase 3's, which phase 6 delivers and does not redesign; D98 (a connected agent has at most its person's access).
 - **Decisions this specification proposes:** D100 to D108, in [Amendments](#amendments-to-the-architecture-and-the-decision-log), each marked "Proposed, pending review" in the decision log.
 
 ### Carried from earlier phases, answered here
@@ -37,16 +37,16 @@
 | Phase 3's 2.5: "phase 6 decides how a browser sends" the trust-record commands | [Section 6](#6-trust-records-on-the-hosted-lane-d103) |
 | Phase 3's 4.3: "phase 6 measures" the cost of no cookie cache | [Section 14](#14-budgets), row `whoami` |
 | Phase 2's 3.3: `mcpOptions().commands` "with `expose.mcp` as phase 6 will decide"; phase 0's 6.1: "phase 6 revisits" CLI and MCP exposure | [Section 7](#7-the-hosted-mcp-surface-d104) |
-| Phase 2's 6.2: "phase 6's hosted lane serves" `index.html` for a path with no file, and documents `frame-ancestors` | [3.4](#34-routes) and [3.5](#35-response-headers-and-the-csp) |
-| Phase 0's 9: `frame-ancestors` "moves to a response header with the hosted lane" | [3.5](#35-response-headers-and-the-csp) |
+| Phase 2's 6.2: "phase 6's hosted lane serves" `index.html` for a path with no file, and documents `frame-ancestors` | [3.4](#34-routes) and [3.5](#35-response-headers-the-csp-and-static-files) |
+| Phase 0's 9: `frame-ancestors` "moves to a response header with the hosted lane" | [3.5](#35-response-headers-the-csp-and-static-files) |
 | Phase 1's follow-up: the route `mounts/<instance>/mcp` "must require `Origin` or `Sec-Fetch-Site`" | [Section 8](#8-the-mount-relay-d105), as phase 3's 10.2 item 5 already requires |
-| Phase 1's follow-up: "run the mounted suite against a real hosted server, with its secrets, membership and limits, on the same route" | P6-M1 ([section 19](#19-exit-criterion-and-tests)) |
+| Phase 1's follow-up: "run the mounted suite against a real hosted server, with its secrets, membership and limits, on the same route" | P6-M1 ([section 19](#19-exit-criterion-and-tests)), in M2 |
 | Phase 1's catalog: `secrets`, "Phase 6" | [Section 13](#13-secrets-d108): resolved on the server only; the grant moves to phase 5 with `http` |
 | D52: SQLite on the desktop "admitted in phase 6 only on a measurement" | [10.5](#105-the-store-and-d52s-measurement) |
 | [#706](https://github.com/lushly-dev/afd/issues/706): run the suites in Firefox and WebKit | Partly: the desktop lane runs the shell in WebKitGTK and WebView2 (P6-D1); Firefox and Safari stay with #706 |
 | [#711](https://github.com/lushly-dev/afd/issues/711): "whether the browsers phase 6 adds differ" on WebRTC from a view | Recorded, not decided: P6-D3 records the result in each webview; the decision stays the owner's on #711 |
 | [#858](https://github.com/lushly-dev/afd/issues/858): first paint on a real low-end device | Stays open: it needs a device, not a host. The development profile makes the measurement easy to take over a network; [follow-ups](#follow-ups) |
-| OP10: "a server card, a well-known catalog entry and a plain guide for agents" | [11.5](#115-the-server-card-the-catalog-and-the-guide) |
+| OP10: "a server card, a well-known catalog entry and a plain guide for agents" | [11.5](#115-the-server-card-the-catalog-and-the-guide), in M4 |
 
 ## Trajectory refresh
 
@@ -55,13 +55,13 @@ Rows this phase depends on, re-checked 2026-11-09 (sources S88 to S97 in the [le
 | Row | Recorded | Now | Effect on phase 6 |
 | --- | --- | --- | --- |
 | W7 | Tauri 2.12.5 on 2026-10-21; 3.0 in alpha | The `tauri` crate 2.12.5 (2026-10-21, MSRV 1.90) is current; `@tauri-apps/cli` 2.12.4 (2026-10-21); 3.0.0-alpha.6 (2026-11-06) [S90]. WebDriver: "Driven directly, only Windows and Linux are supported on desktop, as macOS has no WKWebView driver tool available" (page updated 2026-06-29) [S91] | The desktop lane pins 2.12; Linux runs the suite under `tauri-driver` on pull requests, Windows daily, macOS builds only ([10.7](#107-the-desktop-suite)) |
-| W30 | Chrome's Local Network Access since 142, split in 145; Firefox and Safari not found | Chrome 142 launched the prompt (Chrome's post, updated 2025-09-29); 145 split `local-network-access` into `local-network` and `loopback-network`, keeping the old name as an alias (blink-dev intent to ship) [S93]. Firefox and Safari: not found on 2026-11-09 | Unchanged reasoning: a browser reaches an instance through the hosted server (D64). The hosted shell's `Permissions-Policy` denies both to the page ([3.5](#35-response-headers-and-the-csp)) |
+| W30 | Chrome's Local Network Access since 142, split in 145; Firefox and Safari not found | Chrome 142 launched the prompt (Chrome's post, updated 2025-09-29); 145 split `local-network-access` into `local-network` and `loopback-network`, keeping the old name as an alias (blink-dev intent to ship) [S93]. Firefox and Safari: not found on 2026-11-09 | Unchanged reasoning: a browser reaches an instance through the hosted server (D64). The hosted shell's `Permissions-Policy` denies both to the page ([3.5](#35-response-headers-the-csp-and-static-files)) |
 | W21 | Windows on-device agent registry in preview; "the desktop packages the hosted server as an MCP bundle" | Not re-checked; nothing in phase 6 waits on it | The MCP bundle stays reserved ([section 18](#18-out-of-scope-and-the-seams-reserved)) |
 | New W34 | Not watched | `hono` 4.13.17 (2026-11-07), 5.0.0-rc.1 tagged `next`; `@hono/node-server` 2.1.6 (2026-11-02), peer `hono` `^4 \|\| ^5.0.0-0`, Node `>=20`; its Node bindings expose `incoming` and `outgoing`, and `RESPONSE_ALREADY_SENT` tells it the handler wrote the response [S88, S89] | The hosted server on Hono 4.13 (D101); Hono 5 is watched |
 | New W35 | Not watched | The MCP Registry is in preview, "Breaking changes or data resets may occur before general availability"; `server.json` at schema `2025-12-11`; OCI images on Docker Hub, GHCR and three cloud registries, verified by the `io.modelcontextprotocol.server.name` annotation; it "**does not** support private servers" [S94] | A registry entry can describe Loam's image, never a deployer's private server; phase 6 writes and validates it, and submits nothing ([11.4](#114-the-registry-entry)) |
 | New W36 | Umbel's R11 cites SEP-2127 | SEP-2127, MCP Server Cards, is **Final**; a card "MAY" be at `<streamable-http-url>/server-card`, media type `application/mcp-server-card+json`, `Access-Control-Allow-Origin: *`, `ETag` and `304`; an AI Catalog "MAY" be at `/.well-known/ai-catalog.json`; cards carry no tools and nothing sensitive [S95] | The hosted server serves a card; the catalog is the deployer's choice ([11.5](#115-the-server-card-the-catalog-and-the-guide), Q2) |
 | New W37 | Not watched | Node 26 is LTS ("Lithium"), 26.13.0 on 2026-10-28; `node:26-trixie-slim` updated 2026-11-05 [S96] | The hosted server and image run Node 26 (`.nvmrc`); the image pins its base by digest |
-| W33 (phase 3) | MCP Authorization, Better Auth issuing tokens | Unchanged since 2026-11-09. `@better-auth/oauth-provider` 1.7.18 ships helpers for serving its metadata at the origin's root when a `basePath` keeps it off it; `better-auth` 1.7.19 appeared 2026-11-10, inside the three-day `minimumReleaseAge`, so phase 3's pin of 1.7.18 holds [S97] | The hosted server owns the origin's `/.well-known/oauth-*` paths ([3.7](#37-the-provider-and-the-well-known-documents)) |
+| W33 (phase 3) | MCP Authorization, Better Auth issuing tokens | Unchanged since 2026-11-09. `@better-auth/oauth-provider` 1.7.18 ships helpers for serving its metadata at the origin's root when a `basePath` keeps it off it; `better-auth` 1.7.19 appeared at 2026-11-10T00:24Z, inside the three-day `minimumReleaseAge`, so phase 3's pin of 1.7.18 holds [S97] | The hosted server owns the origin's `/.well-known/oauth-*` paths ([3.7](#37-the-provider-and-the-well-known-documents)) |
 
 ## Terms
 
@@ -76,6 +76,7 @@ Terms follow the [architecture's glossary](../../architecture.md#12-glossary) an
 | Production profile | The hosted server on the deployer's origin, on TLS files or behind a TLS-terminating proxy, with real mail ([section 9](#9-the-production-profile-milestone-m2)) |
 | Trust-record command | A command whose records the hosted server holds authoritatively, run there from a browser ([6.1](#61-which-commands-run-on-the-server)) |
 | Hosted relay | The real `mounts/<instance>/mcp` route, replacing phase 1's test-only relay ([section 8](#8-the-mount-relay-d105)) |
+| Effective command | What a relayed `tools/call` runs at the instance: its tool, or `afd-call`'s `arguments.command` ([8.1](#81-the-route)) |
 | Milestone | A named exit point inside phase 6 that unblocks something on its own ([section 1](#1-milestones-and-the-order-d100)) |
 
 ## 1. Milestones and the order (D100)
@@ -84,15 +85,17 @@ Terms follow the [architecture's glossary](../../architecture.md#12-glossary) an
 
 | Milestone | What it delivers | What it unblocks | Steps |
 | --- | --- | --- | --- |
-| **M1, development profile** | Everything phase 3's 10.2 lists, on `https://localhost`, by one command, with the `Hosted development profile` job | **Phase 3's step 10** (P3-H1 to P3-H5) and **phase 5**'s MCP criterion | 0a, 1 to 7 |
-| **M2, hosted lane** | The production profile: the deployer's origin, TLS or a proxy, real mail and single sign-on, limits, `doctor` | **The collaboration service's specification** (D46's "after phases 2 and 6" read as M2, D100) | 8 |
+| **M1, development profile** | Everything phase 3's 10.2 lists, on `https://localhost`, by one command, with the `Hosted development profile` job, and nothing more | **Phase 3's step 10** (P3-H1 to P3-H5) and **phase 5**'s MCP criterion | 0a, 1 to 7 |
+| **M2, hosted lane** | The production profile: the deployer's origin, TLS or a proxy, real mail and single sign-on, limits, `doctor`; the mounted suite through the hosted relay | **The collaboration service's specification** (D100's reading of D46) | 8 |
 | **M3, desktop lane** | The same build in Tauri 2 on Linux, Windows and macOS, with mounts over the Rust host | Nothing before phase 7 | 11, 12 |
-| **M4, distribution** | The static site documented, the OCI image, installers, the registry entry and the server card, built and verified, **nothing published** (Q1) | Nothing before phase 7 | 9, 10, and 12's installers |
+| **M4, distribution** | The static site documented, the OCI image, installers, the registry entry, and the server card, catalog and guide, built and verified, **nothing published** (Q1) | Nothing before phase 7 | 9, 10, and 12's installers |
 | **Exit** | M1 to M4, and the copilot served from the same process once phase 5's runtime exists ([section 12](#12-the-copilot-in-the-same-process)) | **Phase 7** | 13 |
 
 **Why the exit waits for phase 5.** The architecture's exit criterion says the hosted server serves "the copilot from one process", and the copilot runtime is phase 5's. Phase 6 provides the seam; the row that proves it runs when phase 5 has a runtime. Phase 7 needs phases 4, 5 and 6 anyway, so nothing waits longer than it would.
 
-**M1 is the earliest exit point.** Steps 1 and 2 need nothing of phase 3 and can start at once; steps 3 to 6 follow phase 3's steps as 1.2 lists; step 7 records M1. Nothing in M2, M3 or M4 is on M1's path.
+**Why the collaboration service waits for M2, not M1.** This is the coordinator's reading of D46, and the owner may overrule it. The sync endpoint will carry real people's content between real browsers, so its design depends on what only M2 decides: a deployer's origin behind TLS or a proxy, the client address the server trusts, its limits, real mail for the invitations sharing needs, and a store that survives restarts in production. M1 is `https://localhost` with a mail sink, enough for phase 3's and phase 5's criteria and nothing a team runs.
+
+**M1 is the earliest exit point.** Steps 0a, 1 and 2 need nothing of phase 3 and can start at once; steps 3 to 6 follow phase 3's steps as 1.2 lists; step 7 records M1. Nothing in M2, M3 or M4 is on M1's path: the server card, catalog, guide and registry entry are M4's, and the mounted suite against a stock `umbel` through the hosted relay is M2's, while M1 proves 10.2 item 5 against phase 2's scope fixture.
 
 ### 1.2 Dependencies on phase 3's steps
 
@@ -101,10 +104,10 @@ Phase 3's plan is in [its section 19](../3-identity/spec.md#19-implementation-pl
 | Phase 6 step | Needs from phase 3 | Why |
 | --- | --- | --- |
 | 0a, SQLite adapter | Nothing | AFD's `local-db` |
-| 1, host skeleton | Nothing | Serves `local` deployments of versions 1 to 3 |
-| 2, development profile | Nothing | HTTPS, certificate, data directory, harness |
+| 1, host skeleton | Nothing | Serves `local` deployments of versions 1 to 3 through a test-only option, removed in step 3 |
+| 2, development profile | Nothing | HTTPS, certificate, data directory, harness, the new job |
 | 3, provider and deployment version 4 | **Step 1** (`createLoamAuthOptions`, `loamServerPlugin`, deployment version 3) and **step 4** (`bootstrapOrganization`; the join and recovery pages) | 10.2 items 1 and 2 |
-| 4, server kernel and MCP | **Steps 0a and 0c** (AFD's TypeScript MCP authorization) and **step 7** (`createServerKernel`, `createMcpAuth`, `credentialsGate`, the OAuth pages) | 10.2 item 3 |
+| 4, server kernel and MCP | **Steps 0a and 0c** (AFD's TypeScript MCP authorization) and **step 7** (`createServerKernel`, `createMcpAuth`, `credentialsGate`, the OAuth provider and its pages, so `getOAuthServerConfig` exists for the root metadata) | 10.2 item 3, and A2 |
 | 5, trust-record transport | **Step 7** (`principalGate`'s session source) | 10.2 item 4 |
 | 6, hosted relay | **Step 7** (the server's membership read and `decideAccess` version 2) | 10.2 item 5 |
 | 7, M1 recorded | Phase 3's step 9's `--phase` option in the exit check, if it has merged; otherwise step 7 adds it and step 9 rebases | 10.2 item 6 |
@@ -117,24 +120,40 @@ Two new packages, private and quarantined, under the workspace glob `endpoints/l
 
 | Directory | Package | Responsibility | Depends on |
 | --- | --- | --- | --- |
-| `endpoints/loam/packages/host/` | `@lushly-dev/loam-host` | **Server only.** `createLoamHost(config)` ([section 3](#3-the-hosted-server-d101)); the `loam-host` bin (`dev`, `start`, `bootstrap`, `check`, `doctor`); the server's store and journal; the trust-record transport; the hosted relay; the server card, catalog and guide; under `/testing`, `startDevHost()` ([5.2](#52-the-test-harness)); `Containerfile` ([11.2](#112-the-oci-image)) | `hono` **4.13.17** and `@hono/node-server` **2.1.6**, exact; `nodemailer` **10.4.0**, exact (step 8); `@lushly-dev/loam-identity`, `@lushly-dev/loam-kernel`, `@lushly-dev/loam-manifest`, `@lushly-dev/loam-cli` (for `writeDeployment`), `@lushly-dev/afd-server`, `@lushly-dev/afd-client`, `@lushly-dev/afd-core`, `@lushly-dev/local-db`; dev: `smtp-server` **3.21.3** (step 8), `@lushly-dev/loam-web` |
-| `endpoints/loam/packages/desktop/` | `@lushly-dev/loam-desktop` | The Tauri 2 app: `src-tauri/` (the Rust host crate `loam-desktop`, `publish = false`, its own `Cargo.lock` committed), the front end being `web`'s `dist`; the desktop's mount transport over IPC ([section 10](#10-the-desktop-lane-d106)) | `@tauri-apps/cli` **2.12.4** and `@tauri-apps/api` **2.12.4**, exact; crates `tauri` **2.12.5**, `tauri-build` **2.7.4**, `tauri-plugin-single-instance` **2.5.5**, `tauri-plugin-updater` **2.14.1**, each `=`-pinned; `tauri-driver` **2.1.0** in CI |
+| `endpoints/loam/packages/host/` | `@lushly-dev/loam-host` | **Server only.** `createLoamHost(config)` ([section 3](#3-the-hosted-server-d101)); the `loam-host` bin (`dev`, `start`, `bootstrap`, `check`, `doctor`, `health`); `HOSTED_MCP_COMMANDS`; the server's store, journal and lock; the static handler; the trust-record transport; the hosted relay; the server card, catalog and guide; under `/testing`, `startDevHost()` and `scanSecrets()` ([5.2](#52-the-test-harness)); `Containerfile` ([11.2](#112-the-oci-image)) | `hono` and `@hono/node-server`, exact ([below](#pins)); `nodemailer` exact (step 8); `@lushly-dev/loam-identity`, `@lushly-dev/loam-kernel`, `@lushly-dev/loam-manifest`, `@lushly-dev/loam-cli` (for `writeDeployment`), `@lushly-dev/afd-server`, `@lushly-dev/afd-client`, `@lushly-dev/afd-core`, `@lushly-dev/local-db`; dev: `smtp-server` (step 8), `@lushly-dev/loam-web` |
+| `endpoints/loam/packages/desktop/` | `@lushly-dev/loam-desktop` | The Tauri 2 app: `src-tauri/` (the Rust host crate `loam-desktop`, `publish = false`, its own `Cargo.lock` committed), the front end being `web`'s `dist`; the `loam` and `loam-sandbox` protocols; the desktop's mount transport over IPC ([section 10](#10-the-desktop-lane-d106)); its WebDriver suite | `@tauri-apps/cli` and `@tauri-apps/api`, exact; crates `tauri`, `tauri-build`, `tauri-plugin-single-instance`, `tauri-plugin-updater` and `reqwest` (with `rustls-tls`, no default features), each `=`-pinned; dev: `webdriverio`, exact; `tauri-driver` in CI |
 
-- **Pins and age.** Each version above is past the workspace's three-day `minimumReleaseAge` on 2026-11-10, when `hono` 4.13.17 (published 2026-11-07T04:56Z) and `nodemailer` 10.4.0 (2026-11-07T20:30Z) clear it. A step that lands earlier takes `hono` 4.13.16 (2026-11-01).
-- **The host never reaches a browser.** E13's scan of phase 3 gains `@lushly-dev/loam-host`: no import of it from `web/src`, `chrome/src` or `kernel/src`.
-- **The Rust toolchain.** `packages/desktop/src-tauri/rust-toolchain.toml` pins **1.98.0**, Umbel's, so the shared `CARGO_TARGET_DIR` builds third-party crates once; `pnpm rust:sweep` covers it as a Cargo workspace with a `target/`.
-- **Release inventory.** Two entries in phase 1's shape: `loam-host` and `loam-desktop`, `state: "quarantined"`, `routes: []`, `fixed: false`, `private: true`; `loam-host`'s gates are `pnpm check`, `loam.yml`, `release-approval`; `loam-desktop`'s add `loam-desktop.yml`. **Nothing publishes** (Q1).
+<a id="pins"></a>**Pins and age.** Package versions live in each `package.json` and `Cargo.toml`, not in this document's decisions; on 2026-11-09 they are:
+
+| Dependency | Version | Published | Clears the three-day `minimumReleaseAge` |
+| --- | --- | --- | --- |
+| `hono` | 4.13.17 | 2026-11-07T04:56Z | 2026-11-10; a step landing earlier takes 4.13.16 (2026-11-01) |
+| `@hono/node-server` | 2.1.6 | 2026-11-02 | Yes |
+| `nodemailer` | 10.4.0 | 2026-11-07T20:30Z | 2026-11-10 |
+| `smtp-server` | 3.21.3 | 2026-10-29 | Yes |
+| `@tauri-apps/cli`, `@tauri-apps/api` | 2.12.4 | 2026-10-21, 2026-10-14 | Yes |
+| `tauri` | 2.12.5 | 2026-10-21 | Yes |
+| `tauri-build` | 2.7.4 | 2026-10-21 | Yes |
+| `tauri-plugin-single-instance` | 2.5.5 | 2026-10-28 | Yes |
+| `tauri-plugin-updater` | 2.14.1 | 2026-10-28 | Yes |
+| `reqwest` | 0.13.5 | 2026-09-08 | Yes |
+| `tauri-driver` | 2.1.0 | 2026-09-26 | Yes |
+| `webdriverio` | 10.2.0 | 2026-11-06T02:04Z | 2026-11-09 |
+
+- **The host never reaches a browser.** E13's scan of phase 3 gains `@lushly-dev/loam-host`: no import of it from `web/src`, `chrome/src` or `kernel/src`. The `loam-host` bin never imports `@lushly-dev/loam-host/testing`; a unit scans the bin's graph.
+- **The Rust toolchain.** `packages/desktop/src-tauri/rust-toolchain.toml` pins **1.98.0**, Umbel's, so the shared `CARGO_TARGET_DIR` builds third-party crates once; `pnpm rust:sweep` covers it as a Cargo workspace with a `target/`. `.gitignore` gains `!endpoints/loam/packages/desktop/src-tauri/Cargo.lock`.
+- **Release inventory.** Two entries in phase 1's shape: `loam-host` and `loam-desktop`, `state: "quarantined"`, `routes: []`, `fixed: false`, `private: true`; `loam-host`'s gates are `pnpm check`, `loam.yml`, `release-approval`; `loam-desktop`'s add `loam-desktop.yml`, so `scripts/repository-contract.test.mjs:323` gains an exception naming `loam-desktop` and its four gates. **Nothing publishes** (Q1).
 - **Repository contract.** `scripts/repository-contract.test.mjs`'s Loam test names both, in steps 1 and 11.
-- **`AGENTS.md`.** The architecture tree gains `host` and `desktop`; the Loam key rule names the new job, step and workflow; the CI table gains `loam-desktop.yml`. Steps 1, 2 and 12 do it.
+- **`AGENTS.md`.** The architecture tree gains `host` and `desktop`; the Loam key rule names the new jobs, steps and workflow; the CI table gains the `OCI image` job and `loam-desktop.yml`. Steps 1, 2, 9 and 12 do it.
 - **Changesets.** Step 0a carries one for `@lushly-dev/local-db`. None for the private units.
 
 | Existing package | Change |
 | --- | --- |
-| `kernel` | `shellExposeOf(name)` in place of `SHELL_EXPOSE` ([section 7](#7-the-hosted-mcp-surface-d104)); `HOSTED_MCP_COMMANDS` and `SERVER_COMMANDS`, frozen lists; the `late-hosted` chunk with `trust-record-settle`, `trust-record-snapshot` and the routing of trust-record commands ([section 6](#6-trust-records-on-the-hosted-lane-d103)); `KernelPortsV1` gains an optional `serverCall`; `storeKind` gains `'sqlite'`; `flagsOf`, `unlistedProject` and `pinMountedInput` re-exported from the package root for the relay |
+| `kernel` | **Nothing in first paint.** `SHELL_EXPOSE` stays as it is in the browser. The `late-hosted` chunk with `SERVER_COMMANDS`, `trust-record-settle`, `trust-record-snapshot`, the routing of trust-record commands and A6's narrowing ([section 6](#6-trust-records-on-the-hosted-lane-d103)); `KernelPortsV1` gains an optional `serverCall`; `storeKind` gains `'sqlite'`; a Node-safe subpath, `@lushly-dev/loam-kernel/mounted`, exporting `discoverInstance`, `flagsOf`, `unlistedProject`, `pinMountedInput` and `DISCOVERY_LIMITS` for the relay |
 | `manifest` | `deployment.v4.json` and `projection.v4.json` with `[host]` ([3.3](#33-the-deployment-version-4)); `loam.server.toml`'s schema `server.v1.json` and `readServerConfig` |
-| `cli` | `deployment write --host static\|hosted\|desktop`; `MountAccess` gains `stdio` entries for `--host desktop` ([10.4](#104-mounts-over-the-rust-host)) |
-| `web` | `server-call.ts`, loaded by `late-hosted` only; the harness's `openShell` takes a `DevHost` ([5.2](#52-the-test-harness)); the CSP checks read the response header too |
-| `identity` | Nothing new; the host consumes it |
+| `cli` | `deployment write --host static\|hosted\|desktop`; for `desktop`, the IPC sources and the sandbox scheme's `frame-src` in the `<meta>` CSP, and `stdio` entries in `MountAccess` ([10.4](#104-mounts-over-the-rust-host)) |
+| `web` | `server-call.ts`, loaded by `late-hosted` only ([6.2](#62-the-transport)); `mount.ts` carries a relay's body code ([8.1](#81-the-route)); the harness opens a `DevHost` ([5.2](#52-the-test-harness)); the CSP checks read the response header too |
+| `identity` | A7 (`ipAddressHeaders`), S4's `leave` endpoint and `/organization/leave` disabled, and A8's `PROVIDER_HOOK_FIELDS` ([Proposed amendments](#proposed-amendments-to-phase-3)) |
 | `local-db` (AFD) | `SqliteAdapter` at `@lushly-dev/local-db/sqlite` ([section 4](#4-the-servers-store-and-journal-d102)) |
 
 ## 3. The hosted server (D101)
@@ -151,21 +170,28 @@ export interface LoamHostConfig {
 	modules?: readonly HostModule[];        // phase 5's copilot, and test fixtures (12)
 }
 export interface HostModule {
-	/** A path segment under `<base_path>api/`; `auth`, `kernel` and `health` are reserved. */
+	/**
+	 * A path segment under `<base_path>api/`. `kernel`, `health` and the first segment of the deployment's
+	 * `identity.path` after `api/` (`auth` by default) are reserved; a module naming one refuses construction.
+	 */
 	name: string;
 	routes(app: Hono<{ Bindings: HttpBindings }>, host: HostServices): void;
 }
+/** Opaque: only `sessionPrincipal` creates one, so a module never builds a principal or holds the kernel. */
+export interface ModulePrincipal { readonly person: string; readonly brand: unique symbol }
 export interface HostServices {
-	/** The checks of 6.2's first two rows, then the principal from the session, as phase 3's 9.5 builds it. */
-	sessionPrincipal(request: Request): Promise<{ ok: true; principal: ServerPrincipal } | { ok: false; response: Response }>;
-	kernel: ServerKernel;
-	journal: JournalSink;
+	/** 6.2's first and third rows, then the principal from the session, as phase 3's 9.5 builds it: always the human. */
+	sessionPrincipal(request: Request): Promise<{ ok: true; principal: ModulePrincipal } | { ok: false; response: Response }>;
+	/** Runs one command on the server kernel under that principal, through phase 3's principal chain. */
+	callAs(principal: ModulePrincipal, command: string, input: unknown, scope: ScopeV1): Promise<CommandResult>;
 }
 export function createLoamHost(config: LoamHostConfig): Promise<LoamHost>;
 export interface LoamHost { readonly origin: string; readonly sandboxOrigin: string | null; listen(): Promise<void>; close(): Promise<void> }
 ```
 
-`createLoamHost` refuses to construct, with its code ([section 16](#16-failure-modes-and-error-codes)), on any refusal of 3.2 or 3.3, a locked data directory, an unreadable secret, a `provider` deployment with a `stdio` instance (D95, `DEPLOYMENT_STDIO_TEAM`), or a `provider` deployment whose organization was never bootstrapped (`HOST_NOT_BOOTSTRAPPED`, naming `loam-host bootstrap`).
+`createLoamHost` refuses to construct, with its code ([section 16](#16-failure-modes-and-error-codes)), on any refusal of 3.2 or 3.3, a locked data directory, an unreadable secret, a reserved module name, or a `provider` deployment with a `stdio` instance (D95, `DEPLOYMENT_STDIO_TEAM`). It awaits the server kernel's stage B before reading `mcpOptions()`, which is undefined until `late/` has loaded (`kernel.ts:195`, `:778`). **Only `start`** also refuses a `provider` deployment whose organization was never bootstrapped (`HOST_NOT_BOOTSTRAPPED`, naming `loam-host bootstrap`); `dev` starts, and its shell shows phase 3's `IDENTITY_ORGANIZATION_UNKNOWN` until `bootstrap --dev` runs ([5.1](#51-one-command)).
+
+**Which `host` each kernel reports.** The server kernel reports `host: 'hosted'` and `store: 'sqlite'` in `shell-info-get`; the browser's kernel on a hosted deployment is still `host: 'browser'`, since it runs in a browser.
 
 ### 3.2 The server configuration, `loam.server.toml` version 1
 
@@ -174,7 +200,7 @@ The deployment file says what the workspace is and what the browser may know (D6
 ```toml
 server_version = 1
 
-origin = "https://loam.example.com"   # exact: scheme, host and port; the deployment's base_path follows it
+origin = "https://loam.example.com"   # exact: https, host and port; the deployment's base_path follows it
 listen = "127.0.0.1:8443"              # host:port
 data = "/var/lib/loam"                 # the data directory (section 4); created 0700
 
@@ -183,7 +209,8 @@ cert_file = "/etc/loam/fullchain.pem"
 key_file = "/etc/loam/privkey.pem"
 
 [sandbox]                              # needed when the deployment has a view app (D62)
-origin = "https://sandbox.loam.example.com"   # must equal the deployment's [sandbox] origin; served by this process, by Host
+origin = "https://loam-sandbox.example.net"   # another site; must equal the deployment's [sandbox] origin
+listen = "127.0.0.1:8444"              # optional; absent, served on `listen` by Host
 
 [auth]
 secret_file = "/etc/loam/auth-secret"  # or secret_env = "LOAM_AUTH_SECRET"; at least 32 bytes
@@ -213,15 +240,17 @@ agent_guide = false
 | Refusal | Code |
 | --- | --- |
 | Unknown key, wrong type, `server_version` not 1 | `HOST_CONFIG_INVALID` |
-| `origin` not `https:`, with a path, query, fragment or userinfo; `http:` is allowed only for `localhost`, `127.0.0.1` and `[::1]` | `HOST_ORIGIN_INSECURE` |
-| No `[tls]` and a `listen` that is not a loopback address | `HOST_LISTEN_INSECURE` |
+| `origin` not `https:`, or with a path, query, fragment or userinfo. **Every origin is `https:`**, `localhost` included | `HOST_ORIGIN_INSECURE` |
+| No `[tls]` and a `listen` (or `[sandbox] listen`) that is not a loopback address | `HOST_LISTEN_INSECURE` |
 | A secret given both ways, neither, an unreadable file, an empty variable, or an auth secret under 32 bytes | `HOST_SECRET_UNAVAILABLE` |
-| On POSIX, a secret file, `key_file` or the data directory readable by group or others | `HOST_SECRET_PERMISSIONS`, naming the file and `chmod 600` (`700` for the directory) |
-| `[sandbox] origin` present and different from the deployment's, or the same site as `origin` | `HOST_SANDBOX_INVALID` |
+| On POSIX, a secret file, `key_file` or the data directory readable by group or others (on Windows, an ACL granting anyone but the owner) | `HOST_SECRET_PERMISSIONS`, naming the file and `chmod 600` (`700` for the directory) |
+| `[sandbox] origin` present and different from the deployment's, not `https:`, or **the same site** as `origin` (the same registrable domain, or the same host for an IP address or `localhost`) | `HOST_SANDBOX_INVALID` |
 | An `oidc:<id>` method with no `[oidc.<id>]`, or a table no method names | `HOST_OIDC_INVALID` |
-| `[mail] transport = "sink"` with an `origin` that is not loopback | `HOST_MAIL_SINK_EXPOSED`: a sink keeps join and recovery links in a file, which only the development profile may do |
+| `[mail] transport = "sink"` with an `origin` whose host is not `localhost` | `HOST_MAIL_SINK_EXPOSED`: a sink keeps join and recovery links in a file, which only the development profile may do |
 
 **The origin is configured, never derived.** No `X-Forwarded-*` header is read, ever. Every request's `Host` must be `origin`'s host and port, or `[sandbox] origin`'s; any other is `421 Misdirected Request` with nothing run (`HOST_MISDIRECTED`). Better Auth's `baseURL`, the passkey `rpID` and `origin`, the MCP resource, AFD's `allowedHosts` and `allowedOrigins`, and the server card's URL all come from `origin` and `base_path`.
+
+**Why the sandbox is another site.** D62's proxy must not share the shell's cookies or storage partition: a different port on the same host is a different origin but the same site, and `SameSite` cookies, including phase 3's session cookie, are sent to it. A different site is what keeps a view's frame from riding the person's session.
 
 ### 3.3 The deployment, version 4
 
@@ -234,8 +263,9 @@ deployment_version = 4
 kind = "hosted"     # "static" (the default, as versions 1 to 3 read), "hosted" or "desktop"
 ```
 
-- **The projection** gains `host: { kind: 'static' | 'hosted' | 'desktop' }`, and for `hosted`, `kernel: 'api/kernel'`, a same-origin path under `base_path`, as phase 3's `identity.path` is. Nothing else.
-- **`deployment write --host <kind>`** sets the kind when the file does not, and refuses a mismatch (`DEPLOYMENT_HOST_MISMATCH`). `loam-host` runs `writeDeployment` itself into its data directory with `--host hosted`, so the deployer never copies a written site by hand.
+- **The projection** gains `host: { kind: 'static' | 'hosted' | 'desktop' }`, and for `hosted`, `kernel: 'api/kernel'`, a same-origin path under `base_path`, as phase 3's `identity.path` is. Nothing else. **`workspace-deployment-apply`'s journaled input gains `host: { kind }`**, so a replay knows the kind from the journal (A5).
+- **`deployment write --host <kind>`** sets the kind when the file does not, and refuses a mismatch (`DEPLOYMENT_HOST_MISMATCH`). For `desktop` it also writes the desktop's CSP sources into the `<meta>` policy ([10.2](#102-origins-and-the-csp)).
+- **`loam-host` writes the site itself.** At start it runs `writeDeployment` into `<data>/public/site` with `--host hosted` and **without `mountsOut`**, since that file holds the bearers' values (`cli/src/deployment.ts:388-399`); it keeps `result.mounts` in memory only. The deployer never copies a written site by hand.
 - **Rules.** `[identity] mode = "provider"` with `kind = "static"` is a warning, `DEPLOYMENT_PROVIDER_NEEDS_HOST`: "A provider deployment needs the hosted server; a static host serves no provider" (phase 3's test-only auth host still serves one in tests). `provider` with `kind = "desktop"` is refused, `DEPLOYMENT_DESKTOP_PROVIDER` ([10.1](#101-what-the-desktop-is)). `stdio` with `kind = "static"` keeps phase 1's `MOUNT_TRANSPORT_UNAVAILABLE` at run time; with `kind = "desktop"` it is served ([10.4](#104-mounts-over-the-rust-host)); with `provider` it stays refused (D95).
 - **Version 3 deployments keep working.** A version 1 to 3 file reads as `kind = "static"`. `loam-host` refuses one that is not version 4 with `kind = "hosted"` (`HOST_DEPLOYMENT_KIND`), so a static deployment is never served by the hosted server by accident, and every fixture of phases 0 to 3 stays as it is.
 - **The hosted server serves a team.** `loam-host start` refuses a `local` deployment (`HOST_IDENTITY_LOCAL`): phase 3's `createServerKernel` refuses `local`, since there every actor is an owner. `loam-host dev` serves one with the shell's routes only (`<base>mcp`, `api/kernel/call` and `mounts/*` answer 404), so P6-H2 can compare the hosted shell with the static one.
@@ -246,26 +276,26 @@ kind = "hosted"     # "static" (the default, as versions 1 to 3 read), "hosted" 
 
 | Route | Methods | Served by | Auth |
 | --- | --- | --- | --- |
-| `<base>` and every path below not listed here | `GET`, `HEAD` | The written site: a file if one exists; otherwise, for `Accept` naming `text/html`, `index.html` with `200` (D74); otherwise 404 | None |
-| `<base>deployment.json`, `<base>apps/**`, `<base>assets/**` | `GET`, `HEAD` | The written site | None |
-| `<base><identity.path>/*` (default `api/auth/*`) | As Better Auth's routes | `auth.handler(request)` from `createLoamAuthOptions` ([3.7](#37-the-provider-and-the-well-known-documents)) | The provider's |
+| `<base>` and every path below not listed here | `GET`, `HEAD` | The written site through `serveSite` (3.5): a file if one exists; otherwise, for `Accept` naming `text/html`, `index.html` with `200` (D74); otherwise 404 | None |
+| `<base><identity.path>/*` (default `api/auth/*`) | As Better Auth's routes | `auth.handler(request)` from `createLoamAuthOptions` ([3.7](#37-the-provider-and-the-well-known-documents)), which also serves its OpenID configuration at `<base><identity.path>/.well-known/openid-configuration` itself | The provider's |
 | `<base>mcp` | `POST`; `GET` and `DELETE` as AFD's handler answers them | AFD's `createMcpHandler` ([3.6](#36-mounting-afds-handler)) | Bearer, phase 3's 9.2 |
-| `<base>mcp/server-card` | `GET`, `HEAD`, `OPTIONS` | [11.5](#115-the-server-card-the-catalog-and-the-guide) | None; public |
+| `<base>mcp/server-card`, `<base>mcp/agents.md` | `GET`, `HEAD`, `OPTIONS` | [11.5](#115-the-server-card-the-catalog-and-the-guide), from step 10 | None; public |
 | `<base>api/kernel/call` | `POST` | The trust-record transport ([6.2](#62-the-transport)) | Session |
 | `<base>mounts/<instance>/mcp` | `POST`, `DELETE`; `GET` answers 405 | The hosted relay ([section 8](#8-the-mount-relay-d105)) | Session |
 | `<base>api/health` | `GET` | `{ "ok": true }`, `Cache-Control: no-store`; nothing else, so it reveals no version or state | None |
 | `<base>api/<module>/*` | The module's | A `HostModule` (phase 5's copilot) | The module's, through `sessionPrincipal` |
 | `/.well-known/oauth-protected-resource<base>mcp`, `/.well-known/oauth-protected-resource` | `GET` | AFD's handler, M7's two URLs for the resource `<origin><base>mcp` | None |
-| `/.well-known/oauth-authorization-server<base><identity.path>`, `<base><identity.path>/.well-known/openid-configuration` | `GET` | `oauthProviderAuthServerMetadata(auth)`, `oauthProviderOpenIdConfigMetadata(auth)` | None |
+| `/.well-known/oauth-authorization-server<base><identity.path>` | `GET` | `oauthProviderAuthServerMetadata(auth)` (A2), from step 4 | None |
 | `/.well-known/ai-catalog.json` | `GET`, `HEAD`, `OPTIONS` | Only with `[discovery] ai_catalog = true` (Q2); otherwise 404 | None |
-| On `[sandbox] origin`: `/sandbox/**` | `GET`, `HEAD` | The written site's `sandbox/` with `frame-ancestors <origin>` (D62); every other path there 404 | None |
+| On `[sandbox] origin`: `/sandbox/**` | `GET`, `HEAD` | The written site's `sandbox/` through `serveSite`, with `frame-ancestors <origin>` (D62); every other path there 404 | None |
 
+- **Order.** Routes are registered most specific first: the well-known paths, `<base>mcp/server-card` and `agents.md`, `<base>mcp`, `<base>api/*` and `<base>mounts/*`, then the site's catch-all.
 - **AFD's other routes are never reachable.** `/sse`, `/message`, `/rpc`, `/batch`, `/stream/*` and `/health` of AFD's handler (`http-handler.ts:406-466`) are not routed, under `<base>` or at the root; P6-H4 asserts each is a 404.
 - **One deployment per origin.** The session cookie is host-only with `Path=/` (phase 3's 9.5, `__Host-`), so every path on the origin receives it, and the hosted server answers the origin's root `/.well-known/oauth-*`. So `base_path` serves a proxy that maps a path, never an origin shared with another application. `loam-host check` warns `HOST_ORIGIN_SHARED` when `base_path` is not `/`, with that sentence, and the distribution guide says it.
 
-### 3.5 Response headers and the CSP
+### 3.5 Response headers, the CSP and static files
 
-Every response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cross-Origin-Opener-Policy: same-origin`; on a non-loopback origin, `Strict-Transport-Security: max-age=31536000`. HTML responses add:
+Every response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cross-Origin-Opener-Policy: same-origin`; on a non-loopback origin, `Strict-Transport-Security: max-age=31536000`. **On the routes that answer `RESPONSE_ALREADY_SENT`** (`<base>mcp` and the relay), the host sets these with `outgoing.setHeader` before handing the response to the handler, since Hono's middleware never sees it; P6-H4 and P6-H6 assert them. HTML responses add:
 
 | Pages | `Content-Security-Policy` response header |
 | --- | --- |
@@ -274,16 +304,19 @@ Every response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-r
 | `sandbox/` on the sandbox origin | `frame-ancestors <origin>`, as phase 1's harness serves it |
 
 - **`Permissions-Policy`** on shell pages: `camera=(), microphone=(), geolocation=(), local-network=(), loopback-network=()` (W30). `publickey-credentials-get` and `publickey-credentials-create` keep their default, `self`, which passkeys need.
-- **Caching.** `index.html`, `404.html` and `deployment.json`: `Cache-Control: no-cache`. `assets/*`, whose names carry their hashes: `public, max-age=31536000, immutable`. Anything else: `no-cache`.
+- **Caching.** `index.html`, `404.html` and `deployment.json`: `Cache-Control: no-cache`. `assets/*`, whose names carry their hashes: `public, max-age=31536000, immutable`. **`<base>api/kernel/call`, `<base>mounts/*`, `<base>mcp` and `<base><identity.path>/*`: `no-store`.** Anything else: `no-cache`.
+- **Static files.** `serveSite(root)`, Loam's own handler in `loam-host` (not `@hono/node-server`'s `serveStatic`, so its refusals are in one tested function): it decodes the path once, refuses any request whose raw or decoded path holds `..`, `%2e`, `%2f`, `%5c`, `\` or `NUL` (404), resolves the result with `realpath`, and serves it only when the resolved path is inside `realpath(<data>/public/site)`, so a symlink out of the site is a 404 too. Only `<data>/public/site` is ever passed to it, and nothing else is under `<data>/public/`.
 - **A unit holds the header builder**: the header equals the file's `<meta>` content with `frame-ancestors 'none'` appended, for every written `index.html` of the fixtures, and adds nothing else.
 
 ### 3.6 Mounting AFD's handler
 
-D36 stands, read against the code: AFD's handler is a Node `(req, res)` handler that matches the absolute paths `/mcp` and `/health` (`http-handler.ts:406-410`). So:
+D36 stands, read against the code: AFD's handler is a Node `(req, res)` handler that matches the absolute paths `/mcp` and `/health` (`http-handler.ts:406-410`). So, once the server kernel's stage B has ended:
 
 ```ts
+const options = kernel.mcpOptions()!;   // phase 3's 9.5: the server kernel's chain, credentialsGate first
 const mcp = createMcpHandler({
-	...kernel.mcpOptions(),                 // phase 3's 9.5: the server kernel's chain, credentialsGate first
+	...options,
+	commands: hostedCommands(options.commands),   // section 7: only HOSTED_MCP_COMMANDS, `expose.mcp` set on copies
 	name: 'loam', version: SHELL_VERSION,
 	auth: createMcpAuth(config),            // phase 3's 9.3 and 9.4; resource `${origin}${base}mcp`
 	allowedHosts: [new URL(origin).hostname],
@@ -292,7 +325,8 @@ const mcp = createMcpHandler({
 });
 app.on(['POST', 'GET', 'DELETE'], `${base}mcp`, (c) => {
 	const { incoming, outgoing } = c.env;   // @hono/node-server's HttpBindings
-	incoming.url = `/mcp${new URL(c.req.url).search}`;   // the handler's own path; `base` is the host's
+	setSecurityHeaders(outgoing, { cache: 'no-store' });   // 3.5
+	incoming.url = `/mcp${new URL(c.req.url).search}`;     // the handler's own path; `base` is the host's
 	void mcp(incoming, outgoing);
 	return RESPONSE_ALREADY_SENT;           // from '@hono/node-server/utils/response'
 });
@@ -306,9 +340,15 @@ app.on(['POST', 'GET', 'DELETE'], `${base}mcp`, (c) => {
 ### 3.7 The provider and the well-known documents
 
 - **Better Auth** at `<base><identity.path>`, from phase 3's `createLoamAuthOptions({ baseURL: `${origin}${base}${identity.path}`, secret, database, organization, methods, mail, oidc, resource: `${origin}${base}mcp` })`, its database `<data>/auth.sqlite` on `node:sqlite`, mounted as `app.on(['GET', 'POST'], `${base}${path}/*`, (c) => auth.handler(c.req.raw))`.
-- **Mail.** `mail` is `createMail(server.mail)`: `sink` appends one JSON line per message (`{ to, subject, text, at }`) to `<data>/mail.jsonl`, mode 0600; `smtp` sends through `nodemailer` with the URL from its secret ([section 9](#9-the-production-profile-milestone-m2)). A failed send is logged with the message's kind and recipient's domain only, never the link.
-- **The authorization server's metadata at the root.** OAuth clients find the issuer's metadata by RFC 8414's path insertion, `/.well-known/oauth-authorization-server` before the issuer's path, and OpenID's by appending, and both helpers exist for a `basePath` that keeps the provider off the root (S97). **The hosted server owns these paths at its origin's root** (proposed amendment A2).
-- **Bootstrap** is `loam-host bootstrap --slug <slug> --name <name> --owner-email <email>`, which runs phase 3's `bootstrapOrganization` against the data directory with the server stopped (it takes the lock): it creates the organization, pins the binding, sends the owner's invitation through `mail`, and prints `{ organization: { id, slug }, invited }`. It refuses when a binding exists (`HOST_ALREADY_BOOTSTRAPPED`) and when the deployment's `[identity] organization` differs from `--slug` (`DEPLOYMENT_IDENTITY_INVALID`). It is the only way the first organization comes to exist (10.2 item 2).
+- **The client's address (A7).** Better Auth 1.7.18 reads a client's address only from `ipAddressHeaders`, default `x-forwarded-for`, and keys every request with none to one shared rate-limit bucket (S97). So before any route, the host **deletes any incoming `x-forwarded-for` and `x-loam-client-ip`**, then sets `x-loam-client-ip` from `incoming.socket.remoteAddress`; `createLoamAuthOptions` gains `advanced.ipAddress.ipAddressHeaders: ['x-loam-client-ip']`. A forged header can neither pick a bucket nor escape one (P6-H10).
+- **Leaving the organization (S4).** Better Auth's `/organization/leave` deletes the member without `beforeRemoveMember` or `afterRemoveMember`, and counts only the creator role as an owner (S97). `createLoamAuthOptions` adds it to `disabledPaths`, and `member-leave` runs through `loamServerPlugin`'s own `leave` endpoint, which takes **the same removal path as `member-remove`**: phase 3's 7.1 last-owner rule as D96 reads it (`MEMBER_LAST_OWNER`), then `revoke-person`, then the server's `agent-member-settle` (A4, A8).
+- **Mail.** `mail` is `createMail(server.mail)`: `sink` appends one JSON line per message (`{ to, subject, text, at }`) to `<data>/mail.jsonl`, mode 0600; `smtp` sends through `nodemailer` with the URL from its secret ([section 9](#9-the-production-profile-milestone-m2)). A failed send is logged with the message's kind and the recipient's domain only, never the link.
+- **The authorization server's metadata at the root (A2).** OAuth clients find the issuer's metadata by RFC 8414's path insertion, `/.well-known/oauth-authorization-server` before the issuer's path, and `oauthProviderAuthServerMetadata` exists for a `basePath` that keeps the provider off the root (S97). **The hosted server owns that path at its origin's root.** It needs the OAuth provider's `getOAuthServerConfig`, phase 3's step 7, so it lands in step 4 with the MCP route. Better Auth serves the OpenID configuration under its own path.
+- **Bootstrap** has two forms, each running phase 3's `bootstrapOrganization` against the data directory and taking the lock, so it never runs beside a server:
+  - `loam-host bootstrap --server <file> --deployment <file> --slug <slug> --name <name> --owner-email <email>`, for a production profile, with the server stopped;
+  - `loam-host bootstrap --dev --deployment <file> [--data <dir>] --slug --name --owner-email`, for the development profile: it reads the dev data directory's generated secret and mail sink (5.1), and refuses while `dev` holds the lock (`HOST_DATA_LOCKED`).
+
+  Each creates the organization, pins the binding, sends the owner's invitation through `mail`, and prints `{ organization: { id, slug }, invited }`. It refuses when a binding exists (`HOST_ALREADY_BOOTSTRAPPED`) and when the deployment's `[identity] organization` differs from `--slug` (`DEPLOYMENT_IDENTITY_INVALID`). It is the only way the first organization comes to exist (10.2 item 2).
 - **The cost of no cookie cache** is measured by P6-H3 ([section 14](#14-budgets)). Secondary storage is added only if the row fails, never the cookie cache.
 
 ### 3.8 The `loam-host` commands
@@ -319,26 +359,33 @@ Each prints a `CommandResult` as JSON and exits with the AFD CLI's codes, as `lo
 | --- | --- |
 | `loam-host dev --deployment <file> [--data <dir>] [--port <n>]` | [Section 5](#5-the-development-profile-milestone-m1) |
 | `loam-host start --server <file> --deployment <file> --dist <dir>` | Checks, takes the lock, writes the site, starts; on `SIGTERM` and `SIGINT` stops accepting, waits up to 10 s for requests in flight, flushes the journal and releases the lock |
-| `loam-host bootstrap --server <file> --deployment <file> --slug --name --owner-email` | 3.7 |
+| `loam-host bootstrap …` | 3.7's two forms |
 | `loam-host check --server <file> --deployment <file> --dist <dir>` | Every refusal and warning of 3.2, 3.3 and phase 3's 2.2, without starting |
-| `loam-host doctor --server <file> --deployment <file>` | `check`, plus: the lock's holder, the binding and `IDENTITY_BINDING_MISMATCH`, each mounted instance reachable with its bearer (`MOUNT_UNREACHABLE` or `MOUNT_UNAUTHORIZED`, never the token), the data directory's files and sizes, and which of them to back up |
+| `loam-host doctor --server <file> --deployment <file>` | `check`, plus, **opening both databases read-only and never taking the lock**: the lock's holder as `.lock` reports it, the binding and `IDENTITY_BINDING_MISMATCH`, each mounted instance reachable with its bearer (`MOUNT_UNREACHABLE` or `MOUNT_UNAUTHORIZED`, never the token), the data directory's files and sizes, and which of them to back up |
+| `loam-host health --server <file>` | One `GET <base>api/health` to `listen`, with TLS's SNI and `Host` set to `origin`'s host, accepting the configured certificate; exits 0 on `200`. The image's `HEALTHCHECK` ([11.2](#112-the-oci-image)) |
 
 ## 4. The server's store and journal (D102)
 
-| File in the data directory | Holds | Written by |
+| Path in the data directory | Holds | Written by |
 | --- | --- | --- |
-| `.lock` | `{ pid, startedAt, host }`, created with `wx` | `start`, `dev`, `bootstrap` |
+| `lock.sqlite` | Nothing but the lock ([below](#the-lock)) | `start`, `dev`, `bootstrap` |
+| `.lock` | `{ pid, startedAt, host }`, informational only | The lock's holder |
 | `loam.sqlite` | The server kernel's workspace store | `SqliteAdapter` |
 | `journal.jsonl` | The server kernel's journal, and every relayed call's record ([8.4](#84-what-the-relay-records)) | `FileJournalSink` |
 | `auth.sqlite` | The provider's database, with `loamServerPlugin`'s tables | Better Auth |
 | `mail.jsonl` | The development profile's sent mail | The sink |
-| `site/` | The written site | `writeDeployment` |
+| `public/site/` | The written site, and nothing else under `public/` | `writeDeployment` |
 | `tls/` | The development profile's certificate and key | `dev` |
 | `secrets/` | The development profile's generated auth secret | `dev` |
 
-- **AFD first: `SqliteAdapter`** (step 0a) in `@lushly-dev/local-db/sqlite`, a Node-only entry outside `/` and the browser graph, over `node:sqlite`'s `DatabaseSync`: one table per store table, JSON values, the adapter's indexes as SQLite indexes, `PRAGMA journal_mode = WAL` and `synchronous = NORMAL`, every adapter batch in one transaction. It passes `runDataAdapterContract` from `@lushly-dev/local-db/testing`, as `IndexedDbAdapter` does, with its tests titled for the place `AFD's host path` ([section 19](#19-exit-criterion-and-tests)). `storeKind` gains `'sqlite'`, and `shell-info-get` reports it.
-- **The journal** is AFD's `FileJournalSink`. Its own rule, one sink per file per process, is what the lock holds.
-- **The lock.** `start` refuses when `.lock` exists and its `pid` is alive on this host (`HOST_DATA_LOCKED`, naming the pid). A lock whose `pid` is gone is stale: `start` replaces it and logs `HOST_LOCK_STALE` with the old `startedAt`. `bootstrap` takes the same lock, so it never runs beside a server.
+- **AFD first: `SqliteAdapter`** (step 0a) in `@lushly-dev/local-db/sqlite`, a Node-only entry outside `/` and the browser graph, over `node:sqlite`'s `DatabaseSync` (**Node 22.13 or later**, where it needs no flag), fitting `DataAdapter` as the IndexedDB adapter does:
+  - **One table:** `records(tbl TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (tbl, id)) WITHOUT ROWID`, the value JSON;
+  - **Lists** go through `queryRows`, as the other adapters' do, filtered in the adapter after a range scan on `tbl`;
+  - **Each batch** runs in `BEGIN IMMEDIATE … COMMIT`, rolled back on any failure;
+  - `PRAGMA journal_mode = WAL` and **`synchronous = FULL`**, so a committed write survives a power loss.
+  - It passes `runDataAdapterContract` from `@lushly-dev/local-db/testing`, titled `P6-E7:`, in the new step `AFD's host path` ([section 19](#19-exit-criterion-and-tests)). **`local-db`'s `src/entry.test.ts`** gains `/sqlite` and asserts the root entry never loads it. `storeKind` gains `'sqlite'`, and `shell-info-get` reports it.
+- **The journal** is AFD's `FileJournalSink`. It appends after `next()` (`journal.ts:259`, `:290`) and does not `fsync`, so after a crash the store can hold a write the journal lost, never the reverse while it stays one process: P6-H8's invariant is **"every project the journal holds is in the store; the store holds at most the in-flight count beyond it"**.
+- <a id="the-lock"></a>**The lock is the operating system's.** `start`, `dev` and `bootstrap` open `<data>/lock.sqlite` with `PRAGMA locking_mode = EXCLUSIVE`, make one write, and keep the connection open for the process's life; a second process's open fails with `SQLITE_BUSY`, which is `HOST_DATA_LOCKED`. The lock ends with the process, however it ends, so a container's restart (where the server is pid 1) or a `SIGKILL` never leaves a stale lock. `.lock` is written beside it for `doctor` and people, and nothing reads it as a rule. **The data directory must be on a local filesystem, not NFS**, where SQLite's locks are unreliable; the guide says so.
 - **Postgres is reserved.** D32's single tenant and one process fit SQLite. A second writer, or a deployment past SQLite's measured limits, is a follow-up with its own adapter and the same contract.
 - **Backups** are the deployer's: `doctor` names the files, and the distribution guide says to copy `loam.sqlite` and `auth.sqlite` with SQLite's online backup or with the server stopped. Nothing in phase 6 automates it.
 
@@ -348,12 +395,13 @@ Each prints a `CommandResult` as JSON and exits with the AFD CLI's codes, as `lo
 
 `loam-host dev --deployment <file> [--data <dir>] [--port <n>]`, with `--data` defaulting to `.loam-dev/` beside the deployment file:
 
-1. Takes the lock.
-2. On first run, makes a self-signed certificate for `localhost` with `openssl` (`req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -days 30 -subj /CN=localhost -addext subjectAltName=DNS:localhost,IP:127.0.0.1`), as the hosted fixture does, into `tls/`, mode 0600; and a 32-byte auth secret into `secrets/auth`, mode 0600. Later runs reuse both until the certificate expires.
-3. Writes a server configuration into memory: `origin = "https://localhost:<port>"` (`--port 0` picks a free one), `listen = "127.0.0.1:<port>"`, `[tls]` from step 2, `[mail] transport = "sink"`, and when the deployment has a view app, `[sandbox] origin = "https://localhost:<port + 1>"` on a second listener, a different origin by its port.
-4. Writes the site with `--host hosted`, starts, and prints `{ origin, sandboxOrigin, spki, mail }`, where `spki` is the base64 SHA-256 of the certificate's public key.
+1. Takes the lock. Creates the data directory 0700 and writes `.loam-dev/.gitignore` containing `*`; every file it writes is 0600 and every directory 0700.
+2. On first run, makes a self-signed certificate for `localhost` and `127.0.0.1`, as the hosted fixture does (`local.ts:80-96`): `openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout tls/key.pem -out tls/cert.pem -days 30 -subj /CN=localhost -addext subjectAltName=DNS:localhost,IP:127.0.0.1`; and a 32-byte auth secret into `secrets/auth`. Later runs reuse both until the certificate expires. **The section 13 exception:** the development profile's generated secret is the only one written to the data directory.
+3. **Binds both listeners first:** the shell on `127.0.0.1:<port>` (`--port 0` picks a free one), and, when the deployment has a view app, the sandbox on `127.0.0.1:<a second free port>`.
+4. **Then builds the server configuration from the bound ports,** in memory: `origin = "https://localhost:<port>"`, `[tls]` from step 2, `[mail] transport = "sink"`, and `[sandbox] origin = "https://127.0.0.1:<second port>"`, **another site** from `localhost` (3.2), which the certificate already names. It writes the site with `--host hosted`, **overriding the deployment's `[sandbox] origin`** with that one, as the harness does today after binding (`harness.ts:209-219`).
+5. Starts, and prints `{ origin, sandboxOrigin, spki, mail }`, where `spki` is the base64 SHA-256 of the certificate's public key.
 
-A deployment for the profile needs `[host] kind = "hosted"`; `--deployment` with an older file is refused as 3.3 says. A `provider` deployment that was never bootstrapped starts, and its shell shows phase 3's `IDENTITY_ORGANIZATION_UNKNOWN` until `loam-host bootstrap --data <dir> …` runs.
+A deployment for the profile needs `[host] kind = "hosted"`; `--deployment` with an older file is refused as 3.3 says. A `provider` deployment that was never bootstrapped starts, and its shell shows phase 3's `IDENTITY_ORGANIZATION_UNKNOWN` until `loam-host bootstrap --dev` runs with `dev` stopped (3.7).
 
 ### 5.2 The test harness
 
@@ -362,6 +410,8 @@ A deployment for the profile needs `[host] kind = "hosted"`; `--deployment` with
 ```ts
 export interface DevHost {
 	origin: string; root: string; sandboxOrigin: string | null; spki: string;
+	/** The dev certificate's path, for `NODE_EXTRA_CA_CERTS` in anything that fetches the host. */
+	certificate: string;
 	mail(): Promise<{ to: string; subject: string; text: string; at: string }[]>;
 	db(): { auth: DatabaseSync; loam: DatabaseSync };   // read-only handles, for assertions
 	journal(): Promise<JournalEntry[]>;
@@ -375,26 +425,35 @@ export function startDevHost(options: {
 	organization?: { slug: string; name: string };     // bootstraps, then seeds as `startTestAuthHost` does
 	people?: { email: string; name: string; role: 'owner' | 'admin' | 'member'; methods?: ('passkey' | 'password')[] }[];
 	modules?: HostModule[];
+	/** Extra entries in the OAuth provider's `resources`, for P3-H1's second audience. */
+	resources?: string[];
+	/** Test-only: the access token lifetime, for P3-H4's expiry. Refused outside `startDevHost`. */
+	accessTokenTtlSeconds?: number;
+	/** The child process's environment additions. */
+	env?: Record<string, string>;
 }): Promise<DevHost>;
+/** Scans the served files, the projection, both journals, the logs, every store row and every `localStorage` value for 13's secrets. */
+export function scanSecrets(host: DevHost, pages: Page[], known: string[]): Promise<{ found: string[] }>;
 ```
 
-- **The host runs in a child process**, as `startTestAuthHost` does, so a test can `kill` it.
+- **The host runs in a child process**, as `startTestAuthHost` does, so a test can `kill` it, with `NODE_EXTRA_CA_CERTS` set to its own certificate so its provider can fetch its own origin.
 - **Seeding is phase 3's.** People are seeded through the same function `startTestAuthHost` uses, from `@lushly-dev/loam-identity/testing`, against the dev host's provider.
-- **Chromium trusts only that certificate:** the harness launches it with `--ignore-certificate-errors-spki-list=<spki>`, so a different certificate is still refused, and cookies are `Secure` as in production.
-- **`openShell(page, devHost, path?)`** in `web/test/browser/harness.ts` opens `devHost.root`, as it opens `serveDeployment`'s, and the CSP check also reads the response header.
+- **P3-H3's client metadata document** is served by a same-origin `HostModule` fixture, `clientMetadataFixture`, at `<base>api/test-client/metadata.json`, so its `client_id` is an `https` URL the provider can fetch with the dev certificate trusted.
+- **Chromium trusts only that certificate:** the harness launches the browser with `--ignore-certificate-errors-spki-list=<spki>`, so a different certificate is still refused, and cookies are `Secure` as in production. Pages open with the existing `openShell(browser, devHost.root, options, context)` (`harness.ts:330`), whose CSP check also reads the response header.
+- **The secrets scan** runs inside each of P6-H3 to P6-H6, before `close()`, through `scanSecrets`; P6-H7 is its own scenario on one dev host.
 
 ### 5.3 Phase 3's 10.2, item by item
 
 | 10.2 item | Delivered in | Proved by |
 | --- | --- | --- |
-| 1. One Node process on Hono serving the built shell under `base_path`, phase 0's CSP as response headers with `frame-ancestors`, and the OAuth pages' stricter CSP | Steps 1, 3 | P6-H1, P6-H2 |
+| 1. One Node process on Hono serving the built shell under `base_path`, phase 0's CSP as response headers with `frame-ancestors`, and the OAuth pages' stricter CSP | Steps 1, 3 | P6-H1, P6-H2; P6-E2 and P6-H3 for the OAuth pages' CSP |
 | 2. Better Auth at `<base_path><identity.path>` with its database in the data directory and a mail sink; the one-time bootstrap | Step 3 | P6-H3 |
-| 3. `createMcpHandler` at `<base_path>mcp` through Hono's Node adapter, over `createServerKernel` with `credentialsGate` and `createMcpAuth`; RFC 9728 metadata | Step 4 | P6-H4 |
-| 4. A server kernel whose store is authoritative for `ProjectV1.access`, `AgentMemberV1` and `WorkspaceAppV1.overrides`, and the transport, with the same-origin JSON `POST` rule | Steps 4, 5 | P6-H5 |
-| 5. The mount relay enforces, with the same rule | Step 6 | P6-H6, P6-M1 |
-| 6. HTTPS on `localhost` with a generated certificate, by one command; the `Hosted development profile` job and its `Hosted criterion against the development profile` step | Steps 2, 7 | P6-H1, P6-H7 |
+| 3. `createMcpHandler` at `<base_path>mcp` through Hono's Node adapter, over `createServerKernel` with `credentialsGate` and `createMcpAuth`; RFC 9728 metadata (and A2's RFC 8414 metadata) | Step 4 | P6-H4 |
+| 4. A server kernel whose store is authoritative for `ProjectV1.access`, `AgentMemberV1` and `WorkspaceAppV1.overrides`, and the transport, with the same-origin JSON `POST` rule | Steps 4, 5 | P6-H5, P6-H8 |
+| 5. The mount relay enforces, with the same rule | Step 6 | P6-H6, P6-E5 |
+| 6. HTTPS on `localhost` with a generated certificate, by one command; the `Hosted development profile` job and its `Hosted criterion against the development profile` step | Steps 2, 7 | P6-H1, P6-H7, P6-E8 |
 
-**M1 is reached** when P6-H1 to P6-H8 pass in that job on `main`, with every other phase 6 row of steps 0a to 6, and STATUS.md records "development profile reached". Phase 3's step 10 then adds P3-H1 to P3-H5 to the same step.
+**M1 is reached** when P6-E1 to P6-E5, P6-E7 to P6-E9 and P6-H1 to P6-H8 pass on `main` in their places, and STATUS.md records "development profile reached". Phase 3's step 10 then adds P3-H1 to P3-H5 to the same step.
 
 ## 6. Trust records on the hosted lane (D103)
 
@@ -411,19 +470,21 @@ export const SERVER_COMMANDS = ['project-create', 'project-update', 'project-arc
 	'agent-member-confirm', 'agent-member-decline', 'trust-record-snapshot'] as const;
 ```
 
-- **`trust-record-snapshot`**, a new query, served only to the transport: `{}` to `TrustRecordSnapshotV1`, exactly what `project-list { status: 'all' }`, `workspace-app-list` and `agent-member-list { status: 'all' }` answer the session's person on the server, with the server's `generation`.
+- **`trust-record-snapshot`**, a new query, served only to the transport: `{}` to `TrustRecordSnapshotV1`, exactly what `project-list { status: 'all' }`, `workspace-app-list` and `agent-member-list { status: 'all' }` answer the session's person on the server.
 
   ```ts
   export interface TrustRecordSnapshotV1 {
-  	generation: number;                 // raised by every successful write of the three tables
+  	/** SHA-256 of this snapshot's canonical JSON, without this field: a digest of what this person sees, never a global counter. */
+  	generation: string;
   	projects: ProjectV1[];              // only those `project-list` shows this person
   	workspaceApps: WorkspaceAppV1[];
-  	agents: AgentMemberRowV1[];         // filtered for the caller, as phase 3's 8.2
+  	agents: AgentMemberRowV1[];         // filtered for the caller, as phase 3's 8.2; installed and connected
   }
   ```
 
-- **In the browser,** each of these is routed in the kernel's `late-hosted` chunk: line 0 and the auth gate run as in phase 3, then instead of its handler, the call goes to `ports.serverCall({ command, input, scope })` and returns the server's `CommandResult` unchanged. **No local write happens on any path.** A transport failure is `SERVER_UNAVAILABLE`, retryable, journaled, with nothing written; a refusal is the server's code (`OWNER_REQUIRED`, `HUMAN_REQUIRED`, `PROJECT_NOT_FOUND`).
-- **The agent interface.** A browser's agent never reaches the transport: phase 3's 9.5 says the server takes every session call as the human, and "the browser forwards trust-record calls only from `kernel.call`, never from its agent interface". So on the agent interface, the commands of `SERVER_COMMANDS` that write are refused `HUMAN_REQUIRED` in a hosted provider deployment, before any request; the reads they would refresh are answered from the copy (6.3). An agent's change to a trust record goes over MCP, as its own connected agent.
+- **In the browser,** each of these is routed in the kernel's `late-hosted` chunk: line 0 and the auth gate run as in phase 3, then instead of its handler, the call goes to `ports.serverCall({ command, input, scope })` and returns the server's `CommandResult` unchanged. **The routed call writes nothing in the browser on any path, and nothing in the browser ever writes the server's records;** the copy changes only through `trust-record-settle` (6.3).
+- **`server-call.ts`'s mapping** of the transport's answers: `200` is the body's `result`; `401` is afd-auth's `UNAUTHORIZED`, after which the kernel runs phase 3's session refresh (4.3), which settles the person if the session is gone; `400`, `403` and `404` are the body's `code` with its message and suggestion; a `5xx` or a network failure is **`SERVER_UNAVAILABLE`**, retryable, journaled, with nothing written.
+- **The agent interface (A6).** A browser's agent never reaches the transport: phase 3's 9.5 says the server takes every session call as the human, and "the browser forwards trust-record calls only from `kernel.call`, never from its agent interface". So in a hosted `provider` deployment, the agent interface's `project-create`, `project-update`, `project-archive`, `project-restore`, `workspace-app-set` and `agent-member-*` writes are `HUMAN_REQUIRED`, before any request; their reads are answered from the copy. An agent changes these records over MCP, as its own connected agent. This narrows phase 3's 3.4 Agent column for this deployment kind, and is declared as A6.
 - **`workspace-deployment-apply`** runs on the server at its start, from the projection it wrote; in a hosted provider deployment, the browser's boot apply writes only its copy and is overwritten by the first settle.
 
 ### 6.2 The transport
@@ -431,38 +492,38 @@ export const SERVER_COMMANDS = ['project-create', 'project-update', 'project-arc
 `POST <base>api/kernel/call`, in this order:
 
 1. **The same-origin JSON rule**, phase 3's 9.5 and 10.2 item 4: `POST` only; `Content-Type` whose media type is `application/json`; `Origin` present and exactly `origin`; `Sec-Fetch-Site` absent or `same-origin`. Any failure is `403` with `{ "code": "REQUEST_NOT_SAME_ORIGIN" }`, nothing read further. No CORS header is ever sent.
-2. **The body,** at most `request_body_bytes`, `{ command: string; input: unknown; scope: { workspace: string; project?: string } }` and nothing else; otherwise `400` `REQUEST_INVALID`.
-3. **The session,** from the provider with the cookie cache off, then the principal: always the human, never an actor the browser sends; a user id starting `agt_` is `AGENT_CANNOT_SIGN_IN`; no session is `401` with afd-auth's `UNAUTHORIZED` as the body.
-4. **The command** must be in `SERVER_COMMANDS`; otherwise `404` `SERVER_COMMAND_NOT_SERVED`. `scope.workspace` must be the deployment's.
+2. **The body,** at most `request_body_bytes` (otherwise `413` `REQUEST_TOO_LARGE`), `{ command: string; input: unknown; scope: { workspace: string; project?: string } }` and nothing else; otherwise `400` `REQUEST_INVALID`.
+3. **The session,** from the provider with the cookie cache off, then the principal: always the human, never an actor the browser sends; a user id starting `agt_` is `401` `AGENT_CANNOT_SIGN_IN`; no session is `401` with afd-auth's `UNAUTHORIZED` as the body's code.
+4. **The command** must be in `SERVER_COMMANDS`; otherwise `404` `SERVER_COMMAND_NOT_SERVED`. `scope.workspace` must be the deployment's; otherwise `400` `REQUEST_INVALID`.
 5. `serverKernel.call(command, input, { scope, principal })` through phase 3's principal chain, journaled in `journal.jsonl` with the human actor.
-6. **The answer:** `200` with `{ result: CommandResult; generation: number }`. A refusal is still `200`, with the refusal in `result`, so the browser journals the server's code.
+6. **The answer:** `200` with `{ result: CommandResult; generation: string }`, `generation` that person's snapshot digest after the call. A refusal is still `200`, with the refusal in `result`, so the browser journals the server's code.
 
 ### 6.3 The browser's copy
 
 - **Stage B** in a hosted provider deployment calls `trust-record-snapshot` once and runs the internal **`trust-record-settle`** top-level, before any call that is not boot's own work and after phase 3's first `session-settle`.
-- **After every routed call** whose answer's `generation` differs from the copy's, and on phase 3's 4.3 refresh (focus, `online`, every 60 seconds while visible), the kernel fetches the snapshot and, when `generation` differs, runs `trust-record-settle` top-level before the next queued call.
-- **`trust-record-settle { reason: 'boot' | 'call' | 'refresh'; snapshot: TrustRecordSnapshotV1 }`** is internal, like `session-settle`: journaled with its input **as data**, not served, not callable through a port, refused on the agent interface, exempt from line 0. It replaces the three tables' rows with the snapshot's, so a project the person may no longer see leaves the copy, and runs `applyScopeChange(…, 'actor')` if the active project is gone. Its input is at most 2 MiB; a larger snapshot is `TRUST_RECORDS_TOO_LARGE`, journaled, and the copy is left as it was, with a notice in the status bar.
+- **It runs again** after every routed call whose answer's `generation` differs from the copy's; after every `session-settle` that changes the person (`reason: 'session'`), so one person's copy never serves another; and on phase 3's 4.3 refresh (focus, `online`, every 60 seconds while visible), fetching the snapshot and settling when `generation` differs. Each runs top-level, before the next queued call.
+- **`trust-record-settle { reason: 'boot' | 'call' | 'refresh' | 'session'; snapshot: TrustRecordSnapshotV1 }`** is internal, like `session-settle`: journaled with its input **as data**, not served, not callable through a port, refused on the agent interface, exempt from line 0. It replaces the `project` and `workspace-app` tables' rows with the snapshot's, and the `agent-member` table's rows with **only the snapshot's `kind: 'installed'` rows, stored as the filtered `AgentMemberRowV1`**; connected agents are held in memory for display, since phase 3 keeps them in the provider's database (its 9.2). A project the person may no longer see leaves the copy, and `applyScopeChange(…, 'actor')` runs if the active project is gone. Its input is at most 2 MiB; a larger snapshot is `TRUST_RECORDS_TOO_LARGE`, journaled, and the copy is left as it was, with a notice through the existing status item and live region.
 - **What the copy is for.** `ProjectCache`, `canOpen`, `opensIn`, the rail and the projects section read it, so the shell paints and works offline as before. **It grants nothing**: every write is the server's, and the relay decides against the server's records. A copy can be stale by up to 60 seconds for a change someone else made; the server is never stale.
 
 ### 6.4 Replay
 
-A routed call's whole effect is on the server, so in a hosted provider deployment **`SERVER_COMMANDS` join the kernel's recorded table**, as phase 3 records the provider-only commands: a replay answers each from its entry and never reaches a server, and one with no entry stops as `REPLAY_NOT_RECORDED`. `trust-record-settle` re-runs from its input, so the copy replays exactly. That amends phase 3's 3.4 for this one deployment kind (proposed amendment A5). In every other deployment phase 3's rule stands: these commands write the browser's store and re-run.
+A routed call's whole effect is on the server, so in a hosted provider deployment **`SERVER_COMMANDS` join the kernel's recorded table**, as phase 3 records the provider-only commands: a replay answers each from its entry and never reaches a server, and one with no entry stops as `REPLAY_NOT_RECORDED`. `trust-record-settle` re-runs from its input, so the copy replays exactly. **A replay reads whether the deployment was hosted from the journal**, from `workspace-deployment-apply`'s recorded input (3.3), never from the projection it is replayed against. That amends phase 3's 3.4 for this one deployment kind (A5). In every other deployment phase 3's rule stands: these commands write the browser's store and re-run.
 
 ## 7. The hosted MCP surface (D104)
 
-Phase 0 set every shell command's `expose.mcp` and `expose.cli` to `false` "until phase 6". **On the hosted server, MCP serves exactly the commands whose records the server holds or reads from the provider**, so an agent over MCP never writes a store its person cannot see:
+Phase 0 set every shell command's `expose.mcp` and `expose.cli` to `false` "until phase 6". **On the hosted server, MCP serves exactly the commands whose records the server holds or reads from the provider**, so an agent over MCP never writes a store its person cannot see. This follows from D46 (documents and app data live in browsers until the collaboration service) and D98 (an agent has at most its person's access):
 
 ```ts
-/** Served over MCP by the hosted server (7); every other shell command is `mcp: false`. */
+/** Served over MCP by the hosted server (7); in `@lushly-dev/loam-host`, never in a browser's graph. */
 export const HOSTED_MCP_COMMANDS = ['shell-info-get', 'workspace-get', 'workspace-app-list', 'app-list',
 	'app-get', 'project-list', 'project-get', 'project-create', 'project-update', 'project-archive',
 	'project-restore', 'account-get', 'persona-list', 'member-list', 'agent-member-list',
 	'agent-member-get'] as const;
 ```
 
-- **`shellExposeOf(name)`** replaces `SHELL_EXPOSE`: `palette` and `agent` as today, `mcp: HOSTED_MCP_COMMANDS.includes(name)`, `cli: false`. In the browser nothing changes, since the page serves no MCP.
-- **Phase 3's rules stand inside it.** `HUMAN_COMMANDS` and `OWNER_COMMANDS` are not served; an agent's `project-create` of a listed slug, and any agent's `project-create` or `project-update` with `access`, is `HUMAN_REQUIRED` from the handler; `persona-list` and `account-get` read for the token's person (phase 3's 9.2). `persona-list` answers only `default` on the server, since personas are held in each browser, and its description says so.
-- **Not served, and why:** page state (`view-state-*`, `layout-*`, `appearance-*`, `palette-*`, `overlay-*`, `toast-show`, `modal-open`, `status-item-set`, `app-selection-*`, `editor-*`, `section-get`, `scope-get`), because a server has no page; `PERSON_SESSION` and `auth-*`, as phase 2 decided; **documents, `new-list`, `document-type-list`, `project-summary-get` and app commands**, because their records and handlers are in each browser until the collaboration service (D46) and phase 5's calls (Q3); `app-command-list`, `app-instance-list` and `app-instance-refresh`, with mounted instances over MCP, which phase 5's "shell commands over MCP" takes up.
+- **Applied on the server only.** `loam-host`'s `hostedCommands(commands)` keeps the commands of `mcpOptions()` that are in the list, as copies with `expose.mcp: true`, and passes those to `createMcpHandler`. **`SHELL_EXPOSE` does not change**, so the browser's kernel and first paint are untouched.
+- **Phase 3's rules stand inside it.** `HUMAN_COMMANDS` and `OWNER_COMMANDS` are not served; an agent's `project-create` of a listed slug, and any agent's `project-create` or `project-update` with `access`, is `HUMAN_REQUIRED` from the handler; `account-get` reads for the token's person (phase 3's 9.2). **`persona-list` answers only `default` on the server** (A6), since personas are held in each browser, and its description says so.
+- **Not served, and why:** page state (`view-state-*`, `layout-*`, `appearance-*`, `palette-*`, `overlay-*`, `toast-show`, `modal-open`, `status-item-set`, `app-selection-*`, `editor-*`, `section-get`, `scope-get`), because a server has no page; `PERSON_SESSION` and `auth-*`, as phase 2 decided; **documents, `new-list`, `document-type-list`, `project-summary-get` and app commands**, because their records and handlers are in each browser until the collaboration service (D46) and phase 5's calls; `app-command-list`, `app-instance-list` and `app-instance-refresh`, with mounted instances over MCP, which phase 5's "shell commands over MCP" takes up. In plain words: **connected agents can manage projects and see members and apps; documents wait for the collaboration service.**
 - **A unit holds the list:** every name is registered on the server kernel; none is in `HUMAN_COMMANDS`, `OWNER_COMMANDS`, `PERSON_SESSION` or `INTERNAL_COMMANDS`; `tools/list` over MCP equals it plus AFD's meta-tools, for every token.
 - **The CLI.** The AFD CLI can reach `<base>mcp` with `--header "Authorization: Bearer …"`, but it has no OAuth client to obtain a token, so `expose.cli` stays `false` and the CLI is a [follow-up](#follow-ups) for AFD.
 
@@ -470,43 +531,60 @@ export const HOSTED_MCP_COMMANDS = ['shell-info-get', 'workspace-get', 'workspac
 
 ### 8.1 The route
 
-`<base>mounts/<instance>/mcp` serves phase 1's contract (`MountTransportV2`, unchanged in the browser) with phase 3's 10.2 item 5's enforcement and the amendments A1 and A3. In order:
+`<base>mounts/<instance>/mcp` serves phase 1's contract (`MountTransportV2`, unchanged in the browser but for 8.1's codes) with phase 3's 10.2 item 5's enforcement and the amendments A1 and A3. In order:
 
 1. **Method.** `GET` is `405` with `Allow: POST, DELETE`, which the page never sends (`mount.ts:27`). `POST` and `DELETE` continue.
-2. **The same-origin rule**, as 6.2's first row; for `POST`, the `application/json` media type. A `DELETE` carries no body and needs `Mcp-Session-Id` (amendment A1).
-3. **The session and the principal**, as 6.2's third row.
+2. **The same-origin rule**, as 6.2's first row (`403` `REQUEST_NOT_SAME_ORIGIN`); for `POST`, the `application/json` media type. A `DELETE` carries no body and needs `Mcp-Session-Id` (A1).
+3. **The session and the principal**, as 6.2's third row (`401` `UNAUTHORIZED` or `AGENT_CANNOT_SIGN_IN`).
 4. **The instance** must be in the server's deployment, `mounted`, `http`, and enabled in the server's `workspace-app` record; otherwise `404` `INSTANCE_UNKNOWN`, the same bytes for a disabled one.
-5. **The body** (`POST`), at most `request_body_bytes`, one JSON-RPC message. **A batch array is `400` `MOUNT_BATCH_REFUSED`** (A3): MCP 2025-06-18 removed batching, and a batch would hide calls from the checks below.
-6. **The decision, against the server's records** (10.2 item 5): for `tools/call`, `params._meta["dev.loam/scope"]` must be absent or `{ workspace, project? }` with the deployment's workspace; then `decideAccess` version 2 for the principal's person with the server's `ProjectV1` and membership read for this request; then phase 2's 9.2 through the kernel's own `unlistedProject`; then **the tool's exposure through the kernel's `flagsOf`**, which must give `palette` or `agent` (A3); then **`pinMountedInput`** for a mapped space (A3). Any other method (`initialize`, `notifications/*`, `ping`, `tools/list`) is decided at workspace level, as D78 sends no scope on discovery: membership, then `unlistedProject` with no slug.
-7. **The upstream session.** For a legacy-era server, the `Mcp-Session-Id` the instance issues is bound to `(person, instance)`; a request carrying an id bound to another person, or one the relay does not know, is `404` `MOUNT_SESSION_UNKNOWN` with nothing forwarded, which tells an MCP client to start a new session. A `DELETE` is forwarded only for the person's own id, then the binding is dropped.
-8. **Forwarding,** as phase 1's 7.1: the request headers' allow-list, the deployer's bearer added from its secret ([section 13](#13-secrets-d108)), no `Origin` and no `Cookie` sent, any `Authorization` from the page dropped; the response's status, `Content-Type`, `Mcp-Session-Id` and body streamed back, stopped past `relay_response_bytes` (`502` `MOUNT_RESULT_INVALID`); `relay_timeout_ms` per request; at most `relay_concurrency_per_person` requests in flight per person (`429` `MOUNT_LIMIT`, `Retry-After: 1`).
+5. **The body** (`POST`), at most `request_body_bytes` (`413` `REQUEST_TOO_LARGE`), one JSON-RPC message. **A batch array is `400` `MOUNT_BATCH_REFUSED`** (A3): MCP 2025-06-18 removed batching, and a batch would hide calls from the checks below.
+   - **5a, methods.** Only `initialize`, `notifications/initialized`, `notifications/cancelled`, `ping`, `tools/list` and `tools/call` are forwarded. A JSON-RPC response from the page, or any other method (`resources/read`, `prompts/get`, `logging/setLevel`, a `tasks/*` method), is `400` `MOUNT_METHOD_REFUSED`, with nothing forwarded.
+6. **The decision, against the server's records** (10.2 item 5, A3).
+   - **For `tools/call`:**
+     1. **The effective command.** For a first-class tool, its name; for `afd-call`, `arguments.command`, with `arguments.input` as its input. `afd-help` and `afd-detail` are discovery, decided at workspace level, and refused with `400` `REQUEST_INVALID` if they carry any scope. **Every other name in `AFD_BUILTIN_TOOL_NAMES`** (`@lushly-dev/afd-core`: `afd-batch`, `afd-pipe`, `afd-discover`, `afd-docs`, `afd-schema`, `afd-context-*`) is `403` `MOUNT_COMMAND_NOT_EXPOSED`, since each could run or change what the checks below see. AFD has no `isMetaTool`; the list is the test.
+     2. **The effective scope,** from `params._meta["dev.loam/scope"]` and `arguments.meta["dev.loam/scope"]` (AFD applies `meta` "as if the request had sent them in `_meta`", `meta-argument.ts:5-10`). Absent from both is workspace level. Present in both and different: `400` `REQUEST_INVALID`. A scope's `workspace` other than the deployment's: `400` `REQUEST_INVALID`.
+     3. **Access:** `decideAccess` version 2 for the principal's person, with the server's `ProjectV1` and membership read for this request: `403` `WORKSPACE_NOT_MEMBER` or `PROJECT_NOT_FOUND`.
+     4. **The instance's projects:** phase 2's 9.2 through the kernel's own `unlistedProject`: `403` `MOUNT_PROJECT_NOT_LISTED`.
+     5. **Exposure:** the kernel's `flagsOf` for the effective command, with the discovered annotations (8.2), the manifest's `effects` and the entry's `commands` override, must give `palette` or `agent`: otherwise `403` `MOUNT_COMMAND_NOT_EXPOSED`.
+     6. **The pinned space:** `pinMountedInput` on the effective command's input: `403` `MOUNT_SPACE_PINNED`. The relay forwards **the rewritten arguments**: the pinned input, in `arguments` for a first-class tool or `arguments.input` for `afd-call`.
+   - **Every other forwarded method** (`initialize`, `notifications/*`, `ping`, `tools/list`) is decided at workspace level, as D78 sends no scope on discovery: membership, then `unlistedProject` with no slug.
+7. **The upstream session.** For a legacy-era server, the `Mcp-Session-Id` the instance issues is bound to `(person, instance)`; a request carrying an id bound to another person, or one the relay does not know, is `404` `MOUNT_SESSION_UNKNOWN` with nothing forwarded. A `DELETE` is forwarded only for the person's own id, then the binding is dropped. **Who starts a new session:** the SDK does not do it on its own; `mount.ts` closes its transport on `MOUNT_SESSION_UNKNOWN`, the call fails retryable, and the next call or phase 1's rediscovery (`AUTO_DISCOVERY_MS`) connects again. P6-H6 asserts it.
+8. **Forwarding,** as phase 1's 7.1: the request headers' allow-list, the deployer's bearer added from its secret ([section 13](#13-secrets-d108)), no `Origin` and no `Cookie` sent, any `Authorization` from the page dropped; the response's status, `Content-Type`, `Mcp-Session-Id` and body streamed back, stopped past `relay_response_bytes` (`502` `MOUNT_RESULT_INVALID`); `relay_timeout_ms` per request (`504` `MOUNT_TIMEOUT`); at most `relay_concurrency_per_person` requests in flight per person (`429` `MOUNT_LIMIT`, `Retry-After: 1`). **In a relayed event stream, a server-to-client request** (one with a `method` and an `id`) **is dropped,** since phase 1 declares no client capabilities; notifications and responses pass.
 
-Each refusal is `403` (6), `404` (4, 7), `400` (5), `401` (3) or `429` with a body `{ code, message, suggestion }` the kernel's mount transport already maps to its codes, and **nothing reaches the instance**.
+**Every refusal** has the body `{ code, message, suggestion }`, and **nothing reaches the instance**. Step 6 changes `mount.ts` so the codes reach the kernel:
+
+| Answer | `mount.ts` and the kernel |
+| --- | --- |
+| A refusal body with a `code` (400, 403, 404, 413, 429, 502, 504) | `MountRefusal` carries that code, message and suggestion, so `PROJECT_NOT_FOUND`, `WORKSPACE_NOT_MEMBER`, `MOUNT_PROJECT_NOT_LISTED`, `MOUNT_SPACE_PINNED`, `MOUNT_COMMAND_NOT_EXPOSED` and the rest arrive as themselves |
+| `401` with `UNAUTHORIZED` or `AGENT_CANNOT_SIGN_IN` | Phase 3's session refresh (its 4.3), not `MOUNT_UNAUTHORIZED`, which keeps meaning the instance refused the deployer's bearer |
+| `404` `MOUNT_SESSION_UNKNOWN` | Closes the transport; the call fails retryable (step 7) |
+| No body code (an instance's own 401 or 403 forwarded, a network failure) | As phase 1: `MOUNT_UNAUTHORIZED` or `MOUNT_UNREACHABLE` |
 
 ### 8.2 The tools the relay knows
 
-`flagsOf` and `pinMountedInput` need each tool's annotations and input schema. The relay discovers each enabled instance itself, at start and every 10 minutes, with the deployer's bearer, through AFD's `StreamableHttpTransport` under phase 1's `DISCOVERY_LIMITS`, and keeps `tools/list`'s annotations and schemas in memory. A `tools/call` for a tool the relay has not seen triggers one rediscovery; still unknown, it is `403` `MOUNT_COMMAND_NOT_EXPOSED`. Rediscovery of one instance is never more frequent than once per 30 seconds.
+The relay discovers each enabled instance **exactly as the browser's kernel does**: it calls the kernel's own `discoverInstance` (exported for it from `@lushly-dev/loam-kernel/mounted`) with a server-side `MountTransportV2` over AFD's `StreamableHttpTransport` carrying the deployer's bearer: `afd-help`, then `afd-detail` in batches, under `DISCOVERY_LIMITS`, with the manifest's `effects`, the entry's `commands` overrides and `mount.only`. Since `discoverInstance` takes a transport and does no I/O of its own, the relay needs no copy of its parts. It runs at start and every 10 minutes, and keeps each command's annotations and input schema in memory for `flagsOf` and `pinMountedInput`. A `tools/call` whose effective command the relay has not seen triggers one rediscovery; still unknown, it is `403` `MOUNT_COMMAND_NOT_EXPOSED`. Rediscovery of one instance is never more frequent than once per 30 seconds.
 
 ### 8.3 Discovery is not the person's
 
-Phase 1's kernel discovers through the relay from the browser, as before; the relay's own discovery only feeds 8.1's decision and is never answered to a browser. D55 holds: an instance still sees one principal, the deployer's bearer, so a team instance must be one every member of its projects may read in full, and the relay is what keeps a non-member's request from reaching it.
+Phase 1's kernel discovers through the relay from the browser, as before, and 8.1 lets `afd-help` and `afd-detail` through at workspace level; the relay's own discovery only feeds 8.1's decision and is never answered to a browser. D55 holds: an instance still sees one principal, the deployer's bearer, so a team instance must be one every member of its projects may read in full, and the relay is what keeps a non-member's request from reaching it.
 
 ### 8.4 What the relay records
 
-Each forwarded `tools/call` is appended to the server's journal as a record of command `mount-relay` (not a registered command, and never replayed): `{ instance, tool, actor, scope, status, ms }`, with no arguments, no result and no header. Refusals of 8.1 are recorded the same way with their code. **No token, cookie or session id is ever logged**; P6-H7 scans the logs and journal for them.
+Each forwarded `tools/call` is appended to the server's journal as a record of command `mount-relay` (not a registered command, and never replayed): `{ instance, command, actor, scope, status, ms }`, `command` the effective command, with no arguments, no result and no header. Refusals of 8.1 are recorded the same way with their code. **No token, cookie or session id is ever logged**; `scanSecrets` checks the logs and journal for them.
 
 ## 9. The production profile (milestone M2)
 
 `loam-host start` with a full `loam.server.toml` (3.2):
 
 - **TLS** on the server from `cert_file` and `key_file`, re-read on `SIGHUP` so a renewed certificate needs no restart; or **behind a TLS-terminating proxy** on a loopback `listen`, the origin still configured, never derived (3.2). The distribution guide shows both, and that the proxy must pass `Host` unchanged and must not add CORS.
-- **Mail** by SMTP through `nodemailer` 10.4.0, with `smtps://` or STARTTLS required (`requireTLS: true`); a plain `smtp://` URL with no TLS is refused at start (`HOST_MAIL_INSECURE`), except to a loopback host.
+- **Mail** by SMTP through `nodemailer`, with `smtps://` or STARTTLS required (`requireTLS: true`); a plain `smtp://` URL with no TLS is refused at start (`HOST_MAIL_INSECURE`), except to a loopback host.
 - **Single sign-on** from `[oidc.<id>]`, passed to `createLoamAuthOptions`' `oidc`, phase 3's 2.6 rules unchanged.
-- **Limits** from `[limits]`; Better Auth's own rate limit on its routes, its default, with the client address taken from the socket, since no forwarded header is trusted. Behind a proxy that address is the proxy's, so the per-address limit becomes a per-deployment one; the guide says so, and a deployer wanting per-client limits sets them at the proxy.
+- **Limits** from `[limits]`; Better Auth's own rate limit on its routes, keyed by **`x-loam-client-ip`, which the host alone sets from the socket** (3.7, A7). Behind a proxy that address is the proxy's, so the per-address limit becomes a per-deployment one; the guide says so, and a deployer wanting per-client limits sets them at the proxy.
 - **Logs** are one JSON line per request on stdout: time, method, route **pattern** (never the path, which can carry a restricted slug), status, ms, and for an authenticated request the actor's kind only. Nothing else.
 - **`doctor`** (3.8) complete.
+- **The mounted suite through the hosted relay** against a stock `umbel` (P6-M1), so phase 1's relay proof no longer stands alone.
 
-**M2 is reached** when P6-H9 and P6-H10 pass, in the `Hosted development profile` job's step `Production profile on TLS files and behind a proxy`.
+**M2 is reached** when P6-H9, P6-H10 and P6-M1 pass.
 
 ## 10. The desktop lane (D106)
 
@@ -516,28 +594,29 @@ Each forwarded `tools/call` is appended to the server's journal as a record of c
 
 ### 10.2 Origins and the CSP
 
-- **The shell** is served by Tauri from the app's assets, at Tauri's own origin for its custom protocol (`tauri://localhost` on macOS and Linux, `http://tauri.localhost` on Windows). The kernel's `host` is `'desktop'`.
-- **The sandbox proxy** is a second custom protocol, `loam-sandbox`, registered by the Rust host with `register_uri_scheme_protocol`, serving only the written site's `sandbox/` with `frame-ancestors` naming the shell's origin. Its origin differs from the shell's, as D62 requires; P6-D3 proves it in each webview.
-- **The CSP** is the shell's phase 0 policy in `tauri.conf.json`'s `app.security.csp`, with **`connect-src 'self' ipc: http://ipc.localhost`**, the IPC sources Tauri's own example uses (S92), and `frame-src` the sandbox scheme's origin when a view app is deployed. Tauri appends its hashes and nonces at build time. No other source widens.
-- **Capabilities.** One capability file grants the main window `core:default` and Loam's own three commands (10.4), and nothing else: no `shell`, `fs`, `http` or `opener` plugin is installed, so the webview can neither spawn a program nor read a file.
+- **The shell** is served by the Rust host's **`loam` custom protocol** (`register_uri_scheme_protocol`; `loam://localhost` on macOS and Linux, `http://loam.localhost` on Windows) from `<app data>/site` when it exists and the bundled empty shell otherwise. It applies D74's fallback (`index.html` for a path with no file and `Accept: text/html`), sends the `<meta>` policy plus `frame-ancestors 'none'` as a header, and resolves every path with `canonicalize` inside the site's directory, so no path, encoded or through a symlink, reaches `mounts.json` or anything else outside it. The kernel's `host` is `'desktop'`.
+- **The sandbox proxy** is a second custom protocol, `loam-sandbox`, serving only the site's `sandbox/` with `frame-ancestors` naming the shell's origin. Its origin differs from the shell's, as D62 requires; P6-D3 proves it in each webview.
+- **The CSP** is the shell's phase 0 policy, written into the `<meta>` by `deployment write --host desktop` with **`connect-src 'self' ipc: http://ipc.localhost`**, the IPC sources Tauri's own example uses (S92), and `frame-src` the sandbox scheme's origin when a view app is deployed. No other source widens.
+- **Capabilities (S11).** `core:default` would grant every core plugin's defaults, so **no `core:*` permission is granted**: the menus are built in Rust, not from JavaScript. One capability file, `"local": true`, scoped to the main webview by label, grants only Loam's own three commands (10.4). No `shell`, `fs`, `http`, `opener` or updater JavaScript permission exists, so the webview can neither spawn a program, read a file nor drive an update. Custom schemes count as local origins to Tauri, so the capability's webview scope, not the scheme, is what keeps the sandbox and its frames from it; P6-D4 tests `invoke` from both.
 
 ### 10.3 The deployment on the desktop
 
-The person who owns the desktop is its deployer (D56). They write `loam.deployment.toml` with `[host] kind = "desktop"` and run `loam deployment write --host desktop --dist <app's bundled dist> --out <app data>/site --mounts-out <app data>/mounts.json`. The app serves `<app data>/site` when it exists and its bundled empty shell otherwise. **The Rust host reads only `mounts.json`** (mode 0600, outside `site/`), never the TOML; nothing in the webview can write either file, and no command reaches them, so D56's "no command, app or agent may write it" holds by construction.
+The person who owns the desktop is its deployer (D56). They write `loam.deployment.toml` with `[host] kind = "desktop"` and run `loam deployment write --host desktop --dist <app's bundled dist> --out <app data>/site --mounts-out <app data>/mounts.json`. **The Rust host reads only `mounts.json`**, never the TOML; on POSIX it must be mode 0600, and on Windows its ACL must grant only the profile's owner, or the host refuses it (`DESKTOP_MOUNTS_PERMISSIONS`). Nothing in the webview can write either file, and no command reaches them, so D56's "no command, app or agent may write it" holds by construction.
 
 ### 10.4 Mounts over the Rust host
 
-`MountAccess` gains, for `--host desktop` only, `{ instance, transport: 'stdio', command: string[], cwd?: string }` beside phase 1's `{ instance, url, bearer? }`. The desktop's `ports.mountTransport` is `DesktopMountTransport`, behind the same `MountTransportV2`, over three Tauri commands:
+`MountAccess` gains, for `--host desktop` only, `{ instance, transport: 'stdio', command: string[], cwd?: string }` beside phase 1's `{ instance, url, bearer? }`. The desktop's `ports.mountTransport` is `DesktopMountTransport`, behind the same `MountTransportV2`, over three Tauri commands. **The Rust side is a transport only**, with no MCP logic of its own:
 
 | Command | Input | Does |
 | --- | --- | --- |
-| `mount_open` | `{ instance }` | For `http`: an MCP client in Rust over Streamable HTTP with the bearer, from `mounts.json`. For `stdio`: spawns `command` in `cwd` with a clean environment but `PATH`, `HOME` and the platform's minimum, stdin and stdout piped, stderr to the app's log; returns a handle |
-| `mount_send` | `{ handle, message }` | One JSON-RPC message, at most 1 MiB; the reply bounded at 4 MiB, as the web host's |
-| `mount_close` | `{ handle }` | Closes the session, or ends the child with `SIGTERM` then, after 5 s, `SIGKILL` |
+| `mount_open` | `{ instance }` | For `http`: a `reqwest` 0.13 client (`rustls-tls`) that `POST`s each message with the bearer and the `Mcp-Session-Id` the server issued, reading a JSON or an event-stream answer. For `stdio`: spawns `command` in `cwd` with a clean environment but `PATH`, `HOME` and the platform's minimum, stdin and stdout piped and **framed as one JSON-RPC message per line**, stderr to the app's log. Returns a handle |
+| `mount_send` | `{ handle, message }` | One JSON-RPC message, at most 1 MiB; a reply bounded at 4 MiB, as the web host's |
+| `mount_close` | `{ handle }` | For `http`, the session's `DELETE`; for `stdio`, `SIGTERM`, then after 5 s `SIGKILL` |
 
+- **What comes back.** A response returns from `mount_send`. A server notification (a `method` with no `id`) arrives as the Tauri event `loam://mount/<handle>`, to the main webview only; a server-to-client request is dropped, as the relay drops it (8.1).
 - **The webview names an instance, never a URL, token or command line.** `mount_open` for an instance not in `mounts.json` is `INSTANCE_UNKNOWN`.
 - **A child that exits** fails its calls with `MOUNT_UNREACHABLE`, retryable; the kernel's phase 1 recovery reopens it on the next discovery.
-- **Scope** travels in `_meta` exactly as phase 2's 9.2 sends it; the Rust host forwards the message untouched.
+- **Scope** travels in `_meta` exactly as phase 2's 9.2 sends it; the Rust host forwards the message untouched. The desktop is `local` and single-person, so no relay checks are needed between the person and their own instances.
 
 ### 10.5 The store and D52's measurement
 
@@ -548,22 +627,22 @@ IndexedDB in the webview, as in the browser. **D52's measurement**, taken in ste
 | Integration | Phase 6 | Why |
 | --- | --- | --- |
 | Single instance | `tauri-plugin-single-instance`: a second launch focuses the first window | Two kernels on one IndexedDB would race the journal's writer lock |
-| Menus | The platform's application menu with "Command palette" (Mod+K, `palette-open`), "Reload", "Quit", and on macOS the standard edit items | Native expectations; each menu item runs a shell command |
+| Menus | Built in Rust: the platform's application menu with "Command palette" (Mod+K, which emits an event the shell answers with `palette-open`), "Reload", "Quit", and on macOS the standard edit items | Native expectations; each item runs a shell command; no JavaScript menu permission |
 | Window state | The OS keeps size and position; nothing persisted by Loam | Layout is the kernel's, not the window's |
-| Updates | `tauri-plugin-updater` compiled in, **off unless the build is given a public key and an endpoint** (`LOAM_UPDATER_PUBKEY`, `LOAM_UPDATER_ENDPOINT`); with them, a signed update is required and an unsigned or tampered one refused | Who signs is Q1's |
+| Updates | `tauri-plugin-updater` in Rust only, **off unless the build is given a public key and an endpoint** (`LOAM_UPDATER_PUBKEY`, `LOAM_UPDATER_ENDPOINT`); with them, a signed update over HTTPS is required and an unsigned or tampered one refused. `dangerousInsecureTransportProtocol` is never set | Who signs is Q1's |
 | Notifications, files, deep links, tray | Reserved | Notifications follow phase 4's inbox; files need a grant no app has; deep links need the URL scheme on a custom protocol |
 
 ### 10.7 The desktop suite
 
-`loam-desktop.yml`, a new pull-request workflow with its entry in `scripts/affected/suites.mjs` (the tooling tests require one):
+`loam-desktop.yml`, a new pull-request workflow. The suite is **Vitest with `webdriverio` as its WebDriver client**, run with `--reporter=verbose` so the exit check reads its titles, driving the webview through WebDriver's `execute` with the same kernel calls `web`'s harness makes.
 
-| Job | When | Does |
-| --- | --- | --- |
-| `Desktop on Linux` | Pull requests touching `endpoints/loam/**` (not `docs/`), the workflow, `endpoints/umbel/**` (not `docs/`, for P6-D2's `hello-mcp`), `packages/rust/**` or the lockfile, gated by `Affected units`; daily; manual | Installs `libwebkit2gtk-4.1-dev`, `webkit2gtk-driver` and `xvfb`; builds `web`, then the app; runs the suite under `tauri-driver` 2.1.0 with `WebKitWebDriver`; builds `.deb` and `.AppImage`; records WebKitGTK's version |
-| `Desktop on Windows` | Daily, manual | The same under `msedgedriver`, WebView2; builds `.msi` |
-| `Desktop on macOS` | Daily, manual | Builds the `.app` and `.dmg` and runs the Rust tests; no WebDriver suite, since macOS has no WKWebView driver (S91) |
+| Job | When | Tools | Timeout | Does |
+| --- | --- | --- | --- | --- |
+| `Desktop on Linux` | Pull requests touching `endpoints/loam/**` (not `docs/`), the workflow, `endpoints/umbel/**` (not `docs/`, for P6-D2's `hello-mcp`), `packages/rust/**` or the lockfile, gated by `Affected units`; daily; manual | Rust, `libwebkit2gtk-4.1-dev`, `webkit2gtk-driver`, `xvfb`, `tauri-driver` | 45 min | Builds `web`, then the app; runs the suite under `tauri-driver` with `WebKitWebDriver`; builds `.deb` and `.AppImage`; records WebKitGTK's version |
+| `Desktop on Windows` | Daily, manual | Rust, WebView2, `msedgedriver`, `tauri-driver` | 60 min | The same; builds `.msi` |
+| `Desktop on macOS` | Daily, manual | Rust | 45 min | Builds the `.app` and `.dmg` and runs the Rust tests; no WebDriver suite, since macOS has no WKWebView driver (S91) |
 
-The suite drives the webview through WebDriver's `execute` with the same kernel calls `web`'s harness makes, so its scenarios are the browser's, not a second copy.
+**Its local entry** in `scripts/affected/suites.mjs` (the tooling tests require one) runs the desktop crate's `cargo test` and a debug build with `cargo`, and names the WebDriver suites and the other operating systems as `remote` only, since a developer's macOS machine has no driver for any of them. **On a shared machine** the build runs under the heavy-command lock, one at a time, with the shared target directory and `pnpm rust:sweep`.
 
 ## 11. Distribution (D107)
 
@@ -571,16 +650,17 @@ The suite drives the webview through WebDriver's `execute` with the same kernel 
 
 ### 11.1 The static site
 
-Unchanged from phases 1 and 2: `loam deployment write` with `--host static` (the default). Step 10 writes `endpoints/loam/docs/guides/deploy.md`: a static host must answer `index.html` for a path with no file (D74) and send `frame-ancestors` and the other headers of 3.5 as response headers; the sandbox's second origin (D62); that a static host serves `local` identity only; and the hosted and desktop profiles. The guide is linked from STATUS.md and `endpoints/loam/README.md`.
+Unchanged from phases 1 and 2: `loam deployment write` with `--host static` (the default). Step 10 writes `endpoints/loam/docs/guides/deploy.md`: a static host must answer `index.html` for a path with no file (D74) and send `frame-ancestors` and the other headers of 3.5 as response headers; the sandbox's second origin, on another site (D62, 3.2); that a static host serves `local` identity only; and the hosted and desktop profiles. The guide is linked from STATUS.md and `endpoints/loam/README.md`.
 
 ### 11.2 The OCI image
 
-`endpoints/loam/packages/host/Containerfile`, built in `loam.yml`'s `OCI image` job with the runner's Docker:
+`endpoints/loam/packages/host/Containerfile`, built in `loam.yml`'s new **`OCI image`** job: triggered as the rest of `loam.yml` is, gated by `Affected units` on `@lushly-dev/loam-host` and its dependencies, with the runner's Docker. Its `suites.mjs` entry runs it locally where `docker` is present and names it `remote` otherwise; `AGENTS.md`'s CI table gains its row.
 
 - **Base** `node:26-trixie-slim`, pinned by digest in the file, with the digest recorded in step 9 and updated by Dependabot's Docker ecosystem.
-- **Two stages:** the first runs `pnpm install --frozen-lockfile` and builds `web`, `host` and their dependencies; the second copies `web`'s `dist` and `pnpm deploy --prod`'s output for `@lushly-dev/loam-host`, with no compiler, `pnpm` or source.
-- **Runs as** a non-root user, UID 10001, `ENTRYPOINT ["node", "/app/bin/loam-host.js"]`, `CMD ["start", "--server", "/config/loam.server.toml", "--deployment", "/config/loam.deployment.toml", "--dist", "/app/dist"]`, `VOLUME ["/data"]`, `EXPOSE 8443`, `HEALTHCHECK` on `<base>api/health`, and labels `org.opencontainers.image.source`, `.revision`, `.version` and `.licenses`. The `io.modelcontextprotocol.server.name` label is added only when Q1 admits a registry entry.
-- **No secret in the image.** Configuration and secrets are mounted at `/config` and `/run/secrets`; P6-I1 scans the image's filesystem.
+- **Two stages:** the first runs `pnpm install --frozen-lockfile`, builds `web`, `host` and their dependencies, and runs **`pnpm -F @lushly-dev/loam-host deploy --prod --legacy /out`** (pnpm 10.30.1 refuses `deploy` without `--legacy` in this workspace); the second copies `web`'s `dist` and `/out`, with no compiler, `pnpm` or source.
+- **Runs as** a non-root user, UID 10001, `ENTRYPOINT ["node", "/app/bin/loam-host.js"]`, `CMD ["start", "--server", "/config/loam.server.toml", "--deployment", "/config/loam.deployment.toml", "--dist", "/app/dist"]`, `VOLUME ["/data"]`, `EXPOSE 8443`, **`HEALTHCHECK CMD ["node", "/app/bin/loam-host.js", "health", "--server", "/config/loam.server.toml"]`** (3.8: the image has no `curl`, and a bare probe would get 421 and a certificate for another name), and labels `org.opencontainers.image.source`, `.revision`, `.version` and `.licenses`. The `io.modelcontextprotocol.server.name` label is added only when Q1 admits a registry entry.
+- **TLS:** the image's configuration needs `[tls]`, or a TLS-terminating sidecar proxy in front of a loopback `listen`; the guide shows both.
+- **No secret in the image.** Configuration and secrets are mounted at `/config` and `/run/secrets`; the guide gives Kubernetes `defaultMode: 0400` with `runAsUser: 10001`, so 3.2's permission check passes. P6-I1 scans the image's filesystem.
 
 ### 11.3 Installers
 
@@ -611,39 +691,41 @@ Unchanged from phases 1 and 2: `loam deployment write` with `--host static` (the
 
 ### 11.5 The server card, the catalog and the guide
 
+From step 10, in M4; none is on M1's path.
+
 | Document | Where | Default | Holds |
 | --- | --- | --- | --- |
-| **Server card** (SEP-2127, Final) | `<base>mcp/server-card`, `application/mcp-server-card+json` | On (`[discovery] server_card`) | The card's identity fields from the deployment (`name` from the workspace's id, `title` from its name, `version` the shell's), one remote endpoint `{ type: "streamable-http", url: "<origin><base>mcp" }`, `supportedProtocolVersions: ["2026-07-28", "2025-11-25"]`. No tools, no instance, project, member or person; nothing the 401 challenge does not already reveal but the workspace's display name |
+| **Server card** (SEP-2127, Final) | `<base>mcp/server-card`, `application/mcp-server-card+json` | On (`[discovery] server_card`) | The card's identity fields from the deployment (`name` from the workspace's id, `title` from its name), **no version**, matching `api/health`; one remote endpoint `{ type: "streamable-http", url: "<origin><base>mcp" }`; `supportedProtocolVersions: ["2026-07-28", "2025-11-25"]`. No tools, no instance, project, member or person; **it shows anyone with the address the workspace's name**, which the 401 challenge does not |
 | **AI catalog** | `/.well-known/ai-catalog.json`, `application/ai-catalog+json` | **Off** (Q2) | `{ specVersion: "1.0", entries: [{ identifier, type: "application/mcp-server-card+json", url }] }` |
 | **Agent guide** | `<base>mcp/agents.md`, `text/markdown` | **Off** (Q2) | Generated from the registry: how to connect (the OAuth flow, the scopes), and `HOSTED_MCP_COMMANDS` with their descriptions. No instance's or app's commands |
 
 - **Served** with `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET`, `Cache-Control: public, max-age=3600`, an `ETag` over the body, and `304` for a matching `If-None-Match`, as the extension's discovery document asks (S95). These are the only routes with CORS.
 - **Validated** by a unit against the extension's `schema.json`, vendored at a pinned commit with its SHA-256, as 11.4's schema is.
-- **Umbel** plans its own card and catalog file in its phase 7 (Umbel's R11). The two share no code in phase 6; when Umbel's lands, a follow-up checks the two agree on field use.
+- **Umbel** plans its own card and catalog file in its phase 7 (Umbel's R11, whose notes record the check that the two agree on field use).
 
 ## 12. The copilot in the same process
 
 D24 and D25 put the copilot runtime in-process on the hosted server, and phase 5 builds it. Phase 6 gives it a place and nothing else:
 
-- **The seam** is `HostModule` (3.1): phase 5's runtime registers its routes under `<base>api/copilot/`, gets the principal through `sessionPrincipal`, which applies 6.2's first and third rows, and calls the server kernel with that principal. No session logic of its own.
+- **The seam** is `HostModule` (3.1): phase 5's runtime registers its routes under `<base>api/copilot/`, gets a `ModulePrincipal` only through `sessionPrincipal`, which applies 6.2's first and third rows, and calls the server kernel only through `callAs` with that principal. It never holds the kernel, and has no session logic of its own.
 - **The row** P6-X1 is phase 5's to write in its specification: the copilot's stream and a tool call, served by the same `loam-host` process that serves the shell and MCP. Phase 6 exits when it passes.
-- **Where the copilot's data is** is phase 5's question, made sharper by section 7: on the server, the runtime sees the server's records, not a person's documents (Q3, and a [follow-up](#follow-ups) for phase 5).
+- **Where the copilot's data is** is phase 5's question, made sharper by section 7: on the server, the runtime sees the server's records, not a person's documents; in a browser worker, its trust-record writes are `HUMAN_REQUIRED` in a hosted `provider` deployment (A6). A [follow-up](#follow-ups) for phase 5.
 
 ## 13. Secrets (D108)
 
-- **The server resolves every secret, and only the server.** The auth secret, the SMTP URL, OIDC client secrets (3.2) and the mount bearers (`bearer_file` and `bearer_env` in the deployment) are read at start, held in memory, never written to the data directory, a log, the journal, the projection, a response or the image. A secret file must be 0600 (`HOST_SECRET_PERMISSIONS`).
+- **The server resolves every secret, and only the server.** The auth secret, the SMTP URL, OIDC client secrets (3.2) and the mount bearers (`bearer_file` and `bearer_env` in the deployment) are read at start, held in memory, never written to the data directory, a log, the journal, the projection, a response or the image. `loam-host` never writes `mountsOut` (3.3). A secret file must be 0600 (`HOST_SECRET_PERMISSIONS`). **The one exception** is the development profile's generated `secrets/auth`, 0600 in a 0700 directory ignored by Git (5.1), refused with any origin but `localhost`'s by `HOST_MAIL_SINK_EXPOSED`'s rule.
 - **The `secrets` grant moves to phase 5,** with the `http` grant it serves. An app's handlers run in the browser (D54, D61), so a secret's value given to an app would reach the browser, which phase 1 forbids ("The browser holds none"). The grant will name a secret the kernel attaches to an outbound `http` request made through the hosted server, and never give its value to app code. Phase 1's catalog row "`secrets`, Phase 6" is amended to "Phase 5, with `http`" (D108).
 - **The desktop** holds `mounts.json`'s bearers in the Rust host's memory, never in the webview, as the hosted server does.
 
 ## 14. Budgets
 
-**First paint does not change.** Phase 3's ceiling and allowances stand; phase 6 adds nothing to first paint:
+**First paint does not change.** Phase 3's ceiling and allowances stand; phase 6 adds nothing to first paint, and nothing to `late` but the check that loads `late-hosted`:
 
 | Row | Where | Estimate | Note |
 | --- | --- | --- | --- |
-| First paint | | **0, 0** | `host` is read from the projection in stage B, not from the boot record |
-| `late-hosted` (new) | Loaded inside `loadLate` only when `host.kind` is `hosted` and `identity.mode` is `provider` | 6,000 | The routing of `SERVER_COMMANDS`, `trust-record-settle`, the snapshot refresh, `server-call.ts` |
-| `late` | Both modes | +400 | `shellExposeOf` and the two frozen lists |
+| First paint | | **0, 0** | `host` is read from the projection in stage B, not from the boot record; `SHELL_EXPOSE` is unchanged |
+| `late-hosted` (new) | Loaded inside `loadLate` only when `host.kind` is `hosted` and `identity.mode` is `provider` | 6,500 | The routing of `SERVER_COMMANDS`, A6's narrowing, `trust-record-settle`, the snapshot refresh, `server-call.ts` |
+| `late` | Both modes | +150 | The condition that loads `late-hosted` |
 | The projection validator's chunk | Stage B | Measured first | Version 4's `host`; step 3 measures, then moves code or amends the row by its measurement, as phase 3's step 8 does for `apps` |
 
 The `budget` script's closures gain `late-hosted` after `late-identity`. P6-E9 holds that a `local` shell and a static `provider` shell never request `late-hosted`.
@@ -666,6 +748,7 @@ The `budget` script's closures gain `late-hosted` after `late-identity`. P6-E9 h
 Phase 6 adds no chrome to the browser, so phases 0 to 3's rules and tests stand unchanged. In addition:
 
 - **Every page the hosted server serves** is the shell's: P6-H2 runs phase 0's axe scenarios (light, dark, high contrast, forced colors) against the dev host, so a response header that broke a style or a script would show.
+- **The trust-record copy's notice** (6.3) uses the existing status item and live region, so it adds no element.
 - **The desktop:** P6-D1 runs axe in the webview, in light and dark, through WebDriver's `execute`. The native menus are the platform's, with every item reachable from the keyboard and named; the palette item shows its chord.
 - **Error pages** the hosted server writes itself (`421`, `404` for a non-HTML request) are plain text, never HTML, so nothing there needs a structure.
 - #708's screen-reader passes stay open; nothing here changes what they cover.
@@ -679,38 +762,47 @@ Each code has a suggestion and a unit or exit test. Host codes are in `@lushly-d
 | `HOST_CONFIG_INVALID` | 3.2 | The server will not start | The key and the fix |
 | `HOST_ORIGIN_INSECURE`, `HOST_LISTEN_INSECURE` | 3.2 | Will not start | Use `https:`; put TLS in front, or listen on loopback |
 | `HOST_SECRET_UNAVAILABLE`, `HOST_SECRET_PERMISSIONS` | 3.2, 13 | Will not start | The file, and `chmod 600` |
-| `HOST_SANDBOX_INVALID`, `HOST_OIDC_INVALID`, `HOST_MAIL_SINK_EXPOSED`, `HOST_MAIL_INSECURE` | 3.2, 9 | Will not start | Per row |
-| `HOST_DEPLOYMENT_KIND` | 3.3 | Will not start | Set `[host] kind = "hosted"` in a version 4 file |
-| `HOST_IDENTITY_LOCAL` | 3.3 | `start` will not start | Use `provider` identity, or a static host or the desktop for a personal shell |
-| `HOST_DATA_LOCKED` | Section 4 | Will not start | Another server (the pid) holds the directory |
-| `HOST_LOCK_STALE` | Section 4 | A warning in the log | None |
-| `HOST_NOT_BOOTSTRAPPED`, `HOST_ALREADY_BOOTSTRAPPED` | 3.1, 3.7 | Will not start; the bootstrap is refused | `loam-host bootstrap`; nothing, it is done |
+| `HOST_SANDBOX_INVALID`, `HOST_OIDC_INVALID`, `HOST_MAIL_SINK_EXPOSED`, `HOST_MAIL_INSECURE` | 3.2, 9 | Will not start | Per row; for the sandbox, another site |
+| `HOST_DEPLOYMENT_KIND`, `HOST_IDENTITY_LOCAL` | 3.3 | Will not start | A version 4 file with `kind = "hosted"`; `provider` identity, or a static host or the desktop for a personal shell |
+| `HOST_DATA_LOCKED` | Section 4, 3.7 | Will not start; a bootstrap is refused | Another process holds the directory |
+| `HOST_NOT_BOOTSTRAPPED`, `HOST_ALREADY_BOOTSTRAPPED` | 3.1, 3.7 | `start` will not start; the bootstrap is refused | `loam-host bootstrap`; nothing, it is done |
 | `HOST_ORIGIN_SHARED` | 3.4 | A `check` warning | One deployment per origin |
+| `HOST_MODULE_RESERVED` | 3.1 | Will not start | Another module name |
 | `HOST_MISDIRECTED` | 3.2 | `421`, nothing run | Use the configured origin |
-| `REQUEST_NOT_SAME_ORIGIN`, `REQUEST_INVALID` | 6.2, 8.1 | `403`, `400`, nothing run | Call from the shell |
+| `DEPLOYMENT_IDENTITY_INVALID` | 3.7, bootstrap's `--slug` against `[identity] organization` | The bootstrap is refused | Use the deployment's slug |
+| `IDENTITY_BINDING_MISMATCH` | `doctor` (phase 3's 2.3) | A warning | Fix the binding on the server |
+| `REQUEST_NOT_SAME_ORIGIN` | 6.2 row 1, 8.1 row 2 | `403`, nothing run | Call from the shell |
+| `REQUEST_INVALID`, `REQUEST_TOO_LARGE` | 6.2, 8.1 | `400`, `413`, nothing run | Per row |
+| afd-auth's `UNAUTHORIZED`, phase 3's `AGENT_CANNOT_SIGN_IN` | 6.2 row 3, 8.1 row 3 | `401`; the browser runs its session refresh | Sign in again |
 | `SERVER_COMMAND_NOT_SERVED` | 6.2 | `404` | None: the shell sends only `SERVER_COMMANDS` |
 | `SERVER_UNAVAILABLE` | 6.1 | A failure, retryable, journaled; nothing written | Try again; the hosted server did not answer |
 | `TRUST_RECORDS_TOO_LARGE` | 6.3 | Journaled; the copy unchanged; a status notice | Archive projects; the limit is 2 MiB |
 | `INSTANCE_UNKNOWN` | 8.1, 10.4 | `404` | Check the deployment's instances |
-| `MOUNT_BATCH_REFUSED` | 8.1 | `400` | Send one message per request |
+| `MOUNT_BATCH_REFUSED`, `MOUNT_METHOD_REFUSED` | 8.1 | `400`, nothing forwarded | Send one message per request; the shell sends only the methods it needs |
+| Phase 3's `WORKSPACE_NOT_MEMBER`, phase 2's `PROJECT_NOT_FOUND`, `MOUNT_PROJECT_NOT_LISTED` and `MOUNT_SPACE_PINNED` | 8.1 step 6 | `403`, nothing forwarded; the code reaches the kernel | As phases 2 and 3 |
 | `MOUNT_COMMAND_NOT_EXPOSED` | 8.1, 8.2 | `403` | Ask the deployer to expose it |
-| `MOUNT_SESSION_UNKNOWN` | 8.1 | `404` | Start a new session (the client does) |
+| `MOUNT_SESSION_UNKNOWN` | 8.1 | `404`; the transport reconnects | None: the shell starts a new session |
 | `MOUNT_LIMIT` | 8.1 | `429`, `Retry-After: 1` | Try again shortly |
-| Phase 1's `MOUNT_UNREACHABLE`, `MOUNT_UNAUTHORIZED`, `MOUNT_RESULT_INVALID` | 8.1, 10.4 | As phase 1 | As phase 1 |
+| `MOUNT_TIMEOUT` | 8.1 | `504`, retryable | Try again; the instance was slow |
+| Phase 1's `MOUNT_UNREACHABLE`, `MOUNT_UNAUTHORIZED`, `MOUNT_RESULT_INVALID` | 8.1 (`502` for the last), 10.4 | As phase 1 | As phase 1 |
+| `DESKTOP_MOUNTS_PERMISSIONS` | 10.3 | The desktop mounts nothing | Restrict `mounts.json` to your user |
 | `DEPLOYMENT_HOST_MISMATCH`, `DEPLOYMENT_DESKTOP_PROVIDER` | 3.3 | `deployment write` stops | Per row |
 | `DEPLOYMENT_PROVIDER_NEEDS_HOST` | 3.3 | A warning | Serve it with `loam-host` |
 | Phase 3's `DEPLOYMENT_STDIO_TEAM` (D95) | 3.1 | The server will not start | An HTTP instance |
 
 ## 17. Security
 
-- **Phase 3's boundaries, delivered as written.** The provider, the server kernel and the relay are the enforcement points (phase 3's 2.5); the server takes every session call as the human (9.5); the transport and the relay accept only same-origin JSON and serve no CORS (10.2); the session cookie is host-only. Nothing in this specification lets a browser choose an actor, widens a CSP source, or adds a route that runs a command without one of phase 3's two principal sources, but the server card, catalog and guide, which run none.
-- **The origin is configuration.** No forwarded header is trusted; a request for another host is 421 (3.2). One deployment per origin, since the cookie and the root well-known paths belong to the origin (3.4).
-- **The relay is now a boundary** for team instances, so it applies everything the browser's kernel applies to a mounted call: access, `unlistedProject`, exposure and the pinned space (A3), and it binds an upstream session to its person.
+- **Phase 3's boundaries, delivered as written.** The provider, the server kernel and the relay are the enforcement points (phase 3's 2.5); the server takes every session call as the human (9.5); the transport and the relay accept only same-origin JSON and serve no CORS (10.2); the session cookie is host-only. "A cookie-forwarded call is always the person's own" rests on D54: native apps are trusted code in the page, so they could reach the transport, and the server still takes their call as the person, never as more. Nothing in this specification lets a browser choose an actor, widens a CSP source, or adds a route that runs a command without one of phase 3's two principal sources, but the server card, catalog and guide, which run none.
+- **The origin is configuration.** No forwarded header is trusted; a request for another host is 421 (3.2); the rate limiter's address is the socket's, set by the host (A7). One deployment per origin, since the cookie and the root well-known paths belong to the origin (3.4). The sandbox is another site (3.2).
+- **The relay is now a boundary** for team instances, so it applies everything the browser's kernel applies to a mounted call, through the meta-tools as well as first-class tools: the methods it forwards, the effective command and scope, access, `unlistedProject`, exposure and the pinned space (A3); it binds an upstream session to its person and drops server-to-client requests.
 - **Agents over MCP reach only records the server holds** (section 7), so a connected agent never changes something its person cannot see; phase 3's rules on human and owner commands stand inside that list.
+- **Removal is one path.** `/organization/leave` is disabled, so leaving runs the same last-owner check, revocation and settle as removal (3.7).
+- **Static files** are served only from `<data>/public/site`, resolved with `realpath`, with traversal and encoded separators refused (3.5).
+- **Durability and the lock.** The store syncs fully; the lock is the operating system's and ends with the process (section 4).
 - **Secrets** are the server's alone (section 13), and file permissions are checked at start.
-- **The development profile is not a deployment.** Its mail sink holds working join and recovery links in a file, so it is refused on any non-loopback origin (`HOST_MAIL_SINK_EXPOSED`).
+- **The development profile is not a deployment.** Its mail sink holds working join and recovery links in a file, so it is refused on any origin but `localhost` (`HOST_MAIL_SINK_EXPOSED`).
 - **Supply chain.** Every new dependency is pinned exactly and past `minimumReleaseAge`; the image's base is pinned by digest; installers are unsigned and say so; the updater refuses an unsigned update and is off without a key.
-- **The desktop.** The webview reaches no file, no program and no network but its own origin and three IPC commands that take an instance name; a `stdio` command line is the desktop owner's, in a 0600 file the webview cannot reach (D56).
+- **The desktop.** The webview holds no `core:*` permission and reaches no file, no program and no network but its own origin and three IPC commands that take an instance name; frames cannot `invoke`; a `stdio` command line is the desktop owner's, in a file only they can read (D56).
 - **Public documents.** The server card says what the 401 challenge already says, plus the workspace's display name; the catalog and the guide are off by default (Q2).
 
 ## 18. Out of scope, and the seams reserved
@@ -718,7 +810,7 @@ Each code has a suggestion and a unit or exit test. Host codes are in `@lushly-d
 | Out of scope | Where it lands | Seam left in phase 6 |
 | --- | --- | --- |
 | Documents, app data and personas on the server, and sync with browsers | The collaboration service (D46) | `HOSTED_MCP_COMMANDS`; the store adapter; `trust-record-settle`'s shape |
-| Mounted instances' and apps' commands over MCP, and `calls` | Phase 5 | `flagsOf` exported; the relay's discovery |
+| Mounted instances' and apps' commands over MCP, and `calls` | Phase 5 | `@lushly-dev/loam-kernel/mounted`; the relay's discovery |
 | The copilot runtime | Phase 5 | `HostModule` (12) |
 | A CLI with an OAuth client for the hosted server | An AFD follow-up | `expose.cli` |
 | Postgres, a second server process | When a measurement or consumer asks | `DataAdapter`; the lock |
@@ -730,50 +822,53 @@ Each code has a suggestion and a unit or exit test. Host codes are in `@lushly-d
 
 ## 19. Exit criterion and tests
 
-The phase exits when every test below passes on `main` in the place its row names, and STATUS.md records the runs and each milestone as it is reached. **Every exit test's title starts `P6-E<n>:`, `P6-H<n>:`, `P6-M<n>:`, `P6-I<n>:`, `P6-D<n>:` or `P6-X<n>:`.** `node scripts/loam-exit-check.mjs --phase 6` reads a manual run of `loam.yml`, `ci.yml` and `loam-desktop.yml`, with `scripts/loam-exit-check.p6.minimums.json`; `--milestone m1` reads only the rows M1 lists.
+The phase exits when every test below passes on `main` in the place its row names, and STATUS.md records the runs and each milestone as it is reached. **Every exit test's title starts `P6-E<n>:`, `P6-H<n>:`, `P6-M<n>:`, `P6-I<n>:`, `P6-D<n>:` or `P6-X<n>:`**, and every file holding them runs with a verbose reporter. `node scripts/loam-exit-check.mjs --phase 6` reads a manual run of `loam.yml`, `ci.yml` and `loam-desktop.yml`, with `scripts/loam-exit-check.p6.minimums.json`; `--milestone m1` reads only the rows M1 lists. **A row named in several steps closes in the last step that names it.**
+
+**`WORKFLOWS` changes with each job,** since the check requires a run's jobs to equal its list exactly (`loam-exit-check.mjs:250-256`): step 2 adds `Hosted development profile` to `WORKFLOWS.loam.jobs`, step 9 adds `OCI image`, and step 11 adds `loam-desktop.yml` with its jobs, each in the pull request that adds the job.
 
 | Place | Workflow and job | Step |
 | --- | --- | --- |
 | Units | `loam.yml`, `Build, unit and Chromium` | `Unit suites with coverage` |
 | Chromium | `loam.yml`, `Build, unit and Chromium` | `Chromium suite against the built shell (phase 0's E1 to E10, phase 1's so far, A1 to A3; the walk is its own job)` |
-| Host path | `loam.yml`, `Build, unit and Chromium` | `AFD's host path` (new: `local-db`'s SQLite contract, verbose) |
+| Host path | `loam.yml`, `Build, unit and Chromium` | `AFD's host path` (new in step 0a: `local-db`'s SQLite contract, verbose) |
 | Budget | `loam.yml`, `Build, unit and Chromium` | `Bundle budget` |
-| Hosted | `loam.yml`, `Hosted development profile` (new) | `Hosted criterion against the development profile` |
-| Production | `loam.yml`, `Hosted development profile` | `Production profile on TLS files and behind a proxy` |
-| Mounted | `loam.yml`, `Mounted against Umbel` | `E3, E4 and E9's mounted part, through a test-only relay`, renamed in step 6 to `E3, E4 and E9's mounted part, through the test-only relay and the hosted relay` |
-| Image | `loam.yml`, `OCI image` (new) | `Build and run the image` |
+| Hosted | `loam.yml`, `Hosted development profile` (new in step 2) | `Hosted criterion against the development profile` |
+| Production | `loam.yml`, `Hosted development profile` | `Production profile on TLS files and behind a proxy` (new in step 8) |
+| Mounted | `loam.yml`, `Mounted against Umbel` | `Mounted suite through the hosted relay` (new in step 8, beside the existing step, which keeps its name for phase 2's E6 and phase 3's E12) |
+| Image | `loam.yml`, `OCI image` (new in step 9) | `Build and run the image` |
 | Desktop | `loam-desktop.yml`, `Desktop on Linux`; `Desktop on Windows` | `Desktop suite under tauri-driver` |
 | Desktop build | `loam-desktop.yml`, each job | `Build the installers` |
 
 | # | Criterion | Place | Test |
 | --- | --- | --- | --- |
-| P6-E1 | **The server configuration and the deployment, version 4** | Units | A case per refusal of 3.2 and 3.3; version 1 to 3 files read as `static`; the projection holds `host` and nothing more; `--host` mismatch; `DEPLOYMENT_PROVIDER_NEEDS_HOST`; `DEPLOYMENT_DESKTOP_PROVIDER`; `MountAccess`'s `stdio` entries only for `desktop` |
-| P6-E2 | **The headers** | Units | 3.5's builder on every fixture's `index.html`: the `<meta>` policy plus `frame-ancestors 'none'`, plus `form-action 'self'` on the four pages, nothing else |
-| P6-E3 | **The frozen lists** | Units | Section 7's unit; `SERVER_COMMANDS` registered on the server and routed only in a hosted provider deployment; in every other deployment kind and mode each runs its phase 3 handler, byte-identical to before |
-| P6-E4 | **The browser's routing and copy** | Units | Over a fake `serverCall`: each routed command writes nothing locally; `SERVER_UNAVAILABLE` journaled; `trust-record-settle` journaled with its input, run top-level, replacing the three tables; the active project gone after a settle leaves it; `TRUST_RECORDS_TOO_LARGE`; the agent interface's writes `HUMAN_REQUIRED`; a replay of the journal has zero differences and makes no `serverCall` |
-| P6-E5 | **The relay's decisions** | Units | 8.1's decision function over every row: methods, headers, batch, scope, access, `unlistedProject`, exposure by `flagsOf`, the pinned space, unknown and foreign session ids, limits |
-| P6-E6 | **The registry entry and the server card** | Units | `server.json` and a generated card validate against their vendored schemas, whose SHA-256 the test checks |
-| P6-E7 | **`SqliteAdapter`** | Host path | `runDataAdapterContract` on `node:sqlite`, every case; a batch is one transaction (a fault mid-batch leaves nothing) |
-| P6-H1 | **One command, one process** | Hosted | `loam-host dev` from an empty directory prints its origin; the shell boots over HTTPS under `base_path = "/loam/"`; a deep link is `index.html` with `200`; hashed assets `immutable`; a request with another `Host` is 421; a second `dev` on the same directory is `HOST_DATA_LOCKED`; after a restart the data is there; cold start and memory rows of 14 |
-| P6-H2 | **The shell hosted, as it was static** | Hosted | In `local` mode: phase 2's E1 chunk list equal to `serveDeployment`'s byte for byte; a reload restores scope; phase 0's axe scenarios; every page's response CSP is 3.5's, and no CSP violation in any scenario; a view app renders through the sandbox origin |
-| P6-H3 | **The provider and the well-known documents** | Hosted | A `provider` deployment: `HOST_NOT_BOOTSTRAPPED` before bootstrap; `loam-host bootstrap` once, then `HOST_ALREADY_BOOTSTRAPPED`; the owner's invitation in the mail sink; RFC 8414's and OpenID's documents at the root name the issuer `<origin>/loam/api/auth`; a `stdio` instance refuses the start (D95); the four pages carry `form-action 'self'`; the `whoami` row of 14 |
-| P6-H4 | **The MCP route** | Hosted | No token: 401 with `resource_metadata` naming `/.well-known/oauth-protected-resource/loam/mcp`, which answers, as does the root form; `tools/list` with a valid token equals `HOSTED_MCP_COMMANDS` plus the meta-tools; both eras through `<base>mcp`; a foreign `Origin` 403; `/sse`, `/message`, `/rpc`, `/batch`, `/stream/x` and `/health`, under `/loam/` and at the root, 404; the server card's media type, CORS, `ETag` and `304`; the catalog and guide 404 by default and served when on; the `tools/list` row |
-| P6-H5 | **The trust-record transport** | Hosted | A signed-in owner's `project-create` from the shell lands in `loam.sqlite`; a second person's tab sees it after its refresh; `trust-record-settle` in both journals; the server stopped, `project-create` is `SERVER_UNAVAILABLE` and the copy is unchanged; `GET`, `text/plain`, a foreign `Origin`, `Sec-Fetch-Site: cross-site`, no session, and a command not in `SERVER_COMMANDS` each refused before anything runs, the store unchanged |
-| P6-H6 | **The hosted relay** | Hosted | Against phase 2's Node fixture server (`web/test/mounted/scope-server.ts`): a member's call reaches it with the scope in `_meta`; a non-member of the project is refused before forwarding, by the fixture's log; a tool the entry hides is `MOUNT_COMMAND_NOT_EXPOSED`; a batch 400; a pinned space enforced; a legacy session's `DELETE` forwarded for its person and refused for another; `GET` 405; the deployer's bearer reaches the fixture and never the page, a log or the journal; limits of 8.1; the latency row |
-| P6-H7 | **No secret anywhere** | Hosted | After P6-H3 to P6-H6's sessions: no auth secret, bearer, cookie value, access or refresh token, join or recovery token, or session id in the served files, the projection, either journal, the server's logs, any store row or `localStorage`; a secret file of mode 0644 refuses the start |
-| P6-H8 | **A crash** | Hosted | `kill` (SIGKILL) during a burst of `project-create`s; the restart takes the stale lock with `HOST_LOCK_STALE`; the journal reads with its last partial line dropped; every project the journal holds is in the store and no other |
-| P6-H9 | **The production profile on TLS files** | Production | `loam-host start` with a certificate from a test CA; HSTS on a non-loopback name; `SIGHUP` re-reads a renewed certificate; SMTP mail to `smtp-server` over STARTTLS; a plain `smtp://` to a non-loopback host refused; `doctor`'s report |
-| P6-H10 | **Behind a proxy** | Production | Plain HTTP on loopback behind a test TLS proxy: passkey sign-in (phase 3's virtual authenticator), the MCP 401 and a token's call, the transport and the relay all work with `Secure` cookies; an `X-Forwarded-Host` naming another host changes nothing |
-| P6-M1 | **The mounted suite on the hosted relay** | Mounted | Phase 1's E3 and E4 and phase 2's E6 scenarios against a stock `umbel`, once through the test-only relay as today and once through `startDevHost`'s relay; the same results, the relay's proof no longer standing alone |
-| P6-I1 | **The image** | Image | Builds; runs as UID 10001; `HEALTHCHECK` healthy; the shell and the MCP 401 served with mounted configuration; no secret in its filesystem; its base digest is the file's; its size row |
-| P6-D1 | **The same build on the desktop** | Desktop | Boot in the webview; phase 0's layout scenario journaled and replayed; reload restores from IndexedDB; no CSP violation; `shell-info-get` reports `host: 'desktop'`; axe in light and dark; menus' "Command palette" opens it; a second launch focuses the first; D52's S1 and S2 recorded; the cold start row |
-| P6-D2 | **Mounts over the Rust host** | Desktop | A `stdio` `hello-mcp` and an `http` fixture server mounted from `mounts.json`: `hello-greet` answers in the console; the scope in `_meta`; the command line, URL and bearer never in the webview's DOM, store or journal; a killed child fails with `MOUNT_UNREACHABLE` and recovers; `mount_open` for an unknown instance refused |
-| P6-D3 | **A view on the desktop** | Desktop | Hello's view renders through `loam-sandbox`, a different origin from the shell's; phase 1's E2 scenario; the WebRTC probe of phase 1's 9.7 run and its result recorded for #711, not asserted |
-| P6-D4 | **The capabilities** | Desktop | No plugin but single-instance and updater is linked; the IPC allow-list is the three commands; an attempt to invoke anything else from the webview is refused |
-| P6-D5 | **Installers and updates** | Desktop build | Each job's installers built and hashed; with a test key, a signed update from a local feed installs and a tampered one is refused; without a key, no update request is made |
-| P6-X1 | **The copilot from the same process** | Named by phase 5 | Phase 5's specification writes it on `HostModule` (12) |
+| P6-E1 | **The server configuration and the deployment, version 4** | Units | A case per refusal of 3.2 and 3.3, including a non-`https` `localhost` origin and a same-site sandbox; version 1 to 3 files read as `static`; the projection holds `host` and nothing more; `workspace-deployment-apply`'s input holds `host.kind`; `--host` mismatch; `DEPLOYMENT_PROVIDER_NEEDS_HOST`; `DEPLOYMENT_DESKTOP_PROVIDER`; `--host desktop`'s CSP sources |
+| P6-E2 | **The headers and static files** | Units | 3.5's builder on every fixture's `index.html`: the `<meta>` policy plus `frame-ancestors 'none'`, plus `form-action 'self'` on the four pages, nothing else; `serveSite`'s refusals |
+| P6-E3 | **The frozen lists** | Units | Section 7's unit; `SERVER_COMMANDS` registered on the server and routed only in a hosted provider deployment; in every other deployment kind and mode each runs its phase 3 handler, byte-identical to before; `SHELL_EXPOSE` unchanged |
+| P6-E4 | **The browser's routing and copy** | Units | Over a fake `serverCall`: each routed command writes nothing locally; `server-call.ts`'s mapping of 200, 401 (and the refresh), 400, 403, 404, 5xx and a network failure; `trust-record-settle` journaled with its input, run top-level, replacing the three tables, **writing only installed rows into `agent-member`, as the filtered row**, and run after a person-changing `session-settle`; **`generation` the digest of that person's snapshot**, equal for equal snapshots and different for two people's; the active project gone after a settle leaves it; `TRUST_RECORDS_TOO_LARGE`; the agent interface's writes `HUMAN_REQUIRED` (A6); a replay of the journal has zero differences, reads the kind from `workspace-deployment-apply`'s entry, and makes no `serverCall` |
+| P6-E5 | **The relay's decisions** | Units | 8.1's decision function over every row: methods (`resources/read` and a bare JSON-RPC response refused), headers, batch, scope from `_meta` and from `arguments.meta` (and the two differing), access, `unlistedProject`, exposure by `flagsOf` of the effective command, **`afd-call` naming a hidden mutation, `afd-call` with `meta` scope in a restricted project, `afd-batch`, `afd-pipe`, `afd-discover`**, `afd-help` and `afd-detail` let through at workspace level and refused with a scope, the pinned space and the forwarded rewritten arguments, unknown and foreign session ids, limits; server-to-client requests dropped from a stream; and **`mount.ts`'s mapping**: each body code reaching the kernel as itself, a 401 `UNAUTHORIZED` running the session refresh, `MOUNT_SESSION_UNKNOWN` closing the transport |
+| P6-E6 | **The registry entry and the server card** | Units | `server.json` and a generated card validate against their vendored schemas, whose SHA-256 the test checks; the card holds no version |
+| P6-E7 | **`SqliteAdapter`** | Host path | `runDataAdapterContract` on `node:sqlite`, every case; a batch is one transaction (a fault mid-batch leaves nothing); `synchronous` reads `FULL`; `local-db`'s `entry.test.ts` holds `/sqlite` out of the root |
 | P6-E8 | **No job was skipped** | The exit step | `node scripts/loam-exit-check.mjs --phase 6` (and `--milestone m1` for M1) exits 0 |
-| P6-E9 | **Budgets** | Budget; Chromium | Section 14's browser rows under their ceilings, first paint unchanged; a `local` shell and a static `provider` shell never request `late-hosted`, and a hosted `provider` shell requests it once, in stage B |
+| P6-E9 | **Budgets** | Budget; Chromium; Hosted | Section 14's browser rows under their ceilings, first paint unchanged; a `local` shell and a static `provider` shell never request `late-hosted`, and a hosted `provider` shell requests it once, in stage B |
+| P6-H1 | **One command, one process** | Hosted | `loam-host dev` from an empty directory prints its origin; `.loam-dev/.gitignore` holds `*`, files are 0600 and directories 0700; the shell boots over HTTPS under `base_path = "/loam/"`; a deep link is `index.html` with `200`; hashed assets `immutable`; **`GET /loam/../auth.sqlite`, its `%2e%2e`, `%2f` and `%5c` variants, and a symlink in the site pointing out of it each answer 404**; a request with another `Host` is 421; a second `dev` on the same directory is `HOST_DATA_LOCKED`; after a restart the data is there; cold start and memory rows of 14 |
+| P6-H2 | **The shell hosted, as it was static** | Hosted | In `local` mode: phase 2's E1 chunk list equal to `serveDeployment`'s byte for byte; a reload restores scope; phase 0's axe scenarios; every page's response CSP is 3.5's, and no CSP violation in any scenario; a view app renders through the sandbox origin `https://127.0.0.1:<port>`, another site |
+| P6-H3 | **The provider and bootstrap** | Hosted | A `provider` deployment under `dev`: the shell shows `IDENTITY_ORGANIZATION_UNKNOWN` before bootstrap; `bootstrap --dev` refused while `dev` runs (`HOST_DATA_LOCKED`), then, with `dev` stopped, succeeds once and is `HOST_ALREADY_BOOTSTRAPPED` after; the owner's invitation in the mail sink; `start` on a fresh data directory is `HOST_NOT_BOOTSTRAPPED`; a `stdio` instance refuses the start (D95); the four pages carry `form-action 'self'`; `/organization/leave` is 404 and `member-leave` runs `revoke-person`; the `whoami` row of 14; `scanSecrets` clean |
+| P6-H4 | **The MCP route and the well-known documents** | Hosted | No token: 401 with `resource_metadata` naming `/.well-known/oauth-protected-resource/loam/mcp`, which answers, as does the root form; **`/.well-known/oauth-authorization-server/loam/api/auth` names the issuer `<origin>/loam/api/auth`, as does Better Auth's own OpenID configuration**; `tools/list` with a valid token equals `HOSTED_MCP_COMMANDS` plus the meta-tools; both eras through `<base>mcp`; a foreign `Origin` 403; `/sse`, `/message`, `/rpc`, `/batch`, `/stream/x` and `/health`, under `/loam/` and at the root, 404; 3.5's headers and `Cache-Control: no-store` on `<base>mcp`'s answers; the `tools/list` row; `scanSecrets` clean |
+| P6-H5 | **The trust-record transport** | Hosted | A signed-in owner's `project-create`, **`workspace-app-set` and `agent-member-add`** from the shell each land in `loam.sqlite`; a second person's tab sees the project after its refresh; `trust-record-settle` in both journals; the server stopped, `project-create` is `SERVER_UNAVAILABLE` and the copy is unchanged; `GET`, `text/plain`, a foreign `Origin`, `Sec-Fetch-Site: cross-site`, an oversized body, no session, a mismatched `scope.workspace`, and a command not in `SERVER_COMMANDS` each refused before anything runs, the store unchanged; `scanSecrets` clean |
+| P6-H6 | **The hosted relay** | Hosted | Against phase 2's Node fixture server (`web/test/mounted/scope-server.ts`): a member's call reaches it with the scope in `_meta`; a non-member of the project is refused before forwarding, by the fixture's log, **and the kernel shows `PROJECT_NOT_FOUND`**; `WORKSPACE_NOT_MEMBER`, `MOUNT_PROJECT_NOT_LISTED` and `MOUNT_SPACE_PINNED` each reach the kernel as themselves; **`afd-call` with `meta` scope in a restricted project, `afd-call` naming a hidden mutation, `afd-batch`, `resources/read` and a bare JSON-RPC response** are each refused and never reach the fixture; a pinned space rewritten in what the fixture receives; a legacy session's `DELETE` forwarded for its person and refused for another; `MOUNT_SESSION_UNKNOWN` followed by a working new session; `GET` 405; 3.5's headers on the relay's answers; the deployer's bearer reaches the fixture and never the page, a log or the journal; limits, `413`, `502` and `504` of 8.1; the latency row; `scanSecrets` clean |
+| P6-H7 | **No secret anywhere** | Hosted | On one dev host, its own sign-in, MCP token, transport and relay calls, then `scanSecrets` before `close()`: no auth secret, bearer, cookie value, access or refresh token, join or recovery token, or session id in the served files, the projection, either journal, the server's logs, any store row or `localStorage`; **no `mounts.json` exists anywhere under the data directory**; a secret file of mode 0644 refuses the start |
+| P6-H8 | **A crash** | Hosted | `kill` (SIGKILL) during a burst of `project-create`s through the transport; **the restart succeeds at once**, the OS lock released with the process; the journal reads with its last partial line dropped; **every project the journal holds is in the store, and the store holds at most the in-flight count beyond it** |
+| P6-H9 | **The production profile on TLS files** | Production | `loam-host start` with a certificate from a test CA; HSTS on a non-loopback name; `SIGHUP` re-reads a renewed certificate; SMTP mail to `smtp-server` over STARTTLS; a plain `smtp://` to a non-loopback host refused; `doctor`'s report, with both databases opened read-only while the server runs; `loam-host health` exits 0 |
+| P6-H10 | **Behind a proxy** | Production | Plain HTTP on loopback behind a test TLS proxy: passkey sign-in (phase 3's virtual authenticator), the MCP 401 and a token's call, the transport and the relay all work with `Secure` cookies; an `X-Forwarded-Host` naming another host changes nothing; **a forged `X-Forwarded-For` or `X-Loam-Client-Ip` neither picks nor escapes a rate-limit bucket**: past the limit, every request from that socket is refused whatever the header says |
+| P6-H11 | **The discovery documents** | Hosted | From step 10: the server card's media type, CORS, `ETag` and `304`, and no version; the catalog and the guide 404 by default and served when on |
+| P6-M1 | **The mounted suite on the hosted relay** | Mounted | Phase 1's E3 and E4 and phase 2's E6 scenarios against a stock `umbel`, once through the test-only relay as today and once through `startDevHost`'s relay; the same results, the relay's proof no longer standing alone |
+| P6-I1 | **The image** | Image | Builds; runs as UID 10001; `HEALTHCHECK` healthy through `loam-host health`; the shell and the MCP 401 served with mounted configuration and `[tls]`; no secret in its filesystem; its base digest is the file's; its size row |
+| P6-D1 | **The same build on the desktop** | Desktop | Boot in the webview through the `loam` protocol; phase 0's layout scenario journaled and replayed; reload restores from IndexedDB; no CSP violation; `shell-info-get` reports `host: 'desktop'`; axe in light and dark; menus' "Command palette" opens it; a second launch focuses the first; D52's S1 and S2 recorded; the cold start row |
+| P6-D2 | **Mounts over the Rust host** | Desktop | A `stdio` `hello-mcp` and an `http` fixture server mounted from `mounts.json`: `hello-greet` answers in the console; the scope in `_meta`; a notification arrives as the event; the command line, URL and bearer never in the webview's DOM, store or journal; a killed child fails with `MOUNT_UNREACHABLE` and recovers; `mount_open` for an unknown instance refused; a `mounts.json` readable by others refused; **and, from P6-E1's unit, `MountAccess`'s `stdio` entries appear only for `--host desktop`** |
+| P6-D3 | **A view on the desktop** | Desktop | Hello's view renders through `loam-sandbox`, a different origin from the shell's; phase 1's E2 scenario; the WebRTC probe of phase 1's 9.7 run and its result recorded for #711, not asserted |
+| P6-D4 | **The capabilities** | Desktop | No `core:*` permission and no plugin's JavaScript permission is granted; the IPC allow-list is the three commands; `invoke` of anything else from the main webview is refused; **`invoke` from the `loam-sandbox` proxy frame and from the opaque view frame inside it is refused**; the `loam` protocol answers 404 for a path reaching `mounts.json`, encoded or through a symlink |
+| P6-D5 | **Installers and updates** | Desktop build | Each job's installers built and hashed; with a test key, a signed update from a local feed **over HTTPS with a test CA** installs and a tampered one is refused; without a key, no update request is made |
+| P6-X1 | **The copilot from the same process** | Named by phase 5 | Phase 5's specification writes it on `HostModule` (12) |
 
 **What exited stays exited.** Phases 0 to 3's exit tests pass unchanged; the exit check reuses their rows and minimums, as phase 3's E12 does, so there is no `P6-` title for them.
 
@@ -783,24 +878,24 @@ Each step is one pull request, merged on green. It updates this status block and
 
 | Step | Pull request | Contents | Checks |
 | --- | --- | --- | --- |
-| 0a | AFD: `SqliteAdapter` | `@lushly-dev/local-db/sqlite` on `node:sqlite`; the contract; a changeset; `entry-points` test keeps it out of `/` | `pnpm check`, `pnpm verify` |
-| 1 | Host skeleton | `@lushly-dev/loam-host`: `createLoamHost`, Hono and the Node adapter, `readServerConfig` and `server.v1.json`, the data directory and lock, the static site with D74's fallback, 3.5's headers, the `Host` check, the sandbox origin, `check`; serves `local` deployments of versions 1 to 3 through a test-only option until step 3's version 4; the inventory entry; `loam.yml`'s `Affected units` and unit step gain the package; E1's and E2's units so far | `pnpm check`, `loam.yml` |
-| 2 | Development profile | `loam-host dev`; the certificate, secret and mail sink; `startDevHost`; `openShell` on a `DevHost`; the `Hosted development profile` job with its step; `suites.mjs`; `AGENTS.md`; P6-H1, P6-H2, P6-H8 | `pnpm check`, `pnpm verify`, `loam.yml` |
-| 3 | Provider and version 4 | **Needs phase 3's steps 1 and 4.** Deployment and projection version 4, `deployment write --host`; Better Auth mounted, `auth.sqlite`, mail; the root well-known documents; `bootstrap`; D95's start refusal; the four pages' CSP; the projection validator's chunk measured; P6-E1, P6-E2, P6-H3 | `pnpm check`, `loam.yml`, `budget` |
-| 4 | Server kernel and MCP | **Needs phase 3's 0a, 0c and 7, and 0a here.** `createServerKernel` on `SqliteAdapter` and `FileJournalSink`; `shellExposeOf` and `HOSTED_MCP_COMMANDS`; AFD's handler mounted; the server card, catalog and guide; P6-E3's list half, P6-E6, P6-H4. **Trust review: the route and the served list** | `pnpm check`, `pnpm verify`, `loam.yml` |
-| 5 | Trust-record transport | `api/kernel/call`, `SERVER_COMMANDS`, `trust-record-snapshot`, `trust-record-settle`, `late-hosted`, `server-call.ts`, the recorded table for hosted provider deployments; phase 3's `afterRemoveMember` hook running the server's `agent-member-settle` (A4); P6-E3, P6-E4, P6-H5. **Trust review: the transport and the copy** | `pnpm check`, `loam.yml`, `budget` |
-| 6 | Hosted relay | Section 8 with A1 and A3, the relay's discovery and records, deployer bearers resolved; the `mounted` job's renamed step; P6-E5, P6-H6, P6-H7, P6-M1. **Trust review: the relay as a boundary** | `pnpm check`, `pnpm verify`, `loam.yml` |
-| 7 | **M1, development profile** | `--phase 6 --milestone m1` and `loam-exit-check.p6.minimums.json`; `WORKFLOWS` gains the new job; `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`; STATUS.md records "development profile reached", unblocking phase 3's step 10 and phase 5 | The check exits 0 for M1 |
-| 8 | **M2, production profile** | Section 9: TLS files with `SIGHUP`, SMTP, OIDC, limits, logs, `doctor`, `start`'s shutdown; the `Production` step; P6-H9, P6-H10; STATUS.md records M2 | `pnpm check`, `loam.yml` |
-| 9 | OCI image | `Containerfile`, the `OCI image` job, Dependabot's Docker entry; P6-I1 | `loam.yml` |
-| 10 | Registry entry and guide | `server.json` and its vendored schema; `docs/guides/deploy.md`; README and STATUS links | `pnpm check` |
-| 11 | Desktop lane | `@lushly-dev/loam-desktop`, the Rust host's three commands, `loam-sandbox`, the CSP and capabilities, single instance and menus; `MountAccess`'s `stdio`; `loam-desktop.yml`'s Linux job and `suites.mjs`; D52's measurement; P6-D1 to P6-D4. **Trust review: the capabilities and the IPC** | `pnpm check`, `pnpm verify`, `loam-desktop.yml` |
-| 12 | **M3 and M4** | The Windows and macOS jobs; installers and their sums; the updater and its test; `AGENTS.md`; P6-D5; STATUS.md records M3 and M4 | `loam-desktop.yml` by `workflow_dispatch` |
+| 0a | AFD: `SqliteAdapter` | `@lushly-dev/local-db/sqlite` on `node:sqlite` (section 4's shape); the contract; `entry.test.ts`; the `AFD's host path` step in `loam.yml`; a changeset; P6-E7 | `pnpm check`, `pnpm verify` |
+| 1 | Host skeleton | `@lushly-dev/loam-host`: `createLoamHost`, Hono and the Node adapter, `readServerConfig` and `server.v1.json`, the data directory and OS lock, `serveSite`, 3.5's headers, the `Host` check, the sandbox origin, `check`, `doctor`'s read-only part; serves `local` deployments of versions 1 to 3 through a test-only option until step 3; the inventory entry; `loam.yml`'s `Affected units` and unit step gain the package; P6-E1's and P6-E2's units so far | `pnpm check`, `loam.yml` |
+| 2 | Development profile | `loam-host dev` with 5.1's order; the certificate, secret and mail sink; `startDevHost` and `scanSecrets`; the harness on a `DevHost`; the `Hosted development profile` job with its step; **`WORKFLOWS.loam.jobs` gains it**; `suites.mjs` gains `openssl` for `loam.yml`; `AGENTS.md`; P6-H1, P6-H2 | `pnpm check`, `pnpm verify`, `loam.yml` |
+| 3 | Provider and version 4 | **Needs phase 3's steps 1 and 4.** Deployment and projection version 4, `deployment write --host`, `workspace-deployment-apply`'s `host`; P6-H1 and P6-H2 move to version 4 and the test-only option goes; Better Auth mounted, `auth.sqlite`, mail; A7's header and `ipAddressHeaders`; both forms of `bootstrap`; D95's start refusal; the four pages' CSP; the projection validator's chunk measured; P6-E1, P6-E2, P6-H3 | `pnpm check`, `loam.yml`, `budget` |
+| 4 | Server kernel and MCP | **Needs phase 3's 0a, 0c and 7, and 0a here.** `createServerKernel` on `SqliteAdapter`, `FileJournalSink` and the lock; `HOSTED_MCP_COMMANDS` in `loam-host`; AFD's handler mounted with its headers; A2's root metadata; P6-E3's list half, P6-H4. **Trust review: the route and the served list** | `pnpm check`, `pnpm verify`, `loam.yml` |
+| 5 | Trust-record transport | `api/kernel/call`, `SERVER_COMMANDS`, `trust-record-snapshot`, `trust-record-settle`, `late-hosted`, `server-call.ts`, A5's recorded table, A6's narrowing and `persona-list`; S4's `leave` endpoint and `/organization/leave` disabled; A4 and A8 (`PROVIDER_HOOK_FIELDS`); P6-E3, P6-E4, P6-E9, P6-H5, P6-H8. **Trust review: the transport, the copy and the hook** | `pnpm check`, `loam.yml`, `budget` |
+| 6 | Hosted relay | Section 8 with A1 and A3, `@lushly-dev/loam-kernel/mounted`, the relay's discovery and records, deployer bearers resolved, `mount.ts`'s codes; P6-E5, P6-H6, P6-H7. **Trust review: the relay as a boundary, through the meta-tools** | `pnpm check`, `pnpm verify`, `loam.yml` |
+| 7 | **M1, development profile** | `--phase 6 --milestone m1` and `loam-exit-check.p6.minimums.json`; `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`; STATUS.md records "development profile reached", unblocking phase 3's step 10 and phase 5 | The check exits 0 for M1 |
+| 8 | **M2, production profile** | Section 9: TLS files with `SIGHUP`, SMTP, OIDC, limits, logs, `doctor`, `health`, `start`'s shutdown; the `Production` step; the `Mounted suite through the hosted relay` step; P6-H9, P6-H10, P6-M1; STATUS.md records M2 | `pnpm check`, `loam.yml` |
+| 9 | OCI image | `Containerfile`, the `OCI image` job, **`WORKFLOWS.loam.jobs` gains it**, its `suites.mjs` entry and `AGENTS.md` row, Dependabot's Docker entry; P6-I1 | `loam.yml` |
+| 10 | **M4's documents** | `server.json` and its vendored schema; the server card, catalog and guide; `docs/guides/deploy.md`; README and STATUS links; P6-E6, P6-H11 | `pnpm check`, `loam.yml` |
+| 11 | Desktop lane | `@lushly-dev/loam-desktop`, the `loam` and `loam-sandbox` protocols, the Rust host's three commands, the capability file, single instance and Rust menus; `deployment write --host desktop`'s CSP and `MountAccess`'s `stdio`; `loam-desktop.yml`'s Linux job, its `suites.mjs` entry, the repository contract's exception, `.gitignore`'s negation, **`WORKFLOWS` gains the workflow**; D52's measurement; P6-D1 to P6-D4. **Trust review: the capabilities and the IPC** | `pnpm check`, `pnpm verify`, `loam-desktop.yml` |
+| 12 | **M3 and M4** | The Windows and macOS jobs; installers and their sums; the updater and its HTTPS test; `AGENTS.md`; P6-D5; STATUS.md records M3 and M4 | `loam-desktop.yml` by `workflow_dispatch` |
 | 13 | Exit | **After phase 5's runtime step.** P6-X1 as phase 5 writes it; `--phase 6`; STATUS.md records the exit; follow-ups filed | The check exits 0 |
 
 Order: 0a, 1 and 2 first, in parallel. Step 3 after 1 and phase 3's steps 1 and 4. Step 4 after 0a, 3 and phase 3's 0a, 0c and 7. Steps 5 and 6 after 4. Step 7 after 2, 5 and 6. Step 8 after 7. Steps 9 and 10 after 8. Step 11 after 3 (version 4); step 12 after 11. Step 13 after everything and phase 5's runtime.
 
-**Host capacity.** The hosted job runs Chromium and a server child per file; on a shared machine, one Vitest worker. The desktop's Rust build uses the shared target directory and `pnpm rust:sweep`.
+**Host capacity.** The hosted job runs Chromium and a server child per file; on a shared machine, one Vitest worker. The desktop's Rust build uses the shared target directory and `pnpm rust:sweep`, one at a time under the heavy-command lock.
 
 ## Questions for the owner
 
@@ -810,69 +905,109 @@ Each is about who can do what, or who is trusted. The specification is written t
 
 Phase 6 builds desktop installers, a server image and a registry entry. Publishing them puts the project's name on them, and a desktop app that updates itself trusts whoever holds its update key.
 
-- **Build and check everything, publish nothing yet (recommended).** Artifacts are made and tested in CI and kept there; publishing, the signing identities and the update key wait for a release you approve, unit by unit. The tradeoff: nobody can install Loam without building it until then.
-- **Publish previews from CI now.** Unsigned installers, the image and a registry entry go out under the project's name, with an update key CI holds. The tradeoff: people can try Loam at once, but operating systems warn on unsigned installers, and anyone who controls CI could push an update to every installed desktop.
+- **(a) Build and check everything, publish nothing yet (recommended).** Artifacts are made and tested in CI and kept there; publishing, the signing identities and the update key wait for a release you approve, unit by unit. The tradeoff: nobody can install Loam without building it until then.
+- **(b) Publish the server image and its registry entry as previews, with no desktop updater.** Deployers can run Loam from the image without building it. Desktops are still built by hand. The tradeoff: the project's name is on a preview image people may run in production.
+- **(c) Publish desktops as well, with an update key you hold.** People can install the desktop and receive updates. The tradeoff: whoever holds that key can push code to every installed desktop, and an unsigned installer still draws the operating system's warning until a signing identity exists.
 
 ### Q2. Should a hosted Loam announce itself?
 
-A hosted deployment can publish a card that tells agents how to connect, a listing that lets crawlers find it, and a guide that names its commands.
+A hosted deployment can publish a card that tells agents how to connect, a listing that lets crawlers find it, and a guide that names its commands. **The card shows anyone who has the deployment's address the workspace's name.**
 
-- **The connection card only (recommended).** An agent given the address can connect without setup. The listing and the guide stay off until the deployer turns them on. The tradeoff: agents cannot find a deployment by searching the domain.
-- **All three on by default.** Agents and indexes find every deployment and its commands with no setup. The tradeoff: anyone on the internet learns that the deployment exists and what it can do.
-- **All off by default.** Nothing is public. The tradeoff: every agent must be configured by hand.
-
-### Q3. What can a connected agent reach before the collaboration service?
-
-Until the collaboration service, documents and app data live in each person's browser. A person's agent connected over MCP reaches the server, which holds projects, members and the workspace's apps.
-
-- **Projects, members and apps only, until the collaboration service (recommended).** An agent never changes something its person cannot see. The tradeoff: a connected agent cannot read or edit documents or app data yet.
-- **Relay the agent's calls through the person's open shell.** The agent works on exactly what the person sees, but only while their shell is open, and the server would be driving a person's browser on an agent's behalf: a new path that phase 3 did not review.
+- **The connection card only (recommended).** An agent given the address can connect without setup. The listing and the guide stay off until the deployer turns them on. The tradeoff: agents cannot find a deployment by searching the domain, and anyone with the address learns the workspace's name.
+- **All three on by default.** Agents and indexes find every deployment and its commands with no setup. The tradeoff: anyone on the internet learns that the deployment exists, its workspace's name and what it can do.
+- **All off by default.** Nothing is public, the name included. The tradeoff: every agent must be configured by hand.
 
 ## Proposed amendments to phase 3
 
-**Proposed, pending review.** Each fills a gap in what phase 3 handed phase 6, and none moves a boundary phase 3 approved: each either adds a check or says how a stated rule is met.
+**Proposed, pending review.** Each fills a gap in what phase 3 handed phase 6, or says how one of its rules is met on the hosted lane; none moves a boundary phase 3 approved: each adds a check, narrows an agent, or keeps a record honest.
 
 | # | Amends | Proposed text | Why |
 | --- | --- | --- | --- |
 | A1 | 10.2 item 5's "accept only `POST` with `Content-Type: application/json`" for the relay | The relay accepts `POST` with that media type, and `DELETE` with no body and an `Mcp-Session-Id`, under the same `Origin` and `Sec-Fetch-Site` rule; `GET` is `405` | The page's MCP client ends a legacy-era session with `DELETE` (`mount.ts:148-155`). Refusing it leaves sessions open on the instance. A cross-site `DELETE` needs a CORS preflight the relay never answers, so allowing it adds no cross-site path |
-| A2 | 10.2 items 2 and 3 | The hosted server also serves the authorization server's metadata at the origin's root: `/.well-known/oauth-authorization-server<base><identity.path>` and the OpenID configuration, and so owns its origin's `/.well-known/oauth-*` paths | MCP clients discover the issuer from the protected-resource metadata and then fetch RFC 8414's document, which a `base_path` keeps off the root; without it P3-H3's client cannot register or authorize |
-| A3 | 10.2 item 5's relay checks | Beside `decideAccess` and phase 2's 9.2, the relay applies the instance's exposure (`flagsOf`, D65) and its pinned space (`pinMountedInput`), refuses JSON-RPC batches, and binds an upstream session to its person | Once the relay is the boundary for a team, a person can send it any request directly; D65's "mutations stay hidden until the entry names them" and the pinned space were only the browser kernel's, which binds nobody |
-| A4 | 9.5's "`agent-member-settle` … not registered" on the server | The server registers `agent-member-settle` as internal, run only by the provider's `afterRemoveMember` hook through the host, journaled on the server | Line 2 already refuses a removed sponsor's agents on the server; this keeps 8.3's "so the record says why" true for the server's authoritative record |
-| A5 | 3.4's replay rule, "a command that writes Loam's store is never recorded" | In a hosted `provider` deployment, the trust-record commands are recorded, answered from their entries in a replay, and the browser's copy replays through `trust-record-settle`'s journaled input | There they write the server's store, not the browser's; re-running them in a replay would reach a server, which phase 3 forbids |
+| A2 | 10.2 items 2 and 3 | The hosted server also serves the authorization server's metadata at the origin's root, `/.well-known/oauth-authorization-server<base><identity.path>`, and so owns its origin's `/.well-known/oauth-*` paths | MCP clients discover the issuer from the protected-resource metadata and then fetch RFC 8414's document, which a `base_path` keeps off the root; without it P3-H3's client cannot register or authorize |
+| A3 | 10.2 item 5's relay checks | Beside `decideAccess` and phase 2's 9.2, the relay forwards only six methods, finds the effective command and scope through `afd-call` and `meta`, refuses every other AFD built-in tool, applies the instance's exposure (`flagsOf`, D65) and pinned space (`pinMountedInput`), refuses JSON-RPC batches, binds an upstream session to its person, and drops server-to-client requests | Once the relay is the boundary for a team, a person can send it any request directly, through the meta-tools as well; D65's "mutations stay hidden until the entry names them" and the pinned space were only the browser kernel's, which binds nobody |
+| A4 | 9.5's "`agent-member-settle` … not registered" on the server | The server registers `agent-member-settle` as internal, run only by the provider's `afterRemoveMember` hook and `loamServerPlugin`'s `leave` endpoint through the host, journaled on the server | Line 2 already refuses a removed sponsor's agents on the server; this keeps 8.3's "so the record says why" true for the server's authoritative record |
+| A5 | 3.4's replay rule, "a command that writes Loam's store is never recorded" | In a hosted `provider` deployment, the trust-record commands are recorded, answered from their entries in a replay, and the browser's copy replays through `trust-record-settle`'s journaled input; a replay reads the deployment's kind from the journal's `workspace-deployment-apply` entry | There they write the server's store, not the browser's; re-running them in a replay would reach a server, which phase 3 forbids |
+| A6 | 3.4's Agent column, and `persona-list`'s row | In a hosted `provider` deployment, the agent interface's `project-create`, `project-update`, `project-archive`, `project-restore`, `workspace-app-set` and `agent-member-*` writes are `HUMAN_REQUIRED`; `persona-list` on the server answers only `default` | 9.5 forwards trust-record calls only from `kernel.call`, so an agent changes these over MCP as its own connected agent; the server holds no personas |
+| A7 | 2.6's `createLoamAuthOptions` | It sets `advanced.ipAddress.ipAddressHeaders: ['x-loam-client-ip']`, a header only the host sets, from the socket, after deleting any incoming copy and `x-forwarded-for` | Better Auth 1.7.18 reads only that list, default `x-forwarded-for`, and puts every request with no address in one bucket (S97): left alone, any client could pick its own bucket, or every client would share one |
+| A8 | 9.5's list of what `principalGate` admits with no principal | A kernel-only `PROVIDER_HOOK_FIELDS`, compared by reference like `BOOT_FIELDS`, admitted for `agent-member-settle` only. The journaled actor is the removing person when the hook's request has a session, otherwise `{ kind: 'system', id: 'provider-hook' }`. A failed settle is logged, and line 2's refusal stays in force | A4's hook runs outside any MCP or session call, so it needs its own admitted fields, as boot's own work does, and its entry must say who caused it |
 
 ## Amendments to the architecture and the decision log
 
 Proposed; applied when the coordinator approves this specification, in step 1:
 
 - **Architecture section 4, Hosts and Distribution:** the hosted server is `@lushly-dev/loam-host`; the desktop is `local` only; distribution artifacts are built and verified, and published only by the owner's release (Q1).
-- **Architecture section 6, libraries:** Hosted server row: Hono 4.13 and `@hono/node-server` 2.1; the server store on SQLite through `local-db`'s `SqliteAdapter`; the fetch-style handler not needed (D101). Desktop row: Tauri 2.12.5 pinned, 3.0 watched.
+- **Architecture section 6, libraries:** Hosted server row: Hono 4.13 and `@hono/node-server` 2.1; the server store on SQLite through `local-db`'s `SqliteAdapter`; the fetch-style handler not needed (D101). Desktop row: Tauri 2.12 pinned, 3.0 watched.
 - **Architecture section 6, AFD prerequisites:** a row for `SqliteAdapter`, phase 6, step 0a; the fetch-style `createMcpHandler` row stays optional and unused.
 - **Architecture section 9:** phase 6's row gains its four milestones and the exit's wait for phase 5's runtime (D100); the collaboration service's gate reads "phase 6's M2".
 - **Architecture glossary:** "Hosted server", "Server configuration", "Development profile", "Trust-record command", "Milestone (phase)".
 - **Phase 1's surface catalog:** `secrets` moves from "Phase 6" to "Phase 5, with `http`" (D108).
+- **Phase 3's specification:** A1 to A8, each in the section it names.
 - **Decision log:** D100 to D108, below, each "Proposed, pending review" until approval. D36 gains a note pointing to D101; D46 a note pointing to D100; D52 a note pointing to D106's measurement.
 
 | ID | Decision |
 | --- | --- |
-| D100 | Phase 6 has four milestones: M1, the development profile, unblocks phase 3's hosted criterion and phase 5; M2, the production profile, is what the collaboration service's "after phase 6" waits for; M3, the desktop lane, and M4, distribution, gate nothing before phase 7; the exit also needs the copilot served from the same process, once phase 5 has its runtime |
-| D101 | The hosted server is `@lushly-dev/loam-host`: one Node 26 process per data directory and deployment on Hono 4.13.17 and `@hono/node-server` 2.1.6, mounting AFD's `createMcpHandler` through the Node bindings at `<base>mcp` alone; its own configuration file, `loam.server.toml`; the origin configured, never derived from forwarded headers; one deployment per origin; the root `/.well-known/oauth-*` paths its own; a one-command development profile on `https://localhost` |
-| D102 | The server's store is SQLite through AFD's new `SqliteAdapter` on `node:sqlite`, its journal AFD's `FileJournalSink`, both in a data directory held by an exclusive lock; Postgres reserved |
-| D103 | In a hosted `provider` deployment, the browser runs the trust-record commands on the server through `POST <base>api/kernel/call` and keeps a copy fed by the journaled `trust-record-settle`, which grants nothing; no local write on any failure; deployment and projection version 4 say which host serves a deployment |
-| D104 | The hosted server serves over MCP only the commands whose records it holds or reads from the provider (`HOSTED_MCP_COMMANDS`); documents, app commands and page state are not served until the collaboration service and phase 5; `expose.cli` stays off until AFD's CLI can obtain a token |
-| D105 | The hosted relay enforces phase 3's 10.2 item 5 against the server's records, plus the instance's exposure, its pinned space, no batches and sessions bound to their person, with the deployer's bearer added and never logged; its own discovery feeds those checks |
-| D106 | The desktop is the same build in Tauri 2.12's webview, `local` identity only, IndexedDB unless D52's measurement fails, the sandbox on a second custom protocol, mounts (`http` and `stdio`) through three IPC commands over a 0600 file the CLI writes, no other plugin or capability, and an updater that is off without a key |
+| D100 | Phase 6 has four milestones: M1, the development profile, unblocks phase 3's hosted criterion and phase 5; M2, the production profile, is what the collaboration service's "after phase 6" waits for (the coordinator's reading of D46, which the owner may overrule); M3, the desktop lane, and M4, distribution, gate nothing before phase 7; the exit also needs the copilot served from the same process, once phase 5 has its runtime |
+| D101 | The hosted server is `@lushly-dev/loam-host`: one Node 26 process per data directory and deployment on Hono 4.13 and `@hono/node-server` 2.1, mounting AFD's `createMcpHandler` through the Node bindings at `<base>mcp` alone; its own configuration file, `loam.server.toml`; an `https` origin, configured, never derived from forwarded headers; the sandbox on another site; one deployment per origin; the root `/.well-known/oauth-*` paths its own; a one-command development profile on `https://localhost` |
+| D102 | The server's store is SQLite through AFD's new `SqliteAdapter` on `node:sqlite` with `synchronous = FULL`, its journal AFD's `FileJournalSink`, both in a data directory held by an operating-system lock that ends with the process; Postgres reserved |
+| D103 | In a hosted `provider` deployment, the browser runs the trust-record commands on the server through `POST <base>api/kernel/call` and keeps a copy fed by the journaled `trust-record-settle`, which grants nothing; no failure writes; deployment and projection version 4 say which host serves a deployment |
+| D104 | The hosted server serves over MCP only the commands whose records it holds or reads from the provider (`HOSTED_MCP_COMMANDS`), applied on the server; documents, app commands and page state are not served until the collaboration service and phase 5; `expose.cli` stays off until AFD's CLI can obtain a token |
+| D105 | The hosted relay enforces phase 3's 10.2 item 5 against the server's records, through the meta-tools as well: six forwarded methods, the effective command and scope, the instance's exposure and pinned space, no batches, sessions bound to their person, no server-to-client requests; it adds the deployer's bearer and never logs it, and discovers as the kernel does |
+| D106 | The desktop is the same build in Tauri 2.12's webview, `local` identity only, IndexedDB unless D52's measurement fails, the shell on a `loam` protocol and the sandbox on `loam-sandbox`, mounts (`http` and `stdio`) through three IPC commands over a file only its owner can read, no `core:*` or plugin JavaScript permission, and an updater that is off without a key |
 | D107 | Distribution: the static site with a deployment guide, an OCI image, installers, a `server.json` for the image, and a server card at `<base>mcp/server-card`, all built and verified in CI and none published; the AI catalog and the agent guide are off by default (Q2) |
-| D108 | Every secret is resolved only by the server (or the desktop's Rust host), never written or sent; the `secrets` grant moves to phase 5 with `http`, attaching a named secret to a request and never giving its value to app code |
+| D108 | Every secret is resolved only by the server (or the desktop's Rust host), never written or sent, but the development profile's own generated secret; the `secrets` grant moves to phase 5 with `http`, attaching a named secret to a request and never giving its value to app code |
+
+## Review 2026-11-09
+
+Two independent reviews of `96e1ed9a`, a trust and security review and a general review, each called the specification approvable once fixed. The coordinator ruled where they differed: the sandbox keeps the **cross-site** rule; **Q3 is dropped**, since D104 follows from D46 and D98; the amendments are numbered **A6** (the agent-interface narrowing), **A7** (the client-address header) and **A8** (the provider-hook fields). Every finding is answered in this revision:
+
+| Finding | Fix | Where |
+| --- | --- | --- |
+| B1: the relay bypassed through `afd-call`'s `command` and `meta`, `afd-batch` and `afd-pipe`; 8.2 as written refused `afd-help` and `afd-detail` | 5a, the six forwarded methods; step 6's effective command and scope; every other AFD built-in tool refused; `flagsOf` and `pinMountedInput` on the effective command with rewritten arguments; 8.2 calls `discoverInstance` itself; server-to-client requests dropped; P6-E5 and P6-H6 cases. **Deviation, stated:** AFD has no `isMetaTool`, so the rule reads `AFD_BUILTIN_TOOL_NAMES` from `@lushly-dev/afd-core`; and `discoverInstance` takes a `MountTransportV2` and does no I/O of its own, so it is exported whole, from a Node-safe subpath `@lushly-dev/loam-kernel/mounted` rather than the root, which keeps it out of any browser graph | 8.1, 8.2, 2, A3, D105 |
+| M1: bootstrap in the development profile contradicted itself | Only `start` refuses `HOST_NOT_BOOTSTRAPPED`; `bootstrap --dev`, refused while `dev` holds the lock; P6-H3 rewritten | 3.1, 3.7, 3.8, 5.1, P6-H3 |
+| M2, S1: the sandbox origin | Cross-site kept and explained; dev's sandbox on `https://127.0.0.1:<second port>`; 3.2's example another registrable domain; listeners bound first, then the configuration, with the deployment's sandbox origin overridden | 3.2, 5.1, P6-H2 |
+| M3: the relay's codes never reached the browser | `mount.ts` carries a body code; 401 runs the session refresh; the codes listed in 8.1 and 16 and tested; who starts a new session after `MOUNT_SESSION_UNKNOWN` | 8.1, 16, P6-E5, P6-H6 |
+| M4: the exit check broke between steps | `WORKFLOWS` updated in steps 2, 9 and 11; a new step `Mounted suite through the hosted relay` beside the unrenamed one; desktop and image suites verbose Vitest | 19, 20, 10.7 |
+| M5: steps before their dependencies | The root metadata and its assertion to step 4 and P6-H4; P6-H8 to step 5 | 1.2, 3.7, 20 |
+| M6: undeclared amendments | A6 declared, named in D103's consequence and STATUS.md; A7 | 6.1, 7, amendments |
+| S2: server-to-client requests in a relayed stream | Dropped | 8.1 |
+| S3: rate-limit identity | `x-loam-client-ip` from the socket, incoming copies deleted; A7; P6-H10 | 3.7, 9, A7 |
+| S4: `/organization/leave` skips the removal hooks | Disabled; `member-leave` through `loamServerPlugin`'s `leave` on the removal path; A8's fields and actor; a failed hook logged, line 2 in force | 3.7, A4, A8 |
+| S5: the copy's rows and `generation` | Installed rows only, as the filtered row; connected agents in memory; `generation` a digest of the person's snapshot; P6-E4 | 6.1, 6.3 |
+| S7: insecure origins | Every origin `https:` | 3.2, P6-E1 |
+| S8: a stale lock in a container | The OS lock on `lock.sqlite`; `.lock` informational; no NFS; P6-H8 | 4 |
+| S9: durability | `synchronous = FULL` in D102; P6-H8's invariant | 4, D102, P6-H8 |
+| S10: static files beside secrets | `<data>/public/site`; `serveSite` with `realpath` and refusals; P6-H1's cases | 3.5, 4, P6-H1 |
+| S11: the desktop's IPC | No `core:*`; Rust menus; the main webview only, `local: true`; no updater JavaScript permission; no insecure transport; frames' `invoke` refused in P6-D4 | 10.2, 10.6, P6-D4, P6-D5 |
+| S12: the image's healthcheck and secrets | `loam-host health` with SNI and `Host`; Kubernetes `defaultMode: 0400` and `runAsUser: 10001`; `[tls]` or a sidecar | 3.8, 11.2 |
+| S13: bearers in `mounts.json` | `loam-host` never passes `mountsOut`; P6-H7 asserts no such file | 3.3, 13, P6-H7 |
+| G1: `startDevHost` for P3-H1 to H5 | `resources`, `accessTokenTtlSeconds`, `env`; the client metadata document by a `HostModule` fixture; the dev certificate trusted by the provider's fetch | 5.2 |
+| G2: `SqliteAdapter` on `DataAdapter` | One `records` table, `queryRows`, `BEGIN IMMEDIATE`; `local-db`'s `entry.test.ts`; Node 22.13 | 4 |
+| G3: keep M1 minimal | The card, catalog, guide and P6-E6 to step 10, with P6-H11; P6-M1 to step 8 (M2) | 1.1, 11.5, 19, 20 |
+| G4: exit rows | P6-E9 in step 5 at Budget, Chromium and Hosted; P6-E7 and its step in step 0a; E1's `stdio` case into P6-D2, and the closing rule stated | 19, 20 |
+| G5: P6-H7 after `close()` | `scanSecrets` inside H3 to H6; H7 on one host before `close()` | 5.2, 19 |
+| G6: wiring | `openssl` in `suites.mjs`; the `OCI image` job's trigger, gate, tool and row; `loam-desktop.yml`'s remote legs, tools, timeouts and shared-machine rule; the repository contract's exception; `.gitignore` | 2, 10.7, 11.2, 20 |
+| G7: the openssl command | The full command with `-nodes`, `-keyout`, `-out` | 5.1 |
+| G8: first paint | `SHELL_EXPOSE` unchanged; `HOSTED_MCP_COMMANDS` applied in `loam-host`; `late` +150 only | 2, 7, 14 |
+| G9: section 6 | `server-call.ts`'s mapping; `REQUEST_INVALID` for a workspace mismatch; `reason: 'session'`; 6.1's wording | 6.1, 6.2, 6.3 |
+| G10: P6-H5 | `workspace-app-set` and `agent-member-add` land in `loam.sqlite` | 19 |
+| G11: section 16 | The relay codes, `AGENT_CANNOT_SIGN_IN`, `UNAUTHORIZED`, bootstrap's `DEPLOYMENT_IDENTITY_INVALID`, `doctor`'s `IDENTITY_BINDING_MISMATCH`, `504`, `413`, `502`, row 2's `403` | 16 |
+| G12: the desktop's CSP and IPC | `--host desktop` writes the sources; the `loam` protocol with D74 and traversal refused; the Rust transport with `reqwest`, `Mcp-Session-Id`, line-framed stdio and notifications as events; the Windows ACL | 10.2, 10.3, 10.4 |
+| G13: follow-ups now | Two issue texts prepared, filed at approval; the phase 5 one noted in STATUS.md; the Umbel card note in Umbel's R11 | Follow-ups, STATUS.md, Umbel's trajectory |
+| G14: `pnpm deploy` | `--legacy` | 11.2 |
+| G15: headers on `RESPONSE_ALREADY_SENT` routes | `outgoing.setHeader` first; P6-H4 and P6-H6 | 3.5, 3.6 |
+| Q1 and Q2 | Q1 in three options; Q2 kept, saying the card shows the workspace's name; Q3 dropped by the coordinator | Questions |
+| Nits | `ModulePrincipal` and `callAs` in place of a raw kernel; `no-store` on the four routes; dev's `.gitignore`, modes, section 13's exception and the bin's imports; no version in the card; the OpenID row dropped, Better Auth serving it under its path; section 17's D54 note; A5's journal reading; `doctor` read-only; 5.3's proofs; `openShell`'s signature and each kernel's `host`; stage B before `mcpOptions()`; `SHELL_EXPOSE`'s lines; "Hono 4.13" in D101 with the pins in a table; `identity.path`'s segment reserved; P6-H1 and H2 on version 4 from step 3; 1.7.19's time; 6.3's notice; D100's reason and the owner's say | Throughout |
 
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-09 | Phase 6 specification | An OAuth client in the AFD CLI (authorization code with a loopback redirect and PKCE), so the CLI can reach a hosted server and `expose.cli` can follow `expose.mcp` | Open, for AFD |
-| 2026-11-09 | Phase 6 specification | Where the copilot runs relative to a person's data before the collaboration service: on the server it sees the server's records, not the person's documents (section 7, Q3); in a browser worker, its trust-record writes are `HUMAN_REQUIRED` in a hosted `provider` deployment (6.1), so it changes projects only over MCP as a connected agent | Open, for phase 5 |
+| 2026-11-09 | Phase 6 specification | An OAuth client in the AFD CLI (authorization code with a loopback redirect and PKCE), so the CLI can reach a hosted server and `expose.cli` can follow `expose.mcp` | To be filed as an issue at approval |
+| 2026-11-09 | Phase 6 specification | Where the copilot runs relative to a person's data before the collaboration service: on the server it sees the server's records, not the person's documents (section 7); in a browser worker, its trust-record writes are `HUMAN_REQUIRED` in a hosted `provider` deployment (A6), so it changes projects only over MCP as a connected agent | To be filed as an issue at approval; noted in STATUS.md for phase 5 |
 | 2026-11-09 | Phase 6 specification | A browser MCP client on another origin cannot use `<base>mcp`, which serves no CORS (3.6). Decide whether a deployer may list client origins | Open |
 | 2026-11-09 | Phase 6 specification | Postgres, and a second server process, when a measurement or consumer asks (section 4) | Open |
 | 2026-11-09 | Phase 6 specification | Automated backups of `loam.sqlite` and `auth.sqlite` | Open |
 | 2026-11-09 | Phase 6 specification | Joining a hosted workspace from the desktop, with a passkey story for a webview (10.1) | Open |
-| 2026-11-09 | Phase 6 specification | Check that Loam's server card and Umbel's (its phase 7) use the extension's fields the same way (11.5) | Open, when Umbel's lands |
+| 2026-11-09 | Phase 6 specification | Check that Loam's server card and Umbel's (its phase 7) use the extension's fields the same way (11.5) | Recorded in Umbel's R11 |
 | 2026-11-09 | Phase 6 specification | [#858](https://github.com/lushly-dev/afd/issues/858), first paint on a real low-end device, is easier over the development profile but still needs a device | Open |
