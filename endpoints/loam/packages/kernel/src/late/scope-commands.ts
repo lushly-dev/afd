@@ -21,7 +21,7 @@ import type { AppsRuntime } from '../apps-runtime.js';
 import { EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { personOf } from '../scope/access.js';
+import { personKey, personOf } from '../scope/access.js';
 import { type LateScope, projectNotFound } from '../scope/middleware.js';
 import type {
 	ProjectAccessV1,
@@ -650,7 +650,10 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		},
 	});
 
-	const workspaceGet = defineCommandWithSchema<typeof emptyInput, WorkspaceV1>({
+	const workspaceGet = defineCommandWithSchema<
+		typeof emptyInput,
+		WorkspaceV1 | Pick<WorkspaceV1, 'id' | 'name'>
+	>({
 		name: 'workspace-get',
 		description: "Get the workspace: its id, its name and the deployment's generation",
 		category: 'workspace',
@@ -658,7 +661,12 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		executionTime: 'instant',
 		input: emptyInput,
 		jsonSchema: EMPTY_INPUT_JSON,
-		async handler() {
+		async handler(_input, context) {
+			// Signed out in `provider` mode, only the projection's id and name: `updatedBy` names a person
+			// (phase 3 specification, 2.1).
+			if (scope.membership.mode === 'provider' && personKey(context.actor) === undefined) {
+				return success({ id: workspaceId, name: scope.workspace.name });
+			}
 			return success(
 				(await stores.workspace()) ?? {
 					id: workspaceId,

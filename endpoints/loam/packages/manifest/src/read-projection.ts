@@ -12,7 +12,7 @@ import { validateProjection } from './validate.generated.js';
 /** The bound organization's slug, as the deployment file has it (2.2). */
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** `path` relative to `site.base_path`: no leading `/`, no `.` or `..` segment (2.2). */
-const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[\w.~-]+(\/[\w.~-]+)*$/;
+const AUTH_PATH = /^(?!(.*\/)?\.\.?(\/|$))[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/;
 const METHOD = /^(passkey|password|oidc:[a-z0-9][a-z0-9-]{0,31})$/;
 
 /**
@@ -50,13 +50,14 @@ export function readProjection(json: unknown): ProjectionRead {
 	const { identity, ...rest } = (json ?? {}) as Record<string, unknown>;
 	if (rest.deployment_version === 3) {
 		if (!admitted(identity)) {
-			const refusal = {
-				code: 'DEPLOYMENT_INVALID',
-				key: 'identity',
-				message: '`identity` is invalid.',
-				suggestion: 'Rewrite it with `loam deployment write`.',
-			} as const;
-			return { ok: false, refusals: [refusal], warnings: [] };
+			// As the validator would report it: `DEPLOYMENT_INVALID`, keyed `identity`.
+			const error = {
+				instancePath: '/identity',
+				keyword: 'identity',
+				message: 'is invalid',
+				params: {},
+			};
+			return { ok: false, refusals: deploymentRefusals([error], 'projection'), warnings: [] };
 		}
 		checked = { ...rest, deployment_version: 2 };
 	}

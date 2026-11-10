@@ -17,6 +17,7 @@ import { SHELL_OWNER } from '../overlay-owner.js';
 import type { OverlayStore } from '../overlays.js';
 import { type AccessActorV1, personOf } from '../scope/access.js';
 import { type LateScope, projectNotFound, sessionActor } from '../scope/middleware.js';
+import type { PersonalStore } from '../scope/personal.js';
 import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
@@ -41,6 +42,8 @@ export interface LateScopeDeps {
 	apps(): AppsRuntime;
 	auth: AuthAdapter;
 	isMutation(name: string): boolean;
+	/** A `provider` deployment's view-state store (phase 3 specification, 4.5). */
+	personal?: PersonalStore | undefined;
 	/** The documents specification's check, for a type's instance commands (4.2 and 4.4). */
 	documents?: DocumentCheck;
 	/** After every call: the editor owner it may have moved gives up its overlays (documents specification, 5.4). */
@@ -225,14 +228,15 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		 * person's `layout-get` keeps working.
 		 */
 		before(call, name) {
-			const refused = lineZero(scope, call, name);
-			if (refused) return refused;
-			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
+			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10); then line 0
+			// on that actor, before line 1 (phase 3 specification, 3.3; the step 1 review's I9).
 			const recorded = deps.internals?.actorOf?.(call.traceId);
 			if (recorded) {
 				if (recorded.actor) call.actor = recorded.actor;
 				else delete call.actor;
 			}
+			const refused = lineZero(scope, call, name);
+			if (refused) return refused;
 			// A person's or an agent's calls, and a replay's: a server's call has no active scope to move.
 			const mark = (call as { [CALL_MARK]?: string })[CALL_MARK];
 			const person = personOf(call);
@@ -262,6 +266,9 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 					'Replay the whole journal the session recorded'
 				);
 			}
+			// A `provider` deployment writes each person's records under their key: what the person leaving has
+			// pending is written as theirs before a sign-in or sign-out changes who is signed in (4.5).
+			if (deps.personal && name.startsWith('auth-')) await deps.viewState.flush();
 			const requested = call.scope as ScopeV1;
 			const apps = deps.apps();
 			const owner = apps.owners.get(name)?.instance;

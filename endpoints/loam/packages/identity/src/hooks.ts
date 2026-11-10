@@ -42,9 +42,17 @@ export function createOrganizationHooks(state: LoamProviderState) {
 		rolesOf(member.role).includes('owner') && (await ownersOf(member.organizationId)) <= 1;
 
 	return {
-		/** The bound organization cannot be renamed or re-slugged (2.3); no role holds the right either. */
+		/**
+		 * The bound organization cannot be renamed or re-slugged (2.3); no role holds the right either. The
+		 * hook is given the new fields, so the organization's current slug is read, as the delete hook has it,
+		 * for the time before a binding exists.
+		 */
 		async beforeUpdateOrganization({ member }: { member: MemberLike }) {
-			if (await isBound(member.organizationId)) throw organizationFixed();
+			const current = await adapterOf(state).findOne<{ slug: string }>({
+				model: 'organization',
+				where: [{ field: 'id', value: member.organizationId }],
+			});
+			if (await isBound(member.organizationId, current?.slug)) throw organizationFixed();
 		},
 		/** Nor deleted: `disableOrganizationDeletion` and access control refuse it first. */
 		async beforeDeleteOrganization({

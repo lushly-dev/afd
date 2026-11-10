@@ -153,6 +153,7 @@ describe('projection.v3.json and readProjection agree', () => {
 			PROVIDER,
 			{ ...PROVIDER, methods: ['passkey', 'password', 'oidc:okta'] },
 			{ ...PROVIDER, path: 'auth/v1' },
+			{ ...PROVIDER, path: 'api/auth_x' },
 			{ mode: 'local', path: 'api/auth' },
 			{ mode: 'local', organization: 'acme' },
 			{ mode: 'provider' },
@@ -207,5 +208,14 @@ describe('readBoot, version 3', () => {
 			expect(readProjection({ ...EMPTY, identity }).ok, JSON.stringify(identity)).toBe(false);
 		}
 		expect(readBoot({ ...EMPTY, deployment_version: 4 })).toBeUndefined();
+		const refused = readProjection({ ...EMPTY, identity: { mode: 'team' } });
+		expect(refused.ok === false && refused.refusals).toEqual([
+			{
+				code: 'DEPLOYMENT_INVALID',
+				key: 'identity',
+				message: '`identity` is invalid.',
+				suggestion: 'Rewrite it with `loam deployment write`.',
+			},
+		]);
 	});
 });

@@ -197,7 +197,7 @@ export async function createLateParts(
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
-	if (deps.personal) personalWrites(deps.personal, deps.store);
+	if (deps.personal) personalWrites(deps.personal, deps.store, deps.viewState);
 	// The `agent-member` table, which line 4 of the access decision reads (phase 3 specification, 3.3).
 	const agents = createRecordCache<AgentMemberV1>(AGENT_MEMBER_TABLE);
 	await agents.load(deps.store);

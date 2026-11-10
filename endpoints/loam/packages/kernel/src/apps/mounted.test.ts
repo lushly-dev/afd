@@ -604,6 +604,34 @@ describe('a mounted call', () => {
 		expect(await refreshes()).toBe(3);
 	});
 
+	it("P3-E7: re-discovers as the call's own actor: an agent's call journals the refresh as that agent", async () => {
+		const notFound: McpToolCallResult = {
+			structuredContent: {
+				success: false,
+				error: { code: 'COMMAND_NOT_FOUND', message: 'Gone', suggestion: 'afd-discover' },
+			},
+		};
+		const transport = fakeTransport({ 'a-read': { mutation: false } }, { answer: () => notFound });
+		const { kernel, journal } = await boot({ work: () => transport });
+		await kernel.startInstances();
+		await kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'person@example.com',
+			password: 'x',
+		});
+		expect((await kernel.agent.call('work-a-read', {}, { agent: 'helper' })).error?.code).toBe(
+			'COMMAND_NOT_FOUND'
+		);
+		const refresh = (await journal.read()).filter(
+			({ command }) => command === 'app-instance-refresh'
+		);
+		expect(refresh.at(-1)?.actor).toEqual({
+			kind: 'agent',
+			id: 'helper',
+			onBehalfOf: 'mock-user-person@example.com',
+		});
+	});
+
 	it('takes its own refresh past the queue when the call it answers is queued behind stage B', async () => {
 		const notFound: McpToolCallResult = {
 			structuredContent: {

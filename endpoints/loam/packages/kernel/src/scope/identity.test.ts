@@ -11,12 +11,16 @@ import {
 	type CommandResult,
 	type JournalEntry,
 	MemoryJournalSink,
+	success,
 } from '@lushly-dev/afd-core';
+import { defineCommandWithSchema, type ZodCommandDefinition } from '@lushly-dev/afd-server/define';
+import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it } from 'vitest';
+import * as z from 'zod/mini';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import { createKernel } from '../kernel.js';
 import {
@@ -31,6 +35,7 @@ import { personalWrites } from '../late/personal-writes.js';
 import { AGENT_MEMBER_TABLE, PERSONA_TABLE } from '../late/tables.js';
 import { createFixedEnvironment } from '../session.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
+import { replayKernel } from '../testing.js';
 import type { LoamKernelV3 } from '../types.js';
 import {
 	type AccessActorV1,
@@ -45,6 +50,8 @@ import {
 	createScopedWorkspace,
 	SCOPED_PROJECTS,
 	type ScopedWorkspace,
+	scopedDeployment,
+	scopedPorts,
 	seedProjects,
 } from './fixtures.js';
 import { createScopeMiddleware, type LateScope } from './middleware.js';
@@ -238,6 +245,13 @@ describe('P3-E5: an agent member acts within its record and its sponsor, and can
 			expect(result.error?.code, agent).toBe('AGENT_NAME_RESERVED');
 			expect(result.error?.suggestion).toBeTruthy();
 		}
+		// Not a string, though its text would fit the pattern (review N1).
+		const numeric = await made.kernel.agent.call(
+			'scope-get',
+			{},
+			{ agent: 123 as unknown as string }
+		);
+		expect(numeric.error?.code).toBe('AGENT_NAME_RESERVED');
 		const named = await made.kernel.agent.call('project-list', {}, { agent: 'helper-2' });
 		expect(named.success).toBe(true);
 		expect((await journalOf(made)).at(-1)?.actor).toEqual({ kind: 'agent', id: 'helper-2' });
@@ -343,6 +357,11 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 			kernelInterface: 3,
 			identity: { mode: 'provider', organization: 'acme' },
 		});
+		// Signed out, `workspace-get` names the workspace and no person: its `updatedBy` would (review I7).
+		expect((await kernel.call('workspace-get', {})).data).toEqual({
+			id: 'personal',
+			name: 'Personal',
+		});
 		await signIn(kernel, 'caro@example.com');
 		const refused = await kernel.call('project-list', {});
 		expect(refused.error?.code).toBe('WORKSPACE_NOT_MEMBER');
@@ -355,6 +374,10 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 		await kernel.call('auth-sign-out');
 		await signIn(kernel, 'bea@example.com');
 		expect((await kernel.call<ProjectV1[]>('project-list', {})).success).toBe(true);
+		expect((await kernel.call('workspace-get', {})).data).toMatchObject({
+			id: 'personal',
+			generation: expect.any(String),
+		});
 		// Its agent too, for Bea.
 		expect((await kernel.agent.call('project-list', {})).success).toBe(true);
 		expect((await journalOf(made)).at(-1)?.actor).toEqual({
@@ -366,6 +389,42 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 		const local = await workspace({ membership: ACME });
 		await signIn(local.kernel, 'caro@example.com');
 		expect((await local.kernel.call('project-list', {})).success).toBe(true);
+	});
+
+	it("registers a host's own commands only with `late/` in `provider` mode, where the gate decides them (review I8)", async () => {
+		const ping = defineCommandWithSchema({
+			name: 'host-ping',
+			description: 'A host command',
+			mutation: false,
+			input: z.strictObject({}),
+			jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
+			handler: async () => success({ pong: true }),
+		}) as unknown as ZodCommandDefinition;
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			identity: PROVIDER,
+			membership: ACME,
+			commands: [ping],
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		kernels.push(kernel);
+		// Stage A does not hold it, so no call of it runs past a gate that lets through what it holds.
+		expect(kernel.listCommands().map(({ name }) => name)).not.toContain('host-ping');
+		// Signed out it waits for stage B, then the gate refuses it; a member passes line 0.
+		expect((await kernel.call('host-ping', {})).error?.code).toBe('UNAUTHORIZED');
+		await signIn(kernel, 'caro@example.com');
+		expect((await kernel.call('host-ping', {})).error?.code).toBe('WORKSPACE_NOT_MEMBER');
+		await kernel.call('auth-sign-out');
+		await signIn(kernel, 'bea@example.com');
+		expect(await kernel.call('host-ping', {})).toMatchObject({
+			success: true,
+			data: { pong: true },
+		});
 	});
 
 	it('makes an agent call wait for stage B, whose `late/` names its agent (3.1, 13)', async () => {
@@ -387,6 +446,41 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 		expect((await kernel.agent.call('layout-get', {}, { agent: 'helper' })).success).toBe(true);
 		expect(kernel.listCommands().map(({ name }) => name)).toContain('scope-set');
 		expect((await journal.read()).at(-1)?.actor).toEqual({ kind: 'agent', id: 'helper' });
+	});
+
+	it("replays a `provider` journal, line 0 deciding on the journal's actor (review I9)", async () => {
+		// Everything the replay needs is in the journal: the store starts empty.
+		const made = await workspace({ identity: PROVIDER, membership: ACME, empty: true });
+		await signIn(made.kernel, 'bea@example.com');
+		expect((await made.kernel.call('project-create', { name: 'Atlas' })).success).toBe(true);
+		await made.kernel.call('auth-sign-out');
+		await signIn(made.kernel, 'caro@example.com');
+		expect((await made.kernel.call('project-list', {})).error?.code).toBe('WORKSPACE_NOT_MEMBER');
+		await made.kernel.call('auth-sign-out');
+		await signIn(made.kernel, 'bea@example.com');
+		expect((await made.kernel.call('project-list', {})).success).toBe(true);
+		const { report } = await replayKernel(await journalOf(made), {
+			deployment: scopedDeployment(),
+			ports: scopedPorts(),
+			identity: PROVIDER,
+			membership: ACME,
+		});
+		expect(report.diverged).toBe(false);
+		// The journal's actor is restored before line 0: the replay's Mock is Caro, the entry Bea's.
+		const parts = await createScopedWorkspace({
+			identity: PROVIDER,
+			membership: ACME,
+			store: await (async () => {
+				const store = new MemoryAdapter();
+				await seedProjects(store);
+				return store;
+			})(),
+			empty: true,
+			internals: { actorOf: () => ({ actor: { kind: 'human', id: BEA } }) },
+		});
+		kernels.push(parts.kernel);
+		await signIn(parts.kernel, 'caro@example.com');
+		expect((await parts.kernel.call('project-list', {})).success).toBe(true);
 	});
 
 	it("runs the agent interface as an agent, the session's person in its onBehalfOf (3.1)", async () => {
@@ -492,7 +586,7 @@ describe('personalRecordId and the personal store (phase 3 specification, 4.5)',
 		const mine = personalStore(store, () => person);
 		// First paint's store reads only: stage B attaches the writes (13).
 		expect(mine.create).toBeUndefined();
-		personalWrites(mine, store);
+		personalWrites(mine, store, new ViewStateRegistry());
 		await mine.create('settings', { id: 'loam.scope', value: 'bea' });
 		await mine.create('settings', { id: 'loam.layout.~projects', value: 'bea' });
 		await mine.create('settings', { id: 'loam.appearance', value: 'profile' });
@@ -514,6 +608,47 @@ describe('personalRecordId and the personal store (phase 3 specification, 4.5)',
 		expect(await store.get('settings', `loam.scope~${BEA}`)).toMatchObject({ value: 'bea 2' });
 		await mine.remove('settings', 'loam.layout.~projects');
 		expect(await store.get('settings', `loam.layout.~projects~${BEA}`)).toBeNull();
+	});
+});
+
+describe("a person's pending write (the step 1 review's I1)", () => {
+	it('is stored under the person who made it, though the person changes before the flush', async () => {
+		const store = new MemoryAdapter();
+		let person = BEA;
+		const personal = personalStore(store, () => person);
+		const registry = new ViewStateRegistry({ adapter: personal });
+		personalWrites(personal, store, registry);
+		let state: Record<string, unknown> = { project: null };
+		registry.register('loam.scope', {
+			get: () => state,
+			set: (partial) => {
+				state = { ...state, ...partial };
+			},
+		});
+		// Bea's change, debounced 300 ms; the person changes within it, then the write is flushed.
+		registry.set('loam.scope', { project: 'prj_bea' });
+		person = OLU;
+		await registry.flush();
+		const rows = (await store.list<{ id: string; value: { project: string } }>('settings')).data;
+		expect(rows.map((row) => [row.id, row.value.project])).toEqual([
+			[personalRecordId('loam.scope', BEA), 'prj_bea'],
+		]);
+		// Olu's own change goes under Olu.
+		registry.set('loam.scope', { project: 'prj_olu' });
+		await registry.flush();
+		expect(await store.get('settings', personalRecordId('loam.scope', OLU))).toMatchObject({
+			value: { project: 'prj_olu' },
+		});
+	});
+
+	it('is written before a sign-in or sign-out changes the person', async () => {
+		const made = await providerWorkspace();
+		await signIn(made.kernel, 'bea@example.com');
+		expect((await made.kernel.call('scope-set', { project: 'atlas' })).success).toBe(true);
+		// No flush: the sign-out's own flush writes Bea's pending change as Bea's.
+		await made.kernel.call('auth-sign-out');
+		const ids = (await made.store.list<{ id: string }>('settings')).data.map((row) => row.id);
+		expect(ids).toContain(personalRecordId('loam.scope', BEA));
 	});
 });
 

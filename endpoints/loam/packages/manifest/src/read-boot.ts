@@ -122,12 +122,11 @@ function appOf(value: unknown): BootAppV2 | undefined {
  * stricter mode. Its fields are not checked here: they are for display, and stage B's `readProjection`
  * refuses a malformed one. So nothing malformed boots as `local`, and first paint holds no full check (13).
  */
-const bootIdentity = (value: unknown): IdentityV1 => {
-	const identity = recordOf(value);
-	return value === undefined || (identity?.mode === 'local' && Object.keys(identity).length === 1)
+const bootIdentity = (value: unknown): IdentityV1 =>
+	// One key, so its JSON has one spelling: exactly `{ mode: 'local' }`.
+	value === undefined || JSON.stringify(value) === '{"mode":"local"}'
 		? { mode: 'local' }
-		: ({ ...identity, mode: 'provider' } as IdentityV1);
-};
+		: ({ ...recordOf(value), mode: 'provider' } as IdentityV1);
 
 /**
  * Undefined when `raw` is not a version 2 or 3 projection at all. Each field is checked as it is read, as

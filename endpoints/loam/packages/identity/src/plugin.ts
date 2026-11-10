@@ -162,14 +162,27 @@ export function loamServerPlugin(state: LoamProviderState) {
 							role?: string | string[];
 						};
 						const session = await getSessionFromCtx(ctx);
-						// No session, or no organization named: the plugin refuses it itself.
-						if (!session || typeof body.organizationId !== 'string') return;
+						// No session: the plugin refuses it itself.
+						if (!session) return;
+						// The organization as Better Auth resolves it: the body's, else the session's active one,
+						// which Better Auth sets on accepting an invitation. Loam never reads it but here, where the
+						// caller is checked, and never sets it (2.3). A call naming neither is refused.
+						const organizationId =
+							body.organizationId ??
+							(session.session as { activeOrganizationId?: string | null }).activeOrganizationId;
+						if (typeof organizationId !== 'string') {
+							throw refusal(
+								'BAD_REQUEST',
+								'NO_ACTIVE_ORGANIZATION',
+								'Name the organization with organizationId'
+							);
+						}
 						const adapter = adapterOf(state);
-						const caller = await memberOf(adapter, body.organizationId, session.user.id);
+						const caller = await memberOf(adapter, organizationId, session.user.id);
 						if (!caller || rolesOf(caller.role).includes('owner')) return;
 						const target = await memberNamed(
 							adapter,
-							body.organizationId,
+							organizationId,
 							String(body.memberId ?? body.memberIdOrEmail ?? '')
 						);
 						const granting = [body.role ?? []]

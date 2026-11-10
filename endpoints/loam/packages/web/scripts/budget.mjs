@@ -215,7 +215,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * step 1 target of 1,700 and 750; `late` 70,597. It raised `appsMinified` by 800, to 394,894, approved by
  * the coordinator 2026-11-09: stage B's full check of a version 3 projection's `identity`, the one that fails
  * closed (822), the outer actor copied onto port, nested and refusal calls (88), the version 3 deployment
- * rows (53) and `member` (9), less what `apps` had left.
+ * rows (53) and `member` (9), less what `apps` had left. After its review's fixes, under the same ceilings:
+ * first paint 288,566 and 89,207 gzip (+1,680, +710), the kernel alone 114,351, `apps` 394,885, `late` 70,924.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,

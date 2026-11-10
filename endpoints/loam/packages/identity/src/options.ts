@@ -62,7 +62,8 @@ export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
 	'/reset-password/:token',
 	'/forget-password/email-otp',
 	'/change-email',
-	// The session's active organization is never an input (2.3): nothing sets it, so nothing can read it.
+	// The session's active organization is never an input (2.3): Loam never reads or sets it. Better Auth sets
+	// it on accepting an invitation, so the role endpoints' hook resolves it as Better Auth does.
 	'/organization/set-active',
 ]);
 

@@ -138,7 +138,12 @@ const RESERVED_AGENTS = [LOCAL_ACTOR, 'signed-out', SHELL_AGENT];
  */
 export function agentActor(name: string | undefined): Actor | CommandResult<never> {
 	if (name === undefined) return { kind: 'agent', id: SHELL_AGENT };
-	if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(name) && !RESERVED_AGENTS.includes(name)) {
+	// A string: the pattern alone would take `123`, which `test` turns into one.
+	if (
+		typeof name === 'string' &&
+		/^[a-z0-9][a-z0-9-]{0,63}$/.test(name) &&
+		!RESERVED_AGENTS.includes(name)
+	) {
 		return { kind: 'agent', id: name };
 	}
 	return failure({

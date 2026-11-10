@@ -190,7 +190,7 @@ describe("P3-E6: owners and the provider's own endpoints (step 1)", () => {
 		expect(member.status).toBe(403);
 	});
 
-	it('makes no member but by invitation, and no organization, and never sets the active one', async () => {
+	it('makes no organization and no member but by invitation, and serves no route that sets the active one', async () => {
 		const created = await call('/organization/create', {
 			cookie: await signIn('olu@example.com'),
 			body: { name: 'Other', slug: 'other' },
@@ -212,6 +212,42 @@ describe("P3-E6: owners and the provider's own endpoints (step 1)", () => {
 				.prepare('SELECT count(*) AS n FROM user WHERE email = ?')
 				.get('stranger@example.com')
 		).toEqual({ n: 0 });
+	});
+
+	it('checks the caller of a role change that names no organization, by the one accepting an invitation made active', async () => {
+		// A member who names no organization, and has none active, is refused before the plugin runs.
+		const bare = await call('/organization/update-member-role', {
+			cookie: await signIn('bea@example.com'),
+			body: { memberId: memberId('cy@example.com'), role: 'owner' },
+		});
+		expect([bare.status, codeOf(bare)]).toEqual([400, 'NO_ACTIVE_ORGANIZATION']);
+		// Caro, no member yet, is invited and accepts: Better Auth makes the organization her session's active one.
+		const invited = await call('/organization/invite-member', {
+			cookie: await signIn('olu@example.com'),
+			body: { organizationId: host.organizationId, email: 'caro@example.com', role: 'member' },
+		});
+		expect(invited.status, JSON.stringify(invited.body)).toBe(200);
+		const caro = await signIn('caro@example.com');
+		const accepted = await call('/organization/accept-invitation', {
+			cookie: caro,
+			body: { invitationId: invited.body?.id },
+		});
+		expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
+		expect(
+			host
+				.db()
+				.prepare('SELECT activeOrganizationId AS active FROM session WHERE userId = ?')
+				.all(host.people['caro@example.com'] as string)
+		).toContainEqual({ active: host.organizationId });
+		// Her role change with no `organizationId` is checked against that organization, and refused.
+		const promote = await call('/organization/update-member-role', {
+			cookie: caro,
+			body: { memberId: memberId('bea@example.com'), role: 'owner' },
+		});
+		expect([promote.status, codeOf(promote)]).toEqual([403, 'OWNER_REQUIRED']);
+		expect(
+			host.db().prepare('SELECT role FROM member WHERE id = ?').get(memberId('bea@example.com'))
+		).toEqual({ role: 'member' });
 	});
 
 	it("revokes a removed person's sessions at once", async () => {

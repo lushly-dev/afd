@@ -231,16 +231,16 @@ export async function createKernelParts(
 		(boot ?? (options.deployment as { identity?: IdentityV1 } | undefined))?.identity ?? {
 			mode: 'local',
 		};
+	const provider = identity.mode === 'provider';
 	// A `provider` kernel decides with the probe's members, or none: never `local`'s, where all are owners.
 	const membership: MembershipV1 =
 		options.membership?.mode === identity.mode
 			? options.membership
 			: { mode: identity.mode, members: new Map(), digest: '' };
 	// In `provider` mode a person's records are theirs, for whoever is signed in at each read and write (4.5).
-	const personal =
-		identity.mode === 'provider'
-			? personalStore(options.store, () => personKey(sessionActor(options.auth)))
-			: undefined;
+	const personal = provider
+		? personalStore(options.store, () => personKey(sessionActor(options.auth)))
+		: undefined;
 	const viewState = new ViewStateRegistry({ adapter: personal ?? options.store });
 	const state = registerShellState(viewState);
 	const workspace = boot?.workspace ??
@@ -319,7 +319,9 @@ export async function createKernelParts(
 
 	const shellExposed = (commands: readonly ZodCommandDefinition[]): ZodCommandDefinition[] =>
 		commands.map((command) => ({ ...command, expose: { ...SHELL_EXPOSE } }));
-	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...extra];
+	// A host's own commands join with `late/` in `provider` mode, so its auth gate and line 0 decide them:
+	// stage A's chain lets through what it holds (phase 3 specification, 2.1; the step 1 review's I8).
+	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...(provider ? [] : extra)];
 	const seqs = new Map<string, number>();
 	// One journal middleware, shared by every registry, so they share one journal sequence.
 	const journal = createJournalMiddleware(seqTrackingSink(options.journal, seqs), {

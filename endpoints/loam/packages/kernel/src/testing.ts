@@ -19,13 +19,14 @@ import {
 	type ReplayReport,
 	replayJournal,
 } from '@lushly-dev/afd-server/direct';
-import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { BOOT_ONLY } from './commands.js';
 import { LoamKernelError, PAGE_DECIDED } from './errors.js';
 import { createKernelParts, type KernelPartsInternals } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
+import type { MembershipV1 } from './scope/access.js';
 import { CALL_MARK } from './scope/runtime.js';
 import { createFixedEnvironment } from './session.js';
 import type { KernelEnvironmentV0, KernelPortsV1, LoamKernelV3 } from './types.js';
@@ -119,6 +120,13 @@ export interface ReplayKernelOptions {
 	deployment?: ProjectionV3;
 	/** Ports that serve the deployment's packages in process, so a view replays with no iframe. */
 	ports?: KernelPortsV1;
+	/** The recording kernel's identity (phase 3 specification, 2.1). */
+	identity?: IdentityV1;
+	/**
+	 * The membership the recording kernel decided with. Step 2 journals it in `session-settle`, which a
+	 * replay then reads instead (4.4).
+	 */
+	membership?: MembershipV1;
 }
 
 /** A replay's report, with the entries it answered from the record instead of running them. */
@@ -341,6 +349,8 @@ export async function replayKernel(
 			...(options.commands !== undefined ? { commands: options.commands } : {}),
 			...(options.deployment !== undefined ? { deployment: options.deployment } : {}),
 			...(options.ports !== undefined ? { ports: options.ports } : {}),
+			...(options.identity !== undefined ? { identity: options.identity } : {}),
+			...(options.membership !== undefined ? { membership: options.membership } : {}),
 		},
 		internals
 	);

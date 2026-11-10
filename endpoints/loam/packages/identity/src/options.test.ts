@@ -313,6 +313,15 @@ describe('P3-E6: the organization hooks (7.1, 7.5), as units', () => {
 				hooks.beforeUpdateOrganization({ member: { organizationId: 'org_2', role: 'owner' } })
 			)
 		).toBeUndefined();
+		// Before a binding, the organization the deployment's slug names is the fixed one.
+		const before = hooksOver(
+			memoryAdapter({ organization: [{ id: 'org_9', slug: 'acme', name: 'Acme' }] })
+		);
+		expect(
+			await codeOf(
+				before.beforeUpdateOrganization({ member: { organizationId: 'org_9', role: 'owner' } })
+			)
+		).toBe(fixed);
 		const unbound = hooksOver(memoryAdapter());
 		expect(
 			await codeOf(
