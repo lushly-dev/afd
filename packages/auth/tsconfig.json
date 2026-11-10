@@ -1,6 +1,8 @@
 {
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
+		// Browser code: no Node globals or `node:` modules (#811).
+		"types": [],
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"declaration": true,
