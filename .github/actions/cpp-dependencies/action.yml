@@ -1,0 +1,37 @@
+name: afd-cpp dependency files
+description: >-
+  Restores the files packages/cpp/cmake/AfdDependencies.cmake pins from the Actions cache, or
+  downloads them with retries and checks their hashes, and points CMake at them through
+  AFD_DEPENDENCY_CACHE, so a transient upstream error does not fail the build.
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the dependency files
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/afd-cpp-dependencies
+        key: afd-cpp-dependencies-${{ runner.os }}-${{ hashFiles('packages/cpp/cmake/AfdDependencies.cmake') }}
+
+    # Each pinned URL is followed by its URL_HASH line; a download that fails its hash fails here,
+    # before it can be cached.
+    - name: Download the dependency files
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        DIR: ${{ runner.temp }}/afd-cpp-dependencies
+      run: |
+        mkdir -p "$DIR"
+        awk '/^ *https:\/\//{url=$1; sub(/\)$/, "", url)} /URL_HASH SHA256=/{split($2, h, "="); print url, h[2]}' \
+          packages/cpp/cmake/AfdDependencies.cmake |
+        while read -r url hash; do
+          file="$DIR/${url##*/}"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$file" "$url"
+          actual=$(cmake -E sha256sum "$file")
+          [ "${actual%% *}" = "$hash" ] || { echo "::error::$url does not match its pinned hash"; exit 1; }
+        done
+
+    - name: Point CMake at them
+      shell: bash
+      run: echo "AFD_DEPENDENCY_CACHE=${{ runner.temp }}/afd-cpp-dependencies" >> "$GITHUB_ENV"
