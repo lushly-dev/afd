@@ -1,0 +1,43 @@
+{
+	"tag": "violet-radio-group",
+	"summary": "Form field that holds violet-radio children and submits the one selected value.",
+	"import": "@lushly-dev/violet-elements/dist/radio-group/violet-radio-group.js",
+	"usage": [
+		{
+			"id": "radio-group.value",
+			"text": "Set the group's value attribute to a radio's value to select it; with no group value, a radio marked checked is used. The group overwrites each radio's checked state, tabindex and, when the group has a name, its name."
+		},
+		{
+			"id": "radio-group.change",
+			"text": "A click delivers two change events to a listener on the group: the group's own (detail.value) and the clicked radio's bubbling one (detail.checked). Keyboard selection delivers only the group's. Check event.target."
+		},
+		{
+			"id": "radio-group.keyboard",
+			"text": "The group is one tab stop. Arrow keys, Home and End move focus and select in the same step."
+		}
+	],
+	"a11y": [
+		{
+			"id": "radio-group.name",
+			"text": "An aria-label on the host takes precedence over the label attribute as the group's name; the label stays visible."
+		}
+	],
+	"rules": [
+		"import.root",
+		"theme.install",
+		"a11y.managed",
+		"field.label",
+		"field.aria-label",
+		"field.supporting-text",
+		"form.participation",
+		"form.invalid",
+		"form.required-error",
+		"state.disabled"
+	],
+	"evidence": {
+		"radio-group.value": "src/radio-group/violet-radio-group.ts:336",
+		"radio-group.change": "src/radio-group/violet-radio-group.ts:361",
+		"radio-group.keyboard": "src/radio-group/violet-radio-group.ts:460",
+		"radio-group.name": "src/radio-group/violet-radio-group.ts:385"
+	}
+}

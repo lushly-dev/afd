@@ -1,0 +1,40 @@
+{
+	"tag": "violet-text-field",
+	"summary": "Single-line text input with built-in label and supporting text; use for text, search, email, url, password, tel, number and date.",
+	"import": "@lushly-dev/violet-elements/dist/text-field/violet-text-field.js",
+	"usage": [
+		{
+			"id": "text-field.validation",
+			"text": "The required, type, pattern, min, max, step, minlength and maxlength attributes feed validity. Whitespace-only text counts as missing when required. A readonly field is never reported invalid."
+		},
+		{
+			"id": "text-field.commit",
+			"text": "The change event fires when the native input commits: on blur after an edit, or on Enter."
+		}
+	],
+	"a11y": [
+		{
+			"id": "text-field.describedby",
+			"text": "An aria-describedby on the host is resolved against ids in the host's own root and applied to the inner input together with the supporting text, in browsers with ARIA element reflection."
+		}
+	],
+	"rules": [
+		"import.root",
+		"theme.install",
+		"field.label",
+		"field.aria-label",
+		"field.placeholder",
+		"field.supporting-text",
+		"field.value-attribute",
+		"field.input-change",
+		"event.native-input",
+		"form.participation",
+		"form.invalid",
+		"state.disabled"
+	],
+	"evidence": {
+		"text-field.validation": "src/text-field/violet-text-field.ts:527",
+		"text-field.commit": "src/text-field/violet-text-field.ts:164",
+		"text-field.describedby": "src/text-field/violet-text-field.ts:479"
+	}
+}

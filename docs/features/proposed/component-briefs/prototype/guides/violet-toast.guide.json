@@ -1,0 +1,32 @@
+{
+	"tag": "violet-toast",
+	"summary": "Transient notification fixed to a corner of the viewport, shown while its open attribute is set.",
+	"import": "@lushly-dev/violet-elements/dist/toast/violet-toast.js",
+	"usage": [
+		{
+			"id": "toast.open",
+			"text": "It is hidden until the open attribute is set and has no show or hide method. Every toast is position: fixed at the same block-end, inline-end corner, so several open toasts overlap unless the page offsets them."
+		},
+		{
+			"id": "toast.timeout",
+			"text": "It closes itself after the timeout (ms) only while dismissible is false and the actions slot is empty. The dismissible property defaults to true, so set it to false in script for a self-closing toast."
+		},
+		{
+			"id": "toast.dismiss",
+			"text": "A dismiss event fires with detail.reason (timeout or dismiss-button) after the toast has cleared its open attribute itself. Clearing open from script fires only open-change."
+		}
+	],
+	"a11y": [],
+	"rules": [
+		"import.root",
+		"theme.install",
+		"overlay.open-change",
+		"message.announcement",
+		"message.tone"
+	],
+	"evidence": {
+		"toast.open": "src/toast/violet-toast.ts:17",
+		"toast.timeout": "src/toast/violet-toast.ts:380",
+		"toast.dismiss": "src/toast/violet-toast.ts:329"
+	}
+}

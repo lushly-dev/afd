@@ -1,0 +1,33 @@
+{
+	"tag": "violet-button",
+	"summary": "Text button with optional leading and trailing content, for commands, toggles and popup triggers.",
+	"import": "@lushly-dev/violet-elements/dist/button/violet-button.js",
+	"usage": [
+		{
+			"id": "button.popup-toggle",
+			"text": "The attributes aria-expanded, aria-controls, aria-haspopup and aria-pressed (or the matching properties) set on the host are forwarded to the inner button. Use them for disclosure, menu and toggle buttons."
+		}
+	],
+	"a11y": [
+		{
+			"id": "button.name",
+			"text": "The slotted text is the accessible name. For an icon-only button set the ariaLabel property in script: it has no attribute, and an aria-label attribute on the host is not forwarded."
+		},
+		{
+			"id": "button.idrefs",
+			"text": "The ariaLabelledby and ariaDescribedby properties have no attributes, and their ids are written onto the button inside the shadow root, where ids from the page do not resolve."
+		}
+	],
+	"rules": [
+		"import.root",
+		"theme.install",
+		"variant.appearance",
+		"state.disabled",
+		"action.no-form"
+	],
+	"evidence": {
+		"button.popup-toggle": "src/button/violet-button.ts:299",
+		"button.name": "src/button/violet-button.ts:295",
+		"button.idrefs": "src/button/violet-button.ts:169"
+	}
+}

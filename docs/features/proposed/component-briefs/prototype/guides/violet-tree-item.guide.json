@@ -1,0 +1,31 @@
+{
+	"tag": "violet-tree-item",
+	"summary": "One node of a violet-tree; child violet-tree-item elements make it a branch.",
+	"import": "@lushly-dev/violet-elements/dist/tree-item/violet-tree-item.js",
+	"usage": [
+		{
+			"id": "tree-item.structure",
+			"text": "The label goes in the default slot. Child violet-tree-item elements become its branch and are moved to the slot named item automatically; do not set that slot yourself."
+		},
+		{
+			"id": "tree-item.click",
+			"text": "Clicking the chevron toggles the branch; clicking elsewhere on the row selects the item. Both work only inside violet-tree, which handles the item's select-request and toggle-request events."
+		},
+		{
+			"id": "tree-item.expandable",
+			"text": "For a branch whose children load later, set the expandable attribute, then append the child items when the tree fires expanded-change for it."
+		},
+		{
+			"id": "tree-item.value",
+			"text": "The value attribute falls back to the label text for selection and event details. The expanded and selected attributes can be set in markup for the initial state."
+		}
+	],
+	"a11y": [],
+	"rules": ["import.root", "theme.install", "a11y.managed", "state.disabled"],
+	"evidence": {
+		"tree-item.structure": "src/tree-item/violet-tree-item.ts:385",
+		"tree-item.click": "src/tree-item/violet-tree-item.ts:348",
+		"tree-item.expandable": "src/tree-item/violet-tree-item.ts:274",
+		"tree-item.value": "src/tree-item/violet-tree-item.ts:282"
+	}
+}

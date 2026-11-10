@@ -5,9 +5,9 @@
  * only the command/runtime pieces they actually use.
  */
 
+export * from '@lushly-dev/violet-core/worker';
 export type { CommandContext, Database } from './commands/registry.js';
 export { registry } from './commands/registry.js';
-export * from '@lushly-dev/violet-core/worker';
 
 import { initializeExport } from '@lushly-dev/violet-core/engine';
 import { registerAnalyzeCommands } from './commands/analyze/index.js';

@@ -1,5 +1,4 @@
-import type { AuditEventType } from '@lushly-dev/violet-core/types';
-import type { CheckIssue, CheckSnapshot } from '@lushly-dev/violet-core/types';
+import type { AuditEventType, CheckIssue, CheckSnapshot } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import { parseAuditTime } from '../audit/list.js';

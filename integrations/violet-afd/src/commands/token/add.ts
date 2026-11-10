@@ -1,7 +1,7 @@
-import { validateTokenId } from '@lushly-dev/violet-core/engine';
 import {
 	InheritanceResolutionError,
 	resolveAncestorTokenMap,
+	validateTokenId,
 } from '@lushly-dev/violet-core/engine';
 import { TokenMetadataSchema, TokenValueSchema } from '@lushly-dev/violet-core/types';
 import { nanoid } from 'nanoid';

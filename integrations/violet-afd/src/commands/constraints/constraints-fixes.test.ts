@@ -3,16 +3,17 @@
  * validator edge cases and pattern safety
  */
 
-import { checkPattern, hasNestedQuantifier } from '@lushly-dev/violet-core/engine';
 import {
 	calculateContrastRatio,
+	checkPattern,
+	createMemoryDatabase,
+	hasNestedQuantifier,
 	matchesPattern,
 	parseColor,
 	parseNumericValue,
 	patternValidator,
 	scaleValidator,
 } from '@lushly-dev/violet-core/engine';
-import { createMemoryDatabase } from '@lushly-dev/violet-core/engine';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nodeCreateCommand } from '../node/create.js';
 import type { CommandContext } from '../registry.js';

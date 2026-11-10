@@ -70,8 +70,10 @@ describe('cicd setup workflow templates', () => {
 
 	it('sync fetches a hosted export with curl --fail, a required URL and a secret key', () => {
 		const sync = workflows.sync;
+		// biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not a template
 		expect(sync).toContain('VIOLET_API_URL: ${{ vars.VIOLET_API_URL }}\n');
 		expect(sync).not.toContain('api.violet.design');
+		// biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not a template
 		expect(sync).toContain('VIOLET_API_KEY: ${{ secrets.VIOLET_API_KEY }}');
 		expect(sync).toContain('if [ -z "$VIOLET_API_URL" ]');
 		expect(sync).toContain('curl --fail');

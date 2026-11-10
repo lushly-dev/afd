@@ -1,8 +1,8 @@
 import { MemoryDatabase } from '@lushly-dev/violet-core/engine';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { compareNodesCommand } from '../analyze/compare.js';
-import { registry } from '../registry.js';
 import type { CommandContext } from '../registry.js';
+import { registry } from '../registry.js';
 import {
 	DocsGenerateInputSchema,
 	DocsGenerateOutputSchema,

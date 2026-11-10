@@ -1,0 +1,27 @@
+{
+	"tag": "violet-menu-item",
+	"summary": "One action inside violet-menu, with optional leading and trailing content.",
+	"import": "@lushly-dev/violet-elements/dist/menu/violet-menu-item.js",
+	"usage": [
+		{
+			"id": "menu-item.invoke",
+			"text": "It fires an invoke event, with no detail, on click, Enter or Space. It has no value attribute: identify the item by event.target, an id or a data-* attribute."
+		},
+		{
+			"id": "menu-item.disabled",
+			"text": "A disabled item stays focusable and reachable with the arrow keys but does not fire the invoke event."
+		}
+	],
+	"a11y": [
+		{
+			"id": "menu-item.text",
+			"text": "Type-ahead matches the item's whole text content, including text in the before and after slots."
+		}
+	],
+	"rules": ["import.root", "theme.install", "a11y.managed"],
+	"evidence": {
+		"menu-item.invoke": "src/menu/violet-menu-item.ts:140",
+		"menu-item.disabled": "src/menu/violet-menu-item.ts:134",
+		"menu-item.text": "src/menu/violet-menu-item.ts:147"
+	}
+}

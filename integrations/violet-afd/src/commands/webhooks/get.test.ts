@@ -23,7 +23,7 @@ describe('webhooks.get command', () => {
 			},
 			context,
 		);
-		const webhookId = registerResult.data?.webhook.id!;
+		const webhookId = registerResult.data!.webhook.id;
 
 		const result = await webhooksGetCommand.handler({ id: webhookId }, context);
 
@@ -40,7 +40,7 @@ describe('webhooks.get command', () => {
 			{ url: 'https://example.com/webhook', events: ['token.added'] },
 			context,
 		);
-		const webhookId = registerResult.data?.webhook.id!;
+		const webhookId = registerResult.data!.webhook.id;
 
 		const result = await webhooksGetCommand.handler({ id: webhookId }, context);
 
@@ -61,7 +61,7 @@ describe('webhooks.get command', () => {
 			{ url: 'https://example.com/webhook', events: ['token.added'] },
 			context,
 		);
-		const webhookId = registerResult.data?.webhook.id!;
+		const webhookId = registerResult.data!.webhook.id;
 
 		const result = await webhooksGetCommand.handler({ id: webhookId, includeStats: true }, context);
 
@@ -77,7 +77,7 @@ describe('webhooks.get command', () => {
 			{ url: 'https://example.com/webhook', events: ['token.added'] },
 			context,
 		);
-		const webhookId = registerResult.data?.webhook.id!;
+		const webhookId = registerResult.data!.webhook.id;
 
 		const result = await webhooksGetCommand.handler({ id: webhookId }, context);
 
@@ -90,7 +90,7 @@ describe('webhooks.get command', () => {
 			{ url: 'https://example.com/webhook', events: ['token.added'] },
 			context,
 		);
-		const webhookId = registerResult.data?.webhook.id!;
+		const webhookId = registerResult.data!.webhook.id;
 
 		const result = await webhooksGetCommand.handler({ id: webhookId }, context);
 
@@ -98,6 +98,6 @@ describe('webhooks.get command', () => {
 		expect(result.data?.createdAt).toBeDefined();
 		expect(result.data?.updatedAt).toBeDefined();
 		// Timestamps should be ISO format
-		expect(() => new Date(result.data?.createdAt!)).not.toThrow();
+		expect(() => new Date(result.data!.createdAt)).not.toThrow();
 	});
 });
