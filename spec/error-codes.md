@@ -325,7 +325,9 @@ does not define them.
   something that is not a `CommandResult`. TypeScript does not check this at runtime.
 - **Package codes:**
   - auth: `INVALID_CREDENTIALS`, `PROVIDER_ERROR`, `NETWORK_ERROR` and `REFRESH_FAILED` (the last
-    two retryable), `SIGN_IN_REDIRECT`, `SIGN_IN_PENDING`;
+    two retryable), `PASSKEY_CANCELLED` (the person dismissed the passkey ceremony, or it timed
+    out) and `PASSKEY_UNSUPPORTED` (no WebAuthn, or no passkeys at the provider), neither
+    retryable, `SIGN_IN_REDIRECT`, `SIGN_IN_PENDING`;
   - view-state: `VIEW_STATE_NOT_FOUND`, `VIEW_STATE_REPLACE_UNSUPPORTED`,
     `VIEW_STATE_UNDO_UNAVAILABLE`;
   - local-db: `HTTP_<status>`, `NOT_FOUND`, `CONFLICT`, `INVALID_PATH`, `INVALID_NAME`;

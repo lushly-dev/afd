@@ -177,7 +177,7 @@ Every unit moves from Vitest 4 to `^5.1.0` (`vitest`, `@vitest/coverage-v8`, `@v
 - **Coverage is unchanged.** Every package's `json-summary` under Vitest 4.1.12 and 5.1.0 measures the same files: 30 of 34 packages are identical, and the other four differ by at most 0.01 points from a statement or two in the denominator. No threshold changed.
 - **FAST-AF follows.** violet-elements' `^4.1.11` came from the upstream root's specifiers, not one of #600's exact pins; its Chromium suite (1355 tests) and coverage (86.89/74.89/91.26/87.08) are identical on both, so it moves to 5.1.0 instead of keeping a second major.
 - **Specimen follows.** Storybook 10.6.2's Vitest addon accepts Vitest 5. `@vitest/expect` and `@vitest/spy` stay at 3.2.4 beside Storybook. The Specimens records (T01's installs, T03's drivers, T06's keyboard tables) keep the 4.1.12 they were measured or generated with; nothing regenerates them from the installed copy.
-- Violet, Specimen and FAST-AF provenance record every changed manifest and are resealed.
+- No provenance record changes. The nine imported manifests (Violet 5, Specimen 3, FAST-AF 1) change dependency ranges only, which the provenance tests accept through each record's `manifest_shape_sha256` since #893.
 - Local receipts (macOS arm64; Node 26.13.0, pnpm 10.30.1): `pnpm verify` ran 60 steps across `check`, Violet, FAST-AF, Specimen, Health dashboard, Loam, auth browser, hosted fixtures, Alfred, Umbel and conformance, and all passed. An independent review found no blocker; its points (the Loam app template, this lockfile note and a stale Specimen `__screenshots__/` ignore) are fixed.
 
 ## Prepared candidates outside the repository

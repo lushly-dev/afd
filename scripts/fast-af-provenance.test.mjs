@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { PROVENANCE_FAMILIES, provenancePaths } from './release/provenance.mjs';
+import { matchesRecord, PROVENANCE_FAMILIES, provenancePaths } from './release/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const directory = PROVENANCE_FAMILIES['fast-af'].directory;
@@ -76,9 +76,8 @@ test('every imported FAST-AF file is present, recorded and unchanged since revie
 	for (const file of adaptations.files) {
 		assert(existsSync(join(root, file.path)), `missing or ignored: ${file.path}`);
 		assert(present.includes(file.path), `not visible to Git (check .gitignore): ${file.path}`);
-		assert.equal(
-			sha(readFileSync(join(root, file.path))),
-			file.current_import_sha256,
+		assert(
+			matchesRecord(file, readFileSync(join(root, file.path))),
 			`${file.path} changed; record the adaptation`
 		);
 		if (file.import_classification === 'unchanged-staged')

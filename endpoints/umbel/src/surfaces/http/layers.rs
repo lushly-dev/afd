@@ -338,6 +338,18 @@ pub(crate) async fn limit_ip(
     request: Request,
     next: Next,
 ) -> Response {
+    limit_peer(&limit, "", request, next).await
+}
+
+/// Layer 3 as [`limit_ip`] answers it, its keys named under `prefix` (empty for the MCP
+/// listener's; the person page's own listener counts under keys of its own, step 5b).
+#[cfg(feature = "auth")]
+pub(crate) async fn limit_peer(
+    limit: &IpLimit,
+    prefix: &str,
+    request: Request,
+    next: Next,
+) -> Response {
     let Some(PeerAddr(peer)) = request.extensions().get::<PeerAddr>().copied() else {
         tracing::error!(
             target: "umbel::http",
@@ -345,7 +357,7 @@ pub(crate) async fn limit_ip(
         );
         return plain(StatusCode::INTERNAL_SERVER_ERROR, false);
     };
-    match limit.admit(ip_key(peer.ip())).await {
+    match limit.admit(format!("{prefix}{}", ip_key(peer.ip()))).await {
         Ok(()) => next.run(request).await,
         Err(Refusal::TooMany(left)) => too_many(left, "from this address"),
         Err(Refusal::Busy(store)) => shared_timeout(store),

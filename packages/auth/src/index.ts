@@ -13,7 +13,7 @@ export { MockAuthAdapter } from './adapters/mock.js';
 export { AUTH_COMMAND_NAMES } from './command-names.js';
 // Errors
 export type { AuthErrorCode } from './errors.js';
-export { AuthAdapterError } from './errors.js';
+export { AuthAdapterError, passkeyCancelled, passkeyUnsupported } from './errors.js';
 // Listener error reporting
 export type { ListenerErrorHandler } from './listeners.js';
 // Middleware
@@ -30,8 +30,16 @@ export type {
 	AuthSessionState,
 	CredentialsSignInOptions,
 	OAuthSignInOptions,
+	OrganizationAccess,
+	OrganizationInvitation,
+	OrganizationMember,
+	PasskeyManagement,
+	PasskeyRow,
+	PasskeySignInOptions,
 	Provider,
 	Session,
+	SessionManagement,
+	SessionRow,
 	SignInOptions,
 	SignInOutcome,
 	User,

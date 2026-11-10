@@ -5,61 +5,50 @@
  * Types are defined locally to avoid hard dependency on better-auth.
  */
 
-import { AuthAdapterError } from '../errors.js';
+import { AuthAdapterError, passkeyUnsupported } from '../errors.js';
 import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
 import { areSessionStatesEqual } from '../session-state.js';
-import type { AuthAdapter, AuthSessionState, SignInOptions, SignInOutcome } from '../types.js';
+import type {
+	AuthAdapter,
+	AuthSessionState,
+	OrganizationAccess,
+	PasskeyManagement,
+	SessionManagement,
+	SignInOptions,
+	SignInOutcome,
+} from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
+import {
+	betterAuthOrganization,
+	betterAuthPasskeys,
+	betterAuthSessions,
+} from './better-auth-capabilities.js';
+import {
+	type BetterAuthClient,
+	type BetterAuthMethodResponse,
+	type BetterAuthSessionValue,
+	describeError,
+	mapThrownError,
+	passkeyCeremonyError,
+} from './better-auth-client.js';
 import { isKnownNetworkFailure } from './provider-errors.js';
+import { hasConditionalMediation, hasWebAuthn } from './session-rows.js';
 
-/** Minimal interface for better-auth client — avoids hard import */
-interface BetterAuthErrorResponse {
-	message?: string;
-	status?: number;
-	statusText?: string;
-	code?: string;
-}
-
-/**
- * The small portion of Better Auth's response contract used by this adapter.
- * Better Auth reports provider failures as resolved `{ data, error }` values;
- * they do not necessarily reject the promise.
- */
-interface BetterAuthMethodResult {
-	data?: unknown | null;
-	error?: BetterAuthErrorResponse | null;
-}
-
-type BetterAuthMethodResponse = BetterAuthMethodResult | undefined;
-
-interface BetterAuthClient {
-	signIn: {
-		social: (params: {
-			provider: string;
-			callbackURL?: string;
-			scopes?: string[];
-		}) => Promise<BetterAuthMethodResponse>;
-		email: (params: { email: string; password: string }) => Promise<BetterAuthMethodResponse>;
-	};
-	signOut: () => Promise<BetterAuthMethodResponse>;
-	useSession: BetterAuthSessionStore | (() => BetterAuthSessionStore);
-}
-
-interface BetterAuthSessionStore {
-	subscribe: (
-		callback: (value: { data: BetterAuthSessionData | null; isPending: boolean }) => void
-	) => () => void;
-	get: () => { data: BetterAuthSessionData | null; isPending: boolean };
-}
-
-interface BetterAuthSessionData {
-	session: { id: string; expiresAt: string | Date };
-	user: { id: string; email: string; name?: string; image?: string | null };
-}
+export type { BetterAuthClient } from './better-auth-client.js';
 
 export interface BetterAuthAdapterOptions {
-	/** better-auth client instance */
+	/**
+	 * better-auth client instance. `passkeys` and passkey sign-in need `@better-auth/passkey`'s
+	 * `passkeyClient()`, and `organization` needs `organizationClient()`, on the client and their
+	 * plugins on the server; without them the provider answers `PROVIDER_ERROR`. `sessions` uses
+	 * Better Auth's own session routes.
+	 */
 	client: BetterAuthClient;
+	/**
+	 * The state to report until the client's session store has answered, such as a session the
+	 * page read from its server before the client loaded. Default: `loading`.
+	 */
+	initial?: AuthSessionState;
 	/**
 	 * Receives errors thrown by `onAuthStateChange` subscribers. Without it,
 	 * they are rethrown in a microtask. Either way the other subscribers still
@@ -73,17 +62,44 @@ export class BetterAuthAdapter implements AuthAdapter {
 	private readonly listeners: ListenerSet<AuthSessionState>;
 	private currentState: AuthSessionState = LOADING;
 	private unsubscribeStore: (() => void) | null = null;
+	private store: { get: () => BetterAuthSessionValue } | null = null;
+	/** `initial` until the store first answers; then `undefined`. */
+	private initial: AuthSessionState | undefined;
+	readonly sessions: SessionManagement;
+	readonly passkeys: PasskeyManagement;
+	readonly organization: OrganizationAccess;
+	/** Drops the session handles' tokens: on sign-out and when the user changes. */
+	private readonly forgetSessions: () => void;
 
 	constructor(options: BetterAuthAdapterOptions) {
 		this.client = options.client;
+		this.initial = options.initial;
 		this.listeners = new ListenerSet(options.onListenerError);
+		const sessions = betterAuthSessions(this.client, () => {
+			const state = this.currentState;
+			return state.status === 'authenticated' ? state.session.id : undefined;
+		});
+		this.sessions = sessions.sessions;
+		this.forgetSessions = sessions.forget;
+		this.passkeys = betterAuthPasskeys(this.client);
+		this.organization = betterAuthOrganization(this.client);
 		this.setupSubscription();
 	}
 
 	async signIn(options: SignInOptions): Promise<SignInOutcome> {
 		try {
 			let result: BetterAuthMethodResponse;
-			if (options.method === 'credentials') {
+			if (options.method === 'passkey') {
+				const { signIn } = this.client;
+				if (!signIn.passkey || !hasWebAuthn()) throw passkeyUnsupported();
+				// Autofill that cannot be offered would wait for nothing, then read as cancelled.
+				if (options.autoFill === true && !(await hasConditionalMediation())) {
+					throw passkeyUnsupported();
+				}
+				result = await signIn.passkey(
+					options.autoFill === undefined ? undefined : { autoFill: options.autoFill }
+				);
+			} else if (options.method === 'credentials') {
 				result = await this.client.signIn.email({
 					email: options.email,
 					password: options.password ?? '',
@@ -96,29 +112,60 @@ export class BetterAuthAdapter implements AuthAdapter {
 				});
 			}
 
-			const providerError = this.getResolvedProviderError(result);
+			const providerError = result?.error ?? null;
 			if (providerError) {
 				if (options.method === 'credentials' && providerError.status === 401) {
 					throw AuthAdapterError.invalidCredentials();
 				}
-				throw AuthAdapterError.providerError('better-auth', this.describeError(providerError));
+				if (options.method === 'passkey') {
+					const cancelled = passkeyCeremonyError(providerError);
+					if (cancelled) throw cancelled;
+				}
+				throw AuthAdapterError.providerError('better-auth', describeError(providerError));
 			}
 			return toSignInOutcome(result);
 		} catch (error) {
-			throw this.mapThrownError(error);
+			throw mapThrownError(error);
 		}
 	}
 
 	async signOut(): Promise<void> {
 		try {
 			const result = await this.client.signOut();
-			const providerError = this.getResolvedProviderError(result);
+			const providerError = result?.error ?? null;
 			if (providerError) {
-				throw AuthAdapterError.providerError('better-auth', this.describeError(providerError));
+				throw AuthAdapterError.providerError('better-auth', describeError(providerError));
 			}
 		} catch (error) {
-			throw this.mapThrownError(error);
+			throw mapThrownError(error);
 		}
+	}
+
+	/**
+	 * Fetch the session from the provider now, through the session store's `refetch`. Resolves
+	 * once the store holds the provider's answer, which reaches `getSession()` and the listeners:
+	 * the session, or none after a 401. Rejects when the provider did not answer, since Better
+	 * Auth's `refetch` resolves anyway and keeps the stale session: `NETWORK_ERROR` for a transport
+	 * failure, `REFRESH_FAILED` for any other (a 5xx), so a caller never reads "unreachable" as
+	 * "the session was kept".
+	 */
+	async refresh(): Promise<void> {
+		const store = this.store;
+		const refetch = store?.get().refetch;
+		if (!store || !refetch) return;
+		try {
+			await refetch();
+		} catch (error) {
+			throw mapThrownError(error);
+		}
+		const value = store.get();
+		this.updateState(value);
+		const { error } = value;
+		if (error === undefined || error === null || statusOf(error) === 401) return;
+		const message = error instanceof Error ? error.message : describeStoreError(error);
+		throw isKnownNetworkFailure(error, message)
+			? AuthAdapterError.networkError()
+			: AuthAdapterError.refreshFailed();
 	}
 
 	getSession(): AuthSessionState {
@@ -145,6 +192,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 		const store =
 			typeof storeAccessor === 'function' ? storeAccessor.call(this.client) : storeAccessor;
 
+		this.store = store;
 		// Read before subscribing so stores that invoke the callback immediately do
 		// not replace an equivalent initial snapshot with a new object.
 		this.currentState = this.mapToState(store.get());
@@ -157,45 +205,27 @@ export class BetterAuthAdapter implements AuthAdapter {
 		this.updateState(store.get());
 	}
 
-	private updateState(value: { data: BetterAuthSessionData | null; isPending: boolean }): void {
+	private updateState(value: BetterAuthSessionValue): void {
 		const newState = this.mapToState(value);
 		if (areSessionStatesEqual(newState, this.currentState)) return;
+		const before = this.currentState;
+		if (
+			newState.status !== 'authenticated' ||
+			before.status !== 'authenticated' ||
+			before.user.id !== newState.user.id
+		) {
+			this.forgetSessions();
+		}
 
 		this.currentState = newState;
 		this.listeners.emit(newState);
 	}
 
-	private getResolvedProviderError(
-		result: BetterAuthMethodResponse
-	): BetterAuthErrorResponse | null {
-		return result?.error ?? null;
-	}
-
-	private describeError(error: BetterAuthErrorResponse): string | undefined {
-		if (error.message) return error.message;
-		if (error.statusText) return error.statusText;
-		if (error.code) return error.code;
-		return error.status === undefined ? undefined : `status ${error.status}`;
-	}
-
-	private mapThrownError(error: unknown): AuthAdapterError {
-		if (error instanceof AuthAdapterError) return error;
-
-		const message = error instanceof Error ? error.message : String(error);
-		if (isKnownNetworkFailure(error, message)) {
-			return AuthAdapterError.networkError();
-		}
-
-		return AuthAdapterError.providerError('better-auth', message);
-	}
-
-	private mapToState(value: {
-		data: BetterAuthSessionData | null;
-		isPending: boolean;
-	}): AuthSessionState {
+	private mapToState(value: BetterAuthSessionValue): AuthSessionState {
 		if (value.isPending) {
-			return LOADING;
+			return this.initial ?? LOADING;
 		}
+		this.initial = undefined;
 
 		if (!value.data) {
 			return UNAUTHENTICATED;
@@ -231,4 +261,21 @@ function toSignInOutcome(result: BetterAuthMethodResponse): SignInOutcome {
 		return url === undefined ? { kind: 'redirect' } : { kind: 'redirect', url };
 	}
 	return { kind: 'signed-in' };
+}
+
+/** The HTTP status of a stored session error, when it has one. */
+function statusOf(error: unknown): number | undefined {
+	return typeof error === 'object' && error !== null && 'status' in error
+		? Number((error as { status: unknown }).status)
+		: undefined;
+}
+
+/** A stored session error's text, for network-failure matching. */
+function describeStoreError(error: unknown): string {
+	if (typeof error === 'object' && error !== null) {
+		const { message, statusText } = error as { message?: unknown; statusText?: unknown };
+		if (typeof message === 'string') return message;
+		if (typeof statusText === 'string') return statusText;
+	}
+	return String(error);
 }

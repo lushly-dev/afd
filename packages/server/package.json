@@ -17,6 +17,10 @@
 		"./direct": {
 			"types": "./dist/direct.d.ts",
 			"import": "./dist/direct.js"
+		},
+		"./credentials": {
+			"types": "./dist/credentials.d.ts",
+			"import": "./dist/credentials.js"
 		}
 	},
 	"files": [

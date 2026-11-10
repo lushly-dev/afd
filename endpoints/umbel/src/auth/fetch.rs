@@ -95,6 +95,14 @@ pub(crate) struct Fetched {
     pub(crate) max_age_s: Option<u64>,
 }
 
+/// What [`Fetcher::headers`] found.
+pub(crate) struct Probed {
+    pub(crate) status: u16,
+    pub(crate) headers: reqwest::header::HeaderMap,
+    /// The presented leaf certificate, DER.
+    pub(crate) certificate: Option<Vec<u8>>,
+}
+
 /// The outbound HTTPS client.
 #[derive(Clone)]
 pub(crate) struct Fetcher {
@@ -176,6 +184,9 @@ impl Fetcher {
             .timeout(environment.timeout)
             .connect_timeout(environment.timeout)
             .pool_max_idle_per_host(0)
+            // The peer's certificate on each response, for the doctor's probe of the person
+            // page's listener (step 5b); nothing else reads it.
+            .tls_info(true)
             .build()
             .map_err(|_| "the HTTPS client for token verification cannot be built".to_owned())?;
         Ok(Self { client })
@@ -189,6 +200,29 @@ impl Fetcher {
             .get(url)
             .header(ACCEPT, HeaderValue::from_static("application/json"));
         self.send(request).await
+    }
+
+    /// GET `url` and answer its status, its headers and the DER of the leaf certificate the
+    /// server presented; the body is not read. The doctor's probe of the person page's own
+    /// listener (step 5b).
+    pub(crate) async fn headers(&self, url: &str) -> Result<Probed, FetchError> {
+        let url = https(url)?;
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|_| FetchError::Unreachable)?;
+        let certificate = response
+            .extensions()
+            .get::<reqwest::tls::TlsInfo>()
+            .and_then(reqwest::tls::TlsInfo::peer_certificate)
+            .map(<[u8]>::to_vec);
+        Ok(Probed {
+            status: response.status().as_u16(),
+            headers: response.headers().clone(),
+            certificate,
+        })
     }
 
     /// POST the form `body` to `url`, authenticated with `authorization` (an RFC 6749 2.3.1

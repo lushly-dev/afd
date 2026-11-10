@@ -70,12 +70,67 @@ impl Certificate {
         }
     }
 
+    /// Whether the certificate's subject alternative names hold `host` (a DNS name compared
+    /// case-insensitively, a `*.` name matching one leftmost label, or an IP literal, bracketed
+    /// or not), as a browser matches a server certificate to the host it asked for (RFC 6125).
+    /// A certificate without that extension names no host.
+    pub(crate) fn names(&self, host: &str) -> bool {
+        use x509_parser::extensions::GeneralName;
+        let Ok((_, parsed)) = x509_parser::parse_x509_certificate(self.der.as_ref()) else {
+            return false;
+        };
+        let Ok(Some(names)) = parsed.subject_alternative_name() else {
+            return false;
+        };
+        let bare = host.trim_start_matches('[').trim_end_matches(']');
+        let ip: Option<std::net::IpAddr> = bare.parse().ok();
+        names
+            .value
+            .general_names
+            .iter()
+            .any(|name| match (name, ip) {
+                (GeneralName::IPAddress(bytes), Some(ip)) => match ip {
+                    std::net::IpAddr::V4(v4) => *bytes == v4.octets().as_slice(),
+                    std::net::IpAddr::V6(v6) => *bytes == v6.octets().as_slice(),
+                },
+                (GeneralName::DNSName(name), None) => dns_matches(name, bare),
+                _ => false,
+            })
+    }
+
+    /// Whether the certificate's subject alternative names hold a wildcard DNS name (`*.`).
+    pub(crate) fn has_wildcard(&self) -> bool {
+        use x509_parser::extensions::GeneralName;
+        let Ok((_, parsed)) = x509_parser::parse_x509_certificate(self.der.as_ref()) else {
+            return false;
+        };
+        let Ok(Some(names)) = parsed.subject_alternative_name() else {
+            return false;
+        };
+        names
+            .value
+            .general_names
+            .iter()
+            .any(|name| matches!(name, GeneralName::DNSName(name) if name.starts_with('*')))
+    }
+
     /// `notAfter` as an ISO 8601 UTC date and time.
     pub(crate) fn not_after_text(&self) -> String {
         chrono::DateTime::from_timestamp(self.not_after, 0).map_or_else(
             || self.not_after.to_string(),
             |time| time.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         )
+    }
+}
+
+/// Whether the certificate's DNS name `pattern` matches `host`: exactly, or `*.<rest>` for a host
+/// of one more label than `<rest>`, case-insensitively.
+fn dns_matches(pattern: &str, host: &str) -> bool {
+    match pattern.strip_prefix("*.") {
+        Some(rest) => host
+            .split_once('.')
+            .is_some_and(|(label, tail)| !label.is_empty() && tail.eq_ignore_ascii_case(rest)),
+        None => pattern.eq_ignore_ascii_case(host),
     }
 }
 
@@ -322,6 +377,21 @@ pub(crate) fn read_trusted(path: &Path, secrecy: Secrecy) -> Result<Vec<u8>, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_dns_name_matches_exactly_or_by_one_leftmost_wildcard_label() {
+        assert!(dns_matches("person.example.com", "PERSON.example.com"));
+        assert!(dns_matches("*.example.com", "person.example.com"));
+        assert!(!dns_matches("*.example.com", "example.com"));
+        assert!(!dns_matches("*.example.com", "a.person.example.com"));
+        assert!(!dns_matches("*.example.com", ".example.com"));
+        assert!(!dns_matches(
+            "person.example.com",
+            "person.example.com.evil"
+        ));
+        // A certificate that does not parse names nothing.
+        assert!(!certificate(0, 1).names("person.example.com"));
+    }
 
     fn certificate(not_before: i64, not_after: i64) -> Certificate {
         Certificate {

@@ -25,7 +25,8 @@
   - **Issues:** #852, #853, #854 and #864, each answered in [Carried](#carried-from-phase-2-answered-here); the rest of #851 to #889 name no phase 3 work.
   - **External:** the [trajectory refresh](#trajectory-refresh), dated 2026-11-09. A browser bundle of Better Auth 1.7.18's client with its organization and passkey plugins measured 54,636 bytes minified, 18,137 gzip; with the organization plugin alone 42,128 and 14,714 (esbuild 0.28.2, 2026-11-09).
 - **Done:** this specification and its revisions after two reviews and three re-checks; the coordinator's approval of the first-paint allowances, and of the whole on 2026-11-09.
-- **Not done:** everything it specifies; the owner's answers to Q2 and Q4.
+- **Step 0b** (AFD: afd-auth's passkey method, capabilities and the credentials backstop): in review in [#896](https://github.com/lushly-dev/afd/pull/896), 2026-11-09. 4.1 is built on Better Auth 1.7.18 with `@better-auth/passkey` 1.7.18 pinned, the hosted fixture moved to 1.7.18, and `spec/error-codes.md` gains the two passkey codes. Two coordinator amendments of 2026-11-09 are recorded in 4.1: the middleware reads `isVerifiedCredentials` from its options, and the Mock's capabilities are `withMockCapabilities` in `@lushly-dev/afd-auth/mock-capabilities`. Section 13 gains 0b's measured row, +802 and +301, approved after the review round. An independent review at `1a67b366` found no blockers; its five improvements and nits are fixed (4.1's third amendment, the 0a row). After the review round, `pnpm verify` passed every leg (`pnpm check`, `pnpm test:hosted:local`, loam-web `budget`, the walk, mounted, Specimen, conformance, Alfred) but loam-web's Chromium suite, whose one failure, P2-D8's A-B2, timed out at 30 s under load and passed in four of five reruns of its file.
+- **Not done:** everything else it specifies; the owner's answers to Q2 and Q4.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -356,8 +357,19 @@ export interface OrganizationAccess {
 	/** Every call names the organization by id; the session's active organization is never read. */
 	membership(organizationId: string): Promise<{ role: string } | null>;
 	listMembers(organizationId: string, options?: { limit?: number; offset?: number }): Promise<OrganizationMember[]>;
-	// invite, list and cancel invitations, remove, set role, leave: each with `organizationId`; accept and reject for the invitee
+	// Named in step 0b (the specification's comment listed them):
+	invite(organizationId: string, invitation: { email: string; role: string }): Promise<OrganizationInvitation>;
+	listInvitations(organizationId: string): Promise<OrganizationInvitation[]>;
+	cancelInvitation(organizationId: string, invitationId: string): Promise<void>;   // refused for another organization's invitation
+	removeMember(organizationId: string, memberId: string): Promise<void>;
+	setRole(organizationId: string, memberId: string, role: string): Promise<void>;
+	leave(organizationId: string): Promise<void>;
+	listOwnInvitations(): Promise<OrganizationInvitation[]>;   // the invitee's
+	acceptInvitation(invitationId: string): Promise<void>;
+	rejectInvitation(invitationId: string): Promise<void>;
 }
+export interface OrganizationMember { id: string; userId: string; role: string; createdAt: Date; user: { id: string; email: string; name?: string; image?: string } }
+export interface OrganizationInvitation { id: string; organizationId: string; email: string; role: string; status: 'pending' | 'accepted' | 'rejected' | 'canceled'; expiresAt: Date }
 
 export interface AuthAdapter {
 	// …as today, and:
@@ -369,9 +381,12 @@ export interface AuthAdapter {
 ```
 
 - **A session's handle is never its token:** the first 16 hex characters of SHA-256 over it, mapped in memory. `device` is a label from the user agent. **No IP address leaves the adapter.**
-- **`BetterAuthAdapter`** implements all three with the organization and passkey client plugins; a dismissed ceremony is `AuthAdapterError` `PASSKEY_CANCELLED`, no WebAuthn `PASSKEY_UNSUPPORTED`. It takes an `initial` state from the probe.
+- **`BetterAuthAdapter`** implements all three with the organization and passkey client plugins; a dismissed ceremony is `AuthAdapterError` `PASSKEY_CANCELLED`, no WebAuthn `PASSKEY_UNSUPPORTED`. It takes an `initial` state from the probe. *As built in step 0b:* Better Auth's client is a path proxy that answers every property, so a missing plugin cannot be detected; the three capabilities are always present, and a provider without the plugin answers `PROVIDER_ERROR`. An unknown session handle is `PROVIDER_ERROR`. `sessions` uses Better Auth's own `/list-sessions`, which needs a fresh session; Loam's `session-list` reads `loamServerPlugin`'s endpoint instead (4.6).
 - **`MockAuthAdapter`** implements all three in memory, roles from its options, and an `expiresAt` the kernel's clock reads.
+  - **Amended in step 0b (coordinator, 2026-11-09).** The three capabilities live in `@lushly-dev/afd-auth/mock-capabilities`, whose `withMockCapabilities(mock, { roles })` attaches them to an existing Mock, in memory and on its clock, so the web host's first-paint Mock never bundles them (13). `new MockAuthAdapter({ clock })` keeps only what first paint uses: the clock and `expiresAt`, `refresh()` (which signs out a session past its `expiresAt` on the clock) and the passkey branch of `signIn`. Until the capabilities are attached, `sessions`, `passkeys` and `organization` are `undefined`, the interface's "not supported", and a passkey sign-in is `PASSKEY_UNSUPPORTED`; once attached, it signs in the holder of the passkey added last, and `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how ceremonies end. `roles` is `{ [organizationId]: { [userId]: role } }`. **In `local` mode the kernel's `late` path calls `withMockCapabilities` before any `late-identity` command is registered (step 1); nothing in stage A reads a capability.**
 - **`createAuthMiddleware`, one change: a call whose `credentials` afd-server set itself keeps its actor,** since MCP authorization verified it and the adapter's session is not its caller. afd-server marks the credentials it sets after verification with a module-private brand (a `WeakSet` in `@lushly-dev/afd-server`, read through an exported `isVerifiedCredentials`), so a direct-registry caller passing its own `credentials` object gets no such treatment, and the middleware still deletes any caller-supplied `auth` in both cases. This is the backstop; Loam's server kernel has no session gate at all ([9.5](#95-the-server-kernel-and-its-chain)).
+  - **Amended in step 0b (coordinator, 2026-11-09).** afd-auth reads the predicate from its options, `createAuthMiddleware(adapter, { isVerifiedCredentials })`, rather than importing afd-server: afd-server is an optional peer of afd-auth, and `@lushly-dev/afd-client`'s `DirectClient` runs middleware without it, so a static import would make it a required peer for consumers that never receive branded credentials. Without the predicate the middleware fails closed, as before: every call is gated on the session. afd-server exports `isVerifiedCredentials` from its root and from a browser-safe `@lushly-dev/afd-server/credentials` entry, and no entry exports the brand function, which step 0a's verifier calls; until then nothing is branded. **A branded call deletes `context.auth`, leaves `context.actor` untouched and runs without reading the adapter's session,** signed out, loading or expired; afd-server never brands `createContext`'s credentials, which the host admitted. Loam's server kernel has no session gate (9.5), so there this is belt and braces; **steps 1 and 7 pass the predicate wherever afd-auth's middleware runs on a registry that can receive verified credentials.**
+  - **Amended in step 0b after its review (coordinator, 2026-11-09).** The brand is frozen, expires and ends: `brandVerifiedCredentials` freezes the credentials and their `scopes` and `cnf` before branding them; `isVerifiedCredentials(credentials, now)` is false once `expiresAt` (whole seconds, M4) is not after `now`, or when `expiresAt` is not a finite number; and an internal `unbrandVerifiedCredentials`, exported from no entry, removes the brand. The middleware takes a `clock` (default the system clock), compares a session's `expiresAt` with it and gives it to the predicate as `now`; **a kernel passes the same clock to the Mock and to the middleware.** **A branded call is refused every command in `AUTH_COMMAND_NAMES`** (`auth-sign-in`, `auth-sign-out`, `auth-session-get`) with `UNAUTHORIZED`, "This call is authorized by a token; session commands need a signed-in session", before the adapter is read: a token has no session to read, sign in to or sign out of. A nested call keeps the brand only when it is given the same credentials object.
 - **`spec/error-codes.md`'s** auth package codes gain `PASSKEY_CANCELLED` and `PASSKEY_UNSUPPORTED` in step 0b. Loam's own codes ([15](#15-failure-modes-and-error-codes)) are kernel codes and stay out of it.
 
 ### 4.2 First paint: the probe
@@ -852,13 +867,14 @@ Against phase 2's [2.4](../2-scope-projects/spec.md#24-the-budget-and-the-rule):
 
 | Step | First-paint parts | Allowance (bytes, gzip) |
 | --- | --- | --- |
+| 0b | afd-auth, through the web host's Mock and the kernel's auth middleware: `refresh()`, the clock and `expiresAt`, the passkey branch of `signIn`, and the middleware's verified-credentials branch, with its refusal of `auth-*` commands on a token's call and its `clock` (4.1). **Amended in step 0b (coordinator, 2026-11-09):** the Mock's capabilities are `/mock-capabilities`', attached on the `late` path (4.1), so none of them is first paint. Measured 286,886 and 88,497 against 286,084 and 88,196 on `main` at `37f383c0`; the kernel alone 112,171 (from 111,761) and `late` 67,766 (from 67,609, `auth-sign-in`'s passkey branch). **Approved by the coordinator 2026-11-09, after the review round:** the review's token-call refusal and shared clock added 119 and 47 to the 683 and 254 first approved (cap 700, 280) | 802, 301 (cap 820, 310) |
 | 1 | `decideAccess` version 2, `personKey`, `isOwner` (~500); reading `identity` and `MembershipV1` from boot (~300); line 0 (~150); `personalRecordId` (~150); the person captured in `run` for `SESSION_CHANGED` (~80). **`SIGNED_OUT_COMMANDS` and `MEMBER_EXEMPT_COMMANDS` are not first paint:** stage A holds only boot commands, which the chain already excludes as today, and the lists load with `late`, where the late commands register | 1,200, 500 |
 | 2 | **None.** The listener, the expiry timer, the `schedule` port's use and the membership refresh are `late`'s (4.4) | 0, 0 |
 | 3 | The probe and `DeferredAuthAdapter` (~900); the signed-out main's button (~450); the not-a-member and binding notices (~350); stage A's `whoami` read wired into boot (~200) | 1,950, 800 |
 | 5 | Persona emphasis in `bandFor` (~500); stage A's read of `loam.persona~<person>` (~200) | 750, 300 |
-| **Total** | | **3,900, 1,600**: first paint to about 290,000 and 89,800, under 300,000 and 91,000 |
+| **Total** | | **4,702, 1,901** with 0b's measured row (3,900 and 1,600 before it): first paint to about 290,800 and 90,100, under 300,000 and 91,000 |
 
-The ceiling stays: 290,000 is 97% of it, above phase 0's 70% lowering threshold.
+The ceiling stays: about 290,800 is 97% of it, above phase 0's 70% lowering threshold.
 
 | Row | Where | Estimate | Note |
 | --- | --- | --- | --- |
@@ -995,7 +1011,7 @@ Each step is one pull request, merged on green. It updates this status block and
 
 | Step | Pull request | Contents | Checks |
 | --- | --- | --- | --- |
-| 0a | AFD: TypeScript MCP authorization, verification | 9.1's first bullet on `jose`; the test authorization server fixture; the table's three rows; parity rows; a changeset | `pnpm check`, `pnpm verify`, `pnpm test:hosted:local` |
+| 0a | AFD: TypeScript MCP authorization, verification | 9.1's first bullet on `jose`; the test authorization server fixture; the table's three rows; parity rows; a changeset. **Amended in step 0b (coordinator, 2026-11-09):** the verifier brands the `credentials` it sets with afd-server's internal `brandVerifiedCredentials` (4.1), which freezes them, and calls `unbrandVerifiedCredentials` on them when the request ends, so no credentials outlive their request as verified | `pnpm check`, `pnpm verify`, `pnpm test:hosted:local` |
 | 0b | AFD: afd-auth's passkey method, capabilities and the credentials backstop | 4.1 on Better Auth 1.7.18, pinned with `@better-auth/passkey`; the Mock; the hosted fixture moved to 1.7.18; `spec/error-codes.md`'s auth list; README and the `afd-auth` skill; a changeset | `pnpm check`, `pnpm test:hosted:local` |
 | 0c | AFD: TypeScript MCP authorization, scopes | 9.1's second bullet; the table's three rows | `pnpm check`, `pnpm verify` |
 | 1 | Identity core | `loam-identity` with `createLoamAuthOptions`, `loamServerPlugin` (whoami, the binding, the hooks of 7.5) and `startTestAuthHost`; deployment and projection version 3; `decideAccess` version 2, `MembershipV1`, `personKey`, `isOwner`, line 0, the auth gate's lists; `KernelCallFields.actor`; the agent interface's actor; `personalRecordId`; the tables; kernel interface version 3; `member`; `call-scope.test.ts`; the architecture's amendments; 2.1's amendments to E12; E13; E7's, E5's and E6's units so far; E19's units | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |

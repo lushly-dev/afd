@@ -945,6 +945,24 @@ impl Host {
         )
     }
 
+    /// The person page's own listener, in mode `gateway` with `[http.person]` (phase 5 step 5b,
+    /// the owner's decision of 2026-11-09): the page's routes and `/health` alone, behind TLS of
+    /// its own, a body cap, a per-IP limit and a host check of their own, for browsers to reach
+    /// directly and never through the gateway. `umbel serve --http` binds it at
+    /// `http.person.bind` beside [`Self::http_server`]; an embedder serving mode `gateway` with
+    /// verified commands serves both. `Ok(None)` where the workspace serves no such listener
+    /// (mode `oauth` serves the page on [`Self::http_server`] itself).
+    ///
+    /// # Errors
+    /// `WORKSPACE_CONFIG_INVALID` naming the `[http.person.tls]` key whose file is missing or
+    /// invalid; `WORKSPACE_STATE_UNWRITABLE` when `state/shared/limits.sqlite3` cannot be opened.
+    pub fn person_server(&self) -> Result<Option<crate::HttpServer>, HostError> {
+        #[cfg(feature = "auth")]
+        return surfaces::http::person_server(&self.workspace, self.person.as_ref());
+        #[cfg(not(feature = "auth"))]
+        Ok(None)
+    }
+
     /// Ask every person login's provider now, as serving does at start (phase 5 section 7.1):
     /// a namespace's verified commands are served once its login passes `auth.person`. Does
     /// nothing in mode `none`.

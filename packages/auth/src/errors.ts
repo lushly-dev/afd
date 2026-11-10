@@ -14,7 +14,9 @@ export type AuthErrorCode =
 	| 'TOKEN_EXPIRED'
 	| 'PROVIDER_ERROR'
 	| 'NETWORK_ERROR'
-	| 'REFRESH_FAILED';
+	| 'REFRESH_FAILED'
+	| 'PASSKEY_CANCELLED'
+	| 'PASSKEY_UNSUPPORTED';
 
 const RETRYABLE_CODES = new Set<AuthErrorCode>(['NETWORK_ERROR', 'REFRESH_FAILED']);
 
@@ -81,4 +83,24 @@ export class AuthAdapterError extends Error {
 			suggestion: 'Sign in again to continue',
 		});
 	}
+}
+
+// Functions rather than statics, so a bundle that never runs a passkey ceremony leaves them out.
+
+/** `PASSKEY_CANCELLED`: the person dismissed the passkey ceremony, or it timed out. */
+export function passkeyCancelled(): AuthAdapterError {
+	return new AuthAdapterError({
+		code: 'PASSKEY_CANCELLED',
+		message: 'The passkey request was cancelled',
+		suggestion: 'Try again and choose a passkey, or use another sign-in method',
+	});
+}
+
+/** `PASSKEY_UNSUPPORTED`: the browser has no WebAuthn, or the provider has no passkeys. */
+export function passkeyUnsupported(): AuthAdapterError {
+	return new AuthAdapterError({
+		code: 'PASSKEY_UNSUPPORTED',
+		message: 'Passkeys are not available here',
+		suggestion: 'Use a browser that supports passkeys, or another sign-in method',
+	});
 }

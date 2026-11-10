@@ -6,7 +6,8 @@
 //!    connection presenting a pinned gateway certificate is authenticated at the channel and
 //!    skips the per-IP limit ([`limit_ip_unless_pinned`]); the per-caller limits govern it.
 //! 4. `/health` only: mode `gateway` publishes no protected-resource metadata (section 3.3), so
-//!    both well-known paths, like every path but `http.path`, are 404.
+//!    both well-known paths, like every path but `http.path`, are 404. The person page's routes
+//!    are 404 here too: its listener is its own (`[http.person]`, [`super::person`]).
 //! 5. **The gateway layer** ([`GatewayService`]): the pinned channel, then the one assertion,
 //!    then its `jti` spent once in the shared nonce store
 //!    ([`crate::auth::gateway::GatewayVerifier`]). A refusal is one 401 with
@@ -286,7 +287,6 @@ pub(crate) fn router(
     workspace: &Workspace,
     policy: &Arc<crate::auth::scopes::ScopePolicy>,
     environment: &crate::auth::fetch::AuthEnvironment,
-    person: Option<&Arc<crate::person::service::PersonService>>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
     let lock_timeout = std::time::Duration::from_millis(config.store.lock_timeout_ms);
@@ -355,14 +355,11 @@ pub(crate) fn router(
         }),
     };
     let path = config.http.path.clone();
-    let page = super::person_page(person, &path, &limits, lock_timeout);
+    // No person page here, ever: the gateway's channel never carries the page's login, cookie,
+    // CSRF token or decision. In mode `gateway` the page has a listener of its own, which
+    // browsers reach directly (`[http.person]`, step 5b; [`super::person`]).
     let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
-        // The person page's routes, before the gateway layer (6.3, layer 4): a gateway's person
-        // is proven only there (4.4), by their own login.
-        let page = page
-            .clone()
-            .filter(|page| page.serves(request.uri().path()));
         // MCP at `http.path` only; nothing is published, so no other path is served.
         let at_path = request.uri().path() == path;
         // A fresh slot for the caller the gateway layer maps, replacing anything already there;
@@ -370,11 +367,8 @@ pub(crate) fn router(
         // and the resolver finds it in the book while the request is in flight.
         let slot = CallerSlot::default();
         request.extensions_mut().insert(slot.clone());
-        let entry = page.is_none().then(|| book.enter(slot));
+        let entry = book.enter(slot);
         async move {
-            if let Some(page) = page {
-                return Ok::<Response, Infallible>(page.handle(request).await);
-            }
             if !at_path {
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());
             }

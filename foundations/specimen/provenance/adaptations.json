@@ -117,11 +117,12 @@
       "upstream_sha256": null,
       "staged_path": "endpoints/specimen-cli/package.json",
       "staged_sha256": "620992fb4973b1bcc84d96ba3c5f0a9d6f9186b164533ffb3a031156b9efc779",
-      "current_import_sha256": "efc718080292ad50c91dfe7a0c8ffca84664e22b1fed5d49a39c01ab5bef4e7f",
+      "current_import_sha256": "8b67a1d395ea7739b72b3b933b59d79ae2ef03c2d276a11321fc253ae860a491",
+      "manifest_shape_sha256": "a9d615d4baa758a6ec1770039b5b2588b877257629fd8b3841c5d245df1f16b6",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); TypeScript ^5.9.3 to ^7.0.2 (lushly-dev/afd#594); vitest and @vitest/coverage-v8 ^4.1.12 to ^5.1.0 (lushly-dev/afd#595)"
+      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); TypeScript ^5.9.3 to ^7.0.2 (lushly-dev/afd#594)"
     },
     {
       "path": "endpoints/specimen-cli/src/bin.ts",
@@ -513,11 +514,12 @@
       "upstream_sha256": "d7edc73530a7f4fc9e87990b1f84b6b80015dc6b6cedc7b8c31ef7e8a1647783",
       "staged_path": "packages/specimen/package.json",
       "staged_sha256": "2c1a240634881e2fe2c7d5f691a1466d8e03e343adb7a6d359cc818964b11ba3",
-      "current_import_sha256": "d6f5e85f21248aff68a702e1ee159ea5605ffdeb2c44ec49a45cc26b7773a2b3",
+      "current_import_sha256": "3e30f45ed96eb31d0dcd066a7e828d8904ab5d4f7528df6f38cbeb4f03bca370",
+      "manifest_shape_sha256": "d9386cd12b3fdbda704ff7ff153da37a4589e02783ad774307bb514e4249979a",
       "stage_classification": "modified-upstream",
       "stage_reason": "Remove AFD core/server dependencies and the bin; add the native ./schema export",
       "import_classification": "modified-after-staging",
-      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T07 step 2: claims, expectations and waivers; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); build:host names its target directory, because host.ts reads the release build beside the package even when CARGO_TARGET_DIR points elsewhere; TypeScript ^5.9.3 to ^7.0.2, and @typescript/typescript6 for the experiment inputs' CSF parser, since TypeScript 7 exports no compiler API (lushly-dev/afd#594); vitest, @vitest/browser, @vitest/browser-playwright and @vitest/coverage-v8 move from 4.1.12 to 5.1.0, which Storybook 10.6.2's Vitest addon accepts; @vitest/expect and @vitest/spy stay at 3.2.4 beside Storybook, and the Specimens records keep the 4.1.12 they were measured with (lushly-dev/afd#595)"
+      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T07 step 2: claims, expectations and waivers; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); build:host names its target directory, because host.ts reads the release build beside the package even when CARGO_TARGET_DIR points elsewhere; TypeScript ^5.9.3 to ^7.0.2, and @typescript/typescript6 for the experiment inputs' CSF parser, since TypeScript 7 exports no compiler API (lushly-dev/afd#594); parse5 8.1 escapes < and > in attribute values, as HTML now specifies"
     },
     {
       "path": "foundations/specimen/src/bench-runtime.ts",
@@ -729,11 +731,11 @@
       "upstream_sha256": "e228e027ded50bc4a6637b1d0e3966c78d92afe64471844bfc4bbf09aa969962",
       "staged_path": "packages/specimen/src/normalize.test.ts",
       "staged_sha256": "e228e027ded50bc4a6637b1d0e3966c78d92afe64471844bfc4bbf09aa969962",
-      "current_import_sha256": "7bca36032944794bfa249739da506332412f197d9f8e1bc75a9a7ca6eb3a3f70",
+      "current_import_sha256": "f1059c5e53d02addb021e2a375360cec899139c8e34ee880883cd520c30c2116",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check"
+      "import_reason": "Imported exact staged candidate bytes; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; parse5 8.1 escapes < and > in attribute values, as HTML now specifies"
     },
     {
       "path": "foundations/specimen/src/normalize.ts",
@@ -861,11 +863,12 @@
       "upstream_sha256": null,
       "staged_path": "integrations/specimen-afd/package.json",
       "staged_sha256": "1436f79dd262a15f958f9333bbafa5c268fc48166c02e401c5a9bc64bc9d0832",
-      "current_import_sha256": "bc4d65547acc87fc05ef27f8355a66d5100217e0713078f3ab3eabe69eb216f0",
+      "current_import_sha256": "a9e94f8aec8b3366f596c514f8398eb04154262d0cb6401a5d33bb4436501772",
+      "manifest_shape_sha256": "50e8d71a7bfd8b672277e6f690f688e85fb5048fbe2454bb97985d6d72691297",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); TypeScript ^5.9.3 to ^7.0.2 (lushly-dev/afd#594); vitest and @vitest/coverage-v8 ^4.1.12 to ^5.1.0 (lushly-dev/afd#595)"
+      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); TypeScript ^5.9.3 to ^7.0.2 (lushly-dev/afd#594)"
     },
     {
       "path": "integrations/specimen-afd/src/commands.test.ts",
@@ -3514,6 +3517,7 @@
       "staged_path": null,
       "staged_sha256": null,
       "current_import_sha256": "4c13793a179454031a775e46bfde506542cca9b833e61562605f6e0d8c814005",
+      "manifest_shape_sha256": "3414886a86d0fa08cd1125da2f7aba443a4381e789402c249c0b848ff416ab84",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -3538,6 +3542,7 @@
       "staged_path": null,
       "staged_sha256": null,
       "current_import_sha256": "a7ddc51a7073ca4524b5b9148a5c12005dc9bbe1b79c70198c1222ccbe35599d",
+      "manifest_shape_sha256": "b50d68ccc744ad5c663f318f16a18c77f34653d9fbe0d1cc1ad4d5e3699e2513",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -3562,6 +3567,7 @@
       "staged_path": null,
       "staged_sha256": null,
       "current_import_sha256": "f9685c365beb4abf36c27bce4e1dd539e1cba8f7f8121a485b97cbea6694a5b1",
+      "manifest_shape_sha256": "ffd0e69da6ef209a1af19c614187092e7cd9117cb0a46e0e3607b07592a7b0c7",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -3586,6 +3592,7 @@
       "staged_path": null,
       "staged_sha256": null,
       "current_import_sha256": "2b5d7702f0ec5c616d473ed8ecdd2713fe9bcf6f7abf19a1df153395ec8dd403",
+      "manifest_shape_sha256": "918d8ad24f2afb078fbf84a08b7b66b5cdff39f854807e87553f6dff08088c67",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
