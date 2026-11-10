@@ -319,13 +319,21 @@ pub struct Asked {
     pub elicitation_id: String,
 }
 
+/// `url`'s path and query: what follows its origin.
+pub fn path_of(url: &str) -> String {
+    match url.split_once("://") {
+        Some((_, rest)) => match rest.find('/') {
+            Some(start) => rest[start..].to_owned(),
+            None => "/".to_owned(),
+        },
+        None => url.to_owned(),
+    }
+}
+
 impl Asked {
     /// The page's path, from the URL.
     pub fn path(&self) -> String {
-        self.url
-            .strip_prefix("https://127.0.0.1")
-            .unwrap_or(&self.url)
-            .to_owned()
+        path_of(&self.url)
     }
 
     /// The decision id, from the URL.
@@ -404,8 +412,13 @@ pub async fn open(client: &Client, path: &str) -> Opened {
 }
 
 /// Follow the authorization URL at the kit (a scripted login must be queued) and answer the path
-/// and query the identity provider redirects back to.
+/// and query the identity provider redirects back to, which must be [`ORIGIN`]'s.
 pub async fn authorize(kit: &TestIdp, location: &str) -> String {
+    authorize_to(kit, location, ORIGIN).await
+}
+
+/// [`authorize`], the redirect back required to be at `origin`.
+pub async fn authorize_to(kit: &TestIdp, location: &str, origin: &str) -> String {
     let kit_client = Client::tls(kit.address(), kit.ca().certificate_pem(), None);
     let path = location
         .strip_prefix(kit.base_url())
@@ -414,9 +427,11 @@ pub async fn authorize(kit: &TestIdp, location: &str) -> String {
     let reply = kit_client.get(&path, &[]).await;
     assert!(reply.status == 302 || reply.status == 303, "{}", reply.text);
     let back = reply.headers["location"].to_str().unwrap().to_owned();
-    back.strip_prefix("https://127.0.0.1")
-        .unwrap_or(&back)
-        .to_owned()
+    assert!(
+        back.starts_with(&format!("{origin}/")),
+        "the provider sent the login back to {back}, not to {origin}"
+    );
+    path_of(&back)
 }
 
 /// The decision form's hidden `login` and `csrf` values in a rendered page.
@@ -439,8 +454,13 @@ pub struct LoggedIn {
 
 /// Open `path`, log in at the kit with the queued script, and come back with the cookie.
 pub async fn login(page: &Page, client: &Client, path: &str) -> LoggedIn {
+    login_at(&page.kit, client, path, ORIGIN).await
+}
+
+/// [`login`] at `kit`, on the page whose origin is `origin`, whatever served it.
+pub async fn login_at(kit: &TestIdp, client: &Client, path: &str, origin: &str) -> LoggedIn {
     let opened = open(client, path).await;
-    let back = authorize(&page.kit, &opened.location).await;
+    let back = authorize_to(kit, &opened.location, origin).await;
     let cookie = opened.cookie_header();
     let reply = client.get(&back, &[("cookie", cookie.as_str())]).await;
     let form = form(&reply.text);
@@ -459,6 +479,17 @@ pub async fn decide(
     cookie: Option<&str>,
     origin: Option<&str>,
 ) -> Reply {
+    decide_to(client, &format!("/mcp/d/{id}"), fields, cookie, origin).await
+}
+
+/// [`decide`], posting to the page's `path` (`<prefix>/d/<id>`).
+pub async fn decide_to(
+    client: &Client,
+    path: &str,
+    fields: &str,
+    cookie: Option<&str>,
+    origin: Option<&str>,
+) -> Reply {
     let mut headers: Vec<(&str, &str)> =
         vec![("content-type", "application/x-www-form-urlencoded")];
     if let Some(cookie) = cookie {
@@ -468,7 +499,7 @@ pub async fn decide(
         headers.push(("origin", origin));
     }
     client
-        .send(client.request("POST", &format!("/mcp/d/{id}"), &headers, fields.to_owned()))
+        .send(client.request("POST", path, &headers, fields.to_owned()))
         .await
 }
 
@@ -480,18 +511,30 @@ pub async fn decide_as(
     user: &str,
     decision: &str,
 ) -> Reply {
-    page.script(umbel_testkit_idp::ScriptedLogin::user(user));
-    let logged = login(page, client, path).await;
+    decide_as_at(&page.kit, client, path, user, decision, ORIGIN).await
+}
+
+/// [`decide_as`] at `kit`, posting from `origin` to the page at `path`, whatever served it.
+pub async fn decide_as_at(
+    kit: &TestIdp,
+    client: &Client,
+    path: &str,
+    user: &str,
+    decision: &str,
+    origin: &str,
+) -> Reply {
+    kit.identity_provider()
+        .script_login(umbel_testkit_idp::ScriptedLogin::user(user));
+    let logged = login_at(kit, client, path, origin).await;
     assert_eq!(logged.page.status, 200, "{}", logged.page.text);
     let (login, csrf) = logged.form.clone().unwrap();
-    let id = path.rsplit('/').next().unwrap();
     let cookie = logged.opened.cookie_header();
-    decide(
+    decide_to(
         client,
-        id,
+        path,
         &format!("login={login}&csrf={csrf}&decision={decision}"),
         Some(&cookie),
-        Some(ORIGIN),
+        Some(origin),
     )
     .await
 }

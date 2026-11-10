@@ -54,6 +54,12 @@ pub const HASHED_ID_PREFIX: char = '~';
 pub const HASHED_ID_BASE32_CHARS: usize = 52;
 /// RFC 8176's user-verification methods, the only ones `uv_amr` may name (2.2, owner decision 6).
 pub const UV_AMR_METHODS: &[&str] = &["pin", "fpt", "face", "iris", "retina", "vbm"];
+/// The `acr` classes that are phishing-resistant (OpenID Connect Extended Authentication Profile
+/// ACR values: `phr`, and `phrh`, phishing-resistant and hardware-protected). In mode `gateway`
+/// every class a person login asks for must be one of them (amendment from step 5b): the page's
+/// link reaches the person through the gateway, which could swap it for a look-alike origin and
+/// relay a phishable login in real time.
+pub const PHISHING_RESISTANT_ACR: &[&str] = &["phr", "phrh"];
 /// The JWS algorithms an issuer may list: AFD's `SigningAlgorithm` (step 0b's amendment). `none`,
 /// the `HS*` family, `ES512` and Ed448 are refused.
 pub const SIGNING_ALGORITHMS: &[&str] = &[

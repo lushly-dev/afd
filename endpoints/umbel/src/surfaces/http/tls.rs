@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use rustls_pki_types::pem::PemObject;
-use rustls_pki_types::{CertificateDer, PrivateKeyDer, UnixTime};
+use rustls_pki_types::{CertificateDer, UnixTime};
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::rustls::client::danger::HandshakeSignatureValid;
 use tokio_rustls::rustls::crypto::{
@@ -43,27 +43,42 @@ use crate::workspace::{ClientAuth, TlsConfig, WorkspaceError};
 /// file that cannot be read, holds no PEM item of its kind, or a key that does not match the
 /// certificate.
 pub(crate) fn acceptor(root: &Path, tls: &TlsConfig) -> Result<TlsAcceptor, HostError> {
+    acceptor_at(root, tls, "http.tls")
+}
+
+/// [`acceptor`] for the TLS table at `table` (`http.tls`, or `http.person.tls` for the person
+/// page's own listener), whose keys its errors name.
+///
+/// # Errors
+/// As [`acceptor`]'s, naming `<table>.cert`, `<table>.key` or `<table>.client_ca`.
+pub(crate) fn acceptor_at(
+    root: &Path,
+    tls: &TlsConfig,
+    table: &str,
+) -> Result<TlsAcceptor, HostError> {
+    let at = |name: &str| format!("{table}.{name}");
     let provider = Arc::new(aws_lc_rs::default_provider());
     let cert_path = resolve(root, &tls.cert);
-    let chain = certificates(&cert_path, "http.tls.cert")?;
-    let key = private_key(&resolve(root, &tls.key))?;
+    let chain = certificates(&cert_path, &at("cert"))?;
+    let key = crate::auth::files::private_key(&resolve(root, &tls.key))
+        .map_err(|problem| invalid(&at("key"), problem))?;
     let builder = ServerConfig::builder_with_provider(Arc::clone(&provider))
         .with_protocol_versions(&[&rustls::version::TLS13, &rustls::version::TLS12])
-        .map_err(|error| invalid("http.tls", format!("cannot be used: {error}")))?;
+        .map_err(|error| invalid(table, format!("cannot be used: {error}")))?;
     let builder = match tls.client_auth {
         ClientAuth::None => builder.with_no_client_auth(),
         ClientAuth::Ca => {
             let Some(client_ca) = &tls.client_ca else {
                 return Err(invalid(
-                    "http.tls.client_ca",
+                    &at("client_ca"),
                     "is required with client_auth = \"ca\"",
                 ));
             };
             let mut roots = RootCertStore::empty();
-            for certificate in certificates(&resolve(root, client_ca), "http.tls.client_ca")? {
+            for certificate in certificates(&resolve(root, client_ca), &at("client_ca"))? {
                 roots.add(certificate).map_err(|error| {
                     invalid(
-                        "http.tls.client_ca",
+                        &at("client_ca"),
                         format!("holds a certificate that cannot be a trust anchor: {error}"),
                     )
                 })?;
@@ -72,7 +87,7 @@ pub(crate) fn acceptor(root: &Path, tls: &TlsConfig) -> Result<TlsAcceptor, Host
                 WebPkiClientVerifier::builder_with_provider(Arc::new(roots), Arc::clone(&provider))
                     .build()
                     .map_err(|error| {
-                        invalid("http.tls.client_ca", format!("cannot be used: {error}"))
+                        invalid(&at("client_ca"), format!("cannot be used: {error}"))
                     })?;
             builder.with_client_cert_verifier(verifier)
         }
@@ -82,7 +97,7 @@ pub(crate) fn acceptor(root: &Path, tls: &TlsConfig) -> Result<TlsAcceptor, Host
     };
     let mut config = builder.with_single_cert(chain, key).map_err(|error| {
         invalid(
-            "http.tls.key",
+            &at("key"),
             format!(
                 "cannot serve the certificate in {}: {error}",
                 cert_path.display()
@@ -127,12 +142,6 @@ fn certificates(path: &Path, key: &str) -> Result<Vec<CertificateDer<'static>>, 
         ));
     }
     Ok(chain)
-}
-
-/// The private key in the PEM file at `path`. The parser's own account is never given, so no
-/// line of a key file ever reaches a log or an answer.
-fn private_key(path: &Path) -> Result<PrivateKeyDer<'static>, HostError> {
-    crate::auth::files::private_key(path).map_err(|problem| invalid("http.tls.key", problem))
 }
 
 /// `client_auth = "any"`: a client certificate is asked for and not required. One that is sent

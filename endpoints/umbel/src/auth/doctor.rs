@@ -69,6 +69,7 @@ pub(crate) fn checks(inputs: &Inputs<'_>) -> Vec<Check> {
         services(config),
         principals(config),
         person(inputs, &probes),
+        person_listener(inputs),
         secrets(inputs),
         shared(inputs.root),
         confirmations(config),
@@ -949,21 +950,28 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
     let mut found = Findings::default();
     let gated = inputs.person_mcp.unwrap_or_default();
     let mut valid = Vec::new();
+    // Mode gateway: every class must be phishing-resistant (step 5b), as the page requires.
+    let strict = auth.mode == crate::workspace::AuthMode::Gateway;
     // Where the person page is not served, no namespace's verified commands are (step 5).
     let logins = auth
         .namespaces
         .iter()
         .any(|namespace| namespace.person.is_some());
-    if auth.mode == crate::workspace::AuthMode::Gateway && (logins || !gated.is_empty()) {
+    if auth.mode == crate::workspace::AuthMode::Gateway
+        && inputs.config.http.person.is_none()
+        && (logins || !gated.is_empty())
+    {
         found.warn(
-            "mode gateway serves no person page (the gateway would stand between the person and the page), so no verified command is served"
+            "mode gateway without [http.person] serves no person page (through the gateway, the gateway would stand between the person and the page), so no verified command is served"
                 .to_owned(),
         );
     }
-    if auth.mode == crate::workspace::AuthMode::Oauth
-        && !auth.filter_tools_by_scope
-        && !gated.is_empty()
-    {
+    let page_listed = match auth.mode {
+        crate::workspace::AuthMode::Oauth => true,
+        crate::workspace::AuthMode::Gateway => inputs.config.http.person.is_some(),
+        crate::workspace::AuthMode::None => false,
+    };
+    if page_listed && !auth.filter_tools_by_scope && !gated.is_empty() {
         found.warn(format!(
             "auth.filter_tools_by_scope is false, so the person page is not served and {} (person.mcp) are not served",
             listed(gated)
@@ -1004,7 +1012,7 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
         match document {
             Ok((document, _)) => {
                 let (failed, warned) =
-                    crate::person::oidc::login_findings(ns, &login.issuer, login, document);
+                    crate::person::oidc::login_findings(ns, &login.issuer, login, document, strict);
                 for failure in failed {
                     found.fail(failure);
                 }
@@ -1018,6 +1026,7 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
                     &login.issuer,
                     login,
                     &serde_json::Map::new(),
+                    strict,
                 );
                 for failure in failed {
                     found.fail(failure);
@@ -1049,6 +1058,250 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
         "auth.person",
         passed,
         "Give each person login acr_values its provider lists in acr_values_supported and that require user verification, and uv_amr from RFC 8176 (pin, fpt, face, iris, retina, vbm); use a provider that publishes acr and amr in claims_supported.",
+    )
+}
+
+// ── auth.person_listener ────────────────────────────────────────────────────────────────────────
+
+/// What the doctor's probe of the person page's own listener found.
+enum PageProbe {
+    /// It answered.
+    Answered(super::fetch::Probed),
+    /// It could not be reached (the fetch's rule code).
+    Unreachable(&'static str),
+}
+
+/// GET the page's style sheet at `url` as a browser on this host would, on a thread and runtime
+/// of the doctor's own: HTTPS only, the platform's roots (and the test seams'), no redirect.
+fn probe_page(environment: &AuthEnvironment, url: String) -> PageProbe {
+    let environment = environment.clone();
+    let worker = std::thread::Builder::new()
+        .name("umbel-doctor-person".to_owned())
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|_| "runtime")?;
+            runtime.block_on(async move {
+                let fetcher = Fetcher::new(&environment).map_err(|_| "client")?;
+                let timeout = environment.timeout;
+                match tokio::time::timeout(timeout, fetcher.headers(&url)).await {
+                    Ok(Ok(answered)) => Ok(answered),
+                    Ok(Err(error)) => Err(error.code()),
+                    Err(_) => Err("timeout"),
+                }
+            })
+        });
+    match worker.map(std::thread::JoinHandle::join) {
+        Ok(Ok(Ok(probed))) => PageProbe::Answered(probed),
+        Ok(Ok(Err(code))) => PageProbe::Unreachable(code),
+        _ => PageProbe::Unreachable("not-run"),
+    }
+}
+
+/// The host of the absolute URL `url`, lowercase and without brackets.
+fn host_of(url: &str) -> Option<String> {
+    let url = reqwest::Url::parse(url).ok()?;
+    let host = url.host_str()?.to_ascii_lowercase();
+    Some(
+        host.trim_start_matches('[')
+            .trim_end_matches(']')
+            .to_owned(),
+    )
+}
+
+/// `[http.person]`, the person page's own listener in mode `gateway` (amendment from step 5b):
+/// its certificate (each one's validity, the file's permissions, the leaf naming the origin's
+/// host, a wildcard leaf warned), its key, what the listener itself loads; its origin's host
+/// neither `http.public_url`'s nor `auth.gateway.issuer`'s (the hosts Umbel knows the gateway
+/// uses; the deployer answers for the rest); its bind (both binds loopback fails: browsers then
+/// reach the page only through something on this host, as the gateway reaches Umbel; the page's
+/// alone loopback warns); whether it is served at all; and the page probed at its origin, which
+/// must present the configured certificate and the page's own security headers (unreachable
+/// warns: the server may not be running).
+fn person_listener(inputs: &Inputs<'_>) -> Check {
+    let config = inputs.config;
+    let mut found = Findings::default();
+    let suggestion = "In auth.mode = \"gateway\", serve the person page on [http.person]: a bind browsers reach directly (not loopback where the gateway's is), a public_url on a host the gateway neither serves nor holds a certificate for, and [http.person.tls] with a certificate naming that host alone, renewed before it expires, its key readable by its owner only; nothing between browsers and the page may terminate its TLS or change its answers.";
+    let Some(listener) = &config.http.person else {
+        let logins = config
+            .auth
+            .namespaces
+            .iter()
+            .any(|namespace| namespace.person.is_some());
+        let gated = inputs.person_mcp.unwrap_or_default();
+        let passed = match config.auth.mode {
+            AuthMode::Gateway => {
+                if logins || !gated.is_empty() {
+                    found.warn("[http.person] is not set, so mode gateway serves no person page and no verified command: through the gateway's channel, the gateway would carry the page's login, cookie and decision");
+                }
+                "[http.person] is not set: mode gateway serves no person page and no verified command"
+            }
+            _ => {
+                "[http.person] is not set: mode oauth serves the person page beside the MCP path, at http.public_url"
+            }
+        };
+        return found.into_check("auth.person_listener", passed, suggestion);
+    };
+    if !crate::plugins::loader::person_page_served(config) {
+        found.warn("[http.person] is configured but not served: auth.filter_tools_by_scope is false, and only with filtered listings is a verified command withheld from a caller whose namespace's login does not pass auth.person, so no verified command and no person page are served");
+    }
+    let root = inputs.root;
+    let now = now_s(inputs.environment);
+    let tls = &listener.tls;
+    // Its certificate, permissions and expiry, as auth.tls checks the gateway-facing one's.
+    certificate_file(&mut found, root, "http.person.tls.cert", &tls.cert, now);
+    let key = root.join(&tls.key);
+    if let Err(problem) = files::private_key(&key) {
+        found.fail(format!("http.person.tls.key: {problem}"));
+    }
+    if let Some(problem) = files::too_open(&key, Secrecy::Secret) {
+        found.fail(format!("http.person.tls.key: {problem}"));
+    }
+    if found.failures.is_empty()
+        && let Err(error) = crate::surfaces::http::tls::acceptor_at(root, tls, "http.person.tls")
+    {
+        // The listener's own loading: the key matches the certificate.
+        found.fail(error.message());
+    }
+    // Its origin: a host of its own (configuration refuses the hosts Umbel knows, too).
+    let host = match crate::workspace::check_person_origin(
+        &listener.public_url,
+        &listener.allowed_hosts,
+    ) {
+        Ok(host) => Some(host),
+        Err(problem) => {
+            found.fail(format!("http.person.public_url: {problem}"));
+            None
+        }
+    };
+    let bare = host.as_deref().map(|host| {
+        host.trim_start_matches('[')
+            .trim_end_matches(']')
+            .to_owned()
+    });
+    let known = [
+        ("http.public_url", config.http.public_url.as_deref()),
+        (
+            "auth.gateway.issuer",
+            config
+                .auth
+                .gateway
+                .as_ref()
+                .map(|gateway| gateway.issuer.as_str()),
+        ),
+    ];
+    if let Some(bare) = &bare {
+        let shared: Vec<&str> = known
+            .iter()
+            .filter(|(_, url)| url.and_then(host_of).as_deref() == Some(bare.as_str()))
+            .map(|(key, _)| *key)
+            .collect();
+        if shared.is_empty() {
+            found.note(format!(
+                "the page's host {bare} is neither http.public_url's nor auth.gateway.issuer's; Umbel cannot see the gateway's other hosts, so the deployer answers that the gateway neither serves {bare} nor holds a certificate for it"
+            ));
+        } else {
+            found.fail(format!(
+                "http.person.public_url names the host {bare}, which {} names too: a host the gateway uses would receive the page's cookies",
+                shared.join(" and ")
+            ));
+        }
+    }
+    // The leaf certificate names the origin's host, as a browser requires, and no wildcard.
+    let chain = files::certificates(&root.join(&tls.cert)).ok();
+    let leaf = chain.as_ref().and_then(|chain| chain.first());
+    if let (Some(host), Some(leaf)) = (&host, leaf) {
+        if !leaf.names(host) {
+            found.fail(format!(
+                "http.person.tls.cert does not name {host}, the person page's public host, so a browser refuses it"
+            ));
+        }
+        if leaf.has_wildcard() {
+            found.warn(
+                "http.person.tls.cert holds a wildcard name: whoever else holds a certificate for that wildcard, the gateway's operator included, can serve the page's host; give the page a certificate naming its host alone",
+            );
+        }
+    }
+    if !files::PERMISSIONS_CHECKED {
+        found.warn("this platform's file permissions and owners are not checked");
+    }
+    if listener.bind.ip().is_loopback() {
+        if config.http.bind.ip().is_loopback() {
+            found.fail(format!(
+                "http.person.bind {} and http.bind {} are both loopback: browsers would reach the person page only through something on this host, as the gateway reaches Umbel, so the gateway may be what carries the page; bind the page where browsers reach it directly",
+                listener.bind, config.http.bind
+            ));
+        } else {
+            found.warn(format!(
+                "http.person.bind {} is loopback, so browsers reach the person page only through something on this host, which must pass its TLS through untouched and never be the gateway",
+                listener.bind
+            ));
+        }
+    }
+    // Reachable at its origin, presenting the configured certificate, with the page's own
+    // headers: nothing between browsers and the page terminates its TLS or rewrites its answers.
+    let probe_url = format!("{}/d/style.css", listener.public_url);
+    match probe_page(inputs.environment, probe_url.clone()) {
+        PageProbe::Unreachable(code) => found.warn(format!(
+            "the person page cannot be reached at {probe_url} from this host ({code}): browsers must reach it directly over HTTPS and trust its certificate; is umbel serve --http running?"
+        )),
+        PageProbe::Answered(probed) => {
+            let one = |name: &str| -> Option<String> {
+                let mut values = probed.headers.get_all(name).iter();
+                match (values.next(), values.next()) {
+                    (Some(value), None) => value.to_str().ok().map(str::to_owned),
+                    _ => None,
+                }
+            };
+            let expected = [
+                ("content-security-policy", crate::person::page::CSP),
+                ("x-frame-options", "DENY"),
+                ("referrer-policy", "no-referrer"),
+                ("cache-control", "no-store"),
+                (
+                    "strict-transport-security",
+                    crate::surfaces::http::person::HSTS,
+                ),
+            ];
+            let wrong: Vec<String> = expected
+                .iter()
+                .filter(|(name, value)| one(name).as_deref() != Some(*value))
+                .map(|(name, _)| (*name).to_owned())
+                .collect();
+            let presented_ours = match (&probed.certificate, leaf) {
+                (Some(presented), Some(leaf)) => presented.as_slice() == leaf.der.as_ref(),
+                _ => false,
+            };
+            if !presented_ours {
+                found.fail(format!(
+                    "the server at {probe_url} presented another certificate than http.person.tls.cert: something between browsers and the page terminates its TLS"
+                ));
+            } else if probed.status != 200 {
+                found.fail(format!(
+                    "the person page at {probe_url} answered {}, not its style sheet: something else answers at http.person.public_url",
+                    probed.status
+                ));
+            } else if !wrong.is_empty() {
+                found.fail(format!(
+                    "the person page at {probe_url} answered without its own {}: something between browsers and the page changes its answers",
+                    wrong.join(", ")
+                ));
+            } else {
+                found.note(format!(
+                    "the person page answers at {} with the configured certificate and its own Content-Security-Policy",
+                    listener.public_url
+                ));
+            }
+        }
+    }
+    found.into_check(
+        "auth.person_listener",
+        format!(
+            "[http.person] serves the person page at {} on {}, with TLS of its own on a host that is neither http.public_url's nor auth.gateway.issuer's; every certificate is valid for more than 14 days and names that host, and the key is readable by its owner only",
+            listener.public_url, listener.bind
+        ),
+        suggestion,
     )
 }
 

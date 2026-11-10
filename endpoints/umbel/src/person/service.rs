@@ -90,7 +90,9 @@ pub(crate) struct PersonService {
     projector: Arc<crate::events::Projector>,
     pub(crate) person_key: Vec<u8>,
     relay_key: Vec<u8>,
-    public_url: String,
+    /// The base of the page's URLs: `http.public_url` in mode `oauth`, `http.person.public_url`
+    /// (an origin) in mode `gateway`.
+    page_url: String,
 }
 
 impl std::fmt::Debug for PersonService {
@@ -161,8 +163,9 @@ fn keepable(value: &Value) -> bool {
 }
 
 impl PersonService {
-    /// The service of a workspace that serves its person page (mode `oauth` with
-    /// `auth.filter_tools_by_scope`; `loader::person_page_served`), else `None`. `commands` are the gated commands with a `verified` surface.
+    /// The service of a workspace that serves its person page (`loader::person_page_served`: mode
+    /// `oauth`, or mode `gateway` with `[http.person]`, with `auth.filter_tools_by_scope`), else
+    /// `None`. `commands` are the gated commands with a `verified` surface.
     ///
     /// # Errors
     /// `WORKSPACE_KEY_INVALID` or `WORKSPACE_STATE_UNWRITABLE` for `person.key` or `relay.key`.
@@ -177,8 +180,16 @@ impl PersonService {
         if !crate::plugins::loader::person_page_served(config) {
             return Ok(None);
         }
-        let Some(public_url) = config.http.public_url.clone() else {
-            return Ok(None);
+        // Where the page is served: beside the MCP path in mode `oauth`; on its own origin in mode
+        // `gateway` (step 5b), so every link and the redirect URI name a host the gateway never
+        // serves.
+        let page_url = match (config.auth.mode, &config.http.person) {
+            (crate::workspace::AuthMode::Gateway, Some(person)) => person.public_url.clone(),
+            (crate::workspace::AuthMode::Oauth, _) => match config.http.public_url.clone() {
+                Some(url) => url,
+                None => return Ok(None),
+            },
+            _ => return Ok(None),
         };
         let platform = Fetcher::new(environment);
         let mut providers = BTreeMap::new();
@@ -215,17 +226,22 @@ impl PersonService {
                 .filter(|value| !value.is_empty());
             providers.insert(
                 namespace.id.clone(),
-                Arc::new(Provider::new(
-                    &namespace.id,
-                    &issuer.alias,
-                    &issuer.issuer,
-                    issuer.algorithms.clone(),
-                    login.clone(),
-                    fetcher,
-                    environment,
-                    config.auth.clock_skew_s,
-                    secret,
-                )),
+                Arc::new(
+                    Provider::new(
+                        &namespace.id,
+                        &issuer.alias,
+                        &issuer.issuer,
+                        issuer.algorithms.clone(),
+                        login.clone(),
+                        fetcher,
+                        environment,
+                        config.auth.clock_skew_s,
+                        secret,
+                    )
+                    .with_phishing_resistance(
+                        config.auth.mode == crate::workspace::AuthMode::Gateway,
+                    ),
+                ),
             );
         }
         let layout = workspace.layout();
@@ -253,7 +269,7 @@ impl PersonService {
             projector: Arc::clone(projector),
             person_key: workspace.person_key()?,
             relay_key: workspace.relay_key()?,
-            public_url,
+            page_url,
         })))
     }
 
@@ -283,18 +299,20 @@ impl PersonService {
         self.providers.get(namespace)
     }
 
-    /// The person page's URL of decision `id`: `<http.public_url>/d/<id>` (7.2, step 1).
+    /// The person page's URL of decision `id` (7.2, step 1): `<http.public_url>/d/<id>` in mode
+    /// `oauth`, `<http.person.public_url>/d/<id>` in mode `gateway`.
     pub(crate) fn url(&self, id: &str) -> String {
-        format!("{}/d/{id}", self.public_url)
+        format!("{}/d/{id}", self.page_url)
     }
 
-    /// The URL the provider sends a login back to: `<http.public_url>/d/return`.
+    /// The URL the provider sends a login back to: the page's base, then `/d/return`.
     pub(crate) fn redirect_uri(&self) -> String {
-        format!("{}/d/return", self.public_url)
+        format!("{}/d/return", self.page_url)
     }
 
-    pub(crate) fn public_url(&self) -> &str {
-        &self.public_url
+    /// The base of the page's URLs ([`Self::url`]).
+    pub(crate) fn page_url(&self) -> &str {
+        &self.page_url
     }
 
     fn limits(&self) -> Result<Arc<dyn LimitStore>, CommandError> {

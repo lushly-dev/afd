@@ -306,6 +306,7 @@ fn a_bind_override_follows_the_same_rule() {
     let wide = Overrides {
         http_bind: Some("0.0.0.0:9443".into()),
         log_filter: None,
+        http_person_bind: None,
     };
     // Not hosted, or hosted without TLS: still loopback only.
     for text in ["config_version = 5\n".to_owned(), oauth("")] {

@@ -380,10 +380,12 @@ fn flag_beats_environment_beats_file_beats_default() {
     let env = Overrides {
         http_bind: Some("127.0.0.1:1002".into()),
         log_filter: Some("umbel=debug".into()),
+        http_person_bind: None,
     };
     let flags = Overrides {
         http_bind: Some("127.0.0.1:1003".into()),
         log_filter: None,
+        http_person_bind: None,
     };
     let merged = flags.or(env.clone());
     let workspace = open_with(file, &env).unwrap();
@@ -403,6 +405,7 @@ fn a_non_loopback_bind_is_refused_from_the_file_and_from_an_override() {
     let overrides = Overrides {
         http_bind: Some("0.0.0.0:7410".into()),
         log_filter: None,
+        http_person_bind: None,
     };
     let error = open_with("config_version = 1\n", &overrides).unwrap_err();
     assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID");
@@ -410,6 +413,7 @@ fn a_non_loopback_bind_is_refused_from_the_file_and_from_an_override() {
     let ok = Overrides {
         http_bind: Some("127.0.0.2:0".into()),
         log_filter: None,
+        http_person_bind: None,
     };
     assert!(open_with("config_version = 1\n", &ok).is_ok());
 }

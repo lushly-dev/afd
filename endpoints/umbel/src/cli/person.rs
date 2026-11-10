@@ -1,7 +1,8 @@
 //! The CLI's URL flow (phase 5 specification, sections 7.1 and 7.2): a `person.cli = "verified"`
 //! command at the terminal prints its person page's link and waits for the person's decision.
 //!
-//! It needs a hosted workspace (the page is served there, beside the MCP path), the operator's
+//! It needs a hosted workspace that serves the page (beside the MCP path in mode `oauth`, on its
+//! own listener in mode `gateway`, step 5b), the operator's
 //! namespaced `principal.local_id`, and that namespace's person login passing `auth.person`; else
 //! `PERSON_VERIFICATION_UNAVAILABLE`, and nothing is asked. The input is validated first, as the
 //! registry will, so the person decides on exactly what runs. Then the decision is begun for the
@@ -77,7 +78,7 @@ async fn verified(
     let Some(service) = host.person().cloned() else {
         return failure(unavailable(
             command,
-            "this workspace serves no person page (it needs auth.mode \"oauth\", auth.filter_tools_by_scope and http.public_url)",
+            "this workspace serves no person page (it needs auth.filter_tools_by_scope and auth.mode \"oauth\" with http.public_url, or auth.mode \"gateway\" with [http.person])",
         ));
     };
     let mut context = host.cli_context();

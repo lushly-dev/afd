@@ -64,6 +64,10 @@ pub(crate) enum Verb {
         /// The loopback address to bind (overrides http.bind and UMBEL_HTTP_BIND).
         #[arg(long, value_name = "ADDR")]
         bind: Option<String>,
+        /// The person page's own listener in mode gateway (overrides http.person.bind and
+        /// UMBEL_HTTP_PERSON_BIND).
+        #[arg(long, value_name = "ADDR")]
+        person_bind: Option<String>,
         /// Print the bearer token once on stdout.
         #[arg(long)]
         print_token: bool,

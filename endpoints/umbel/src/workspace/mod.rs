@@ -30,8 +30,8 @@ pub use discovery::{FoundBy, Located, WORKSPACE_ENV, discover, discover_from_pro
 pub use error::{WorkspaceError, codes};
 pub use hosted::{
     AuthConfig, AuthMode, ClaimMatch, ClientAuth, Delegation, GatewayConfig, GroupClaim,
-    IntrospectionClient, IssuerConfig, NamespaceConfig, PersonLogin, RateLimits, ServicesConfig,
-    TlsConfig, TokenCheck, UsageConfig,
+    IntrospectionClient, IssuerConfig, NamespaceConfig, PersonListener, PersonLogin, RateLimits,
+    ServicesConfig, TlsConfig, TokenCheck, UsageConfig,
 };
 pub use keys::{KEY_BYTES, TOKEN_CHARS};
 pub use layout::Layout;
@@ -41,7 +41,7 @@ pub use plugins_config::{
 pub use space::SpaceId;
 
 #[cfg(feature = "auth")]
-pub(crate) use hosted::check_public_url;
+pub(crate) use hosted::{check_person_origin, check_public_url};
 pub(crate) use keys::{read_key, read_token};
 
 /// An opened workspace: a validated configuration over a directory whose `state/` and keys exist.

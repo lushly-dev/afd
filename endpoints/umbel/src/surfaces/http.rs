@@ -27,11 +27,16 @@
 //! ([`gateway`]) in place of AFD's bearer layer at 5: the pinned channel and a verified,
 //! single-use assertion per request, no protected-resource metadata, and the bearer layer's own
 //! decision before dispatch (AFD's `PreDispatchCheck`), whose 403 is in the gateway's scheme.
+//! It serves no person page: with `[http.person]`, the page has a listener of its own
+//! ([`person`], [`person_server`]), which browsers reach directly and never through the gateway
+//! (phase 5 step 5b).
 
 #[cfg(feature = "auth")]
 pub(crate) mod gateway;
 pub(crate) mod layers;
 pub(crate) mod listener;
+#[cfg(feature = "auth")]
+pub(crate) mod person;
 #[cfg(feature = "auth")]
 pub(crate) mod tls;
 
@@ -199,7 +204,7 @@ pub(crate) fn server(
                 };
                 oauth_router(server, workspace, policy, verifier, person)?
             }
-            AuthMode::Gateway => gateway::router(server, workspace, policy, environment, person)?,
+            AuthMode::Gateway => gateway::router(server, workspace, policy, environment)?,
         };
         let tls = config
             .http
@@ -214,6 +219,19 @@ pub(crate) fn server(
             proxies: Arc::from(config.http.trusted_proxies.clone()),
         })
     }
+}
+
+/// The person page's own listener (`[http.person]`, mode `gateway`, phase 5 step 5b), when the
+/// workspace serves it; see [`person`].
+///
+/// # Errors
+/// As [`person::server`]'s.
+#[cfg(feature = "auth")]
+pub(crate) fn person_server(
+    workspace: &Workspace,
+    person: Option<&Arc<crate::person::service::PersonService>>,
+) -> Result<Option<HttpServer>, HostError> {
+    person::server(workspace, person)
 }
 
 /// A `WORKSPACE_CONFIG_INVALID` naming `key`, with `details.key`.

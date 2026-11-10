@@ -1244,13 +1244,21 @@ fn origin(instance: &str, manifest: &Manifest, command: &CommandDecl) -> Value {
 }
 
 /// Whether a workspace serves its person page, so that a command a person decides over MCP is
-/// registered for MCP (phase 5 section 7.1): mode `oauth` with `auth.filter_tools_by_scope`, the
-/// only setting under which AFD asks Umbel's resolver whether such a command exists for a caller
-/// (so a caller whose namespace serves no verified commands gets an unknown name). Mode `gateway`
-/// serves no person page: the gateway would stand between the person and the page (step 5's
-/// review, a question for the owner).
+/// registered for MCP (phase 5 section 7.1), with `auth.filter_tools_by_scope`, the only setting
+/// under which AFD asks Umbel's resolver whether such a command exists for a caller (so a caller
+/// whose namespace serves no verified commands gets an unknown name): mode `oauth`, beside the MCP
+/// path; or mode `gateway` with `[http.person]`, on the page's own listener, which browsers reach
+/// directly and never through the gateway (the owner's decision of 2026-11-09, step 5b). Mode
+/// `gateway` without it serves no person page: the gateway would stand between the person and the
+/// page (step 5's review).
 pub(crate) fn person_page_served(config: &crate::workspace::Config) -> bool {
-    config.auth.mode == crate::workspace::AuthMode::Oauth && config.auth.filter_tools_by_scope
+    use crate::workspace::AuthMode;
+    config.auth.filter_tools_by_scope
+        && match config.auth.mode {
+            AuthMode::Oauth => true,
+            AuthMode::Gateway => config.http.person.is_some(),
+            AuthMode::None => false,
+        }
 }
 
 /// Whether the command is registered for MCP: as [`CommandDecl::mcp_exposed`] says, and, where
