@@ -30,6 +30,10 @@ pub const PROVENANCE_KEY: &str = "dev.umbel/provenance";
 /// only by the plugin gate from what the host did; a plugin's own value is removed with every
 /// other `dev.umbel/` key it may not set.
 pub(crate) const AUTHORITY_KEY: &str = "dev.umbel/authority";
+/// `result.metadata` key: the writing principal's `delegationChain` (envelope version 3, phase 5
+/// section 2.4), set only by the host's event stamp from the principal it set, on a result the
+/// event log projects.
+pub(crate) const DELEGATION_KEY: &str = "dev.umbel/delegation";
 
 /// The most `sources` or `derivedFrom` entries an envelope holds.
 const MAX_LISTED: usize = 64;
@@ -300,11 +304,11 @@ impl Origin {
     }
 }
 
-/// The provenance envelope, version 0, 1 or 2. Every field of its version is present on the wire;
+/// The provenance envelope, version 0 to 3. Every field of its version is present on the wire;
 /// absent ones are `null`. Version 0 has no `plugin`, `sources`, `generated`, `contentHash`,
-/// `derivedFrom`, `access` or `sensitivity`, and versions 0 and 1 have no `redactions`,
-/// `constraints` or `confirmation`: those read as their empty values from an older line and are
-/// not written for one.
+/// `derivedFrom`, `access` or `sensitivity`, versions 0 and 1 have no `redactions`,
+/// `constraints` or `confirmation`, and versions 0 to 2 no `delegationChain` (phase 5 section
+/// 2.4): those read as their empty values from an older line and are not written for one.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Envelope {
@@ -362,16 +366,22 @@ pub struct Envelope {
     #[serde(default)]
     pub constraints: Option<Vec<String>>,
     /// Version 2: `{ by, at, priorAuthority }`, filled only by the host, from a `memory-confirm`
-    /// it performed; `null` everywhere else.
+    /// it performed; `null` everywhere else. Version 3 adds its `assurance`.
     #[serde(default)]
     pub confirmation: Option<Value>,
+    /// Version 3: the writing principal's chain, outermost first; empty without a token or
+    /// assertion, never `null`.
+    #[serde(default)]
+    pub delegation_chain: Option<Vec<crate::auth::ChainEntry>>,
 }
 
 impl Serialize for Envelope {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let v1 = self.version >= 1;
         let v2 = self.version >= 2;
+        let v3 = self.version >= 3;
         let mut map = serializer.serialize_map(Some(match (v1, v2) {
+            (_, true) if v3 => 23,
             (_, true) => 22,
             (true, false) => 19,
             _ => 12,
@@ -403,6 +413,13 @@ impl Serialize for Envelope {
             map.serialize_entry("redactions", &self.redactions)?;
             map.serialize_entry("constraints", &self.constraints)?;
             map.serialize_entry("confirmation", &self.confirmation)?;
+        }
+        if v3 {
+            let none: Vec<crate::auth::ChainEntry> = Vec::new();
+            map.serialize_entry(
+                "delegationChain",
+                self.delegation_chain.as_ref().unwrap_or(&none),
+            )?;
         }
         map.end()
     }
@@ -518,19 +535,40 @@ impl Envelope {
             confirmation: if v2 {
                 host_owned
                     .and_then(|host| host.get("confirmation"))
-                    .filter(|value| is_confirmation(value))
+                    .filter(|value| is_confirmation(value, version))
                     .cloned()
             } else {
                 None
             },
+            // The chain the host's event stamp recorded from the principal it set, read through
+            // its shape again; an entry with none (journaled before version 3) has an empty one.
+            delegation_chain: (version >= 3).then(|| {
+                metadata
+                    .and_then(|metadata| metadata.extra.get(DELEGATION_KEY))
+                    .and_then(|chain| {
+                        serde_json::from_value::<Vec<crate::auth::ChainEntry>>(chain.clone()).ok()
+                    })
+                    .filter(|chain| chain.len() <= crate::auth::MAX_DELEGATION_CHAIN)
+                    .unwrap_or_default()
+            }),
         }
     }
 }
 
-/// `{ by, at, priorAuthority }`, each a string, the prior authority of the closed set.
-fn is_confirmation(value: &Value) -> bool {
+/// `{ by, at, priorAuthority }`, each a string, the prior authority of the closed set; in
+/// version 3 also a valid `assurance` (phase 5 sections 2.4 and 7.1).
+fn is_confirmation(value: &Value, version: u32) -> bool {
+    let assured = |map: &serde_json::Map<String, Value>| {
+        map.get("assurance")
+            .and_then(|assurance| {
+                serde_json::from_value::<umbel_store::Assurance>(assurance.clone()).ok()
+            })
+            .is_some_and(|assurance| assurance.is_valid())
+    };
     value.as_object().is_some_and(|map| {
-        map.len() == 3
+        let fields = if version >= 3 { 4 } else { 3 };
+        map.len() == fields
+            && (version < 3 || assured(map))
             && map.get("by").is_some_and(Value::is_string)
             && map.get("at").is_some_and(Value::is_string)
             && map

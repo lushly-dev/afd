@@ -101,7 +101,13 @@ pub(crate) fn item(space: &str, record: &MemoryRecord) -> Item {
         "provenance": {
             "origin": envelope.origin,
             "authority": authority,
-            "confirmation": envelope.confirmation,
+            // Context bundle version 1's confirmation: who vouched, when, and the prior authority.
+            // How that person was proven (envelope version 3's `assurance`) stays on the record.
+            "confirmation": envelope.confirmation.as_ref().map(|confirmation| serde_json::json!({
+                "by": confirmation.by,
+                "at": confirmation.at,
+                "priorAuthority": confirmation.prior_authority,
+            })),
             "principal": record.scope.principal,
             "recordedAt": format_instant(record.recorded_at),
             "validFrom": format_instant(record.valid_from),

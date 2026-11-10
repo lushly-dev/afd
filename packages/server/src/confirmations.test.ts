@@ -14,6 +14,16 @@ import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
 
+/**
+ * `state` with one signature character changed. The last character of a base64url HMAC-SHA256
+ * carries only four bits, so rewriting it can decode to the same bytes (about once in 1,024
+ * runs); the character before it carries six.
+ */
+function tamper(state: string): string {
+	const at = state.length - 2;
+	return `${state.slice(0, at)}${state[at] === 'A' ? 'B' : 'A'}${state.slice(at + 1)}`;
+}
+
 const MODERN = '2026-07-28';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -382,7 +392,7 @@ describe('confirmations over MCP', () => {
 			{ scope: 'a' },
 			{
 				inputResponses: accepted,
-				requestState: `${asked.requestState.slice(0, -2)}xx`,
+				requestState: tamper(asked.requestState),
 			}
 		);
 		expect((tampered.json.result as { resultType: string }).resultType).toBe('input_required');
@@ -457,9 +467,7 @@ describe('confirmations over MCP', () => {
 
 		// A tampered state is the reference: a caller the state was not issued to gets exactly
 		// the same answer, and nothing runs.
-		const tampered = question(
-			await call(2, caller, { ...retry, requestState: `${state.slice(0, -2)}xx` })
-		);
+		const tampered = question(await call(2, caller, { ...retry, requestState: tamper(state) }));
 		expect(tampered).toEqual(question(first));
 		const others: Caller[] = [
 			{ ...caller, actor: { ...caller.actor, id: 'other-agent' } },

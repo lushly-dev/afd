@@ -3994,6 +3994,7 @@ dependencies = [
  "umbel-store",
  "umbel-store-embedded",
  "umbel-testkit-idp",
+ "url",
  "wasmtime",
  "wasmtime-wasi",
  "wasmtime-wasi-io",

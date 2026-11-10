@@ -1,0 +1,15 @@
+# Cargo settings for every Rust workspace in this repository: Umbel, the afd crate, Specimen's
+# host and the todo example's backend. Agents build them in many worktrees, often into one shared
+# CARGO_TARGET_DIR, so each build's footprint is kept small. `pnpm rust:sweep` evicts what
+# builds no longer read.
+
+[build]
+# Incremental compilation saved little across worktrees and wrote 32 GB of its own into one
+# shared target directory. CARGO_INCREMENTAL=1 turns it back on for a single session.
+incremental = false
+
+# Dependencies (wasmtime, cranelift, rmcp, tantivy, ...) are built without debug info: it made
+# up most of every test binary and of each artifact a worktree adds. The workspace's own crates
+# keep full debug info, so backtraces and debuggers still see their code.
+[profile.dev.package."*"]
+debug = false

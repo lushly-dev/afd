@@ -68,6 +68,7 @@ fn reopen(env: &MemoryEnv<'_>) -> CaseResult {
             by: ADA.into(),
             content_hash: hash,
             trace_id: None,
+            assurance: Some(crate::Assurance::terminal()),
         },
         &ada(),
     )

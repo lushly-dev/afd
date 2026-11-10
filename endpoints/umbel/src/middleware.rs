@@ -121,12 +121,17 @@ pub(crate) fn event_stamp(
     Arc::new(
         move |name: String,
               _input: Value,
-              _context: CommandContext,
+              context: CommandContext,
               next: MiddlewareNext|
               -> BoxFuture<'static, CommandResult<Value>> {
             let stamped = mutations.contains(&name);
             let has_space = with_space.contains(&name);
             let default_space = default_space.clone();
+            // The writing principal's chain (envelope version 3), from the principal the host
+            // set; empty without one.
+            let chain = crate::principal::Principal::from_context(&context)
+                .map(|principal| principal.delegation_chain)
+                .unwrap_or_default();
             Box::pin(async move {
                 let mut result = next().await;
                 let unchanged = result.metadata.as_ref().is_some_and(|metadata| {
@@ -135,12 +140,18 @@ pub(crate) fn event_stamp(
                 if stamped && result.success && !unchanged {
                     set(&mut result, MUTATION_KEY, Value::Bool(true));
                     set(&mut result, EVENT_VERSION_KEY, Value::from(EVENT_VERSION));
+                    set(
+                        &mut result,
+                        crate::provenance::DELEGATION_KEY,
+                        serde_json::to_value(&chain).unwrap_or_else(|_| Value::Array(Vec::new())),
+                    );
                     if !has_space {
                         set(&mut result, SPACE_KEY, Value::String(default_space));
                     }
                 } else {
                     remove(&mut result, MUTATION_KEY);
                     remove(&mut result, EVENT_VERSION_KEY);
+                    remove(&mut result, crate::provenance::DELEGATION_KEY);
                 }
                 result
             })
@@ -320,6 +331,10 @@ pub(crate) struct GateContext {
     pub(crate) stores: crate::store::Hub,
     /// Where a sealed result's host metadata waits for the journal.
     pub(crate) stash: Arc<crate::positions::Stash>,
+    /// The shared stores a person-decided call is checked and spent against (phase 5 section
+    /// 7.2, step 5); `None` in mode `none` and without the `auth` feature, where nothing is
+    /// decided on the person page.
+    pub(crate) decisions: Option<Arc<dyn crate::person::DecisionLedger>>,
 }
 
 /// The plugin gate (specification section 8.1), between the space check and approvals. For a
@@ -389,11 +404,17 @@ pub(crate) fn plugin_gate(
                         return failure(error);
                     }
                 }
-                if entry.person_verified {
-                    return failure(crate::auth::person_verification_unavailable(&name));
-                }
-                if entry.require_human && !confirmed_by_a_person(&name, &context) {
-                    return failure(require_human_refusal(&name));
+                if entry.require_human
+                    && let Err(error) = person_gate(
+                        &entry,
+                        &name,
+                        &input,
+                        &context,
+                        config,
+                        gate.decisions.as_deref(),
+                    )
+                {
+                    return failure(error);
                 }
                 let trace = context.trace_id.clone().unwrap_or_default();
                 let mut result = next().await;
@@ -406,6 +427,52 @@ pub(crate) fn plugin_gate(
             })
         },
     )
+}
+
+/// The `require-human` gate (phase 2 section 3.4; phase 5 sections 7.1 and 7.2, step 5): on each
+/// surface, the assurance the command's `person` names for it. At the CLI, `terminal` takes the
+/// CLI's mark after its prompt, and `verified` a decision on the person page for this call; over
+/// MCP only `verified`, and only a decision for this call; anywhere else (a batch, an in-process
+/// agent, the library) nothing. The terminal mark never stands in for `verified`.
+fn person_gate(
+    entry: &GateEntry,
+    name: &str,
+    input: &Value,
+    context: &CommandContext,
+    config: &crate::workspace::Config,
+    ledger: Option<&dyn crate::person::DecisionLedger>,
+) -> Result<(), CommandError> {
+    use crate::plugins::Assurance;
+    let person = entry.person.unwrap_or_default();
+    match context.interface {
+        Some(CommandInterface::Cli) if person.cli == Assurance::Verified => crate::person::admit(
+            config,
+            name,
+            input,
+            context,
+            crate::person::Surface::Cli,
+            ledger,
+        ),
+        Some(CommandInterface::Cli) => {
+            if confirmed_by_a_person(name, context) {
+                Ok(())
+            } else {
+                Err(require_human_refusal(name))
+            }
+        }
+        Some(CommandInterface::Mcp) if person.mcp == Some(Assurance::Verified) => {
+            crate::person::admit(
+                config,
+                name,
+                input,
+                context,
+                crate::person::Surface::Mcp,
+                ledger,
+            )
+        }
+        _ if person.needs_preview() => Err(crate::person::not_decided(name)),
+        _ => Err(require_human_refusal(name)),
+    }
 }
 
 /// Whether a person at a terminal confirmed `command`: the call came through the CLI and the CLI

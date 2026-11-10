@@ -11,6 +11,7 @@ on:
       # The conformance job runs the todo example's suite and AFD's CLI against Umbel.
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
+      - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   pull_request:
     branches: [main]
@@ -21,6 +22,7 @@ on:
       # The conformance job runs the todo example's suite and AFD's CLI against Umbel.
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
+      - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   # The macOS leg and the MSRV check run daily and on demand.
   schedule:
@@ -58,7 +60,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: host
-        run: node scripts/affected.mjs gate --path endpoints/umbel/ --path packages/rust/ --path .github/workflows/umbel.yml
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)
@@ -112,8 +114,10 @@ jobs:
       # hello-mcp in the target directory, next to the test binaries.
       - name: Build hello-mcp
         run: cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp
+      # --no-fail-fast here and in the other test steps: one failing test binary must not hide the
+      # results of the binaries after it.
       - name: Test
-        run: cargo test --locked --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge --exclude umbel-plugin-memory --exclude umbel-plugin-context --exclude umbel-plugin-curator --exclude umbel-first-party --exclude umbel-hook
+        run: cargo test --locked --no-fail-fast --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge --exclude umbel-plugin-memory --exclude umbel-plugin-context --exclude umbel-plugin-curator --exclude umbel-first-party --exclude umbel-hook
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -184,12 +188,12 @@ jobs:
         env:
           UMBEL_EVAL_REPORT: ${{ runner.temp }}/knowledge-eval-report.json
           UMBEL_EXIT_REPORT: ${{ runner.temp }}/knowledge-exit-report.json
-        run: cargo test --locked -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
+        run: cargo test --locked --no-fail-fast -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
       # Without the `code` feature (tree-sitter and its grammars) code collections are plain text.
       - name: Clippy (knowledge without code)
         run: cargo clippy --locked -p umbel-plugin-knowledge --no-default-features --all-targets -- -D warnings
       - name: Test (knowledge without code)
-        run: cargo test --locked -p umbel-plugin-knowledge --no-default-features
+        run: cargo test --locked --no-fail-fast -p umbel-plugin-knowledge --no-default-features
       - name: Upload the eval report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -257,7 +261,7 @@ jobs:
         env:
           UMBEL_EXIT_REPORT: ${{ runner.temp }}/memory-exit-report.json
           UMBEL_CURATOR_EXIT_REPORT: ${{ runner.temp }}/curator-exit-report.json
-        run: cargo test --locked -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook
+        run: cargo test --locked --no-fail-fast -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook
       - name: Upload the exit reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

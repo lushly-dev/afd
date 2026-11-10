@@ -112,6 +112,7 @@ fn envelope(space: &str, now: i64) -> Envelope {
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     }
 }
 

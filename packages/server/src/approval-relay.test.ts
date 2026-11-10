@@ -27,6 +27,16 @@ import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
 
+/**
+ * `state` with one signature character changed. The last character of a base64url HMAC-SHA256
+ * carries only four bits, so rewriting it can decode to the same bytes (about once in 1,024
+ * runs); the character before it carries six.
+ */
+function tamper(state: string): string {
+	const at = state.length - 2;
+	return `${state.slice(0, at)}${state[at] === 'A' ? 'B' : 'A'}${state.slice(at + 1)}`;
+}
+
 const MODERN = '2026-07-28';
 const SECRET = 'test-approval-secret-0123456789abcdef';
 const TTL_MS = 60_000;
@@ -517,7 +527,7 @@ describe('approval relay over MCP', () => {
 			const tampered = await call(
 				'todo-delete',
 				{ id: 7 },
-				{ inputResponses: approved, requestState: `${state.slice(0, -2)}xx` }
+				{ inputResponses: approved, requestState: tamper(state) }
 			);
 			expect(asked(tampered).resultType).toBe('input_required');
 			// The state is readable, not writable: marking the approval accepted, or extending its

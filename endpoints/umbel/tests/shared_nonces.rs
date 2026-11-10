@@ -20,6 +20,10 @@ use serde_json::json;
 use support::{agent, minimal, needs_approval, workspace};
 use umbel::{Host, HostBuilder};
 
+/// The caller whose absence from the store is checked: long and distinctive, so a nonce or a
+/// page of the store cannot hold it by chance, as a short name like `ada` could.
+const CALLER: &str = "zoe-the-caller";
+
 /// A hosted workspace (mode `oauth`; nothing here is served over HTTP) whose shared stores wait
 /// at most 200 milliseconds for each other.
 fn hosted() -> tempfile::TempDir {
@@ -147,8 +151,8 @@ async fn the_store_is_private_and_holds_no_token() {
     let runs = Arc::new(AtomicUsize::new(0));
     let tokens = Arc::new(Mutex::new(Vec::new()));
     let host = gated(dir.path(), &runs, &tokens);
-    let token = hold(&host, "ada", &tokens).await;
-    assert!(approve(&host, "ada", &token).await.success);
+    let token = hold(&host, CALLER, &tokens).await;
+    assert!(approve(&host, CALLER, &token).await.success);
     let path = store(dir.path());
     assert!(path.exists());
     #[cfg(unix)]
@@ -163,7 +167,7 @@ async fn the_store_is_private_and_holds_no_token() {
         let bytes = std::fs::read(file.unwrap().path()).unwrap();
         let text = String::from_utf8_lossy(&bytes);
         assert!(!text.contains(&token), "the token is stored");
-        assert!(!text.contains("ada"), "the caller is stored");
+        assert!(!text.contains(CALLER), "the caller is stored");
     }
 }
 

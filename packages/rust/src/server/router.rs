@@ -378,9 +378,12 @@ impl Call<'_> {
                 execution: &execution,
             };
             return match human_relay::check(gate, input.clone()).await {
-                RelayDecision::Proceed(evidence) => {
+                RelayDecision::Proceed(evidence, extra) => {
                     let mut execution = execution;
                     execution.relay_evidence = Some(Arc::new(evidence));
+                    // The host's own fields for the approved call: never the request's, which
+                    // reach `extra` only as declared context fields, and which these replace.
+                    execution.extra.extend(extra);
                     command_result(
                         &self
                             .server

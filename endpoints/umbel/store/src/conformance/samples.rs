@@ -45,6 +45,7 @@ pub fn envelope(access: &[&str], trace: &str, at: &str) -> Envelope {
         redactions: None,
         constraints: None,
         confirmation: None,
+        delegation_chain: None,
     }
 }
 
@@ -141,7 +142,7 @@ pub fn memory_id(n: u64) -> String {
 
 /// A semantic memory entry `memory_id(n)` owned by `owner`, readable by `access`, with
 /// authority `agent`, valid from [`MEMORY_AT`] with no end, expiring 180 days later, no project
-/// or session, and an envelope version 2 that agrees with it. Edit fields, then call
+/// or session, and an envelope version 3 that agrees with it. Edit fields, then call
 /// [`agree`] so the envelope follows.
 ///
 /// # Panics
@@ -157,7 +158,8 @@ pub fn memory_entry(
     let access_set = AccessSet::new(access.iter().copied())
         .unwrap_or_else(|_| unreachable!("the caller passes valid access tokens"));
     let mut envelope = envelope(access, "suite", &format_instant(MEMORY_AT));
-    envelope.version = 2;
+    envelope.version = crate::MEMORY_ENVELOPE_VERSION;
+    envelope.delegation_chain = Some(Vec::new());
     envelope.origin = Origin::AgentInferred;
     envelope.authority = Some(Authority::Agent.as_str().to_owned());
     let mut entry = MemoryWrite {

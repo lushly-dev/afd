@@ -276,7 +276,7 @@ async fn a_results_provenance_keeps_only_the_fields_a_command_may_supply() {
     assert_eq!(provenance["origin"], "user-stated");
     assert_eq!(provenance["space"], "main");
     // From version 1: the effective principal string, and the plugin the gate stamped.
-    assert_eq!(provenance["version"], 2);
+    assert_eq!(provenance["version"], 3);
     assert_eq!(provenance["principal"], json!("agent:agent-1"));
     assert_eq!(provenance["plugin"], "probe");
     assert_eq!(provenance["agent"]["id"], "agent-1");

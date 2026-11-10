@@ -207,12 +207,17 @@ impl ManualClock {
 
     /// Move the clock forward by `ms` milliseconds (backward when negative).
     pub fn advance(&self, ms: i64) {
-        // `fetch_update` with a saturating add: an overflow would otherwise wrap the clock.
-        let _ = self
-            .current
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
-                Some(current.saturating_add(ms))
-            });
+        // A saturating add, so an overflow cannot wrap the clock. The loop is `fetch_update`'s,
+        // which Rust 1.98 deprecates for `try_update`; the crate's 1.85 floor has neither name.
+        let mut current = self.current.load(Ordering::SeqCst);
+        while let Err(actual) = self.current.compare_exchange_weak(
+            current,
+            current.saturating_add(ms),
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
+            current = actual;
+        }
     }
 }
 

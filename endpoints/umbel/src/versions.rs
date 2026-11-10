@@ -2,12 +2,13 @@
 
 /// The principal projection, version 0.
 pub use crate::principal::PRINCIPAL_VERSION;
-/// The provenance envelope this host writes, version 2 (D71, phase 3 section 2.1). It reads
-/// versions 0 and 1 in events and stored rows already written.
-pub const PROVENANCE_VERSION: u32 = 2;
-/// An event this host writes, version 2 (D71, phase 3 section 2.2). It reads version 0 and 1
-/// lines as written.
-pub const EVENT_VERSION: u32 = 2;
+/// The provenance envelope this host writes, version 3 (phase 5 section 2.4, from step 5): the
+/// writing principal's `delegationChain`, and a confirmation's `assurance`. It reads versions 0
+/// to 2 in events and stored rows already written.
+pub const PROVENANCE_VERSION: u32 = 3;
+/// An event this host writes, version 3 (phase 5 section 2.4, from step 5): event version 2 with
+/// envelope version 3. It reads version 0 to 2 lines as written.
+pub const EVENT_VERSION: u32 = 3;
 /// A cursor, version 0 (`v0:<space>:<seq>`).
 pub const CURSOR_VERSION: u32 = 0;
 /// The store traits, version 2 (phase 3 section 5.1). `umbel-store` owns the constant.
@@ -22,8 +23,10 @@ pub const LOCATOR_VERSION: u32 = 1;
 pub const PROPOSAL_VERSION: u32 = 2;
 /// Every proposal record version a deployment holds, read side by side (phase 5 section 2).
 pub const PROPOSAL_VERSIONS: &[u32] = &[1, 2, 3];
-/// The memory record, version 1 (`schemas/memory-record.v1.json`, phase 3 section 4).
-pub const MEMORY_VERSION: u32 = 1;
+/// The memory record this host writes, version 2 (`schemas/memory-record.v2.json`, phase 5
+/// section 2.4, from step 5): version 1 with envelope version 3. A version written before stays
+/// version 1.
+pub const MEMORY_VERSION: u32 = 2;
 /// The memory key file, version 1 (`PRAGMA user_version` of `memory.keys`, phase 3 section 5.4).
 pub const MEMORY_KEYS_VERSION: u32 = 1;
 /// The capture contract, version 1 (`schemas/capture.v1.json`, phase 3 section 10.1).
@@ -35,9 +38,9 @@ pub const BUNDLE_VERSION: u32 = 1;
 pub const CURATOR_VERSION: u32 = 1;
 
 // Phase 5 (specification section 2). Each list names the versions of a shape a phase 5 deployment
-// reads side by side, as `workspace-show` reports them; the constants above stay the versions this
-// host writes until the step that writes the new one (the principal from step 2a, the envelope,
-// event and memory record from step 5, the proposal from step 6, cursors and locators from step 7).
+// reads side by side, as `workspace-show` reports them; the constants above are the versions this
+// host writes (the principal from step 2a, the envelope, event and memory record from step 5, the
+// proposal from step 6, cursors and locators from step 7).
 
 /// Every principal projection version (`schemas/principal.v0.json`, `principal.v1.json`).
 pub const PRINCIPAL_VERSIONS: &[u32] = &[0, 1];

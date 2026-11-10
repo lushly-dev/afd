@@ -91,6 +91,10 @@ pub(crate) struct ScopePolicy {
     needs: BTreeMap<String, Needs>,
     /// Every registered command, in registration order, for an unknown name's suggestions.
     definitions: Vec<Arc<afd::CommandDefinition>>,
+    /// The commands a person decides over MCP, and which namespaces serve them (phase 5
+    /// section 7.1), set once at seal in a hosted mode.
+    #[cfg(feature = "auth")]
+    person: std::sync::OnceLock<Arc<crate::person::service::PersonService>>,
 }
 
 impl std::fmt::Debug for ScopePolicy {
@@ -202,7 +206,28 @@ impl ScopePolicy {
             prefix,
             needs,
             definitions,
+            #[cfg(feature = "auth")]
+            person: std::sync::OnceLock::new(),
         }
+    }
+
+    /// Serve the commands `service` decides over MCP only to callers whose namespace serves
+    /// verified commands (7.1); set once, at seal.
+    #[cfg(feature = "auth")]
+    pub(crate) fn set_person(&self, service: Arc<crate::person::service::PersonService>) {
+        let _ = self.person.set(service);
+    }
+
+    /// Whether `command` is decided on the person page over MCP and the caller in `namespace`
+    /// may not be served it: elsewhere it is not listed and is refused as an unexposed command
+    /// (7.1), so it does not exist for that caller.
+    #[cfg(feature = "auth")]
+    pub(crate) fn person_withheld(&self, command: &str, namespace: Option<&str>) -> bool {
+        let Some(service) = self.person.get() else {
+            return false;
+        };
+        service.mcp_commands().contains(command)
+            && !namespace.is_some_and(|namespace| service.served(namespace))
     }
 
     /// Whether `command` is a plugin command whose instance serves no space `reads` admits: one
@@ -498,6 +523,15 @@ impl UmbelScopes {
     /// the workspace's `auth.mode` vouches (a token's caller in mode `gateway`, an assertion's in
     /// mode `oauth`). Its claim groups are [`super::caller::VerifiedCaller::claim_groups`], so
     /// never a gateway's.
+    /// The namespace of the request in flight whose mapped caller holds `credentials`, vouched
+    /// for as the workspace's `auth.mode` vouches; `None` otherwise.
+    fn namespace(&self, credentials: &afd::Credentials) -> Option<String> {
+        let verified = self.book.caller_for(credentials)?;
+        verified
+            .vouched_for(self.policy.workspace().config().auth.mode)
+            .then(|| verified.namespace.clone())
+    }
+
     fn caller(&self, credentials: &afd::Credentials) -> Option<crate::access::Caller> {
         let verified = self.book.caller_for(credentials)?;
         let config = self.policy.workspace().config();
@@ -566,6 +600,12 @@ impl afd::server::auth::ScopeResolver for UmbelScopes {
     /// answered. Without the caller, no plugin command exists, so a lookup that fails never
     /// reveals one.
     fn known(&self, command: &str, credentials: &afd::Credentials) -> bool {
+        if self
+            .policy
+            .person_withheld(command, self.namespace(credentials).as_deref())
+        {
+            return false;
+        }
         let config = self.policy.workspace().config();
         let caller = self.caller(credentials);
         let reads = caller.as_ref().map(|caller| reads_for(config, caller));
@@ -574,6 +614,12 @@ impl afd::server::auth::ScopeResolver for UmbelScopes {
     }
 
     fn visible(&self, command: &str, credentials: &afd::Credentials) -> bool {
+        if self
+            .policy
+            .person_withheld(command, self.namespace(credentials).as_deref())
+        {
+            return false;
+        }
         let Some(caller) = self.caller(credentials) else {
             // Without the caller nothing here can tell which spaces it reads: list nothing
             // rather than guess.
@@ -624,7 +670,8 @@ mod tests {
             space_command,
             spaces_command: space_command,
             require_human: false,
-            person_verified: false,
+            person: None,
+            preview: None,
             pipeline: false,
             memory_writer: false,
             digest: None,

@@ -108,7 +108,11 @@ fn creates(env: &MemoryEnv<'_>) -> CaseResult {
         "no supersede or invalidation",
     )?;
     ensure_eq(record.authority(), Some(Authority::Agent), "authority")?;
-    ensure_eq(record.provenance.version, 2, "envelope version")?;
+    ensure_eq(
+        record.provenance.version,
+        crate::MEMORY_ENVELOPE_VERSION,
+        "envelope version",
+    )?;
     let json = record.to_json();
     ensure_eq(
         json["verification"].as_str(),
@@ -383,7 +387,7 @@ fn envelope_refusals(env: &MemoryEnv<'_>) -> CaseResult {
     let f = env.fresh()?;
     let m = &*f.memory;
     write(m, T0, vec![note(10, "provisioned")])?;
-    let edits: [(&str, WriteFn); 13] = [
+    let edits: [(&str, WriteFn); 14] = [
         ("a null authority", |e| e.envelope.authority = None),
         ("an authority outside the set", |e| {
             e.envelope.authority = Some("robot".into())
@@ -393,6 +397,10 @@ fn envelope_refusals(env: &MemoryEnv<'_>) -> CaseResult {
         }),
         ("an empty access", |e| e.envelope.access.clear()),
         ("envelope version 1", |e| e.envelope.version = 1),
+        ("envelope version 2", |e| {
+            e.envelope.version = 2;
+            e.envelope.delegation_chain = None;
+        }),
         ("a disagreeing access", |e| {
             e.envelope.access = vec!["space".into()]
         }),
@@ -419,6 +427,7 @@ fn envelope_refusals(env: &MemoryEnv<'_>) -> CaseResult {
                 by: ADA.into(),
                 at: crate::memory::format_instant(T0),
                 prior_authority: Authority::Agent,
+                assurance: None,
             });
         }),
     ];

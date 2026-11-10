@@ -292,6 +292,7 @@ impl Call {
             redactions: masked.redactions(),
             constraints: draft.constraints,
             confirmation: None,
+            delegation_chain: None,
         };
         let write = MemoryWrite {
             id: derive_memory_id(&self.space, &self.trace, ordinal, self.now, draw),

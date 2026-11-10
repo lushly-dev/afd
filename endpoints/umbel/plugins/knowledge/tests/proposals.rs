@@ -768,7 +768,7 @@ async fn every_state_change_is_journaled_and_evented_with_the_targets_access() {
         .iter()
         .find(|e| e["command"] == "knowledge-approve")
         .unwrap();
-    assert_eq!(approve_event["version"], 2, "{approve_event}");
+    assert_eq!(approve_event["version"], 3, "{approve_event}");
     assert_eq!(approve_event["record"]["kind"], "proposal");
     assert_eq!(approve_event["record"]["id"], first.as_str());
     assert_eq!(

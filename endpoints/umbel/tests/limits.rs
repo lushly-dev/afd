@@ -14,6 +14,10 @@ use serde_json::json;
 use support::hosted::{Client, Reply, Served};
 use support::oauth::{Running, Setup};
 
+/// The limited caller's subject. It holds letters no hex digit has, so a stored key's digest
+/// cannot contain it by chance, as the default subject `ada` could.
+const SUBJECT: &str = "zoe-limited";
+
 fn too_many(reply: &Reply, whose: &str) {
     assert_eq!(reply.status, 429, "{}", reply.text);
     let seconds: u64 = reply
@@ -38,17 +42,17 @@ async fn the_per_token_limit_keeps_each_callers_budget_its_own_across_processes(
         ..Setup::default()
     })
     .await;
-    let ada = running.token().sign();
+    let zoe = running.token().subject(SUBJECT).sign();
     for _ in 0..3 {
-        running.whoami(&ada).await;
+        running.whoami(&zoe).await;
     }
     too_many(
-        &running.call(Some(&ada), "fixture-whoami", json!({})).await,
+        &running.call(Some(&zoe), "fixture-whoami", json!({})).await,
         "with this token",
     );
     // A new token for the same person and client shares the budget: the key is the verified
     // issuer, subject and client, not the token's text.
-    let renewed = running.token().lifetime(200).sign();
+    let renewed = running.token().subject(SUBJECT).lifetime(200).sign();
     too_many(
         &running
             .call(Some(&renewed), "fixture-whoami", json!({}))
@@ -63,14 +67,18 @@ async fn the_per_token_limit_keeps_each_callers_budget_its_own_across_processes(
         &other,
         "tools/call",
         json!({ "name": "fixture-whoami", "arguments": {} }),
-        Some(&ada),
+        Some(&zoe),
     )
     .await;
     too_many(&reply, "with this token");
     // Another person, and another client of the same person, have budgets of their own.
     let bo = running.token().subject("bo").sign();
     running.whoami(&bo).await;
-    let other_client = running.token().client_id("other-client").sign();
+    let other_client = running
+        .token()
+        .subject(SUBJECT)
+        .client_id("other-client")
+        .sign();
     running.whoami(&other_client).await;
     // The shared counters name no one: each name is keyed by the workspace's limits.key, so
     // neither an identifier nor its unkeyed digest is stored.
@@ -86,7 +94,7 @@ async fn the_per_token_limit_keeps_each_callers_budget_its_own_across_processes(
     let unkeyed = {
         use sha2::Digest;
         let mut digest = sha2::Sha256::new();
-        for part in [issuer, "ada", "test-client"] {
+        for part in [issuer, SUBJECT, "test-client"] {
             digest.update((part.len() as u64).to_be_bytes());
             digest.update(part.as_bytes());
         }
@@ -103,9 +111,21 @@ async fn the_per_token_limit_keeps_each_callers_budget_its_own_across_processes(
         .collect();
     assert_eq!(tokens.len(), 3, "{keys:?}");
     assert!(!keys.contains(&unkeyed), "{keys:?}");
+    // Every per-token name is the prefix and a 64-digit lowercase hex HMAC, so no identifier
+    // can appear in it.
+    for key in &tokens {
+        let digest = key.strip_prefix("token:").unwrap();
+        assert!(
+            digest.len() == 64
+                && digest
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+            "{key}"
+        );
+    }
     for key in &keys {
         assert!(
-            !key.contains("ada") && !key.contains("test-client"),
+            !key.contains(SUBJECT) && !key.contains("test-client"),
             "{key}"
         );
     }

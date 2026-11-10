@@ -89,6 +89,7 @@ fn confirm(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
         by: call.principal.clone(),
         content_hash: input.content_hash,
         trace_id: None,
+        assurance: None,
     };
     let meta = match cx.memory_confirm(&call.space, request) {
         Ok(meta) => meta,

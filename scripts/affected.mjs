@@ -6,8 +6,9 @@
  *   node scripts/affected.mjs run <script> [--no-bail] [-- args]
  *                                                     run a package script over the scope; `build`
  *                                                     also builds the dependencies of the scope
- *   node scripts/affected.mjs gate [--package <name>...] [--path <prefix>...]
- *                                                     CI: write run=true|false to $GITHUB_OUTPUT
+ *   node scripts/affected.mjs gate [--package <name>...] [--path <prefix>...] [--except <prefix>...]
+ *                                                     CI: write run=true|false to $GITHUB_OUTPUT;
+ *                                                     a file under an --except prefix opens no --path
  *   node scripts/affected.mjs check [--all]           run the lefthook `check` gate over the scope
  *   node scripts/affected.mjs verify [--list] [--skip-check] [--keep-going]
  *                                                     run `check`, then the local equivalent of every
@@ -25,6 +26,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, SUITES } from './affected/suites.mjs';
+import { defaultTargets, sweep } from './rust-sweep.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
@@ -38,6 +40,7 @@ export function parseArgs(argv, env = process.env) {
 		files: undefined,
 		packages: [],
 		paths: [],
+		except: [],
 		noBail: false,
 		json: false,
 		list: false,
@@ -59,6 +62,7 @@ export function parseArgs(argv, env = process.env) {
 		else if (arg === '--base') options.bases = [argv[++index]];
 		else if (arg === '--package') options.packages.push(argv[++index]);
 		else if (arg === '--path') options.paths.push(argv[++index]);
+		else if (arg === '--except') options.except.push(argv[++index]);
 		else if (arg === '--files') {
 			options.files = [];
 			while (index + 1 < argv.length && !argv[index + 1].startsWith('--'))
@@ -95,9 +99,13 @@ export function pnpmArgs(scope, script, { noBail = false, passthrough = [] } = {
 }
 
 /** Whether a gated workflow must run: whole-workspace scope, a listed path, or a listed package. */
-export function gate(scope, { packages, paths }) {
+export function gate(scope, { packages, paths, except = [] }) {
 	if (scope.mode === 'all') return { run: true, reason: scope.reason };
-	const file = scope.files.find((candidate) => paths.some((path) => candidate.startsWith(path)));
+	const file = scope.files.find(
+		(candidate) =>
+			paths.some((path) => candidate.startsWith(path)) &&
+			!except.some((prefix) => candidate.startsWith(prefix))
+	);
 	if (file) return { run: true, reason: `${file} changed` };
 	const hit = packages.find((name) => scope.affected.includes(name));
 	if (hit)
@@ -197,6 +205,15 @@ function verify(scope, options) {
 	if (options.list) return;
 	const missing = missingTools(plan);
 	if (missing.length > 0) throw new Error(`missing tools: ${missing.join('; ')}`);
+	// Before building Rust, evict what no build has read for days, so a shared CARGO_TARGET_DIR
+	// does not grow without bound (scripts/rust-sweep.mjs). A sweep never fails verify.
+	if (plan.some(({ suite }) => suite.tools.includes('cargo')))
+		try {
+			for (const line of sweep(defaultTargets(root), { days: 3, maxGb: 60 }))
+				console.error(`[verify] rust-sweep: ${line}`);
+		} catch (error) {
+			console.error(`[verify] rust-sweep: ${error.message}`);
+		}
 
 	const results = [];
 	const record = (name, action) => {

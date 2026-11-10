@@ -1467,11 +1467,11 @@
       "path": "pyproject.toml",
       "upstream_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
       "staged_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
-      "current_import_sha256": "972aa913330cf9ba73c1bd9af00133f0a2cbc6d83535dfa0bc94ad4ef0be51a3",
+      "current_import_sha256": "e1d1ecf3844d84d3dac940b52320e19ceeb7c62f1ae0657f7e6773479d34e1ab",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set root version 0.6.0, provenance, the AFD bootstrap override and AFD project URLs"
+      "import_reason": "Set root version 0.6.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset"
     },
     {
       "path": "scripts/package_smoke.py",
@@ -5127,11 +5127,11 @@
       "path": "tests/test_cli.py",
       "upstream_sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
       "staged_sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
-      "current_import_sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
+      "current_import_sha256": "0ed63e97a223bfba1b694c47efa6417e686e391f301e84f6cb9031c838ab52e5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's isolated_filesystem, which Click deprecates for removal; otherwise imported exact frozen staged-input bytes"
     },
     {
       "path": "tests/test_config.py",

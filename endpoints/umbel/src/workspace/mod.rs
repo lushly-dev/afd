@@ -243,6 +243,24 @@ impl Workspace {
         keys::ensure_key(&self.layout.cursor_key())
     }
 
+    /// The person page's key (`state/keys/person.key`, phase 5 section 7.2), created race-safe on
+    /// first use and shared by every process.
+    ///
+    /// # Errors
+    /// As [`Self::cursor_key`].
+    pub fn person_key(&self) -> Result<Vec<u8>, WorkspaceError> {
+        keys::ensure_key(&self.layout.person_key())
+    }
+
+    /// The relay's sealing key (`state/keys/relay.key`, phase 5 section 7.3), created race-safe on
+    /// first use and shared by every process.
+    ///
+    /// # Errors
+    /// As [`Self::cursor_key`].
+    pub fn relay_key(&self) -> Result<Vec<u8>, WorkspaceError> {
+        keys::ensure_key(&self.layout.relay_key())
+    }
+
     /// The HTTP bearer token, created race-safe on first use.
     ///
     /// # Errors

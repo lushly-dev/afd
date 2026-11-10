@@ -286,6 +286,7 @@ pub(crate) fn router(
     workspace: &Workspace,
     policy: &Arc<crate::auth::scopes::ScopePolicy>,
     environment: &crate::auth::fetch::AuthEnvironment,
+    person: Option<&Arc<crate::person::service::PersonService>>,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
     let lock_timeout = std::time::Duration::from_millis(config.store.lock_timeout_ms);
@@ -354,8 +355,14 @@ pub(crate) fn router(
         }),
     };
     let path = config.http.path.clone();
+    let page = super::person_page(person, &path, &limits, lock_timeout);
     let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
+        // The person page's routes, before the gateway layer (6.3, layer 4): a gateway's person
+        // is proven only there (4.4), by their own login.
+        let page = page
+            .clone()
+            .filter(|page| page.serves(request.uri().path()));
         // MCP at `http.path` only; nothing is published, so no other path is served.
         let at_path = request.uri().path() == path;
         // A fresh slot for the caller the gateway layer maps, replacing anything already there;
@@ -363,8 +370,11 @@ pub(crate) fn router(
         // and the resolver finds it in the book while the request is in flight.
         let slot = CallerSlot::default();
         request.extensions_mut().insert(slot.clone());
-        let entry = book.enter(slot);
+        let entry = page.is_none().then(|| book.enter(slot));
         async move {
+            if let Some(page) = page {
+                return Ok::<Response, Infallible>(page.handle(request).await);
+            }
             if !at_path {
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());
             }

@@ -349,6 +349,8 @@ impl HostBuilder {
             &builtin_names,
             self.approval_observer,
             (&stores, &stash),
+            #[cfg(feature = "auth")]
+            Arc::clone(&self.auth_environment.clock),
         )?;
         install_journal(
             &registry,
@@ -357,6 +359,26 @@ impl HostBuilder {
             digest_commands(&loaded),
             stash,
         );
+
+        // The person page and Umbel's relay (phase 5 step 5), in a hosted mode: a command a
+        // person decides over MCP is served only through the relay, and only to callers whose
+        // namespace serves verified commands.
+        #[cfg(feature = "auth")]
+        let person = crate::person::service::PersonService::build(
+            &workspace,
+            &registry,
+            &projector,
+            person_commands(&registry, &loaded),
+            &self.auth_environment,
+        )?;
+        #[cfg(feature = "auth")]
+        let server = match &person {
+            Some(service) => {
+                scope_policy.set_person(Arc::clone(service));
+                server.with_human_relay(crate::person::relay::UmbelRelay::new(Arc::clone(service)))
+            }
+            None => server,
+        };
 
         // A marker left by a crash or a failed projection is repaired before anything else. A
         // stream too damaged to repair does not stop the open: `umbel event rebuild` needs the
@@ -380,8 +402,49 @@ impl HostBuilder {
             token_verifier: self.token_verifier,
             #[cfg(feature = "auth")]
             auth_environment: self.auth_environment,
+            #[cfg(feature = "auth")]
+            person,
         })
     }
+}
+
+/// The gated commands with a `verified` surface, and what their decisions need: the preview and
+/// the input properties it declares (phase 5 sections 2.3 and 7.2).
+#[cfg(feature = "auth")]
+fn person_commands(
+    registry: &CommandRegistry,
+    loaded: &LoadedPlugins,
+) -> BTreeMap<String, crate::person::service::PersonCommand> {
+    loaded
+        .gate
+        .iter()
+        .filter_map(|(name, entry)| {
+            let person = entry.person.filter(|person| person.needs_preview())?;
+            if !entry.require_human || entry.pipeline {
+                return None;
+            }
+            let preview = entry.preview.clone()?;
+            let properties: Vec<String> = registry
+                .get_tool(&preview)
+                .and_then(|tool| {
+                    tool.get("inputSchema")?
+                        .get("properties")?
+                        .as_object()
+                        .map(|properties| properties.keys().cloned().collect())
+                })
+                .unwrap_or_default();
+            Some((
+                name.clone(),
+                crate::person::service::PersonCommand {
+                    preview,
+                    properties,
+                    cli: person.cli,
+                    mcp: person.mcp,
+                    spaced: entry.space_command || entry.spaces_command,
+                },
+            ))
+        })
+        .collect()
 }
 
 /// Serve the loaded plugins' skills on the Skills extension and as resources (specification
@@ -437,6 +500,7 @@ fn has_property(registry: &CommandRegistry, name: &str, property: &str) -> bool 
 /// The set of space commands is the host's own knowledge: a built-in by its `space` property, a
 /// plugin command by what its instance's load decided (a mounted tool's own `space` argument is
 /// the server's, not Umbel's).
+#[allow(clippy::too_many_arguments)]
 fn install_middleware(
     registry: &Arc<CommandRegistry>,
     workspace: &Arc<Workspace>,
@@ -445,6 +509,7 @@ fn install_middleware(
     builtins: &HashSet<String>,
     observer: Option<ApprovalObserver>,
     (stores, stash): (&Hub, &Arc<crate::positions::Stash>),
+    #[cfg(feature = "auth")] auth_clock: Arc<dyn Clock>,
 ) -> Result<Arc<crate::auth::scopes::ScopePolicy>, HostError> {
     let commands = registry.list();
     let with_space: Arc<HashSet<String>> = Arc::new(
@@ -595,6 +660,15 @@ fn install_middleware(
             default_space: workspace.default_space().to_string(),
             stores: Arc::clone(stores),
             stash: Arc::clone(stash),
+            #[cfg(feature = "auth")]
+            decisions: workspace.config().auth.mode.is_hosted().then(|| {
+                Arc::new(crate::person::service::Ledger::new(
+                    workspace,
+                    Arc::clone(&auth_clock),
+                )) as Arc<dyn crate::person::DecisionLedger>
+            }),
+            #[cfg(not(feature = "auth"))]
+            decisions: None,
         },
     ));
 
@@ -737,6 +811,9 @@ pub struct Host {
     token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
     #[cfg(feature = "auth")]
     auth_environment: crate::auth::fetch::AuthEnvironment,
+    /// The person page's decisions, in a hosted mode (phase 5 step 5).
+    #[cfg(feature = "auth")]
+    person: Option<Arc<crate::person::service::PersonService>>,
 }
 
 impl Host {
@@ -863,7 +940,35 @@ impl Host {
             self.token_verifier.clone(),
             #[cfg(feature = "auth")]
             &self.auth_environment,
+            #[cfg(feature = "auth")]
+            self.person.as_ref(),
         )
+    }
+
+    /// Ask every person login's provider now, as serving does at start (phase 5 section 7.1):
+    /// a namespace's verified commands are served once its login passes `auth.person`. Does
+    /// nothing in mode `none`.
+    pub async fn check_person_logins(&self) {
+        #[cfg(feature = "auth")]
+        if let Some(person) = &self.person {
+            person.check_logins().await;
+        }
+    }
+
+    /// The person service, for the CLI's decisions.
+    #[cfg(all(feature = "auth", feature = "cli"))]
+    pub(crate) fn person(&self) -> Option<&Arc<crate::person::service::PersonService>> {
+        self.person.as_ref()
+    }
+
+    /// The `person` of `command` (manifest version 5), when it is a `require-human` command.
+    #[cfg(feature = "cli")]
+    pub(crate) fn person_decl(&self, command: &str) -> Option<crate::plugins::PersonDecl> {
+        self.loaded
+            .gate
+            .get(command)
+            .filter(|entry| entry.require_human)
+            .map(|entry| entry.person.unwrap_or_default())
     }
 
     /// A context for a library call: `actor`, a new trace id, and the principal under

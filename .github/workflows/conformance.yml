@@ -17,6 +17,7 @@ on:
       - 'packages/cpp/**'
       - 'python/**'
       - 'pnpm-lock.yaml'
+      - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
   pull_request:
     branches: [main]
@@ -28,6 +29,7 @@ on:
       - 'packages/cpp/**'
       - 'python/**'
       - 'pnpm-lock.yaml'
+      - '.cargo/config.toml'
       - '.github/workflows/conformance.yml'
   workflow_dispatch:
 
@@ -60,7 +62,7 @@ jobs:
       - id: todo
         run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --path python/ --path .github/workflows/conformance.yml
       - id: rust
-        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .cargo/config.toml --path .github/workflows/conformance.yml
       - id: cpp
         run: node scripts/affected.mjs gate --path packages/cpp/ --path packages/examples/todo/backends/cpp/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .github/workflows/conformance.yml
 

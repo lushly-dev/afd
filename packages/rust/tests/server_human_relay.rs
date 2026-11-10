@@ -35,6 +35,9 @@ struct Fake {
     outcomes: Mutex<VecDeque<RelayOutcome>>,
     refusal: Mutex<Option<CommandError>>,
     prompt: Mutex<Option<RelayPrompt>>,
+    /// What `approved_context` answers, and the decision ids it was asked about.
+    extra: Mutex<serde_json::Map<String, Value>>,
+    annotated: Mutex<Vec<String>>,
 }
 
 #[derive(Clone, Default)]
@@ -83,6 +86,19 @@ impl HumanRelay for Relay {
             .pop_front()
             .unwrap_or(RelayOutcome::Invalid)
     }
+
+    async fn approved_context(
+        &self,
+        decision_id: &str,
+        _call: &RelayCall,
+    ) -> serde_json::Map<String, Value> {
+        self.0
+            .annotated
+            .lock()
+            .unwrap()
+            .push(decision_id.to_owned());
+        self.0.extra.lock().unwrap().clone()
+    }
 }
 
 /// How many times each handler ran.
@@ -99,7 +115,7 @@ struct Count(Arc<Runs>, fn(&Runs) -> &AtomicUsize);
 impl CommandHandler for Count {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
         (self.1)(&self.0).fetch_add(1, Ordering::SeqCst);
-        success(json!({ "input": input, "actor": context.actor }))
+        success(json!({ "input": input, "actor": context.actor, "extra": context.extra }))
     }
 }
 
@@ -1393,4 +1409,57 @@ mod with_credentials {
         url_elicitation(&post_with(&server, body, "auth.user-1.todo-agent").await);
         assert_eq!(relay.begins(), 1);
     }
+}
+
+#[tokio::test]
+async fn the_relays_own_fields_reach_only_the_approved_call() {
+    let Harness {
+        server,
+        relay,
+        runs,
+    } = harness();
+    relay.0.extra.lock().unwrap().insert(
+        "host.example/person".to_owned(),
+        json!({ "decision": "d-ctx" }),
+    );
+    // Asked: nothing is added to a call that is not approved, and nothing ran.
+    let (_, state) = url_elicitation(&erase(&server, json!({ "id": "42" }), json!({})).await);
+    assert!(relay.0.annotated.lock().unwrap().is_empty());
+    // Declined: still nothing.
+    relay.answer(RelayOutcome::Declined);
+    let declined =
+        command_result(&erase(&server, json!({ "id": "42" }), retry("accept", &state)).await);
+    assert_eq!(
+        declined["error"]["code"],
+        error_codes::CONFIRMATION_DECLINED
+    );
+    assert!(relay.0.annotated.lock().unwrap().is_empty());
+    // Approved: the handler sees the relay's field, asked once for that decision.
+    relay.answer(RelayOutcome::Approved {
+        decision_id: "d-ctx".into(),
+    });
+    let ran = command_result(&erase(&server, json!({ "id": "42" }), retry("accept", &state)).await);
+    assert_eq!(ran["success"], true, "{ran}");
+    assert_eq!(
+        ran["data"]["extra"]["host.example/person"],
+        json!({ "decision": "d-ctx" }),
+        "{ran}"
+    );
+    assert_eq!(*relay.0.annotated.lock().unwrap(), vec!["d-ctx".to_owned()]);
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 1);
+    // A request cannot send the field itself: with a relay that adds nothing, a value sent in
+    // `_meta` never reaches the approved call's context.
+    relay.0.extra.lock().unwrap().clear();
+    relay.answer(RelayOutcome::Approved {
+        decision_id: "d-ctx-2".into(),
+    });
+    let mut forged = retry("accept", &state);
+    forged["_meta"] = json!({ "host.example/person": { "decision": "forged" } });
+    let ran = command_result(&erase(&server, json!({ "id": "42" }), forged).await);
+    assert_eq!(ran["success"], true, "{ran}");
+    assert!(
+        ran["data"]["extra"].get("host.example/person").is_none(),
+        "{ran}"
+    );
+    assert_eq!(runs.erase.load(Ordering::SeqCst), 2);
 }

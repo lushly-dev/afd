@@ -195,6 +195,7 @@ fn indistinguishable(env: &MemoryEnv<'_>) -> CaseResult {
                     by: ADA.into(),
                     content_hash: "0".repeat(16),
                     trace_id: None,
+                    assurance: Some(crate::Assurance::terminal()),
                 },
                 r,
             ),
