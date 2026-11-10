@@ -224,11 +224,17 @@ impl<P: umbel_sdk::Plugin> CommandHandler for SdkHandler<P> {
         let call = call_context(&self.name, self.has_space, &services, &input, &context);
         let plugin = Arc::clone(&self.plugin);
         let name = self.name.clone();
+        let revoked = services.revoked();
         let joined = tokio::task::spawn_blocking(move || {
             let mut cx = Cx::new(call, services);
             plugin.handle(&name, input, &mut cx)
         })
         .await;
+        // A task whose space its caller can no longer read answers that, whatever the plugin made
+        // of the refusal (phase 5 section 12.2).
+        if revoked.load(std::sync::atomic::Ordering::SeqCst) {
+            return afd::failure(space_unreadable());
+        }
         match joined {
             Ok(outcome) => serde_json::from_value::<CommandResult<Value>>(outcome.into_value())
                 .unwrap_or_else(|error| {
@@ -257,4 +263,17 @@ impl<P: umbel_sdk::Plugin> CommandHandler for SdkHandler<P> {
             ),
         }
     }
+}
+
+/// `TASK_SPACE_UNREADABLE` (phase 5 section 10.5): a batch of a running task found a space of the
+/// call no longer readable by its caller, so it stopped. Not retryable.
+pub(crate) fn space_unreadable() -> afd::CommandError {
+    afd::CommandError::new(
+        super::grants::TASK_SPACE_UNREADABLE,
+        "The task stopped: a space it runs in is no longer readable by its caller",
+    )
+    .with_suggestion(
+        "The command may have made part of its change: check its effect; ask the workspace owner for access before starting it again.",
+    )
+    .with_retryable(false)
 }

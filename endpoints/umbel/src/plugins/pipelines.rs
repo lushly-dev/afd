@@ -422,7 +422,8 @@ pub(crate) fn definition(
     if decl.effects.iter().any(|effect| effect.mutation()) {
         definition = definition.as_mutation();
     }
-    definition
+    // Admitted at seal only when every step may be a task (section 2.3).
+    definition.with_task(decl.task.support())
 }
 
 fn returns(result: PipelineResult) -> afd::JsonSchema {
