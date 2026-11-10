@@ -149,7 +149,11 @@ pub(crate) fn policy_version_of(auth: Option<&Value>, access: Option<&Value>) ->
     document.insert("access".into(), access.cloned().unwrap_or(Value::Null));
     document.insert("auth".into(), auth.cloned().unwrap_or(Value::Null));
     let canonical = canonical(&Value::Object(document));
-    format!("sha256:{:x}", Sha256::digest(canonical.as_bytes()))
+    let mut text = String::from("sha256:");
+    for byte in Sha256::digest(canonical.as_bytes()) {
+        text.push_str(&format!("{byte:02x}"));
+    }
+    text
 }
 
 /// JSON with every object's members sorted by name, and no whitespace.
@@ -502,6 +506,16 @@ mod tests {
     use super::*;
     use afd::ActorKind;
     use serde_json::json;
+
+    #[test]
+    fn the_policy_version_is_sha256_of_the_canonical_tables() {
+        // Persisted and compared across releases, so the text must not change with the hash
+        // crate: `printf '%s' '{"access":null,"auth":null}' | shasum -a 256`.
+        assert_eq!(
+            empty_policy_version(),
+            "sha256:f66c0c8f302078c1157fc316fddb776f88ec1f014a71763ece72df49e8a5a820"
+        );
+    }
 
     #[test]
     fn the_projection_has_the_documented_shape() {
