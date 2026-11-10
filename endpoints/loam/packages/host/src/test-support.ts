@@ -3,10 +3,10 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { createRequire } from 'node:module';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
 import { afterEach } from 'vitest';
 
@@ -22,11 +22,11 @@ afterEach(async () => {
 	await Promise.all(made.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-/** The web host's `vite build` output, which `pnpm check` and `loam.yml` build before the units. */
-export const WEB_DIST = join(
-	dirname(createRequire(import.meta.url).resolve('@lushly-dev/loam-web/package.json')),
-	'dist'
-);
+/**
+ * The web host's page as written in its source: `vite build` keeps its policy `<meta>` as it is, and
+ * reading the source needs no build. `scripts/affected/scope.mjs` declares it among this package's inputs.
+ */
+export const WEB_PAGE = fileURLToPath(new URL('../../web/index.html', import.meta.url));
 
 export const SHELL_POLICY =
 	"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'";

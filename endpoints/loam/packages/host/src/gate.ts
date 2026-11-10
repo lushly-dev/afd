@@ -19,16 +19,22 @@ export function authorityOf(origin: string): string {
  * The request's host, or `undefined` when it has none or two. An absolute-form target's authority must
  * equal its `Host`, and the target is rewritten to the origin form, unnormalized, for what follows.
  */
+/**
+ * Every origin is `https:`, so `:443` is its default port, which a browser leaves out. It is dropped only
+ * from a host with no other port: `localhost:8443:443` stays as it is, and is refused.
+ */
+export function withoutDefaultPort(host: string): string {
+	return host.toLowerCase().replace(/^([^:]+|\[[^\]]+\]):443$/, '$1');
+}
+
 export function requestAuthority(incoming: IncomingMessage): string | undefined {
 	const raw = incoming.headersDistinct?.host ?? [];
 	if (raw.length !== 1) return undefined;
-	// Every origin is `https:`, so `:443` is its default port, which a browser leaves out.
-	const host = (raw[0] as string).toLowerCase().replace(/:443$/, '');
+	const host = withoutDefaultPort(raw[0] as string);
 	const target = incoming.url ?? '';
 	if (target.startsWith('/')) return host;
 	const absolute = /^https?:\/\/([^/?#]*)(.*)$/i.exec(target);
-	if (!absolute || (absolute[1] as string).toLowerCase().replace(/:443$/, '') !== host)
-		return undefined;
+	if (!absolute || withoutDefaultPort(absolute[1] as string) !== host) return undefined;
 	const rest = absolute[2] as string;
 	incoming.url = rest.startsWith('/') ? rest : `/${rest}`;
 	return host;
@@ -65,6 +71,12 @@ export function gate(
 			);
 			return;
 		}
+		// What follows reads the authority the gate decided on, `:443` already left out: the adapter builds
+		// the `Request`'s headers from `rawHeaders`, and the socket's dispatch reads `headers`.
+		incoming.headers.host = authority;
+		for (let index = 0; index < incoming.rawHeaders.length; index += 2)
+			if (incoming.rawHeaders[index]?.toLowerCase() === 'host')
+				incoming.rawHeaders[index + 1] = authority;
 		next(incoming, outgoing);
 	};
 }

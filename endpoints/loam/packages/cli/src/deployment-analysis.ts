@@ -386,8 +386,20 @@ async function secretsServed(
 	return found;
 }
 
+export interface AnalyzeDeploymentOptions {
+	/**
+	 * Read the file as if its `[sandbox] origin` were this one: the hosted development profile binds its
+	 * sandbox's port first and writes the site with that origin (phase 6 specification, 5.1). It passes the
+	 * reader's checks as the file's own would.
+	 */
+	sandboxOrigin?: string;
+}
+
 /** Reads the file and every package it lists, as `deployment check` and a write both must. */
-export async function analyzeDeployment(config: string): Promise<DeploymentAnalysis> {
+export async function analyzeDeployment(
+	config: string,
+	options: AnalyzeDeploymentOptions = {}
+): Promise<DeploymentAnalysis> {
 	const empty = { instanceRefusals: [], warnings: [], notices: [], instances: [], mounts: [] };
 	const unreadable = (message: string, suggestion: string): DeploymentAnalysis => ({
 		...empty,
@@ -410,6 +422,8 @@ export async function analyzeDeployment(config: string): Promise<DeploymentAnaly
 			'Fix the TOML at that line.'
 		);
 	}
+	if (options.sandboxOrigin !== undefined && typeof parsed === 'object' && parsed !== null)
+		(parsed as Record<string, unknown>).sandbox = { origin: options.sandboxOrigin };
 	const read = readDeployment(parsed);
 	if (!read.ok) return { ...empty, refusals: read.refusals };
 	const { deployment } = read;

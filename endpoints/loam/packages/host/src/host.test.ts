@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HostError } from './errors.js';
 import { createLoamHost, type LoamHost, type LoamHostConfig } from './host.js';
+import { bindServer, createHostServer, HOST_INTERNALS } from './internal.js';
 import { acquireDataLock } from './lock.js';
 import {
 	deploymentFile,
@@ -481,6 +482,31 @@ describe('a failed start leaves nothing half-built', () => {
 	});
 });
 
+describe('sockets handed over by the development profile (5.1)', () => {
+	it('serves on them with one request handler each, however often listen() runs', async () => {
+		const root = await temporaryDirectory();
+		const data = join(root, 'data');
+		await mkdir(data, { mode: 0o700 });
+		const shell = createHostServer();
+		await bindServer(shell, '127.0.0.1', 0);
+		const port = (shell.address() as AddressInfo).port;
+		const host = await createLoamHost({
+			server: serverConfig(data, { listen: `127.0.0.1:${port}` }),
+			deployment: await deploymentFile(root),
+			dist: await fixtureDist(root),
+			[SERVE_STATIC_DEPLOYMENT]: true,
+			[HOST_INTERNALS]: { lock: acquireDataLock(data), servers: { shell } },
+		});
+		hosts.push(host);
+		await host.listen();
+		await host.listen();
+		expect(shell.listenerCount('request')).toBe(1);
+		expect((await raw(port, '/index.html', { host: SHELL_HOST })).status).toBe(200);
+		await host.close();
+		expect(shell.listening).toBe(false);
+	});
+});
+
 describe('TLS and HSTS (3.1, 3.5)', () => {
 	async function certificate(root: string): Promise<{ cert: string; key: string }> {
 		const cert = join(root, 'cert.pem');
@@ -549,6 +575,12 @@ describe('TLS and HSTS (3.1, 3.5)', () => {
 		});
 		expect(named.status).toBe(200);
 		expect(named.headers['strict-transport-security']).toBe('max-age=31536000');
+		const port443 = await raw(remote.port, '/', {
+			host: 'loam.example.test:443',
+			accept: HTML,
+			tls: true,
+		});
+		expect(port443.status).toBe(200);
 		const misdirected = await raw(remote.port, '/', { host: SHELL_HOST, tls: true });
 		expect(misdirected.status).toBe(421);
 		expect(misdirected.headers['strict-transport-security']).toBe('max-age=31536000');

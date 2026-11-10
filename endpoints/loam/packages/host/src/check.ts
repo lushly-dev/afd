@@ -18,18 +18,22 @@ type Deployment = NonNullable<DeploymentAnalysis['deployment']>;
 export type HostKind = 'static' | 'hosted' | 'desktop';
 
 /** The kind a deployment file declares. No version this package reads yet has `[host]`. */
-export function hostKindOf(_deployment: Deployment): HostKind {
+export function hostKindOf(_analysis: DeploymentAnalysis): HostKind {
 	return 'static';
 }
 
-/** The identity mode a deployment file declares: versions 1 and 2 are `local` (phase 3's 2.1). */
-export function identityModeOf(_deployment: Deployment): 'local' | 'provider' {
-	return 'local';
+/** The identity mode a deployment file declares: version 3's `[identity] mode`, or `local` (phase 3's 2.1). */
+export function identityModeOf(analysis: DeploymentAnalysis): 'local' | 'provider' {
+	return analysis.identity?.mode ?? 'local';
 }
 
-/** The `oidc:<id>` sign-in methods a deployment names; versions 1 and 2 name none. */
-export function oidcMethodsOf(_deployment: Deployment): string[] {
-	return [];
+/** The `oidc:<id>` sign-in methods a deployment names (version 3's `[identity] methods`). */
+export function oidcMethodsOf(analysis: DeploymentAnalysis): string[] {
+	const identity = analysis.identity;
+	if (identity?.mode !== 'provider') return [];
+	return identity.methods
+		.filter((method) => method.startsWith('oidc:'))
+		.map((method) => method.slice('oidc:'.length));
 }
 
 /**
@@ -38,8 +42,8 @@ export function oidcMethodsOf(_deployment: Deployment): string[] {
  * (approved by the coordinator 2026-11-09); until then the hosted server refuses them here. Already
  * refused by version 2's schema: `mounts` (in its reserved list) and `.well-known` (its pattern admits no
  * dot). `api` covers the default `identity.path`, `api/auth`, and every `HostModule`, all served under
- * `<base>api/`; a deployment with an `identity.path` of its own arrives with version 3 and adds its first
- * segment through {@link hostRouteSegments}.
+ * `<base>api/`; version 3's `identity.path` of its own adds its first segment through
+ * {@link hostRouteSegments}.
  */
 export const HOST_ROUTE_SEGMENTS: readonly string[] = Object.freeze([
 	'api',
@@ -49,8 +53,12 @@ export const HOST_ROUTE_SEGMENTS: readonly string[] = Object.freeze([
 ]);
 
 /** The segments a deployment's workspace id must not take: 3.4's, and its identity path's first. */
-export function hostRouteSegments(_deployment: Deployment): readonly string[] {
-	return HOST_ROUTE_SEGMENTS;
+export function hostRouteSegments(analysis: DeploymentAnalysis): readonly string[] {
+	const identity = analysis.identity;
+	const first = identity?.mode === 'provider' ? identity.path.split('/')[0] : undefined;
+	return first && !HOST_ROUTE_SEGMENTS.includes(first)
+		? [...HOST_ROUTE_SEGMENTS, first]
+		: HOST_ROUTE_SEGMENTS;
 }
 
 export interface CheckHostOptions {
@@ -66,6 +74,8 @@ export interface CheckHostOptions {
 	purpose: 'start' | 'serve';
 	/** Test-only, until step 3: a version 1 to 3 deployment, read as `static`, is served. */
 	serveStatic?: boolean;
+	/** The development profile's: the deployment is read as if its `[sandbox] origin` were this one (5.1). */
+	sandboxOrigin?: string;
 	environment?: NodeJS.ProcessEnv;
 }
 
@@ -84,8 +94,10 @@ function deploymentFindings(
 	const refusals: HostFinding[] = [];
 	const warnings: HostFinding[] = [];
 	const deployment = analysis.deployment as Deployment;
-	const kind = hostKindOf(deployment);
-	if (kind !== 'hosted' && !options.serveStatic) {
+	const kind = hostKindOf(analysis);
+	const mode = identityModeOf(analysis);
+	// The test-only option serves a `local` deployment of version 1 to 3 until step 3, and nothing else.
+	if (kind !== 'hosted' && !(options.serveStatic && mode === 'local')) {
 		refusals.push({
 			code: 'HOST_DEPLOYMENT_KIND',
 			key: options.deployment,
@@ -94,7 +106,7 @@ function deploymentFindings(
 				'Use a version 4 deployment file with `[host] kind = "hosted"`; a static deployment is served by any static host.',
 		});
 	}
-	if (options.purpose === 'start' && identityModeOf(deployment) === 'local') {
+	if (options.purpose === 'start' && mode === 'local') {
 		refusals.push({
 			code: 'HOST_IDENTITY_LOCAL',
 			key: options.deployment,
@@ -105,7 +117,7 @@ function deploymentFindings(
 		});
 	}
 	const workspace = analysis.workspace?.id;
-	const segments = hostRouteSegments(deployment);
+	const segments = hostRouteSegments(analysis);
 	if (workspace !== undefined && segments.includes(workspace)) {
 		refusals.push({
 			code: 'DEPLOYMENT_WORKSPACE_INVALID',
@@ -146,7 +158,7 @@ function deploymentFindings(
 				'Add `[sandbox] origin` to both files: another site, such as `https://loam-sandbox.example.net`.',
 		});
 	}
-	const methods = new Set(oidcMethodsOf(deployment));
+	const methods = new Set(oidcMethodsOf(analysis));
 	const tables = new Set(Object.keys(server.oidc ?? {}));
 	for (const id of methods) {
 		if (!tables.has(id)) {
@@ -214,7 +226,10 @@ export async function checkHost(options: CheckHostOptions): Promise<HostCheck> {
 	const warnings: HostFinding[] = [...read.warnings];
 	const resolved = resolveSecrets(server, options.environment);
 	refusals.push(...resolved.refusals);
-	const analysis = await analyzeDeployment(options.deployment);
+	const analysis = await analyzeDeployment(
+		options.deployment,
+		options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }
+	);
 	if (analysis.refusals.length > 0 || !analysis.deployment) {
 		refusals.push(...analysis.refusals);
 	} else {

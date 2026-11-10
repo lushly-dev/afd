@@ -433,9 +433,6 @@ importers:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
-      '@lushly-dev/loam-web':
-        specifier: workspace:*
-        version: link:../web
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -713,6 +710,9 @@ importers:
       '@lushly-dev/loam-cli':
         specifier: workspace:*
         version: link:../cli
+      '@lushly-dev/loam-host':
+        specifier: workspace:*
+        version: link:../host
       '@lushly-dev/loam-sdk':
         specifier: workspace:*
         version: link:../sdk
