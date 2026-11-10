@@ -6,7 +6,8 @@
 //! adds their byte counters for the read limit ([`read_limit`]) and the nonce store
 //! ([`nonces`]: approval nonces and relay evidence now, gateway `jti`s in step 4 and spent person
 //! decisions in step 5), person decisions (`person.sqlite3`, step 5, [`person`]) and tasks
-//! (`tasks.sqlite3`, step 8, [`tasks`]: AFD's own `TaskStore` trait). A wait past
+//! (`tasks.sqlite3`, step 8, [`tasks`]: AFD's own `TaskStore` trait), and usage events
+//! (`state/usage/usage.sqlite3`, step 9, [`usage`]; D122 keeps them in `state/usage/`). A wait past
 //! `store.lock_timeout_ms` is [`codes::WORKSPACE_SHARED_TIMEOUT`], retryable, and the request it
 //! served fails closed (a task store's, as AFD's `TaskStoreError::Unavailable`).
 
@@ -15,6 +16,7 @@ pub(crate) mod nonces;
 pub(crate) mod person;
 pub(crate) mod read_limit;
 pub(crate) mod tasks;
+pub(crate) mod usage;
 
 use std::fs::{self, DirBuilder};
 use std::path::Path;

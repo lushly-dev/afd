@@ -166,6 +166,7 @@ impl HttpServer {
 /// the gateway's pinned key set cannot be used, or naming `mcp.first_class_tools` when the
 /// server's surface is invalid; the errors of reading `state/keys/http.token` in mode `none`,
 /// and of opening `state/shared/limits.sqlite3` in the hosted modes.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn server(
     server: &McpServer,
     workspace: &Workspace,
@@ -174,20 +175,23 @@ pub(crate) fn server(
     #[cfg(feature = "auth")] environment: &crate::auth::fetch::AuthEnvironment,
     #[cfg(feature = "auth")] person: Option<&Arc<crate::person::service::PersonService>>,
     #[cfg(feature = "auth")] clock: Option<&Arc<dyn afd::Clock>>,
+    #[cfg(feature = "auth")] usage: &crate::usage::Setup,
 ) -> Result<HttpServer, HostError> {
     #[cfg(not(feature = "auth"))]
     {
         refuse_without_auth(workspace)?;
         Ok(HttpServer {
-            router: router(server, workspace)?,
+            router: router(server, workspace, None)?,
             proxies: Arc::from(Vec::new()),
         })
     }
     #[cfg(feature = "auth")]
     {
         let config = workspace.config();
+        // Usage events (section 12.1): one observer, and one writer, per surface.
+        let observer = crate::usage::observe::Observer::start(workspace, usage);
         let router = match config.auth.mode {
-            AuthMode::None => router(server, workspace)?,
+            AuthMode::None => router(server, workspace, Some(observer))?,
             AuthMode::Oauth => {
                 let verifier: Arc<dyn TokenVerifier> = match verifier {
                     Some(verifier) => verifier,
@@ -203,9 +207,11 @@ pub(crate) fn server(
                         Arc::new(verifier)
                     }
                 };
-                oauth_router(server, workspace, policy, verifier, person, clock)?
+                oauth_router(server, workspace, policy, verifier, person, clock, observer)?
             }
-            AuthMode::Gateway => gateway::router(server, workspace, policy, environment, clock)?,
+            AuthMode::Gateway => {
+                gateway::router(server, workspace, policy, environment, clock, observer)?
+            }
         };
         let tls = config
             .http
@@ -264,14 +270,22 @@ fn refuse_without_auth(workspace: &Workspace) -> Result<(), HostError> {
 /// # Errors
 /// `WORKSPACE_CONFIG_INVALID` naming `auth.mode` or `http.tls`; the errors of [`server`]'s
 /// mode `none`.
-pub(crate) fn plain_router(server: &McpServer, workspace: &Workspace) -> Result<Router, HostError> {
+pub(crate) fn plain_router(
+    server: &McpServer,
+    workspace: &Workspace,
+    #[cfg(feature = "auth")] usage: &crate::usage::Setup,
+) -> Result<Router, HostError> {
     let config = workspace.config();
     let key = if config.auth.mode.is_hosted() {
         "auth.mode"
     } else if config.http.tls.is_some() {
         "http.tls"
     } else {
-        return router(server, workspace);
+        #[cfg(feature = "auth")]
+        let observer = Some(crate::usage::observe::Observer::start(workspace, usage));
+        #[cfg(not(feature = "auth"))]
+        let observer = None;
+        return router(server, workspace, observer);
     };
     Err(not_served(
         key,
@@ -286,7 +300,11 @@ pub(crate) fn plain_router(server: &McpServer, workspace: &Workspace) -> Result<
 /// `WORKSPACE_KEY_INVALID` when `state/keys/http.token` exists but is malformed, and
 /// `WORKSPACE_STATE_UNWRITABLE` when it cannot be created; `WORKSPACE_CONFIG_INVALID` naming
 /// `mcp.first_class_tools` when the server's surface is invalid.
-fn router(server: &McpServer, workspace: &Workspace) -> Result<Router, HostError> {
+fn router(
+    server: &McpServer,
+    workspace: &Workspace,
+    observer: Option<Observed>,
+) -> Result<Router, HostError> {
     let token = workspace.http_token()?;
     let service = server
         .try_streamable_http_service(options(workspace))
@@ -294,17 +312,31 @@ fn router(server: &McpServer, workspace: &Workspace) -> Result<Router, HostError
     let path = workspace.config().http.path.clone();
     // An exact-path service rather than `nest_service`: the path is deployer text, and axum
     // reads braces and wildcards in a nested path as captures.
-    let mcp = tower::service_fn(move |request: Request| {
+    let mcp = tower::service_fn(move |mut request: Request| {
         let mut service = service.clone();
         let at_path = request.uri().path() == path;
+        // The token layer is outside: only a request that carries the token is metered.
+        #[cfg(feature = "auth")]
+        let watch = observer
+            .as_ref()
+            .filter(|_| at_path)
+            .and_then(|observer| observer.begin(&mut request));
+        #[cfg(not(feature = "auth"))]
+        let _ = (&observer, &mut request);
         async move {
             if !at_path {
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());
             }
-            match service.call(request).await {
-                Ok(response) => Ok(response.into_response()),
+            let response = match service.call(request).await {
+                Ok(response) => response.into_response(),
                 Err(never) => match never {},
-            }
+            };
+            #[cfg(feature = "auth")]
+            let response = match watch {
+                Some(watch) => watch.finish(response, None).await,
+                None => response,
+            };
+            Ok(response)
         }
     });
     let bearer = Arc::new(Bearer::new(&token, &workspace.layout().http_token()));
@@ -421,6 +453,7 @@ fn oauth_router(
     verifier: Arc<dyn TokenVerifier>,
     person: Option<&Arc<crate::person::service::PersonService>>,
     clock: Option<&Arc<dyn afd::Clock>>,
+    observer: Observed,
 ) -> Result<Router, HostError> {
     let config = workspace.config();
     let metadata = protected_resource(workspace)?;
@@ -491,8 +524,10 @@ fn oauth_router(
         &limits,
         std::time::Duration::from_millis(config.store.lock_timeout_ms),
     );
+    let mcp_path = config.http.path.clone();
     let mcp = tower::service_fn(move |mut request: Request| {
         let service = service.clone();
+        let mcp_path = mcp_path.clone();
         // The person page's routes, beside the MCP path and never behind the bearer layer (6.3,
         // layer 4): they authenticate by their own login.
         let page = page
@@ -504,7 +539,11 @@ fn oauth_router(
         // the resolver finds it in the book while the request is in flight.
         let slot = crate::auth::caller::CallerSlot::default();
         request.extensions_mut().insert(slot.clone());
-        let entry = page.is_none().then(|| book.enter(slot));
+        let entry = page.is_none().then(|| book.enter(slot.clone()));
+        // Usage (section 12.1): the MCP path's requests, the metadata's never.
+        let watch = (page.is_none() && request.uri().path() == mcp_path)
+            .then(|| observer.begin(&mut request))
+            .flatten();
         async move {
             if let Some(page) = page {
                 return Ok::<Response, Infallible>(page.handle(request).await);
@@ -513,11 +552,14 @@ fn oauth_router(
                 return Ok::<Response, Infallible>(StatusCode::NOT_FOUND.into_response());
             }
             let response = match service.oneshot(request).await {
-                Ok(response) => Ok(response.map(Body::new)),
+                Ok(response) => response.map(Body::new),
                 Err(never) => match never {},
             };
             drop(entry);
-            response
+            Ok(match watch {
+                Some(watch) => watch.finish(response, Some(&slot)).await,
+                None => response,
+            })
         }
     });
     let ip = Arc::new(layers::IpLimit::new(
@@ -571,6 +613,13 @@ fn json_response(status: StatusCode, body: &str) -> Response {
     );
     response
 }
+
+/// A surface's usage observer (section 12.1); none without the `auth` feature, which keeps the
+/// usage store.
+#[cfg(feature = "auth")]
+type Observed = Arc<crate::usage::observe::Observer>;
+#[cfg(not(feature = "auth"))]
+type Observed = std::convert::Infallible;
 
 /// The stored token as a digest, and the body of a refusal.
 struct Bearer {
