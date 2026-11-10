@@ -196,3 +196,16 @@ test('a failed recovery is pinned separately from original artifact authority', 
 	assert.equal(next.sourceRevision, approval.sourceRevision);
 	assert.equal(next.planBinding, approval.planBinding);
 });
+
+test('recovery checks the intent source at the frozen revision, not on a main that has moved on', () => {
+	// A dependency bump inside a released package's directory lands on main within hours, which makes
+	// readIntent(main) fail its source digest. The approval still has to match main's committed intent
+	// bytes, and validatePlan reads the intent with its source digest in the frozen checkout.
+	const script = readFileSync(new URL('./release-recover.mjs', import.meta.url), 'utf8');
+	assert.doesNotMatch(script, /readIntent\(/);
+	assert.match(
+		script,
+		/validateRecoveryApproval\(approval, approvalBytes, process\.env, committedIntent\(root\)\.intentDigest\)/
+	);
+	assert.match(script, /validatePlan\(frozen, plan, plan\.core\.registryEvidence\)/);
+});

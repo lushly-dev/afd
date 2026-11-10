@@ -1,14 +1,9 @@
 {
 	"schemaVersion": 1,
-	"runId": "40851325260",
+	"runId": "42798527872",
 	"attempt": "1",
-	"sourceRevision": "1572bd87487a0364f5a4dff6ee10f95446a737c7",
-	"planBinding": "561d96d8bfc0ae37aa252c96b1f9f23cd0d8cc070a020087861780020e12a89a",
-	"intentDigest": "fb7869603e79d4f68f763db7cee22228c69aeff500862376f7cb7dbb89ab3234",
-	"failedStatusId": 57564981062,
-	"failure": {
-		"runId": "40859792814",
-		"attempt": "1",
-		"sourceRevision": "d96a16d1e716f268e0fedeca897a1ef183cd886b"
-	}
+	"sourceRevision": "028090276383c077dc0fdb8860c3a57cfe48686a",
+	"planBinding": "ec626c6aa8c4a74873ebcc33b33b36f2e2142bfc15bb3d4673f4b2463af6c381",
+	"intentDigest": "903286aa8325287c73ae300b9e4b05206f12600cce519c2659415332c46662a3",
+	"failedStatusId": 58517713167
 }

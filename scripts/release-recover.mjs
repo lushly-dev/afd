@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { releaseClaim } from './release-claim.mjs';
 import { finalizeRelease } from './release-finalize.mjs';
-import { readIntent } from './release-operations/intent.mjs';
+import { committedIntent } from './release-operations/intent.mjs';
 import { publishPlan, validatePlan } from './release-operations/publish.mjs';
 import {
 	restoreRecoveryArtifacts,
@@ -23,7 +23,10 @@ const approvalBytes = readFileSync(resolve(root, approvalPath), 'utf8');
 if (run('git', ['show', `HEAD:${approvalPath}`], root) !== approvalBytes)
 	throw new Error('Recovery approval must be committed');
 const approval = JSON.parse(approvalBytes);
-validateRecoveryApproval(approval, approvalBytes, process.env, readIntent(root).intentDigest);
+// Main must still carry the reviewed intent's exact bytes, but not the packages' source: main moves
+// on (a dependency bump) after a publication, and the plan's source is checked below, at the frozen
+// revision the artifacts came from (validatePlan reads the intent and its source digest there).
+validateRecoveryApproval(approval, approvalBytes, process.env, committedIntent(root).intentDigest);
 const api = (endpoint) => JSON.parse(run('gh', ['api', `repos/${repository}/${endpoint}`], root));
 const original = api(`actions/runs/${approval.runId}/attempts/${approval.attempt}`);
 validateOriginalAttempt(approval, original);
