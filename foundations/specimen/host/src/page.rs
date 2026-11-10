@@ -296,6 +296,30 @@ impl Page<'_> {
             .ok_or_else(|| anyhow!("The bench page has no #specimen-root"))
     }
 
+    /// The backend ids of the DOM nodes under `root`, through open and closed shadow roots.
+    pub async fn subtree_backend_ids(&self, root: i64) -> Result<std::collections::HashSet<i64>> {
+        let described = self
+            .send(
+                "DOM.describeNode",
+                json!({ "backendNodeId": root, "depth": -1, "pierce": true }),
+            )
+            .await?;
+        let mut ids = std::collections::HashSet::new();
+        let mut pending: Vec<&Value> = described.get("node").into_iter().collect();
+        while let Some(node) = pending.pop() {
+            ids.extend(node.get("backendNodeId").and_then(Value::as_i64));
+            for key in ["children", "shadowRoots"] {
+                pending.extend(
+                    node.get(key)
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten(),
+                );
+            }
+        }
+        Ok(ids)
+    }
+
     /// Resolve a declared target to the one element it must identify.
     async fn target(&self, name: &str, target: &Value) -> Result<String> {
         let (count, object) = if let Some(selector) = target.get("selector").and_then(Value::as_str)

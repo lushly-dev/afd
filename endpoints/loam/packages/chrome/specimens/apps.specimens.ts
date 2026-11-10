@@ -75,12 +75,6 @@ class SampleSurface extends HTMLElement {
 const mount = (wrapper: HTMLElement, element: string) => {
 	const registry = new CustomElementRegistry();
 	registry.define('sample-surface', class extends SampleSurface {});
-	// Specimen waits on the global registry for each tag it finds, and a name defined only in a scoped
-	// registry would hold it to its deadline (a follow-up in the phase 1 specification). So the name is
-	// here too, and the mount's own element is still the scoped class.
-	if (!customElements.get('sample-surface')) {
-		customElements.define('sample-surface', class extends HTMLElement {});
-	}
 	const created = document.createElement('loam-mount') as LoamMount;
 	created.configure({
 		registry,

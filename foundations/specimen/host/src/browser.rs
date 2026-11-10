@@ -645,7 +645,11 @@ impl Browser {
             .await?;
         let root = page.root_backend_id().await?;
         let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
-        let snapshot = aria::snapshot(&tree, root);
+        let snapshot = match aria::snapshot(&tree, root) {
+            Some(snapshot) => snapshot,
+            // A modal dialog has left the mount root out of the tree (#662).
+            None => aria::exposed_within(&tree, &page.subtree_backend_ids(root).await?),
+        };
         let viewport: Viewport =
             serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
                 .unwrap_or(viewport);
