@@ -69,10 +69,62 @@ export function validateHttpRequest(req: IncomingMessage, options: HttpSecurityO
 	return new URL(target, base);
 }
 
+/** Bodies read before routing (by the authorization layer, or a host's own layer). */
+const prereadBodies = new WeakMap<IncomingMessage, Buffer>();
+
+/** Record `body` as `req`'s, already read: the routes read it instead of the stream. */
+export function setPrereadBody(req: IncomingMessage, body: Buffer): void {
+	prereadBodies.set(req, body);
+}
+
+/** The body read before routing, if any. */
+export function prereadBody(req: IncomingMessage): Buffer | undefined {
+	return prereadBodies.get(req);
+}
+
+/** Whether `req` declares a JSON body. */
+export function isJsonContent(req: IncomingMessage): boolean {
+	return req.headers['content-type']?.split(';')[0]?.trim().toLowerCase() === 'application/json';
+}
+
+/** Read at most `maxBytes` of `req`'s body, or `undefined` when it is longer. */
+export async function readBodyBytes(
+	req: IncomingMessage,
+	maxBytes: number
+): Promise<Buffer | undefined> {
+	const length = Number(req.headers['content-length']);
+	if (Number.isFinite(length) && length > maxBytes) return undefined;
+	const chunks: Buffer[] = [];
+	let size = 0;
+	for await (const chunk of req) {
+		size += (chunk as Buffer).length;
+		if (size > maxBytes) return undefined;
+		chunks.push(chunk as Buffer);
+	}
+	return Buffer.concat(chunks);
+}
+
+function parseJson(bytes: Buffer): unknown {
+	try {
+		return JSON.parse(bytes.toString('utf8'));
+	} catch {
+		throw new HttpRequestError(400, 'Request body must be valid JSON', {
+			rpcCode: -32700,
+			suggestion: 'Send a UTF-8 JSON body',
+		});
+	}
+}
+
 export function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
-	if (req.destroyed || req.aborted) throw new HttpRequestError(400, 'Request body was interrupted');
-	if (req.headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json') {
+	const preread = prereadBodies.get(req);
+	if (!preread && (req.destroyed || req.aborted))
+		throw new HttpRequestError(400, 'Request body was interrupted');
+	if (!isJsonContent(req)) {
 		throw new HttpRequestError(415, 'Content-Type must be application/json');
+	}
+	if (preread) {
+		if (preread.length > maxBytes) throw new HttpRequestError(413, 'Request body is too large');
+		return Promise.resolve().then(() => parseJson(preread));
 	}
 	const length = req.headers['content-length'];
 	if (length && Number(length) > maxBytes)
@@ -100,14 +152,9 @@ export function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<un
 		const onEnd = () => {
 			cleanup();
 			try {
-				resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-			} catch {
-				reject(
-					new HttpRequestError(400, 'Request body must be valid JSON', {
-						rpcCode: -32700,
-						suggestion: 'Send a UTF-8 JSON body',
-					})
-				);
+				resolve(parseJson(Buffer.concat(chunks)));
+			} catch (error) {
+				reject(error);
 			}
 		};
 		const onError = () => fail(new HttpRequestError(400, 'Request body could not be read'));

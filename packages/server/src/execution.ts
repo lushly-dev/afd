@@ -66,6 +66,10 @@ export interface ExecutionDeps {
 	 * `false`.
 	 */
 	suggestTools?: boolean;
+	/** Whether a command is hidden from the caller of `context` (MCP authorization, M6). */
+	hidden?: (name: string, context: CommandContext) => boolean;
+	/** The commands the caller of `context` may be shown, for suggestions (M6). */
+	shown?: (commands: ZodCommandDefinition[], context: CommandContext) => ZodCommandDefinition[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -118,15 +122,20 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 		// One context object flows through every middleware into the handler.
 		const context = withContextDefaults(callerContext, deps.contextDefaults);
-		const command = commandMap.get(commandName);
+		// A command hidden from the caller (MCP authorization, M6) is looked up as a name that
+		// does not exist, before validation, middleware or the handler.
+		const command = deps.hidden?.(commandName, callerContext)
+			? undefined
+			: commandMap.get(commandName);
 		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
 
 		if (!command) {
 			// A few close matches, never the whole list: in lazy mode that would load
 			// every command name into the agent's context on a single typo. Never one the call's
-			// `allow` option refuses.
+			// `allow` option refuses, nor one the caller is not shown.
+			const listed = [...commandMap.values()];
 			const candidates = filterAllowed(
-				filterByContext([...commandMap.values()], activeContext),
+				filterByContext(deps.shown?.(listed, callerContext) ?? listed, activeContext),
 				callerContext
 			);
 			return failure({

@@ -11,6 +11,7 @@ import type {
 	BatchRequest,
 	BatchResult,
 	CommandContext,
+	CommandError,
 	CommandResult,
 	PipelineRequest,
 	PipelineResult,
@@ -55,6 +56,7 @@ import {
 	pipeArgsSchema,
 } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
+import { knownOnly, listedCommands, scopeViewOf, shownOnly } from './scope-view.js';
 import type { ToolStrategy } from './server-types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -113,6 +115,14 @@ const emptyPipelineResult = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROUTER
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/** A pipeline refused before its first step, with `error` (a confirmation, a missing scope). */
+function failedPipeline(error: CommandError) {
+	return {
+		...emptyPipelineResult,
+		steps: [{ index: -1, command: '', status: 'failure', executionTimeMs: 0, error }],
+	};
+}
 
 /**
  * Wrap a result as MCP tool content. The JSON is compact: the text is read by an
@@ -178,17 +188,7 @@ function allowDenial(commandName: string, callContext: CommandContext): ToolCall
  * command it runs, so batch items and pipeline steps are covered too.
  */
 export function createToolRouter(deps: ToolRouterDeps) {
-	const {
-		executeCommand,
-		executeBatch,
-		executePipeline,
-		commands,
-		toolStrategy,
-		groupByFn,
-		devMode,
-		allCommands,
-		exposedCommandNames,
-	} = deps;
+	const { executeCommand, executeBatch, executePipeline, toolStrategy, groupByFn, devMode } = deps;
 
 	/**
 	 * Route one tool call.
@@ -226,6 +226,25 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			traceId: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		});
 
+		// MCP authorization (spec/authorization.md, M6). After routing and before the confirmation
+		// gate, every call is decided again: a missing scope fails it, a batch or pipeline as a
+		// whole. And a command hidden from the caller does not exist for it on any route: the
+		// router sees only the commands that do, and names in suggestions only those it is shown.
+		const view = scopeViewOf(callContext);
+		const decision = view?.decideCall(toolName, args);
+		if (view && decision && decision !== 'proceed') {
+			const error = view.insufficientScope(decision.forbidden);
+			if (toolName === 'afd-batch') return resultContent(createFailedBatchResult(error, {}), true);
+			if (toolName === 'afd-pipe') return resultContent(failedPipeline(error), true);
+			return resultContent(failure(error), true);
+		}
+		const commands = knownOnly(deps.commands, callContext);
+		const allCommands = deps.allCommands && knownOnly(deps.allCommands, callContext);
+		const exposedCommandNames = deps.exposedCommandNames;
+		/** The steps naming commands that exist for the caller: a confirmation names no other. */
+		const existing = <T extends { command: string }>(steps: T[]): T[] =>
+			view ? steps.filter((step) => view.known(step.command)) : steps;
+
 		// Handle afd-call (available in all strategies)
 		if (toolName === 'afd-call') {
 			const parsed = parseMetaArgs(
@@ -248,7 +267,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				// caller cannot learn that a private command exists (spec/error-codes.md, D4).
 				// Suggest a few close matches the caller can use.
 				const callable = filterAllowed(
-					filterByContext(commands, contextState?.getActive()),
+					filterByContext(shownOnly(commands, callContext), contextState?.getActive()),
 					callContext
 				);
 				return resultContent(
@@ -295,7 +314,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			if (!parsed.success) return resultContent(parsed.result, true);
 			// Filter by active context when context state is available, and by the call's `allow`
 			const discoverCommands = filterAllowed(
-				filterByContext(commands, contextState?.getActive()),
+				filterByContext(listedCommands(commands, callContext), contextState?.getActive()),
 				callContext
 			);
 			const result = executeDiscover(discoverCommands, parsed.data);
@@ -315,7 +334,10 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			// Filter by active context so agents cannot inspect commands outside their context, and
 			// by the call's `allow`, so a refused command reads as unknown
 			const contextFilteredCmds = filterAllowed(
-				filterByContext(allCommands ?? commands, contextState?.getActive()),
+				filterByContext(
+					listedCommands(allCommands ?? commands, callContext),
+					contextState?.getActive()
+				),
 				callContext
 			);
 			const result = executeDetail(contextFilteredCmds, exposedNames, parsed.data);
@@ -340,7 +362,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			}
 			const batchArgs = args as unknown as Record<string, unknown>;
 			const unconfirmed = await confirm(
-				args.commands.map((item) => ({ command: item.command, input: item.input ?? {} })),
+				existing(args.commands.map((item) => ({ command: item.command, input: item.input ?? {} }))),
 				namedAcknowledgement(batchArgs.confirm),
 				'repeat the afd-batch with confirm: [the command names]',
 				(outcome) => resultContent(createFailedBatchResult(outcome.error, {}), true)
@@ -385,25 +407,10 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			}
 			const pipeArgs = args as unknown as Record<string, unknown>;
 			const unconfirmed = await confirm(
-				args.steps.map((step) => ({ command: step.command, input: step.input ?? {} })),
+				existing(args.steps.map((step) => ({ command: step.command, input: step.input ?? {} }))),
 				namedAcknowledgement(pipeArgs.confirm),
 				'repeat the afd-pipe with confirm: [the command names]',
-				(outcome) =>
-					resultContent(
-						{
-							...emptyPipelineResult,
-							steps: [
-								{
-									index: -1,
-									command: '',
-									status: 'failure',
-									executionTimeMs: 0,
-									error: outcome.error,
-								},
-							],
-						},
-						true
-					)
+				(outcome) => resultContent(failedPipeline(outcome.error), true)
 			);
 			if (unconfirmed) return unconfirmed;
 			const result = await executePipeline(
@@ -473,9 +480,11 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			}
 
 			// In grouped mode, if tool is a known group but action is missing/invalid,
-			// return a helpful error instead of falling through
-			if (allowedGroupCommands.length > 0) {
-				const availableActions = allowedGroupCommands.map(commandAction);
+			// return a helpful error instead of falling through. Only a group with a member the
+			// caller is shown answers so, and it names only those members' actions (M6).
+			const shownGroupCommands = shownOnly(allowedGroupCommands, callContext);
+			if (shownGroupCommands.length > 0) {
+				const availableActions = shownGroupCommands.map(commandAction);
 
 				return resultContent(
 					{
@@ -509,7 +518,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			if (!declaresConfirmInput(command)) input = withoutConfirm(input);
 		}
 		const unconfirmed = await confirm(
-			[{ command: toolName, input }],
+			existing([{ command: toolName, input }]),
 			acknowledged,
 			'repeat the call with confirm: true'
 		);

@@ -71,11 +71,13 @@ import {
 	type RoundAnswers,
 	type RoundState,
 } from './elicitation-state.js';
+import { prereadBody } from './http-security.js';
 import type { AuthLayer } from './mcp-auth.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import { type ResourceService, resourceCacheHints } from './resources.js';
+import { bindScopeView, type ScopeView } from './scope-view.js';
 import type { ContextConfig, CreateRequestContext, ToolStrategy } from './server-types.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
 
@@ -140,6 +142,10 @@ interface FactoryOptions {
 	legacyContextState?: ContextState;
 	/** Per-request values for HTTP; not called on stdio. */
 	requestValues?: () => Promise<Record<string, unknown>>;
+	/** The scope view of the HTTP request being served (MCP authorization, M6). */
+	requestView?: () => ScopeView | undefined;
+	/** Whether `tools/list` varies by the caller's authorization (`filterToolsByScope`). */
+	privateToolsList?: boolean;
 }
 
 /** Report to `onError`. A failing `onError` has nowhere left to report, so it is ignored. */
@@ -422,7 +428,8 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				capabilities: { tools: { listChanged: false }, ...deps.resources?.capabilities },
 				instructions: deps.instructions,
 				cacheHints: {
-					'tools/list': { ttlMs, cacheScope: 'public' },
+					// A list filtered by authorization varies by caller (M6, "Listing").
+					'tools/list': { ttlMs, cacheScope: options.privateToolsList ? 'private' : 'public' },
 					'server/discover': { ttlMs, cacheScope: 'public' },
 					...(deps.resources && resourceCacheHints(deps.resourcesTtlMs ?? ttlMs)),
 				},
@@ -447,7 +454,18 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		// The SDK lifts `_meta` (minus the reserved envelope keys) into `ctx.mcpReq._meta`.
 		server.setRequestHandler('tools/list', async (_request, ctx) => {
 			const state = contextStateFor(era, ctx.mcpReq._meta);
-			return { tools: deps.getToolsList(scoped({}, state)) as never };
+			const view = options.requestView?.();
+			// M6, "Other methods": a listing needs the required scopes.
+			const decision = view?.decideRequest();
+			if (view && decision && decision !== 'proceed') {
+				const error = view.insufficientScope(decision.forbidden);
+				throw new ProtocolError(ProtocolErrorCode.InvalidRequest, error.message, {
+					code: error.code,
+					suggestion: error.suggestion,
+					scopes: decision.forbidden,
+				});
+			}
+			return { tools: deps.getToolsList(bindScopeView(scoped({}, state), view)) as never };
 		});
 
 		server.setRequestHandler('tools/call', async (request, ctx) => {
@@ -484,7 +502,10 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			});
 			const relay = canElicit ? approvalRelayFor(round) : undefined;
 			let context = bindConfirmationChannel(
-				scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
+				bindScopeView(
+					scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
+					options.requestView?.()
+				),
 				confirmationChannelFor(canElicit, round, ctx)
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);
@@ -529,6 +550,23 @@ export interface ModernHttpLane {
 	close(): Promise<void>;
 }
 
+/**
+ * `req`, or, when its body was read before routing (the authorization layer's decision before
+ * dispatch, M6), a request that yields those same bytes, so the SDK reads exactly what was sent.
+ */
+function replayed(req: IncomingMessage) {
+	const body = prereadBody(req);
+	if (!body) return req;
+	return {
+		method: req.method,
+		url: req.url,
+		headers: req.headers,
+		async *[Symbol.asyncIterator]() {
+			yield body;
+		},
+	};
+}
+
 /** Create the `/mcp` endpoint handler. */
 export function createModernHttpLane(
 	deps: ModernMcpDeps & {
@@ -549,6 +587,11 @@ export function createModernHttpLane(
 			}
 			return requestContextValues(deps.createContext, req, deps.auth?.credentialsFor(req));
 		},
+		requestView: () => {
+			const req = currentRequest.getStore();
+			return req ? deps.auth?.viewFor(req) : undefined;
+		},
+		privateToolsList: deps.auth?.filterToolsByScope === true,
 	});
 	// The SDK reports rejected requests (bad headers, unsupported versions) through `onerror`;
 	// those are client mistakes answered on the wire, so they are not forwarded to `onError`.
@@ -558,7 +601,7 @@ export function createModernHttpLane(
 		onerror: reporter(deps.onError),
 	});
 	return {
-		handle: (req, res) => currentRequest.run(req, () => node(req, res)),
+		handle: (req, res) => currentRequest.run(req, () => node(replayed(req), res)),
 		close: () => handler.close(),
 	};
 }
