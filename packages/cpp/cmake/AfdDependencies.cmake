@@ -5,6 +5,20 @@
 
 include(FetchContent)
 
+# AFD_DEPENDENCY_CACHE (or the environment variable of that name): a directory holding copies of the
+# files below under their upstream names. A file found there is used instead of downloading it, and
+# is checked against the same hash; CI restores them from its cache (.github/actions/cpp-dependencies).
+set(AFD_DEPENDENCY_CACHE "$ENV{AFD_DEPENDENCY_CACHE}" CACHE PATH "Directory of pre-downloaded dependency files")
+
+# Sets `out` to the cached copy of `url` when there is one, and to `url` otherwise.
+function(afd_dependency_source out url)
+    get_filename_component(name "${url}" NAME)
+    if(AFD_DEPENDENCY_CACHE AND EXISTS "${AFD_DEPENDENCY_CACHE}/${name}")
+        file(TO_CMAKE_PATH "${AFD_DEPENDENCY_CACHE}/${name}" url)
+    endif()
+    set(${out} "${url}" PARENT_SCOPE)
+endfunction()
+
 # nlohmann/json: the library's only runtime dependency (proposal D2).
 # A host that already provides nlohmann_json (>= 3.11) through find_package is used first, so an
 # application can supply its own copy. AFD_USE_SYSTEM_JSON makes that copy mandatory.
@@ -16,9 +30,11 @@ else()
     if(AFD_INSTALL)
         set(JSON_Install ON CACHE INTERNAL "")
     endif()
+    afd_dependency_source(afd_json_url
+        https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
     FetchContent_Declare(
         nlohmann_json
-        URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+        URL ${afd_json_url}
         URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         SYSTEM
@@ -28,9 +44,11 @@ endif()
 
 # doctest: tests only. Fetched as the single header.
 function(afd_fetch_doctest)
+    afd_dependency_source(afd_doctest_url
+        https://raw.githubusercontent.com/doctest/doctest/v2.5.3/doctest/doctest.h)
     FetchContent_Declare(
         afd_doctest_header
-        URL https://raw.githubusercontent.com/doctest/doctest/v2.5.3/doctest/doctest.h
+        URL ${afd_doctest_url}
         URL_HASH SHA256=cfd518a3ef90f67e1f3ba514df23fb3627437de1a2feeba78cf5062a40021421
         DOWNLOAD_NO_EXTRACT TRUE)
     FetchContent_MakeAvailable(afd_doctest_header)

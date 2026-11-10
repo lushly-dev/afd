@@ -212,6 +212,7 @@ on CI's `linux-clang-sanitize` job, or run the preset on Linux (for example in a
 | `AFD_INSTALL` | ON when top-level | Generate install rules and the `afd` CMake package |
 | `AFD_WARNINGS_AS_ERRORS` | OFF (ON in presets) | `-Werror` or `/WX` |
 | `AFD_USE_SYSTEM_JSON` | OFF | Require `nlohmann_json` from `find_package` instead of downloading it |
+| `AFD_DEPENDENCY_CACHE` | `$AFD_DEPENDENCY_CACHE` | A directory of pre-downloaded dependency files under their upstream names (`json.tar.xz`, `doctest.h`), used instead of downloading and checked against the same hashes; CI fills it from its cache |
 | `AFD_ENABLE_THREADS` | ON (OFF for Emscripten) | Build `ThreadTaskRunner` and link `Threads::Threads` |
 | `AFD_JOURNAL_FILE` | ON | Build `FileJournalSink` (`afd/journal_file.hpp`, not in `afd/afd.hpp`), which uses `std::filesystem` |
 | `AFD_BUILD_BENCHMARKS` | OFF | Build `benchmarks/` (`afd_benchmarks`); see [Benchmarks](#benchmarks) |

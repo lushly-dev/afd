@@ -199,6 +199,57 @@ export const AsyncReady = {
 		};
 	},
 } satisfies SpecimenDefinition;
+/** An element defined only in its shadow root's scoped registry, never in the global one (#707). */
+export const ScopedRegistry = {
+	render: (): HTMLElement => {
+		const registry = new CustomElementRegistry();
+		registry.define(
+			'specimen-scoped-probe',
+			class extends HTMLElement {
+				connectedCallback(): void {
+					this.textContent = 'Scoped and defined';
+				}
+			}
+		);
+		const host = document.createElement('div');
+		const root = host.attachShadow({
+			mode: 'open',
+			customElementRegistry: registry,
+		} as ShadowRootInit);
+		root.append(
+			document.createElement('specimen-scoped-probe', {
+				customElementRegistry: registry,
+			} as ElementCreationOptions)
+		);
+		return host;
+	},
+} satisfies SpecimenDefinition;
+/** A modal dialog, open in a shadow root, which leaves the rest of the page inert (#662). */
+export const ModalOpen = {
+	render: (): MountHandle => {
+		const element = document.createElement('div');
+		const behind = document.createElement('p');
+		behind.textContent = 'Behind the dialog';
+		const host = document.createElement('div');
+		const dialog = document.createElement('dialog');
+		const heading = document.createElement('h2');
+		heading.textContent = 'Palette';
+		const button = document.createElement('button');
+		button.textContent = 'Run';
+		dialog.append(heading, button);
+		host.attachShadow({ mode: 'open' }).append(dialog);
+		element.append(behind, host);
+		return {
+			element,
+			ready: new Promise<void>((resolve) =>
+				requestAnimationFrame(() => {
+					dialog.showModal();
+					resolve();
+				})
+			),
+		};
+	},
+} satisfies SpecimenDefinition;
 export const ReadinessFailure = {
 	render: (): MountHandle => ({
 		element: document.createElement('p'),

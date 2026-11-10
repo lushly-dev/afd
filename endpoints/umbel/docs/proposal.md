@@ -188,8 +188,11 @@ flowchart LR
   through the same proposal queue.
 - **Pluggable backends.** Document store, search index, graph and memory store
   are traits with an embedded reference backend and a conformance suite, in
-  the pattern of the shared todo conformance suite. A git-backed knowledge
-  store is the second backend, where a proposal becomes a pull request.
+  the pattern of the shared todo conformance suite. PostgreSQL is the second
+  backend (phase 6, decided 2026-11-09), holding every store and, for several
+  servers behind one address, the host's shared state. A git-backed knowledge
+  store, where a proposal becomes a pull request, is a later backend with its
+  own specification.
 
 ## Scale profiles
 

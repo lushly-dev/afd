@@ -127,7 +127,7 @@ describe('normalizeDom reads a serialization', () => {
 		'<title>&lt;i z="1"&gt;</title><iframe src="x" a="1"><i z="1" a="2"></iframe>',
 		'<noscript><i z="1" a="2"></noscript><xmp><i z="1" a="2"></xmp><noembed><i z="1" a="2"></noembed><noframes><i z="1" a="2"></noframes>',
 		'<!-- <i z="1" a="2"> --><i z="1" a="2"></i><!---->',
-		'<a title="x>y" href="/z">1 < 2 &gt; 0</a>',
+		'<a title="x&gt;y" href="/z">1 < 2 &gt; 0</a>',
 		'<br><img alt="" src="a"><hr class="b" aria-hidden="true">',
 		'<table><tbody><tr><td z="1" a="2"></td></tr></tbody></table>',
 		'<select><option selected="" value="1">One</option></select>',
@@ -153,9 +153,12 @@ describe('normalizeDom reads a serialization', () => {
 	});
 
 	it('keeps the escaping Chromium gave an attribute', () => {
+		// HTML now escapes < and > in attribute values, as Chromium and parse5 8.1 serialize them.
 		const raw = '<iframe srcdoc="&lt;b&gt;"></iframe>';
 		expect(normalizeDom(raw)).toBe(raw);
-		expect(parse5Normalize(raw)).toBe('<iframe srcdoc="<b>"></iframe>');
+		expect(parse5Normalize(raw)).toBe(raw);
+		// A serialization from before that change keeps its bare > too.
+		expect(normalizeDom('<a title="x>y"></a>')).toBe('<a title="x>y"></a>');
 	});
 
 	it('reads the attribute forms HTML allows', () => {
