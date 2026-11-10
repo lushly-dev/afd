@@ -1,0 +1,37 @@
+{
+	"tag": "violet-tabs",
+	"summary": "Tab set that shows one violet-tab-panel at a time, chosen by its violet-tab.",
+	"import": "@lushly-dev/violet-elements/dist/tabs/violet-tabs.js",
+	"usage": [
+		{
+			"id": "tabs.structure",
+			"text": "Only direct children count: violet-tab and violet-tab-panel elements. They are paired by order (first tab with first panel), and the component assigns their slots, missing ids, hidden state and ARIA links."
+		},
+		{
+			"id": "tabs.active",
+			"text": "The activeid attribute is the id of the active tab, so give tabs ids to set or read it. When it is empty or names no enabled tab, the current tab, else the first enabled one, is active and activeid is rewritten to match."
+		},
+		{
+			"id": "tabs.change",
+			"text": "A change event fires whenever activeid changes, including from script, and at startup when activeid was not set. Its event.detail is the active violet-tab element itself."
+		},
+		{
+			"id": "tabs.keyboard",
+			"text": "Activation is automatic: arrow keys matching the orientation, Home and End move focus and activate in one step. Each paired panel is made a tab stop."
+		}
+	],
+	"a11y": [
+		{
+			"id": "tabs.name",
+			"text": "The tablist cannot be named: the role=\"tablist\" element is inside the shadow root, there is no label attribute, and an aria-label on the host does not reach it."
+		}
+	],
+	"rules": ["import.root", "theme.install", "a11y.managed", "variant.appearance", "state.disabled"],
+	"evidence": {
+		"tabs.structure": "src/tabs/violet-tabs.ts:286",
+		"tabs.active": "src/tabs/violet-tabs.ts:399",
+		"tabs.change": "src/tabs/violet-tabs.ts:394",
+		"tabs.keyboard": "src/tabs/violet-tabs.ts:372",
+		"tabs.name": "src/tabs/violet-tabs.ts:101"
+	}
+}

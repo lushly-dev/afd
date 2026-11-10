@@ -1,0 +1,32 @@
+{
+	"tag": "violet-radio",
+	"summary": "One option of a violet-radio-group, with slotted label and optional supporting text.",
+	"import": "@lushly-dev/violet-elements/dist/radio/violet-radio.js",
+	"usage": [
+		{
+			"id": "radio.group",
+			"text": "Use it inside violet-radio-group. Alone it is not form-associated, submits nothing, and is not unchecked when another radio with the same name is checked."
+		},
+		{
+			"id": "radio.value",
+			"text": "Give each radio a distinct value attribute. The default is \"on\", and the group selects by value, so radios without one are indistinguishable."
+		},
+		{
+			"id": "radio.change",
+			"text": "A user check fires a bubbling change event with detail { checked: true, value }. Nothing fires when the group unchecks it."
+		}
+	],
+	"a11y": [
+		{
+			"id": "radio.description",
+			"text": "Content in the supporting slot is linked as the radio's description."
+		}
+	],
+	"rules": ["import.root", "theme.install", "a11y.managed", "toggle.label", "state.disabled"],
+	"evidence": {
+		"radio.group": "src/radio/violet-radio.ts:217",
+		"radio.value": "src/radio/violet-radio.ts:271",
+		"radio.change": "src/radio/violet-radio.ts:362",
+		"radio.description": "src/radio/violet-radio.ts:410"
+	}
+}

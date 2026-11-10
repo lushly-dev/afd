@@ -1,0 +1,37 @@
+{
+	"tag": "violet-menu",
+	"summary": "Action menu: a slotted trigger button that opens a floating list of violet-menu-item children.",
+	"import": "@lushly-dev/violet-elements/dist/menu/violet-menu.js",
+	"usage": [
+		{
+			"id": "menu.structure",
+			"text": "Children: one focusable element in the trigger slot, then violet-menu-item elements, with optional <hr> separators."
+		},
+		{
+			"id": "menu.open",
+			"text": "The trigger toggles on click and opens on ArrowDown or ArrowUp. The open state is a property with no attribute; set it or call show(), hide() and toggle()."
+		},
+		{
+			"id": "menu.invoke",
+			"text": "Listen for the invoke event on each item, or on the menu and read event.target. After it the menu closes and returns focus to the trigger unless the action moved focus elsewhere."
+		}
+	],
+	"a11y": [
+		{
+			"id": "menu.label",
+			"text": "The label attribute is the menu's only accessible name. The code has no fallback to the trigger's text, although the manifest description says it has."
+		},
+		{
+			"id": "menu.trigger-aria",
+			"text": "The menu sets aria-haspopup, aria-expanded and aria-controls on the trigger. violet-button forwards them to its inner button; violet-icon-button does not, so prefer violet-button or a native button."
+		}
+	],
+	"rules": ["import.root", "theme.install", "a11y.managed", "overlay.open-change"],
+	"evidence": {
+		"menu.structure": "src/menu/violet-menu.ts:114",
+		"menu.open": "src/menu/violet-menu.ts:121",
+		"menu.invoke": "src/menu/violet-menu.ts:523",
+		"menu.label": "src/menu/violet-menu.ts:90",
+		"menu.trigger-aria": "src/menu/violet-menu.ts:411"
+	}
+}

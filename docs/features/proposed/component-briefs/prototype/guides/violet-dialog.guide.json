@@ -1,0 +1,37 @@
+{
+	"tag": "violet-dialog",
+	"summary": "Modal, non-modal or alert dialog on the native dialog element, with title, body and footer slots.",
+	"import": "@lushly-dev/violet-elements/dist/dialog/violet-dialog.js",
+	"usage": [
+		{
+			"id": "dialog.open",
+			"text": "Nothing opens it for you: set the open attribute or call show(). Close with hide(returnValue?) or by removing the attribute. Buttons in the footer slot need their own click handlers."
+		},
+		{
+			"id": "dialog.type",
+			"text": "The type attribute is modal (default, uses showModal()), non-modal (uses show()) or alert (role alertdialog, described by its body, closedby=\"none\"). The padding attribute is none, small, medium or large."
+		},
+		{
+			"id": "dialog.request-close",
+			"text": "The built-in close button and Escape fire a cancelable request-close event with detail.source (close-button or keyboard); preventDefault() keeps the dialog open. hide() and changes to the open attribute skip it."
+		}
+	],
+	"a11y": [
+		{
+			"id": "dialog.name",
+			"text": "Content in the title slot is the accessible name. Without it the dialog is named \"Dialog\"; an aria-label on the host is not used."
+		},
+		{
+			"id": "dialog.focus",
+			"text": "On close, focus returns to the element that had focus when the dialog opened."
+		}
+	],
+	"rules": ["import.root", "theme.install", "overlay.open-change"],
+	"evidence": {
+		"dialog.open": "src/dialog/violet-dialog.ts:296",
+		"dialog.type": "src/dialog/violet-dialog.ts:460",
+		"dialog.request-close": "src/dialog/violet-dialog.ts:361",
+		"dialog.name": "src/dialog/violet-dialog.ts:176",
+		"dialog.focus": "src/dialog/violet-dialog.ts:345"
+	}
+}

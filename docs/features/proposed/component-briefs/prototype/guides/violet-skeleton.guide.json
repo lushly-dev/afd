@@ -1,0 +1,22 @@
+{
+	"tag": "violet-skeleton",
+	"summary": "Decorative placeholder shape shown while content loads.",
+	"import": "@lushly-dev/violet-elements/dist/skeleton/violet-skeleton.js",
+	"usage": [
+		{
+			"id": "skeleton.lines",
+			"text": "The lines attribute repeats the bar as a text block. Animation is off unless the animated attribute is set."
+		}
+	],
+	"a11y": [
+		{
+			"id": "skeleton.hidden",
+			"text": "It is always hidden from assistive technology, so the loading state must be conveyed elsewhere on the page."
+		}
+	],
+	"rules": ["import.root", "theme.install"],
+	"evidence": {
+		"skeleton.lines": "src/skeleton/violet-skeleton.ts:100",
+		"skeleton.hidden": "src/skeleton/violet-skeleton.ts:156"
+	}
+}

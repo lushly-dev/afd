@@ -65,6 +65,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
+| [Component Briefs](./proposed/component-briefs/component-briefs.proposal.md) | One call that tells an agent how to use every component on a page: Specimen builds an evidence-labelled pack per component library and an Umbel `components` plugin serves it in batches. Plan revised after independent review; prototype run 2026-11-09 and the owner decided to go; specification not started |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
