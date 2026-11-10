@@ -8,6 +8,13 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    ignore:
+      # Playwright 1.65's Chromium runs a behavior's connectedCallback before
+      # fast-element binds its observables, failing element-controller.pw.spec.ts's
+      # invocation-order test. Lift this when fast-element handles that order.
+      - dependency-name: '@playwright/test'
+        versions:
+          - '>=1.65.0'
     groups:
       dev-deps:
         dependency-type: development
