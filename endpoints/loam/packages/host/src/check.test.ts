@@ -314,6 +314,29 @@ describe('P6-E1: secrets and modes (3.2, section 13)', () => {
 		expect(codes(refusals)).toEqual(['HOST_CONFIG_INVALID tls.cert_file']);
 	});
 
+	it('serializes the resolved secrets as their names only', async () => {
+		const { root, data } = await setup();
+		const file = await secretFile(root, 'auth', SECRET);
+		const oidc = await secretFile(root, 'oidc', 'client-secret-value');
+		const { secrets } = resolveSecrets(
+			serverConfig(data, {
+				auth: { secret_file: file },
+				oidc: {
+					corp: {
+						issuer: 'https://login.example.com',
+						client_id: 'loam',
+						client_secret_file: oidc,
+					},
+				},
+			})
+		);
+		expect(secrets?.auth).toBe(SECRET);
+		const text = JSON.stringify({ secrets });
+		expect(text).not.toContain(SECRET);
+		expect(text).not.toContain('client-secret-value');
+		expect(JSON.parse(text)).toEqual({ secrets: { redacted: ['auth', 'oidc.corp'] } });
+	});
+
 	it('never names a secret value in a finding', async () => {
 		const { root, data } = await setup();
 		const file = await secretFile(root, 'short', 'hunter2');

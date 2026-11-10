@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { withBasePath, withFrameSrc } from '@lushly-dev/loam-cli/deployment';
+import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
 import {
 	commonHeaders,
@@ -13,11 +14,20 @@ import {
 } from './headers.js';
 import { WEB_DIST } from './test-support.js';
 
-/** The `<meta>` policy's content, read the way a browser reads the attribute. */
+/**
+ * The `<meta>` policy's content as a browser reads it, through happy-dom's own HTML parser, which decodes
+ * the attribute: independent of `metaPolicy`'s reading, so the comparison is not a tautology.
+ */
 function metaContent(html: string): string {
-	const tag =
-		/<meta\b(?=[^>]*http-equiv=["']Content-Security-Policy["'])[^>]*>/i.exec(html)?.[0] ?? '';
-	return /\bcontent="([^"]*)"/.exec(tag)?.[1] ?? '';
+	const window = new Window();
+	const page = new window.DOMParser().parseFromString(html, 'text/html');
+	const tags = [...page.querySelectorAll('meta')].filter(
+		(tag) => tag.getAttribute('http-equiv')?.toLowerCase() === 'content-security-policy'
+	);
+	expect(tags).toHaveLength(1);
+	const content = tags[0]?.getAttribute('content') ?? '';
+	void window.happyDOM.close();
+	return content;
 }
 
 /**
@@ -89,6 +99,8 @@ describe('P6-E2: the headers (3.5)', () => {
 		expect(metaPolicy(`${page("default-src 'self'")}${page("default-src 'none'")}`).ok).toBe(false);
 		expect(metaPolicy(page("default-src 'self'; frame-ancestors *")).ok).toBe(false);
 		expect(metaPolicy(page("default-src 'self'; form-action *")).ok).toBe(false);
+		expect(metaPolicy(page("default-src 'self'; sandbox")).ok).toBe(false);
+		expect(metaPolicy(page("default-src 'self'; report-uri /r")).ok).toBe(false);
 		expect(metaPolicy(page('default-src &#39;self&#39;')).ok).toBe(false);
 		expect(metaPolicy(page("default-src 'self';\nimg-src 'self'")).ok).toBe(false);
 		expect(metaPolicy(page("default-src 'self'"))).toEqual({

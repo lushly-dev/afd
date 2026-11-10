@@ -14,8 +14,7 @@ export type HostErrorCode =
 	| 'HOST_IDENTITY_LOCAL'
 	| 'HOST_DATA_LOCKED'
 	| 'HOST_ORIGIN_SHARED'
-	| 'HOST_MISDIRECTED'
-	| 'HOST_DIST_INVALID';
+	| 'HOST_MISDIRECTED';
 
 /** A refusal or warning, keyed as `loam deployment check` keys its findings. */
 export interface HostFinding {

@@ -22,11 +22,13 @@ export function authorityOf(origin: string): string {
 export function requestAuthority(incoming: IncomingMessage): string | undefined {
 	const raw = incoming.headersDistinct?.host ?? [];
 	if (raw.length !== 1) return undefined;
-	const host = (raw[0] as string).toLowerCase();
+	// Every origin is `https:`, so `:443` is its default port, which a browser leaves out.
+	const host = (raw[0] as string).toLowerCase().replace(/:443$/, '');
 	const target = incoming.url ?? '';
 	if (target.startsWith('/')) return host;
 	const absolute = /^https?:\/\/([^/?#]*)(.*)$/i.exec(target);
-	if (!absolute || (absolute[1] as string).toLowerCase() !== host) return undefined;
+	if (!absolute || (absolute[1] as string).toLowerCase().replace(/:443$/, '') !== host)
+		return undefined;
 	const rest = absolute[2] as string;
 	incoming.url = rest.startsWith('/') ? rest : `/${rest}`;
 	return host;

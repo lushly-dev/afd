@@ -11,11 +11,25 @@ import type { HostFinding } from './errors.js';
 /** At least 32 bytes (3.2). */
 export const AUTH_SECRET_MIN_BYTES = 32;
 
-/** What the server resolved. Never serialized: no `toJSON` reaches a value. */
+/** What the server resolved, read once at the check and held in memory only. */
 export interface ResolvedSecrets {
 	readonly auth?: string;
 	readonly smtpUrl?: string;
 	readonly oidc: Readonly<Record<string, string>>;
+	/** `[tls]`'s certificate and key, read by the check, so nothing is read again once the lock is held. */
+	readonly tls?: { readonly cert: Buffer; readonly key: Buffer };
+}
+
+/** Serializes as the keys it holds, never their values, so a log or a result can never carry one. */
+function redacted(secrets: Omit<ResolvedSecrets, 'toJSON'>): ResolvedSecrets {
+	const names = Object.keys(secrets).filter((key) => key !== 'oidc');
+	const oidc = Object.keys(secrets.oidc).map((id) => `oidc.${id}`);
+	return Object.freeze(
+		Object.defineProperty({ ...secrets }, 'toJSON', {
+			value: () => ({ redacted: [...names, ...oidc] }),
+			enumerable: false,
+		})
+	);
 }
 
 /**
@@ -135,31 +149,36 @@ export function resolveSecrets(
 		);
 		if (value !== undefined) oidc[id] = value;
 	}
+	let tls: ResolvedSecrets['tls'];
 	if (server.tls) {
 		const permissions = privateModeFinding(server.tls.key_file, 'tls.key_file', 'file');
 		if (permissions) refusals.push(permissions);
-		for (const [key, path] of [
-			['tls.cert_file', server.tls.cert_file],
-			['tls.key_file', server.tls.key_file],
-		] as const) {
-			if (fileSecret(path) === undefined) {
+		const read = (key: string, path: string): Buffer | undefined => {
+			try {
+				return readFileSync(path);
+			} catch {
 				refusals.push({
 					code: 'HOST_CONFIG_INVALID',
 					key,
 					message: `\`${key}\` cannot be read.`,
 					suggestion: 'Check the path, and that the server runs as the owner of the file.',
 				});
+				return undefined;
 			}
-		}
+		};
+		const cert = read('tls.cert_file', server.tls.cert_file);
+		const key = read('tls.key_file', server.tls.key_file);
+		if (cert && key && !permissions) tls = { cert, key };
 	}
 	const directory = privateModeFinding(server.data, 'data', 'directory');
 	if (directory) refusals.push(directory);
 	if (refusals.length > 0) return { refusals };
 	return {
-		secrets: Object.freeze({
+		secrets: redacted({
 			...(auth !== undefined ? { auth } : {}),
 			...(smtpUrl !== undefined ? { smtpUrl } : {}),
 			oidc: Object.freeze(oidc),
+			...(tls ? { tls } : {}),
 		}),
 		refusals,
 	};

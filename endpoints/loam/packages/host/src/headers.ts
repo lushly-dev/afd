@@ -15,17 +15,26 @@ export const SHELL_PERMISSIONS_POLICY =
 	'camera=(), microphone=(), geolocation=(), local-network=(), loopback-network=()';
 
 /**
- * An HTML file on the shell's origin that is not a shell page, such as `sandbox/proxy.html` or a file in
- * an app's package: nothing navigates to one there (a view's HTML reaches its sandbox as data), so it is
- * served inert. 3.5 names no policy for it; this is the step's choice, stated in its pull request.
+ * Every response on the shell's origin that is neither a shell page nor a script or style sheet: an HTML
+ * file such as `sandbox/proxy.html` or one in an app's package, an SVG, the projection. Nothing navigates
+ * to one there (a view's HTML reaches its sandbox as data), so a document it could make is inert. 3.5 names
+ * no policy for it; approved by the coordinator 2026-11-09.
  */
-export const INERT_HTML_POLICY = `sandbox; default-src 'none'; ${FRAME_ANCESTORS_NONE}`;
+export const INERT_POLICY = `sandbox; default-src 'none'; ${FRAME_ANCESTORS_NONE}`;
+
+/** A file the shell loads as a script or a style sheet, which keeps no policy of its own. */
+export function isScriptOrStyle(path: string): boolean {
+	return /\.(m?js|css)$/i.test(path);
+}
 
 /** The account pages whose form posts stay on the origin (phase 3's 9.4, 5.6 and 5.7). */
 const FORM_PAGES = new Set(['~/oauth/login', '~/oauth/consent', '~/join', '~/recover']);
 
-/** Directives a header must add and a `<meta>` must therefore not already hold, or the first would win. */
-const HEADER_ONLY = /(^|;)\s*(frame-ancestors|form-action)(\s|;|$)/i;
+/**
+ * Directives a header adds, or that a `<meta>` cannot carry (`sandbox`, `report-uri`): a page whose policy
+ * holds one is refused, since the header would then differ from the `<meta>` or let the page's value win.
+ */
+const HEADER_ONLY = /(^|;)\s*(frame-ancestors|form-action|sandbox|report-uri)(\s|;|$)/i;
 
 /** Headers every response carries, `Strict-Transport-Security` only on a non-loopback origin. */
 export function commonHeaders(origin: string): Record<string, string> {

@@ -1,11 +1,14 @@
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { chmod, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HostError } from './errors.js';
 import { createLoamHost, type LoamHost, type LoamHostConfig } from './host.js';
+import { acquireDataLock } from './lock.js';
 import {
 	deploymentFile,
 	fixtureDist,
@@ -152,7 +155,7 @@ describe('P6-E2: the hosted shell, served (3.4, 3.5)', () => {
 		expect(await rawRequest(port, `GET /..\\secret.txt HTTP/1.1\r\nHost: ${SHELL_HOST}`)).toBe(400);
 	});
 
-	it("P6-E2: serves an HTML file on the shell's origin that is not a shell page inert: sandbox/proxy.html and an app package's page", async () => {
+	it("P6-E2: serves every non-shell response on the shell's origin inert but scripts and styles: sandbox/proxy.html, an app package's page and SVG, the projection", async () => {
 		const packages = await temporaryDirectory();
 		await mkdir(join(packages, 'notes'));
 		await writeFile(join(packages, 'notes', 'app-manifest.json'), '{"plugin":{"kind":"native"}}');
@@ -160,10 +163,25 @@ describe('P6-E2: the hosted shell, served (3.4, 3.5)', () => {
 			join(packages, 'notes', 'page.html'),
 			'<!doctype html><script>alert(1)</script>'
 		);
+		await writeFile(
+			join(packages, 'notes', 'icon.svg'),
+			'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+		);
+		await writeFile(join(packages, 'notes', 'style.css'), 'body {}');
 		const { port } = await start({
 			body: `[apps.notes]\napp = "notes"\npackage = ${JSON.stringify(join(packages, 'notes'))}\n`,
 		});
-		for (const path of ['/sandbox/proxy.html', '/apps/notes/page.html']) {
+		for (const path of ['/apps/notes/style.css', '/assets/index-a1b2c3.js'])
+			expect(
+				(await raw(port, path, { host: SHELL_HOST })).headers['content-security-policy'],
+				path
+			).toBeUndefined();
+		for (const path of [
+			'/sandbox/proxy.html',
+			'/apps/notes/page.html',
+			'/apps/notes/icon.svg',
+			'/deployment.json',
+		]) {
 			const answer = await raw(port, path, { host: SHELL_HOST, accept: HTML });
 			expect(answer.status, path).toBe(200);
 			expect(answer.headers['content-security-policy'], path).toBe(
@@ -173,7 +191,7 @@ describe('P6-E2: the hosted shell, served (3.4, 3.5)', () => {
 		}
 	});
 
-	it('P6-E2: answers its health, and 404 with no-store on the routes later steps build', async () => {
+	it('answers its health, and 404 with no-store on the routes later steps build', async () => {
 		const { port } = await start();
 		const health = await raw(port, '/api/health', { host: SHELL_HOST });
 		expect(health.status).toBe(200);
@@ -203,7 +221,7 @@ describe('P6-E2: the hosted shell, served (3.4, 3.5)', () => {
 			expect((await raw(port, path, { host: SHELL_HOST })).status, path).toBe(404);
 	});
 
-	it('P6-E2: serves under base_path only', async () => {
+	it('serves under base_path only', async () => {
 		const { port } = await start({ body: '[site]\nbase_path = "/loam/"\n\n' });
 		expect((await raw(port, '/', { host: SHELL_HOST, accept: HTML })).status).toBe(404);
 		expect((await raw(port, '/index.html', { host: SHELL_HOST, accept: HTML })).status).toBe(404);
@@ -219,8 +237,8 @@ describe('P6-E2: the hosted shell, served (3.4, 3.5)', () => {
 	});
 });
 
-describe('P6-E1: the Host check (3.2)', () => {
-	it('P6-E1: answers 421 in plain text, with the common headers, for any other Host', async () => {
+describe('the Host check (3.2)', () => {
+	it('answers 421 in plain text, with the common headers, for any other Host', async () => {
 		const { port } = await start();
 		for (const host of [
 			'evil.example',
@@ -238,7 +256,7 @@ describe('P6-E1: the Host check (3.2)', () => {
 		}
 	});
 
-	it('P6-E1: answers 421 for no Host, two Hosts, and an absolute target naming another host', async () => {
+	it('answers 421 for no Host, two Hosts, and an absolute target naming another host', async () => {
 		const { port } = await start();
 		expect(await rawRequest(port, 'GET / HTTP/1.1')).toBe(421);
 		expect(
@@ -256,12 +274,12 @@ describe('P6-E1: the Host check (3.2)', () => {
 		).toBe(404);
 	});
 
-	it('P6-E1: compares the Host without regard to case', async () => {
+	it('compares the Host without regard to case', async () => {
 		const { port } = await start();
 		expect((await raw(port, '/', { host: 'LocalHost:8443', accept: HTML })).status).toBe(200);
 	});
 
-	it('P6-E1: reads no X-Forwarded-* header', async () => {
+	it('reads no X-Forwarded-* header', async () => {
 		const { port } = await start();
 		const answer = await new Promise<number>((done, fail) => {
 			import('node:http').then(({ request }) => {
@@ -285,10 +303,10 @@ describe('P6-E1: the Host check (3.2)', () => {
 	});
 });
 
-describe('P6-E1: the sandbox on another site (3.2, 3.4, D62)', () => {
+describe('the sandbox on another site (3.2, 3.4, D62)', () => {
 	const body = `[sandbox]\norigin = "${SANDBOX_ORIGIN}"\n\n`;
 
-	it("P6-E1: serves sandbox/ by Host on the shell's listener, framed only by the shell's origin", async () => {
+	it("serves sandbox/ by Host on the shell's listener, framed only by the shell's origin", async () => {
 		const { port, host } = await start({ body, server: { sandbox: { origin: SANDBOX_ORIGIN } } });
 		expect(host.sandboxOrigin).toBe(SANDBOX_ORIGIN);
 		const proxy = await raw(port, '/sandbox/proxy.html', { host: SANDBOX_HOST, accept: HTML });
@@ -309,7 +327,7 @@ describe('P6-E1: the sandbox on another site (3.2, 3.4, D62)', () => {
 			expect((await raw(port, path, { host: SANDBOX_HOST, accept: HTML })).status, path).toBe(404);
 	});
 
-	it('P6-E1: serves sandbox/ on its own listener, and nothing of the shell there', async () => {
+	it('serves sandbox/ on its own listener, and nothing of the shell there', async () => {
 		const { port, sandboxPort } = await start({
 			body,
 			server: { sandbox: { origin: SANDBOX_ORIGIN, listen: '127.0.0.1:0' } },
@@ -339,7 +357,7 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 		await host.close();
 	});
 
-	it('P6-E1: refuses a data directory another host holds as HOST_DATA_LOCKED, and frees it on close', async () => {
+	it('refuses a data directory another host holds as HOST_DATA_LOCKED, and frees it on close', async () => {
 		const { config, host } = await start();
 		let refused: unknown;
 		try {
@@ -421,7 +439,49 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 	});
 });
 
-describe('P6-E1: TLS and HSTS (3.1, 3.5)', () => {
+describe('a failed start leaves nothing half-built', () => {
+	it('releases the lock when a step after it fails', async () => {
+		const root = await temporaryDirectory();
+		const data = join(root, 'data');
+		const dist = await fixtureDist(root);
+		// The check passes, and `writeDeployment` then refuses a `--dist` that holds the deployment file.
+		const deployment = await deploymentFile(dist);
+		await expect(
+			createLoamHost({
+				server: serverConfig(data),
+				deployment,
+				dist,
+				[SERVE_STATIC_DEPLOYMENT]: true,
+			})
+		).rejects.toMatchObject({ code: 'DEPLOYMENT_PATH_INVALID' });
+		acquireDataLock(data).release();
+	});
+
+	it('closes what started when a listener fails, and listens again once it can', async () => {
+		const blocker = createServer();
+		await new Promise<void>((done) => blocker.listen(0, '127.0.0.1', done));
+		const taken = (blocker.address() as AddressInfo).port;
+		const root = await temporaryDirectory();
+		const host = await createLoamHost({
+			server: serverConfig(join(root, 'data'), {
+				sandbox: { origin: SANDBOX_ORIGIN, listen: `127.0.0.1:${taken}` },
+			}),
+			deployment: await deploymentFile(root, `[sandbox]\norigin = "${SANDBOX_ORIGIN}"\n\n`),
+			dist: await fixtureDist(root),
+			[SERVE_STATIC_DEPLOYMENT]: true,
+		});
+		hosts.push(host);
+		await expect(host.listen()).rejects.toMatchObject({ code: 'EADDRINUSE' });
+		expect(() => boundAddresses(host)).toThrow('not listening');
+		await new Promise<void>((done) => blocker.close(() => done()));
+		await host.listen();
+		const { shell, sandbox } = boundAddresses(host);
+		expect(sandbox?.port).toBe(taken);
+		expect((await raw(shell.port, '/index.html', { host: SHELL_HOST })).status).toBe(200);
+	});
+});
+
+describe('TLS and HSTS (3.1, 3.5)', () => {
 	async function certificate(root: string): Promise<{ cert: string; key: string }> {
 		const cert = join(root, 'cert.pem');
 		const key = join(root, 'key.pem');
@@ -450,13 +510,35 @@ describe('P6-E1: TLS and HSTS (3.1, 3.5)', () => {
 		return { cert, key };
 	}
 
-	it('P6-E1: terminates TLS from [tls], and sends HSTS only on a non-loopback origin', async () => {
+	it('terminates TLS from [tls], and sends HSTS only on a non-loopback origin', async () => {
 		const root = await temporaryDirectory();
 		const { cert, key } = await certificate(root);
 		const local = await start({ server: { tls: { cert_file: cert, key_file: key } } });
 		const answer = await raw(local.port, '/', { host: SHELL_HOST, accept: HTML, tls: true });
 		expect(answer.status).toBe(200);
 		expect(answer.headers['strict-transport-security']).toBeUndefined();
+		// The check read the files once: deleting them once the host holds its lock changes nothing.
+		const copy = await temporaryDirectory();
+		const copied = { cert: join(copy, 'cert.pem'), key: join(copy, 'key.pem') };
+		await writeFile(copied.cert, await readFile(cert));
+		await writeFile(copied.key, await readFile(key), { mode: 0o600 });
+		const root2 = await temporaryDirectory();
+		const unread = await createLoamHost({
+			server: serverConfig(join(root2, 'data'), {
+				tls: { cert_file: copied.cert, key_file: copied.key },
+			}),
+			deployment: await deploymentFile(root2),
+			dist: await fixtureDist(root2),
+			[SERVE_STATIC_DEPLOYMENT]: true,
+		});
+		hosts.push(unread);
+		await rm(copy, { recursive: true, force: true });
+		await unread.listen();
+		const served = await raw(boundAddresses(unread).shell.port, '/index.html', {
+			host: SHELL_HOST,
+			tls: true,
+		});
+		expect(served.status).toBe(200);
 		const remote = await start({
 			server: { origin: 'https://loam.example.test', tls: { cert_file: cert, key_file: key } },
 		});

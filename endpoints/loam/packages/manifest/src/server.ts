@@ -7,6 +7,7 @@
 export {
 	isLoopbackHost,
 	readServerConfig,
+	SERVER_ADMITTED_KEYS_V1,
 	SERVER_DISCOVERY_V1,
 	SERVER_LIMITS_V1,
 	type ServerConfigRead,

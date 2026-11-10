@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { readSchema } from '../scripts/compile.mjs';
 import {
 	isLoopbackHost,
 	readServerConfig,
+	SERVER_ADMITTED_KEYS_V1,
 	SERVER_DISCOVERY_V1,
 	SERVER_LIMITS_V1,
 	siteOf,
@@ -254,5 +256,32 @@ describe('the helpers of 3.2', () => {
 		expect(siteOf('127.0.0.1')).toBe('127.0.0.1');
 		expect(siteOf('[::1]')).toBe('[::1]');
 		expect(siteOf('github.io')).toBe('github.io');
+	});
+});
+
+describe("the reader's admitted keys", () => {
+	it("equal server.v1.json's properties, table by table", () => {
+		const schema = readSchema('server') as unknown as {
+			properties: Record<
+				string,
+				{
+					properties?: Record<string, unknown>;
+					additionalProperties?: { properties?: Record<string, unknown> };
+				}
+			>;
+		};
+		const fromSchema: Record<string, string[]> = { '': Object.keys(schema.properties) };
+		for (const [name, table] of Object.entries(schema.properties)) {
+			if (table.properties) fromSchema[`/${name}`] = Object.keys(table.properties);
+			else if (table.additionalProperties?.properties)
+				fromSchema[`/${name}/*`] = Object.keys(table.additionalProperties.properties);
+		}
+		expect(
+			Object.fromEntries(
+				Object.entries(SERVER_ADMITTED_KEYS_V1).map(([key, names]) => [key, [...names].sort()])
+			)
+		).toEqual(
+			Object.fromEntries(Object.entries(fromSchema).map(([key, names]) => [key, [...names].sort()]))
+		);
 	});
 });

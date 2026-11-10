@@ -54,8 +54,8 @@ export type ServerConfigRead =
 	  }
 	| { ok: false; refusals: ServerConfigRefusal[]; warnings: ServerConfigRefusal[] };
 
-/** The keys each table admits, for a suggestion when a key is unknown. */
-const ADMITTED: Readonly<Record<string, readonly string[]>> = {
+/** The keys each table admits, for a suggestion when a key is unknown; a unit holds it to the schema. */
+export const SERVER_ADMITTED_KEYS_V1: Readonly<Record<string, readonly string[]>> = {
 	'': [
 		'server_version',
 		'origin',
@@ -79,7 +79,7 @@ const ADMITTED: Readonly<Record<string, readonly string[]>> = {
 };
 
 function admittedFor(table: string): readonly string[] {
-	return ADMITTED[table.replace(/^\/oidc\/[^/]+$/, '/oidc/*')] ?? [];
+	return SERVER_ADMITTED_KEYS_V1[table.replace(/^\/oidc\/[^/]+$/, '/oidc/*')] ?? [];
 }
 
 function schemaRefusal(error: ValidatorError): ServerConfigRefusal {
