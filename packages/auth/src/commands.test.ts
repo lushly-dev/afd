@@ -9,6 +9,7 @@ import {
 	createAuthSessionGetCommand,
 } from './commands.js';
 import { AuthAdapterError } from './errors.js';
+import { withMockCapabilities } from './mock-capabilities.js';
 import type { AuthAdapter, AuthSessionState, SignInOutcome } from './types.js';
 import { LOADING, UNAUTHENTICATED } from './types.js';
 
@@ -161,6 +162,41 @@ describe('createAuthCommands', () => {
 
 			expect(result.success).toBe(true);
 		});
+
+		it('signs in with a passkey, through the adapter', async () => {
+			const adapter = withMockCapabilities(new MockAuthAdapter());
+			await adapter.signIn({ method: 'credentials', email: 'ada@example.test' });
+			await adapter.passkeys.addPasskey();
+			await adapter.signOut();
+			const signIn = findCommand(adapter, 'auth-sign-in');
+
+			const result = await signIn.handler({ method: 'passkey', autoFill: false }, {});
+
+			expect(result.success).toBe(true);
+			expect(adapter.getSession()).toMatchObject({ user: { email: 'ada@example.test' } });
+			expect(signIn.inputSchema.safeParse({ method: 'passkey' }).success).toBe(true);
+			expect(signIn.inputSchema.safeParse({ method: 'passkey', autoFill: 'yes' }).success).toBe(
+				false
+			);
+		});
+
+		it.each([
+			['cancel', 'PASSKEY_CANCELLED'],
+			['unsupported', 'PASSKEY_UNSUPPORTED'],
+		] as const)(
+			'fails a passkey ceremony that ends in %s with %s, not retryable',
+			async (outcome, code) => {
+				const adapter = withMockCapabilities(new MockAuthAdapter());
+				adapter._setPasskeyCeremony(outcome);
+				const signIn = findCommand(adapter, 'auth-sign-in');
+
+				const result = await signIn.handler({ method: 'passkey' }, {});
+
+				expect(result.success).toBe(false);
+				expect(result.error).toMatchObject({ code, retryable: false });
+				expect(result.error?.suggestion).toBeTruthy();
+			}
+		);
 
 		it('returns the new session reported asynchronously by the adapter', async () => {
 			const adapter = new BetterAuthAdapter({ client: createAsyncBetterAuthClient() });

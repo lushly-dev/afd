@@ -404,6 +404,32 @@ action resolves among the permitted commands only, so a refused action is
 `COMMAND_NOT_FOUND` and cannot make another ambiguous, and a group with no
 permitted action is `COMMAND_NOT_ALLOWED`.
 
+### Verified credentials: `@lushly-dev/afd-server/credentials`
+
+`isVerifiedCredentials(value)` answers whether `value` is the `credentials`
+object afd-server put on a call after verifying the call's token. The brand is
+a private `WeakSet`, so a copy, an object built with the same fields, the
+`credentials` a direct-registry caller passes, and those a host's
+`createContext` sets are never recognised. Branded credentials are frozen, and
+stop being recognised once their `expiresAt` has passed (`isVerifiedCredentials(value, now?)`,
+`now` defaulting to `Date.now()`) or their request has ended. No entry exports
+the functions that brand and unbrand; until the server verifies tokens itself,
+nothing is branded. A nested call keeps the brand only if it is given the same
+object.
+
+A host that serves MCP with token authorization through afd-auth's middleware
+passes it there, so a token's call keeps its actor rather than the session's:
+
+```typescript
+import { createAuthMiddleware } from '@lushly-dev/afd-auth';
+import { isVerifiedCredentials } from '@lushly-dev/afd-server/credentials';
+
+const auth = createAuthMiddleware(adapter, { isVerifiedCredentials });
+```
+
+The entry loads nothing else of the server and is held browser-safe by
+`entry-points.test.ts`. The root entry exports the same function.
+
 ### Basic Command
 
 ```typescript

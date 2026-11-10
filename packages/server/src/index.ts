@@ -233,3 +233,5 @@ export {
 	validateOrThrow,
 	withDefault,
 } from './validation.js';
+// The brand on credentials afd-server verified itself (also `@lushly-dev/afd-server/credentials`)
+export { isVerifiedCredentials } from './verified-credentials.js';

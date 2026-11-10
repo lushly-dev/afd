@@ -120,6 +120,9 @@ export interface McpServerOptions {
 	 * host that authenticates people through the SDK must copy their identity into `credentials`
 	 * (or the `actor`), or every user of one client shares a binding.
 	 *
+	 * Credentials set here are the host's, not afd-server's: `isVerifiedCredentials` does not
+	 * recognise them, so afd-auth's middleware still gates such a call on its own session.
+	 *
 	 * @example
 	 * ```typescript
 	 * createContext: (req) => ({ clientId: req.socket.remoteAddress ?? 'unknown' }),

@@ -16,6 +16,7 @@ description: >
 | `@lushly-dev/afd-auth` | the types, `createAuthMiddleware`, `AuthAdapterError`, `SessionSync`, `AUTH_COMMAND_NAMES`, `MockAuthAdapter`, `BetterAuthAdapter`, `LOADING`, `UNAUTHENTICATED` | afd-core only: no React, server or Zod |
 | `/commands` | `createAuthCommands`, `createAuthSessionGetCommand`, `createAuthMutationCommands` | peers `@lushly-dev/afd-server`, `zod` |
 | `/react` | `createAuthHooks`, `useConvexAuthAdapter` | peer `react` |
+| `/mock-capabilities` | `withMockCapabilities` | afd-core only; kept out of the root so a first paint that builds a Mock leaves it out |
 
 ## Session state and the adapter contract
 
@@ -30,6 +31,10 @@ interface AuthAdapter {
   signOut(): Promise<void>;
   getSession(): AuthSessionState;
   onAuthStateChange(callback: (state: AuthSessionState) => void): { unsubscribe: () => void };
+  refresh?(): Promise<void>;            // read the session from the provider now
+  sessions?: SessionManagement;         // listSessions(), revokeSession(handle | 'others' | 'all')
+  passkeys?: PasskeyManagement;         // listPasskeys(), addPasskey({ name? }), renamePasskey, removePasskey
+  organization?: OrganizationAccess;    // membership(orgId), listMembers, invite, …, accept/rejectInvitation
 }
 
 type SignInOutcome =
@@ -40,13 +45,14 @@ type SignInOutcome =
 
 - Check `status` before reading `user`. There is no `refreshing` state.
 - `Session` is `{ id, expiresAt? }`, with no token: tokens stay inside the adapter. Omit `expiresAt` when the provider reports none (Convex); never invent one.
-- `SignInOptions` is `{ method: 'credentials', email, password? }` or `{ method: 'oauth', provider, scopes?, redirectTo? }`. Resolving `signIn()` with nothing counts as `signed-in`.
+- `SignInOptions` is `{ method: 'credentials', email, password? }`, `{ method: 'oauth', provider, scopes?, redirectTo? }` or `{ method: 'passkey', autoFill? }`. Resolving `signIn()` with nothing counts as `signed-in`. An adapter without passkeys throws `passkeyUnsupported()`.
+- The capabilities are optional; check for one before using it. A `SessionRow` names a session by `handle`, the first 16 hex characters of SHA-256 over its token, never the token, with a `device` label from the user agent and no IP address. Every `OrganizationAccess` call names the organization by id, and an empty id is a `TypeError`: never let a call fall back to the provider's active organization.
 - Call each subscriber in isolation, so one that throws neither stops the others nor makes `signIn()` reject. The built-in adapters do it with `ListenerSet` (`src/listeners.ts`, not exported) and report the error to their `onListenerError` option.
-- Throw `AuthAdapterError` so commands map it: `invalidCredentials()`, `tokenExpired()` and `providerError(name, details?)` are not retryable; `networkError()` and `refreshFailed()` are.
+- Throw `AuthAdapterError` so commands map it: `invalidCredentials()`, `tokenExpired()`, `providerError(name, details?)`, and the exported functions `passkeyCancelled()` (the person dismissed the ceremony) and `passkeyUnsupported()` (no WebAuthn, or no passkeys at the provider; functions, not statics, so an unused one is tree-shaken) are not retryable; `networkError()` and `refreshFailed()` are.
 
 ## Middleware
 
-`createAuthMiddleware(adapter, { exclude? })`:
+`createAuthMiddleware(adapter, { exclude?, isVerifiedCredentials?, clock? })`:
 
 | Adapter state | Result |
 |---|---|
@@ -54,9 +60,12 @@ type SignInOutcome =
 | `loading` | `UNAUTHORIZED`, retryable |
 | `authenticated`, `expiresAt` at or before now, or invalid | `TOKEN_EXPIRED`, retryable (the provider may refresh first) |
 | `authenticated` | sets `context.auth`, fills `context.actor`, runs the command |
+| any, with `credentials` afd-server verified | deletes `context.auth`, keeps `context.actor`, runs the command; the session is not read; `auth-*` commands are `UNAUTHORIZED` (a token has no session) |
 
 - `auth-sign-in`, `auth-sign-out` and `auth-session-get` (`AUTH_COMMAND_NAMES`) always pass; `exclude` only adds names.
 - `context.auth` is set or deleted on every call, excluded commands included, so a caller-supplied value never reaches a handler. A module augmentation types it as `AuthenticatedSessionState | undefined`.
+- **The credentials backstop.** A host serving MCP with token authorization through this middleware must pass `isVerifiedCredentials` from `@lushly-dev/afd-server/credentials`; without it, every token's call is gated on the adapter's session and stamped with its user. Only the object afd-server branded after verifying a token passes (a module-private `WeakSet`), frozen, and only until its `expiresAt` on the middleware's clock or the end of its request: `credentials` a caller builds, a copy, or `createContext`'s are not recognised, and get the session treatment below. A nested call keeps the brand only with the same object. Never pass a predicate of your own.
+- **One clock.** `clock` is what `expiresAt` is compared with. A kernel that gives the Mock its own clock (fake, replayed) passes the same one here, or every gated call compares with wall time.
 - A `human` or missing actor becomes `{ kind: 'human', id: user.id, label: user.name }`. An `agent`, `service` or `script` actor keeps its identity and gets `onBehalfOf: user.id`, replacing any the caller set. Install `createApprovalMiddleware` after this, so tokens bind to that actor.
 
 ## Commands
@@ -78,7 +87,12 @@ type SignInOutcome =
 
 ## Built-in adapters
 
-**`MockAuthAdapter`** (tests): `new MockAuthAdapter({ delay?, onListenerError? })`, with `_setUser(user, sessionOverrides?)` (`{ expiresAt: new Date(0) }` for expired), `_setLoading()`, `_reset()` and `_getListenerCount()`. `_triggerError(code)` only returns an `AuthAdapterError`; it does not make `signIn` fail. The user id is `mock-user-<email>`, stable across reloads and replays.
+**`MockAuthAdapter`** (tests): `new MockAuthAdapter({ delay?, onListenerError?, clock? })`, with `_setUser(user, sessionOverrides?)` (`{ expiresAt: new Date(0) }` for expired), `_setLoading()`, `_reset()` and `_getListenerCount()`. `_triggerError(code)` only returns an `AuthAdapterError`; it does not make `signIn` fail. The user id is `mock-user-<email>`, stable across reloads and replays.
+
+- Every time it records reads `clock` (afd-core's `Clock`): a session's `expiresAt` is one hour after sign-in on it, and `refresh()` signs out a session past it. Pass the kernel's clock so an expiry falls on the kernel's time.
+- Its `sessions`, `passkeys` and `organization` are `undefined`, and a passkey sign-in is `PASSKEY_UNSUPPORTED`, until `withMockCapabilities(mock, { roles? })` from `/mock-capabilities` attaches them in memory on the same clock (once per Mock: a second call throws a `TypeError`). Loam attaches them on its `late` path, so its first paint never bundles them: keep capability code out of `mock.ts`.
+- `roles` is `{ [organizationId]: { [userId]: role } }`; owners and admins manage members and invitations, only an owner makes or changes an owner, and the last owner cannot leave or be demoted (Better Auth's error codes in the message). Ids count up (`mock-passkey-1`), so runs are deterministic.
+- Once attached, a passkey sign-in signs in the holder of the passkey added last, and with none is `PASSKEY_CANCELLED`; `_setPasskeyCeremony('cancel' | 'unsupported' | 'complete')` sets how later ceremonies end.
 
 **`useConvexAuthAdapter`** (`/react`): takes `useAuthActions`, `useConvexAuth`, `meQuery` (`() => useQuery(api.users.me)`) and `passwordProviderId` (default `'password'`, the stock `Password()` id).
 
@@ -87,7 +101,13 @@ type SignInOutcome =
 - `loading` while `meQuery` returns `undefined`, `unauthenticated` on `null`. No `expiresAt`: Convex refreshes its JWT itself. The hook returns the same adapter on every render.
 - Convex module filenames allow only letters, digits, underscores and periods; a hyphenated one fails deployment (`packages/auth/hosted/convex/module-paths.mjs` checks this).
 
-**`BetterAuthAdapter`**: `new BetterAuthAdapter({ client, onListenerError? })` bridges the client's `useSession` nanostore to `onAuthStateChange`; `dispose()` unsubscribes. It forwards OAuth `scopes` and `redirectTo` (as `callbackURL`) to `signIn.social` and reports the redirect as a `redirect` outcome. A credentials 401 is `INVALID_CREDENTIALS`.
+**`BetterAuthAdapter`**: `new BetterAuthAdapter({ client, initial?, onListenerError? })` bridges the client's `useSession` nanostore to `onAuthStateChange`; `dispose()` unsubscribes. It forwards OAuth `scopes` and `redirectTo` (as `callbackURL`) to `signIn.social` and reports the redirect as a `redirect` outcome. A credentials 401 is `INVALID_CREDENTIALS`.
+
+- Tested on Better Auth 1.7.18 with `@better-auth/passkey` 1.7.18, pinned exactly (1.7.14's passkey peers do not resolve without `--legacy-peer-deps`).
+- `initial` is reported until the store first answers (a session the page read from its server). `refresh()` calls the store's `refetch`.
+- It always has `sessions` (Better Auth's `/list-sessions`, which needs a fresh session, and `/revoke-*`), `passkeys` (needs `passkeyClient()`) and `organization` (needs `organizationClient()`). The client is a path proxy that answers every property, so a missing plugin cannot be detected: its calls fail with `PROVIDER_ERROR`. Never detach a method with `.call` or `.bind`: the proxy reads those as route names.
+- A passkey ceremony needs WebAuthn (checked first, `PASSKEY_UNSUPPORTED`), and `autoFill: true` needs `PublicKeyCredential.isConditionalMediationAvailable()` too. SimpleWebAuthn's abort and `NotAllowedError`, and the plugin's `AUTH_CANCELLED`, are `PASSKEY_CANCELLED`; so is a network failure while the client verifies the assertion, which the plugin reports as `AUTH_CANCELLED`. Better Auth needs a verified email to list or accept an invitation.
+- `refresh()` rejects when the provider did not answer (`NETWORK_ERROR`, or `REFRESH_FAILED` for a 5xx): Better Auth's `refetch` itself resolves and keeps the stale session. Session handles are forgotten on sign-out and on a change of user; `removeMember` refuses an id with `@`, which Better Auth would read as an email.
 
 ## React hooks
 
