@@ -376,19 +376,7 @@ impl CallServices {
         let agent = self.agent_actor();
         // The writing principal's chain (envelope version 3, phase 5 section 2.4), from the
         // principal the host set; empty without a token or assertion.
-        let chain: Vec<umbel_store::ChainLink> =
-            crate::principal::Principal::from_context(&self.context)
-                .map(|principal| {
-                    principal
-                        .delegation_chain
-                        .iter()
-                        .map(|entry| umbel_store::ChainLink {
-                            kind: entry.kind.as_str().to_owned(),
-                            id: entry.id.clone(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+        let chain = crate::principal::Principal::chain_of(&self.context);
         let mut batch = request.batch;
         batch.at = now;
         batch.quota = cap_quota(batch.quota);

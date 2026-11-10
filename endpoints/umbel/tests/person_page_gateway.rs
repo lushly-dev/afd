@@ -236,6 +236,7 @@ impl Gateway {
         support::gateway::write_keys(dir.path(), &kit);
         write_person_tls(dir.path(), kit.ca(), &["127.0.0.1", "localhost"]);
         let clock = afd::fixed_clock(support::oauth::now_ms());
+        support::person::follow(&kit, &clock);
         let seen = Seen::default();
         let host = support::person::host(dir.path(), &kit, &clock, &seen);
         host.check_person_logins().await;
@@ -407,7 +408,7 @@ async fn a_gateway_caller_starts_and_the_person_decides_on_the_direct_listener()
     assert_eq!(prompt.id().len(), 26);
     assert_eq!(
         prompt.message,
-        "Open the link to review gate-approve in main"
+        "Open the link to review gate-approve (proposal p-1) in main"
     );
     // Pending: asked again with the same link.
     let again = asked(&gw.retry(approve_input(), &prompt.state).await);
@@ -1140,7 +1141,13 @@ async fn the_page_never_shows_or_keeps_what_it_must_not() {
         .await;
     let opened = open(&gw.browser, &prompt.path()).await;
     assert!(!opened.reply.text.contains("gate-approve"));
-    assert!(!prompt.message.contains(PREVIEW_CANARY) && !prompt.message.contains("canary"));
+    // The message names the id the preview reads (step 6), never the preview's text nor an input
+    // the preview does not read.
+    assert_eq!(
+        prompt.message,
+        "Open the link to review gate-approve (proposal canary) in main"
+    );
+    assert!(!prompt.message.contains(PREVIEW_CANARY) && !prompt.message.contains("reason"));
     let unknown = gw.browser.get("/d/aaaaaaaaaaaaaaaaaaaaaaaaaa", &[]).await;
     assert_eq!(unknown.status, 404);
     gw.script(ScriptedLogin::user("ada"));

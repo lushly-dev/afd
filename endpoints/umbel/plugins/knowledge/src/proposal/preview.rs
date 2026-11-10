@@ -1,10 +1,17 @@
 //! `knowledge-proposal-preview` (phase 4 specification, section 8.1; D97): the text the command
-//! line shows before `knowledge-approve`'s and `knowledge-reject`'s confirmation prompts, which
-//! both name it in `confirm_preview`. It closes phase 2's "must do before real use": the static
+//! line shows before `knowledge-approve`'s confirmation prompt, and the person page over MCP.
+//! `knowledge-rejection-preview` is the same text after the rejection's reason, labelled with who
+//! wrote it, for `knowledge-reject` (phase 5 step 6: a person confirms the reason recorded with
+//! their decision). It closes phase 2's "must do before real use": the static
 //! prompt could not show what a person approves.
 //!
 //! The preview applies approve's reader rules ([`super::apply::readable`]) and renders any state,
-//! so a decision on a proposal that is no longer pending still fails with its own code. It shows
+//! so a decision on a proposal that is no longer pending still fails with its own code. When the
+//! host runs it as the caller before it asks a person on the person page
+//! (`CallContext::person_check`, phase 5 step 6), it first makes every check the decision would
+//! make ([`super::apply::check`]), so a call that would be refused (an area without
+//! `approve_over_mcp`, a caller that is not an approver, self-approval) is refused before anyone
+//! is asked. The person page renders it as the person, without that mark. It shows
 //! the id, op, document, area and change hash; the drafter's fields the host attested, apart from
 //! the ones this plugin verified against the memory store; the conflict set and the flags; each
 //! evidence entry, a memory entry's copied fields labelled as verified and its counts, with the
@@ -19,9 +26,9 @@ use std::fmt::Write as _;
 
 use serde_json::{Value, json};
 use umbel_okf::frontmatter::split;
-use umbel_sdk::{Cx, Outcome, success};
+use umbel_sdk::{Cx, Outcome, failure, success};
 
-use super::apply::readable;
+use super::apply::{self, readable};
 use super::common::Caller;
 use super::model::{Drafter, Proposal};
 
@@ -38,11 +45,43 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         .get("proposal")
         .and_then(Value::as_str)
         .unwrap_or_default();
+    let rejection = cx.call().command == "knowledge-rejection-preview";
+    // A rejection's reason, which the person sees and confirms with the decision (step 6).
+    let reason = input
+        .get("reason")
+        .and_then(Value::as_str)
+        .filter(|_| rejection);
+    // The host's check before it asks a person to decide `knowledge-approve` or
+    // `knowledge-reject` on the person page: the decision's own checks first.
+    if let Some(check) = &cx.call().person_check {
+        let asked = match (check.command.as_str(), rejection) {
+            ("knowledge-approve", false) => apply::Asked::Approve,
+            ("knowledge-reject", true) => apply::Asked::Reject,
+            _ => {
+                return failure(
+                    "PROPOSAL_APPROVER_NOT_ALLOWED",
+                    "this preview is the confirmation of knowledge-approve (knowledge-proposal-preview) or knowledge-reject (knowledge-rejection-preview) only",
+                    "Decide the proposal with knowledge-approve or knowledge-reject.",
+                );
+            }
+        };
+        if let Err(refused) = apply::check(&caller, asked, id) {
+            return refused;
+        }
+        if matches!(asked, apply::Asked::Reject) && !apply::reason_valid(reason) {
+            return apply::reason_required();
+        }
+    }
     let (proposal, _) = match readable(&caller, id) {
         Ok(found) => found,
         Err(outcome) => return outcome,
     };
-    success(json!({ "preview": render(&proposal) }))
+    let mut text = String::new();
+    if let Some(reason) = reason.filter(|reason| !reason.is_empty()) {
+        text.push_str(&reason_block(reason, cx.call().interface == "cli"));
+    }
+    text.push_str(&render(&proposal));
+    success(json!({ "preview": text }))
         .with_reasoning(&format!(
             "Previewed proposal {} for `{}`, {}.",
             proposal.id,
@@ -50,6 +89,24 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             proposal.state.name()
         ))
         .with_metadata("dev.umbel/trust", json!("content"))
+}
+
+/// The rejection's reason, first, so no cap on what is shown can cut it: labelled with who wrote
+/// it (the person at a terminal, else the asking client), every line prefixed `| ` so none reads
+/// as one of the preview's own lines. It is data, as the proposal's text is.
+fn reason_block(reason: &str, at_terminal: bool) -> String {
+    let mut out = if at_terminal {
+        "Reason, as you gave it (recorded with the rejection):\n".to_owned()
+    } else {
+        "Reason, as written by the requesting client (recorded with the rejection as the client's words; reject only if you agree with it):\n".to_owned()
+    };
+    for line in reason.lines() {
+        out.push_str("| ");
+        out.push_str(line);
+        out.push('\n');
+    }
+    out.push('\n');
+    out
 }
 
 /// A value from a proposer or a file on one line: JSON-quoted, so a newline cannot start a line.

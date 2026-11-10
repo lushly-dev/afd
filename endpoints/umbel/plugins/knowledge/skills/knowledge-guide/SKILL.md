@@ -49,7 +49,15 @@ same key with the same change returns your proposal; the same key with another c
 `PROPOSAL_KEY_REUSED`, so use a new key for a new change. A proposal changes nothing: a person at a
 terminal approves or rejects it with `knowledge-approve` or `knowledge-reject` (you cannot); the
 command line first shows them `knowledge-proposal-preview` (the proposal's facts, evidence and the
-diff's first 80 lines), and `knowledge-proposal-show` has the whole diff. Poll `knowledge-proposal-list` for the outcome; a rejection
+diff's first 80 lines), and `knowledge-proposal-show` has the whole diff. In a hosted workspace that
+serves the person page, a person who is one of an area's approvers may also decide over MCP, in an
+area that sets `approve_over_mcp`: calling `knowledge-approve` or `knowledge-reject` for them
+answers with a link (URL-mode elicitation) to the person page, where they sign in again, read the
+preview and decide; retry the same call, with the same input, after they have, and it runs once. A
+rejection's `reason` you pass is shown to them on the page as the client's words and recorded as
+such (at most 2000 characters, no control characters but line ends). In an area that does not opt
+in, the call answers `APPROVAL_RELAY_DISABLED`; where no person page is served, the commands are not
+offered over MCP at all. You never decide for them, and nothing you send counts as their decision. Poll `knowledge-proposal-list` for the outcome; a rejection
 carries the reason, and `knowledge-withdraw` takes back your own pending proposal. An applied
 document is searchable after the next `knowledge-refresh`.
 

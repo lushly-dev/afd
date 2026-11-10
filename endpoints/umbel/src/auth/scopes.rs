@@ -672,6 +672,7 @@ mod tests {
             require_human: false,
             person: None,
             preview: None,
+            shown: Vec::new(),
             pipeline: false,
             memory_writer: false,
             digest: None,

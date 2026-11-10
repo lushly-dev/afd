@@ -286,15 +286,28 @@ pub(super) fn refuse_on_mounted_tool(table: &Tbl<'_>) -> Result<(), PluginError>
 
 impl Manifest {
     /// Section 2.3's preview rule: a command whose `person` names `mcp`, or `cli = "verified"`,
-    /// declares `confirm_preview`, journals as `digest`, and keeps every input property its
-    /// preview declares in `journal.keep`, so a person decision never stores text. A schema given
+    /// declares `confirm_preview`, journals as `digest`, and names every input property its
+    /// preview declares in `journal.keep` (an id), or in `journal.show` (text the person reads
+    /// as written, held in the decision for its life and never journaled; step 6). `show` goes
+    /// only on such a command, and each entry is a property its preview declares. A schema given
     /// as a file is checked only when `files` is given, as [`Manifest::validate_files`] does.
     pub(super) fn check_person_previews(
         &self,
         files: Option<&dyn PluginFiles>,
     ) -> Result<(), PluginError> {
         for (index, gated) in self.commands.iter().enumerate() {
+            let shows = gated
+                .journal
+                .as_ref()
+                .is_some_and(|journal| !journal.show.is_empty());
             if !gated.person.is_some_and(|person| person.needs_preview()) {
+                if shows {
+                    return Err(PluginError::manifest_invalid(
+                        &self.file,
+                        &format!("commands[{index}].journal.show"),
+                        "goes only on a command decided on the person page (person names mcp or cli = \"verified\"): it names what that page shows".to_owned(),
+                    ));
+                }
                 continue;
             }
             let bad = |key: &str, problem: String| {
@@ -314,7 +327,19 @@ impl Manifest {
                 .journal
                 .as_ref()
                 .filter(|journal| journal.mode == JournalMode::Digest)
-                .map(|journal| journal.keep.iter().map(String::as_str).collect());
+                .map(|journal| {
+                    journal
+                        .keep
+                        .iter()
+                        .chain(&journal.show)
+                        .map(String::as_str)
+                        .collect()
+                });
+            let show: BTreeSet<&str> = gated
+                .journal
+                .iter()
+                .flat_map(|journal| journal.show.iter().map(String::as_str))
+                .collect();
             let Some(keep) = keep else {
                 return Err(bad(
                     "journal",
@@ -352,15 +377,25 @@ impl Manifest {
                 }
                 (SchemaRef::File(_), None) => continue,
             };
-            if let Some(missing) = schema
-                .get("properties")
-                .and_then(Value::as_object)
+            let declared = schema.get("properties").and_then(Value::as_object);
+            if let Some(missing) = declared
                 .and_then(|properties| properties.keys().find(|key| !keep.contains(key.as_str())))
             {
                 return Err(bad(
                     "journal",
                     format!(
-                        "keeps no `{missing}`, which its preview `{name}` declares: every property the preview reads must be in journal.keep, so a person decision stores ids only"
+                        "keeps no `{missing}`, which its preview `{name}` declares: every property the preview reads must be in journal.keep (an id) or journal.show (text the person reads), so a person decision stores nothing else"
+                    ),
+                ));
+            }
+            if let Some(stray) = show
+                .iter()
+                .find(|key| !declared.is_some_and(|properties| properties.contains_key(**key)))
+            {
+                return Err(bad(
+                    "journal.show",
+                    format!(
+                        "names `{stray}`, which its preview `{name}` does not declare: the page shows only what the preview reads"
                     ),
                 ));
             }

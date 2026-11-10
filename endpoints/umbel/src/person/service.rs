@@ -41,6 +41,8 @@ const PAGE_WINDOW_MS: i64 = 3_600_000;
 const MAX_PROPERTIES: usize = 16;
 const MAX_PROPERTY_CHARS: usize = 512;
 const MAX_PROPERTY_ITEMS: usize = 100;
+/// The longest text a `journal.show` property may hold (a rejection's reason, step 6).
+const MAX_SHOWN_CHARS: usize = 2000;
 
 /// A command whose `person` names `verified` on some surface: what its decisions need.
 #[derive(Debug, Clone)]
@@ -49,6 +51,10 @@ pub(crate) struct PersonCommand {
     pub(crate) preview: String,
     /// The preview's declared input properties.
     pub(crate) properties: Vec<String>,
+    /// Those of them the command's `journal.show` names: text the person reads as written (a
+    /// rejection's reason), held in the decision for its life, never journaled nor named in the
+    /// relay's message (step 6). The others are ids.
+    pub(crate) shown: Vec<String>,
     pub(crate) cli: Assurance,
     pub(crate) mcp: Option<Assurance>,
     /// Whether its spaces come from its input (else the default space).
@@ -144,6 +150,17 @@ pub(crate) fn sha256_hex(text: &str) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+/// Whether `value` is text a decision may hold for the page to show (`journal.show`, step 6): a
+/// string of at most 2000 characters with no control character but line ends and tabs.
+fn showable(value: &Value) -> bool {
+    value.as_str().is_some_and(|text| {
+        text.chars().count() <= MAX_SHOWN_CHARS
+            && !text
+                .chars()
+                .any(|c| c.is_control() && c != '\n' && c != '\t')
+    })
 }
 
 /// Whether `value` is a property a decision may keep (`journal.keep`'s rule, `person-decision.v1`).
@@ -392,16 +409,30 @@ impl PersonService {
                     if value.is_null() {
                         continue;
                     }
-                    if !keepable(value) {
+                    let shown = spec.shown.contains(name);
+                    if !(if shown {
+                        showable(value)
+                    } else {
+                        keepable(value)
+                    }) {
+                        let (what, how) = if shown {
+                            (
+                                "text the page may show",
+                                "Pass it as text of at most 2000 characters, with no control character but line ends and tabs.",
+                            )
+                        } else {
+                            (
+                                "an id the page may keep",
+                                "Pass ids only (strings of at most 512 characters, numbers, booleans or lists of at most 100 such strings) in the inputs its preview reads.",
+                            )
+                        };
                         return Err(CommandError::new(
                             error_codes::VALIDATION_ERROR,
                             format!(
-                                "'{command}' cannot be decided on the person page: its input `{name}` is not an id the page may keep"
+                                "'{command}' cannot be decided on the person page: its input `{name}` is not {what}"
                             ),
                         )
-                        .with_suggestion(
-                            "Pass ids only (strings of at most 512 characters, numbers, booleans or lists of at most 100 such strings) in the inputs its preview reads.",
-                        )
+                        .with_suggestion(how)
                         .with_retryable(false));
                     }
                     properties.insert(name.clone(), value.clone());
@@ -449,6 +480,12 @@ impl PersonService {
             .with_retryable(true)
             .with_details(details));
         }
+        // The command's own plugin, before anyone is asked (step 6): its preview, run now as the
+        // caller with the decision's properties and the host's check mark, refuses a call the
+        // plugin would refuse (an area without `approve_over_mcp`, a proposal the caller may not
+        // decide), with the plugin's own answer, and nothing is written. It counts as a begin
+        // under `person_pages_per_hour`, so repeated checks are limited as begins are.
+        self.check(command, spec, &properties, &request).await?;
         let now = self.clock.now();
         let id = random_id().ok_or_else(crate::shared::read_limit::store_failed)?;
         let new = NewDecision {
@@ -490,6 +527,76 @@ impl PersonService {
             acr: None,
             preview_hash: None,
         })
+    }
+
+    /// Run `spec`'s preview as the caller of `request`, under the call's own trace id, with
+    /// `properties` (the decision's) and [`super::PERSON_CHECK_KEY`] naming `command` and its
+    /// surface, before a decision for it is begun (step 6). Over MCP it is the host's own
+    /// in-process call, as the page's rendering is (no interface, so a preview kept off MCP
+    /// still runs); at the CLI it keeps the CLI's interface, so the operator stays the operator.
+    /// It has the caller's principal, credentials and narrowing, and nothing the server set for
+    /// the request (its hidden-command filter). Its text is never shown or kept: only whether it
+    /// failed matters, and a failure is the begin's answer, as the plugin gave it.
+    async fn check(
+        &self,
+        command: &str,
+        spec: &PersonCommand,
+        properties: &Map<String, Value>,
+        request: &BeginRequest<'_>,
+    ) -> Result<(), CommandError> {
+        // A context of its own, as the host builds for its own calls: the caller's actor,
+        // credentials (so its scopes and narrowing hold) and host-owned fields, a fresh trace id,
+        // no interface, and nothing the server set for the request (its hidden-command filter
+        // would hide a preview kept off MCP).
+        let mut context = CommandContext::new();
+        context.actor = request.context.actor.clone();
+        context.credentials = request.context.credentials.clone();
+        context.extra = request.context.extra.clone();
+        context.clock = request.context.clock.clone();
+        context.trace_id = request
+            .context
+            .trace_id
+            .clone()
+            .or_else(|| Some(crate::host::new_trace_id()));
+        let surface = match request.surface {
+            Surface::Mcp => "mcp",
+            Surface::Cli => {
+                context.interface = Some(afd::CommandInterface::Cli);
+                "cli"
+            }
+        };
+        context.extra.insert(
+            super::PERSON_CHECK_KEY.to_owned(),
+            json!({ "command": command, "preview": spec.preview, "surface": surface }),
+        );
+        let result = self
+            .registry
+            .execute(
+                &spec.preview,
+                Value::Object(properties.clone()),
+                Some(context),
+            )
+            .await;
+        if result.success {
+            return Ok(());
+        }
+        Err(result.error.unwrap_or_else(|| super::not_decided(command)))
+    }
+
+    /// The ids the relay's message may name for `decision` (7.3, 7.4): its kept properties that
+    /// are ids, never one its command's `journal.show` names.
+    pub(crate) fn message_properties(&self, decision: &Decision) -> Map<String, Value> {
+        let shown = self
+            .commands
+            .get(&decision.command)
+            .map(|spec| spec.shown.clone())
+            .unwrap_or_default();
+        decision
+            .properties
+            .iter()
+            .filter(|(name, _)| !shown.contains(name))
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect()
     }
 
     /// The decision `id`, read back.
@@ -976,6 +1083,15 @@ mod tests {
                 .admit(&mark(&id), &who, "gate-approve", &digest)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn a_shown_input_is_text_of_at_most_2000_characters_with_line_ends() {
+        assert!(showable(&json!("It is wrong.\nSee the runbook.\tThanks.")));
+        assert!(showable(&json!("x".repeat(2000))));
+        assert!(!showable(&json!("x".repeat(2001))));
+        assert!(!showable(&json!("a\u{1b}[31mred")));
+        assert!(!showable(&json!(["a"])));
     }
 
     #[test]

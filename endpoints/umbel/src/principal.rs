@@ -236,6 +236,24 @@ impl Principal {
         (principal.version == PRINCIPAL_VERSION).then_some(principal)
     }
 
+    /// The delegation chain of the principal `context` carries, as a version 3 envelope records
+    /// it (phase 5 section 2.4): outermost first, empty without a token or assertion, or for a
+    /// context no surface prepared.
+    pub(crate) fn chain_of(context: &CommandContext) -> Vec<umbel_store::ChainLink> {
+        Self::from_context(context)
+            .map(|principal| {
+                principal
+                    .delegation_chain
+                    .iter()
+                    .map(|entry| umbel_store::ChainLink {
+                        kind: entry.kind.as_str().to_owned(),
+                        id: entry.id.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// The JSON value stored under [`PRINCIPAL_KEY`].
     pub fn to_value(&self) -> Value {
         serde_json::to_value(self).unwrap_or(Value::Null)
@@ -464,6 +482,10 @@ pub(crate) fn hook(
         context
             .extra
             .insert(crate::person::PERSON_DECISION_KEY.to_owned(), Value::Null);
+        // Nor the host's own check before a decision is begun (step 6).
+        context
+            .extra
+            .insert(crate::person::PERSON_CHECK_KEY.to_owned(), Value::Null);
         if let Some(clock) = &clock {
             context.clock = Some(Arc::clone(clock));
         }
