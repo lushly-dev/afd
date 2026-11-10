@@ -311,6 +311,74 @@ fn the_version_3_envelope_gives_delegation_and_assurance_their_meaning() {
 }
 
 #[test]
+fn the_library_assurance_and_the_erasure_notice_are_closed_shapes() {
+    // Step 10: the library's person is recorded as `embedder`, never as `terminal`, and holds
+    // nothing more; an erase event's notice is host-owned and closed; a record never holds one.
+    let validator = validator("provenance-envelope.v3");
+    let embedder = example("provenance-envelope.v3", "embedder");
+    assert!(validator.is_valid(&embedder), "{embedder}");
+    let mut cases = vec![
+        with(
+            &embedder,
+            "/confirmation/assurance",
+            json!({ "level": "embedder", "method": "cli-terminal" }),
+        ),
+        with(
+            &embedder,
+            "/confirmation/assurance",
+            json!({ "level": "terminal", "method": "library" }),
+        ),
+        with(
+            &embedder,
+            "/confirmation/assurance/namespace",
+            json!("corp"),
+        ),
+        with(
+            &embedder,
+            "/confirmation/assurance/authTime",
+            json!("2026-11-01T09:30:00.000Z"),
+        ),
+    ];
+    let event = super::validator("event.v3");
+    let erased = example("event.v3", "erasure");
+    assert!(event.is_valid(&erased), "{erased}");
+    for (pointer, value) in [
+        ("/provenance/erasure/erasers", json!([])),
+        (
+            "/provenance/erasure/erasers",
+            json!(["human:a", "human:b", "human:c"]),
+        ),
+        ("/provenance/erasure/erasers", json!(["ada"])),
+        ("/provenance/erasure/count", json!(0)),
+        (
+            "/provenance/erasure/request",
+            json!("p-4c2f9e1a7b03d58e6f10"),
+        ),
+        ("/provenance/erasure/plan", json!("sha256:abc")),
+        (
+            "/provenance/erasure/ids",
+            json!(["mem-000000000000000000000001"]),
+        ),
+    ] {
+        cases.push(with(&erased, pointer, value));
+    }
+    for field in ["erasers", "count", "request", "plan"] {
+        cases.push(without(&erased, &format!("/provenance/erasure/{field}")));
+    }
+    let (envelopes, events): (Vec<Value>, Vec<Value>) = cases
+        .into_iter()
+        .partition(|case| case.get("provenance").is_none());
+    assert_refuses(&validator, "provenance-envelope.v3", &envelopes);
+    assert_refuses(&event, "event.v3", &events);
+    // The notice is an event's: a stored memory record never holds it.
+    let record = super::validator("memory-record.v2");
+    let base = example("memory-record.v2", "");
+    assert!(record.is_valid(&base));
+    let erasure = erased["provenance"]["erasure"].clone();
+    assert!(!record.is_valid(&with(&base, "/provenance/erasure", erasure)));
+}
+
+#[test]
 fn the_shapes_nesting_the_envelope_take_version_3_with_it() {
     // Event version 3.
     let event = validator("event.v3");

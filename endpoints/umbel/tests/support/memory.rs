@@ -91,6 +91,13 @@ confirm = "require-human"
 expose = {{ mcp = false, agent = false, cli = true }}
 
 [[commands]]
+name = "mem-erase"
+description = "Ask the host to erase another principal's records, with no person gate."
+effects = ["store-write"]
+input_schema = {INPUT}
+journal = {{ mode = "digest", keep = ["space"] }}
+
+[[commands]]
 name = "mem-read"
 description = "Read memory."
 effects = ["inspect"]
@@ -414,12 +421,29 @@ fn confirm(cx: &Cx, space: &str, args: &Value) -> Outcome {
             id: id.to_owned(),
             at: 0,
             by: "human:forged".to_owned(),
+            equivalents: Vec::new(),
             content_hash: hash,
             trace_id: None,
             assurance: Some(umbel_store::Assurance::terminal()),
         },
     ) {
         Ok(meta) => success(json!({ "result": meta.record_version })),
+        Err(error) => refused(&error),
+    }
+}
+
+/// `memory_erase` from a command no person gate guards: the host must refuse it whatever the
+/// caller is (phase 5 section 8.4, step 10).
+fn erase(cx: &Cx, space: &str, args: &Value) -> Outcome {
+    let call = umbel_sdk::EraseCall {
+        principal: text(args, "principal").unwrap_or_default().to_owned(),
+        ids: None,
+        dry_run: args.get("dryRun").and_then(Value::as_bool).unwrap_or(true),
+        plan: text(args, "plan").map(str::to_owned),
+        request: None,
+    };
+    match cx.memory_erase(space, call) {
+        Ok(answer) => success(json!({ "result": format!("{answer:?}") })),
         Err(error) => refused(&error),
     }
 }
@@ -443,6 +467,7 @@ impl Plugin for MemoryProbe {
             "mem-import" => write(cx, &space, MemoryPath::Import, &args),
             "mem-change" => change(cx, &space, &args),
             "mem-confirm" => confirm(cx, &space, &args),
+            "mem-erase" => erase(cx, &space, &args),
             "mem-read" => read(cx, &space, &args),
             "mem-plain" => success(json!({ "echo": input })),
             other => failure("NOT_FOUND", other, "Call a probe command."),

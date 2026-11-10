@@ -75,7 +75,7 @@ fn cli_mark(context: &CommandContext) -> Option<&str> {
 }
 
 /// A human through the library: the embedder vouches for the person behind every call.
-fn embedder_human(context: &CommandContext) -> bool {
+pub(crate) fn embedder_human(context: &CommandContext) -> bool {
     Principal::from_context(context).is_some_and(|principal| {
         principal.actor.kind == ActorKind::Human
             && principal.transport == Transport::Library
@@ -102,6 +102,19 @@ pub(crate) fn caller_is_person(
     if embedder_human(context) {
         return true;
     }
+    match (cli_mark(context), command) {
+        (Some(marked), Some(command)) => prompts.covers(marked, command),
+        _ => false,
+    }
+}
+
+/// Whether the caller is a person at the CLI's terminal for `command`: a human at the CLI whose
+/// human-present mark covers it (the terminal check alone, never the library).
+pub(crate) fn terminal_person(
+    context: &CommandContext,
+    command: Option<&str>,
+    prompts: &Prompts,
+) -> bool {
     match (cli_mark(context), command) {
         (Some(marked), Some(command)) => prompts.covers(marked, command),
         _ => false,

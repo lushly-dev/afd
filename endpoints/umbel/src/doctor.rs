@@ -178,8 +178,9 @@ impl Report {
     }
 }
 
-/// The doctor's memory checks (phase 3 section 5.3), which only a sealed host runs.
-pub const MEMORY_CHECKS: [&str; 7] = [
+/// The doctor's memory checks (phase 3 section 5.3, and phase 5 section 8.4's
+/// `stores.memory_erase`), which only a sealed host runs.
+pub const MEMORY_CHECKS: [&str; 8] = [
     "stores.memory",
     "stores.memory_keys",
     "stores.memory_modes",
@@ -187,6 +188,7 @@ pub const MEMORY_CHECKS: [&str; 7] = [
     "stores.principals",
     "stores.sweep",
     "stores.capture",
+    "stores.memory_erase",
 ];
 
 /// The hosted profile's checks (phase 5 specification, section 6.1, with `auth.ca_files` from

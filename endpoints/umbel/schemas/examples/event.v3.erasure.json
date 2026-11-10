@@ -1,0 +1,65 @@
+{
+	"version": 3,
+	"id": "main:88",
+	"space": "main",
+	"seq": 88,
+	"cursor": "v0:main:88",
+	"journalSeq": 512,
+	"command": "memory-erase",
+	"timestamp": "2026-11-01T10:00:00.000Z",
+	"traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+	"actor": {
+		"kind": "agent",
+		"id": "corp/f53f191f9311af35",
+		"onBehalfOf": "corp/U019488227"
+	},
+	"record": {
+		"kind": "memory-erasure",
+		"id": "0a1b2c3d4e5f60718293a4b5c6d7e8f9"
+	},
+	"changes": {
+		"store": "memory",
+		"fromRev": 41,
+		"toRev": 43,
+		"count": 3
+	},
+	"provenance": {
+		"version": 3,
+		"origin": "agent-inferred",
+		"space": "main",
+		"plugin": "memory",
+		"agent": {
+			"kind": "agent",
+			"id": "corp/f53f191f9311af35"
+		},
+		"principal": "human:corp/U019488227",
+		"session": null,
+		"traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+		"observedAt": "2026-11-01T10:00:00.000Z",
+		"validFrom": null,
+		"validUntil": null,
+		"confidence": null,
+		"authority": null,
+		"sources": null,
+		"generated": null,
+		"contentHash": null,
+		"derivedFrom": null,
+		"access": ["principal:human:corp/U77310045"],
+		"sensitivity": "internal",
+		"redactions": null,
+		"constraints": null,
+		"delegationChain": [
+			{
+				"kind": "agent",
+				"id": "corp/f53f191f9311af35"
+			}
+		],
+		"confirmation": null,
+		"erasure": {
+			"erasers": ["human:corp/U019488001", "human:corp/U019488227"],
+			"count": 3,
+			"request": "x-4c2f9e1a7b03d58e6f10",
+			"plan": "sha256:5d41402abc4b2a76b9719d911017c592ae2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f"
+		}
+	}
+}

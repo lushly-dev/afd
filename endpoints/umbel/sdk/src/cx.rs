@@ -829,6 +829,33 @@ pub trait HostServices: Send + Sync {
     ) -> Result<ForgetReceipt, HostError> {
         not_granted("memory_write")
     }
+    /// Grant `memory_write`: `memory-erase` (phase 5 section 8.4). The host checks a verified
+    /// eraser (`erasers`), the target principal, the plan and the two-person rule, selects the
+    /// target's records by owner whatever their access set, and answers counts only.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`] (`MEMORY_ERASE_NOT_ALLOWED`), [`HostError::Invalid`]
+    /// (`MEMORY_ERASE_PLAN_STALE`, `MEMORY_ERASE_SECOND_ERASER_REQUIRED`,
+    /// `MEMORY_ERASE_REQUEST_EXPIRED`, `MEMORY_INVALID`), and as [`HostServices::memory_write`].
+    fn memory_erase(
+        &self,
+        _space: &str,
+        _call: crate::memory::EraseCall,
+    ) -> Result<crate::memory::EraseAnswer, HostError> {
+        not_granted("memory_write")
+    }
+    /// Grant `memory_write`: what `memory-erase-preview` may show. Run as the host's check before
+    /// a decision is begun (`CallContext::person_check`), it makes the erase's own checks first.
+    ///
+    /// # Errors
+    /// As [`HostServices::memory_erase`].
+    fn memory_erase_preview(
+        &self,
+        _space: &str,
+        _call: crate::memory::EraseCall,
+    ) -> Result<crate::memory::ErasePreview, HostError> {
+        not_granted("memory_write")
+    }
     /// Grant `memory_write`: purge at most `limit` records past their purge date.
     ///
     /// # Errors

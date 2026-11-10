@@ -915,6 +915,7 @@ fn prepare(
                         cli_only: command.expose.cli
                             && !mcp_registered(command, hosted)
                             && !command.expose.agent,
+                        person: command.person,
                     },
                 )
             })

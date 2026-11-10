@@ -819,3 +819,28 @@ async fn a_namespaced_principal_owns_its_legacy_records_through_equivalents() {
     .await;
     assert!(!outcome.success, "{outcome:?}");
 }
+
+#[tokio::test]
+async fn the_erase_service_answers_only_a_person_decision_for_memory_erase_itself() {
+    // Phase 5 section 8.4: the host erases only for a call a person decided on the person page,
+    // of `memory-erase` itself. A plugin command without that gate, an eraser through the library
+    // or at a terminal, gets nothing, not even a dry run's count.
+    let text = config("erasers = [\"principal:human:ada\"]", "").replacen(
+        "config_version = 4",
+        "config_version = 5",
+        1,
+    );
+    let (_dir, host) = make(&text);
+    remember(&host, human("bo"), json!({ "n": 1 })).await;
+    for actor in [human("ada"), agent_for("a1", "ada")] {
+        let outcome = run(
+            &host,
+            actor,
+            "mem-erase",
+            json!({ "principal": "human:bo", "dryRun": true }),
+        )
+        .await;
+        let (_, message) = refusal(&outcome);
+        assert!(message.contains("MEMORY_ERASE_NOT_ALLOWED"), "{outcome:?}");
+    }
+}

@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://afd.dev/umbel/schemas/provenance-envelope.v3.json",
 	"title": "Umbel provenance envelope, version 3",
-	"description": "Where a record came from (D71), version 3 (phase 5 section 2.4, D111, D115): version 2 with delegationChain given its meaning, the principal's chain at the write (outermost first, at most 8, empty when the call had no token or assertion), and confirmation gaining assurance, how the person who confirmed was proven: terminal (the CLI's check) or verified (the person page, with the namespace, the login's authTime and its acr). Every other field keeps version 2's meaning. Reserved, and refused by version 3: tenant (owner decision 14). Rows and lines written in versions 0 to 2 stay as written and are read in their own version; a document keeps its envelope version, since an applied document's decision trace is its proposal.",
+	"description": "Where a record came from (D71), version 3 (phase 5 section 2.4, D111, D115): version 2 with delegationChain given its meaning, the principal's chain at the write (outermost first, at most 8, empty when the call had no token or assertion), and confirmation gaining assurance, how the person who confirmed was proven: terminal (the CLI's check), verified (the person page, with the namespace, the login's authTime and its acr) or embedder (an embedding application's own word for its person through the library, which Umbel did not check; phase 5 step 10). On the event of a memory-erase only, erasure is the erased principal's notice (phase 5 section 8.4, step 10), filled only by the host and absent from every other envelope and every stored record. Every other field keeps version 2's meaning. Reserved, and refused by version 3: tenant (owner decision 14). Rows and lines written in versions 0 to 2 stay as written and are read in their own version; a document keeps its envelope version, since an applied document's decision trace is its proposal.",
 	"type": "object",
 	"required": [
 		"version",
@@ -292,6 +292,41 @@
 		},
 		"delegationChain": {
 			"$ref": "#/$defs/delegationChain"
+		},
+		"erasure": {
+			"description": "Only on the event of a memory-erase that erased something (phase 5 section 8.4, step 10), filled only by the host from the erase it performed: the effective principals of every eraser who approved, first first; how many records; the erase request a second eraser approved (null with erase_approvals = 1); and the plan. Absent everywhere else: no other event and no stored record holds it.",
+			"type": "object",
+			"required": ["erasers", "count", "request", "plan"],
+			"additionalProperties": false,
+			"properties": {
+				"erasers": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 2,
+					"items": {
+						"$ref": "#/$defs/principal"
+					}
+				},
+				"count": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"request": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^x-[0-9a-f]{20}$"
+						}
+					]
+				},
+				"plan": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$"
+				}
+			}
 		}
 	},
 	"$defs": {
@@ -348,7 +383,7 @@
 			}
 		},
 		"assurance": {
-			"description": "How a person was proven for one decision (phase 5 sections 2.4 and 7.1, owner decision 6): terminal, the CLI's check, records only its level and method; verified, the person page, records the namespace, the login's auth_time and its acr, which user verification makes mandatory on every login (7.2, step 3).",
+			"description": "How a person was proven for one decision (phase 5 sections 2.4 and 7.1, owner decision 6): terminal, the CLI's check, records only its level and method; verified, the person page, records the namespace, the login's auth_time and its acr, which user verification makes mandatory on every login (7.2, step 3); embedder, the library's person, records only its level and method, said as it is: the embedding application vouched for its person and Umbel checked nothing (step 10; admitted only for the operator's person).",
 			"oneOf": [
 				{
 					"type": "object",
@@ -360,6 +395,19 @@
 						},
 						"method": {
 							"const": "cli-terminal"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"required": ["level", "method"],
+					"additionalProperties": false,
+					"properties": {
+						"level": {
+							"const": "embedder"
+						},
+						"method": {
+							"const": "library"
 						}
 					}
 				},

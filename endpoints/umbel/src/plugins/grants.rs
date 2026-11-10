@@ -61,6 +61,10 @@ pub(crate) struct CommandPolicy {
     pub(crate) store_write: bool,
     /// The command is exposed to the CLI alone: it may use `as_reader`.
     pub(crate) cli_only: bool,
+    /// Its `person` (manifest version 5), for a `require-human` command: a person decision on a
+    /// call counts for the services only on a surface this names `verified`, where the plugin gate
+    /// admitted it against the shared ledger, never on a surface the terminal mark decides.
+    pub(crate) person: Option<crate::plugins::PersonDecl>,
 }
 
 pub(crate) struct Shared {
@@ -164,6 +168,16 @@ impl Services {
         let spaces = workspace
             .resolve_spaces(input, context)
             .unwrap_or_else(|_| vec![space.clone()]);
+        let verified = command.and_then(|command| {
+            let person = self.shared.commands.get(command)?.person?;
+            crate::person::attested(workspace.config(), command, input, context).filter(|decided| {
+                match decided.surface.as_str() {
+                    "mcp" => person.mcp == Some(crate::plugins::Assurance::Verified),
+                    "cli" => person.cli == crate::plugins::Assurance::Verified,
+                    _ => false,
+                }
+            })
+        });
         CallServices {
             shared: Arc::clone(&self.shared),
             context: context.clone(),
@@ -171,6 +185,7 @@ impl Services {
             space,
             spaces,
             command: command.map(str::to_owned),
+            verified,
             as_principal: None,
             read_only: false,
             pack_bytes: AtomicU64::new(0),
@@ -267,6 +282,9 @@ pub struct CallServices {
     space: SpaceId,
     spaces: Vec<SpaceId>,
     pub(super) command: Option<String>,
+    /// The person decision this call carries for its own command and validated input, as the
+    /// host attests it ([`crate::person::attested`]); `None` for every other call.
+    pub(super) verified: Option<umbel_sdk::PersonDecision>,
     /// Set by `as_reader`: reads use this principal's filter, and nothing writes.
     pub(super) as_principal: Option<String>,
     pub(super) read_only: bool,
@@ -290,6 +308,7 @@ impl CallServices {
             space: self.space.clone(),
             spaces: self.spaces.clone(),
             command: self.command.clone(),
+            verified: None,
             as_principal: Some(principal.to_owned()),
             read_only: true,
             pack_bytes: AtomicU64::new(0),
@@ -332,14 +351,12 @@ impl CallServices {
     /// `CallContext.person_decision` carries to every compiled plugin's command (phase 5 step 6;
     /// [`crate::person::attested`]). A call made with [`Services::call`], which names no command,
     /// has none.
-    pub fn person_decision(&self, input: &Value) -> Option<umbel_sdk::PersonDecision> {
-        let command = self.command.as_deref()?;
-        crate::person::attested(
-            self.shared.workspace.config(),
-            command,
-            input,
-            &self.context,
-        )
+    ///
+    /// Since step 10 it counts only on a surface the command's `person` names `verified`, where
+    /// the plugin gate admitted the decision against the shared ledger (the call's own `input` was
+    /// read when the services were built).
+    pub fn person_decision(&self, _input: &Value) -> Option<umbel_sdk::PersonDecision> {
+        self.verified.clone()
     }
 
     /// The command whose person decision is about to be begun, when this call is its preview run
@@ -908,6 +925,24 @@ impl HostServices for CallServices {
         selector: umbel_store::ForgetSelector,
     ) -> Result<memory::ForgetReceipt, ServiceError> {
         self.svc_memory_forget(space, selector)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_erase(
+        &self,
+        space: &str,
+        call: umbel_sdk::EraseCall,
+    ) -> Result<umbel_sdk::EraseAnswer, ServiceError> {
+        self.svc_memory_erase(space, call)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_erase_preview(
+        &self,
+        space: &str,
+        call: umbel_sdk::EraseCall,
+    ) -> Result<umbel_sdk::ErasePreview, ServiceError> {
+        self.svc_memory_erase_preview(space, call)
     }
 
     #[cfg(feature = "store-embedded")]

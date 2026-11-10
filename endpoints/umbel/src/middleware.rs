@@ -564,11 +564,15 @@ fn sanitize(
         .clone()
         .filter(|_| success)
         .unwrap_or(Value::Null);
-    if !authority.is_null() || !confirmation.is_null() {
-        metadata.extra.insert(
-            AUTHORITY_KEY.to_owned(),
-            json!({ "authority": authority, "confirmation": confirmation }),
-        );
+    // The erased principal's notice of a `memory-erase` (phase 5 section 8.4), from the erase the
+    // host performed, and only then.
+    let erasure = record.erasure.clone().filter(|_| success);
+    if !authority.is_null() || !confirmation.is_null() || erasure.is_some() {
+        let mut host = json!({ "authority": authority, "confirmation": confirmation });
+        if let Some(erasure) = erasure {
+            host["erasure"] = erasure;
+        }
+        metadata.extra.insert(AUTHORITY_KEY.to_owned(), host);
     }
     if success && record.memory.count > 0 {
         metadata.extra.insert(
