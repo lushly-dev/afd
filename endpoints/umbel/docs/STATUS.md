@@ -2640,6 +2640,12 @@ on another local branch and push to that remote name.
     `src/auth/doctor.rs` and the plugin, and the knowledge tests moved to version 3. Plugin crates changed:
     `knowledge`; the SDK gained three `CallContext` fields; `umbel-testkit-idp` gained `Issuer::follow_clock`; the
     afd crate did not change.
+  - Verified 2026-11-09 on the branch, each exit code captured directly: `cargo fmt --all --check`; the workspace
+    clippy `-D warnings`, the three `--no-default-features` legs, the SDK and hello leg, the `wasm32-wasip2` leg and
+    the two plugin jobs' clippy (with the knowledge `--no-default-features` leg); the component builds and
+    `hello-mcp`; Umbel's host tests in batches and the other crates, the knowledge eval gate, conformance (34 of
+    34 on each lane) and external clients (271 suites, 2492 tests, none failed), and the knowledge plugin without
+    default features; `pnpm check`; Loam's web build and `test:mounted` (24 tests). All exited 0.
     Choices are in the specification's
     [Amendments from step 6](phases/5-auth-hosted/spec.md#amendments-from-step-6).
 - **Not done:** steps 8 to 12 of the [plan](phases/5-auth-hosted/spec.md#16-implementation-plan).
