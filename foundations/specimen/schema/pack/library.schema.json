@@ -1,0 +1,92 @@
+{
+	"title": "Specimen component pack: library catalog",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"format": {
+			"type": "number",
+			"const": 0
+		},
+		"library": {
+			"type": "string",
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9-]{0,63}$"
+		},
+		"title": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 80,
+			"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		},
+		"package": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"maxLength": 214,
+					"pattern": "^(?:@[a-z0-9][a-z0-9._~-]*\\/)?[a-z0-9][a-z0-9._~-]*$"
+				},
+				"version": {
+					"type": "string",
+					"maxLength": 64,
+					"pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+				}
+			},
+			"required": ["name", "version"],
+			"additionalProperties": false
+		},
+		"prefix": {
+			"type": "string",
+			"maxLength": 32,
+			"pattern": "^[a-z][a-z0-9._]*-$"
+		},
+		"revision": {
+			"type": "string",
+			"maxLength": 64,
+			"pattern": "^[0-9a-f]{40}(?:[0-9a-f]{24})?$"
+		},
+		"digest": {
+			"type": "string",
+			"maxLength": 71,
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"rules": {
+			"type": "string",
+			"maxLength": 71,
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"components": {
+			"maxItems": 990,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"tag": {
+						"type": "string",
+						"maxLength": 100,
+						"pattern": "^[a-z][a-z0-9._]*-[a-z0-9._-]*$"
+					},
+					"summary": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 160,
+						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["stable", "preview", "deprecated"]
+					},
+					"digest": {
+						"type": "string",
+						"maxLength": 71,
+						"pattern": "^sha256:[0-9a-f]{64}$"
+					}
+				},
+				"required": ["tag", "status", "digest"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["format", "library", "title", "package", "prefix", "digest", "rules", "components"],
+	"additionalProperties": false
+}

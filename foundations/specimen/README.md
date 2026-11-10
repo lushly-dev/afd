@@ -376,6 +376,10 @@ A link can also carry `checkpoint`: `after-run` runs a retained story's play in 
 - `reported`: what has no ceiling, namely the `catalog` of cases, the `incumbent` (what else a preview imports from Storybook) and `consumer` code.
 - `chunks`: every emitted chunk with its category and size.
 
+## Component packs
+
+A component pack describes a library's components for an agent: attributes, slots, events, roles, guidance and shared rules, each fact labelled with where it came from. Specimen does not build packs yet. `@lushly-dev/specimen/pack` has the format's version 0: its schemas, `checkPack` and the catalog writer, and `@lushly-dev/specimen/pack/<kind>.schema.json` has a JSON Schema for each file kind. Version 0 can change in any release. [The format](docs/pack-format.md) describes it, and `fixtures/pack/` holds an example library and one invalid case per problem `checkPack` reports.
+
 ## Use programmatically
 
 ```ts

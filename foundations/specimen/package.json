@@ -27,10 +27,17 @@
 		"./test": {
 			"types": "./dist/test.d.ts",
 			"import": "./dist/test.js"
-		}
+		},
+		"./pack": {
+			"types": "./dist/pack.d.ts",
+			"import": "./dist/pack.js"
+		},
+		"./pack/*.schema.json": "./schema/pack/*.schema.json"
 	},
 	"files": [
 		"dist",
+		"schema",
+		"docs/pack-format.md",
 		"README.md"
 	],
 	"scripts": {
@@ -74,6 +81,7 @@
 		"@vitest/browser": "5.1.0",
 		"@vitest/browser-playwright": "^5.1.0",
 		"@vitest/coverage-v8": "^5.1.0",
+		"ajv": "8.20.0",
 		"lit": "3.3.3",
 		"parse5": "^8.1.0",
 		"rimraf": "^6.1.4",

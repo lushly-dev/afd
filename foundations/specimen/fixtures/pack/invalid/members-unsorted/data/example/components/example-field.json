@@ -1,0 +1,157 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "observed",
+				"name": "from the label attribute",
+				"role": "textbox",
+				"state": "default"
+			}
+		],
+		"statements": [
+			{
+				"basis": "verified",
+				"id": "field.label-required",
+				"text": "Set label; a placeholder is not a name."
+			},
+			{
+				"basis": "authored",
+				"id": "field.hint-describes",
+				"text": "Text in the hint slot is read as the field's description, after its name."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "verified",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"field.invalid-message"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "verified",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"type": "boolean",
+				"values": [
+					{
+						"basis": "verified",
+						"value": true
+					},
+					{
+						"basis": "observed",
+						"value": false
+					}
+				]
+			},
+			{
+				"basis": "observed",
+				"description": "The field's visible label and accessible name.",
+				"name": "label",
+				"property": "label",
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "medium",
+				"name": "size",
+				"property": "size",
+				"type": "'small' | 'medium' | 'large'",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "small"
+					},
+					{
+						"basis": "verified",
+						"value": "medium"
+					},
+					{
+						"basis": "declared",
+						"value": "large"
+					}
+				]
+			},
+			{
+				"basis": "observed",
+				"name": "value",
+				"property": "value",
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "20ch",
+				"description": "The input's inline size.",
+				"name": "--example-field-width"
+			}
+		],
+		"events": [
+			{
+				"basis": "verified",
+				"description": "The committed value changed.",
+				"detail": "string: the new value",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Each edit to the value.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Help text below the field; it becomes the field's accessible description.",
+				"name": "hint"
+			}
+		]
+	},
+	"detail": "A single-line text field that takes part in forms.\n\nIts value is submitted under its name attribute. Setting invalid marks the field for assistive technology; the reason belongs in the hint slot, where it is read as the description.",
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "example-field--default",
+			"html": "<example-field label=\"Email\" value=\"ada@example.com\"></example-field>"
+		},
+		{
+			"basis": "observed",
+			"from": "example-field--invalid",
+			"html": "<example-field label=\"Email\" invalid>\n\t<span slot=\"hint\">Enter an address with an @.</span>\n</example-field>"
+		}
+	],
+	"format": 0,
+	"gaps": [],
+	"import": "example-components/field.js",
+	"rules": [
+		"field.invalid-message",
+		"field.labelling"
+	],
+	"status": "stable",
+	"summary": "One line of text that takes part in a form, with a visible label and optional hint.",
+	"tag": "example-field",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "field.when",
+			"text": "Use for one line of free text. For a choice from a known list, use example-select."
+		}
+	]
+}
