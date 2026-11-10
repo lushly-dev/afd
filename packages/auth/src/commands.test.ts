@@ -9,6 +9,7 @@ import {
 	createAuthSessionGetCommand,
 } from './commands.js';
 import { AuthAdapterError } from './errors.js';
+import { withMockCapabilities } from './mock-capabilities.js';
 import type { AuthAdapter, AuthSessionState, SignInOutcome } from './types.js';
 import { LOADING, UNAUTHENTICATED } from './types.js';
 
@@ -163,7 +164,7 @@ describe('createAuthCommands', () => {
 		});
 
 		it('signs in with a passkey, through the adapter', async () => {
-			const adapter = new MockAuthAdapter();
+			const adapter = withMockCapabilities(new MockAuthAdapter());
 			await adapter.signIn({ method: 'credentials', email: 'ada@example.test' });
 			await adapter.passkeys.addPasskey();
 			await adapter.signOut();
@@ -185,7 +186,7 @@ describe('createAuthCommands', () => {
 		] as const)(
 			'fails a passkey ceremony that ends in %s with %s, not retryable',
 			async (outcome, code) => {
-				const adapter = new MockAuthAdapter();
+				const adapter = withMockCapabilities(new MockAuthAdapter());
 				adapter._setPasskeyCeremony(outcome);
 				const signIn = findCommand(adapter, 'auth-sign-in');
 

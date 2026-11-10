@@ -5,7 +5,7 @@
  * Types are defined locally to avoid hard dependency on better-auth.
  */
 
-import { AuthAdapterError } from '../errors.js';
+import { AuthAdapterError, passkeyUnsupported } from '../errors.js';
 import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
 import { areSessionStatesEqual } from '../session-state.js';
 import type {
@@ -86,7 +86,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 			let result: BetterAuthMethodResponse;
 			if (options.method === 'passkey') {
 				const { signIn } = this.client;
-				if (!signIn.passkey || !hasWebAuthn()) throw AuthAdapterError.passkeyUnsupported();
+				if (!signIn.passkey || !hasWebAuthn()) throw passkeyUnsupported();
 				result = await signIn.passkey(
 					options.autoFill === undefined ? undefined : { autoFill: options.autoFill }
 				);

@@ -1,21 +1,58 @@
+import type { Clock } from '@lushly-dev/afd-core';
 import { fixedClock } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
-import { AuthAdapterError } from '../errors.js';
-import { MockAuthAdapter } from './mock.js';
-import { sessionHandle } from './session-rows.js';
+import { MockAuthAdapter } from './adapters/mock.js';
+import { sessionHandle } from './adapters/session-rows.js';
+import { AuthAdapterError } from './errors.js';
+import { type MockRoles, withMockCapabilities } from './mock-capabilities.js';
 
 const ADA = 'mock-user-ada@example.test';
 const BEA = 'mock-user-bea@example.test';
 const START = Date.parse('2026-11-09T12:00:00Z');
 
-function signedIn(email: string, adapter = new MockAuthAdapter()) {
+function mock(options: { clock?: Clock; roles?: MockRoles } = {}) {
+	return withMockCapabilities(new MockAuthAdapter({ clock: options.clock }), {
+		roles: options.roles,
+	});
+}
+
+function signedIn(email: string, adapter = mock()) {
 	return adapter.signIn({ method: 'credentials', email }).then(() => adapter);
 }
+
+describe('withMockCapabilities', () => {
+	it('leaves a plain Mock without capabilities, and passkey sign-in unsupported', async () => {
+		const plain = new MockAuthAdapter();
+		expect(plain.sessions).toBeUndefined();
+		expect(plain.passkeys).toBeUndefined();
+		expect(plain.organization).toBeUndefined();
+		expect(Object.keys(plain)).not.toContain('passkeys');
+		await expect(plain.signIn({ method: 'passkey' })).rejects.toMatchObject({
+			code: 'PASSKEY_UNSUPPORTED',
+			retryable: false,
+		});
+		expect(plain.getSession().status).toBe('unauthenticated');
+	});
+
+	it('attaches all three to the same adapter, once', async () => {
+		const plain = new MockAuthAdapter();
+		const attached = withMockCapabilities(plain);
+		expect(attached).toBe(plain);
+		expect(typeof plain.sessions?.listSessions).toBe('function');
+		expect(typeof plain.passkeys?.addPasskey).toBe('function');
+		expect(typeof plain.organization?.membership).toBe('function');
+		expect(() => withMockCapabilities(plain)).toThrow(TypeError);
+		// A passkey ceremony with no passkey to choose is dismissed, not unsupported.
+		await expect(plain.signIn({ method: 'passkey' })).rejects.toMatchObject({
+			code: 'PASSKEY_CANCELLED',
+		});
+	});
+});
 
 describe('MockAuthAdapter clock', () => {
 	it('times sessions, passkeys and invitations on its clock', async () => {
 		const clock = fixedClock(START);
-		const adapter = new MockAuthAdapter({ clock, roles: { acme: { [ADA]: 'owner' } } });
+		const adapter = mock({ clock, roles: { acme: { [ADA]: 'owner' } } });
 		await adapter.signIn({ method: 'credentials', email: 'ada@example.test' });
 		const state = adapter.getSession();
 		if (state.status !== 'authenticated') throw new Error('Expected a session');
@@ -34,7 +71,7 @@ describe('MockAuthAdapter clock', () => {
 
 	it('refresh() ends a session past its expiry on the clock, and only then', async () => {
 		const clock = fixedClock(START);
-		const adapter = await signedIn('ada@example.test', new MockAuthAdapter({ clock }));
+		const adapter = await signedIn('ada@example.test', mock({ clock }));
 		const statuses: string[] = [];
 		adapter.onAuthStateChange((state) => statuses.push(state.status));
 
@@ -95,7 +132,7 @@ describe('MockAuthAdapter passkeys', () => {
 	});
 
 	it('cancels a ceremony with no passkey to choose', async () => {
-		const adapter = new MockAuthAdapter();
+		const adapter = mock();
 		await expect(adapter.signIn({ method: 'passkey' })).rejects.toMatchObject({
 			code: 'PASSKEY_CANCELLED',
 		});
@@ -127,7 +164,7 @@ describe('MockAuthAdapter passkeys', () => {
 	});
 
 	it('refuses passkey management signed out', async () => {
-		const adapter = new MockAuthAdapter();
+		const adapter = mock();
 		await expect(adapter.passkeys.listPasskeys()).rejects.toMatchObject({ code: 'PROVIDER_ERROR' });
 		await expect(adapter.passkeys.addPasskey()).rejects.toMatchObject({ code: 'PROVIDER_ERROR' });
 	});
@@ -136,7 +173,7 @@ describe('MockAuthAdapter passkeys', () => {
 describe('MockAuthAdapter sessions', () => {
 	it('lists the one session by handle and revokes it', async () => {
 		const clock = fixedClock(START);
-		const adapter = await signedIn('ada@example.test', new MockAuthAdapter({ clock }));
+		const adapter = await signedIn('ada@example.test', mock({ clock }));
 		const handle = await sessionHandle(`mock-session-${START}`);
 		expect(await adapter.sessions.listSessions()).toEqual([
 			{
@@ -172,7 +209,7 @@ describe('MockAuthAdapter organization', () => {
 	const roles = { acme: { [ADA]: 'owner' } };
 
 	it('answers membership from its roles option, by organization id', async () => {
-		const adapter = await signedIn('ada@example.test', new MockAuthAdapter({ roles }));
+		const adapter = await signedIn('ada@example.test', mock({ roles }));
 		expect(await adapter.organization.membership('acme')).toEqual({ role: 'owner' });
 		expect(await adapter.organization.membership('other')).toBeNull();
 		await expect(adapter.organization.membership('')).rejects.toThrow(TypeError);
@@ -184,7 +221,7 @@ describe('MockAuthAdapter organization', () => {
 	});
 
 	it('invites, accepts, sets roles and removes, as an owner may', async () => {
-		const adapter = await signedIn('ada@example.test', new MockAuthAdapter({ roles }));
+		const adapter = await signedIn('ada@example.test', mock({ roles }));
 		const org = adapter.organization;
 		const invitation = await org.invite('acme', { email: 'bea@example.test', role: 'member' });
 		expect(await org.listInvitations('acme')).toEqual([invitation]);
@@ -250,7 +287,7 @@ describe('MockAuthAdapter organization', () => {
 
 	it('rejects an invitation, and refuses one past its expiry', async () => {
 		const clock = fixedClock(START);
-		const adapter = await signedIn('ada@example.test', new MockAuthAdapter({ clock, roles }));
+		const adapter = await signedIn('ada@example.test', mock({ clock, roles }));
 		const first = await adapter.organization.invite('acme', {
 			email: 'bea@example.test',
 			role: 'member',
@@ -271,7 +308,7 @@ describe('MockAuthAdapter organization', () => {
 	it('lets a member who is not the last owner leave', async () => {
 		const adapter = await signedIn(
 			'bea@example.test',
-			new MockAuthAdapter({ roles: { acme: { [ADA]: 'owner', [BEA]: 'member' } } })
+			mock({ roles: { acme: { [ADA]: 'owner', [BEA]: 'member' } } })
 		);
 		await adapter.organization.leave('acme');
 		expect(await adapter.organization.membership('acme')).toBeNull();

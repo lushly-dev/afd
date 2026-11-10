@@ -17,6 +17,10 @@
 		"./commands": {
 			"types": "./dist/commands.d.ts",
 			"import": "./dist/commands.js"
+		},
+		"./mock-capabilities": {
+			"types": "./dist/mock-capabilities.d.ts",
+			"import": "./dist/mock-capabilities.js"
 		}
 	},
 	"files": [

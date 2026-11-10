@@ -2,8 +2,8 @@
  * @fileoverview Mock auth adapter for testing
  */
 
-import { type Clock, systemClock } from '@lushly-dev/afd-core';
-import { AuthAdapterError, type AuthErrorCode } from '../errors.js';
+import type { Clock } from '@lushly-dev/afd-core';
+import { AuthAdapterError, type AuthErrorCode, passkeyUnsupported } from '../errors.js';
 import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
 import type {
 	AuthAdapter,
@@ -17,12 +17,9 @@ import type {
 	User,
 } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
-import { MockDirectory, type MockPasskeyCeremony, type MockRoles } from './mock-capabilities.js';
-import { sessionHandle } from './session-rows.js';
-
-export type { MockPasskeyCeremony, MockRoles } from './mock-capabilities.js';
 
 const SESSION_LIFETIME_MS = 3600_000;
+const SYSTEM_CLOCK: Clock = { now: () => Date.now() };
 
 export interface MockAuthAdapterOptions {
 	/** Simulated async delay in milliseconds (default: 0) */
@@ -34,69 +31,39 @@ export interface MockAuthAdapterOptions {
 	 */
 	onListenerError?: ListenerErrorHandler;
 	/**
-	 * The clock every time the Mock records reads: a session's `createdAt` and `expiresAt` (one
-	 * hour after sign-in), a passkey's or member's `createdAt`, an invitation's expiry. Default:
-	 * the system clock. A kernel passes its own, so an expiry falls on the kernel's time.
+	 * The clock every time the Mock records reads: a session's `expiresAt` (one hour after
+	 * sign-in), and with `withMockCapabilities` a passkey's or member's `createdAt` and an
+	 * invitation's expiry. Default: the system clock. A kernel passes its own, so an expiry falls
+	 * on the kernel's time.
 	 */
 	clock?: Clock;
-	/**
-	 * Organization members and their roles, by organization id and then user id, such as
-	 * `{ 'org-1': { 'mock-user-ada@example.com': 'owner' } }`. Default: no organizations.
-	 */
-	roles?: MockRoles;
 }
 
+/**
+ * The Mock signs in and out, holds one session per page, and gates commands. Its `sessions`,
+ * `passkeys` and `organization` capabilities are `undefined` until `withMockCapabilities` from
+ * `@lushly-dev/afd-auth/mock-capabilities` attaches them, so a host that only signs in never
+ * bundles them; until then a passkey sign-in is `PASSKEY_UNSUPPORTED`.
+ */
 export class MockAuthAdapter implements AuthAdapter {
 	private state: AuthSessionState = UNAUTHENTICATED;
 	private readonly listeners: ListenerSet<AuthSessionState>;
 	private readonly delay: number;
-	private readonly clock: Clock;
-	private readonly directory: MockDirectory;
-	/** When the current session began, for `sessions.listSessions()`. */
-	private sessionCreatedAt = new Date(0);
-	readonly passkeys: PasskeyManagement;
-	readonly organization: OrganizationAccess;
-	readonly sessions: SessionManagement;
+	/** The clock the Mock times sessions on; `withMockCapabilities` reads it too. */
+	readonly clock: Clock;
+	/** When the current session began. */
+	private sessionStartedAt = new Date(0);
+	// `declare`: no field is emitted, so each stays `undefined` until attached.
+	declare readonly sessions?: SessionManagement;
+	declare readonly passkeys?: PasskeyManagement;
+	declare readonly organization?: OrganizationAccess;
+	/** Set by `withMockCapabilities`: the person a passkey ceremony signs in. */
+	declare _passkeyUser?: () => User;
 
 	constructor(options: MockAuthAdapterOptions = {}) {
 		this.delay = options.delay ?? 0;
-		this.clock = options.clock ?? systemClock;
+		this.clock = options.clock ?? SYSTEM_CLOCK;
 		this.listeners = new ListenerSet(options.onListenerError);
-		this.directory = new MockDirectory(
-			this.clock,
-			() => (this.state.status === 'authenticated' ? this.state.user : undefined),
-			options.roles
-		);
-		this.passkeys = this.directory.passkeys;
-		this.organization = this.directory.organization;
-		this.sessions = {
-			listSessions: async () => {
-				const state = this.state;
-				if (state.status !== 'authenticated') return [];
-				return [
-					{
-						handle: await sessionHandle(state.session.id),
-						current: true,
-						createdAt: this.sessionCreatedAt,
-						updatedAt: this.sessionCreatedAt,
-						...(state.session.expiresAt ? { expiresAt: state.session.expiresAt } : {}),
-					},
-				];
-			},
-			revokeSession: async (target) => {
-				const state = this.state;
-				// The Mock holds one session per page: 'others' has nothing to revoke.
-				if (target === 'others' && state.status === 'authenticated') return;
-				if (
-					target === 'all' ||
-					(state.status === 'authenticated' && target === (await sessionHandle(state.session.id)))
-				) {
-					this.setState(UNAUTHENTICATED);
-					return;
-				}
-				throw AuthAdapterError.providerError('mock', 'No session has this handle');
-			},
-		};
 	}
 
 	async signIn(options: SignInOptions): Promise<SignInOutcome> {
@@ -105,7 +72,8 @@ export class MockAuthAdapter implements AuthAdapter {
 		}
 
 		if (options.method === 'passkey') {
-			this.startSession(this.directory.passkeyUser());
+			if (!this._passkeyUser) throw passkeyUnsupported();
+			this.startSession(this._passkeyUser());
 			return { kind: 'signed-in' };
 		}
 
@@ -156,28 +124,24 @@ export class MockAuthAdapter implements AuthAdapter {
 		this.startSession(user, session);
 	}
 
-	/**
-	 * How the following passkey ceremonies end until this is called again: `complete` (the
-	 * default), `cancel` (`PASSKEY_CANCELLED`) or `unsupported` (`PASSKEY_UNSUPPORTED`). A passkey
-	 * sign-in that completes signs in the holder of the passkey added last.
-	 */
-	_setPasskeyCeremony(outcome: MockPasskeyCeremony): void {
-		this.directory.ceremony = outcome;
+	/** When the current session began, for `withMockCapabilities`' session list. */
+	_sessionStartedAt(): Date {
+		return this.sessionStartedAt;
 	}
 
 	_setLoading(): void {
 		this.setState(LOADING);
 	}
 
-	_triggerError(code: AuthErrorCode): AuthAdapterError {
+	_triggerError(
+		code: Exclude<AuthErrorCode, 'PASSKEY_CANCELLED' | 'PASSKEY_UNSUPPORTED'>
+	): AuthAdapterError {
 		const factories: Record<string, () => AuthAdapterError> = {
 			INVALID_CREDENTIALS: () => AuthAdapterError.invalidCredentials(),
 			TOKEN_EXPIRED: () => AuthAdapterError.tokenExpired(),
 			PROVIDER_ERROR: () => AuthAdapterError.providerError('mock'),
 			NETWORK_ERROR: () => AuthAdapterError.networkError(),
 			REFRESH_FAILED: () => AuthAdapterError.refreshFailed(),
-			PASSKEY_CANCELLED: () => AuthAdapterError.passkeyCancelled(),
-			PASSKEY_UNSUPPORTED: () => AuthAdapterError.passkeyUnsupported(),
 		};
 		const factory = factories[code];
 		if (!factory) {
@@ -192,7 +156,7 @@ export class MockAuthAdapter implements AuthAdapter {
 
 	private startSession(user: User, session: Partial<Session> = {}): void {
 		const now = this.clock.now();
-		this.sessionCreatedAt = new Date(now);
+		this.sessionStartedAt = new Date(now);
 		this.setState({
 			status: 'authenticated',
 			session: {

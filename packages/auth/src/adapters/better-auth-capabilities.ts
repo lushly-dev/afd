@@ -3,7 +3,7 @@
  * (`@better-auth/passkey`'s client plugin) and organizations (the organization client plugin).
  */
 
-import { AuthAdapterError } from '../errors.js';
+import { AuthAdapterError, passkeyUnsupported } from '../errors.js';
 import type {
 	OrganizationAccess,
 	OrganizationInvitation,
@@ -118,7 +118,7 @@ export function betterAuthPasskeys(client: BetterAuthClient): PasskeyManagement 
 			return rows.map(toPasskeyRow);
 		},
 		async addPasskey(options) {
-			if (!hasWebAuthn()) throw AuthAdapterError.passkeyUnsupported();
+			if (!hasWebAuthn()) throw passkeyUnsupported();
 			const name = options?.name;
 			const created = await call(
 				() => passkey().addPasskey(name === undefined ? undefined : { name }),

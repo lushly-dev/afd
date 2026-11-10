@@ -1,18 +1,22 @@
 /**
- * @fileoverview `MockAuthAdapter`'s capabilities, in memory: passkeys, organizations with roles
- * from the adapter's options, and invitations. Ids count up, so a run is deterministic.
+ * @fileoverview The records behind `withMockCapabilities`: the Mock's session, passkeys,
+ * organizations with roles from its options, and invitations, in memory. Ids count up, so a run
+ * is deterministic.
  */
 
 import type { Clock } from '@lushly-dev/afd-core';
-import { AuthAdapterError } from '../errors.js';
+import { AuthAdapterError, passkeyCancelled, passkeyUnsupported } from '../errors.js';
 import type {
 	OrganizationAccess,
 	OrganizationInvitation,
 	OrganizationMember,
 	PasskeyManagement,
 	PasskeyRow,
+	SessionManagement,
 	User,
 } from '../types.js';
+import type { MockAuthAdapter } from './mock.js';
+import { sessionHandle } from './session-rows.js';
 
 /** Organization id to user id to role, as `MockAuthAdapterOptions.roles` gives them. */
 export type MockRoles = Readonly<Record<string, Readonly<Record<string, string>>>>;
@@ -31,10 +35,6 @@ export function mockUser(id: string): User {
 	return { id, email, name: email.split('@')[0] };
 }
 
-function fail(details: string): AuthAdapterError {
-	return AuthAdapterError.providerError('mock', details);
-}
-
 interface StoredPasskey {
 	row: PasskeyRow;
 	user: User;
@@ -50,16 +50,17 @@ interface StoredMember {
 /** The Mock's provider-side records, shared by its capabilities. */
 export class MockDirectory {
 	ceremony: MockPasskeyCeremony = 'complete';
+	private readonly clock: Clock;
 	private readonly passkeyRecords: StoredPasskey[] = [];
 	private readonly members = new Map<string, Map<string, StoredMember>>();
 	private readonly invitations = new Map<string, OrganizationInvitation>();
 	private next = 0;
 
 	constructor(
-		private readonly clock: Clock,
-		private readonly signedIn: () => User | undefined,
+		private readonly mock: MockAuthAdapter,
 		roles: MockRoles = {}
 	) {
+		this.clock = mock.clock;
 		for (const [organizationId, byUser] of Object.entries(roles)) {
 			for (const [userId, role] of Object.entries(byUser)) {
 				this.addMember(organizationId, mockUser(userId), role);
@@ -72,9 +73,39 @@ export class MockDirectory {
 		this.checkCeremony();
 		const latest = this.passkeyRecords.at(-1);
 		// With no passkey to choose, the person can only dismiss the browser's dialog.
-		if (!latest) throw AuthAdapterError.passkeyCancelled();
+		if (!latest) throw passkeyCancelled();
 		return latest.user;
 	}
+
+	readonly sessions: SessionManagement = {
+		listSessions: async () => {
+			const state = this.mock.getSession();
+			if (state.status !== 'authenticated') return [];
+			const createdAt = this.mock._sessionStartedAt();
+			return [
+				{
+					handle: await sessionHandle(state.session.id),
+					current: true,
+					createdAt,
+					updatedAt: createdAt,
+					...(state.session.expiresAt ? { expiresAt: state.session.expiresAt } : {}),
+				},
+			];
+		},
+		revokeSession: async (target) => {
+			const state = this.mock.getSession();
+			// The Mock holds one session per page: 'others' has nothing to revoke.
+			if (target === 'others' && state.status === 'authenticated') return;
+			if (
+				target === 'all' ||
+				(state.status === 'authenticated' && target === (await sessionHandle(state.session.id)))
+			) {
+				this.mock._reset();
+				return;
+			}
+			throw this.fail('No session has this handle');
+		},
+	};
 
 	readonly passkeys: PasskeyManagement = {
 		listPasskeys: async () => {
@@ -142,7 +173,7 @@ export class MockDirectory {
 			this.requireManager(organizationId);
 			const invitation = this.invitations.get(invitationId);
 			if (invitation?.organizationId !== organizationId) {
-				throw fail('No invitation of this organization has this id');
+				throw this.fail('No invitation of this organization has this id');
 			}
 			invitation.status = 'canceled';
 		},
@@ -195,6 +226,10 @@ export class MockDirectory {
 		},
 	};
 
+	private fail(details: string): AuthAdapterError {
+		return AuthAdapterError.providerError('mock', details);
+	}
+
 	private now(): Date {
 		return new Date(this.clock.now());
 	}
@@ -205,20 +240,21 @@ export class MockDirectory {
 	}
 
 	private checkCeremony(): void {
-		if (this.ceremony === 'unsupported') throw AuthAdapterError.passkeyUnsupported();
-		if (this.ceremony === 'cancel') throw AuthAdapterError.passkeyCancelled();
+		const ceremony = this.ceremony;
+		if (ceremony === 'unsupported') throw passkeyUnsupported();
+		if (ceremony === 'cancel') throw passkeyCancelled();
 	}
 
 	private requireUser(): User {
-		const user = this.signedIn();
-		if (!user) throw fail('Not signed in');
-		return user;
+		const state = this.mock.getSession();
+		if (state.status !== 'authenticated') throw this.fail('Not signed in');
+		return state.user;
 	}
 
 	private ownPasskey(id: string): StoredPasskey {
 		const user = this.requireUser();
 		const record = this.passkeyRecords.find((p) => p.row.id === id && p.user.id === user.id);
-		if (!record) throw fail('Passkey not found');
+		if (!record) throw this.fail('Passkey not found');
 		return record;
 	}
 
@@ -242,13 +278,13 @@ export class MockDirectory {
 	private requireMember(organizationId: string): StoredMember {
 		const user = this.requireUser();
 		const member = this.organizationMembers(organizationId).get(user.id);
-		if (!member) throw fail('YOU_ARE_NOT_A_MEMBER_OF_THIS_ORGANIZATION');
+		if (!member) throw this.fail('YOU_ARE_NOT_A_MEMBER_OF_THIS_ORGANIZATION');
 		return member;
 	}
 
 	private requireManager(organizationId: string): void {
 		if (!MANAGERS.has(this.requireMember(organizationId).role)) {
-			throw fail('YOU_ARE_NOT_ALLOWED_TO_MANAGE_THIS_ORGANIZATION');
+			throw this.fail('YOU_ARE_NOT_ALLOWED_TO_MANAGE_THIS_ORGANIZATION');
 		}
 	}
 
@@ -256,7 +292,7 @@ export class MockDirectory {
 		for (const member of this.organizationMembers(organizationId).values()) {
 			if (member.id === memberId) return member;
 		}
-		throw fail('MEMBER_NOT_FOUND');
+		throw this.fail('MEMBER_NOT_FOUND');
 	}
 
 	private checkNotLastOwner(organizationId: string, member: StoredMember, code: string): void {
@@ -264,7 +300,7 @@ export class MockDirectory {
 		const owners = [...this.organizationMembers(organizationId).values()].filter(
 			(m) => m.role === 'owner'
 		);
-		if (owners.length === 1) throw fail(code);
+		if (owners.length === 1) throw this.fail(code);
 	}
 
 	private ownInvitation(invitationId: string, user: User): OrganizationInvitation {
@@ -274,7 +310,7 @@ export class MockDirectory {
 			invitation.status !== 'pending' ||
 			invitation.expiresAt.getTime() <= this.clock.now()
 		) {
-			throw fail('INVITATION_NOT_FOUND');
+			throw this.fail('INVITATION_NOT_FOUND');
 		}
 		return invitation;
 	}

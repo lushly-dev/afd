@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { AuthAdapterError } from '../errors.js';
+import { AuthAdapterError, passkeyUnsupported } from '../errors.js';
 import { type ListenerErrorHandler, ListenerSet, reportListenerError } from '../listeners.js';
 import { areSessionStatesEqual, areUsersEqual } from '../session-state.js';
 import type {
@@ -177,7 +177,7 @@ function toSignInRequest(
 
 	if (options.method === 'passkey') {
 		// The Convex adapter has no passkey sign-in.
-		throw AuthAdapterError.passkeyUnsupported();
+		throw passkeyUnsupported();
 	}
 
 	if (options.scopes !== undefined && options.scopes.length > 0) {

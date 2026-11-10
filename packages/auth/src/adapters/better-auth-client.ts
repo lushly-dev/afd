@@ -4,7 +4,7 @@
  * `AuthAdapterError`s.
  */
 
-import { AuthAdapterError } from '../errors.js';
+import { AuthAdapterError, passkeyCancelled } from '../errors.js';
 import { isKnownNetworkFailure } from './provider-errors.js';
 
 export interface BetterAuthErrorResponse {
@@ -193,6 +193,6 @@ const PASSKEY_CANCELLED_CODES = new Set([
 
 export function passkeyCeremonyError(error: BetterAuthErrorResponse): AuthAdapterError | undefined {
 	return error.code !== undefined && PASSKEY_CANCELLED_CODES.has(error.code)
-		? AuthAdapterError.passkeyCancelled()
+		? passkeyCancelled()
 		: undefined;
 }
