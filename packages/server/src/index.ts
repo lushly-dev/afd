@@ -139,6 +139,53 @@ export {
 	type ReplayStatus,
 	replayJournal,
 } from './journal-replay.js';
+// MCP authorization on HTTP (spec/authorization.md, M1 to M5 and M7): createMcpHandler's `auth`
+export { type AuthRefusal, credentialsActor, type McpAuthOptions } from './mcp-auth.js';
+export { type BearerResult, extractBearer } from './mcp-auth-bearer.js';
+export {
+	createIntrospectionVerifier,
+	type IntrospectionVerifierOptions,
+	isCompactJws,
+	type JwksKeySourceOptions,
+	type JwtIssuer,
+	JwtVerifier,
+	type JwtVerifierOptions,
+	jwksKeySource,
+	type KeyLookup,
+	type KeySource,
+	type TokenRequest,
+	type TokenVerification,
+	type TokenVerifier,
+} from './mcp-auth-jwt.js';
+export {
+	audienceAccepts,
+	createProtectedResource,
+	isScopeToken,
+	PROTECTED_RESOURCE_WELL_KNOWN,
+	type ProtectedResource,
+	type ProtectedResourceOptions,
+} from './mcp-auth-resource.js';
+export {
+	AUTH_RULE_CODES,
+	type AuthRuleCode,
+	type Credentials,
+	checkClaims,
+	checkIntrospection,
+	checkJwsHeader,
+	checkKeyFit,
+	createTokenRules,
+	DEFAULT_CLOCK_SKEW_S,
+	DEFAULT_MAX_TOKEN_LIFETIME_S,
+	DEFAULT_SCOPE_LIMIT,
+	MAX_CLAIM_CHARS,
+	MAX_CLOCK_SKEW_S,
+	parseScopeClaim,
+	type RuleResult,
+	SIGNING_ALGORITHMS,
+	type SigningAlgorithm,
+	type TokenRules,
+	type TokenRulesOptions,
+} from './mcp-auth-rules.js';
 // MCP resources, tool `_meta` keys and Agent Skills (spec/mcp-resources.md)
 export { checkMetaEntry } from './meta-keys.js';
 // Middleware

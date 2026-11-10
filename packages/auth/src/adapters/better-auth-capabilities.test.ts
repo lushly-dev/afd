@@ -51,7 +51,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-describe('BetterAuthAdapter passkey sign-in', () => {
+describe('P3-E9: BetterAuthAdapter passkey sign-in', () => {
 	it('signs in through the passkey plugin, passing autoFill', async () => {
 		withWebAuthn();
 		const { client } = stubClient();
@@ -154,7 +154,7 @@ describe('BetterAuthAdapter passkey sign-in', () => {
 	});
 });
 
-describe('BetterAuthAdapter initial and refresh', () => {
+describe('P3-E9: BetterAuthAdapter initial and refresh', () => {
 	it('reports initial until the store answers, then the store', () => {
 		const initial: AuthSessionState = {
 			status: 'authenticated',
@@ -237,7 +237,7 @@ describe('BetterAuthAdapter initial and refresh', () => {
 	});
 });
 
-describe('BetterAuthAdapter capabilities over a stubbed client', () => {
+describe('P3-E9: BetterAuthAdapter capabilities over a stubbed client', () => {
 	it('lists sessions as handles and revokes one by its token', async () => {
 		const listSessions = vi.fn(async () => ({
 			data: [
@@ -442,7 +442,7 @@ describe('BetterAuthAdapter capabilities over a stubbed client', () => {
 	});
 });
 
-describe('BetterAuthAdapter session handles and member ids', () => {
+describe('P3-E9: BetterAuthAdapter session handles and member ids', () => {
 	const OTHER = {
 		id: 's-other',
 		token: 'token-other',
@@ -540,7 +540,7 @@ describe('BetterAuthAdapter session handles and member ids', () => {
 	});
 });
 
-describe('session rows', () => {
+describe('P3-E9: session rows', () => {
 	it('hashes a token to its first 16 hex characters of SHA-256', async () => {
 		// SHA-256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 		expect(await sessionHandle('abc')).toBe('ba7816bf8f01cfea');

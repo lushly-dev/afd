@@ -104,6 +104,9 @@ const selfReference = {
 	},
 };
 
+/** The MCP authorization layer and the library it verifies signatures with. */
+const MCP_AUTH_LAYER = /src\/(mcp-auth|strict-json)|\/jose\//;
+
 /** Workspace inputs appear as `../core/dist/...`, installed ones as `.../afd-core/dist/...`. */
 const NODE_ONLY_CORE = /core\/dist\/(platform\.js|connectors\/|journal-file\.js)/;
 
@@ -166,6 +169,7 @@ describe('@lushly-dev/afd-server/define', () => {
 		expect(inputs.some((input) => input.endsWith('src/schema.ts'))).toBe(true);
 		expect(inputs.some((input) => input.endsWith('core/dist/commands.js'))).toBe(true);
 		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
+		expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
 		// Only the narrow core subpaths: not the core root, and nothing that needs Node.js.
 		expect(
 			inputs.filter((input) => /core\/dist\/index\.js/.test(input) || NODE_ONLY_CORE.test(input))
@@ -288,6 +292,8 @@ describe('@lushly-dev/afd-server/direct', () => {
 		expect(inputs.some((input) => input.endsWith('src/approval-crypto.ts'))).toBe(true);
 		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
 		expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
+		// MCP authorization (spec/authorization.md) is the HTTP layer's: none of it, nor jose.
+		expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
 	});
 
 	it('keeps the tool surface out of a registry that does not ask for it', async () => {

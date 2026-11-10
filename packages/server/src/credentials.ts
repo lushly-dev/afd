@@ -13,4 +13,5 @@
  * ```
  */
 
+export type { Credentials } from './mcp-auth-rules.js';
 export { isVerifiedCredentials } from './verified-credentials.js';
