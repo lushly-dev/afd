@@ -51,7 +51,7 @@
 		"@testing-library/jest-dom": "7.0.1",
 		"@testing-library/user-event": "^14.6.3",
 		"@types/chai": "^5.2.2",
-		"@vitest/expect": "3.2.4",
+		"@vitest/expect": "5.1.0",
 		"@vitest/spy": "3.2.4",
 		"axe-core": "4.13.0",
 		"chai": "^5.2.0",
