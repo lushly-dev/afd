@@ -20,7 +20,7 @@ regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # A capture's id, derived from its first record's id so a replay returns the same one.
-sha2 = "0.11"
+sha2 = "0.10"
 # The policy and hygiene packs are TOML files.
 toml = "1"
 # The binary is the `umbel` command line with the memory plugin compiled in: the command line and

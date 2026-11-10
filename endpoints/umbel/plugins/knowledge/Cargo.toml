@@ -38,7 +38,7 @@ tree-sitter-python = { version = "0.25", optional = true }
 tree-sitter-rust = { version = "0.24", optional = true }
 tree-sitter-typescript = { version = "0.23", optional = true }
 # The eval fixture's digest and the report's corpus and ranking digests.
-sha2 = "0.11"
+sha2 = "0.10"
 # The ranking pack is a TOML file.
 toml = "1"
 # The binary is the `umbel` command line with the knowledge plugins compiled in: the command line
