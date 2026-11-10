@@ -167,6 +167,7 @@ impl Services {
         CallServices {
             shared: Arc::clone(&self.shared),
             context: context.clone(),
+            revoked: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             space,
             spaces,
             command: command.map(str::to_owned),
@@ -181,6 +182,64 @@ impl Services {
     fn require(&self, grant: &str) -> Result<(), ServiceError> {
         require(&self.shared, grant)
     }
+}
+
+/// A running task's space is no longer readable by its caller (phase 5 section 10.5).
+pub(crate) const TASK_SPACE_UNREADABLE: &str = "TASK_SPACE_UNREADABLE";
+
+/// Why a task's guard refused a host service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Refusal {
+    /// The task was stopped: cancelled, its token expired, its time to live ended, or another
+    /// process found it lost.
+    Stopped,
+    /// A space of the call is no longer readable by the caller.
+    Unreadable,
+}
+
+impl Refusal {
+    fn into_service_error(self) -> ServiceError {
+        ServiceError::NotGranted(match self {
+            Self::Stopped => "TASK_STOPPED: the task running this call was stopped (cancelled, its token expired, its time to live ended or it was lost), so it gets no more host services".to_owned(),
+            Self::Unreadable => format!(
+                "{TASK_SPACE_UNREADABLE}: a space of this task is no longer readable by its caller"
+            ),
+        })
+    }
+}
+
+/// A task's checks before each host service, its batches (phase 5 section 12.2): a stopped task
+/// gets nothing more, and the reader filter is rebuilt from the current configuration and the
+/// call's stored scopes and claim groups for every space of the call, refusing one the caller can
+/// no longer read. A call that is not a task (no cancellation signal) passes.
+pub(crate) fn task_guard(
+    config: &crate::workspace::Config,
+    context: &CommandContext,
+    spaces: &[SpaceId],
+) -> Result<(), Refusal> {
+    if context.cancellation().is_none() {
+        return Ok(());
+    }
+    if context.is_cancelled() {
+        return Err(Refusal::Stopped);
+    }
+    if unreadable(config, context, spaces) {
+        return Err(Refusal::Unreadable);
+    }
+    Ok(())
+}
+
+/// Whether the caller of `context` can no longer read a space of `spaces`: its reader filter
+/// rebuilt from `config` and the principal, scopes and claim groups the call carries.
+fn unreadable(
+    config: &crate::workspace::Config,
+    context: &CommandContext,
+    spaces: &[SpaceId],
+) -> bool {
+    let caller = crate::access::Caller::of(config, context);
+    spaces
+        .iter()
+        .any(|space| crate::access::reader_filter(config, space.as_str(), &caller).is_err())
 }
 
 fn require(shared: &Shared, grant: &str) -> Result<(), ServiceError> {
@@ -202,6 +261,9 @@ fn require(shared: &Shared, grant: &str) -> Result<(), ServiceError> {
 pub struct CallServices {
     pub(super) shared: Arc<Shared>,
     pub(super) context: CommandContext,
+    /// Set when a task's guard found a space of the call no longer readable
+    /// ([`task_guard`]): the call's answer becomes `TASK_SPACE_UNREADABLE`.
+    pub(super) revoked: Arc<std::sync::atomic::AtomicBool>,
     space: SpaceId,
     spaces: Vec<SpaceId>,
     pub(super) command: Option<String>,
@@ -224,6 +286,7 @@ impl CallServices {
         CallServices {
             shared: Arc::clone(&self.shared),
             context: self.context.clone(),
+            revoked: Arc::clone(&self.revoked),
             space: self.space.clone(),
             spaces: self.spaces.clone(),
             command: self.command.clone(),
@@ -347,8 +410,36 @@ impl CallServices {
         }
     }
 
+    /// Every host service a plugin calls passes here first: a call that runs as an MCP task and
+    /// was stopped (cancelled, its token expired, its TTL ended) gets no more host services, so
+    /// the plugin, which runs on a blocking thread AFD cannot stop, stops at its next host call:
+    /// between its batches (phase 5 section 12.2, "Cancel is cooperative, between batches").
     pub(super) fn require(&self, grant: &str) -> Result<(), ServiceError> {
+        self.task_guard()?;
         require(&self.shared, grant)
+    }
+
+    /// A task's checks before every host service (phase 5 section 12.2), which every service
+    /// passes: [`Self::require`], the derivation reads, maintenance, `as_reader` and each step
+    /// of an index writer session. A call that is not a task passes.
+    pub(super) fn task_guard(&self) -> Result<(), ServiceError> {
+        let outcome = task_guard(self.shared.workspace.config(), &self.context, &self.spaces);
+        if matches!(&outcome, Err(Refusal::Unreadable)) {
+            self.revoked.store(true, Ordering::SeqCst);
+        }
+        #[cfg(feature = "testkit")]
+        if self.context.cancellation().is_some() {
+            crate::testkit::note_task_service(
+                self.command.as_deref().unwrap_or_default(),
+                outcome.is_err(),
+            );
+        }
+        outcome.map_err(Refusal::into_service_error)
+    }
+
+    /// Whether a task's guard found a space of this call no longer readable.
+    pub(crate) fn revoked(&self) -> Arc<std::sync::atomic::AtomicBool> {
+        Arc::clone(&self.revoked)
     }
 
     /// The call's space's effective copy of the pack `id`: the space's override, else the
@@ -848,5 +939,59 @@ mod tests {
         assert!(!needs_allow("config", ALLOW_REQUIRED));
         assert!(needs_allow("http", &["http", "secrets"]));
         assert!(!needs_allow("clock", &["http", "secrets"]));
+    }
+}
+
+#[cfg(test)]
+mod task_guard_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use crate::principal::{Authentication, Principal, Transport};
+    use afd::{Actor, ActorKind};
+
+    fn config(readers: &str) -> Workspace {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("umbel.toml"),
+            format!(
+                "config_version = 3\ndefault_space = \"main\"\n[spaces.main]\n[spaces.alpha]\nreaders = [{readers}]\n"
+            ),
+        )
+        .unwrap();
+        let workspace = Workspace::open(dir.path()).unwrap();
+        std::mem::forget(dir);
+        workspace
+    }
+
+    fn of(person: &str) -> CommandContext {
+        let mut context = CommandContext::new();
+        Principal::new(
+            Actor::new(ActorKind::Human).with_id(person),
+            Transport::Library,
+            Authentication::Embedder,
+        )
+        .apply(&mut context);
+        context
+    }
+
+    #[test]
+    fn a_batch_finds_a_space_its_caller_no_longer_reads() {
+        let alpha = [SpaceId::parse("alpha").unwrap()];
+        let before = config("\"human:ada\"");
+        let after = config("\"human:bo\"");
+        let ada = of("ada");
+        // The same call, its configuration read again with ada no longer among alpha's readers.
+        assert!(!unreadable(before.config(), &ada, &alpha));
+        assert!(unreadable(after.config(), &ada, &alpha));
+        // A space removed altogether is unreadable too, and the default space stays readable.
+        let main = [SpaceId::parse("main").unwrap()];
+        assert!(!unreadable(after.config(), &ada, &main));
+        assert!(unreadable(
+            after.config(),
+            &ada,
+            &[SpaceId::parse("gone").unwrap()]
+        ));
+        // A call that is not a task is never refused by the guard.
+        assert_eq!(task_guard(after.config(), &ada, &alpha), Ok(()));
     }
 }
