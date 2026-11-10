@@ -212,7 +212,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 114,364, approved by the coordinator on 2026-11-09: the access decision version 2, the stage A identity and
  * membership, the person's view-state reads and the agent interface's wait for stage B. First paint
  * 288,583 and 89,185 gzip, +1,697 and +688 over step 0b's 286,886 and 88,497, within the coordinator's
- * step 1 target of 1,700 and 750; `late` 70,597.
+ * step 1 target of 1,700 and 750; `late` 70,597. It raised `appsMinified` by 800, to 394,894, approved by
+ * the coordinator 2026-11-09: stage B's full check of a version 3 projection's `identity`, the one that fails
+ * closed (822), the outer actor copied onto port, nested and refusal calls (88), the version 3 deployment
+ * rows (53) and `member` (9), less what `apps` had left.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -223,7 +226,7 @@ export const CEILINGS = Object.freeze({
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	urlMinified: 5_247,
-	appsMinified: 394_094,
+	appsMinified: 394_894,
 	surfacesMinified: 85_000,
 	viewMinified: 25_105,
 	consoleMinified: 91_222,
