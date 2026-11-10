@@ -1,5 +1,16 @@
 # @lushly-dev/afd-cli
 
+## 2.4.0
+
+### Patch Changes
+
+- [#920](https://github.com/lushly-dev/afd/pull/920) [`5961e81`](https://github.com/lushly-dev/afd/commit/5961e81d1f4deece28360842d32a024a1cc56688) Thanks [@Falkicon](https://github.com/Falkicon)! - `@lushly-dev/afd-cli` moves its runtime dependencies to their current majors: `commander` 15, `chalk` 6, `conf` 16, `glob` 14 and `ora` 10. Each requires Node 22 or later (`commander` 22.12.0), which the CLI already requires, and none changes a command, flag or output. The saved configuration stays at the same path, so existing connections carry over. `setConfig()` no longer accepts `undefined` as a value in its types; Conf already threw on it at runtime, and `deleteConfig()` clears a value.
+- Updated dependencies [[`eba33ef`](https://github.com/lushly-dev/afd/commit/eba33efa826865dabd1770941f61e1f9e86ce544), [`7aebc3f`](https://github.com/lushly-dev/afd/commit/7aebc3f5dd9cdb730f34af0d8c2620fdc1324663)]:
+  - @lushly-dev/afd-server@2.4.0
+  - @lushly-dev/afd-client@2.4.0
+  - @lushly-dev/afd-core@2.4.0
+  - @lushly-dev/afd-testing@2.4.0
+
 ## 2.3.0
 
 ### Minor Changes
