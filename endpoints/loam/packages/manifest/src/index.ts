@@ -25,6 +25,8 @@ export {
 	type BootAppV2,
 	type BootProjectionV2,
 	type BootRefusalV2,
+	type IdentityMethodV1,
+	type IdentityV1,
 	readBoot,
 } from './read-boot.js';
 export type {
@@ -33,6 +35,7 @@ export type {
 	DeploymentRefusalCode,
 	DeploymentV1,
 	DeploymentV2,
+	DeploymentV3,
 	DeploymentWorkspaceV2,
 	ManifestRead,
 	ManifestRefusal,
@@ -46,5 +49,6 @@ export type {
 	ProjectionRead,
 	ProjectionV1,
 	ProjectionV2,
+	ProjectionV3,
 	Refusal,
 } from './types.js';

@@ -19,6 +19,7 @@ import {
 } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
+import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import * as z from 'zod/mini';
 import {
 	APPEARANCE_DENSITIES,
@@ -52,14 +53,14 @@ import {
 } from '../layout.js';
 import type { OverlayStore } from '../overlays.js';
 import { createPaletteIndex, type PaletteIndex, type PaletteItem } from '../palette-index.js';
-import { actorKey } from '../scope/access.js';
+import { personOf } from '../scope/access.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import { APPS_VIEW_STATE_ID, SCOPE_VIEW_STATE_ID, type ShellState } from '../shell-state.js';
 import type {
 	CommandSummaryV1,
 	KernelEnvironmentV0,
 	KernelOptionsV0,
-	ShellInfoV2,
+	ShellInfoV3,
 } from '../types.js';
 import { NEW_RECENT_ID, newRecentId } from './new-list.js';
 import type { DocumentRows } from './palette-documents.js';
@@ -70,6 +71,8 @@ export interface ShellCommandDeps {
 	environment: KernelEnvironmentV0;
 	host: KernelOptionsV0['host'];
 	storeKind: KernelOptionsV0['storeKind'];
+	/** The deployment's identity, which `shell-info-get` reports (phase 3 specification, 12). */
+	identity?: IdentityV1;
 	overlays: OverlayStore;
 	/** The palette registry's commands, and a number that changes when they do. */
 	paletteRows(): CommandSummaryV1[];
@@ -97,11 +100,11 @@ const projectOfId = (id: string): string | undefined => {
  */
 const mayRead = (id: string, context: CommandContext, deps: ShellCommandDeps): boolean => {
 	// A person's recents are theirs alone (documents specification, 7), as `newRecentId` names them.
-	if (id.startsWith(`${NEW_RECENT_ID}~`)) return id === newRecentId(actorKey(context));
+	if (id.startsWith(`${NEW_RECENT_ID}~`)) return id === newRecentId(personOf(context));
 	const project = id === LAYOUT_VIEW_STATE_ID ? callScope(context).project : projectOfId(id);
 	return (
 		project === undefined ||
-		deps.scope.allows(actorKey(context), { workspace: deps.scope.workspace.id, project })
+		deps.scope.allows(context.actor, { workspace: deps.scope.workspace.id, project })
 	);
 };
 
@@ -312,7 +315,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		const first = app === null && active !== null ? deps.instanceCommands?.(active) : undefined;
 		const items = [
 			...index.index.search(query, limit),
-			...((await deps.documentRows?.search(query, actorKey(context), limit)) ?? []),
+			...((await deps.documentRows?.search(query, context.actor, limit)) ?? []),
 		]
 			.sort((a, b) => Number(first?.has(b.name)) - Number(first?.has(a.name)) || b.score - a.score)
 			.slice(0, limit);
@@ -469,7 +472,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		},
 	});
 
-	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfoV2>({
+	const shellInfoGet = defineCommandWithSchema<typeof emptyInput, ShellInfoV3>({
 		name: 'shell-info-get',
 		description: 'Get the shell interface versions, the host and the store backend',
 		category: 'shell',
@@ -479,7 +482,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		jsonSchema: EMPTY_INPUT_JSON,
 		async handler() {
 			return success({
-				kernelInterface: 2 as const,
+				kernelInterface: 3 as const,
 				layoutState: 0 as const,
 				storeInterface: 1 as const,
 				tokenContract: 1 as const,
@@ -490,6 +493,10 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 				sdk: 1 as const,
 				host: deps.host,
 				store: deps.storeKind,
+				identity: {
+					mode: deps.identity?.mode ?? 'local',
+					organization: deps.identity?.organization ?? null,
+				},
 			});
 		},
 	});

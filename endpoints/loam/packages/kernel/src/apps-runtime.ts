@@ -6,6 +6,7 @@
  */
 
 import {
+	type Actor,
 	type CommandError,
 	type CommandResult,
 	type JournalRecord,
@@ -83,7 +84,11 @@ export interface AppsRuntime {
 	 * call `parent`, and its answer, or nothing (phase 2 specification, 4.1). Absent until stage B has
 	 * loaded `apps/`.
 	 */
-	refreshEnabled?(instance: string, parent: string): Promise<CommandResult> | undefined;
+	refreshEnabled?(
+		instance: string,
+		parent: string,
+		actor: Actor | undefined
+	): Promise<CommandResult> | undefined;
 	/** What a call of `name` carries in its context: who owns it, and whether it is recorded (7.6). */
 	contextOf(name: string, input: unknown): KernelFieldContext;
 	/** A journal entry as it is kept: a mounted server's result is bounded (7.6). */

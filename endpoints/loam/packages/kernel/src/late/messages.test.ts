@@ -12,6 +12,7 @@ import { config } from 'zod/v4/core';
 import en from 'zod/v4/locales/en.js';
 import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
+import { LOCAL_MEMBERSHIP } from '../scope/access.js';
 import { createScopeRuntime } from '../scope/runtime.js';
 import { registerShellState } from '../shell-state.js';
 import { createLateParts, createOverlayStore } from './index.js';
@@ -67,7 +68,7 @@ async function registry() {
 	const auth = new MockAuthAdapter();
 	const environment = { matches: () => false, onChange: () => () => {} };
 	const apps = () => EMPTY_APPS;
-	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
+	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' }, LOCAL_MEMBERSHIP);
 	return createDirectRegistry(
 		(
 			await createLateParts(

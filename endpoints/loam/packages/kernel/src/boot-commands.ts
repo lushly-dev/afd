@@ -18,7 +18,6 @@ import { type AppearanceStateV0, type AppearanceV0, resolveTheme } from './appea
 import type { AppsRuntime } from './apps-runtime.js';
 import type { KernelFieldContext } from './context-fields.js';
 import type { LayoutStateV0 } from './layout.js';
-import { actorKey } from './scope/access.js';
 import type { ProjectV1, ScopeV1 } from './scope/records.js';
 import type { ScopeRuntime } from './scope/runtime.js';
 import type { ShellState } from './shell-state.js';
@@ -134,7 +133,7 @@ export function createBootCommands(deps: BootCommandDeps): ZodCommandDefinition[
 			return success({
 				scope: current,
 				workspace: scope.workspace,
-				project: scope.allows(actorKey(context), current)
+				project: scope.allows(context.actor, current)
 					? (scope.projects.get(current.project as string) ?? null)
 					: null,
 				pending: (scope.active().project ?? null) !== state.scopeProject(),

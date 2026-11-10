@@ -11,7 +11,7 @@
  */
 
 import { css, FASTElement, html } from '@lushly-dev/fast-element';
-import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1, NewItemV1 } from '@lushly-dev/loam-sdk';
 import '@lushly-dev/violet-elements/dist/menu/violet-menu.js';
 import '@lushly-dev/violet-elements/dist/menu/violet-menu-item.js';
@@ -19,7 +19,7 @@ import type { VioletMenu } from '@lushly-dev/violet-elements/dist/menu/violet-me
 
 /** What this chunk reads of the shell, so it imports nothing first paint holds but FAST (2.4). */
 export interface NewHost {
-	readonly kernel: LoamKernelV2 | null;
+	readonly kernel: LoamKernelV3 | null;
 	readonly shadowRoot: ShadowRoot | null;
 	readonly ownerDocument: Document;
 }
@@ -34,7 +34,7 @@ export interface NewOffer {
 }
 
 /** `new-list`, with each item's plugin and the sentence for nothing to offer here (7). */
-export async function readNew(kernel: LoamKernelV2): Promise<NewOffer> {
+export async function readNew(kernel: LoamKernelV3): Promise<NewOffer> {
 	const [listed, types, apps, scope] = await Promise.all([
 		kernel.call<{ items: NewItemV1[] }>('new-list'),
 		kernel.call<{ types: DocumentTypeV1[] }>('document-type-list', { all: true }),

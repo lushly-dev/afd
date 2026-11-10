@@ -7,7 +7,7 @@
  */
 
 import { css, type FASTElement, Updates } from '@lushly-dev/fast-element';
-import type { LoamKernelV2, ProjectV1 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV3, ProjectV1 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
 import { LoamProjectsSection, projectsSectionDefinition } from './projects-section.js';
 
@@ -97,7 +97,7 @@ export function syncSection(shell: LoamShell): Promise<void> {
 }
 
 async function sync(shell: LoamShell): Promise<void> {
-	const kernel = shell.kernel as LoamKernelV2;
+	const kernel = shell.kernel as LoamKernelV3;
 	const main = shell.shadowRoot?.querySelector<HTMLElement & FASTElement>('loam-main');
 	if (!kernel || !main) return;
 	const state = await shell.readState();

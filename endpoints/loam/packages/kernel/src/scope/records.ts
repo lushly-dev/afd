@@ -87,3 +87,53 @@ export interface ScopeChangeV2 {
 export const WORKSPACE_TABLE = 'workspace';
 export const WORKSPACE_APP_TABLE = 'workspace-app';
 export const PROJECT_TABLE = 'project';
+
+/** One row of the `agent-member` table (phase 3 specification, 8.1): an agent with no account at the provider. */
+export interface AgentMemberV1 {
+	/** `agt_` and 20 characters of `[a-z0-9]`. */
+	id: string;
+	workspace: string;
+	/** The kernel's table holds `installed`; a `connected` one lives in the provider's database (9.2). */
+	kind: 'installed' | 'connected';
+	/** 1 to 80; for `connected`, the client's self-asserted name. */
+	name: string;
+	/** Up to 500. */
+	description?: string;
+	/** A person member's id: the agent's `onBehalfOf`. */
+	sponsor: string;
+	/** The owner who added it, or for `connected` the person who connected it (D98). */
+	installedBy: string;
+	/** `connected` only: the OAuth client id and its metadata document's host. */
+	client?: { id: string; host: string };
+	/** Default `{ workspace: false, projects: [] }`; `'sponsor'` is whatever the sponsor may enter. */
+	access: { workspace: boolean; projects: string[] | 'sponsor' };
+	/** Up to 8 KiB; read by phase 5. */
+	guidance?: string;
+	status: 'pending' | 'active' | 'suspended';
+	suspended?: 'sponsor-left' | 'sponsor-declined' | 'disconnected' | 'owner';
+	createdAt: number;
+	updatedAt: number;
+	updatedBy: string;
+}
+
+/** One row of the `persona` table (phase 3 specification, 6.1): a person's lens, never a grant. */
+export interface PersonaV1 {
+	/** `per_` and 16 characters of `[a-z0-9]`. */
+	id: string;
+	workspace: string;
+	/** Never an agent. */
+	person: string;
+	/** 1 to 40: what the switch shows. */
+	title: string;
+	presentation: { name?: string; pronouns?: string; avatar?: string };
+	defaults: {
+		landing?: { section: 'projects' | 'documents' } | { app: string };
+		project?: string | null;
+		density?: string;
+		theme?: string;
+	};
+	emphasis: { apps?: string[]; sections?: ('projects' | 'documents' | 'account')[] };
+	createdAt: number;
+	updatedAt: number;
+	updatedBy: string;
+}

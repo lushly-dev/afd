@@ -641,8 +641,8 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 		const { scope } = context as KernelFieldContext;
 		const slug = scope?.project && host.scope.projects.get(scope.project)?.slug;
 		// Through the runtime, so this chunk imports nothing of first paint's and the bundler parts its
-		// shared chunks as before.
-		const actor = host.scope.actorKey(context);
+		// shared chunks as before. The call's whole actor: the person it is for, and its agent member (3.3).
+		const { actor } = context;
 		const refused = unlistedProject(entry, slug, (listed) => {
 			const project = host.scope.projects.all().find((candidate) => candidate.slug === listed);
 			return (
@@ -698,8 +698,15 @@ export function createMountedHost(options: MountedHostOptions): MountedHost {
 			const now = host.clock();
 			if (now - lastAutomatic >= AUTO_DISCOVERY_MS) {
 				lastAutomatic = now;
-				// Unqueued: this runs inside a call that may itself be queued behind stage B.
-				await host.runAs('app-instance-refresh', { instance }, undefined, {}, true);
+				// Unqueued: this runs inside a call that may itself be queued behind stage B. As the call's own
+				// actor, copied, so an agent's call re-discovers as that agent (phase 3 specification, 3.1).
+				await host.runAs(
+					'app-instance-refresh',
+					{ instance },
+					undefined,
+					context.actor ? { actor: context.actor } : {},
+					true
+				);
 			}
 		}
 		return result;

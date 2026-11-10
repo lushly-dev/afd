@@ -119,7 +119,21 @@ describe('the built shell', () => {
 				})
 			)
 			.toBe('Could not load. Reload to try again.');
-		expect(await agentCall(page, 'layout-get')).toMatchObject({ success: true });
+		// The person's boot commands keep working; the agent interface waits for stage B, whose `late/` names
+		// its actor, so with `late` down it is refused (phase 3 specification, 3.1 and 13, step 1).
+		expect(
+			await page.evaluate(() =>
+				(
+					document.querySelector('loam-shell') as unknown as {
+						kernel: { call(name: string): Promise<unknown> };
+					}
+				).kernel.call('layout-get')
+			)
+		).toMatchObject({ success: true });
+		expect(await agentCall(page, 'layout-get')).toMatchObject({
+			success: false,
+			error: { code: 'LATE_COMMANDS_UNAVAILABLE', retryable: true },
+		});
 		expect(await agentCall(page, 'layout-reset')).toMatchObject({
 			success: false,
 			error: { code: 'LATE_COMMANDS_UNAVAILABLE', retryable: true },

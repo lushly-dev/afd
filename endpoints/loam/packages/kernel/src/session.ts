@@ -6,12 +6,12 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { createKernelParts, type KernelInterfaceV0 } from './kernel.js';
 import type { LayoutStateV0 } from './layout.js';
-import type { KernelEnvironmentV0, KernelOptionsV2, KernelPortsV1, LoamKernelV2 } from './types.js';
+import type { KernelEnvironmentV0, KernelOptionsV3, KernelPortsV1, LoamKernelV3 } from './types.js';
 
 // ─── Environment ────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ export interface RecordSessionOptions {
 	start?: number;
 	/** Random seed. Default: `'loam'`. */
 	seed?: string;
-	deployment?: ProjectionV2;
+	deployment?: ProjectionV3;
 	ports?: KernelPortsV1;
 }
 
@@ -58,19 +58,19 @@ export interface TestKernelOptions {
 	commands?: ZodCommandDefinition[];
 	clock?: () => number;
 	random?: () => number;
-	deployment?: ProjectionV2;
+	deployment?: ProjectionV3;
 	ports?: KernelPortsV1;
 	/** Resolve after stage A, as the web host does (phase 2 specification, 2.2). */
-	boot?: KernelOptionsV2['boot'];
-	appsLoader?: KernelOptionsV2['appsLoader'];
+	boot?: KernelOptionsV3['boot'];
+	appsLoader?: KernelOptionsV3['appsLoader'];
 	/** Default: a new `MemoryAdapter`. Share one to stand for a reload, which keeps the store. */
-	store?: KernelOptionsV2['store'];
+	store?: KernelOptionsV3['store'];
 	/** Default: a new `MockAuthAdapter`. */
-	auth?: KernelOptionsV2['auth'];
+	auth?: KernelOptionsV3['auth'];
 }
 
 export interface TestKernel {
-	kernel: LoamKernelV2;
+	kernel: LoamKernelV3;
 	journal: MemoryJournalSink;
 }
 
@@ -129,7 +129,7 @@ export async function recordSession(
 	options: RecordSessionOptions = {}
 ): Promise<RecordedSession> {
 	const journal = new MemoryJournalSink();
-	const kernelOptions: KernelOptionsV2 = {
+	const kernelOptions: KernelOptionsV3 = {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
@@ -161,7 +161,7 @@ export async function recordSession(
 
 /** Run `calls` in order on `kernel`, each on its interface. */
 export async function runSession(
-	kernel: LoamKernelV2,
+	kernel: LoamKernelV3,
 	calls: readonly SessionCall[]
 ): Promise<void> {
 	for (const call of calls) {

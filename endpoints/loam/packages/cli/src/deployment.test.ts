@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { mkdir, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { readDeployment, readProjection } from '@lushly-dev/loam-manifest/validate';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -304,8 +304,45 @@ package = "broken"
 		expect(readProjection(written.projection).ok).toBe(true);
 	});
 
+	it('writes a version 3 file as a version 3 projection, with the identity and no secret (phase 3, 2.2)', async () => {
+		const paths = await layout(
+			'deployment_version = 3\napps = {}\n\n[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\nprovider = "better-auth"\norganization = "acme"\nmethods = ["passkey", "password"]\n'
+		);
+		const written = await write_(paths);
+		expect(written.ok, JSON.stringify(written)).toBe(true);
+		if (!written.ok) return;
+		expect(written.projection.deployment_version).toBe(3);
+		expect(written.projection.identity).toEqual({
+			mode: 'provider',
+			organization: 'acme',
+			path: 'api/auth',
+			methods: ['passkey', 'password'],
+		});
+		expect(readProjection(written.projection).ok).toBe(true);
+		const served = JSON.parse(await readFile(join(paths.out, 'deployment.json'), 'utf8'));
+		expect(served.identity).toEqual(written.projection.identity);
+		// A version 2 file stays version 2, with no identity: phase 2's projections are unchanged.
+		const v2 = await layout('deployment_version = 2\napps = {}\n');
+		const second = await write_(v2);
+		expect(second.ok && [second.projection.deployment_version, second.projection.identity]).toEqual(
+			[2, undefined]
+		);
+	});
+
+	it('stops a `provider` deployment with a mounted `stdio` instance (D95)', async () => {
+		const paths = await layout(
+			'deployment_version = 3\n\n[identity]\nmode = "provider"\norganization = "acme"\n\n[apps.home]\napp = "umbel"\npackage = "umbel"\nprefix = "home"\naudience = "person"\ntransport = "stdio"\ncommand = ["umbel"]\n'
+		);
+		const written = await write_(paths);
+		expect(written.ok === false && written.refusals.map((refusal) => refusal.code)).toEqual([
+			'DEPLOYMENT_STDIO_TEAM',
+		]);
+		expect(existsSync(paths.out)).toBe(false);
+	});
+
 	it('stops on what makes the file unreadable, leaving the output alone', async () => {
-		const paths = await layout('deployment_version = 3\napps = {}\n');
+		// Version 3 is read from phase 3 (phase 3 specification, 2.1's `deployment_version` row).
+		const paths = await layout('deployment_version = 4\napps = {}\n');
 		const written = await write_(paths);
 		expect(written).toMatchObject({ ok: false });
 		expect(written.ok === false && written.refusals[0]?.code).toBe(
@@ -795,6 +832,8 @@ describe('deployment check', () => {
 			notice.code,
 		]);
 		expect(notices).toEqual([
+			// Phase 3 specification, 2.1: a deployment with no `[identity]` is `local`, and says so.
+			[undefined, 'LOCAL_IDENTITY'],
 			['work', 'MOUNT_ANNOTATIONS_UNTRUSTED'],
 			['work', 'TEAM_INSTANCE_SINGLE_PRINCIPAL'],
 			['home', 'MOUNT_ANNOTATIONS_UNTRUSTED'],
