@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
+import { LOCAL_MEMBERSHIP } from '../scope/access.js';
 import { createScopeRuntime } from '../scope/runtime.js';
 import { registerShellState } from '../shell-state.js';
 import {
@@ -820,7 +821,7 @@ describe('P2-D5: the editor commands', () => {
 		const store = new MemoryAdapter();
 		const parts = createEditorParts(
 			{
-				scope: createScopeRuntime({ id: 'personal', name: 'Personal' }),
+				scope: createScopeRuntime({ id: 'personal', name: 'Personal' }, LOCAL_MEMBERSHIP),
 				viewState,
 				state: registerShellState(viewState),
 				store,

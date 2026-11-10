@@ -54,11 +54,6 @@ const ID = /^[a-z][a-z0-9]{0,31}$/;
  */
 const WORKSPACE_ID = /^(?!(?:apps|assets|mounts|sandbox|p)$)[a-z0-9][a-z0-9-]{0,62}$/;
 const ICON = /^[a-z][a-z0-9-]{0,30}\/[a-z0-9][a-z0-9-]{0,31}$/;
-/** The bound organization's slug, as the deployment file has it (2.2). */
-const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
-/** `path` relative to `site.base_path`: no leading `/`, no `.` or `..` segment (2.2). */
-const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[\w.~-]+(\/[\w.~-]+)*$/;
-const METHOD = /^(passkey|password|oidc:[a-z0-9][a-z0-9-]{0,31})$/;
 
 type Unchecked = Record<string, unknown>;
 
@@ -122,32 +117,17 @@ function appOf(value: unknown): BootAppV2 | undefined {
 }
 
 /**
- * A version 3 projection's `identity`, checked as `projection.v3.json` has it, which stage A and stage B
- * both read with this rather than a generated validator (2.2): absent is `local`; one out of shape, or with
- * any other key, is undefined, and so is the whole projection, so a `provider` deployment never boots as
- * `local` by a field stage A could not read (2.1).
+ * Stage A's reading of a version 3 projection's `identity` (2.1): `local` only when there is none or it is
+ * exactly `{ mode: 'local' }`; anything else is `provider`, signed out until a session is proved, the
+ * stricter mode. Its fields are not checked here: they are for display, and stage B's `readProjection`
+ * refuses a malformed one. So nothing malformed boots as `local`, and first paint holds no full check (13).
  */
-export function identityOf(value: unknown): IdentityV1 | undefined {
-	if (value === undefined) return { mode: 'local' };
+const bootIdentity = (value: unknown): IdentityV1 => {
 	const identity = recordOf(value);
-	const keys = Object.keys(identity ?? {})
-		.sort()
-		.join();
-	if (identity?.mode === 'local') return keys === 'mode' ? { mode: 'local' } : undefined;
-	const { organization, path, methods } = identity ?? {};
-	return identity?.mode === 'provider' &&
-		keys === 'methods,mode,organization,path' &&
-		typeof organization === 'string' &&
-		SLUG.test(organization) &&
-		typeof path === 'string' &&
-		AUTH_PATH.test(path) &&
-		Array.isArray(methods) &&
-		methods.length > 0 &&
-		new Set(methods).size === methods.length &&
-		methods.every((method) => typeof method === 'string' && METHOD.test(method))
-		? { mode: 'provider', organization, path, methods }
-		: undefined;
-}
+	return value === undefined || (identity?.mode === 'local' && Object.keys(identity).length === 1)
+		? { mode: 'local' }
+		: ({ ...identity, mode: 'provider' } as IdentityV1);
+};
 
 /**
  * Undefined when `raw` is not a version 2 or 3 projection at all. Each field is checked as it is read, as
@@ -161,11 +141,10 @@ export function readBoot(raw: unknown): BootProjectionV2 | undefined {
 	const workspace = recordOf(projection?.workspace);
 	const id = workspace?.id;
 	const version = projection?.deployment_version;
-	const identity = version === 3 ? identityOf(projection?.identity) : { mode: 'local' as const };
+	const identity = version === 3 ? bootIdentity(projection?.identity) : { mode: 'local' as const };
 	if (
 		!projection ||
 		(version !== 2 && version !== 3) ||
-		identity === undefined ||
 		!Array.isArray(projection.apps) ||
 		typeof id !== 'string' ||
 		!WORKSPACE_ID.test(id)

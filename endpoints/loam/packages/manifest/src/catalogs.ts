@@ -278,6 +278,4 @@ export const NOTICES_V1 = {
 		"Umbel sees one principal for every member of this instance's projects. Mount it only where each of them may read all of it.",
 	STDIO_TRUSTED_CODE:
 		"This instance runs as the host's OS user. It is trusted code, not sandboxed.",
-	// Phase 3 specification, 2.1: `deployment check` says it of a `local` deployment.
-	LOCAL_IDENTITY: '`local` identity: anyone with this browser profile is its owner.',
 } as const;

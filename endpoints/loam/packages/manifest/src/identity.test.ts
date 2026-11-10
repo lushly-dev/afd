@@ -189,18 +189,22 @@ describe('readBoot, version 3', () => {
 		});
 	});
 
-	it('reads none of a projection whose identity is out of shape, so it never boots `local` by mistake', () => {
+	it('boots anything but an exact `local` as `provider`, which stage B then refuses: never `local` by mistake', () => {
 		for (const identity of [
 			{ mode: 'provider' },
 			{ ...PROVIDER, organization: 'Acme' },
 			{ ...PROVIDER, path: '/api/auth' },
-			{ ...PROVIDER, path: 'api/../x' },
 			{ ...PROVIDER, methods: [] },
-			{ ...PROVIDER, methods: ['magic'] },
+			{ mode: 'local', path: 'api/auth' },
+			{ mode: 'local', organization: 'acme' },
 			{ mode: 'team' },
-			'provider',
+			'local',
+			null,
 		]) {
-			expect(readBoot({ ...EMPTY, identity })).toBeUndefined();
+			expect(readBoot({ ...EMPTY, identity })?.identity?.mode, JSON.stringify(identity)).toBe(
+				'provider'
+			);
+			expect(readProjection({ ...EMPTY, identity }).ok, JSON.stringify(identity)).toBe(false);
 		}
 		expect(readBoot({ ...EMPTY, deployment_version: 4 })).toBeUndefined();
 	});

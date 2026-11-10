@@ -45,7 +45,7 @@ import {
 } from './keybindings.js';
 import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
-import { LOCAL_ACTOR, LOCAL_MEMBERSHIP, type MembershipV1, personKey } from './scope/access.js';
+import { type MembershipV1, personKey } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
 import { personalStore } from './scope/personal.js';
 import { CALL_MARK, createScopeRuntime } from './scope/runtime.js';
@@ -63,30 +63,6 @@ import type {
 
 /** The kernel's two interfaces, one registry each. */
 export type KernelInterfaceV0 = 'palette' | 'agent';
-
-/** The agent interface's agent when a call names none (phase 3 specification, 3.1). */
-export const SHELL_AGENT = 'shell-agent';
-
-/** The agent names the kernel keeps for itself (3.1): its own, and the two persons it names. */
-const RESERVED_AGENTS = [LOCAL_ACTOR, 'signed-out', SHELL_AGENT];
-
-/**
- * An agent interface's actor (3.1): `options.agent`, 1 to 64 characters of `^[a-z0-9][a-z0-9-]*$`, so it can
- * never spell an `agt_` id, or `shell-agent`. A reserved name, or one off the pattern, is
- * `AGENT_NAME_RESERVED`: no caller names an agent member, or the kernel's own.
- */
-function agentActor(name: string | undefined): Actor | CommandResult<never> {
-	if (name === undefined) return { kind: 'agent', id: SHELL_AGENT };
-	if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(name) && !RESERVED_AGENTS.includes(name)) {
-		return { kind: 'agent', id: name };
-	}
-	return failure({
-		code: 'AGENT_NAME_RESERVED',
-		message: 'Not an agent name the agent interface takes',
-		suggestion: 'Name it with 1 to 64 of a-z, 0-9 and -, not local, signed-out or shell-agent',
-		retryable: false,
-	});
-}
 
 /** Suggestion for a refused name (phase 0 specification, 6.1). */
 export const COMMAND_NAME_SUGGESTION = 'Rename it domain-action, e.g. reports-create';
@@ -252,22 +228,20 @@ export async function createKernelParts(
 	const { environment, boot } = options;
 	// The deployment's identity (phase 3 specification, 2.1): `local` unless it says `provider`.
 	const identity: IdentityV1 = options.identity ??
-		boot?.identity ??
-		(options.deployment as { identity?: IdentityV1 } | undefined)?.identity ?? { mode: 'local' };
-	const provider = identity.mode === 'provider';
+		(boot ?? (options.deployment as { identity?: IdentityV1 } | undefined))?.identity ?? {
+			mode: 'local',
+		};
 	// A `provider` kernel decides with the probe's members, or none: never `local`'s, where all are owners.
 	const membership: MembershipV1 =
 		options.membership?.mode === identity.mode
 			? options.membership
-			: provider
-				? { mode: 'provider', members: new Map(), digest: '' }
-				: LOCAL_MEMBERSHIP;
+			: { mode: identity.mode, members: new Map(), digest: '' };
 	// In `provider` mode a person's records are theirs, for whoever is signed in at each read and write (4.5).
-	const viewState = new ViewStateRegistry({
-		adapter: provider
+	const personal =
+		identity.mode === 'provider'
 			? personalStore(options.store, () => personKey(sessionActor(options.auth)))
-			: options.store,
-	});
+			: undefined;
+	const viewState = new ViewStateRegistry({ adapter: personal ?? options.store });
 	const state = registerShellState(viewState);
 	const workspace = boot?.workspace ??
 		options.deployment?.workspace ??
@@ -438,6 +412,7 @@ export async function createKernelParts(
 				run,
 				clock,
 				identity,
+				personal,
 			});
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
@@ -629,7 +604,8 @@ export async function createKernelParts(
 			// Not truthiness: a frame's call may name its parent with an empty trace ID.
 			fields.parent !== undefined ||
 			fields === BOOT_FIELDS ||
-			!(queue || (!stageBEnded && !mutations.has(name)))
+			// The agent interface waits for stage B, whose `late/` names its actor (phase 3 specification, 3.1).
+			!(queue || (!stageBEnded && (iface === 'agent' || !mutations.has(name))))
 		)
 			return go();
 		const mine = (queue ?? startApps()).then(go);
@@ -662,9 +638,15 @@ export async function createKernelParts(
 			if (answered) return answered as CommandResult<T>;
 		}
 		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3
-		// specification, 3.1); a port's or nested call as its outer call's actor, copied.
-		const actor = fields.actor ?? (iface === 'agent' ? agentActor(callOptions.agent) : undefined);
-		if (actor && 'success' in actor) return actor;
+		// specification, 3.1), named by `late/`, which has loaded since its calls wait for stage B; a port's or
+		// nested call as its outer call's actor, copied.
+		let { actor } = fields;
+		if (iface === 'agent' && !actor) {
+			const named =
+				lateParts?.agentActor(callOptions.agent) ?? failure(lateFailure ?? lateUnavailable());
+			if ('success' in named) return named;
+			actor = named;
+		}
 		const traceId = `${traceBase}-${++calls}`;
 		const owned = apps.contextOf(name, input);
 		// The requested scope, explicit per call: a surface's or a nested call's, the caller's option, or
@@ -677,7 +659,7 @@ export async function createKernelParts(
 			...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
 			...owned,
 			...fields,
-			...(actor ? { actor: { ...actor } } : {}),
+			actor,
 			scope:
 				fields.scope ??
 				(asked === 'workspace' ? { workspace: workspace.id } : asked) ??

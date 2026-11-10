@@ -208,12 +208,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Step 13 adds `checklist`, the second type, with no shell change: every row and ceiling is as step 12 left
  * them, and its view's pages, the editor and the handlers' frame, are recorded beside the native bundles,
  * never limited, as `notes`' bundle is.
+ * Phase 3's step 1 (identity core) set `kernelMinified` to its measurement after the coordinator's cuts,
+ * 114,364, approved by the coordinator on 2026-11-09: the access decision version 2, the stage A identity and
+ * membership, the person's view-state reads and the agent interface's wait for stage B. First paint
+ * 288,583 and 89,185 gzip, +1,697 and +688 over step 0b's 286,886 and 88,497, within the coordinator's
+ * step 1 target of 1,700 and 750; `late` 70,597.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
 	jsGzip: 91_000,
 	cssMinified: 8_496,
-	kernelMinified: 113_401,
+	kernelMinified: 114_364,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,

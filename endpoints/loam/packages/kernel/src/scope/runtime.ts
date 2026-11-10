@@ -4,13 +4,7 @@
  * learns of its scope.
  */
 
-import {
-	type AccessActorV1,
-	AGENT_MEMBER_PREFIX,
-	decideAccess,
-	LOCAL_MEMBERSHIP,
-	type MembershipV1,
-} from './access.js';
+import { type AccessActorV1, decideAccess, type MembershipV1 } from './access.js';
 import { createRecordCache, type RecordCache } from './cache.js';
 import {
 	type AgentMemberV1,
@@ -88,7 +82,7 @@ export interface ScopeRuntime {
 
 export function createScopeRuntime(
 	workspace: { id: string; name: string },
-	membership: MembershipV1 = LOCAL_MEMBERSHIP
+	membership: MembershipV1
 ): ScopeRuntime {
 	let active: ScopeV1 = { workspace: workspace.id };
 	const projects = createRecordCache<ProjectV1>(PROJECT_TABLE);
@@ -112,9 +106,8 @@ export function createScopeRuntime(
 				scope,
 				project: scope.project === undefined ? undefined : projects.get(scope.project),
 				membership: runtime.membership,
-				agent: actor?.id?.startsWith(AGENT_MEMBER_PREFIX)
-					? runtime.agents?.get(actor.id)
-					: undefined,
+				// The table holds only `agt_` ids, and `decideAccess` reads the record only for one.
+				agent: runtime.agents?.get(actor?.id as string),
 			}).allowed,
 		opensIn(instance, levels, inProject) {
 			if (inProject === undefined) return levels.includes('workspace');

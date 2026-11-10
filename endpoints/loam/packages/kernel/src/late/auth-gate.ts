@@ -7,6 +7,7 @@
 
 import { type AuthAdapter, createAuthMiddleware } from '@lushly-dev/afd-auth';
 import {
+	type Actor,
 	type CommandContext,
 	type CommandMiddleware,
 	type CommandResult,
@@ -17,7 +18,12 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { INTERNAL_COMMANDS } from '../commands.js';
 import { kernelFailure } from '../errors.js';
-import { type AccessActorV1, AGENT_MEMBER_PREFIX, inWorkspace } from '../scope/access.js';
+import {
+	type AccessActorV1,
+	AGENT_MEMBER_PREFIX,
+	inWorkspace,
+	LOCAL_ACTOR,
+} from '../scope/access.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 
 /** Run with no session in `provider` mode: every call the chrome makes on the signed-out main (2.1). */
@@ -116,6 +122,31 @@ export function lineZero(
 	call.scope ??= { workspace: scope.workspace.id };
 	scope.note(call.traceId, { scope: call.scope });
 	return notMember(call.actor);
+}
+
+/** The agent interface's agent when a call names none (phase 3 specification, 3.1). */
+export const SHELL_AGENT = 'shell-agent';
+
+/** The agent names the kernel keeps for itself (3.1): its own, and the two persons it names. */
+const RESERVED_AGENTS = [LOCAL_ACTOR, 'signed-out', SHELL_AGENT];
+
+/**
+ * An agent interface's actor (3.1): `options.agent`, 1 to 64 characters of `^[a-z0-9][a-z0-9-]*$`, so it can
+ * never spell an `agt_` id, or `shell-agent`. A reserved name, or one off the pattern, is
+ * `AGENT_NAME_RESERVED`: no caller names an agent member, or the kernel's own. In `late/`: the agent
+ * interface waits for stage B, so no agent call runs before this has loaded (13).
+ */
+export function agentActor(name: string | undefined): Actor | CommandResult<never> {
+	if (name === undefined) return { kind: 'agent', id: SHELL_AGENT };
+	if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(name) && !RESERVED_AGENTS.includes(name)) {
+		return { kind: 'agent', id: name };
+	}
+	return failure({
+		code: 'AGENT_NAME_RESERVED',
+		message: 'Not an agent name the agent interface takes',
+		suggestion: 'Name it with 1 to 64 of a-z, 0-9 and -, not local, signed-out or shell-agent',
+		retryable: false,
+	});
 }
 
 export interface AuthGateOptions {

@@ -6,13 +6,19 @@
  */
 
 import { type AuthAdapter, type AuthSessionState, MockAuthAdapter } from '@lushly-dev/afd-auth';
-import type { CommandContext, CommandResult, JournalEntry } from '@lushly-dev/afd-core';
+import {
+	type CommandContext,
+	type CommandResult,
+	type JournalEntry,
+	MemoryJournalSink,
+} from '@lushly-dev/afd-core';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it } from 'vitest';
 import { INTERNAL_COMMANDS } from '../commands.js';
+import { createKernel } from '../kernel.js';
 import {
 	gatedByLineZero,
 	KERNEL_SETTLE_COMMANDS,
@@ -21,6 +27,9 @@ import {
 	SIGNED_OUT_COMMANDS,
 } from '../late/auth-gate.js';
 import { isOwner } from '../late/owners.js';
+import { personalWrites } from '../late/personal-writes.js';
+import { AGENT_MEMBER_TABLE, PERSONA_TABLE } from '../late/tables.js';
+import { createFixedEnvironment } from '../session.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type { LoamKernelV3 } from '../types.js';
 import {
@@ -40,14 +49,7 @@ import {
 } from './fixtures.js';
 import { createScopeMiddleware, type LateScope } from './middleware.js';
 import { personalRecordId, personalStore } from './personal.js';
-import {
-	AGENT_MEMBER_TABLE,
-	type AgentMemberV1,
-	PERSONA_TABLE,
-	type PersonaV1,
-	type ProjectV1,
-	type ScopeV1,
-} from './records.js';
+import type { AgentMemberV1, PersonaV1, ProjectV1, ScopeV1 } from './records.js';
 import { createScopeRuntime } from './runtime.js';
 
 const BEA = 'mock-user-bea@example.com';
@@ -366,6 +368,27 @@ describe("P3-E7: line 0, the gate's lists and the actor on every path (step 1)",
 		expect((await local.kernel.call('project-list', {})).success).toBe(true);
 	});
 
+	it('makes an agent call wait for stage B, whose `late/` names its agent (3.1, 13)', async () => {
+		const journal = new MemoryJournalSink();
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter(),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
+		});
+		kernels.push(kernel);
+		// Stage A holds `layout-get`: the person's call runs now, before any late command exists.
+		expect((await kernel.call('layout-get')).success).toBe(true);
+		expect(kernel.listCommands().map(({ name }) => name)).not.toContain('scope-set');
+		// The agent's call of the same name starts stage B and runs once `late/` has loaded.
+		expect((await kernel.agent.call('layout-get', {}, { agent: 'helper' })).success).toBe(true);
+		expect(kernel.listCommands().map(({ name }) => name)).toContain('scope-set');
+		expect((await journal.read()).at(-1)?.actor).toEqual({ kind: 'agent', id: 'helper' });
+	});
+
 	it("runs the agent interface as an agent, the session's person in its onBehalfOf (3.1)", async () => {
 		const made = await workspace();
 		await made.kernel.agent.call('scope-get', {});
@@ -467,6 +490,9 @@ describe('personalRecordId and the personal store (phase 3 specification, 4.5)',
 		const store = new MemoryAdapter();
 		let person: string | undefined = BEA;
 		const mine = personalStore(store, () => person);
+		// First paint's store reads only: stage B attaches the writes (13).
+		expect(mine.create).toBeUndefined();
+		personalWrites(mine, store);
 		await mine.create('settings', { id: 'loam.scope', value: 'bea' });
 		await mine.create('settings', { id: 'loam.layout.~projects', value: 'bea' });
 		await mine.create('settings', { id: 'loam.appearance', value: 'profile' });

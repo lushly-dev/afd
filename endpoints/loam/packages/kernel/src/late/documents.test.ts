@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { AppStoreRecord } from '../apps/store.js';
 import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
+import { LOCAL_MEMBERSHIP } from '../scope/access.js';
 import { createScopeRuntime } from '../scope/runtime.js';
 import { storeRecordId } from '../scope/store-id.js';
 import { registerShellState } from '../shell-state.js';
@@ -217,7 +218,7 @@ describe('P2-D3: types and the registry', () => {
 		const state = registerShellState(viewState);
 		const auth = new MockAuthAdapter();
 		const environment = createFixedEnvironment();
-		const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
+		const scope = createScopeRuntime({ id: 'personal', name: 'Personal' }, LOCAL_MEMBERSHIP);
 		const summary = (instance: string) => ({
 			instance,
 			app: 'probe',
@@ -788,7 +789,7 @@ describe.each(adapters)('P2-D4: the record and the store (%s)', (_name, adapterO
 function directCommands(
 	opens: (type: unknown, at: { project?: string }) => CommandResult<never> | undefined
 ) {
-	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' });
+	const scope = createScopeRuntime({ id: 'personal', name: 'Personal' }, LOCAL_MEMBERSHIP);
 	scope.projects.put(SCOPED_PROJECTS[0] as never);
 	const store = new MemoryAdapter();
 	const real = createDocumentCheck({

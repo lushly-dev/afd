@@ -81,6 +81,10 @@ export interface DeploymentAnalysis {
 	mounts: MountAccess[];
 }
 
+/** What `deployment check` says of a `local` deployment (phase 3 specification, 2.1). */
+export const LOCAL_IDENTITY_NOTICE =
+	'`local` identity: anyone with this browser profile is its owner.';
+
 export const appKey = (id: string, key = ''): string => keyOf(`/apps/${id}${key}`);
 
 async function readPackage(directory: string): Promise<{ state: PackageState; found?: string }> {
@@ -503,7 +507,7 @@ export async function analyzeDeployment(config: string): Promise<DeploymentAnaly
 		warnings,
 		notices: [
 			...(read.identity.mode === 'local'
-				? [{ code: 'LOCAL_IDENTITY', message: NOTICES_V1.LOCAL_IDENTITY }]
+				? [{ code: 'LOCAL_IDENTITY', message: LOCAL_IDENTITY_NOTICE }]
 				: []),
 			...instances.flatMap(noticesFor),
 		],

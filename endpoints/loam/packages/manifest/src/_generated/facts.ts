@@ -415,20 +415,12 @@ export const ADMITTED_KEYS: Record<string, Record<string, readonly string[]>> = 
 			"generation",
 			"workspace",
 			"sandbox_origin",
-			"identity",
 			"apps"
 		],
 		"/workspace": [
 			"id",
 			"name"
 		],
-		"/identity": [
-			"mode",
-			"organization",
-			"path",
-			"methods"
-		],
-		"/identity/methods": [],
 		"/apps": [],
 		"/apps/*": [
 			"instance",

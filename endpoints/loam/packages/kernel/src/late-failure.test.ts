@@ -52,6 +52,15 @@ describe('the late chunk failing to load', () => {
 		await kernel.dispose();
 	});
 
+	it('refuses the agent interface, whose actor `late/` names, rather than run it unnamed (phase 3, 3.1)', async () => {
+		const kernel = await createKernel(options());
+		expect(await kernel.agent.call('layout-get')).toMatchObject({
+			success: false,
+			error: { code: 'LATE_COMMANDS_UNAVAILABLE' },
+		});
+		await kernel.dispose();
+	});
+
 	it('still resolves createKernel when it runs inside it', async () => {
 		const kernel = await createKernel(options({ boot: undefined }));
 		expect(kernel.lateFailure).toMatchObject({ code: 'LATE_COMMANDS_UNAVAILABLE' });

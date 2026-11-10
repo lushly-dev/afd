@@ -20,38 +20,43 @@ export const personalRecordId = (id: string, person: string | undefined): string
  */
 const PERSONAL = /^loam\.(scope|apps|editor|layout)($|[.@~])/;
 
+/** The view-state store of a `provider` deployment, with the key it reads and writes each record under. */
+export interface PersonalStore extends DataAdapter {
+	key(id: string): string;
+}
+
 /**
- * The view-state store of a `provider` deployment: each personal record is read and written under
+ * The view-state store of a `provider` deployment: each personal record is read under
  * {@link personalRecordId} for the person signed in at that moment, and listed back under its own id, so
  * the registry, the commands and the chrome name `loam.scope` as before. Another person's rows, and a
  * `local` deployment's unsuffixed ones, are never listed. Nothing migrates: `local` keeps phase 2's ids.
- * Only the view-state registry is given it, so `batch` and `health` are the store's.
+ *
+ * First paint holds what stage A reads, `get` and `list`. Nothing writes a view-state record before stage
+ * B, so the writes, `create`, `update` and `remove`, are `late/`'s `personalWrites`, which attaches them
+ * (13); a write before it would throw, and the registry reports a failed write. The registry calls nothing
+ * else of a store.
  */
-export function personalStore(store: DataAdapter, person: () => string | undefined): DataAdapter {
+export function personalStore(store: DataAdapter, person: () => string | undefined): PersonalStore {
 	const key = (id: string) => (PERSONAL.test(id) ? personalRecordId(id, person()) : id);
-	const as = (row: object | null, id: string) => row && { ...row, id };
 	return {
-		get: async (table: string, id: string) => as(await store.get(table, key(id)), id),
-		update: async (table: string, id: string, patch: object) =>
-			as(await store.update(table, key(id), patch), id),
-		create: (table: string, data: { id: string }) =>
-			store.create(table, { ...data, id: key(data.id) }),
-		remove: (table: string, id: string) => store.remove(table, key(id)),
+		key,
+		get: async (table: string, id: string) => {
+			const row = await store.get<object>(table, key(id));
+			return row && { ...row, id };
+		},
 		async list(table: string, params?: Parameters<DataAdapter['list']>[1]) {
 			const listed = await store.list<{ id: string }>(table, params);
 			const suffix = personalRecordId('', person());
-			const data = listed.data.flatMap((row) => {
-				const id = row.id.slice(0, -suffix.length);
-				// Unsuffixed, or another person's: not this person's record.
-				return row.id.endsWith(suffix) && PERSONAL.test(id)
-					? [{ ...row, id }]
-					: PERSONAL.test(row.id)
-						? []
-						: [row];
-			});
-			return { ...listed, data, total: data.length };
+			// Another person's row, or a `local` deployment's unsuffixed one, is not this person's record.
+			const data = listed.data.flatMap((row) =>
+				!PERSONAL.test(row.id)
+					? [row]
+					: row.id.endsWith(suffix)
+						? [{ ...row, id: row.id.slice(0, -suffix.length) }]
+						: []
+			);
+			// Filtered, so the store's own paging no longer describes it: the rows and their count.
+			return { data, total: data.length };
 		},
-		batch: (operations: never) => store.batch(operations),
-		health: () => store.health(),
-	} as unknown as DataAdapter;
+	} as unknown as PersonalStore;
 }

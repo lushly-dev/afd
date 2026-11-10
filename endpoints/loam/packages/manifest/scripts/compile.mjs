@@ -275,7 +275,9 @@ export function generateFacts() {
 		// Version 3's keys are version 2's and `identity`'s, which `readDeployment` reports itself, so the
 		// page's `apps` row carries no table of them (phase 3 specification, 13).
 		['deployment', 2, 'deploymentV2'],
-		['projection', 3, 'projection'],
+		// `readProjection` checks a version 3 projection's `identity` before the validator, so no error names
+		// a key inside it: version 2's keys are the table.
+		['projection', 2, 'projection'],
 	]) {
 		const document = readSchema(schema, schemaVersion);
 		admitted[name] = admittedKeys(withoutRefused(flatten(document, document, core)));

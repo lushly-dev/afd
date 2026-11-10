@@ -14,11 +14,12 @@ import { createDefaultLayout } from '../layout.js';
 import { createRecordCache } from '../scope/cache.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
-import { AGENT_MEMBER_TABLE, type AgentMemberV1, type ScopeV1 } from '../scope/records.js';
+import type { PersonalStore } from '../scope/personal.js';
+import type { AgentMemberV1, ScopeV1 } from '../scope/records.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type { AppSummaryV2, KernelEventV3, KernelMcpOptions } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
-import { createAuthGate } from './auth-gate.js';
+import { agentActor, createAuthGate } from './auth-gate.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
@@ -26,6 +27,7 @@ import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
+import { personalWrites } from './personal-writes.js';
 import { appCallable } from './port-callable.js';
 import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
@@ -33,6 +35,7 @@ import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands } from './scope-commands.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
+import { AGENT_MEMBER_TABLE } from './tables.js';
 
 /**
  * `DOCUMENTS_LAYOUT_ID`'s value, a literal here: imported, the first paint's `shell-state` chunk would export one
@@ -62,6 +65,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		clock?: { now(): number };
 		/** The deployment's identity (phase 3 specification, 2.1). Absent: `local`. */
 		identity?: IdentityV1;
+		/** A `provider` deployment's view-state store, whose writes this chunk attaches (4.5). */
+		personal?: PersonalStore | undefined;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'>;
 
 /**
@@ -128,6 +133,8 @@ export interface LateParts {
 	 * afd-auth's middleware closes over its `exclude` list.
 	 */
 	authGate(held: readonly ZodCommandDefinition[]): CommandMiddleware;
+	/** The agent interface's actor for `options.agent`, or its refusal (phase 3 specification, 3.1). */
+	agentActor: typeof agentActor;
 	/**
 	 * What phase 6's hosted lane passes to `createMcpHandler` (phase 2 specification, 3.3): every registered
 	 * command but `INTERNAL_COMMANDS` (`BOOT_ONLY`'s are in no registry but boot's), the kernel's own chain,
@@ -190,6 +197,7 @@ export async function createLateParts(
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
+	if (deps.personal) personalWrites(deps.personal, deps.store);
 	// The `agent-member` table, which line 4 of the access decision reads (phase 3 specification, 3.3).
 	const agents = createRecordCache<AgentMemberV1>(AGENT_MEMBER_TABLE);
 	await agents.load(deps.store);
@@ -326,6 +334,7 @@ export async function createLateParts(
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		bootOnly: BOOT_ONLY.flatMap((name) => byName.get(name) ?? []),
 		lateScope,
+		agentActor,
 		authGate: (held) =>
 			createAuthGate(deps.auth, held, { identity: deps.identity ?? { mode: 'local' } }),
 		mcpOptions: ({ commands, middleware }, listeners) => ({
