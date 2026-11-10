@@ -23,7 +23,7 @@ describe('webhooks.delete command', () => {
 			},
 			context,
 		);
-		webhookId = result.data?.webhook.id!;
+		webhookId = result.data!.webhook.id;
 	});
 
 	it('should require confirmation to delete', async () => {

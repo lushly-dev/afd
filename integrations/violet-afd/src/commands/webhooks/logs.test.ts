@@ -22,7 +22,7 @@ describe('webhooks.logs command', () => {
 			},
 			context,
 		);
-		webhookId = result.data?.webhook.id!;
+		webhookId = result.data!.webhook.id;
 	});
 
 	it('should return empty logs for new webhook', async () => {

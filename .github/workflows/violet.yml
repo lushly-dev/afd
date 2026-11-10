@@ -80,7 +80,7 @@ jobs:
         run: |
           git diff --exit-code -- foundations/violet integrations/violet-afd endpoints/violet-cli endpoints/violet-server
           test -z "$(git status --porcelain -- foundations/violet integrations/violet-afd endpoints/violet-cli endpoints/violet-server)"
-      - name: Upstream Biome 1.9 lint
+      - name: Violet Biome 2 lint (own configuration)
         run: pnpm -F @lushly-dev/violet-core -F @lushly-dev/violet-runtime -F @lushly-dev/violet-afd -F @lushly-dev/violet-cli -F @lushly-dev/violet-server lint
       - name: Full core and integration suites, including the SQLite store legs
         run: pnpm -F @lushly-dev/violet-core -F @lushly-dev/violet-afd test:db

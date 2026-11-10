@@ -6,7 +6,7 @@
  * initializeWorkerCore are in @lushly-dev/violet-afd/worker.
  */
 
-export type { Database } from './storage.js';
 export { createMemoryDatabase } from './db/memory.js';
 export * from './openapi/index.js';
+export type { Database } from './storage.js';
 export * from './tokens.js';
