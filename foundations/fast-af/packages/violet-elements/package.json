@@ -22,7 +22,7 @@
   "customElements": "custom-elements.json",
   "sideEffects": true,
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.lib.json",
@@ -50,7 +50,7 @@
     "README.md"
   ],
   "devDependencies": {
-    "@biomejs/biome": "^2.4.7",
+    "@biomejs/biome": "^2.5.14",
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@lushly-dev/fast-element": "workspace:*",
     "@lushly-dev/specimen": "workspace:*",

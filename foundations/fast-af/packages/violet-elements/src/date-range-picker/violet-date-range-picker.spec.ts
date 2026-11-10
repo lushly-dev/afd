@@ -416,7 +416,7 @@ describe("violet-date-range-picker", () => {
             document.body.removeEventListener("change", outer);
 
             expect(outer).toHaveBeenCalledTimes(1);
-            expect((outer.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ start: "2026-03-05", end: null });
+            expect((outer.mock.calls[0]![0] as CustomEvent).detail).toEqual({ start: "2026-03-05", end: null });
         });
 
         it("selects a range by clicking two days in the calendar", async () => {

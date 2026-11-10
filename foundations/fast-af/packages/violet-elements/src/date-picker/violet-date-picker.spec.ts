@@ -385,7 +385,7 @@ describe("violet-date-picker", () => {
             await nextFrame();
 
             expect(change).toHaveBeenCalledTimes(1);
-            expect((change.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ value: "2026-03-25" });
+            expect((change.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: "2026-03-25" });
             const inputDetails = input.mock.calls.map(([event]) => (event as CustomEvent).detail);
             expect(inputDetails).toContainEqual({ value: "2026-03-25" });
         });

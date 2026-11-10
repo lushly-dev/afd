@@ -45,11 +45,11 @@
       "upstream_sha256": "9d8f4bd850b1005a03ada66e5c9ac571d2b4e041d78fee7b45b87afd08644b1a",
       "staged_path": "biome.json",
       "staged_sha256": "9d8f4bd850b1005a03ada66e5c9ac571d2b4e041d78fee7b45b87afd08644b1a",
-      "current_import_sha256": "9d8f4bd850b1005a03ada66e5c9ac571d2b4e041d78fee7b45b87afd08644b1a",
+      "current_import_sha256": "934719de10ee3ae4a28319dc600691d89ffb0a70767b10168f955a5a5da4e710",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome moves from upstream 2.4.8 to the workspace's ^2.5.14; biome migrate updates the schema URL to 2.5.14 and the deprecated linter.rules.recommended: true to the equivalent preset: \"recommended\"; no rule or severity changes"
     },
     {
       "path": "foundations/fast-af/packages/element/LICENSE",
@@ -5566,12 +5566,12 @@
       "upstream_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
       "staged_path": "packages/violet-elements/package.json",
       "staged_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
-      "current_import_sha256": "eb19de5c600a830e98bf438b611d3c93ed3af99bc6002c9e2c3b6368e4607a8d",
-      "manifest_shape_sha256": "36b45da954bde87bf01ff628b57bb17bd856d8a7f527323fca59a58b68c2e5c4",
+      "current_import_sha256": "52b2aec88e65fb4cc9eed937970994e9f12e3209d4d2ffed06acc46eca32131e",
+      "manifest_shape_sha256": "39671ebd60c62b68f93e306a81f5fec729a91c1bcc5bfb11d2eeae2ee009a839",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af)"
+      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #600: engines.node raised from the upstream >=20.0.0 (Node 20 is end-of-life) to AFD's >=22.12.0 floor; devDependency @biomejs/biome moves from upstream ^2.4.7 to the workspace's ^2.5.14"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/scripts/build-icons.mjs",
@@ -5927,11 +5927,11 @@
       "upstream_sha256": "26686c2890ff2bd5fd081c02a61102d7407b020432841b774da1d82317ceb049",
       "staged_path": "packages/violet-elements/src/calendar/violet-calendar.spec.ts",
       "staged_sha256": "26686c2890ff2bd5fd081c02a61102d7407b020432841b774da1d82317ceb049",
-      "current_import_sha256": "a1ebcbab6a1c670101c4787e8442e87fbd03ff00fda5df29526566b855526cef",
+      "current_import_sha256": "f8863417bc368881e058d8d8a89de6131ee655e7f64bf99c6830e2b984f170c2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; #600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/calendar/violet-calendar.stories.ts",
@@ -6035,11 +6035,11 @@
       "upstream_sha256": "fe0620c37ae59599f049e1562993eb5b96a9b4e685e5221e7502a2c388ea9a59",
       "staged_path": "packages/violet-elements/src/checkbox/violet-checkbox.spec.ts",
       "staged_sha256": "fe0620c37ae59599f049e1562993eb5b96a9b4e685e5221e7502a2c388ea9a59",
-      "current_import_sha256": "fe0620c37ae59599f049e1562993eb5b96a9b4e685e5221e7502a2c388ea9a59",
+      "current_import_sha256": "ea1e8ddf2dccbc435f088d4f846fc3557d0ecd3a651cc2ecba27c33ddfe22f01",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/checkbox/violet-checkbox.stories.ts",
@@ -6071,11 +6071,11 @@
       "upstream_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
       "staged_path": "packages/violet-elements/src/color-picker/violet-color-picker.spec.ts",
       "staged_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
-      "current_import_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
+      "current_import_sha256": "c1410d558431d419348175d5249e5c3659ee4dcf5f5b41f9040d6dbe2b424aae",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #230) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #230)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.stories.ts",
@@ -6155,11 +6155,11 @@
       "upstream_sha256": "3914322d5c63782876243342da7094af54e841f7b56aa5567d2facb55853985b",
       "staged_path": "packages/violet-elements/src/combobox/violet-combobox.spec.ts",
       "staged_sha256": "3914322d5c63782876243342da7094af54e841f7b56aa5567d2facb55853985b",
-      "current_import_sha256": "b591c7e683877b2e998398335b23dc3c812c921fd2d1e11af00e8543cc863248",
+      "current_import_sha256": "514ae2772cf12b95ab2ce05bc67aa9d2ab43dfddf41c6c8b8e049e10a08a9ba4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); #600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/combobox/violet-combobox.stories.ts",
@@ -6767,11 +6767,11 @@
       "upstream_sha256": "3fb908633bfdad5d8d4d6567cf19d3274d0aac827ceccd21be55a2af2c02dc56",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-data.ts",
       "staged_sha256": "3fb908633bfdad5d8d4d6567cf19d3274d0aac827ceccd21be55a2af2c02dc56",
-      "current_import_sha256": "3fb908633bfdad5d8d4d6567cf19d3274d0aac827ceccd21be55a2af2c02dc56",
+      "current_import_sha256": "31804cb432a0fd40c85c42cf97a9e6c3a45c01f73ef3e0e0c0ec38fdb46dce31",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-editing.spec.ts",
@@ -7187,11 +7187,11 @@
       "upstream_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.spec.ts",
       "staged_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
-      "current_import_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
+      "current_import_sha256": "285e55710c64dee1da38d290e35c91f217d4d1e7aa573064e7653345ab876dfa",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #237) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #237)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.stories.ts",
@@ -7451,11 +7451,11 @@
       "upstream_sha256": "bb746c838be7268ac3070ea1912553372072cdd11d745276b36762542bd7d5d4",
       "staged_path": "packages/violet-elements/src/date-picker/violet-date-picker.spec.ts",
       "staged_sha256": "bb746c838be7268ac3070ea1912553372072cdd11d745276b36762542bd7d5d4",
-      "current_import_sha256": "bb746c838be7268ac3070ea1912553372072cdd11d745276b36762542bd7d5d4",
+      "current_import_sha256": "752523db86f2215173a106cbe206f0758866582e9f1b362ab43a53abe4ed1720",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-picker/violet-date-picker.stories.ts",
@@ -7487,11 +7487,11 @@
       "upstream_sha256": "9d937a85b73ea70055aea44451499ac5114e8110f4161fbf92fceb1b6a2836cc",
       "staged_path": "packages/violet-elements/src/date-range-picker/violet-date-range-picker.spec.ts",
       "staged_sha256": "9d937a85b73ea70055aea44451499ac5114e8110f4161fbf92fceb1b6a2836cc",
-      "current_import_sha256": "9d937a85b73ea70055aea44451499ac5114e8110f4161fbf92fceb1b6a2836cc",
+      "current_import_sha256": "417ef62ab04b22bb0fbcfbc615adc75dcfc4b4e8b031f77edf0556f92c6fb062",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-range-picker/violet-date-range-picker.stories.ts",
@@ -7571,11 +7571,11 @@
       "upstream_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.ts",
       "staged_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
-      "current_import_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
+      "current_import_sha256": "98cc4815af6f03c12d671e9a7ba96bb9ce9e2abfdac0cb8a31c873e045a29404",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #235)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/divider/violet-divider.spec.ts",
@@ -7679,11 +7679,11 @@
       "upstream_sha256": "101de53668141232f9d834d0120222f3670e669bc05c0eb2dd249c5e1db6213c",
       "staged_path": "packages/violet-elements/src/file-explorer/violet-file-explorer.ts",
       "staged_sha256": "101de53668141232f9d834d0120222f3670e669bc05c0eb2dd249c5e1db6213c",
-      "current_import_sha256": "101de53668141232f9d834d0120222f3670e669bc05c0eb2dd249c5e1db6213c",
+      "current_import_sha256": "15d66fed144cc5664943275cb1004dd0656560f1a7bf38b30c5019a6b128d26a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/file-upload/violet-file-upload.spec.ts",
@@ -7715,11 +7715,11 @@
       "upstream_sha256": "be8ee5e6c67c08e897e6f3f222f36a0ebc27737d627243bea35c30057883163a",
       "staged_path": "packages/violet-elements/src/file-upload/violet-file-upload.ts",
       "staged_sha256": "be8ee5e6c67c08e897e6f3f222f36a0ebc27737d627243bea35c30057883163a",
-      "current_import_sha256": "be8ee5e6c67c08e897e6f3f222f36a0ebc27737d627243bea35c30057883163a",
+      "current_import_sha256": "c081614db114ee811985c0299c8d5ed00ea72b7b8c2ba3bb8b69e18b212670e2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noExtraBooleanCast on a Boolean() call inside a conditional test; rewritten to the equivalent truthiness test with the same result for every input"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/foundations/reference-component-set.ts",
@@ -7787,11 +7787,11 @@
       "upstream_sha256": "ac6cde9d2647adb6e9867eb3617a23ef71a8c22a52a16e756768f3a2effdcf1a",
       "staged_path": "packages/violet-elements/src/foundations/violet-form-disabled.ts",
       "staged_sha256": "ac6cde9d2647adb6e9867eb3617a23ef71a8c22a52a16e756768f3a2effdcf1a",
-      "current_import_sha256": "ac6cde9d2647adb6e9867eb3617a23ef71a8c22a52a16e756768f3a2effdcf1a",
+      "current_import_sha256": "ddcb338d72b5cde4948b35358399b8eff09101ccb45a2ec738d9da3a1fc23d3e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports useOptionalChain; rewritten to the equivalent optional chain with the same result for every input"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/foundations/violet-foundations.stories.ts",
@@ -9467,11 +9467,11 @@
       "upstream_sha256": "ac3c3f845c0723a2baabe93b8cf9ace92e8be034576113388ea0897fa2e6bfbd",
       "staged_path": "packages/violet-elements/src/tree-item/violet-tree-item.spec.ts",
       "staged_sha256": "ac3c3f845c0723a2baabe93b8cf9ace92e8be034576113388ea0897fa2e6bfbd",
-      "current_import_sha256": "ac3c3f845c0723a2baabe93b8cf9ace92e8be034576113388ea0897fa2e6bfbd",
+      "current_import_sha256": "b5a52214d09311104391c57eec2e7129428cdb6b14d055d0b504a89fb464f1c4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tree-item/violet-tree-item.stories.ts",

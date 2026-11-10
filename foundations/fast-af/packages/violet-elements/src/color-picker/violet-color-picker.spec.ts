@@ -51,7 +51,7 @@ function trackEvents(picker: VioletColorPicker): Array<{ type: string; value: st
 /** Opens the editor from the keyboard; the picker focuses and selects its hex field. */
 async function openEditor(picker: VioletColorPicker): Promise<HTMLInputElement> {
     const input = picker.shadowRoot?.querySelector(".hex-input") as HTMLInputElement;
-    (picker.shadowRoot?.querySelector(".trigger") as HTMLButtonElement).focus();
+    (picker.shadowRoot!.querySelector(".trigger") as HTMLButtonElement).focus();
     await userEvent.keyboard("{Enter}");
     await nextFrame();
     await nextFrame();
