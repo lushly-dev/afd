@@ -8,7 +8,14 @@ import { fileURLToPath } from 'node:url';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
 import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
-import type { Browser, BrowserContext, BrowserContextOptions, Frame, Page } from 'playwright';
+import {
+	type Browser,
+	type BrowserContext,
+	type BrowserContextOptions,
+	chromium,
+	type Frame,
+	type Page,
+} from 'playwright';
 import { createMountRelay, type MountRelay } from '../mounted/mount-relay';
 
 export const DIST = resolve(fileURLToPath(new URL('../../dist', import.meta.url)));
@@ -279,6 +286,12 @@ export interface ShellPage {
 	violationFrames: Array<{ frame: string; violation: string }>;
 	/** Page errors and console errors. */
 	errors: string[];
+	/**
+	 * The page's `Content-Security-Policy` response header, which the hosted server sends beside the `<meta>`
+	 * (phase 6 specification, 3.5), or `null` from a static host. Both are enforced, so a violation of
+	 * either reaches `violations`.
+	 */
+	responsePolicy: string | null;
 }
 
 export const CSP_PROBE = () => {
@@ -305,6 +318,7 @@ export async function openPage(
 		violations: [],
 		violationFrames: [],
 		errors: [],
+		responsePolicy: null,
 	};
 	page.on('pageerror', (error) => watched.errors.push(error.message));
 	page.on('console', (message) => {
@@ -316,7 +330,8 @@ export async function openPage(
 		} else watched.errors.push(message.text());
 	});
 	await page.addInitScript(CSP_PROBE);
-	await page.goto(url);
+	const response = await page.goto(url);
+	watched.responsePolicy = response?.headers()['content-security-policy'] ?? null;
 	await page.waitForFunction(() => document.documentElement.dataset.loamHost !== undefined);
 	return watched;
 }
@@ -602,4 +617,16 @@ export async function measureFirstPaint(page: Page): Promise<string[]> {
 				.map((entry) => new URL(entry.name).pathname),
 		];
 	});
+}
+
+// ─── The hosted development profile ───────────────────────────────────────────
+
+/**
+ * Chromium for `DevHost`s (phase 6 specification, 5.2): it trusts those profiles' certificates alone, by their
+ * public key's hash, so any other certificate is still refused and cookies are `Secure` as in production.
+ * Pages open with `openShell(browser, devHost.root, options, context)`.
+ */
+export function launchForDevHost(...hosts: Array<{ spki: string }>): Promise<Browser> {
+	const list = hosts.map(({ spki }) => spki).join(',');
+	return chromium.launch({ args: [`--ignore-certificate-errors-spki-list=${list}`] });
 }

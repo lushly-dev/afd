@@ -15,6 +15,7 @@
 		"test": "vitest run --config vitest.config.ts",
 		"test:browser": "pnpm -F @lushly-dev/specimen build:host && vitest run --config vitest.browser.config.ts && vitest run --config vitest.conformance.config.ts",
 		"test:walk": "vitest run --config vitest.walk.config.ts",
+		"test:hosted": "vitest run --config vitest.hosted.config.ts",
 		"build:umbel": "cd ../../../umbel && export CARGO_TARGET_DIR=\"${LOAM_UMBEL_TARGET_DIR:-${CARGO_TARGET_DIR:-target}}\" && cargo build --locked -p umbel --bin umbel && cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp",
 		"test:mounted": "pnpm -F @lushly-dev/loam-web build:umbel && vitest run --config vitest.mounted.config.ts",
 		"budget": "node scripts/budget.mjs"
@@ -38,6 +39,7 @@
 		"@lushly-dev/loam-app-tally": "workspace:*",
 		"@lushly-dev/loam-app-tasks": "workspace:*",
 		"@lushly-dev/loam-cli": "workspace:*",
+		"@lushly-dev/loam-host": "workspace:*",
 		"@lushly-dev/loam-sdk": "workspace:*",
 		"@lushly-dev/loam-testing": "workspace:*",
 		"@lushly-dev/specimen": "workspace:*",
