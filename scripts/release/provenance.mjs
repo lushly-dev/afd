@@ -6,6 +6,10 @@
  * `pnpm version-packages` runs it after Changesets, before it writes the release intent, so the
  * release pull request passes the provenance tests and its intent already covers the records.
  *
+ * An imported `package.json` also records `manifest_shape_sha256`, the digest of the manifest with
+ * every dependency range blanked, so a change to ranges alone (a Dependabot update) is not an
+ * adaptation: the provenance tests accept it until the file's next recorded change.
+ *
  *   node scripts/release/provenance.mjs <family> "<reason>"
  */
 import { execFileSync } from 'node:child_process';
@@ -35,6 +39,32 @@ export const PROVENANCE_FAMILIES = {
 };
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const DEPENDENCY_FIELDS = [
+	'dependencies',
+	'devDependencies',
+	'peerDependencies',
+	'optionalDependencies',
+];
+
+/** The digest of a manifest with each dependency's range blanked: names and every other field count. */
+export function manifestShape(bytes) {
+	const manifest = JSON.parse(bytes.toString('utf8'));
+	for (const field of DEPENDENCY_FIELDS)
+		if (manifest[field])
+			manifest[field] = Object.fromEntries(Object.keys(manifest[field]).map((name) => [name, '']));
+	return sha(JSON.stringify(manifest));
+}
+
+/**
+ * Whether an imported file's bytes match its record: its digest, or, for a manifest, its shape, so
+ * a dependency update changing ranges only passes and any other edit still needs recording.
+ */
+export function matchesRecord(file, bytes) {
+	if (sha(bytes) === file.current_import_sha256) return true;
+	return Boolean(file.manifest_shape_sha256) && manifestShape(bytes) === file.manifest_shape_sha256;
+}
+
+const isManifest = (path) => path === 'package.json' || path.endsWith('/package.json');
 
 /** The family's files Git sees, tracked or untracked but not ignored, outside its records. */
 export function provenancePaths(root, family) {
@@ -66,7 +96,9 @@ export function recordProvenance(root, family, reason) {
 	const recorded = new Map(adaptations.files.map((file) => [file.path, file]));
 	const changed = [];
 	for (const path of provenancePaths(root, family)) {
-		const digest = sha(readFileSync(join(root, path)));
+		const bytes = readFileSync(join(root, path));
+		const digest = sha(bytes);
+		const shape = isManifest(path) ? { manifest_shape_sha256: manifestShape(bytes) } : {};
 		const file = recorded.get(path);
 		if (!file)
 			adaptations.files.push({
@@ -76,6 +108,7 @@ export function recordProvenance(root, family, reason) {
 				staged_path: null,
 				staged_sha256: null,
 				current_import_sha256: digest,
+				...shape,
 				stage_classification: 'post-import-addition',
 				stage_reason: 'New local work with no selected upstream or staging predecessor',
 				import_classification: 'added-after-import',
@@ -83,6 +116,7 @@ export function recordProvenance(root, family, reason) {
 			});
 		else if (file.current_import_sha256 !== digest) {
 			file.current_import_sha256 = digest;
+			Object.assign(file, shape);
 			if (file.import_classification === 'unchanged-staged') {
 				file.import_classification = 'modified-after-staging';
 				file.import_reason = reason;

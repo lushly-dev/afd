@@ -5,7 +5,12 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
-import { recordProvenance, recordReleaseProvenance } from './provenance.mjs';
+import {
+	manifestShape,
+	matchesRecord,
+	recordProvenance,
+	recordReleaseProvenance,
+} from './provenance.mjs';
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const write = (root, file, text) => {
@@ -64,6 +69,8 @@ test("a release's Changesets edits are recorded, and the records' digest follows
 	const adaptations = read(root, 'foundations/specimen/provenance/adaptations.json');
 	const [manifest, changelog] = adaptations.files;
 	assert.equal(manifest.current_import_sha256, sha(versioned));
+	assert.equal(manifest.manifest_shape_sha256, manifestShape(Buffer.from(versioned)));
+	assert.equal(changelog.manifest_shape_sha256, undefined, 'only manifests have a shape');
 	assert.deepEqual(
 		[manifest.import_classification, manifest.import_reason],
 		['modified-after-staging', 'Versioned']
@@ -90,4 +97,34 @@ test('recording requires a known family and a reason', (t) => {
 	const root = fixture(t);
 	assert.throws(() => recordProvenance(root, 'violet', 'x'), /No provenance for family: violet/);
 	assert.throws(() => recordProvenance(root, 'specimen', ' '), /reason is required/);
+});
+
+test('a manifest whose dependency ranges alone changed still matches its record', () => {
+	const reviewed = `${JSON.stringify(
+		{
+			name: '@fixture/specimen',
+			scripts: { test: 'vitest' },
+			dependencies: { lit: '^3.0.0' },
+			devDependencies: { typescript: '~5.9.3', vitest: '^3.2.0' },
+		},
+		null,
+		'\t'
+	)}\n`;
+	const file = {
+		current_import_sha256: sha(reviewed),
+		manifest_shape_sha256: manifestShape(Buffer.from(reviewed)),
+	};
+	const edit = (from, to) => Buffer.from(reviewed.replace(from, to));
+	assert.ok(matchesRecord(file, Buffer.from(reviewed)));
+	// A Dependabot update: ranges move, nothing else does.
+	assert.ok(matchesRecord(file, edit('~5.9.3', '~7.0.2')));
+	assert.ok(matchesRecord(file, edit('^3.0.0', '^3.3.1')));
+	// Anything else is an adaptation to record: a dependency added or renamed, or another field.
+	assert.ok(!matchesRecord(file, edit('"lit"', '"lit-html"')));
+	assert.ok(!matchesRecord(file, edit('"vitest": "^3.2.0"', '"vitest": "^3.2.0",\n\t\t"x": "1"')));
+	assert.ok(!matchesRecord(file, edit('"test": "vitest"', '"test": "vitest run"')));
+	// A record without a shape (any file but a manifest) matches its digest only.
+	assert.ok(
+		!matchesRecord({ current_import_sha256: file.current_import_sha256 }, edit('~5.9.3', '~7.0.2'))
+	);
 });

@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
+import { matchesRecord } from './release/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const directory = 'foundations/violet/provenance';
@@ -177,9 +178,8 @@ test('every imported Violet file is present, recorded and unchanged since review
 		assert(existsSync(join(root, file.path)), `missing or ignored: ${file.path}`);
 		assert(present.includes(file.path), `not visible to Git (check .gitignore): ${file.path}`);
 		assert(known.has(file.classification), `${file.path}: ${file.classification}`);
-		assert.equal(
-			sha(beforeRelease(file.path, readFileSync(join(root, file.path)))),
-			file.current_import_sha256,
+		assert(
+			matchesRecord(file, beforeRelease(file.path, readFileSync(join(root, file.path)))),
 			`${file.path} changed; record the adaptation`
 		);
 		if (unchanged.has(file.classification))
