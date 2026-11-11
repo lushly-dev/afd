@@ -10,7 +10,12 @@ on:
         required: true
         type: string
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# A group keeps one pending run, and a newer run replaces it. So a recovery dispatch has a group of
+# its own: in the pushes' group, a push to main cancelled a recovery that was waiting behind an
+# earlier push's run (twice on 2026-11-11). The group is not what keeps two runs from publishing.
+# The durable claim is: a push run stops at a failed or pending claim, and a recovery takes over
+# only the exact failed claim its approval names.
+concurrency: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && '-recovery' || '' }}
 
 # `pnpm install` installs the lefthook git hooks, and the Changesets action pushes the release
 # branch: the pre-push hook would run package tests against unbuilt output on the runner.

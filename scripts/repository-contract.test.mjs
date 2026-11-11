@@ -149,6 +149,36 @@ test('npm publication requires durable ownership before upload and completion af
 	assert.match(workflow, /registry versions exist without verified finalization/);
 });
 
+test('a push to main cannot cancel a recovery dispatch that is waiting', () => {
+	const workflow = read('.github/workflows/release.yml');
+	// One concurrency group keeps a single pending run, and a newer run replaces it. In the pushes'
+	// group, a push therefore cancelled a recovery waiting behind an earlier push's run.
+	const group = workflow.match(/^concurrency: (.+)$/m)?.[1];
+	assert.equal(
+		group,
+		"${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && '-recovery' || '' }}"
+	);
+	// A run that is publishing or recovering is never cancelled either.
+	assert.doesNotMatch(workflow, /cancel-in-progress/);
+	// What the groups no longer serialize, the claim does: a push run reads it before anything it
+	// could publish, and only the recovery job reconciles.
+	const release = workflow.slice(
+		workflow.indexOf('\n  release:'),
+		workflow.indexOf('\n  recover:')
+	);
+	const recover = workflow.slice(workflow.indexOf('\n  recover:'));
+	assert.match(release, /if: >-\n\s+github\.event_name == 'push'/);
+	assert.ok(
+		release.indexOf('release-claim.mjs inspect') < release.indexOf('run: pnpm check:all'),
+		'a push run reads the claim before the gate and the upload'
+	);
+	assert.match(
+		recover,
+		/if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'/
+	);
+	assert.doesNotMatch(release, /release-recover\.mjs/);
+});
+
 test('the release tag token is narrow, late and reaches only the tag push', () => {
 	const workflow = read('.github/workflows/release.yml');
 	const release = workflow.slice(
