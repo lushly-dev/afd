@@ -61,6 +61,7 @@ const element = z
 			.strict(),
 		styles: z.record(z.string(), z.string()),
 		state: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+		accessibility: z.object({ role: z.string(), name: z.string() }).strict().optional(),
 	})
 	.strict();
 const axeFindingSchema = z.strictObject({

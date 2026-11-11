@@ -296,28 +296,18 @@ impl Page<'_> {
             .ok_or_else(|| anyhow!("The bench page has no #specimen-root"))
     }
 
-    /// The backend ids of the DOM nodes under `root`, through open and closed shadow roots.
-    pub async fn subtree_backend_ids(&self, root: i64) -> Result<std::collections::HashSet<i64>> {
-        let described = self
+    /// The DOM under `root`, whole, through open and closed shadow roots.
+    pub async fn subtree(&self, root: i64) -> Result<Value> {
+        let mut described = self
             .send(
                 "DOM.describeNode",
                 json!({ "backendNodeId": root, "depth": -1, "pierce": true }),
             )
             .await?;
-        let mut ids = std::collections::HashSet::new();
-        let mut pending: Vec<&Value> = described.get("node").into_iter().collect();
-        while let Some(node) = pending.pop() {
-            ids.extend(node.get("backendNodeId").and_then(Value::as_i64));
-            for key in ["children", "shadowRoots"] {
-                pending.extend(
-                    node.get(key)
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten(),
-                );
-            }
-        }
-        Ok(ids)
+        Ok(described
+            .get_mut("node")
+            .map(Value::take)
+            .unwrap_or(Value::Null))
     }
 
     /// Resolve a declared target to the one element it must identify.
@@ -809,6 +799,25 @@ fn normalize_name(name: &str) -> String {
         .filter(|c| !matches!(c, '\u{200b}' | '\u{ad}'))
         .collect();
     stripped.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The backend ids of the DOM nodes in `node`, a subtree from `Page::subtree`, through open and
+/// closed shadow roots.
+pub fn backend_ids(node: &Value) -> std::collections::HashSet<i64> {
+    let mut ids = std::collections::HashSet::new();
+    let mut pending: Vec<&Value> = vec![node];
+    while let Some(node) = pending.pop() {
+        ids.extend(node.get("backendNodeId").and_then(Value::as_i64));
+        for key in ["children", "shadowRoots"] {
+            pending.extend(
+                node.get(key)
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+    }
+    ids
 }
 
 #[cfg(test)]
