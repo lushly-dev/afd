@@ -450,10 +450,9 @@ export const Good = {
 			expect(
 				await frame.evaluate(() => getComputedStyle(document.documentElement).colorScheme)
 			).toBe('dark');
-			await page.getByRole('combobox', { name: 'Theme' }).selectOption('light');
 			await Promise.all([
 				page.waitForURL(/[?&]theme=light(?:&|$)/),
-				page.getByRole('button', { name: 'Apply' }).click(),
+				page.getByRole('combobox', { name: 'Theme' }).selectOption('light'),
 			]);
 			await page.frameLocator('iframe').locator('.viewport-button').waitFor();
 			const lightFrame = page.frames().find((candidate) => candidate.parentFrame());
@@ -462,10 +461,9 @@ export const Good = {
 			expect(
 				await lightFrame.evaluate(() => getComputedStyle(document.documentElement).colorScheme)
 			).toBe('light');
-			await page.getByRole('combobox', { name: 'Theme' }).selectOption('high-contrast');
 			await Promise.all([
 				page.waitForURL(/[?&]theme=high-contrast(?:&|$)/),
-				page.getByRole('button', { name: 'Apply' }).click(),
+				page.getByRole('combobox', { name: 'Theme' }).selectOption('high-contrast'),
 			]);
 			await page.frameLocator('iframe').locator('.viewport-button').waitFor();
 			const contrastFrame = page.frames().find((candidate) => candidate.parentFrame());
