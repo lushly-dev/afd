@@ -46,7 +46,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | B2a. Roles in a capture | Not started | Specimen's T12 |
 | B3. `specimen-pack` | Not started | Specimen's T12 |
 | B4. FAST-AF's pack | Not started | Specimen's T12 |
-| C1. Skeleton and reader | Done; see the session log. `components-brief` is declared and answers `NOT_IMPLEMENTED` until C2 | Plugin specification, section 12 and its amendments from step C1; `tests/fixtures_invalid.rs`, `tests/refusal.rs` and the Umbel gate |
+| C1. Skeleton and reader | Done 2026-11-10 in [#976](https://github.com/lushly-dev/afd/pull/976). `components-brief` is declared and answers `NOT_IMPLEMENTED` until C2 | Plugin specification, section 12 and its amendments from step C1; `tests/fixtures_invalid.rs`, `tests/refusal.rs` and the Umbel gate |
 | C2. `components-brief` | Not started | Plugin specification, section 12 |
 | C3. Skill and surfaces | Not started | Plugin specification, section 12 |
 | C4. Exit tests | Not started; needs B4 | Plugin specification, section 12 |
