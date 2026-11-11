@@ -90,6 +90,8 @@ A story runs in one chain, as under Storybook's runner: render, then play, then 
 
 That timing can miss what a component draws on its next frame, such as a FAST component applying its args: Storybook's check runs before then. `test: { settledAccessibility: true }` adds a second check once the story has settled, with its elements defined, its fonts loaded and two frames drawn, under the same policy. The run reports it as `settled`, beside `a11y`, and a violation there fails the story as `settled-a11y`. With it on, `specimen-a11y` and a capture's `channels.a11y.axe` report the settled check. It is off by default, so runs agree with Storybook's. AFD's own FAST-AF stories turn it on.
 
+An uncaught error or unhandled rejection from when the story's module loads until its last check fails the story as `error`, naming the message, where Storybook's Vitest addon fails the run. The same two cases are left out as under Vitest: an event with no error value, such as a ResizeObserver notice, and any event of a kind the page listens for itself, which is how a story says it expects one. One raised after the last check is not recorded, because the story's page closes then.
+
 Two things consumers' stories rely on are available:
 
 - `staticDirs` serves directories at the page's origin, as Storybook's option does: `"staticDirs": ["./public", { "from": "./site", "to": "/site" }]`. Paths are relative to the configuration and inside the root.

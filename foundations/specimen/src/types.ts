@@ -865,7 +865,8 @@ export interface StoryOutcome {
 	/** `excluded`: no test exists for the story under the include and exclude tags. */
 	status: 'passed' | 'failed' | 'skipped' | 'excluded';
 	play: 'ran' | 'none';
-	failures: { category: 'render' | 'play' | 'a11y' | 'settled-a11y'; message: string }[];
+	/** `error`: an uncaught error or unhandled rejection between loading the story and its last check. */
+	failures: { category: 'render' | 'play' | 'a11y' | 'settled-a11y' | 'error'; message: string }[];
 	/** The check at Storybook's timing: after the play, before the next frame. */
 	a11y: AxeOutcome;
 	/** The settled check, under the same policy, when `test.settledAccessibility` asks for it. */

@@ -276,7 +276,7 @@ const storyOutcomeSchema = z.strictObject({
 	play: z.enum(['ran', 'none']),
 	failures: z.array(
 		z.strictObject({
-			category: z.enum(['render', 'play', 'a11y', 'settled-a11y']),
+			category: z.enum(['render', 'play', 'a11y', 'settled-a11y', 'error']),
 			message: z.string(),
 		})
 	),

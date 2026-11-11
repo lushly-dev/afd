@@ -25,22 +25,35 @@ interface IncumbentTest {
 	rules: string[];
 }
 
+/** Spawned tools must not inherit a hook's Git environment. */
+function incumbentEnvironment(): NodeJS.ProcessEnv {
+	return {
+		...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
+		STORYBOOK_DISABLE_TELEMETRY: '1',
+	};
+}
+
+/** How Storybook's Vitest run of a project ends, for what fails the run and no one test. */
+async function incumbentExit(project: string): Promise<{ code: number; output: string }> {
+	const options = { cwd: join(compat, project), env: incumbentEnvironment() };
+	try {
+		const { stdout, stderr } = await run(vitest, ['run', '--config', 'vitest.config.ts'], options);
+		return { code: 0, output: `${stdout}${stderr}` };
+	} catch (error) {
+		const { code, stdout, stderr } = error as { code: number; stdout: string; stderr: string };
+		return { code, output: `${stdout}${stderr}` };
+	}
+}
+
 /** Storybook's Vitest run of one fixture project, test by test. */
 async function incumbent(project: string): Promise<IncumbentTest[]> {
 	const output = join(scratch, `${project.replaceAll('/', '-') || 'compat'}.json`);
 	const cwd = join(compat, project);
-	// Spawned tools must not inherit a hook's Git environment.
-	const env = Object.fromEntries(
-		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
-	);
 	try {
 		await run(
 			vitest,
 			['run', '--config', 'vitest.config.ts', '--reporter=json', `--outputFile=${output}`],
-			{
-				cwd,
-				env: { ...env, STORYBOOK_DISABLE_TELEMETRY: '1' },
-			}
+			{ cwd, env: incumbentEnvironment() }
 		);
 	} catch {
 		// Failing fixtures fail the run; the report says which.
@@ -269,6 +282,84 @@ describe('the settled accessibility check', () => {
 		} finally {
 			await bench.close();
 		}
+	}, 300_000);
+});
+
+describe('uncaught errors and unhandled rejections', () => {
+	it('fail the story that raised them, where Storybook fails the run', async () => {
+		const { code, output } = await incumbentExit('page-errors/raised');
+		expect(code, output).toBe(1);
+		// The run's exit alone would be `Fails And Throws` failing its play.
+		expect(output).toMatch(/unhandled error/i);
+		for (const planted of [
+			'planted uncaught error',
+			'planted unhandled rejection',
+			'planted next frame rejection',
+			'planted after the listener left',
+			'planted object rejection',
+			'planted module rejection',
+		])
+			expect(output).toContain(planted);
+		const outcomes = Object.fromEntries(
+			(await candidate('page-errors/raised')).map(({ name, run }) => [name, run.outcome])
+		);
+		const errorOnly = (message: string) => ({
+			status: 'failed',
+			failures: [{ category: 'error', message }],
+		});
+		expect(outcomes.Clean).toMatchObject({ status: 'passed', failures: [] });
+		expect(outcomes['Throws Later']).toMatchObject(
+			errorOnly('Uncaught error: planted uncaught error')
+		);
+		// Rejected as the play ends, with no check to wait through: the run still sees it.
+		expect(outcomes['Rejects Unawaited']).toMatchObject({
+			...errorOnly('Unhandled rejection: planted unhandled rejection'),
+			a11y: { status: 'not-run' },
+		});
+		expect(outcomes['Rejects On Next Frame']).toMatchObject(
+			errorOnly('Unhandled rejection: planted next frame rejection')
+		);
+		expect(outcomes['Throws After Its Listener Left']).toMatchObject(
+			errorOnly('Uncaught error: planted after the listener left')
+		);
+		expect(outcomes['Rejects An Object']).toMatchObject(
+			errorOnly('Unhandled rejection: planted object rejection')
+		);
+		expect(outcomes['Rejects As It Loads']).toMatchObject(
+			errorOnly('Unhandled rejection: planted module rejection')
+		);
+		expect(outcomes['Fails And Throws']?.failures.map((failure) => failure.category)).toEqual([
+			'play',
+			'error',
+		]);
+	}, 300_000);
+
+	it('fail a whole suite, and a settled run too', async () => {
+		const bench = await createSpecimenBench({
+			root: join(compat, 'page-errors/raised'),
+			configFile: join(compat, 'page-errors/raised/settled.config.json'),
+		});
+		try {
+			const suite = await bench.runSuite({ filter: { match: 'Rejects On Next Frame' } });
+			expect(suite.outcome).toBe('failed');
+			expect(suite.stories[0]?.attempts[0]).toMatchObject({
+				settled: { status: 'not-run' },
+				failures: [{ category: 'error' }],
+			});
+		} finally {
+			await bench.close();
+		}
+	}, 300_000);
+
+	it('leave a story alone in the cases Vitest leaves out', async () => {
+		const { code, output } = await incumbentExit('page-errors/expected');
+		expect(code, output).toBe(0);
+		await agree('page-errors/expected', {
+			'Own Listener': 'passed',
+			'Own Rejection Listener': 'passed',
+			'No Error Value': 'passed',
+			'Null Rejection': 'passed',
+		});
 	}, 300_000);
 });
 
