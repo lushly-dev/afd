@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { LoadedConfig } from './config.js';
 import { type CoverageCase, computeCoverage } from './coverage.js';
+import { runCoverage } from './coverage-run.js';
 import { computeGuideCoverage, GUIDE_OBLIGATIONS } from './guide-coverage.js';
 import type { LoadedGuides } from './guides.js';
 import type { ComponentSchema } from './plugin.js';
@@ -243,5 +245,61 @@ describe('guides@1', () => {
 			[played]
 		);
 		expect(computeCoverage(schemas, [guided])).toEqual(computeCoverage(schemas, [plain]));
+	});
+
+	it('takes a capture only a guide claim needs for guides@1 alone, never for the partitions', async () => {
+		const at = (checkpoint: string, claims: Claim[]) => {
+			const { observation } = capture('native', claims, [
+				{ id: 'named', kind: 'state', target: 'x-button' },
+			]);
+			return {
+				...observation,
+				manifest: { checkpoint: { name: checkpoint } },
+			} as unknown as Observation;
+		};
+		const run = async (claims: Claim[]) => {
+			const rendered: string[] = [];
+			const config = {
+				root: '/',
+				config: {},
+				entries: [{ id: 'native', module: './a.js', title: 'A', exportName: 'A' }],
+				schemas: Object.fromEntries(schemas.map((item) => [item.tag, item])),
+				guides,
+			} as unknown as LoadedConfig;
+			const report = await runCoverage(
+				{
+					config,
+					prepare: async () => {},
+					inspect: async () => null,
+					runStory: async () => {
+						throw new Error('No stories here.');
+					},
+					render: async (_id, checkpoint) => {
+						rendered.push(checkpoint);
+						return at(checkpoint, claims);
+					},
+				},
+				{ workers: 1 }
+			);
+			return { rendered, report };
+		};
+		const declared = { source: 'declared' as const, expectations: ['named'] };
+		const guided = await run([
+			{ obligation: 'guide:button.name', checkpoint: 'before', ...declared },
+		]);
+		const plain = await run([]);
+		expect(guided.rendered).toEqual(['after-run', 'before']);
+		expect(plain.rendered).toEqual(['after-run']);
+		const partitions = ({ guides: _, elapsedMs: __, ...rest }: typeof guided.report) => rest;
+		expect(partitions(guided.report)).toEqual(partitions(plain.report));
+		expect(
+			guided.report.guides?.statements.find((item) => item.id === 'guide:button.name')
+		).toMatchObject({ level: 'verified', evidence: [{ checkpoint: 'before' }] });
+		// A partition claim at the same checkpoint still takes it, once, for both sets.
+		const both = await run([
+			{ obligation: 'guide:button.name', checkpoint: 'before', ...declared },
+			{ obligation: 'default', checkpoint: 'before', ...declared },
+		]);
+		expect(both.rendered).toEqual(['after-run', 'before']);
 	});
 });

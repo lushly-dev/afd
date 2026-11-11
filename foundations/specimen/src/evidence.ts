@@ -15,8 +15,9 @@ export function claim(target: Element, obligation: string, expectation: string):
 /**
  * With a check, `claim()` runs it: a guide statement (`guide:<id>`) is verified only by the check
  * its claim carries, so a `guide:` claim needs one. It records the claim only when the check
- * holds, and rethrows when it does not, so the story fails. Outside Specimen it still runs the
- * check, so the story keeps its assertion under any runner.
+ * holds (it fails by throwing, or by returning `false`), and rethrows when it does not, so the
+ * story fails. Outside Specimen it still runs the check, so the story keeps its assertion under
+ * any runner.
  *
  *     await claim(combobox, 'guide:combobox.label-required', 'named-by-label', () =>
  *       expect(input).toHaveAccessibleName('Supplier'));
@@ -39,7 +40,9 @@ export function claim(
 		return;
 	}
 	return (async () => {
-		await check();
+		// A check fails by throwing, as `expect()` does; one that returns `false` fails too.
+		if ((await check()) === false)
+			throw new Error(`The check for '${obligation}' (${expectation}) returned false.`);
 		hook()?.(target, obligation, expectation, ...(guide ? [true] : []));
 	})();
 }

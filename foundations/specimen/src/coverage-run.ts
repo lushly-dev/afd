@@ -75,6 +75,8 @@ export async function runCoverage(
 	const failed: CoverageRun['cases']['failed'] = [];
 	let skipped = 0;
 	const cases: CoverageCase[] = [];
+	/** Captures taken only for a guide claim at an earlier checkpoint. */
+	const guideCases: CoverageCase[] = [];
 	await pool(entries, workers, async ({ id, story }) => {
 		try {
 			if (story) {
@@ -88,16 +90,26 @@ export async function runCoverage(
 			const observation = await render(id, 'after-run', timeoutMs, observe);
 			if (!observation) return;
 			cases.push({ id, observation });
-			// A claim about an earlier checkpoint needs that checkpoint's own capture.
-			const others = new Set(
-				observation.channels.evidence.claims
-					.map((claim) => claim.checkpoint)
-					.filter((checkpoint) => checkpoint !== 'after-run')
-			);
-			for (const checkpoint of others) {
-				const earlier = await render(id, checkpoint, timeoutMs, observe);
-				if (earlier) cases.push({ id, observation: earlier });
-			}
+			// A claim about an earlier checkpoint needs that checkpoint's own capture. One taken only
+			// for a guide claim is evidence for `guides@1` alone, so adding guides never adds a
+			// capture to `schema-partitions@1`.
+			const earlier = (guide: boolean) =>
+				new Set(
+					observation.channels.evidence.claims
+						.filter((claim) => claim.obligation.startsWith(GUIDE_PREFIX) === guide)
+						.map((claim) => claim.checkpoint)
+						.filter((checkpoint) => checkpoint !== 'after-run')
+				);
+			const partitions = earlier(false);
+			const guideOnly = [...earlier(true)].filter((checkpoint) => !partitions.has(checkpoint));
+			for (const [checkpoints, into] of [
+				[partitions, cases],
+				[guideOnly, guideCases],
+			] as const)
+				for (const checkpoint of checkpoints) {
+					const capture = await render(id, checkpoint, timeoutMs, observe);
+					if (capture) into.push({ id, observation: capture });
+				}
 		} catch (error) {
 			failed.push({ id, message: error instanceof Error ? error.message : String(error) });
 		}
@@ -105,12 +117,12 @@ export async function runCoverage(
 	const waivers = config.config.coverage?.waivers;
 	const { unusedWaivers, ...report } = computeCoverage(schemas, cases, waivers);
 	// Its own set: present when the project has guides or a case claims a statement.
-	const claimsGuide = cases.some(({ observation }) =>
+	const claimsGuide = [...cases, ...guideCases].some(({ observation }) =>
 		observation.channels.evidence.claims.some((claim) => claim.obligation.startsWith(GUIDE_PREFIX))
 	);
 	const guides =
 		config.guides || claimsGuide
-			? computeGuideCoverage(config.guides, schemas, cases, request.component)
+			? computeGuideCoverage(config.guides, schemas, [...cases, ...guideCases], request.component)
 			: undefined;
 	return {
 		obligations: COVERAGE_OBLIGATIONS,

@@ -46,6 +46,15 @@ describe('claim()', () => {
 		expect(hook).toHaveBeenLastCalledWith(target, 'property:disabled=true', 'disabled');
 	});
 
+	it('takes a check that returns false as failing', async () => {
+		const hook = vi.fn();
+		global.__specimenClaim = hook;
+		await expect(claim(target, 'guide:button.name', 'named', () => false)).rejects.toThrow(
+			"The check for 'guide:button.name' (named) returned false."
+		);
+		expect(hook).not.toHaveBeenCalled();
+	});
+
 	it('records nothing when the check fails', async () => {
 		const hook = vi.fn();
 		global.__specimenClaim = hook;

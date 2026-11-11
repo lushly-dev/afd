@@ -237,7 +237,6 @@ describe('specimen-coverage', () => {
 		expect(run.counts.represented).toBeGreaterThan(0);
 	});
 
-	let played: CoverageRun | undefined;
 	it('takes a play\u2019s claims, with the same checks and no more trust', async () => {
 		const retained = await createSpecimenBench({
 			root: resolve(import.meta.dirname, '../compat'),
@@ -245,7 +244,6 @@ describe('specimen-coverage', () => {
 		});
 		try {
 			const run = await retained.coverage();
-			played = run;
 			const of = (tag: string, id: string) =>
 				run.components
 					.find((component) => component.tag === tag)
@@ -329,7 +327,6 @@ describe('specimen-coverage', () => {
 			// Adding guides changes nothing schema-partitions@1 reports, its `complete` included.
 			const partitions = ({ guides: _, elapsedMs: __, ...rest }: CoverageRun) => rest;
 			expect(partitions(withGuides)).toEqual(partitions(without));
-			expect(withGuides.invalidClaims).toEqual(played?.invalidClaims);
 			// With no guide files, every guide claim names an unknown statement.
 			expect(without.guides?.statements).toEqual([]);
 			expect(without.guides?.invalidClaims.map((item) => item.reason)).toEqual([
