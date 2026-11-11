@@ -37,7 +37,7 @@
     "verify:exports": "node ./scripts/verify-package-exports.mjs"
   },
   "dependencies": {
-    "@tanstack/virtual-core": "3.13.23",
+    "@tanstack/virtual-core": "3.19.11",
     "tslib": "^2.6.3"
   },
   "peerDependencies": {
