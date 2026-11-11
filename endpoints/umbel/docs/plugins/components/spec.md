@@ -9,10 +9,10 @@
 
 ## Status
 
-- **State:** written 2026-11-10 for step A2 of the Component Briefs plan. **Not approved.** The owner approves it by
-  pull request ([D24](../../decisions.md), [D150](../../decisions.md)); nothing here is implemented.
-  - It decides [D150 to D156](../../decisions.md). Section [13](#13-for-the-owner) has one question for the owner,
-    with a recommendation.
+- **State:** approved by the owner 2026-11-10, by merging #964 (step A2 of the Component Briefs plan,
+  [D24](../../decisions.md), [D150](../../decisions.md)); nothing here is implemented.
+  - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
+    same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
 - **Last verified:** 2026-11-10 against `main` at `a1c52b37`.
   - Read in the code: `sdk/src/lib.rs` (`Plugin`: `manifest`, `assets`, `handle`), `sdk/src/cx.rs`
     (`CallContext::output_budget`, `Cx::pack_read`, `Cx::pack_list`, `Cx::config`, `Cx::log`), `sdk/src/outcome.rs`,
@@ -273,7 +273,9 @@ space's effective copy: the override when the space has one, else the default. T
    the pack, since a tag can be in any of them. A pack with no library is `PACK_EMPTY` (section 9).
 3. **Each touched library, whole.** The catalog, the rules file and every record, each read once. The plugin then
    runs every check the format defines for that library's files (section 3.3). A library is never served from part
-   of its files: every check runs on every call, and only a library with no problem is served.
+   of its files: every check runs on every call, and only a library with no problem is served. A library with a
+   problem does not stop the checking: every touched library is checked before the call answers, so a refusal can
+   say which libraries were fine (section [9.1](#91-a-graceful-refusal)).
 
 Reading every record every call is the price of finding exactly what `checkPack` finds; the pack digest alone needs
 every file's bytes. The format's text limits keep a record small (the four example records are 1 to 4 KiB; a
@@ -301,7 +303,8 @@ bounds the alphabet and length; it does not stop words joined by hyphens or dots
 such as `example-ignore-previous-instructions` passes it. The plugin therefore also runs `umbel-scan` over every
 identifier it reads, with each `-`, `.` and `_` read as a space, and a hit refuses the library as
 `IDENTIFIER_INVALID` at that pointer (an addition to `checkPack`'s answer for that file, counted in the problems like
-any other). This is the residual D153 states: the scan is a net, not a guarantee, and an identifier is never
+any other). A hit on a library's own id is a problem of the pack instead (3.1, 9.1), since that id could not then be
+shown. This is the residual D153 states: the scan is a net, not a guarantee, and an identifier is never
 interpreted, only shown.
 
 ### 3.3 The checks, and how they agree with Specimen's
@@ -740,8 +743,8 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 | Code | When | Retryable | Details | Suggestion |
 | --- | --- | --- | --- | --- |
 | `PACK_EMPTY` | The pack holds no library | No | none | Export a library into the space's pack with `specimen pack-export`, or list what the pack holds with `umbel plugin-show components` |
-| `PACK_INVALID` | A touched library has a problem other than `DIGEST_MISMATCH` and `CATALOG_MISMATCH` (3.3) | No | `library`, `problems` (at most 32), `count` | Re-export the library with `specimen pack-export`; a pack written by hand can be checked with Specimen's `checkPack` |
-| `PACK_INCONSISTENT` | A touched library's only problems are `DIGEST_MISMATCH` or `CATALOG_MISMATCH` (3.3) | Yes | As `PACK_INVALID` | Retry: an export may be replacing the pack. If it persists, re-export it; a hand edit or a partial copy leaves it like this |
+| `PACK_INVALID` | A touched library, or the pack itself (3.1), has a problem other than `DIGEST_MISMATCH` and `CATALOG_MISMATCH` (3.3) | No | `library`, `problems` (at most 32), `count`, `refused`, `servable` (9.1) | Re-export the library with `specimen pack-export`; a pack written by hand can be checked with Specimen's `checkPack`. When `details.servable` is present, pass one of those as `library` to keep working |
+| `PACK_INCONSISTENT` | Every refused library's only problems are `DIGEST_MISMATCH` or `CATALOG_MISMATCH` (3.3) | Yes | As `PACK_INVALID` | Retry: an export may be replacing the pack. If it persists, re-export it; a hand edit or a partial copy leaves it like this. When `details.servable` is present, pass one of those as `library` to keep working |
 | `PACK_TOO_LARGE` | The touched libraries' files pass the host's 16 MiB a call (3.1) | No | `libraries`, the ones touched | Pass `library` to brief from one library; a single library this large has to be split |
 | `PACK_UNREADABLE` | A listed file was gone when read, as when an export swaps the directory | Yes | `library` when known | Retry; if it persists, re-export the pack |
 | `LIBRARY_NOT_FOUND` | `library` or a needed `default_library` names no library in the pack | No | `library`, `libraries` | Pass one of the libraries listed, or call `components-list` |
@@ -756,7 +759,38 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 | `CONTENT_FLAGGED` | Any served item is flagged (5.6) | `count` |
 
 `PACK_INVALID` and `PACK_INCONSISTENT` refuse the whole call, not only the bad library's part, and not only the bad
-record: a library is served whole or not at all (D152; section [13](#13-for-the-owner)).
+record: a library is served whole or not at all (D152; the owner's decision, section [13](#13-for-the-owner)).
+
+### 9.1 A graceful refusal
+
+The owner's decision has two halves: a call that touches a library with a problem fails, and the failure is handled
+gracefully. A refusal therefore is:
+
+- **An ordinary failure.** It is a `CommandResult` failure with a code, a message and a suggestion, not a fault. The
+  host, the plugin's other calls, other spaces and other plugins carry on. Nothing is cached, so the first call after
+  a repair is served.
+- **Free of partial answers.** It holds no record, rule or other pack text, and no `content` part. An agent cannot
+  mistake it for a short brief.
+- **Exact about what is wrong.** The problems are the same ones `checkPack` reports (3.3).
+- **Exact about the way forward.** The details say what can still be served:
+
+  | Detail | Holds |
+  | --- | --- |
+  | `library` | The first refused library, in library order. Absent for a problem of the pack (3.1) |
+  | `problems`, `count` | That library's problems, or the pack's, as 3.3 says |
+  | `refused` | Every touched library with a problem, in library order. Absent for a problem of the pack |
+  | `servable` | Every touched library with no problem, in library order. Absent when there are none, when the call named a `library` (no other was checked), and for a problem of the pack |
+
+  So a call with no `library`, in a pack where one of three libraries is bad, fails and names the two that checked;
+  the same call with `library` set to either of them is served. A problem of the pack has no such way forward: every
+  call is refused until the pack is repaired.
+
+The code is `PACK_INCONSISTENT`, and the failure retryable, only when every refused library's problems are all
+`DIGEST_MISMATCH` or `CATALOG_MISMATCH`. Any other mix is `PACK_INVALID`, since retrying would not cure all of it.
+
+Every value here is an identifier the reader has checked. A library whose own id the scan hits (3.2) is a problem of
+the pack, not of that library, so that id never appears in `library`, `refused` or `servable`; its path is shown as
+3.3 shows a path.
 
 ## 10. Security
 
@@ -783,6 +817,7 @@ Each step's tests are listed with it in section 12. The files:
 | --- | --- |
 | `tests/default_pack.rs` | The default pack equals Specimen's exported fixture, byte for byte (section 4) |
 | `tests/fixtures_invalid.rs` | Each of Specimen's 25 invalid cases fails with its problems and the failure code of 3.3; the committed form is refused; the exported form is served |
+| `tests/refusal.rs` | Section 9.1 on packs of several libraries: one bad library fails a call with no `library`, with `refused` and `servable` right, and the same call naming a servable library is served; naming the bad one fails with no `servable`; several bad libraries, and the mix of 9.1's retry rule; a pack-level problem and a library id the scan hits; no failure holds pack text; the first call after a repair is served |
 | `tests/patterns.rs` | Each pattern and longest length equals Specimen's JSON Schema files'; samples at each boundary |
 | `tests/canonical.rs` | Escapes, key order, integers, a lone surrogate (3.3) |
 | `tests/select.rs` | Tags and source: whole names, `option-group` not `option`, trailing punctuation, `createElement`, template strings, comments, element-position unknowns, ambiguity, nearest names |
@@ -810,7 +845,7 @@ The proposal's phase C, made exact. Each step is one pull request. "The Umbel ga
 
 | Step | Deliverable | Exit |
 | --- | --- | --- |
-| C1. Skeleton and reader | The crate (section 1), its manifest (section 2), the config and input schemas, the default pack and its test (section 4), the reader with every check (section 3), the scan (5.6), `components-list` and `components-open` (section 8), the failures (section 9). The crate added to the workspace, `umbel-first-party`, `umbel.yml` (the crate tested and linted in the job that tests context and `umbel-first-party`, since it dev-depends on the embedded store as they do, and added to the host `Test` step's `--exclude` list beside them; a `wasm32-wasip2` clippy step for it; the Specimen fixture paths in `paths` and the affected gate, section 4), `scripts/affected/suites.mjs` (the same), and the Umbel commands in `AGENTS.md`. Specimen gains the `text-lone-surrogate` invalid case, with a changeset | The Umbel gate; `pnpm test:specimen` for the fixture case; `tests/default_pack.rs`, `fixtures_invalid.rs`, `patterns.rs`, `canonical.rs`, `open.rs`, `list.rs`, `spaces.rs` and `no_plugin_dependency.rs` pass |
+| C1. Skeleton and reader | The crate (section 1), its manifest (section 2), the config and input schemas, the default pack and its test (section 4), the reader with every check (section 3), the scan (5.6), `components-list` and `components-open` (section 8), the failures (section 9). The crate added to the workspace, `umbel-first-party`, `umbel.yml` (the crate tested and linted in the job that tests context and `umbel-first-party`, since it dev-depends on the embedded store as they do, and added to the host `Test` step's `--exclude` list beside them; a `wasm32-wasip2` clippy step for it; the Specimen fixture paths in `paths` and the affected gate, section 4), `scripts/affected/suites.mjs` (the same), and the Umbel commands in `AGENTS.md`. Specimen gains the `text-lone-surrogate` invalid case, with a changeset | The Umbel gate; `pnpm test:specimen` for the fixture case; `tests/default_pack.rs`, `fixtures_invalid.rs`, `refusal.rs`, `patterns.rs`, `canonical.rs`, `open.rs`, `list.rs`, `spaces.rs` and `no_plugin_dependency.rs` pass |
 | C2. `components-brief` | Section 6 and section 7: input, selection, source reading, sections, shared rules once, basis per section, `minimum_basis`, `known`, versions, fitting, `render: "text"` and its golden file | The Umbel gate; `select.rs`, `sections.rs`, `budget.rs`, `render.rs`, `content_stays_content.rs`, `twenty_tags.rs` and `scale.rs` pass: the proposal's criteria 7 and 8, and a 20-tag request in one call |
 | C3. Skill and surfaces | `skills/components-guide/SKILL.md`; the first-class suggestion confirmed in `tools/list` beside the other first-party suggestions (five, under the cap of eight); `surfaces.rs`; the README; this plugin's row in STATUS.md | The Umbel gate; the skill is served on all three delivery paths, as hello's and context's are |
 | C4. Exit tests (needs Specimen's B4) | The proposal's fact fixture (about 40 questions and their JSON answers, plus tags that do not exist) answered from B4's FAST-AF pack exported into a space override; the size test against step 0.1's page set; the end-to-end test (a pack Specimen built and exported, loaded as an override, answering a brief); format version 1 in the reader, the default pack and Specimen, with a changeset | The Umbel gate; `pnpm test:specimen`; `pnpm test:stories`; the proposal's criteria 1 to 8 |
@@ -828,8 +863,10 @@ injecting `render: "text"` passes `maxBytes` to stay inside its own cap.
 
 ## 13. For the owner
 
-**One question.** When a library in the space's pack has a problem, should a call that touches it be refused (the
-recommendation) or served from the parts that check?
+**Decided 2026-11-10: refuse the call, and handle the failure gracefully** (section [9.1](#91-a-graceful-refusal)).
+
+The question, as it was asked: when a library in the space's pack has a problem, should a call that touches it be
+refused (the recommendation) or served from the parts that check?
 
 - **Refuse the call** (D152 as written). A problem means the export was not Specimen's, was edited by hand, or was
   caught mid-swap; Specimen's export and its CI check make each rare. Refusing is loud, and the failure names the
@@ -842,7 +879,7 @@ recommendation) or served from the parts that check?
 
 Nothing here changes Umbel's trust model: content handling is D67 as decided, applied to packs.
 
-Decisions made here that the owner may revisit by amending this document: where a further plugin's specification
+Other decisions made here that the owner may revisit by amending this document: where a further plugin's specification
 lives (D150), reading whole libraries on every call (D152), the shedding order's added steps for commands and gaps
 (D154), and `components-list`'s and `components-open`'s budgets (section 2.1).
 
