@@ -31,8 +31,9 @@ Its name is Mail, Loam Mail in full. Where an identifier has to be unique it is 
 - **Reviewed:** the first version had one independent review (revise; five blockers and eleven
   improvements, all applied) and a focused check of the fixes (approve). The revision's reviews
   are recorded in [STATUS.md](STATUS.md).
-- **Next:** [phase 0](#8-phase-0-measure-before-specifying): the census tool, its run on the
-  owner's accounts, the store measurement, and the owner's decision on the numbers.
+- **Next:** [phase 0](#8-phase-0-measure-before-specifying): the census's run on the owner's
+  accounts, the store measurement again with the census's shape, and the owner's decision on the
+  numbers. The census tool and a first store measurement are in [`prototype/`](prototype/README.md).
 
 ### Revision of 2026-11-10
 

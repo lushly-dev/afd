@@ -6,7 +6,7 @@ asks for before any specification is written. They are not the engine.
 | Tool | Step | State |
 | --- | --- | --- |
 | [`census.py`](census.py) | 0.1 and 0.2: counts from a real mailbox, and what the provider offers | Written, with tests; not yet run on a real account |
-| The store harness | 0.3: a local store at mailbox size | Not written |
+| [`store-bench/`](store-bench/src/main.rs) | 0.3: a local store at mailbox size | Written and run with a default shape; to be run again with the census's shape |
 
 ## The census
 
@@ -57,6 +57,42 @@ deleted while the census runs is counted as vanished and does not make the run i
 **A known limit.** The body comparison reads only the first 128 KiB of a message and does not
 collapse repeated table rows, so it under-reports how often two messages share a body shape. It is
 a check on the header-level template, not a measure the thresholds use.
+
+## The store measurement
+
+`store-bench` imports synthetic messages into SQLite tables shaped for mail and a tantivy index, then
+measures what the proposal's Q3 asks for. It needs a Rust toolchain; it uses the `rusqlite` and
+`tantivy` versions Umbel's embedded store pins.
+
+```sh
+cd store-bench
+cargo build --release
+./target/release/loam_mail_store_bench --messages 500000 --out ../store-500000.results.json
+# With a census file, the shares of templated mail and of replies follow it:
+./target/release/loam_mail_store_bench --messages 500000 --census ../icloud.counts.json
+```
+
+Results of 2026-11-10 on an Apple silicon Mac, with the default shape (six in ten
+messages from recurring templates, three in ten joining an existing thread):
+
+| Measure | Threshold | 100 000 messages | 500 000 messages |
+| --- | --- | --- | --- |
+| Import, store side | at least 500 a second | 9 169 a second | 11 443 a second |
+| List 50 threads, 95th percentile | 50 ms | 1.85 ms | 7.36 ms |
+| Search and read back 50 threads, 95th percentile | 200 ms | 0.94 ms | 1.82 ms |
+| Size on disk against the messages' bytes | at most 3 times | 1.63 times | 1.61 times |
+
+The files are [`store-100000.results.json`](store-100000.results.json) and
+[`store-500000.results.json`](store-500000.results.json). At 500 000 messages the tables took
+1.74 GB and the index 0.52 GB for 1.41 GB of text.
+
+**What these numbers do not show.** The text is made up: pseudo-words drawn so that a few are common
+and most are rare, in plain text with no HTML. The shape is a default, not the census's. Queries ran
+straight after the import, with the files still in the operating system's cache, so a first read
+after a restart will be slower. One process wrote and read; nothing ran beside it. The list reads
+by offset, and its slowest reads are the deepest pages. The harness was not independently
+reviewed. The time and rate thresholds are met by a factor of six or more, and the size is a little over
+half its limit, so these gaps would have to matter a great deal to change the answer.
 
 ## Tests
 
