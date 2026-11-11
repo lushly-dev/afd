@@ -515,7 +515,7 @@
       "staged_path": "packages/specimen/package.json",
       "staged_sha256": "2c1a240634881e2fe2c7d5f691a1466d8e03e343adb7a6d359cc818964b11ba3",
       "current_import_sha256": "0b3cf4a309913e481a95ba51d9b62890cd03c8f9151fba2d8729d41e8e0ce4f4",
-      "manifest_shape_sha256": "9eba96fb2aff016017f49fe91a64a5ebf90ab6bb9b745d244a31bdc5ed214f4e",
+      "manifest_shape_sha256": "43a77959ea871998583ae12c395e619ff2a9afb167fc4763661909d88f0045f4",
       "stage_classification": "modified-upstream",
       "stage_reason": "Remove AFD core/server dependencies and the bin; add the native ./schema export",
       "import_classification": "modified-after-staging",
