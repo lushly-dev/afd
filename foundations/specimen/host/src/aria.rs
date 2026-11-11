@@ -330,8 +330,15 @@ fn open_shadow(node: &Value) -> Vec<&Value> {
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter(|shadow| shadow.get("shadowRootType").and_then(Value::as_str) != Some("closed"))
+        .filter(|shadow| shadow.get("shadowRootType").and_then(Value::as_str) == Some("open"))
         .collect()
+}
+
+/// The accessible elements by reference, and every element reference the DOM gave.
+#[derive(Debug, Default)]
+pub struct Roles {
+    pub accessible: HashMap<String, Accessible>,
+    pub references: HashSet<String>,
 }
 
 /// One element's computed role and accessible name, as Chromium's accessibility tree has them.
@@ -346,9 +353,10 @@ pub struct Accessible {
 /// from `DOM.describeNode` with `depth: -1` and `pierce: true`. A role set through
 /// `ElementInternals` is the element's own, as the tree computes it. An element the tree
 /// ignores, or whose role is `generic`, `none`, `presentation` or one of Chromium's internal
-/// roles, is not accessible and has no entry. Closed shadow roots are left out, as the page's
-/// capture leaves them out.
-pub fn roles(tree: &Value, dom: &Value) -> HashMap<String, Accessible> {
+/// roles, is not accessible and has no entry. Only open shadow roots are walked, as the page's
+/// capture walks only those; the mount root itself, the bench's own wrapper, has no entry.
+/// `references` is every element reference rebuilt, for a check against the page's own.
+pub fn roles(tree: &Value, dom: &Value) -> Roles {
     let mut by_backend = HashMap::new();
     for node in tree
         .get("nodes")
@@ -372,7 +380,7 @@ pub fn roles(tree: &Value, dom: &Value) -> HashMap<String, Accessible> {
             });
         }
     }
-    let mut found = HashMap::new();
+    let mut found = Roles::default();
     let mut pending: Vec<(&Value, String)> = Vec::new();
     for shadow in open_shadow(dom) {
         pending.push((shadow, "root/shadow".to_string()));
@@ -397,12 +405,15 @@ pub fn roles(tree: &Value, dom: &Value) -> HashMap<String, Accessible> {
             let count = counts.entry(local.clone()).or_default();
             *count += 1;
             let reference = format!("{prefix}/{local}:{count}");
+            found.references.insert(reference.clone());
             if let Some(accessible) = child
                 .get("backendNodeId")
                 .and_then(Value::as_i64)
                 .and_then(|backend| by_backend.get(&backend))
             {
-                found.insert(reference.clone(), accessible.clone());
+                found
+                    .accessible
+                    .insert(reference.clone(), accessible.clone());
             }
             for shadow in open_shadow(child) {
                 pending.push((shadow, format!("{reference}/shadow")));
@@ -552,6 +563,8 @@ mod tests {
             element(7, "x-check", json!({})),
             element(8, "x-secret", json!({ "shadowRoots": [{ "nodeType": 11, "shadowRootType": "closed", "backendNodeId": 9,
                 "children": [element(10, "button", json!({}))] }] })),
+            element(13, "input", json!({ "shadowRoots": [{ "nodeType": 11, "shadowRootType": "user-agent", "backendNodeId": 14,
+                "children": [element(15, "div", json!({}))] }] })),
             element(11, "p", json!({ "children": [element(12, "a", json!({}))] })),
         ] }),
         );
@@ -565,7 +578,24 @@ mod tests {
             node("7", "link", json!({ "backendDOMNodeId": 12, "name": { "value": "More" } })),
             node("8", "StaticText", json!({ "backendDOMNodeId": 6, "name": { "value": "text" } })),
         ] });
-        let found = roles(&tree, &dom);
+        let rebuilt = roles(&tree, &dom);
+        let mut references: Vec<_> = rebuilt.references.iter().map(String::as_str).collect();
+        references.sort_unstable();
+        // As the page names them: no closed or user-agent shadow content.
+        assert_eq!(
+            references,
+            [
+                "root/input:1",
+                "root/p:1",
+                "root/p:1/a:1",
+                "root/x-check:1",
+                "root/x-check:1/shadow/button:1",
+                "root/x-check:1/shadow/span:1",
+                "root/x-check:2",
+                "root/x-secret:1",
+            ]
+        );
+        let found = rebuilt.accessible;
         let accessible = |role: &str, name: &str| Accessible {
             role: role.into(),
             name: name.into(),

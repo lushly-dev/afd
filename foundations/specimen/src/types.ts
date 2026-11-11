@@ -551,7 +551,9 @@ export interface ElementObservation {
 	/**
 	 * The element's computed role and accessible name, from Chromium's accessibility tree, when
 	 * it is accessible: a role set through `ElementInternals` included; an ignored element, or
-	 * one whose role is generic, none or presentation, has none. Only the native host reads it.
+	 * one whose role is generic, none or presentation, has none, and so does the mount root. When
+	 * the page changed between its capture and the tree's, no element has one. Only the native
+	 * host reads it.
 	 */
 	accessibility?: { role: string; name: string };
 }

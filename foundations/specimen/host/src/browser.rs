@@ -652,17 +652,38 @@ impl Browser {
             None => aria::exposed_within(&tree, &crate::page::backend_ids(&dom)),
         };
         // Each accessible element's computed role and name, by the reference the page gave it.
+        // The tree is read after the page's capture: if the page changed in between, references
+        // no longer name the same elements, and no role is recorded rather than a wrong one.
         let roles = aria::roles(&tree, &dom);
-        if let Some(elements) = captured.get_mut("elements").and_then(Value::as_array_mut) {
-            for element in elements {
-                let accessible = element
-                    .get("ref")
-                    .and_then(Value::as_str)
-                    .and_then(|reference| roles.get(reference));
-                if let (Some(accessible), Some(element)) = (accessible, element.as_object_mut()) {
-                    element.insert("accessibility".into(), json!(accessible));
+        let page_references: std::collections::HashSet<String> = captured
+            .get("elements")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|element| element.get("ref").and_then(Value::as_str))
+            .filter(|reference| *reference != "root")
+            .map(String::from)
+            .collect();
+        if page_references == roles.references {
+            if let Some(elements) = captured.get_mut("elements").and_then(Value::as_array_mut) {
+                for element in elements {
+                    let accessible = element
+                        .get("ref")
+                        .and_then(Value::as_str)
+                        .and_then(|reference| roles.accessible.get(reference));
+                    if let (Some(accessible), Some(element)) = (accessible, element.as_object_mut())
+                    {
+                        element.insert("accessibility".into(), json!(accessible));
+                    }
                 }
             }
+        } else if let Some(limitations) = captured
+            .get_mut("limitations")
+            .and_then(Value::as_array_mut)
+        {
+            limitations.push(json!(
+                "The page changed between its capture and the accessibility tree's, so no element's role is recorded."
+            ));
         }
         let viewport: Viewport =
             serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
