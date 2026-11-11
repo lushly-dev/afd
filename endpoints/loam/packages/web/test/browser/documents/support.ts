@@ -95,7 +95,18 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  *     the controller saved before a move with no `moveBefore` (5.6; step 12's review G-B1 and re-check N-B1).
  * Empty when they hold, or before the editor area has loaded.
  */
-export function frameViolations(page: Page): Promise<string[]> {
+export async function frameViolations(page: Page): Promise<string[]> {
+	// A check that ran while the queue moved read a frame and its mark mid-change: an autosave can land at any
+	// time, its frame clean before its mark's clear has run. Check again once that work is done.
+	for (let round = 0; round < 20; round++) {
+		const { broken, moved } = await checkFrames(page);
+		if (!moved) return broken;
+	}
+	throw new Error("The editor area's queue kept moving through 20 checks of its frames");
+}
+
+/** The invariants as of a moment the queue is empty, and whether it moved while they were read. */
+function checkFrames(page: Page): Promise<{ broken: string[]; moved: boolean }> {
 	return page.evaluate(async () => {
 		type Frame = HTMLElement & {
 			tab: string;
@@ -139,10 +150,13 @@ export function frameViolations(page: Page): Promise<string[]> {
 					Map<string, [{ workspace: string; project?: string }, string]>,
 					Set<string>,
 				];
+				idle: Promise<void>;
 			};
 		};
+		const queue = shell.editor?.idle;
+		await queue;
 		const lifecycle = shell.editor?.lifecycle;
-		if (!lifecycle) return [];
+		if (!lifecycle) return { broken: [], moved: false };
 		const [visit, frames, parking, leaving, lives, closing, rendered, asking, owed, stalled] =
 			lifecycle;
 		const broken: string[] = [];
@@ -348,7 +362,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 				broken.push(`15: ${frame.tab}'s view editor has a new window, its unsaved work gone`);
 			windows.set(frame, { window: iframe.contentWindow, dirty: frame.dirty, reloads });
 		}
-		return broken;
+		return { broken, moved: shell.editor?.idle !== queue };
 	});
 }
 
