@@ -52,6 +52,8 @@ jobs:
           node-version: 26.x
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - run: pnpm -F @lushly-dev/afd-auth exec playwright install --with-deps chromium
+        timeout-minutes: 10
       # No external endpoints, provider accounts or hosted secrets are configured.
       - run: pnpm test:hosted:local

@@ -86,7 +86,9 @@ jobs:
         run: pnpm -F @lushly-dev/violet-core -F @lushly-dev/violet-afd test:db
       - name: Runtime, CLI and server suites
         run: pnpm -F @lushly-dev/violet-runtime -F @lushly-dev/violet-cli -F @lushly-dev/violet-server test
+      # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Packed-artifact consumers outside the workspace
         run: node tests/consumers/violet/verify-artifacts.mjs --output "$RUNNER_TEMP/violet-receipt"
       - name: Upload consumer receipt

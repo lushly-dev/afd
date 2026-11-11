@@ -78,7 +78,9 @@ jobs:
         run: pnpm -F @lushly-dev/fast-element build
       - name: Build leaves tracked sources and API reports unchanged
         run: git diff --exit-code -- foundations/fast-af && test -z "$(git status --porcelain -- foundations/fast-af)"
+      # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - name: Install Playwright browsers
+        timeout-minutes: 10
         run: >-
           pnpm -F @lushly-dev/fast-element exec playwright install --with-deps
           ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'chromium firefox webkit' || 'chromium' }}
@@ -120,6 +122,7 @@ jobs:
           test -z "$(git status --porcelain -- foundations/fast-af)"
       - run: pnpm -F @lushly-dev/violet-elements lint
       - run: pnpm -F @lushly-dev/violet-elements exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Component browser suite with coverage thresholds
         run: pnpm -F @lushly-dev/violet-elements test:browser
       - name: Packed-artifact consumers outside the workspace
