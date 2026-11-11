@@ -68,6 +68,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
+| [Ideas](./proposed/ideas/ideas.proposal.md) | A store of ideas instead of documents: typed, linked, traceable to sources, held in framings on a hierarchy engine shared with Violet, served by an Umbel `ideas` plugin; proposes host changes for standing, indexed records, similarity and a multi-writer graph |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
