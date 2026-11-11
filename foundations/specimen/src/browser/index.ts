@@ -468,7 +468,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			active = true;
 			watchPageErrors();
 			await observeEntry(entry);
-			const { runStory, checkSettledStory } = await storyRuntime();
+			const { runStory, checkSettledStory, failOnPageErrors } = await storyRuntime();
 			await mountRetained(entry, context, { settle: false });
 			if (!story?.mounted) throw new Error('A retained story did not mount.');
 			await afterMicrotasks();
@@ -479,18 +479,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 				outcome = await checkSettledStory(story.mounted, outcome);
 			}
-			// The browser reports an unawaited rejection in a later task, and `settle` can end on a frame.
-			await new Promise((resolve) => setTimeout(resolve, 0));
-			const errors = takePageErrors();
-			if (!errors.length) return outcome;
-			return {
-				...outcome,
-				status: 'failed',
-				failures: [
-					...outcome.failures,
-					...errors.map((message) => ({ category: 'error' as const, message })),
-				],
-			};
+			return failOnPageErrors(outcome, await takePageErrors());
 		},
 		async mount(entry, context) {
 			if (active)

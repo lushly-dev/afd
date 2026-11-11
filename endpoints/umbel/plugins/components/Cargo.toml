@@ -1,0 +1,37 @@
+[package]
+name = "umbel-plugin-components"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel components plugin: briefs on a component library's components from the space's Specimen pack, a second reader of Specimen's pack format held equal to its checker"
+repository = "https://github.com/lushly-dev/afd"
+
+# No dependency on another plugin crate, of any kind (D3): `tests/no_plugin_dependency.rs` holds
+# that. The source uses no filesystem, clock, thread or network, so it stays inside what a
+# component may do; its component build waits for WIT world 1.1.0 (D151).
+[dependencies]
+# The format's identifier patterns: ASCII-only, Unicode features off, as `umbel-scan` compiles.
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
+serde = { version = "1", features = ["derive"] }
+# JavaScript parses numbers exactly; without this a number can differ in its last bit.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.11"
+umbel-scan = { path = "../../scan" }
+umbel-sdk = { path = "../../sdk" }
+
+[build-dependencies]
+umbel-sdk = { path = "../../sdk" }
+
+[dev-dependencies]
+afd = { path = "../../../../packages/rust", default-features = false }
+tempfile = "3"
+# The tests pass an instance's `config` table.
+toml = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# The tests boot a host with the plugin and its grants, with no loader (so no wasmtime).
+umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
+
+[lints]
+workspace = true

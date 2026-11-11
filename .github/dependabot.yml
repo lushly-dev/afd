@@ -11,10 +11,20 @@ updates:
     ignore:
       # Playwright 1.65's Chromium runs a behavior's connectedCallback before
       # fast-element binds its observables, failing element-controller.pw.spec.ts's
-      # invocation-order test. Lift this when fast-element handles that order.
+      # invocation-order test (#901). Lift this when fast-element handles that order.
+      # Both names are held: with `@playwright/test` alone, the group moved `playwright`
+      # to 1.65 beside it and the lockfile resolved two Playwright copies (#955).
       - dependency-name: '@playwright/test'
         versions:
           - '>=1.65.0'
+      - dependency-name: playwright
+        versions:
+          - '>=1.65.0'
+      # Specimen's `test` helpers are the libraries `storybook/test` bundles, at the
+      # versions it bundles (3.2.4 in Storybook 10.6), so a play means the same in both.
+      # Move these two by hand when Storybook's own dependency on them moves (#958).
+      - dependency-name: '@vitest/expect'
+      - dependency-name: '@vitest/spy'
     groups:
       # fast-element's @playwright/test and every other unit's playwright move in one
       # update, so the lockfile never resolves two playwright copies (#600).
@@ -27,6 +37,11 @@ updates:
         update-types:
           - minor
           - patch
+        # Playwright moves only in the group above. This group took `@playwright/test`
+        # as well and moved it alone, which split the lockfile the same way (#961).
+        exclude-patterns:
+          - playwright
+          - '@playwright/test'
 
   - package-ecosystem: uv
     directory: /python
@@ -68,4 +83,4 @@ updates:
       interval: weekly
     labels:
       - dependencies
-      - ci
+      - area:ci

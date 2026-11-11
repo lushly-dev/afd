@@ -682,5 +682,6 @@ export function getHandoffTTL(handoff: HandoffResult): number | null {
 
 	const expiresAt = new Date(handoff.metadata.expiresAt);
 	const ttl = expiresAt.getTime() - Date.now();
+	// biome-ignore lint/complexity/useMathMinMax: an unparseable expiresAt gives NaN, which this answers with 0 and Math.max would pass through
 	return ttl > 0 ? ttl : 0;
 }

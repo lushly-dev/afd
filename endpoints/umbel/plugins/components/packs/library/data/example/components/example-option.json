@@ -1,0 +1,74 @@
+{
+	"a11y": {
+		"role": [
+			{
+				"basis": "observed",
+				"name": "from its text",
+				"role": "option",
+				"state": "default"
+			}
+		],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "selected",
+				"property": "selected",
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"name": "value",
+				"property": "value",
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "The option's label text.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "example"
+		},
+		{
+			"kind": "unobserved",
+			"name": "value",
+			"section": "attributes"
+		}
+	],
+	"import": "example-components/select.js",
+	"rules": [],
+	"status": "stable",
+	"summary": "One choice in an example-select list.",
+	"tag": "example-option",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "option.inside-select",
+			"text": "Place inside example-select; outside one it is not part of a form."
+		}
+	]
+}

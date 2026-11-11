@@ -18,6 +18,7 @@ import {
 	unsupportedFields,
 	viewportFor,
 } from './csf.js';
+import type { PageError } from './page-errors.js';
 
 type Fields = Record<string, unknown>;
 export interface StoryModule {
@@ -642,4 +643,31 @@ export async function runStory(mounted: MountedStory): Promise<StoryOutcome> {
 	} finally {
 		resume();
 	}
+}
+
+function describeRaised(value: unknown): string {
+	try {
+		const { name, message } = Object(value) as { name?: unknown; message?: unknown };
+		if (typeof message !== 'string') return String(value);
+		return typeof name === 'string' && name !== 'Error' ? `${name}: ${message}` : message;
+	} catch {
+		return 'a value that cannot be printed';
+	}
+}
+
+/** The run, failed by each distinct uncaught error or unhandled rejection the page raised. */
+export function failOnPageErrors(
+	outcome: StoryOutcome,
+	raised: readonly PageError[]
+): StoryOutcome {
+	const messages = new Set(raised.map(([label, value]) => `${label}: ${describeRaised(value)}`));
+	if (!messages.size) return outcome;
+	return {
+		...outcome,
+		status: 'failed',
+		failures: [
+			...outcome.failures,
+			...[...messages].map((message) => ({ category: 'error' as const, message })),
+		],
+	};
 }

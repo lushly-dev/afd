@@ -45,11 +45,11 @@
       "upstream_sha256": "9d8f4bd850b1005a03ada66e5c9ac571d2b4e041d78fee7b45b87afd08644b1a",
       "staged_path": "biome.json",
       "staged_sha256": "9d8f4bd850b1005a03ada66e5c9ac571d2b4e041d78fee7b45b87afd08644b1a",
-      "current_import_sha256": "934719de10ee3ae4a28319dc600691d89ffb0a70767b10168f955a5a5da4e710",
+      "current_import_sha256": "b2737baeb188f662c24ae478d443547d40b8af6f1cce763e109d3ebf5e69b89f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "#600: Biome moves from upstream 2.4.8 to the workspace's ^2.5.14; biome migrate updates the schema URL to 2.5.14 and the deprecated linter.rules.recommended: true to the equivalent preset: \"recommended\"; no rule or severity changes"
+      "import_reason": "#600: Biome moves from upstream 2.4.8 to the workspace's ^2.5.14; biome migrate updates the schema URL to 2.5.14 and the deprecated linter.rules.recommended: true to the equivalent preset: \"recommended\"; no rule or severity changes; Biome moves again to the workspace's ^2.6.6: the schema URL follows, and the spec override turns off 2.6's new correctness/usePlaywrightValidDescribeCallback, which reports 31 errors for async test.describe callbacks in 16 fast-element specs that await nothing at describe level; the specs stay byte-identical to upstream, and no other rule or severity changes"
     },
     {
       "path": "foundations/fast-af/packages/element/LICENSE",
@@ -1162,11 +1162,11 @@
       "upstream_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
       "staged_path": "packages/element/packages/fast-element/src/components/element-controller.pw.spec.ts",
       "staged_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
-      "current_import_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
+      "current_import_sha256": "9cf617208dc9cec78db0bf35e720e895ac9f809a2bbe1c46307353763c5a007f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Sets the observable on the element before its upgrade, instead of relying on the test runner compiling a declared class field into a constructor assignment: Playwright 1.65 erases the declaration, as TypeScript does, so the change handler the test observes never ran; FAST's connection order is unchanged (#901)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-controller.ts",
