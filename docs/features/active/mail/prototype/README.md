@@ -90,8 +90,8 @@ mailbox's listing they cannot move Q1 or Q2 across a threshold. The engine's syn
 it cannot wait for every listed message before it calls a mailbox synced.
 
 **One folder is 93% of the account.** The largest mailbox holds 283 721 of the 304 956 listed
-messages. The owner identified it as mail from GitHub that an automation files there, which he means
-to delete. So the whole-account figures mostly describe GitHub notifications. A second run on
+messages. The owner identified it as mail from GitHub that an automation files there, which he is
+keeping for now as a test of large folders and, later, of a whole-folder delete. So the whole-account figures mostly describe GitHub notifications. A second run on
 2026-11-11 left that mailbox out (`--skip-over 100000`, tool version 5;
 [`icloud-without-largest.counts.json`](icloud-without-largest.counts.json)): 21 248 messages,
 complete, every listed message returned.
