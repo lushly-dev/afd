@@ -210,6 +210,12 @@
 			"configurationDependencies": ["lushly-health"]
 		},
 		{
+			"manifest": "endpoints/loam/plugins/mail/engine/Cargo.toml",
+			"family": "loam",
+			"layer": "endpoint",
+			"publicSurfaces": ["rust-library", "bin:loam-mail"]
+		},
+		{
 			"manifest": "endpoints/umbel/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",

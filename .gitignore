@@ -52,6 +52,8 @@ Cargo.lock
 !endpoints/umbel/Cargo.lock
 # So is Specimen's native host
 !foundations/specimen/host/Cargo.lock
+# And Mail's engine
+!endpoints/loam/plugins/mail/engine/Cargo.lock
 
 # C++ (CMake build trees; see packages/cpp)
 /packages/cpp/build/
