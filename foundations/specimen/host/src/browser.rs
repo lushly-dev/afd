@@ -640,16 +640,30 @@ impl Browser {
         attempt.enter("capturing the result");
         let capture_started = std::time::Instant::now();
         // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
-        let captured = page
+        let mut captured = page
             .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
             .await?;
         let root = page.root_backend_id().await?;
         let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
+        let dom = page.subtree(root).await?;
         let snapshot = match aria::snapshot(&tree, root) {
             Some(snapshot) => snapshot,
             // A modal dialog has left the mount root out of the tree (#662).
-            None => aria::exposed_within(&tree, &page.subtree_backend_ids(root).await?),
+            None => aria::exposed_within(&tree, &crate::page::backend_ids(&dom)),
         };
+        // Each accessible element's computed role and name, by the reference the page gave it.
+        let roles = aria::roles(&tree, &dom);
+        if let Some(elements) = captured.get_mut("elements").and_then(Value::as_array_mut) {
+            for element in elements {
+                let accessible = element
+                    .get("ref")
+                    .and_then(Value::as_str)
+                    .and_then(|reference| roles.get(reference));
+                if let (Some(accessible), Some(element)) = (accessible, element.as_object_mut()) {
+                    element.insert("accessibility".into(), json!(accessible));
+                }
+            }
+        }
         let viewport: Viewport =
             serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
                 .unwrap_or(viewport);

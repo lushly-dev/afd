@@ -2,7 +2,7 @@ import type { ComponentCoverage, CoverageLevel } from './coverage.js';
 import type { ComponentSchema } from './plugin.js';
 
 /** Public contracts: native specimens, retained stories and their plugins. */
-export const CAPTURE_VERSION = '0.8' as const;
+export const CAPTURE_VERSION = '0.9' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
@@ -548,6 +548,12 @@ export interface ElementObservation {
 	scroll: { width: number; height: number; clientWidth: number; clientHeight: number };
 	styles: Record<string, string>;
 	state: Record<string, string | number | boolean | null>;
+	/**
+	 * The element's computed role and accessible name, from Chromium's accessibility tree, when
+	 * it is accessible: a role set through `ElementInternals` included; an ignored element, or
+	 * one whose role is generic, none or presentation, has none. Only the native host reads it.
+	 */
+	accessibility?: { role: string; name: string };
 }
 export interface BrowserObservation {
 	dom: string;

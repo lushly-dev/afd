@@ -325,9 +325,97 @@ pub fn exposed_within(tree: &Value, inside: &HashSet<i64>) -> String {
     write(items)
 }
 
+fn open_shadow(node: &Value) -> Vec<&Value> {
+    node.get("shadowRoots")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|shadow| shadow.get("shadowRootType").and_then(Value::as_str) != Some("closed"))
+        .collect()
+}
+
+/// One element's computed role and accessible name, as Chromium's accessibility tree has them.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Accessible {
+    pub role: String,
+    pub name: String,
+}
+
+/// Each accessible element under the mount root, by the reference the page's capture gives it
+/// (`root/shadow/x-a:1/...`): its computed role and accessible name. `dom` is the mount root
+/// from `DOM.describeNode` with `depth: -1` and `pierce: true`. A role set through
+/// `ElementInternals` is the element's own, as the tree computes it. An element the tree
+/// ignores, or whose role is `generic`, `none`, `presentation` or one of Chromium's internal
+/// roles, is not accessible and has no entry. Closed shadow roots are left out, as the page's
+/// capture leaves them out.
+pub fn roles(tree: &Value, dom: &Value) -> HashMap<String, Accessible> {
+    let mut by_backend = HashMap::new();
+    for node in tree
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let ignored = node
+            .get("ignored")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let internal = node.pointer("/role/type").and_then(Value::as_str) == Some("internalRole");
+        let role = text(node, "role");
+        if ignored || internal || role.is_empty() || FLATTENED.contains(&role.as_str()) {
+            continue;
+        }
+        if let Some(backend) = backend_id(node) {
+            by_backend.entry(backend).or_insert(Accessible {
+                role,
+                name: normalize(&text(node, "name")),
+            });
+        }
+    }
+    let mut found = HashMap::new();
+    let mut pending: Vec<(&Value, String)> = Vec::new();
+    for shadow in open_shadow(dom) {
+        pending.push((shadow, "root/shadow".to_string()));
+    }
+    pending.push((dom, "root".to_string()));
+    while let Some((parent, prefix)) = pending.pop() {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for child in parent
+            .get("children")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if child.get("nodeType").and_then(Value::as_i64) != Some(1) {
+                continue;
+            }
+            let local = child
+                .get("localName")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let count = counts.entry(local.clone()).or_default();
+            *count += 1;
+            let reference = format!("{prefix}/{local}:{count}");
+            if let Some(accessible) = child
+                .get("backendNodeId")
+                .and_then(Value::as_i64)
+                .and_then(|backend| by_backend.get(&backend))
+            {
+                found.insert(reference.clone(), accessible.clone());
+            }
+            for shadow in open_shadow(child) {
+                pending.push((shadow, format!("{reference}/shadow")));
+            }
+            pending.push((child, reference));
+        }
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{exposed_within, snapshot};
+    use super::{Accessible, exposed_within, roles, snapshot};
     use serde_json::json;
     use std::collections::HashSet;
 
@@ -443,5 +531,56 @@ mod tests {
             "- dialog:\n  - heading \"Palette\" [level=2]\n  - button \"Run\""
         );
         assert_eq!(exposed_within(&tree, &HashSet::new()), "");
+    }
+
+    #[test]
+    fn roles_are_keyed_by_the_capture_reference_through_open_shadow_roots_only() {
+        let element = |backend: i64, local: &str, extra: serde_json::Value| {
+            let mut node = json!({ "nodeType": 1, "localName": local, "backendNodeId": backend });
+            if let (Some(node), Some(extra)) = (node.as_object_mut(), extra.as_object()) {
+                node.extend(extra.clone());
+            }
+            node
+        };
+        let dom = element(
+            1,
+            "div",
+            json!({ "children": [
+            element(2, "x-check", json!({ "shadowRoots": [{ "nodeType": 11, "shadowRootType": "open", "backendNodeId": 3,
+                "children": [element(4, "span", json!({})), element(5, "button", json!({}))] }] })),
+            { "nodeType": 3, "backendNodeId": 6 },
+            element(7, "x-check", json!({})),
+            element(8, "x-secret", json!({ "shadowRoots": [{ "nodeType": 11, "shadowRootType": "closed", "backendNodeId": 9,
+                "children": [element(10, "button", json!({}))] }] })),
+            element(11, "p", json!({ "children": [element(12, "a", json!({}))] })),
+        ] }),
+        );
+        let tree = json!({ "nodes": [
+            node("1", "checkbox", json!({ "backendDOMNodeId": 2, "name": { "value": " Accept  terms " } })),
+            node("2", "generic", json!({ "backendDOMNodeId": 4 })),
+            node("3", "button", json!({ "backendDOMNodeId": 5, "name": { "value": "Toggle" } })),
+            json!({ "nodeId": "4", "ignored": true, "backendDOMNodeId": 7, "role": { "type": "role", "value": "checkbox" } }),
+            node("5", "button", json!({ "backendDOMNodeId": 10, "name": { "value": "Hidden" } })),
+            node("6", "paragraph", json!({ "backendDOMNodeId": 11 })),
+            node("7", "link", json!({ "backendDOMNodeId": 12, "name": { "value": "More" } })),
+            node("8", "StaticText", json!({ "backendDOMNodeId": 6, "name": { "value": "text" } })),
+        ] });
+        let found = roles(&tree, &dom);
+        let accessible = |role: &str, name: &str| Accessible {
+            role: role.into(),
+            name: name.into(),
+        };
+        assert_eq!(
+            found.get("root/x-check:1"),
+            Some(&accessible("checkbox", "Accept terms"))
+        );
+        assert_eq!(
+            found.get("root/x-check:1/shadow/button:1"),
+            Some(&accessible("button", "Toggle"))
+        );
+        assert_eq!(found.get("root/p:1"), Some(&accessible("paragraph", "")));
+        assert_eq!(found.get("root/p:1/a:1"), Some(&accessible("link", "More")));
+        // Generic, ignored, internal and closed-shadow nodes have no entry.
+        assert_eq!(found.len(), 4);
     }
 }

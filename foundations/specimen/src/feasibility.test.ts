@@ -19,6 +19,15 @@ function element(capture: Observation, tag: string): ElementObservation {
 	return found;
 }
 
+/** Each element's recorded role and name, by reference. */
+function roles(capture: Observation): Record<string, ElementObservation['accessibility']> {
+	return Object.fromEntries(
+		capture.channels.elements.flatMap((entry) =>
+			entry.accessibility ? [[entry.ref, entry.accessibility]] : []
+		)
+	);
+}
+
 async function serveEventStream(): Promise<{ url: string; close(): Promise<void> }> {
 	const server = createServer((_request, response) => {
 		response.writeHead(200, {
@@ -197,6 +206,25 @@ describe('native specimen feasibility in Chromium', () => {
 		expect(modal.channels.a11y.snapshot).toBe(
 			'- dialog:\n  - heading "Palette" [level=2]\n  - button "Run"'
 		);
+		// Per element too: the inert paragraph behind it has no role.
+		expect(roles(modal)).toEqual({
+			'root/div:1/div:1/shadow/dialog:1': { role: 'dialog', name: '' },
+			'root/div:1/div:1/shadow/dialog:1/h2:1': { role: 'heading', name: 'Palette' },
+			'root/div:1/div:1/shadow/dialog:1/button:1': { role: 'button', name: 'Run' },
+		});
+	});
+
+	it('records each accessible element\u2019s computed role and name, ElementInternals included', async () => {
+		const captured = await bench.render({ id: 'roles' });
+		expect(captured.manifest.captureVersion).toBe('0.9');
+		expect(roles(captured)).toEqual({
+			// No attribute shows this role: only the accessibility tree has it.
+			'root/div:1/specimen-probe-switch:1': { role: 'switch', name: 'Wi-Fi' },
+			'root/div:1/specimen-probe:1/shadow/button:1': { role: 'button', name: 'Save' },
+			'root/div:1/label:1/input:1': { role: 'checkbox', name: 'Accept terms' },
+		});
+		// Hidden from the tree, inside a closed shadow root, or generic: no role is recorded.
+		expect(element(captured, 'specimen-probe-switch').attributes).toEqual({});
 	});
 
 	it('fails readiness, deadline and disposal errors and remains usable afterward', async () => {

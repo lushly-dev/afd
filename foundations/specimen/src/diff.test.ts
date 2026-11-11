@@ -159,6 +159,27 @@ describe('diffObservations', () => {
 		);
 	});
 
+	it('compares each element\u2019s computed role and name, where a capture recorded them', () => {
+		const left = capture();
+		const right = capture();
+		first(left).accessibility = { role: 'button', name: 'Save' };
+		first(right).accessibility = { role: 'switch', name: 'Save' };
+		expect(diffObservations(left, right).differences).toEqual([
+			{
+				channel: 'a11y',
+				target: 'root/button:1',
+				property: 'accessibility.role',
+				left: 'button',
+				right: 'switch',
+			},
+		]);
+		delete first(right).accessibility;
+		expect(diffObservations(left, right).differences).toEqual([
+			expect.objectContaining({ property: 'accessibility.name', right: { missing: true } }),
+			expect.objectContaining({ property: 'accessibility.role', right: { missing: true } }),
+		]);
+	});
+
 	it('reports structural/attribute changes and missing or added elements', () => {
 		const left = capture();
 		const right = capture();
