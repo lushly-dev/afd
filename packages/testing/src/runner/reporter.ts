@@ -19,7 +19,10 @@ export interface ReporterConfig {
 	/** Show verbose output including all assertions */
 	verbose?: boolean;
 
-	/** Use colors in output (default: true for human format) */
+	/**
+	 * Use colors in output. By default, human output is colored when `output` is a terminal,
+	 * unless `NO_COLOR` is set; `FORCE_COLOR` turns color on (or off with `0` or `false`).
+	 */
 	colors?: boolean;
 
 	/** Stream to write output to (default: process.stdout) */
@@ -42,6 +45,21 @@ const colors = {
 	gray: '\x1b[90m',
 };
 
+/**
+ * Whether output to `stream` is colored by default: when it is a terminal and `NO_COLOR` is
+ * unset or empty. `FORCE_COLOR` decides instead when it is set, as chalk reads it: `0` and
+ * `false` turn color off, any other value turns it on.
+ */
+export function supportsColor(
+	stream: NodeJS.WritableStream,
+	env: Record<string, string | undefined> = process.env
+): boolean {
+	const force = env.FORCE_COLOR;
+	if (force !== undefined) return force !== '0' && force !== 'false';
+	if (env.NO_COLOR) return false;
+	return (stream as { isTTY?: boolean }).isTTY === true;
+}
+
 function colorize(text: string, color: keyof typeof colors, useColors: boolean): string {
 	if (!useColors) return text;
 	return `${colors[color]}${text}${colors.reset}`;
@@ -58,11 +76,12 @@ export class TerminalReporter {
 	private config: Required<ReporterConfig>;
 
 	constructor(config: ReporterConfig = {}) {
+		const output = config.output ?? process.stdout;
 		this.config = {
 			format: config.format ?? 'human',
 			verbose: config.verbose ?? false,
-			colors: config.colors ?? config.format !== 'json',
-			output: config.output ?? process.stdout,
+			colors: config.colors ?? (config.format !== 'json' && supportsColor(output)),
+			output,
 		};
 	}
 

@@ -8,7 +8,9 @@ Supports both human-readable and CI/agent-friendly formats.
 from __future__ import annotations
 
 import json
+import os
 import sys
+from collections.abc import Mapping
 from typing import Any, TextIO
 
 from afd.testing.scenarios.types import (
@@ -36,6 +38,26 @@ _COLORS = {
 }
 
 
+def supports_color(stream: TextIO, env: Mapping[str, str] | None = None) -> bool:
+    """Whether output to ``stream`` is colored by default.
+
+    A terminal is colored unless ``NO_COLOR`` is set and non-empty. ``FORCE_COLOR``
+    decides instead when it is set, as chalk reads it: ``0`` and ``false`` turn color
+    off, any other value turns it on.
+    """
+    env = os.environ if env is None else env
+    force = env.get('FORCE_COLOR')
+    if force is not None:
+        return force not in ('0', 'false')
+    if env.get('NO_COLOR'):
+        return False
+    isatty = getattr(stream, 'isatty', None)
+    try:
+        return bool(isatty and isatty())
+    except (OSError, ValueError):
+        return False
+
+
 def _colorize(text: str, color: str, use_colors: bool) -> str:
     if not use_colors or color not in _COLORS:
         return text
@@ -59,8 +81,11 @@ class TerminalReporter:
     ) -> None:
         self._format = format
         self._verbose = verbose
-        self._colors = colors if colors is not None else (format != 'json')
         self._output = output or sys.stdout
+        # By default, human output is colored only on a terminal (see supports_color).
+        self._colors = (
+            colors if colors is not None else (format != 'json' and supports_color(self._output))
+        )
 
     def report_scenario(self, result: ScenarioResult) -> None:
         """Report a single scenario result."""

@@ -1143,6 +1143,59 @@ class TestReporter:
 # ============================================================================
 
 
+class _Terminal(StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+class TestReporterColorDefault:
+    """Human output is colored only on a terminal by default (#909)."""
+
+    @staticmethod
+    def _result():
+        return TestReporter._make_result()
+
+    def test_supports_color_reads_the_stream_and_environment(self):
+        from afd.testing.scenarios.reporter import supports_color
+
+        assert supports_color(_Terminal(), {}) is True
+        assert supports_color(StringIO(), {}) is False
+        assert supports_color(_Terminal(), {'NO_COLOR': '1'}) is False
+        assert supports_color(_Terminal(), {'NO_COLOR': ''}) is True
+        assert supports_color(StringIO(), {'FORCE_COLOR': '1'}) is True
+        assert supports_color(StringIO(), {'FORCE_COLOR': ''}) is True
+        assert supports_color(StringIO(), {'FORCE_COLOR': '1', 'NO_COLOR': '1'}) is True
+        assert supports_color(_Terminal(), {'FORCE_COLOR': '0'}) is False
+        assert supports_color(_Terminal(), {'FORCE_COLOR': 'false'}) is False
+
+    def test_no_ansi_codes_when_the_output_is_not_a_terminal(self, monkeypatch):
+        monkeypatch.delenv('FORCE_COLOR', raising=False)
+        monkeypatch.delenv('NO_COLOR', raising=False)
+        output = StringIO()
+        TerminalReporter(format='human', output=output).report_scenario(self._result())
+        assert '1 passed' in output.getvalue()
+        assert '\x1b[' not in output.getvalue()
+
+    def test_a_terminal_is_colored_unless_colors_is_false(self, monkeypatch):
+        monkeypatch.delenv('FORCE_COLOR', raising=False)
+        monkeypatch.delenv('NO_COLOR', raising=False)
+        colored = _Terminal()
+        TerminalReporter(format='human', output=colored).report_scenario(self._result())
+        assert '\x1b[' in colored.getvalue()
+        plain = _Terminal()
+        TerminalReporter(format='human', colors=False, output=plain).report_scenario(
+            self._result()
+        )
+        assert '\x1b[' not in plain.getvalue()
+
+    def test_colors_true_colors_any_stream(self):
+        output = StringIO()
+        TerminalReporter(format='human', colors=True, output=output).report_scenario(
+            self._result()
+        )
+        assert '\x1b[' in output.getvalue()
+
+
 class TestTypeGuards:
     def test_is_assertion_matcher_true(self):
         assert is_assertion_matcher({'contains': 'foo'}) is True

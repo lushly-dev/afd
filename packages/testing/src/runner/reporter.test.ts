@@ -1,10 +1,11 @@
 import { Writable } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScenarioResult, TestReport } from '../types/report.js';
 import {
 	createJsonReporter,
 	createReporter,
 	createVerboseReporter,
+	supportsColor,
 	TerminalReporter,
 } from './reporter.js';
 
@@ -495,5 +496,77 @@ describe('TerminalReporter - reportTestReport (human)', () => {
 		expect(output).not.toContain('All scenarios passed!');
 		expect(output).toContain('1 scenario(s) failed');
 		expect(output).toContain("Error (fixture_failed): Fixture command 'todo-create' failed");
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Color default (#909)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ANSI = '\u001b[';
+
+describe('supportsColor', () => {
+	const terminal = Object.assign(new Writable(), { isTTY: true });
+	const pipe = new Writable();
+
+	it('colors a terminal and not a pipe', () => {
+		expect(supportsColor(terminal, {})).toBe(true);
+		expect(supportsColor(pipe, {})).toBe(false);
+	});
+
+	it('turns color off for a terminal when NO_COLOR is set, but not when it is empty', () => {
+		expect(supportsColor(terminal, { NO_COLOR: '1' })).toBe(false);
+		expect(supportsColor(terminal, { NO_COLOR: '' })).toBe(true);
+	});
+
+	it('lets FORCE_COLOR decide over the stream and NO_COLOR', () => {
+		expect(supportsColor(pipe, { FORCE_COLOR: '1' })).toBe(true);
+		expect(supportsColor(pipe, { FORCE_COLOR: '' })).toBe(true);
+		expect(supportsColor(pipe, { FORCE_COLOR: '1', NO_COLOR: '1' })).toBe(true);
+		expect(supportsColor(terminal, { FORCE_COLOR: '0' })).toBe(false);
+		expect(supportsColor(terminal, { FORCE_COLOR: 'false' })).toBe(false);
+	});
+});
+
+describe('TerminalReporter - color default', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('writes no ANSI codes to a stream that is not a terminal', () => {
+		vi.stubEnv('FORCE_COLOR', undefined);
+		vi.stubEnv('NO_COLOR', undefined);
+		const { stream, lines } = createCaptureStream();
+		new TerminalReporter({ format: 'human', output: stream }).reportScenario(makeScenarioResult());
+
+		expect(lines.join('')).toContain('1 passed');
+		expect(lines.join('')).not.toContain(ANSI);
+	});
+
+	it('colors a terminal stream, and colors: false still turns it off', () => {
+		vi.stubEnv('FORCE_COLOR', undefined);
+		vi.stubEnv('NO_COLOR', undefined);
+		const colored = createCaptureStream();
+		Object.assign(colored.stream, { isTTY: true });
+		new TerminalReporter({ format: 'human', output: colored.stream }).reportScenario(
+			makeScenarioResult()
+		);
+		expect(colored.lines.join('')).toContain(ANSI);
+
+		const plain = createCaptureStream();
+		Object.assign(plain.stream, { isTTY: true });
+		new TerminalReporter({ format: 'human', colors: false, output: plain.stream }).reportScenario(
+			makeScenarioResult()
+		);
+		expect(plain.lines.join('')).not.toContain(ANSI);
+	});
+
+	it('colors any stream when colors is true', () => {
+		const { stream, lines } = createCaptureStream();
+		new TerminalReporter({ format: 'human', colors: true, output: stream }).reportScenario(
+			makeScenarioResult()
+		);
+
+		expect(lines.join('')).toContain(ANSI);
 	});
 });
