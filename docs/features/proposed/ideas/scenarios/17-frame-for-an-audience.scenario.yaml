@@ -1,0 +1,76 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Frame the same idea for an audience
+description: >-
+  When I write for a particular audience, I want my ideas in that audience's wording without
+  keeping a second copy, so that one change reaches every framing that has not said otherwise.
+job: frame-for-an-audience
+tags: [use, whole]
+
+steps:
+  - description: A framing for beginners
+    command: ideas-framing-create
+    input:
+      id: beginners
+      title: Beginners
+      parent: core
+    expect:
+      success: true
+
+  - description: The idea as I hold it
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Match cultivar maturity days to the frost-free window.
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-affirm
+    input:
+      ids: ["${{ steps[1].data.id }}"]
+    expect:
+      success: true
+
+  - description: Reword it for beginners
+    command: ideas-reframe
+    input:
+      id: "${{ steps[1].data.id }}"
+      framing: beginners
+      statement: Pick varieties that ripen before your first autumn frost.
+      reason: Plain words for a first-year grower.
+    expect:
+      success: true
+
+  - description: The beginners framing resolves the plain wording
+    command: ideas-open
+    input:
+      id: "${{ steps[1].data.id }}"
+      framing: beginners
+    expect:
+      success: true
+      data:
+        statement: { contains: first autumn frost }
+
+  - description: The root still resolves mine
+    command: ideas-open
+    input:
+      id: "${{ steps[1].data.id }}"
+      framing: core
+    expect:
+      success: true
+      data:
+        statement: { contains: frost-free window }
+
+  - description: The two framings differ in one idea
+    command: ideas-compare
+    input:
+      a:
+        framing: core
+      b:
+        framing: beginners
+    expect:
+      success: true
+      data:
+        differs: { length: 1 }

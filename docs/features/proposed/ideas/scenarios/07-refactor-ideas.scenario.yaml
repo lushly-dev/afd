@@ -1,0 +1,113 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Merge two ideas that are one, and split one that is two
+description: >-
+  When I notice that two ideas are really one, or that one is really two, I want to fix it
+  without losing where they came from, so that the store follows my thinking.
+job: refactor-ideas
+tags: [organise, slice]
+
+steps:
+  - description: A first source
+    command: ideas-source-add
+    input:
+      title: Spring notes
+      kind: notes
+      collection: journal
+      content: "Sow carrots thinly to save thinning later."
+    expect:
+      success: true
+
+  - description: A second source
+    command: ideas-source-add
+    input:
+      title: Autumn notes
+      kind: notes
+      collection: journal
+      content: "Thin sowing means no thinning, and pelleted seed makes it easy."
+    expect:
+      success: true
+
+  - description: The idea from the first source
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Sow carrots thinly to save thinning later.
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          quote: Sow carrots thinly to save thinning later.
+    expect:
+      success: true
+
+  - description: The same idea from the second, admitted because the caller declared it distinct
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Thin sowing means no thinning, and pelleted seed makes it easy.
+      distinctFrom: ["${{ steps[2].data.id }}"]
+      reason: Fixture step that sets up a merge.
+      sources:
+        - source: "${{ steps[1].data.source }}"
+          quote: Thin sowing means no thinning, and pelleted seed makes it easy.
+    expect:
+      success: true
+
+  - description: An idea linked to the second
+    command: ideas-capture
+    input:
+      type: example
+      statement: A row of pelleted carrot seed in the fixture bed needed no thinning.
+      links:
+        - kind: example-of
+          to: "${{ steps[3].data.id }}"
+    expect:
+      success: true
+
+  - description: Merge the two; the survivor keeps both sources and the link
+    command: ideas-merge
+    input:
+      ids: ["${{ steps[2].data.id }}", "${{ steps[3].data.id }}"]
+      survivor: "${{ steps[2].data.id }}"
+      reason: The same principle, noted twice.
+    expect:
+      success: true
+      data:
+        id: "${{ steps[2].data.id }}"
+        retired: { length: 1 }
+        sources: 2
+        links: 1
+
+  - description: The other is retired and names the survivor
+    command: ideas-open
+    input:
+      id: "${{ steps[3].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: retired
+        successor: "${{ steps[2].data.id }}"
+
+  - description: Split the survivor into the principle and the technique
+    command: ideas-split
+    input:
+      id: "${{ steps[2].data.id }}"
+      reason: Two separate things.
+      into:
+        - type: principle
+          statement: Sow carrots thinly so that they need no thinning.
+        - type: example
+          statement: Pelleted seed makes thin sowing easy.
+    expect:
+      success: true
+      data:
+        ids: { length: 2 }
+
+  - description: The original is retired
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: retired

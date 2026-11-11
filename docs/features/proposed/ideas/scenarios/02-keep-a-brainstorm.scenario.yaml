@@ -1,0 +1,96 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Keep a brainstorm and pull its ideas out
+description: >-
+  When I finish a brainstorm or a voice memo, I want the raw session kept and its ideas pulled
+  out against it, so that my thinking is preserved and its ideas are usable.
+job: keep-a-brainstorm
+tags: [collect, slice]
+
+steps:
+  - description: Send the transcript to the instance; the journal collection is the person's own
+    command: ideas-source-add
+    input:
+      title: Bed planning, spoken notes
+      kind: transcript
+      collection: journal
+      thoughtOn: "2026-10-02"
+      content: "Mulch is the cheapest irrigation I have.\nI should stop watering by the calendar."
+    expect:
+      success: true
+      data:
+        source: { matches: '^sha256:' }
+        attestable: true
+        copyOf: { notExists: true }
+
+  - description: Open a run that names the source and the extractor
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[0].data.source }}"]
+      extractor: fixture-model, prompt 1
+    expect:
+      success: true
+      data:
+        run: { matches: '^run-' }
+
+  - description: A statement quoted word for word from the person's own source is attested
+    command: ideas-capture
+    input:
+      type: position
+      statement: Mulch is the cheapest irrigation I have.
+      run: "${{ steps[1].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          quote: Mulch is the cheapest irrigation I have.
+    expect:
+      success: true
+      data:
+        standing: attested
+
+  - description: A model's restatement of the same source is only a seed
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Water when the soil asks for it, not when the calendar says so.
+      run: "${{ steps[1].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: The run reports what it produced
+    command: ideas-run-show
+    input:
+      run: "${{ steps[1].data.run }}"
+    expect:
+      success: true
+      data:
+        captured: 2
+        refused: 0
+
+  - description: The same transcript sent again is recognised as the same source
+    command: ideas-source-add
+    input:
+      title: Bed planning, spoken notes (again)
+      kind: transcript
+      collection: journal
+      content: "Mulch is the cheapest irrigation I have.\nI should stop watering by the calendar."
+    expect:
+      success: true
+      data:
+        copyOf: "${{ steps[0].data.source }}"
+
+  - description: A copy that differs only in line endings is reported as a near copy
+    command: ideas-source-add
+    input:
+      title: Bed planning, exported
+      kind: transcript
+      collection: journal
+      content: "Mulch is the cheapest irrigation I have.\r\nI should stop watering by the calendar.  "
+    expect:
+      success: true
+      data:
+        nearCopyOf: "${{ steps[0].data.source }}"

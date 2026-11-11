@@ -1,0 +1,28 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Reach the same ideas from any harness
+description: >-
+  When I switch harness or device, I want the same ideas after signing in, so that I never
+  carry documents between tools. Run this file against the hosted instance from two harnesses;
+  the second run's first step must be refused as a duplicate of the first run's.
+job: reach-from-any-harness
+tags: [trust, slice, hosted]
+
+steps:
+  - description: Capture over hosted, stateless MCP
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Label every row the day it is sown.
+    expect:
+      success: true
+
+  - description: Ask for it back
+    command: ideas-find
+    input:
+      text: labelling rows when sowing
+    expect:
+      success: true
+      data:
+        total: 1

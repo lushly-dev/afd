@@ -1,0 +1,60 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Explore how ideas connect
+description: >-
+  When I am exploring without a question in mind, I want to follow what supports what and what
+  leads where, so that I find connections I had not seen.
+job: explore-connections
+tags: [organise, slice]
+
+steps:
+  - description: A broad position
+    command: ideas-capture
+    input:
+      type: position
+      statement: Diversity in a bed is the cheapest pest control.
+    expect:
+      success: true
+
+  - description: A narrower one that refines it
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Never plant more than a third of a bed with one family.
+      links:
+        - kind: refines
+          to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: Evidence for the narrower one
+    command: ideas-capture
+    input:
+      type: evidence
+      statement: In the fixture beds, mixed plantings lost a tenth of the crop that single-family beds lost.
+      links:
+        - kind: supports
+          to: "${{ steps[1].data.id }}"
+    expect:
+      success: true
+
+  - description: Two steps out from the broad position
+    command: ideas-related
+    input:
+      id: "${{ steps[0].data.id }}"
+      depth: 2
+    expect:
+      success: true
+      data:
+        neighbours: { length: 2 }
+
+  - description: How the evidence reaches the broad position
+    command: ideas-related
+    input:
+      id: "${{ steps[2].data.id }}"
+      to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        path: { length: 3 }
