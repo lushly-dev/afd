@@ -7,7 +7,9 @@ reasons.
 
 ## Status
 
-- **State:** proposed. It takes effect when the owner approves it by pull request.
+- **State:** approved. The owner approved it on 2026-11-11 by merging
+  [#995](https://github.com/lushly-dev/afd/pull/995), and answered the four choices of
+  [section 16](#16-for-the-owner) the same day. His answers added M28 and M29.
 - **Written:** 2026-11-11, against `main` at `d2c30f72`.
 - **Covers:** phases B to E of the proposal's [section 9](mail.proposal.md#9-steps). Phase B is
   specified in full, apart from the points it names as decided by one of its steps. Phases C to E
@@ -24,7 +26,8 @@ reasons.
   or run for this document. Statements about a provider that were not observed are marked
   "not verified".
 - **Review:** one independent review on 2026-11-11 (revise; eleven blockers and its
-  improvements, all applied), recorded in the [status](STATUS.md#session-log).
+  improvements, all applied), and one of the owner's answers the same day (revise; five small
+  blockers, all applied), recorded in the [status](STATUS.md#session-log).
 
 ## What phase 0 decided
 
@@ -58,7 +61,8 @@ What else the measurements fix for this document:
 
 The owner has also said that around 2024 or 2025 his mail was flooded to bury the alerts of a
 card fraud, and that he has had more spam since. He did not say which account. The behaviours
-this document proposes in answer ([7.4](#74-bursts)) are its own and not yet his.
+this document gives in answer ([7.4](#74-bursts)) were its own proposal; he agreed to them on
+2026-11-11.
 
 ## Terms
 
@@ -76,8 +80,8 @@ this document proposes in answer ([7.4](#74-bursts)) are its own and not yet his
 
 ## 1. Decisions of this specification
 
-They continue the proposal's M1 to M14. Each is this document's proposal until the owner approves
-it.
+They continue the proposal's M1 to M14. The owner approved M15 to M27 on 2026-11-11; M28 and M29
+record what he added when he answered [section 16](#16-for-the-owner).
 
 | | Decision | Why |
 | --- | --- | --- |
@@ -92,8 +96,10 @@ it.
 | M23 | A listed message that never arrives is recorded as unreturned after repeated tries, counted, and tried again later | The iCloud finding. A mailbox must be able to reach "synced" |
 | M24 | A command that changes many messages works on a set the engine resolved and froze beforehand, and the caller states that set's exact count | The owner's requirement. What was counted is exactly what is changed, so a wrong query cannot quietly touch 283 000 messages |
 | M25 | Extractors are deferred. The template fingerprint and the record store they would need are still built, for stories and proposals | The owner agreed to leave them out on Q1 |
-| M26 | Mail from a sender with a history is never placed below or inside a burst of strangers. A burst is one story, and it is flagged | An answer to the flood the owner described. Proposed, not his: approved with this document or struck from it |
+| M26 | Mail from a sender with a history is never placed below or inside a burst of strangers. A burst is one story, and it is flagged | An answer to the flood the owner described. Proposed by this document; the owner agreed on 2026-11-11 |
 | M27 | Rust 1.98.0, the repository's Rust toolchain. Every dependency is pinned by a committed lockfile | `mail-parser` declares 1.98 as its minimum; one toolchain for the repository's Rust |
+| M28 | An agent may propose what it may not do: a change over its limits, or a decision on a sender. A proposal changes nothing. It takes effect only when the person approves it with a person's command that carries an approval policy ([9.4](#94-the-policy), [7.3](#73-the-persons-decisions)) | The owner's rule, 2026-11-11. His case is the 283 000-message mailbox: an agent should be able to offer to empty it, and the person has to agree. The limits stay as what an agent does with nobody present |
+| M29 | A command that sends mail, or removes for good the person's mail, a draft or a credential, is declared destructive and carries an approval policy. A test over the registry fails the build if a command is destructive without one. The commands are named in [9.4](#94-the-policy) | The owner's rule, 2026-11-11: anything destructive and not recoverable needs the person's approval, enforced through AFD. The crate's middleware enforces the approval; it does not act on the destructive flag by itself, so the engine's test ties the two. That such a command is also absent from MCP is M18's rule, not his |
 
 ## 2. Units, placement and crates
 
@@ -210,12 +216,13 @@ directly at a terminal, with no server, may run for longer, printing its progres
 ### 3.5 Commands only a person may run
 
 Sending, unsubscribing, adding or removing an account, creating or revoking a token, deciding
-on a sender and changing the policy need a person. In this version (M18):
+on a sender, changing the policy and approving what an agent proposed (M28) need a person. In
+this version (M18):
 
 - They are exposed to `cli` only: `mcp`, `agent` and `palette` are set false, since the last two
   default to true. An agent that names one over MCP gets `COMMAND_NOT_FOUND`, as for any
   unexposed command.
-- Each carries an approval policy, except deciding on a sender, which is local and undoable and
+- Each carries an approval policy, except `mail-sender-screen`, which is local and undoable and
   needs no prompt ([7.3](#73-the-persons-decisions)). The command line runs a command once and
   receives `APPROVAL_REQUIRED`. It then reads what will happen with the command's own preview
   (`mail-draft-show` for a send), shows it, and asks. On "yes" it retries with the token.
@@ -545,7 +552,14 @@ A decision on a sender is in, out or undecided, and is the person's alone.
   in the app. It needs no approval prompt of its own beyond being unavailable over MCP: it is
   local and undoable.
 - An agent cannot decide. It can call `mail-sender-suggest`, which stores a suggestion with its
-  proposer for the person to accept or dismiss. A suggestion changes no class. Otherwise a
+  proposer. A suggestion changes no class. The person accepts it with `mail-sender-accept`, a
+  person's command, or drops it with `mail-sender-dismiss` (M28). A caller may have 20
+  suggestions waiting.
+- `mail-sender-accept` carries an approval policy where `mail-sender-screen` does not, because
+  the idea was not the person's. Its preview, through `mail-sender-show`, gives the sender in a
+  labelled part, the suggested decision, the proposer, how many held messages would change
+  class, and whether the person has ever written to that sender. The approval's summary holds
+  no address: "Accept suggestion 7: block 1 sender; 412 held messages change class". Otherwise a
   message could talk an agent into hiding the bank's alerts, or into putting a stranger in the
   inbox.
 - `mail-status` lists the senders blocked in the last 30 days and by whom, so a wrong block is
@@ -592,7 +606,8 @@ exception is a message whose body shape differs from the story's usual ones.
 
 ## 9. Changing the mailbox
 
-Phase D. Every command here changes mail at the provider, can be undone, and is journaled.
+Phase D. Every change to mail here is made at the provider, can be undone, and is journaled. A
+proposal ([9.4](#94-the-policy)) changes nothing until a person approves it.
 
 ### 9.1 Selections
 
@@ -617,7 +632,8 @@ message its place and state before, and its outcome.
 - The engine works through the set in batches and records each batch as it finishes.
 - A change the policy lets an agent make is small enough to finish within a call
   ([9.4](#94-the-policy)), and returns its outcome.
-- A larger one is a person's. Under `serve`, the call returns the operation's id at once and the
+- A larger one is a person's: one they started, or one an agent proposed and they approved
+  ([9.4](#94-the-policy)). Under `serve`, the call returns the operation's id at once and the
   server carries on; `mail-operation-show` reports its progress, and `mail-operation-cancel`
   stops it after the batch in hand. Run directly at a terminal with no server, it runs to the
   end, printing progress, and an interrupt stops it after the batch in hand.
@@ -668,8 +684,50 @@ only by a person. The default:
 | `human` | Yes | Any size; above 200 messages the command line shows the count and asks | The same |
 | `agent`, `script` | Yes, apart from a person's commands | Up to 500 messages a call | Up to 50 messages a call, and 200 a day for each caller |
 
-A call over a limit fails with `POLICY_LIMIT` and changes nothing. The engine applies the policy
-itself, to every caller, because Loam's autonomy policy reaches only Loam's copilot.
+The engine applies the policy itself, to every caller, because Loam's autonomy policy reaches
+only Loam's copilot. The limits are what an agent may do with nobody present.
+
+**Over a limit: a proposal (M28).** A change command from an agent or a script that is over a
+limit changes nothing at the provider. It stores the operation in the state `proposed`, with its
+frozen set and its proposer, and returns the operation's id and that state. The stated
+`expectedCount` is checked as for any change.
+
+- The frozen set is kept with the proposal, so it outlives the selection's hour. A proposal
+  expires after seven days.
+- `mail-status` and `mail-operation-list` show what awaits the person: the command, the exact
+  counts, the proposer.
+- **`mail-operation-approve`** is a person's command with an approval policy
+  ([3.5](#35-commands-only-a-person-may-run)). The command line shows the proposal through
+  `mail-operation-show` and asks. The agent wrote the query, and mail may have steered it, so
+  the preview shows more than a count and a sample: the command; the proposer; the selection's
+  query; the counts by account, by mailbox and by screening class; and a line of its own when
+  the set holds mail from known senders, with how many. The approval token is bound to the operation's id, and the operation's set is frozen, so
+  what runs is what was shown. The summary holds counts only: "Trash 283 721 messages, proposed
+  by agent 3".
+- Once approved, the operation runs as the person's: no limit applies, and it does not count
+  against the proposer's daily limit. It can be undone like any other. Each message's place and
+  state before are recorded when the operation runs, not when it was proposed; a message that
+  moved or went in between is reported and left alone.
+- An agent's resume or undo of an operation is under the same policy by the operation's size:
+  over a limit it is a proposal. An agent may always cancel.
+- `mail-operation-dismiss` discards a proposal. The person or its proposer may run it.
+- A caller may have five proposals waiting. A further one fails with `POLICY_LIMIT`, so mail
+  that steers an agent cannot bury the person in requests.
+
+**What cannot be undone (M29).** Every change to mail in this section can be undone, which is
+why an agent may make small ones alone. A command that sends mail, or removes for good the
+person's mail, a draft or a credential, is declared destructive and carries an approval policy.
+Today those are `mail-draft-send`, `mail-replyset-send`, `mail-unsubscribe`,
+`mail-account-remove` and `mail-token-revoke`, and each is also a person's command (M18). Any
+later command that deletes mail for good joins them.
+
+- A test reads the registry and fails if a command is destructive without an approval policy.
+  The flag is declared, not derived, so a new command is checked against this paragraph in
+  review.
+- Discarding a draft is kept recoverable so that it stays open to agents: a discarded draft is
+  held for 30 days and `mail-draft-restore` returns it.
+- Dismissing a proposal or a suggestion, and withdrawing a proposed record, are outside the
+  rule: nothing of the person's is lost, and the proposer can propose again.
 
 ### 9.5 Drafts and sending
 
@@ -737,8 +795,8 @@ says otherwise.
 | --- | --- | --- | --- | --- |
 | `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome |
 | `mail-account-list` | B | Read | cli, mcp | |
-| `mail-account-add`, `mail-account-remove` | B | Local; a person | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so |
-| `mail-token-create`, `mail-token-list`, `mail-token-revoke` | B | Local; a person | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)) |
+| `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so |
+| `mail-token-create`, `mail-token-list`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)) |
 | `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)) |
 | `mail-thread-list`, `mail-thread-open`, `mail-message-open` | B | Read | cli, mcp | An output budget on each; lists are paged by cursor |
 | `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP |
@@ -746,14 +804,19 @@ says otherwise.
 | `mail-rebuild` | B | Local | cli | Under `serve` it runs in the server and reports through `mail-status` |
 | `mail-sender-list`, `mail-sender-show` | C | Read | cli, mcp | |
 | `mail-sender-screen` | C | Local, undoable; a person | cli | No approval prompt ([7.3](#73-the-persons-decisions)) |
-| `mail-sender-suggest` | C | Local | cli, mcp | |
+| `mail-sender-suggest` | C | Local | cli, mcp | Changes no class |
+| `mail-sender-accept` | C | Local, undoable; a person | cli | Accepts an agent's suggestion (M28) |
+| `mail-sender-dismiss` | C | Local | cli, mcp | The person's or the proposer's |
 | `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | |
 | `mail-selection-create` | D | Local | cli, mcp | |
-| `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy |
+| `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)) |
+| `mail-operation-approve` | D | Remote, undoable; a person | cli | Runs an agent's proposal (M28) |
+| `mail-operation-dismiss` | D | Local | cli, mcp | The person's or the proposer's |
 | `mail-operation-list`, `mail-operation-show` | D | Read | cli, mcp | |
 | `mail-operation-undo`, `mail-operation-resume`, `mail-operation-cancel` | D | Remote, undoable | cli, mcp | Under the policy, as the operation's own command |
 | `mail-thread-snooze` | D | Local, undoable | cli, mcp | |
-| `mail-draft-create`, `mail-draft-update`, `mail-draft-discard` | D | Local | cli, mcp | |
+| `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | |
+| `mail-draft-discard`, `mail-draft-restore` | D | Local, undoable | cli, mcp | A discarded draft is held for 30 days (M29) |
 | `mail-draft-list`, `mail-draft-show` | D | Read | cli, mcp | `mail-draft-show` is the preview of a send |
 | `mail-draft-send` | D | Remote, destructive; a person | cli | |
 | `mail-unsubscribe` | D | Remote, destructive; a person | cli | |
@@ -772,8 +835,10 @@ Differences from the proposal's draft list:
   they take a selection.
 - `mail-sender-screen` becomes a person's command, and `mail-sender-suggest` is added for
   agents.
+- `mail-sender-accept`, `mail-sender-dismiss`, `mail-operation-approve` and
+  `mail-operation-dismiss` carry the owner's rule that an agent proposes and a person approves.
 - Added: `mail-token-*`, `mail-selection-create`, `mail-operation-*`, `mail-policy-*`,
-  `mail-rebuild`, `mail-draft-discard`, `mail-draft-show`, `mail-record-withdraw`,
+  `mail-rebuild`, `mail-draft-discard`, `mail-draft-restore`, `mail-draft-show`, `mail-record-withdraw`,
   `mail-story-propose` and `mail-story-dismiss`.
 - The extractor commands are deferred.
 
@@ -822,7 +887,8 @@ Beside the crate's own codes:
 | `PROVIDER_LIMIT` | The provider's rate or quota limit; retryable after the time given |
 | `NOT_HELD` | The bytes asked for are not in the log and could not be fetched now |
 | `PERSON_REQUIRED` | A person's command with no terminal |
-| `POLICY_LIMIT` | A change over what the policy allows this caller |
+| `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller |
+| `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired |
 | `SELECTION_MISMATCH` | The count stated is not the selection's count, or the selection has expired |
 | `RECIPIENT_NOT_ALLOWED` | A recipient the rule does not allow |
 | `SEND_OUTCOME_UNKNOWN` | The send may or may not have gone |
@@ -886,8 +952,8 @@ acceptance run on the owner's accounts, recorded in the status file as counts.
 | Phase | Exit | Tests that must pass |
 | --- | --- | --- |
 | B | The owner's iCloud and Gmail accounts synced; mail read and searched from the command line and by an agent over MCP; the large mailbox reaches "synced" with its unreturned messages counted; the limits of [4.4](#44-limits-to-meet) met | Sync resumes after a stop at every batch boundary; a read never sends a command that can change a mailbox; unreturned messages follow [5.4](#54-messages-listed-and-not-returned); a header-only mailbox reaches "synced"; a rebuild reproduces every derived table; a request with no token, a wrong `Host` or a browser `Origin` is refused on both routes, `tools/list` included, and each token is refused on the other's route; a person's command is not listed or callable over MCP; no content outside a labelled part in any result, failure or journal entry of a refusal; a new token is not in the journal; the fuzz targets run clean for the time the workflow gives them |
-| C | Stream stories and the screening queue on the owner's mail with no model; the burst rule tried on the period the owner names | Each class's rule; a decision reclassifies old mail; an agent's suggestion changes no class; a burst is one story, a bulk message in it is in no stream story, and a known sender's message is never in it |
-| D | An agent archives and labels under the policy and cannot send; a person sends at the terminal; the owner moves a large selection to trash, with its unreturned messages reported, and undoes part of it | Every remote command's inverse restores the prior state on both doubles; a move without `MOVE` resumes correctly from a stop after each of its steps; a change touches the frozen set and nothing that matched later; a wrong `expectedCount` and a call over the policy change nothing; a send to a recipient outside the rule is refused; a dropped connection during a send yields `SEND_OUTCOME_UNKNOWN` and no retry |
+| C | Stream stories and the screening queue on the owner's mail with no model; the burst rule tried on the period the owner names | Each class's rule; a decision reclassifies old mail; an agent's suggestion changes no class until a person accepts it, and accepting needs an approval; a burst is one story, a bulk message in it is in no stream story, and a known sender's message is never in it |
+| D | An agent archives and labels under the policy and cannot send; an agent proposes emptying a large mailbox and nothing changes until the owner approves; a person sends at the terminal; the owner moves a large selection to trash, with its unreturned messages reported, and undoes part of it | Every remote command's inverse restores the prior state on both doubles; a move without `MOVE` resumes correctly from a stop after each of its steps; a change touches the frozen set and nothing that matched later; a wrong `expectedCount` changes nothing; a call over the policy changes nothing and becomes a proposal, which runs only after a person's approval and then touches exactly its frozen set; a sixth waiting proposal is refused; an approval's preview gives the query, the counts by mailbox and by class, and a line for known senders' mail when the set holds any; every destructive command has an approval policy; a send to a recipient outside the rule is refused; a dropped connection during a send yields `SEND_OUTCOME_UNKNOWN` and no retry |
 | E | A reply set sent from a reviewed batch, each reply traceable to its inputs | A record with a passage not in the visible text is refused; a reply's recipient cannot be set by the caller |
 
 ## 15. Implementation plan
@@ -908,29 +974,32 @@ file.
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)) |
 | C2 | Screening classes, the person's decisions and agents' suggestions, stream stories |
 | C3 | Bursts, tried on the period the owner names |
-| D1 | Selections, the policy, operations and undo, on the doubles |
+| D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles |
 | D2 | The four remote commands on iCloud and Gmail |
 | D3 | Drafts, send and unsubscribe at the terminal |
 | E1 to E3 | Records; proposed stories; reply sets |
 
 ## 16. For the owner
 
-Approving this document approves M15 to M27. Four points are choices more than engineering, and
-each can be changed without unpicking the rest:
+The owner approved M15 to M27 by merging this document. Four points were choices more than
+engineering. His answers, 2026-11-11:
 
-| | Choice | The alternative |
+| | Choice | The owner's answer |
 | --- | --- | --- |
-| M21 | No encryption of the engine's own; rely on the disk's, with files private to your user account and credentials in the keychain | The engine encrypts its files with a key in the keychain. It protects a copied data directory, and nothing more, at the cost of a store that standard tools cannot open |
-| M26 | Bursts: known senders stay on top, a flood becomes one flagged story | Leave bursts to the ordinary screening queue |
-| The default policy ([9.4](#94-the-policy)) | An agent may archive, label and mark up to 500 messages a call, and trash up to 50 a call and 200 a day | Any other numbers, or no trash for agents at all |
-| Decisions on senders ([7.3](#73-the-persons-decisions)) | Only you block or admit a sender; an agent suggests | Let an agent decide, with blocks listed in the status |
+| M21 | No encryption of the engine's own; rely on the disk's, with files private to the user account and credentials in the keychain | Agreed |
+| M26 | Bursts: known senders stay on top, a flood becomes one flagged story | Agreed |
+| The default policy ([9.4](#94-the-policy)) | An agent may archive, label and mark up to 500 messages a call, and trash up to 50 a call and 200 a day | Agreed as the limits for an agent acting alone. Added: an agent may offer a larger change, such as emptying the large mailbox, and the person must approve it (M28). Anything destructive and not recoverable needs the person's approval, enforced through AFD (M29) |
+| Decisions on senders ([7.3](#73-the-persons-decisions)) | Only the person blocks or admits a sender; an agent suggests | Treated like the policy: an agent offers, and the person approves (M28) |
 
-One limit to know before approving ([3.5](#35-commands-only-a-person-may-run)): "only a person
-may send" holds against an assistant connected over MCP. It does not hold against a coding agent
-that has a shell on your machine, because such an agent can do whatever you can at a terminal.
+One limit to know ([3.5](#35-commands-only-a-person-may-run)): "only a person may send", and
+"only a person approves", hold against an assistant connected over MCP. They do not hold against
+a coding agent that has a shell on the owner's machine, because such an agent can do whatever he
+can at a terminal. The Loam app's approval (L7) is the stronger assurance; whether it closes
+this fully depends on the keychain point in [3.5](#35-commands-only-a-person-may-run), which is
+not verified.
 
-Not asked of the owner now: Loam's L8 comes as step B1's pull request, and the Gmail probe in
-step B0 needs an OAuth client the owner creates in Google's console.
+Still needed from the owner: an OAuth client created in Google's console for step B0, and the
+account and period of the flood for step C3. Loam's L8 comes as step B1's pull request.
 
 ## 17. Out of scope
 
