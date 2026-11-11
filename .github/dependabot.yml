@@ -11,8 +11,13 @@ updates:
     ignore:
       # Playwright 1.65's Chromium runs a behavior's connectedCallback before
       # fast-element binds its observables, failing element-controller.pw.spec.ts's
-      # invocation-order test. Lift this when fast-element handles that order.
+      # invocation-order test (#901). Lift this when fast-element handles that order.
+      # Both names are held: with `@playwright/test` alone, the group moved `playwright`
+      # to 1.65 beside it and the lockfile resolved two Playwright copies (#955).
       - dependency-name: '@playwright/test'
+        versions:
+          - '>=1.65.0'
+      - dependency-name: playwright
         versions:
           - '>=1.65.0'
     groups:
@@ -68,4 +73,4 @@ updates:
       interval: weekly
     labels:
       - dependencies
-      - ci
+      - area:ci
