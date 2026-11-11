@@ -24,7 +24,9 @@ Its working name is Ideas, and the plugin id is `ideas` ([section 11](#11-for-th
   ([P3](#6-what-ideas-needs-from-the-platform)); whether a managed PostgreSQL reached over direct
   connections can meet the phase 6 backend's requirements (P10); how far Violet's engine is
   generic beyond a line-count estimate; every number in
-  [section 7](#7-measurement-and-exit-criteria), which phase 0 sets. The external claims in
+  [section 7](#7-measurement-and-exit-criteria), which phase 0 sets. The scenario files parse
+  and validate with AFD's scenario runner but have never been run, since nothing is built, and
+  whether its matchers reach inside the items of a list was not checked. The external claims in
   [Evidence](#3-evidence) come from the sources listed there, each with its limit.
 
 ### Revision of 2026-11-11
@@ -43,6 +45,19 @@ agreed these changes, and said an instance runs as a hosted MCP server on Umbel'
 | Merging was a workaround and splitting was missing | Both are operations (4.8) |
 | Nothing told the person what needs them | A digest (4.9) |
 | Where an instance runs was unstated | Hosted, over stateless MCP (4.11) |
+
+A second pass the same day wrote the plan's jobs as AFD scenario files and used them as a
+benchmark ([Jobs to be done](#jobs-to-be-done)). Writing them found what the plan was missing:
+
+| A job could not be written because | Change |
+| --- | --- |
+| A hosted instance had no way to receive a source's content, and a web page or a book has no bytes to hash | `ideas-source-add`, for content sent over MCP and for reference sources (4.9) |
+| Nothing flagged an idea that rests on one that changed | A link remembers the versions it was stated against (4.5) |
+| Ideas could not be found by where they had been used | Finding by use, and a channel on an output record (section 5) |
+| A book had nowhere to live between a single idea and a one-off output | Works: lasting, ordered arrangements of ideas (4.9) |
+| Voice and structure for a format had no home | A format in the pack carries guidance, returned with a bundle (4.11) |
+| Keeping material out of public work waited for the whole hierarchy | The thin slice has one level of framings that can only leave ideas out (4.6) |
+| Review by use could not be shown without waiting years | Checks and the digest can be read as of a date (4.9) |
 
 ## 1. Problem and goal
 
@@ -80,6 +95,61 @@ going stale, and works with it through agents:
 
 **Not goals.** A document repository. A browsing interface as the main way in. A language model
 inside the request path.
+
+### Jobs to be done
+
+The goal is held to twenty jobs. Each is a scenario file for AFD's scenario runner
+(`packages/testing`) in [`scenarios/`](scenarios/), written against the draft commands of
+[section 5](#5-commands-draft): a `job`, steps that call commands, and what each must return.
+They are the plan's benchmark now and its acceptance tests later. They are drafts for the owner
+to cut and add to, since only the owner knows which jobs are frequent and which hurt.
+
+| | When | I want | Scenario | In |
+| --- | --- | --- | --- | --- |
+| 1 | An idea surfaces mid-conversation | It saved in one step and checked against what I have | `01-capture-in-flow` | slice |
+| 2 | I finish a brainstorm or a voice memo | The raw session kept and its ideas pulled out | `02-keep-a-brainstorm` | slice |
+| 3 | I finish research | Findings stored as evidence with citations, apart from my positions | `03-file-research` | slice |
+| 4 | I start with years of my own documents | Them mined once without a mountain of review | `04-mine-an-archive` | slice |
+| 5 | I look at an area I have thought about for years | To see what I think now, what is contested and what is unsupported | `05-see-what-i-think` | slice |
+| 6 | My view changes | To change it once and see what rested on it | `06-change-my-mind` | slice |
+| 7 | Two ideas are one, or one is two | To fix it without losing where they came from | `07-refactor-ideas` | slice |
+| 8 | I write an article, a script or a thread | A draft built only from views I hold | `08-draft-from-what-i-hold` | slice |
+| 9 | I need something to post today | Ideas I hold and have not used on that channel | `09-find-what-to-share` | slice |
+| 10 | I work on a book for months | An outline that lasts, shows thin chapters and what each used | `10-keep-a-long-work` | slice |
+| 11 | I have published | To know which pieces no longer match my thinking | `11-spot-stale-outputs` | slice |
+| 12 | Weeks pass, or a better model arrives | A briefing, and to review only what is new | `12-catch-up` | slice |
+| 13 | I hold material that must never appear publicly | That guaranteed, not remembered | `13-keep-private-out` | slice |
+| 14 | I switch harness or device | The same ideas after signing in | `14-reach-from-any-harness` | slice |
+| 15 | An agent or a new run touches what I affirmed | My wording to stand until I say otherwise | `15-protect-affirmed` | slice |
+| 16 | An idea I affirmed long ago is never used | Not to be asked about it until it is | `16-stay-quiet-about-unused` | slice |
+| 17 | I write for a particular audience | My ideas in its wording, with no second copy | `17-frame-for-an-audience` | whole |
+| 18 | I am about to retire or rewrite an idea | To see what the change would touch first | `18-preview-a-change` | whole |
+| 19 | I explore without a question | To follow what supports what and what leads where | `19-explore-connections` | slice |
+| 20 | The store has grown | Older ideas that belong together offered for linking | `20-connect-older-ideas` | slice |
+
+Jobs 15 and 16 are things the store must never do, written as jobs.
+
+**What the files show.** All twenty parse and pass the runner's dry-run validation: 151 steps.
+Against the draft command list they exercise 27 of 34 commands. No job uses `ideas-restore`,
+`ideas-borrow`, `ideas-unlink`, `ideas-framing-update`, `ideas-framing-list`,
+`ideas-source-register` or `ideas-source-list`. Either a job is missing or the command is not
+needed ([section 11](#11-for-the-owner), question 11).
+
+**What a scenario cannot show.** A scenario checks what commands return. It cannot judge whether
+a model extracted the right ideas or wrote a good draft, so each job splits: the engine's part is
+the scenario, with the model's output written into its steps, and the model's part is measured in
+phase 0. Three scenarios (1, 12 and 15) expect a paraphrase to be refused; they pass only if matching by
+meaning works, which makes them its benchmark. Job 14 is proved by running its file from two harnesses.
+
+**What the runner cannot yet do** (P14):
+
+- Assert anything but `success`, `data`, `reasoning`, `confidence` and an error's code, message
+  and suggestion. A refusal's alternatives, a result's warnings and an error's details are out of
+  reach, so "the refusal names the idea it resembles" cannot be checked. The plan therefore puts
+  whatever a caller must act on in `data` as well.
+- Run a step as a different actor. Every step runs as one test actor, so "an agent is refused
+  and a person is allowed" cannot be written, and no scenario covers `FORBIDDEN`.
+- Move the clock between steps. Job 16 is written with a read as of a date instead.
 
 ## 2. What exists today
 
@@ -193,6 +263,13 @@ Each can be revisited by the owner.
     changes. It writes the same operation log, so framings arrive later with no migration.
 20. **An instance is hosted.** It is reached over Umbel's stateless MCP from every harness the
     person uses. Directed by the owner on 2026-11-11.
+21. **Jobs are the benchmark.** The plan serves the [jobs](#jobs-to-be-done), each a scenario
+    file. A command that no job uses has to justify itself, and a job that cannot be written as
+    steps is a gap in the plan.
+22. **A work is a lasting arrangement.** A book, a course or a series is an ordered outline of
+    ideas that persists and is edited over months. It holds no prose.
+23. **What a caller must act on is in the data.** Counts and lists of what needs attention are
+    returned as data, not only as warnings, so an agent and a scenario can both read them.
 
 ### 4.2 Shape
 
@@ -266,7 +343,9 @@ an instance's own labelled pairs.
 A link is `(from, kind, to)`. The default kinds are supports, challenges, refines, depends-on,
 example-of and summarises. Supersedes is not a link: it is recorded by retiring. A link is stated
 in a framing, inherited by its descendants, and can be withdrawn in one of them. It resolves only
-where both ends do. A link carries who stated it.
+where both ends do. A link carries who stated it, and the version of each end it was stated
+against. When an end is reframed or retired, an idea that depends on it, or was supported by it,
+is reported as resting on something that changed.
 
 Links are kept up as the store grows:
 
@@ -297,7 +376,9 @@ Omitting is what keeps material out of a setting by construction. An idea omitte
 framing cannot be returned by a call that resolves the public framing, which a note saying "do
 not quote this" cannot guarantee.
 
-The thin slice has one framing, the root, and records state, reframe and retire in it.
+The thin slice has the root and one level of framings beneath it that can only leave ideas
+out. That is enough to keep material out of a setting by construction, and it is a strict subset
+of the full semantics, so nothing in it is thrown away.
 
 ### 4.7 Themes and syntheses
 
@@ -333,7 +414,10 @@ version involved has standing. An agent may merge seeds.
   origin (the person's own thinking, a conversation, research, a reading), and the date the
   thinking happened as distinct from the date it was filed. A second file with the same hash is
   the same source. One that matches after line endings and trailing space are normalised is
-  reported as a near copy. An idea cites a source with a locator and the hash of the quoted text.
+  reported as a near copy. An idea cites a source with a locator and the hash of the quoted text. A hosted instance
+  receives a source's content over MCP with `ideas-source-add`, journaled as a digest. A web page
+  or a book is a *reference* source: a URI or a citation, the date it was read, and the passages
+  relied on, each hashed. A reference source can back evidence and can never attest a statement.
 - **Run.** A record of one extraction: the sources read, a label for the extractor (the model and
   the prompt version, supplied by the caller), and the time. Captures made under a run carry its
   id. A run's report says what was new, what matched an existing idea and was recorded as another
@@ -341,11 +425,15 @@ version involved has standing. An agent may merge seeds.
 - **Output.** A record with a title, a format, the framing, and the list of idea versions used.
   The drift of an output is the difference between those versions and what the framing resolves
   now.
+- **Work.** A named, ordered outline of sections, each holding ideas. It lasts and is rearranged
+  as the work develops. An output can be recorded against a section, which pins what that draft
+  used. The work reports sections with too few ideas or no evidence, ideas of the same themes
+  that are not yet placed, and drafted sections whose ideas have since moved.
 - **Digest.** One read that says what changed since a cursor and what needs the person: new seeds
   by run and source; ideas due and in use; pairs that may be the same idea; link candidates;
   syntheses out of date; questions still open; outputs that have drifted. The platform has no
   scheduler, so a cron line or a harness's scheduled task runs it, as the curator's runs are
-  scheduled.
+  scheduled. The digest and the health report can be read as of a date, to see what will be due.
 
 Mining a source again with the same extractor adds nothing. Mining it with a better one adds
 seeds and sightings and changes no version with standing. How often an idea is sighted across
@@ -369,7 +457,7 @@ sources is a signal worth showing.
 | The plugin ships | An instance supplies |
 | --- | --- |
 | The record shapes, the engine, the commands | Its sources and ideas |
-| A default pack: types, link kinds, review intervals, matching thresholds, a few output formats | Its own pack, replacing the default whole |
+| A default pack: types, link kinds, review intervals, matching thresholds, and a few output formats, each with guidance on structure | Its own pack, replacing the default whole, with its formats, channels and guidance on voice |
 | A skill that teaches capture, asking and writing | Its framings, and which collections are the person's own |
 | | Its backend, its embedding model and its identity provider, chosen by the deployer |
 
@@ -444,21 +532,24 @@ column marks what the thin slice has.
 | `ideas-capture` | write | yes | States a new idea as a seed, with type, statement, tags, sources and links. Refuses a match in the same band with `ALREADY_EXISTS`, the matches as alternatives, and the three ways forward. A capture that succeeds returns the related band as link candidates. A statement quoted from the person's own source is attested |
 | `ideas-observe` | write | yes | Records another sighting of an existing idea in a source |
 | `ideas-reframe` | write | yes | A new wording or new tags; a new version |
-| `ideas-omit`, `ideas-restore`, `ideas-borrow` | write | | The other framing operations |
+| `ideas-omit` | write | yes | Leaves an idea out of a framing |
+| `ideas-restore`, `ideas-borrow` | write | | The other framing operations. No job uses them yet |
 | `ideas-link`, `ideas-unlink` | write | yes | State or withdraw a typed link |
 | `ideas-affirm` | write, person only | yes | Affirms the versions a framing resolves, one or many |
 | `ideas-retire` | write, person only | yes | Retires an idea, optionally naming its successor |
 | `ideas-merge`, `ideas-split` | write, person only when standing is involved | yes | [4.8](#48-merging-and-splitting) |
-| `ideas-framing-create`, `ideas-framing-update`, `ideas-framing-list` | write, read | | The tree and its shared sets |
-| `ideas-source-register`, `ideas-source-list` | write, read | yes | Registers a source by hash and reports copies |
+| `ideas-framing-create`, `ideas-framing-list` | write, read | yes | The tree. In the slice, one level beneath the root |
+| `ideas-framing-update` | write | | Shared sets, status and sunset. No job uses it yet |
+| `ideas-source-add`, `ideas-source-list` | write, read | yes | Adds a source by its content, by a document already in a collection, or as a reference, and reports copies and whether it can attest. `ideas-source-register` is folded into it |
 | `ideas-run-open`, `ideas-run-show` | write, read | yes | Opens a run and reports what it produced |
-| `ideas-output-record` | write | yes | Records an output and the versions it used, and warns of seeds and due ideas among them |
-| `ideas-find` | read | yes | Ideas by meaning and words, and by type, standing, tag, source, run or link, paged inside a budget |
+| `ideas-output-record` | write | yes | Records an output, its format and channel, the versions it used, and the work and section it belongs to, and returns the seeds and due ideas among them |
+| `ideas-work-create`, `ideas-work-arrange`, `ideas-work-show` | write, read | yes | A lasting outline, and what it says about thin, unplaced and moved ideas |
+| `ideas-find` | read | yes | Ideas by meaning and words, and by type, standing, tag, source, run, link, or where they have and have not been used, paged inside a budget |
 | `ideas-open` | read | yes | One idea: its version, history, links both ways, sources, sightings and the outputs that used it |
 | `ideas-related` | read | yes | Neighbours by link kind to a depth, and paths between two ideas |
 | `ideas-themes` | read | yes | The derived themes, each with its synthesis and whether it is out of date |
 | `ideas-link-candidates` | read | yes | Pairs in the related band with no link |
-| `ideas-bundle` | read | yes | A budgeted bundle for a task: a synthesis where one fits, the selected ideas, what supports and challenges them, their sources and their standing, as JSON or a text block |
+| `ideas-bundle` | read | yes | A budgeted bundle for a task: a synthesis where one fits, the selected ideas, what supports and challenges them, their sources and their standing, and the named format's guidance, as JSON or a text block |
 | `ideas-digest` | read | yes | [4.9](#49-sources-runs-outputs-and-the-digest) |
 | `ideas-check` | read | yes | The health report |
 | `ideas-compare` | read | | Two framings, or an output against the present |
@@ -469,11 +560,12 @@ competing for the first-class places, which are capped at eight (decision D27). 
 commands need no approval, confirmation or task, since a gated step cannot run inside `afd-pipe`
 or `afd-batch`. It ships pipelines as data for the common sequences, such as capture then link.
 
-Checks in the report, each with a stable id: an idea due and in use; a seed older than a set age
+Reads return counts beside their lists. Checks in the report, each with a stable id: an idea due and in use; an idea that
+rests on one that changed; a seed older than a set age
 that an output has used; a position with no supporting evidence; an idea with a standing
 challenge; a pair in the same band with no declared relation; an idea with no link and no use; a
 synthesis out of date; a theme above a set size with no synthesis; a link whose end no longer
-resolves; an output that pins a retired idea; and, with framings, a reframe equal to what it
+resolves; an output that pins a retired idea; a section of a work that is thin or has moved; and, with framings, a reframe equal to what it
 inherits and a framing past its sunset date.
 
 ## 6. What Ideas needs from the platform
@@ -498,8 +590,10 @@ than this plugin. The last column says what happens if it is declined.
 | P12 | **A `tokens` plugin**: Violet's tokens served through Umbel on the shared engine | Agents in any harness would reach design tokens as they reach component briefs | Violet stays reachable only through its own server |
 | P13 | **Demand signals a plugin can read.** Per record, how often it was returned; per command, the queries that returned nothing. Opt-in for a space, with retention, since a query is content | A read cannot write, and a plugin cannot read the journal, so no plugin can learn what is used or what is missing. Knowledge would rank stale documents by use and find its gaps the same way | Use is known only from recorded outputs, and gaps only when an agent captures a question |
 
-P1 to P3 come before the thin slice. P4 to P8 and P13 come with the rest of this plan. P9 to P12
-follow its exit.
+| P14 | **A fuller scenario runner.** Expectations on alternatives, warnings, sources and an error's details; an actor for a step; a way to move the clock between steps; fixtures for a plugin's records | The runner can check only part of the result that AFD defines, and cannot script a person-only command. Every command set with refusals and gated steps has the same limit | The scenarios check less than the jobs say, and person-only rules are tested elsewhere |
+
+P1 to P3 come before the thin slice, and P14 beside it. P4 to P8 and P13 come with the rest of
+this plan. P9 to P12 follow its exit.
 
 On the word connector: in AFD it wraps a command-line tool, in Botcore it is typed commands over
 an external service, and in Umbel it binds a plugin to an external source. The abstraction that
@@ -508,7 +602,10 @@ connector belongs.
 
 ## 7. Measurement and exit criteria
 
-Phase 0 sets every threshold. The plan is done when, on the phase 0 corpus and a seeded fixture:
+The plan is done when every scenario in [`scenarios/`](scenarios/) passes against a hosted
+instance, and the measures below hold on the phase 0 corpus and a seeded fixture. Phase 0 sets
+every threshold. The scenarios show that each job works once; the measures show that it keeps
+working at size.
 
 1. Capture refuses the labelled duplicate pairs, paraphrases among them, and admits the labelled
    distinct pairs, at the rates phase 0 fixes.
@@ -529,8 +626,8 @@ Phase 0 sets every threshold. The plan is done when, on the phase 0 corpus and a
     in one call, after signing in. Affirming goes through the person page.
 12. An instance is backed up and restored with no loss.
 
-The thin slice is done when it meets 1 to 7, 11 on one machine, and 12 as an export and import,
-and has been in daily use by the owner.
+The thin slice is done when every scenario marked slice passes, it meets 1 to 7, 11 on one
+machine, and 12 as an export and import, and it has been in daily use by the owner.
 
 ## 8. Phase 0: measure before specifying
 
@@ -545,6 +642,7 @@ No production code. A real corpus chosen by the owner, with a sample labelled by
 | 0.5 | Do derived themes match how the owner groups ideas? | Compute themes two ways and compare with the owner's own grouping of a sample | A grouping method, and a size above which a theme wants a synthesis |
 | 0.6 | Does a hierarchy of framings fit ideas? | Load the ideas into Violet as it is, as composite values, with three or four framings. Exercise each operation, lineage, compare and the dry run | What fits, what breaks, which operations are used |
 | 0.7 | Records or documents? | Compare the two against what 0.1 to 0.6 found | A recommendation for question 2 of [section 11](#11-for-the-owner) |
+| 0.8 | Are these the right jobs? | The owner walks each job on the corpus by hand, with a model doing the model's part | Jobs cut, added and ranked; the model's part of each job judged; the slice's scope confirmed |
 
 If 0.6 shows that framings do not fit, the plan keeps the flat set of the thin slice, and P7
 narrows to what Violet needs.
@@ -556,9 +654,9 @@ Each step is one pull request unless its specification says otherwise.
 | Phase | Work | Needs |
 | --- | --- | --- |
 | 0. Prove it | [Section 8](#8-phase-0-measure-before-specifying), recorded beside this file | A corpus |
-| A. Specify the slice | A1: P1 as amendments to Umbel's architecture and decision log. A2: P2 and P3 as a host specification. A3: the plugin's specification for the slice at `endpoints/umbel/docs/plugins/ideas/spec.md`, in the shape decision D150 sets | Phase 0; the owner's answers |
+| A. Specify the slice | A1: P1 as amendments to Umbel's architecture and decision log. A2: P2 and P3 as a host specification. A3: the plugin's specification for the slice at `endpoints/umbel/docs/plugins/ideas/spec.md`, in the shape decision D150 sets, with the scenarios moved beside it. A4: P14 as an AFD change, specification first | Phase 0; the owner's answers |
 | B. Matching in the host | P2 and P3 in the store traits, the embedded backend and the conformance suite | A2 |
-| C. The thin slice | C1: crate, pack, records, capture with the refusal and candidates, observe, reframe, open, find. C2: links, link candidates, sources by hash, runs. C3: standing: attested, affirm, retire, merge, split. C4: bundle, output records, themes and syntheses, the health report, the digest. C5: the skill, the hook capture, export and import | A3, B |
+| C. The thin slice | C1: crate, pack, records, capture with the refusal and candidates, observe, reframe, open, find. C2: links, link candidates, sources by hash, runs. C3: standing: attested, affirm, retire, merge, split. C4: bundle, output records, works, themes and syntheses, the health report, the digest. C5: the skill, the hook capture, export and import. Each step ends with its scenarios passing | A3, B |
 | D. A first instance | The slice hosted over stateless MCP on one machine, with sign-in, in daily use | C; phase 5's exit |
 | E. Specify the rest | E1: the hierarchy semantics and its vectors (P7). E2: P4 to P6 and P13 as a host specification. E3: P8 as an AFD proposal, specification first. E4: the plugin's specification amended for framings, compare and preview | 0.6; what the slice taught |
 | F. Engine and host | The Rust engine and the vectors, with Violet's engine run against them and each difference fixed or recorded. P4 to P6 and P13 in the host | E1, E2 |
@@ -592,6 +690,8 @@ Open points:
 - Whether an idea's type may be reframed, or only its statement and tags.
 - Whether a shared set is a framing or a separate thing.
 - Whether a link needs standing of its own, or its author is enough.
+- Whose affirmation counts when a space is shared by a team. The jobs assume one person.
+- Whether people, organisations and products that ideas are about need to be more than tags.
 - How the plugin's context relates to the `context` plugin's bundles before P9.
 - Whether Violet moves onto the Rust engine later. This plan holds both to one semantics and
   leaves that choice open.
@@ -603,6 +703,7 @@ Directed or agreed on 2026-11-11, to be recorded when this plan is approved:
 - The standing rule (decision 5, P1).
 - The changes in the [Revision](#revision-of-2026-11-11): matching by meaning, the thin slice,
   review by use, themes and syntheses, link upkeep, merge and split, and the digest.
+- Jobs to be done, as AFD scenarios, are the plan's benchmark.
 - An instance runs as a hosted MCP server on Umbel's stateless MCP (decision 20).
 - The platform's existing plans may change where a change makes the whole stronger.
 
@@ -633,6 +734,9 @@ Questions, each with a recommendation:
 8. **The plugin id and domain.** Recommended: `ideas`.
 9. **The phase 0 corpus**, and who labels the samples.
 10. **Scope.** Whether P9 to P12 belong to this plan's last phase or to plans of their own.
+11. **The jobs.** Which of the twenty to cut, which are missing, and which matter most. And the
+    seven commands no job uses: recommended, drop `ideas-borrow` and `ideas-framing-update` until
+    a job needs them, and keep `ideas-restore`, `ideas-unlink` and the two lists as housekeeping.
 
 ## 12. Out of scope
 

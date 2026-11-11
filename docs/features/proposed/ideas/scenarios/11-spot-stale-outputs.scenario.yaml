@@ -1,0 +1,100 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Spot published pieces that no longer match my thinking
+description: >-
+  When I have published, I want to know which pieces no longer match what I think, so that I
+  can correct or retire them.
+job: spot-stale-outputs
+tags: [change, slice]
+
+steps:
+  - description: One idea
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Dig the vegetable plot over every autumn.
+    expect:
+      success: true
+
+  - description: Another
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Lime the plot every third year.
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-affirm
+    input:
+      ids: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}"]
+    expect:
+      success: true
+
+  - description: An article used both
+    command: ideas-output-record
+    input:
+      title: Autumn jobs
+      format: article
+      channel: newsletter
+      ideas: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}"]
+    expect:
+      success: true
+
+  - description: What I think now, in place of the first
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Leave the plot undug and mulch it instead.
+    expect:
+      success: true
+
+  - description: I retire the first, naming what replaced it
+    command: ideas-retire
+    input:
+      id: "${{ steps[0].data.id }}"
+      successor: "${{ steps[4].data.id }}"
+      reason: Went no-dig.
+    expect:
+      success: true
+      data:
+        standing: retired
+
+  - description: I reword the second
+    command: ideas-reframe
+    input:
+      id: "${{ steps[1].data.id }}"
+      statement: Lime only after a soil test says so.
+      reason: The test showed the plot did not need it.
+    expect:
+      success: true
+
+  - description: The article is compared with the present
+    command: ideas-compare
+    input:
+      a:
+        output: "${{ steps[3].data.output }}"
+    expect:
+      success: true
+      data:
+        drift:
+          changed: 1
+          retired: 1
+
+  - description: The digest lists it
+    command: ideas-digest
+    expect:
+      success: true
+      data:
+        outputsDrifted: { length: 1 }
+
+  - description: The report finds an output that pins a retired idea
+    command: ideas-check
+    input:
+      checks: [output-pins-retired]
+    expect:
+      success: true
+      data:
+        counts:
+          output-pins-retired: 1

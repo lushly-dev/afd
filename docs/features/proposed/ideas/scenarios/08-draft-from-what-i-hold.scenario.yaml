@@ -1,0 +1,99 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Draft from what I hold
+description: >-
+  When I write an article, a script or a thread, I want the draft built only from views I hold,
+  so that it is mine and safe to publish.
+job: draft-from-what-i-hold
+tags: [use, slice]
+
+steps:
+  - description: A view
+    command: ideas-capture
+    input:
+      type: position
+      statement: A small garden should grow what is expensive to buy, not what is cheap.
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-affirm
+    input:
+      ids: ["${{ steps[0].data.id }}"]
+    expect:
+      success: true
+
+  - description: My own notes
+    command: ideas-source-add
+    input:
+      title: Notes on salad
+      kind: notes
+      collection: journal
+      content: "Cut-and-come-again salad pays for its bed in a month."
+    expect:
+      success: true
+
+  - description: My own words from them
+    command: ideas-capture
+    input:
+      type: example
+      statement: Cut-and-come-again salad pays for its bed in a month.
+      sources:
+        - source: "${{ steps[2].data.source }}"
+          quote: Cut-and-come-again salad pays for its bed in a month.
+    expect:
+      success: true
+      data:
+        standing: attested
+
+  - description: Something an agent suggested that I have not looked at
+    command: ideas-capture
+    input:
+      type: position
+      statement: Potatoes are never worth the space in a small garden.
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: A bundle for an article, from affirmed and attested ideas only
+    command: ideas-bundle
+    input:
+      ids: ["${{ steps[0].data.id }}", "${{ steps[3].data.id }}", "${{ steps[4].data.id }}"]
+      standing: [affirmed, attested]
+      format: article
+    expect:
+      success: true
+      data:
+        ideas: { length: 2 }
+        guidance: { exists: true }
+        attention:
+          seeds: 0
+
+  - description: Record the article and what it used
+    command: ideas-output-record
+    input:
+      title: What to grow in six square metres
+      format: article
+      channel: newsletter
+      ideas: ["${{ steps[0].data.id }}", "${{ steps[3].data.id }}"]
+    expect:
+      success: true
+      data:
+        pinned: 2
+        attention:
+          seeds: { length: 0 }
+
+  - description: An output that used the seed is recorded, and says so
+    command: ideas-output-record
+    input:
+      title: A thread on potatoes
+      format: thread
+      channel: social
+      ideas: ["${{ steps[4].data.id }}"]
+    expect:
+      success: true
+      data:
+        attention:
+          seeds: { length: 1 }

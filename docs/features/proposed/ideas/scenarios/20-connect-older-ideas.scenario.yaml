@@ -1,0 +1,51 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Connect older ideas as the store grows
+description: >-
+  When the store has grown, I want older ideas that belong together to be offered for linking,
+  so that connections do not depend on what I remembered at capture.
+job: connect-older-ideas
+tags: [organise, slice]
+
+steps:
+  - description: An idea
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Sow green manure as soon as a bed is cleared.
+    expect:
+      success: true
+
+  - description: A related one, captured without a link
+    command: ideas-capture
+    input:
+      type: evidence
+      statement: In the fixture beds, a winter cover of rye held twice the nitrogen of bare soil.
+    expect:
+      success: true
+      data:
+        related: { length: 1 }
+
+  - description: The pair is offered
+    command: ideas-link-candidates
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: A model judges it and states the link
+    command: ideas-link
+    input:
+      from: "${{ steps[1].data.id }}"
+      kind: supports
+      to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: Nothing is left to offer
+    command: ideas-link-candidates
+    expect:
+      success: true
+      data:
+        total: 0

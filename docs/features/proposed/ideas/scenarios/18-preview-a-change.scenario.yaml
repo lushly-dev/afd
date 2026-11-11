@@ -1,0 +1,61 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Preview a change before making it
+description: >-
+  When I am about to retire or rewrite an idea, I want to see what the change would touch
+  before I make it, so that I am not surprised afterwards.
+job: preview-a-change
+tags: [change, whole]
+
+steps:
+  - description: An idea
+    command: ideas-capture
+    input:
+      type: position
+      statement: A greenhouse pays for itself in three seasons.
+    expect:
+      success: true
+
+  - description: One that rests on it
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Buy the greenhouse before the tools.
+      links:
+        - kind: depends-on
+          to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: An article that used it
+    command: ideas-output-record
+    input:
+      title: The first big purchase
+      format: article
+      ideas: ["${{ steps[0].data.id }}"]
+    expect:
+      success: true
+
+  - description: What retiring it would do
+    command: ideas-preview
+    input:
+      operations:
+        - op: retire
+          id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        effects: { length: 1 }
+        findings:
+          added: { gte: 2 }
+        apply: { length: 1 }
+
+  - description: Nothing was changed
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: seed

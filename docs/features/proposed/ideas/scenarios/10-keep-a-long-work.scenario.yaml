@@ -1,0 +1,113 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Keep a long work, such as a book
+description: >-
+  When I work on a book for months, I want an outline that lasts, built from my ideas, that
+  shows thin chapters and what each chapter used, so that the work follows my thinking.
+job: keep-a-long-work
+tags: [use, slice]
+
+steps:
+  - description: An idea for the first chapter
+    command: ideas-capture
+    input:
+      type: position
+      statement: A garden plan starts with where the water is.
+    expect:
+      success: true
+
+  - description: Its evidence
+    command: ideas-capture
+    input:
+      type: evidence
+      statement: In the fixture survey, beds more than a hose length from a tap were abandoned within two years.
+      links:
+        - kind: supports
+          to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: An example
+    command: ideas-capture
+    input:
+      type: example
+      statement: The fixture garden moved its beds beside the rain barrel and kept them.
+      links:
+        - kind: example-of
+          to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: The only idea so far for the second chapter
+    command: ideas-capture
+    input:
+      type: position
+      statement: Paths deserve as much planning as beds.
+    expect:
+      success: true
+
+  - description: Start the work
+    command: ideas-work-create
+    input:
+      id: handbook
+      title: A small garden handbook
+      format: book
+    expect:
+      success: true
+
+  - description: Arrange its outline
+    command: ideas-work-arrange
+    input:
+      work: handbook
+      outline:
+        - section: water
+          title: Start with water
+          ideas: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}", "${{ steps[2].data.id }}"]
+        - section: paths
+          title: Paths
+          ideas: ["${{ steps[3].data.id }}"]
+    expect:
+      success: true
+
+  - description: The work shows one thin section
+    command: ideas-work-show
+    input:
+      work: handbook
+    expect:
+      success: true
+      data:
+        sections: { length: 2 }
+        thin: 1
+        moved: 0
+
+  - description: A draft of the first chapter is recorded against its section
+    command: ideas-output-record
+    input:
+      title: Start with water, draft 1
+      format: chapter
+      work: handbook
+      section: water
+      ideas: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}", "${{ steps[2].data.id }}"]
+    expect:
+      success: true
+      data:
+        pinned: 3
+
+  - description: An idea in that chapter changes
+    command: ideas-reframe
+    input:
+      id: "${{ steps[0].data.id }}"
+      statement: A garden plan starts with where the water and the sun are.
+      reason: Shade mattered as much as the tap.
+    expect:
+      success: true
+
+  - description: The work says a drafted section has moved on
+    command: ideas-work-show
+    input:
+      work: handbook
+    expect:
+      success: true
+      data:
+        moved: 1
