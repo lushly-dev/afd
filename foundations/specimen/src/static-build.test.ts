@@ -240,29 +240,29 @@ describe('the build accounting', () => {
 			await automated.page.context().close();
 		});
 
-		it('sets the viewport from a preset or a custom size, applied only on submit', async () => {
+		it('applies a preset viewport when picked, and a custom size on submit', async () => {
 			const { page } = await open('specimen.html?id=fixtures-cases--precedence');
 			await settledFrame(page);
 			const size = page.getByRole('combobox', { name: 'Viewport' });
 			const width = page.getByRole('spinbutton', { name: 'Width' });
+			const apply = page.getByRole('button', { name: 'Apply' });
 			expect(await size.inputValue()).toBe('1280x720');
 			expect(await width.isVisible()).toBe(false);
-			const before = page.url();
-			await size.selectOption('375x812');
-			// Choosing an option changes nothing until it is applied.
-			expect(page.url()).toBe(before);
+			// Apply is only for typed dimensions; a preset applies as it is picked.
+			expect(await apply.isVisible()).toBe(false);
 			await Promise.all([
 				page.waitForURL(/[?&]viewport=375x812(?:&|$)/),
-				page.getByRole('button', { name: 'Apply' }).click(),
+				size.selectOption('375x812'),
 			]);
 			expect(await (await settledFrame(page)).evaluate(() => innerWidth)).toBe(375);
+			const before = page.url();
 			await size.selectOption('custom');
+			// Choosing Custom changes nothing until the typed size is applied.
+			expect(page.url()).toBe(before);
+			expect(await apply.isVisible()).toBe(true);
 			await width.fill('500');
 			await page.getByRole('spinbutton', { name: 'Height' }).fill('400');
-			await Promise.all([
-				page.waitForURL(/[?&]viewport=500x400(?:&|$)/),
-				page.getByRole('button', { name: 'Apply' }).click(),
-			]);
+			await Promise.all([page.waitForURL(/[?&]viewport=500x400(?:&|$)/), apply.click()]);
 			const frame = await settledFrame(page);
 			expect(await frame.evaluate(() => [innerWidth, innerHeight])).toEqual([500, 400]);
 			expect(await size.inputValue()).toBe('custom');

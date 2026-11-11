@@ -231,24 +231,29 @@ function controls(root: HTMLElement, context: SpecimenContext) {
 		width.value = String(w);
 		height.value = String(hgt);
 		custom.hidden = size.value !== 'custom';
+		apply.hidden = custom.hidden;
 	};
-	show(context.viewport.width, context.viewport.height);
-	size.addEventListener('change', () => {
-		if (size.value !== 'custom') {
-			const [w, hgt] = size.value.split('x').map(Number);
-			width.value = String(w);
-			height.value = String(hgt);
-		}
-		custom.hidden = size.value !== 'custom';
-	});
+	// A theme or a preset size applies when it is picked; only typed custom dimensions wait for Apply.
+	const apply = h('button', { type: 'submit' }, 'Apply');
 	const form = h(
 		'form',
 		{ ariaLabel: 'Specimen context' },
 		field('Theme', theme),
 		field('Viewport', size),
 		custom,
-		h('button', { type: 'submit' }, 'Apply')
+		apply
 	);
+	show(context.viewport.width, context.viewport.height);
+	theme.addEventListener('change', () => form.requestSubmit());
+	size.addEventListener('change', () => {
+		custom.hidden = size.value !== 'custom';
+		apply.hidden = custom.hidden;
+		if (size.value === 'custom') return;
+		const [w, hgt] = size.value.split('x').map(Number);
+		width.value = String(w);
+		height.value = String(hgt);
+		form.requestSubmit();
+	});
 	form.addEventListener('submit', (event) => {
 		event.preventDefault();
 		try {
@@ -324,7 +329,12 @@ export async function installPage(
 					'nav',
 					{ className: 'specimen-crumbs', ariaLabel: 'Breadcrumb' },
 					h('a', { href: indexUrl.href }, 'All specimens'),
-					` / ${path(group)}`
+					// Each segment opens the index filtered to the specimens under it.
+					...group.split('/').flatMap((segment, index, segments) => {
+						const groupUrl = new URL(indexUrl);
+						groupUrl.searchParams.set('q', segments.slice(0, index + 1).join('/'));
+						return [' / ', h('a', { href: groupUrl.href }, segment)];
+					})
 				),
 				h('h1', {}, name),
 				h(
