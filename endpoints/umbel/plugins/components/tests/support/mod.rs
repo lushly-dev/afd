@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use afd::{Actor, ActorKind, CommandInterface};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use umbel::plugins::sdk;
@@ -14,6 +15,7 @@ use umbel::testkit::TestHost;
 pub mod canonical;
 #[path = "../../src/pack/digest.rs"]
 pub mod digest;
+pub mod logs;
 
 /// Specimen's fixtures, from this crate.
 pub fn specimen_fixtures() -> PathBuf {
@@ -159,6 +161,39 @@ impl Pack {
         self.regenerate(library);
     }
 
+    /// A library of `count` records the size of FAST-AF's, sharing two rules.
+    pub fn add_rich(&mut self, library: &str, count: usize) {
+        let prefix = format!("{library}-");
+        let rules = ["shared.focus", "shared.labelling"];
+        let mut components = Vec::new();
+        for index in 0..count {
+            let tag = format!("{prefix}item-{index:04}");
+            let record = rich_record(&tag, index, &rules);
+            self.set_json(&format!("data/{library}/components/{tag}.json"), &record);
+            components.push(json!({
+                "tag": tag, "summary": record["summary"], "status": "stable", "digest": "sha256:",
+            }));
+        }
+        self.set_json(
+            &format!("rules/{library}.json"),
+            &json!({ "format": 0, "library": library, "rules": [
+                { "id": "shared.focus", "text": "Focus moves into the group in reading order and leaves it with Tab.",
+                  "appliesTo": { "attributes": ["label"] }, "basis": "verified" },
+                { "id": "shared.labelling", "text": "Every group needs a label attribute; a nearby heading does not name it.",
+                  "appliesTo": { "attributes": ["label"] }, "basis": "authored" },
+            ] }),
+        );
+        self.set_json(
+            &format!("data/{library}/library.json"),
+            &json!({
+                "format": 0, "library": library, "title": "Synthetic",
+                "package": { "name": "synthetic-components", "version": "1.0.0" },
+                "prefix": prefix, "digest": "", "rules": "", "components": components,
+            }),
+        );
+        self.regenerate(library);
+    }
+
     /// Writes the pack, with the host's `pack.toml`, into `dir`.
     pub fn write(&self, dir: &Path) {
         std::fs::create_dir_all(dir).unwrap();
@@ -186,6 +221,95 @@ impl Pack {
             .unwrap();
         Fx { _dir: dir, host }
     }
+}
+
+/// `components-brief` on `host`.
+pub async fn brief_on(host: &TestHost, input: Value) -> Value {
+    serde_json::to_value(host.call("components-brief", input).await).unwrap()
+}
+
+/// The bytes AFD measured, and its limit.
+pub fn measured(result: &Value) -> (u64, u64) {
+    let budget = &result["metadata"]["dev.afd/outputBudget"];
+    assert!(budget.is_object(), "no output budget in {result}");
+    (
+        budget["usedBytes"].as_u64().unwrap(),
+        budget["limitBytes"].as_u64().unwrap(),
+    )
+}
+
+/// The size of a result as AFD measures it: its compact JSON without `metadata`.
+pub fn result_bytes(result: &Value) -> usize {
+    let mut value = result.clone();
+    value.as_object_mut().unwrap().remove("metadata");
+    serde_json::to_string(&value).unwrap().len()
+}
+
+/// The entries of a brief, by tag.
+pub fn entry<'a>(result: &'a Value, tag: &str) -> &'a Value {
+    data(result)["content"]["components"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["tag"] == tag)
+        .unwrap_or_else(|| panic!("no entry for {tag} in {result}"))
+}
+
+/// A record about the size of a FAST-AF record with guidance (about 1 500 bytes in a brief), with
+/// something in every section: attributes with values, slots, an event, a command, a CSS property,
+/// form, roles, axe, statements, rules, an example, a gap and a long form.
+pub fn rich_record(tag: &str, index: usize, rules: &[&str]) -> Value {
+    json!({
+        "format": 0, "tag": tag, "status": "stable",
+        "summary": format!("Component {index:04} groups a few related controls and shows their state on the page."),
+        "import": format!("synthetic-components/{tag}.js"),
+        "api": {
+            "attributes": [
+                { "name": "appearance", "property": "appearance", "type": "string",
+                  "description": "How strongly the control stands out.",
+                  "values": [
+                      { "value": "accent", "basis": "observed" },
+                      { "value": "neutral", "basis": "observed" },
+                      { "value": "outline", "basis": "observed" },
+                  ],
+                  "default": "neutral", "basis": "observed" },
+                { "name": "disabled", "property": "disabled", "type": "boolean", "default": false, "basis": "verified" },
+                { "name": "label", "property": "label", "type": "string",
+                  "description": "The visible label and accessible name.", "basis": "observed" },
+                { "name": "size", "property": "size", "type": "string", "basis": "declared" },
+            ],
+            "slots": [
+                { "name": "", "description": "The content.", "basis": "observed" },
+                { "name": "start", "description": "An icon before the content.", "basis": "declared" },
+            ],
+            "events": [
+                { "name": "change", "description": "The value changed.", "detail": "string: the new value", "basis": "verified" },
+            ],
+            "commands": [
+                { "name": "--reset", "description": "Puts every control back to its default.", "basis": "declared" },
+            ],
+            "cssProperties": [
+                { "name": "--synthetic-gap", "description": "Space between the parts.", "default": "4px", "basis": "declared" },
+            ],
+            "form": { "associated": false, "basis": "observed" },
+        },
+        "a11y": {
+            "role": [ { "state": "default", "role": "group", "name": "from the label attribute", "basis": "observed" } ],
+            "axe": { "violations": 0, "exceptions": [], "basis": "observed" },
+            "statements": [
+                { "id": format!("item-{index:04}.label"), "text": "Give it a label; the content alone does not name the group.", "basis": "authored" },
+            ],
+        },
+        "usage": [
+            { "id": format!("item-{index:04}.when"), "text": "Use it to group related controls; for one control, use the control alone.", "basis": "authored" },
+        ],
+        "rules": rules,
+        "examples": [
+            { "from": format!("item-{index:04}--default"), "html": format!("<{tag} label=\"Group\" appearance=\"accent\">\n\t<span>Content</span>\n</{tag}>"), "basis": "observed" },
+        ],
+        "detail": "A group of related controls.\n\nIt names itself from its label attribute and moves focus in reading order.",
+        "gaps": [{ "kind": "unobserved", "name": "size", "section": "attributes" }],
+    })
 }
 
 /// A minimal valid record.
@@ -223,6 +347,28 @@ impl Fx {
 
     pub async fn open(&self, input: Value) -> Value {
         serde_json::to_value(self.host.call("components-open", input).await).unwrap()
+    }
+
+    pub async fn brief(&self, input: Value) -> Value {
+        brief_on(&self.host, input).await
+    }
+
+    /// `components-brief` over MCP with an output budget of `ask` bytes.
+    pub async fn brief_with_budget(&self, input: Value, ask: u64) -> Value {
+        let context = self
+            .host
+            .host()
+            .context(Actor::new(ActorKind::Test).with_id("testkit"))
+            .with_interface(CommandInterface::Mcp)
+            .with_output_budget_ask(ask);
+        serde_json::to_value(
+            self.host
+                .host()
+                .registry()
+                .execute("components-brief", input, Some(context))
+                .await,
+        )
+        .unwrap()
     }
 
     /// The override's directory in the workspace.

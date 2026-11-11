@@ -6,7 +6,8 @@
 //!
 //! - [`pack`]: a second reader of Specimen's pack format, held equal to `checkPack` by Specimen's
 //!   fixtures; a library with any problem is refused whole (D152).
-//! - `entry`, `list` and `open`: the answers.
+//! - `brief`, `list` and `open`: the three commands; `entry` builds an entry, `fit` measures as AFD
+//!   measures, `render` writes the text block.
 //! - `scan`: `umbel-scan` over identifiers and over served text (D153).
 //!
 //! Everything read from a pack that is not a checked identifier sits in one part of an answer
@@ -22,6 +23,7 @@ mod input;
 mod list;
 mod open;
 mod pack;
+mod render;
 mod scan;
 mod select;
 
@@ -51,13 +53,13 @@ impl Plugin for Components {
 
     fn handle(&self, name: &str, input: Value, cx: &mut Cx) -> Outcome {
         match name {
-            "components-brief" => brief::run(),
+            "components-brief" => brief::run(&input, cx),
             "components-list" => list::run(&input, cx),
             "components-open" => open::run(&input, cx),
             other => failure(
                 "COMMAND_NOT_FOUND",
                 &format!("the components plugin has no command `{other}`"),
-                "Call components-list or components-open.",
+                "Call components-brief, components-list or components-open.",
             ),
         }
     }
