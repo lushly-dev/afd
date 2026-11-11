@@ -127,7 +127,9 @@ jobs:
         run: pnpm -F @lushly-dev/loam-theme theme:check
       - name: Token-only lint
         run: pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally -F @lushly-dev/loam-app-tasks -F @lushly-dev/loam-app-notes -F @lushly-dev/loam-app-checklist lint:tokens
+      # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+        timeout-minutes: 10
       # Specimen's native host renders the chrome's fixtures for E2 and E4; test:browser builds it.
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
@@ -170,6 +172,7 @@ jobs:
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." build
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: The editor area's seeded walk, every seed, thirteen invariants after each step
         run: pnpm -F @lushly-dev/loam-web test:walk
       - name: The run leaves tracked files unchanged
@@ -180,6 +183,8 @@ jobs:
         with:
           name: loam-walk-test-results
           path: endpoints/loam/packages/web/test-results/
+          # A passing run writes no results; that is not worth a warning.
+          if-no-files-found: ignore
           retention-days: 7
 
   # Hello mounted and a real Umbel in the console, through a test-only relay (D64). The relay is not a hosted
@@ -211,6 +216,7 @@ jobs:
       - name: Build the web host and its dependencies
         run: pnpm -F "@lushly-dev/loam-web..." build
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: E3, E4 and E9's mounted part, through a test-only relay
         run: pnpm -F @lushly-dev/loam-web test:mounted
       - name: The run leaves tracked files unchanged
@@ -244,6 +250,7 @@ jobs:
       - name: Build the web host, the hosted server and their dependencies
         run: pnpm -F "@lushly-dev/loam-web..." -F "@lushly-dev/loam-host..." build
       - run: pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium
+        timeout-minutes: 10
       # Verbose, so each P6- title is in the log for the exit check (scripts/loam-exit-check.mjs).
       - name: Hosted criterion against the development profile
         run: pnpm -F @lushly-dev/loam-web test:hosted
