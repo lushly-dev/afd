@@ -4,8 +4,10 @@ import {
 	COVERAGE_OBLIGATIONS,
 	type CoverageCase,
 	computeCoverage,
+	GUIDE_PREFIX,
 	observedProperties,
 } from './coverage.js';
+import { computeGuideCoverage } from './guide-coverage.js';
 import type { ComponentSchema } from './plugin.js';
 import { DEFAULT_SUITE_WORKERS, pool, selectEntries } from './suite.js';
 import type {
@@ -102,6 +104,14 @@ export async function runCoverage(
 	});
 	const waivers = config.config.coverage?.waivers;
 	const { unusedWaivers, ...report } = computeCoverage(schemas, cases, waivers);
+	// Its own set: present when the project has guides or a case claims a statement.
+	const claimsGuide = cases.some(({ observation }) =>
+		observation.channels.evidence.claims.some((claim) => claim.obligation.startsWith(GUIDE_PREFIX))
+	);
+	const guides =
+		config.guides || claimsGuide
+			? computeGuideCoverage(config.guides, schemas, cases, request.component)
+			: undefined;
 	return {
 		obligations: COVERAGE_OBLIGATIONS,
 		...report,
@@ -111,6 +121,7 @@ export async function runCoverage(
 				? unusedWaivers.filter((entry) => entry.component === request.component)
 				: unusedWaivers,
 		},
+		...(guides ? { guides } : {}),
 		cases: {
 			total: entries.length,
 			passed: new Set(cases.map((item) => item.id)).size,

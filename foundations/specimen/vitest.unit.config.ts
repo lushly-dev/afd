@@ -33,6 +33,8 @@ export default defineConfig({
 			// Browser-free suites exercise only these modules; browser modules are measured by test:browser.
 			include: [
 				'src/diff.ts',
+				'src/evidence.ts',
+				'src/guide-coverage.ts',
 				'src/normalize.ts',
 				'src/normalize-ids.ts',
 				'src/pack.ts',

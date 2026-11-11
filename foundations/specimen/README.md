@@ -243,6 +243,13 @@ await expect(button).toHaveAttribute('disabled');
 claim(button, 'property:disabled=true', 'disabled-attribute');
 ```
 
+A project with guide files (see [Component packs](#component-packs)) gets a second obligation set, `guides@1`, under `guides` in the report: each statement is an obligation, `guide:<id>`, `verified` when a claim's check ran and held in a case that passed, and `authored` otherwise. It has its own `counts`, `invalidClaims` and `complete`, and nothing in it changes `schema-partitions@1`'s results. A native specimen's claim names its `expect` steps as for any obligation. A play's `guide:` claim must carry its check, which `claim()` runs: it records the claim only when the check holds, and rethrows when it does not, so the story fails. Outside Specimen it still runs the check. A `guide:` claim with no check, an unknown id, or a component the statement is not about is an invalid claim in `guides@1` only.
+
+```ts
+await claim(combobox, 'guide:combobox.label-required', 'named-by-label', () =>
+  expect(input).toHaveAccessibleName('Supplier'));
+```
+
 The configuration can waive an obligation, with a version and a reason. A waiver excuses an obligation from `complete` without raising its level, and the report lists the version and any entry that matched nothing. None is applied automatically.
 
 ```json
@@ -382,7 +389,7 @@ A link can also carry `checkpoint`: `after-run` runs a retained story's play in 
 
 A component pack describes a library's components for an agent: attributes, slots, events, roles, guidance and shared rules, each fact labelled with where it came from. Specimen does not build packs yet. `@lushly-dev/specimen/pack` has the format's version 0: its schemas, `checkPack` and the catalog writer, and `@lushly-dev/specimen/pack/<kind>.schema.json` has a JSON Schema for each file kind. Version 0 can change in any release. [The format](docs/pack-format.md) describes it, and `fixtures/pack/` holds an example library and one invalid case per problem `checkPack` reports.
 
-Guidance a library's authors write lives in guide files, found through the `guides` key: `"guides": ["src/**/*.guide.json"]`, which needs `manifest`. A file holds one component's `summary`, `status`, `usage`, `a11y` and `detail`, or, with a top-level `rules`, rules stated once with what each applies to. Each statement has a stable `id`, and may list in `members` the attributes, properties, slots, events, CSS properties or commands it names. `@lushly-dev/specimen/guide/<kind>.schema.json` has a JSON Schema for each kind (`component`, `rules`). `specimen-validate` checks them with no browser: the shape, the 160- and 240-character limits, tags and members the manifest does not have, and duplicate tags and ids. Where a plugin could add a member the manifest lacks, an unknown member is reported as `deferred`, not as an error. Nothing reads guides into a pack yet.
+Guidance a library's authors write lives in guide files, found through the `guides` key: `"guides": ["src/**/*.guide.json"]`, which needs `manifest`. A file holds one component's `summary`, `status`, `usage`, `a11y` and `detail`, or, with a top-level `rules`, rules stated once with what each applies to. Each statement has a stable `id`, and may list in `members` the attributes, properties, slots, events, CSS properties or commands it names. `@lushly-dev/specimen/guide/<kind>.schema.json` has a JSON Schema for each kind (`component`, `rules`). `specimen-validate` checks them with no browser: the shape, the 160- and 240-character limits, tags and members the manifest does not have, and duplicate tags and ids. Where a plugin could add a member the manifest lacks, an unknown member is reported as `deferred`, not as an error. `specimen-coverage` reports each statement's level in `guides@1` (see [Report coverage](#report-coverage)). Nothing reads guides into a pack yet.
 
 ## Use programmatically
 
