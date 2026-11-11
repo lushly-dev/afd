@@ -209,16 +209,160 @@
       "import_reason": "Imported exact staged candidate bytes"
     },
     {
+      "path": "foundations/specimen/compat/page-errors/expected/.storybook/main.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "51cfd4a453a0944d95151dc3abb0948869bcb3341c2afcc758360b047cb9b410",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/expected/.storybook/preview.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "432f0be810ef9d3adeb111b9f01abb65c2cbf0af95fcac4c2251ad9d6f4d8520",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/expected/expected.stories.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "01b269c3bb95e6f52eeb1866120576981c4ab31f409875d24dbcf6faeb0a1335",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/expected/specimen.config.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "782d4caa1e3f8ee28c159b12140f5a310c72fb322c2376330ed11ef5ef19843f",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/expected/vitest.config.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "a7e4514e9d3a5e0204a86a603f466dbd955d303145522f78848f3f18e651a8ef",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/raised/.storybook/main.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "51cfd4a453a0944d95151dc3abb0948869bcb3341c2afcc758360b047cb9b410",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/raised/.storybook/preview.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "432f0be810ef9d3adeb111b9f01abb65c2cbf0af95fcac4c2251ad9d6f4d8520",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/raised/module-level.stories.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "4c341385ffe094775d0e629061c79080bdd38334cb89f6a8424922b68cc47104",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/raised/raised.stories.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "3c0c0eb7d2626d606f898bd400f795f460e73eeb0e2be476405e11a6188fa34e",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/raised/settled.config.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "76be67042351329aa2b73524cd46057cd48d66779ce130f1e55dd1e046114719",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/raised/specimen.config.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "782d4caa1e3f8ee28c159b12140f5a310c72fb322c2376330ed11ef5ef19843f",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
+      "path": "foundations/specimen/compat/page-errors/raised/vitest.config.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "a7e4514e9d3a5e0204a86a603f466dbd955d303145522f78848f3f18e651a8ef",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+    },
+    {
       "path": "foundations/specimen/README.md",
       "upstream_path": "packages/specimen/README.md",
       "upstream_sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
       "staged_path": "packages/specimen/README.md",
       "staged_sha256": "19c9331ebd067dd32bee9a8cbf1170434f76327642aeca7d598b73ca3a3db2ca",
-      "current_import_sha256": "0f05ce9cbf30426de10917d57447fb7f50ef90f247b676d3027ad450db051e42",
+      "current_import_sha256": "ffa95c67e18bd686dfe079f861dd5c68041efa3aa090b3a0fd83c367e6e2677d",
       "stage_classification": "modified-upstream",
       "stage_reason": "Document the native/integration/endpoint split",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record; Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); The review page applies a theme or preset viewport as it is picked; Apply remains only for a custom size"
+      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record; Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); The review page applies a theme or preset viewport as it is picked; Apply remains only for a custom size; An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/experiments/README.md",
@@ -527,11 +671,11 @@
       "upstream_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
       "staged_path": "packages/specimen/src/bench-runtime.ts",
       "staged_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
-      "current_import_sha256": "ed118599784cac0b9108b8e1792869d87b5a59ee841d4a2e1ab93dab4fa6ea07",
+      "current_import_sha256": "5d6a1b072f074a8d2f0427e833e914eccf6d4f9c49ee6af7c1eaca1b9ffdb43a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/src/bench-worker-client.ts",
@@ -611,11 +755,11 @@
       "upstream_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
       "staged_path": "packages/specimen/src/browser/index.ts",
       "staged_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
-      "current_import_sha256": "062d73faf251b8a5f4216611a531d79e5da1a2509a5a86f13fd9773ba8947004",
+      "current_import_sha256": "5f4949471876f9a01d077229a5e7f11a797de383e3c03c1f0664f0b9955eac3e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/src/browser/instrumentation.ts",
@@ -628,6 +772,18 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact staged candidate bytes"
+    },
+    {
+      "path": "foundations/specimen/src/browser/page-errors.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "203b40d25261633aaf43d7a012c783f74eee67f5297dd8d6703f7d913eb2c001",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/src/browser/page.ts",
@@ -767,11 +923,11 @@
       "upstream_sha256": "09c8a7ae03929807198fb977b06daa655537f1db50a3d7d9d01b2f831223f22d",
       "staged_path": "packages/specimen/src/schema.ts",
       "staged_sha256": "8c5269378f112d21ad06484ceefa033a9b0671eb3961f3401cb190709ea6bf36",
-      "current_import_sha256": "2abac94b635246900306e67412ee2103125698e7642fc7d2c5f689ece3758421",
+      "current_import_sha256": "6130993d3bf6329f69a375da131796b9ad758cd3ff17112e4119303590476879",
       "stage_classification": "modified-upstream",
       "stage_reason": "Move observation/build data validators into the native public schema module",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/src/types.ts",
@@ -779,11 +935,11 @@
       "upstream_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
       "staged_path": "packages/specimen/src/types.ts",
       "staged_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
-      "current_import_sha256": "57638b0ec5bd323ed9ac05e5c50813e368a12a0c688136a2d0c0ec0533d37e71",
+      "current_import_sha256": "a8ba0303086a55812a1e2d802afef0ed11aa2246bd724229b10793da70398a8b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Component Briefs step B1: guide files (the guides key, schema, loader and static checks)"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/src/vite.ts",
@@ -2244,11 +2400,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "4e772d7777b42eadcd53704f86c02884027713256a3b56ee440f9a3a1727edd3",
+      "current_import_sha256": "5b2e5f55c28a8b2796d2e53131d779acfe238f25bc5398995adbe1ae990a3e7c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 3: specimen-a11y and native accessibility exceptions; T07 step 3: the story contract, replacing Fastbot's rules beside them; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 3: specimen-a11y and native accessibility exceptions; T07 step 3: the story contract, replacing Fastbot's rules beside them; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/src/compat-run.test.ts",
@@ -2256,11 +2412,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "021fc85f39b0d5ad15f0e6c432a19eec78b8437adf52dfef5d22d857fd48e179",
+      "current_import_sha256": "0f347e08fb4d56616bb2a0d778faa9d419f0ae62a2b5160fe01adcede2928560",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); The settled check's comparison accepts Storybook's racing verdict on the late-contrast story under Vitest 5 and Storybook 10.6.6; The settled comparison pins a racing story's Storybook failure to the one rule its settled state breaks, and requires Specimen's check at the same moment to pass it (#923)"
+      "import_reason": "T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); The settled check's comparison accepts Storybook's racing verdict on the late-contrast story under Vitest 5 and Storybook 10.6.6; The settled comparison pins a racing story's Storybook failure to the one rule its settled state breaks, and requires Specimen's check at the same moment to pass it (#923); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
     },
     {
       "path": "foundations/specimen/src/csf.test.ts",

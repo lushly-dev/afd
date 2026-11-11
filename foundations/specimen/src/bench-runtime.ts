@@ -498,7 +498,9 @@ export async function createInProcessBench(
 				id: entry.id,
 				checkpoint,
 				failures: (outcome?.failures ?? []).flatMap((failure) =>
-					failure.category === 'a11y' || failure.category === 'settled-a11y'
+					failure.category === 'a11y' ||
+					failure.category === 'settled-a11y' ||
+					failure.category === 'error'
 						? []
 						: [{ category: failure.category, message: failure.message }]
 				),
