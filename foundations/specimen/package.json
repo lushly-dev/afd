@@ -32,7 +32,8 @@
 			"types": "./dist/pack.d.ts",
 			"import": "./dist/pack.js"
 		},
-		"./pack/*.schema.json": "./schema/pack/*.schema.json"
+		"./pack/*.schema.json": "./schema/pack/*.schema.json",
+		"./guide/*.schema.json": "./schema/guide/*.schema.json"
 	},
 	"files": [
 		"dist",

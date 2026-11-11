@@ -234,6 +234,11 @@ export interface BenchConfig {
 	plugins?: string[];
 	/** The custom elements manifest core reads component schemas from, relative to the configuration. */
 	manifest?: string;
+	/**
+	 * Guide files, as patterns relative to the configuration: `*`, `**`, `?` and `{a,b}`. Each file
+	 * states one component's guidance or a set of shared rules. Needs `manifest`.
+	 */
+	guides?: string[];
 }
 export interface ValidationIssue {
 	/** `deferred`: only the module, run, can settle it. */

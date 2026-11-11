@@ -1,6 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
+import { withGuides } from './guides.js';
 import { migrateStories, validateDiscovery } from './stories.js';
 import type {
 	A11yRequest,
@@ -126,6 +127,52 @@ export interface SpecimenBench {
 	close(): Promise<void>;
 }
 
+/** What static validation says of the configured specimens and stories. */
+function validateEntries(snapshot: LoadedConfig, target?: ValidationTarget): ValidationReport {
+	const discovery = snapshot.stories?.discovery;
+	if (!discovery) {
+		const known = !target?.id || snapshot.entries.some((entry) => entry.id === target.id);
+		return {
+			valid: known,
+			scope: 'static',
+			checked: 0,
+			issues: known
+				? []
+				: [
+						{
+							severity: 'error',
+							code: 'SPECIMEN_NOT_FOUND',
+							message: `Specimen not found: ${target?.id}`,
+							suggestion: 'Use specimen-list to check the id.',
+						},
+					],
+		};
+	}
+	const tags = Object.keys(snapshot.schemas);
+	const report = validateDiscovery(
+		discovery,
+		snapshot.root,
+		target,
+		tags.length ? new Set(tags) : undefined
+	);
+	if (target?.id && !snapshot.entries.some((entry) => entry.id === target.id))
+		return {
+			...report,
+			valid: false,
+			issues: [
+				{
+					severity: 'error',
+					code: 'SPECIMEN_NOT_FOUND',
+					message: `Specimen not found: ${target.id}`,
+					suggestion:
+						'Use specimen-list to check the id, or validate the file to see why it was not indexed.',
+				},
+				...report.issues,
+			],
+		};
+	return report;
+}
+
 export async function createSpecimenBench(options: BenchOptions): Promise<SpecimenBench> {
 	// Validate once, before returning metadata. Either backend receives this exact snapshot,
 	// including resolved module paths and digest, rather than rereading a changed config.
@@ -192,48 +239,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		},
 		validate(target) {
 			const snapshot = ensureOpen();
-			const discovery = snapshot.stories?.discovery;
-			if (!discovery) {
-				const known = !target?.id || snapshot.entries.some((entry) => entry.id === target.id);
-				return {
-					valid: known,
-					scope: 'static',
-					checked: 0,
-					issues: known
-						? []
-						: [
-								{
-									severity: 'error',
-									code: 'SPECIMEN_NOT_FOUND',
-									message: `Specimen not found: ${target?.id}`,
-									suggestion: 'Use specimen-list to check the id.',
-								},
-							],
-				};
-			}
-			const tags = Object.keys(snapshot.schemas);
-			const report = validateDiscovery(
-				discovery,
-				snapshot.root,
-				target,
-				tags.length ? new Set(tags) : undefined
-			);
-			if (target?.id && !snapshot.entries.some((entry) => entry.id === target.id))
-				return {
-					...report,
-					valid: false,
-					issues: [
-						{
-							severity: 'error',
-							code: 'SPECIMEN_NOT_FOUND',
-							message: `Specimen not found: ${target.id}`,
-							suggestion:
-								'Use specimen-list to check the id, or validate the file to see why it was not indexed.',
-						},
-						...report.issues,
-					],
-				};
-			return report;
+			return withGuides(validateEntries(snapshot, target), snapshot.guides, snapshot.root, target);
 		},
 		async render(rawRequest) {
 			const snapshot = ensureDiscovered();

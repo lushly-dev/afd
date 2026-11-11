@@ -41,7 +41,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 0.4. Decision | Done 2026-11-09: the owner decided go, the brief as planned | [Proposal, Status](component-briefs.proposal.md#status) |
 | A1. Pack format, version 0 | Done 2026-11-10 | [#949](https://github.com/lushly-dev/afd/pull/949), merged as `a1c52b37`: [the format](../../../../foundations/specimen/docs/pack-format.md), `@lushly-dev/specimen/pack`, its JSON Schema files and `foundations/specimen/fixtures/pack/` |
 | A2. Specifications | Done 2026-11-10: the owner approved them by merging [#964](https://github.com/lushly-dev/afd/pull/964), as `d4c31d9e` | The [plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md) and Umbel decisions D150 to D156; [T12](../specimens/implementation.md#ordered-implementation-queue) in the Specimens plan and status; this folder moved from `proposed/` to `active/` with this file |
-| B1. Guides | Not started | Specimen's T12 |
+| B1. Guides | In progress on `lush/specimen-guides-b1`: the `guides` key, the guide schema, the loader and the static checks | Specimen's T12 |
 | B2. Guide obligations | Not started | Specimen's T12 |
 | B2a. Roles in a capture | Not started | Specimen's T12 |
 | B3. `specimen-pack` | Not started | Specimen's T12 |
@@ -85,3 +85,4 @@ What can run next: B1 in Specimen, and C1 in Umbel, side by side. C4 and C5 need
 | 2026-11-10 | Step A1 | The pack format, version 0, in Specimen ([#949](https://github.com/lushly-dev/afd/pull/949)) |
 | 2026-11-10 | Step A2 | The plugin specification and D150 to D156; T12 in the Specimens plan and status; the folder moved to `active/`; this file. Sent for the owner's approval |
 | 2026-11-10 | Step A2 approved | The owner merged #964 and answered the plugin specification's section 13: refuse the call, gracefully. Recorded, with the specification's section 9.1 |
+| 2026-11-10 | Step B1 | Guide files in Specimen: the `guides` key, a JSON Schema for each kind, the loader and `specimen-validate`'s static checks. A statement may list the members it names in `members`, which is how the "names a member that does not exist" check knows them; an unknown member is `deferred` when the project has plugins, since a plugin's schema source runs in the page |
