@@ -181,7 +181,7 @@ function matches(entry: SpecimenEntry, target: ValidationTarget | undefined, roo
 	if (target.file !== undefined && !sameFile(entry.module, target.file, root)) return false;
 	return true;
 }
-function sameFile(importPath: string, file: string, root: string): boolean {
+export function sameFile(importPath: string, file: string, root: string): boolean {
 	return resolve(root, importPath) === resolve(root, file);
 }
 

@@ -96,10 +96,12 @@ const configSchema = z
 		plugins: z.array(z.string().min(1)).optional(),
 		manifest: z.string().min(1).optional(),
 		profile: z.strictObject({ baselines: z.string().min(1).optional() }).optional(),
+		guides: z.array(z.string().min(1)).optional(),
 	})
 	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
 	.refine((config) => config.preview === undefined || config.stories !== undefined)
-	.refine((config) => config.test === undefined || config.stories !== undefined);
+	.refine((config) => config.test === undefined || config.stories !== undefined)
+	.refine((config) => config.guides === undefined || config.manifest !== undefined);
 
 const verdict = (parse: () => unknown) => {
 	try {
@@ -260,6 +262,11 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], profile: {} },
 			{ specimens: [entry], profile: { baselines: '' } },
 			{ specimens: [entry], profile: { other: 'x' } },
+			{ specimens: [entry], manifest: 'm.json', guides: ['src/**/*.guide.json'] },
+			{ specimens: [entry], manifest: 'm.json', guides: [] },
+			{ specimens: [entry], manifest: 'm.json', guides: [''] },
+			{ specimens: [entry], manifest: 'm.json', guides: 'src/*.json' },
+			{ specimens: [entry], guides: ['src/**/*.guide.json'] },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
 	});

@@ -1,0 +1,36 @@
+{
+	"schemaVersion": "1.0.0",
+	"modules": [
+		{
+			"path": "src/example-button.js",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "ExampleButton",
+					"customElement": true,
+					"tagName": "example-button",
+					"members": [
+						{
+							"kind": "field",
+							"name": "disabled",
+							"attribute": "disabled",
+							"type": { "text": "boolean" }
+						}
+					],
+					"attributes": [
+						{ "name": "disabled", "fieldName": "disabled", "type": { "text": "boolean" } }
+					],
+					"slots": [{ "name": "icon" }],
+					"events": [{ "name": "activate" }],
+					"cssProperties": [{ "name": "--example-gap" }]
+				},
+				{
+					"kind": "class",
+					"name": "ExampleLink",
+					"customElement": true,
+					"tagName": "example-link"
+				}
+			]
+		}
+	]
+}

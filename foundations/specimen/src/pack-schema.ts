@@ -77,10 +77,12 @@ const SINGLE_LINE = /^[^\u0000-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]*$/
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it refuses
 const MULTI_LINE = /^[^\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]*$/;
 
-const identifier = (kind: keyof typeof PACK_PATTERNS) =>
+/** An identifier field of this kind. Guide files use the same fields as the pack. */
+export const packIdentifier = (kind: keyof typeof PACK_PATTERNS) =>
 	z.string().max(IDENTIFIER_MAX[kind]).regex(PACK_PATTERNS[kind]);
 
-const text = (max: number, lines: 'single' | 'multi' = 'single', min = 1) => {
+/** A text field of at most `max` code points, refusing control characters. */
+export const packText = (max: number, lines: 'single' | 'multi' = 'single', min = 1) => {
 	const allowed = lines === 'single' ? SINGLE_LINE : MULTI_LINE;
 	return z
 		.string()
@@ -116,56 +118,56 @@ const observed = z.literal('observed');
 
 // Numbers are safe integers (Zod's `int`), which JavaScript and Rust both hold and write alike.
 const scalar = z.union([
-	text(PACK_TEXT_LIMITS.value, 'single', 0),
+	packText(PACK_TEXT_LIMITS.value, 'single', 0),
 	z.number().int(),
 	z.boolean(),
 	z.null(),
 ]);
 
 const statement = z.strictObject({
-	id: identifier('id'),
-	text: text(PACK_TEXT_LIMITS.statement),
+	id: packIdentifier('id'),
+	text: packText(PACK_TEXT_LIMITS.statement),
 	basis: statementBasis,
 });
 
 const attribute = z.strictObject({
-	name: identifier('attribute'),
-	property: identifier('property').optional(),
-	type: text(PACK_TEXT_LIMITS.statement).optional(),
-	description: text(PACK_TEXT_LIMITS.statement).optional(),
+	name: packIdentifier('attribute'),
+	property: packIdentifier('property').optional(),
+	type: packText(PACK_TEXT_LIMITS.statement).optional(),
+	description: packText(PACK_TEXT_LIMITS.statement).optional(),
 	values: z
 		.array(z.strictObject({ value: scalar, basis: apiBasis }))
 		.max(64)
 		.optional(),
 	default: scalar.optional(),
-	rules: z.array(identifier('id')).max(16).optional(),
+	rules: z.array(packIdentifier('id')).max(16).optional(),
 	basis: apiBasis,
 });
 
 const slot = z.strictObject({
-	name: identifier('slot'),
-	description: text(PACK_TEXT_LIMITS.statement).optional(),
-	accepts: z.array(identifier('element')).max(32).optional(),
+	name: packIdentifier('slot'),
+	description: packText(PACK_TEXT_LIMITS.statement).optional(),
+	accepts: z.array(packIdentifier('element')).max(32).optional(),
 	basis: apiBasis,
 });
 
 const event = z.strictObject({
-	name: identifier('event'),
-	description: text(PACK_TEXT_LIMITS.statement).optional(),
-	detail: text(PACK_TEXT_LIMITS.statement).optional(),
+	name: packIdentifier('event'),
+	description: packText(PACK_TEXT_LIMITS.statement).optional(),
+	detail: packText(PACK_TEXT_LIMITS.statement).optional(),
 	basis: apiBasis,
 });
 
 const command = z.strictObject({
-	name: identifier('command'),
-	description: text(PACK_TEXT_LIMITS.statement).optional(),
+	name: packIdentifier('command'),
+	description: packText(PACK_TEXT_LIMITS.statement).optional(),
 	basis: apiBasis,
 });
 
 const cssProperty = z.strictObject({
-	name: identifier('cssProperty'),
-	description: text(PACK_TEXT_LIMITS.statement).optional(),
-	default: text(PACK_TEXT_LIMITS.value).optional(),
+	name: packIdentifier('cssProperty'),
+	description: packText(PACK_TEXT_LIMITS.statement).optional(),
+	default: packText(PACK_TEXT_LIMITS.value).optional(),
 	basis: apiBasis,
 });
 
@@ -202,11 +204,11 @@ const gap = z
 export const packComponentSchema = z
 	.strictObject({
 		format,
-		tag: identifier('tag'),
-		summary: text(PACK_TEXT_LIMITS.summary).optional(),
+		tag: packIdentifier('tag'),
+		summary: packText(PACK_TEXT_LIMITS.summary).optional(),
 		status: z.enum(['stable', 'preview', 'deprecated']),
-		replacedBy: identifier('tag').optional(),
-		import: identifier('specifier').optional(),
+		replacedBy: packIdentifier('tag').optional(),
+		import: packIdentifier('specifier').optional(),
 		api: z.strictObject({
 			attributes: z.array(attribute).max(256),
 			slots: z.array(slot).max(64),
@@ -219,9 +221,9 @@ export const packComponentSchema = z
 			role: z
 				.array(
 					z.strictObject({
-						state: identifier('state'),
-						role: identifier('role'),
-						name: text(PACK_TEXT_LIMITS.summary).optional(),
+						state: packIdentifier('state'),
+						role: packIdentifier('role'),
+						name: packText(PACK_TEXT_LIMITS.summary).optional(),
 						basis: roleBasis,
 					})
 				)
@@ -230,23 +232,23 @@ export const packComponentSchema = z
 			axe: z
 				.strictObject({
 					violations: z.number().int().min(0),
-					exceptions: z.array(identifier('axeRule')).max(32),
+					exceptions: z.array(packIdentifier('axeRule')).max(32),
 					basis: observed,
 				})
 				.optional(),
 		}),
 		usage: z.array(statement).max(64),
-		rules: z.array(identifier('id')).max(64),
+		rules: z.array(packIdentifier('id')).max(64),
 		examples: z
 			.array(
 				z.strictObject({
-					from: identifier('story'),
-					html: text(PACK_TEXT_LIMITS.example, 'multi'),
+					from: packIdentifier('story'),
+					html: packText(PACK_TEXT_LIMITS.example, 'multi'),
 					basis: observed,
 				})
 			)
 			.max(16),
-		detail: text(PACK_TEXT_LIMITS.detail, 'multi').optional(),
+		detail: packText(PACK_TEXT_LIMITS.detail, 'multi').optional(),
 		gaps: z.array(gap).max(64),
 	})
 	.refine(
@@ -260,25 +262,28 @@ export const packComponentSchema = z
 		],
 	});
 
+/** What a shared rule applies to: tags, or any component with one of the attributes. */
+export const packAppliesToSchema = z
+	.strictObject({
+		tags: z.array(packIdentifier('tag')).min(1).max(256).optional(),
+		attributes: z.array(packIdentifier('attribute')).min(1).max(64).optional(),
+	})
+	.refine(
+		(value) => value.tags !== undefined || value.attributes !== undefined,
+		'A rule applies to at least one tag or attribute'
+	)
+	.meta({ minProperties: 1 });
+
 /** A library's shared rules, each stated once: `rules/<library>.json`. */
 export const packRulesSchema = z.strictObject({
 	format,
-	library: identifier('library'),
+	library: packIdentifier('library'),
 	rules: z
 		.array(
 			z.strictObject({
-				id: identifier('id'),
-				text: text(PACK_TEXT_LIMITS.statement),
-				appliesTo: z
-					.strictObject({
-						tags: z.array(identifier('tag')).min(1).max(256).optional(),
-						attributes: z.array(identifier('attribute')).min(1).max(64).optional(),
-					})
-					.refine(
-						(value) => value.tags !== undefined || value.attributes !== undefined,
-						'A rule applies to at least one tag or attribute'
-					)
-					.meta({ minProperties: 1 }),
+				id: packIdentifier('id'),
+				text: packText(PACK_TEXT_LIMITS.statement),
+				appliesTo: packAppliesToSchema,
 				basis: statementBasis,
 			})
 		)
@@ -288,20 +293,20 @@ export const packRulesSchema = z.strictObject({
 /** The exported form's catalog and stamp: `data/<library>/library.json`. */
 export const packLibrarySchema = z.strictObject({
 	format,
-	library: identifier('library'),
-	title: text(PACK_TEXT_LIMITS.title),
-	package: z.strictObject({ name: identifier('package'), version: identifier('version') }),
-	prefix: identifier('prefix'),
-	revision: identifier('revision').optional(),
-	digest: identifier('digest'),
-	rules: identifier('digest'),
+	library: packIdentifier('library'),
+	title: packText(PACK_TEXT_LIMITS.title),
+	package: z.strictObject({ name: packIdentifier('package'), version: packIdentifier('version') }),
+	prefix: packIdentifier('prefix'),
+	revision: packIdentifier('revision').optional(),
+	digest: packIdentifier('digest'),
+	rules: packIdentifier('digest'),
 	components: z
 		.array(
 			z.strictObject({
-				tag: identifier('tag'),
-				summary: text(PACK_TEXT_LIMITS.summary).optional(),
+				tag: packIdentifier('tag'),
+				summary: packText(PACK_TEXT_LIMITS.summary).optional(),
 				status: z.enum(['stable', 'preview', 'deprecated']),
-				digest: identifier('digest'),
+				digest: packIdentifier('digest'),
 			})
 		)
 		.max(990),

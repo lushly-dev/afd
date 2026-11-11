@@ -1,0 +1,116 @@
+{
+	"title": "Specimen guide: one component",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"tag": {
+			"type": "string",
+			"maxLength": 100,
+			"pattern": "^[a-z][a-z0-9._]*-[a-z0-9._-]*$"
+		},
+		"summary": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 160,
+			"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		},
+		"status": {
+			"type": "string",
+			"enum": ["stable", "preview", "deprecated"]
+		},
+		"replacedBy": {
+			"type": "string",
+			"maxLength": 100,
+			"pattern": "^[a-z][a-z0-9._]*-[a-z0-9._-]*$"
+		},
+		"usage": {
+			"maxItems": 64,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"maxLength": 128,
+						"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 240,
+						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					},
+					"members": {
+						"minItems": 1,
+						"maxItems": 32,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 100,
+							"pattern": "^\\S+$"
+						}
+					}
+				},
+				"required": ["id", "text"],
+				"additionalProperties": false
+			}
+		},
+		"a11y": {
+			"maxItems": 64,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"maxLength": 128,
+						"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 240,
+						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					},
+					"members": {
+						"minItems": 1,
+						"maxItems": 32,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 100,
+							"pattern": "^\\S+$"
+						}
+					}
+				},
+				"required": ["id", "text"],
+				"additionalProperties": false
+			}
+		},
+		"detail": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 8000,
+			"pattern": "^[^\\u0000-\\u0008\\u000B-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		}
+	},
+	"required": ["tag"],
+	"additionalProperties": false,
+	"anyOf": [
+		{
+			"not": {
+				"required": ["replacedBy"]
+			}
+		},
+		{
+			"properties": {
+				"status": {
+					"const": "deprecated"
+				}
+			},
+			"required": ["status"]
+		}
+	]
+}

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { type LoadedGuides, loadGuides } from './guides.js';
 import { readManifest } from './manifest.js';
 import type { ComponentSchema } from './plugin.js';
 import { type Discovery, discoverStories } from './stories.js';
@@ -37,6 +38,8 @@ export interface LoadedConfig {
 	staticDirs: { from: string; to: string }[];
 	/** The performance baselines file, which recording may create. */
 	baselines?: string;
+	/** The configured guide files, with what the static checks found. */
+	guides?: LoadedGuides;
 }
 export const digest = (value: string | Uint8Array): string =>
 	createHash('sha256').update(value).digest('hex');
@@ -133,6 +136,9 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		const { from, to } = typeof entry === 'string' ? { from: entry, to: '/' } : entry;
 		staticDirs.push({ from: inside(root, await realpath(resolve(dirname(file), from)), from), to });
 	}
+	const guides = config.guides
+		? await loadGuides(root, dirname(file), config.guides, schemas, plugins.length > 0)
+		: undefined;
 	const baselines = config.profile?.baselines;
 	return {
 		root,
@@ -155,5 +161,6 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		manifestDirectory,
 		staticDirs,
 		...(stories ? { stories } : {}),
+		...(guides ? { guides } : {}),
 	};
 }

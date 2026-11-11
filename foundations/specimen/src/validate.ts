@@ -453,6 +453,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'manifest',
 		'profile',
 		'coverage',
+		'guides',
 	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
@@ -460,6 +461,8 @@ export function parseConfig(value: unknown): BenchConfig {
 		fail('configuration.preview', 'project annotations apply only to stories');
 	if (fields.test !== undefined && fields.stories === undefined)
 		fail('configuration.test', 'test tags apply only to stories');
+	if (fields.guides !== undefined && fields.manifest === undefined)
+		fail('configuration.guides', 'guides are checked against a manifest');
 	return {
 		...(fields.specimens === undefined ? {} : { specimens: specimens(fields.specimens) }),
 		...(fields.stories === undefined ? {} : { stories: stories(fields.stories) }),
@@ -480,5 +483,12 @@ export function parseConfig(value: unknown): BenchConfig {
 			: { manifest: text(fields.manifest, 'configuration.manifest') }),
 		...(fields.profile === undefined ? {} : { profile: profileConfig(fields.profile) }),
 		...(fields.coverage === undefined ? {} : { coverage: coverageConfig(fields.coverage) }),
+		...(fields.guides === undefined
+			? {}
+			: {
+					guides: Array.isArray(fields.guides)
+						? fields.guides.map((item, index) => text(item, `configuration.guides[${index}]`))
+						: fail('configuration.guides', 'expected an array of file patterns'),
+				}),
 	};
 }

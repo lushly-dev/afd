@@ -1,0 +1,24 @@
+{
+	"tag": "example-button",
+	"summary": "A button that starts one action.",
+	"status": "stable",
+	"usage": [
+		{
+			"id": "button.when",
+			"text": "Use for an action on this page; use example-link to go somewhere else."
+		},
+		{
+			"id": "button.disabled",
+			"text": "Prefer explaining why an action is unavailable to setting disabled.",
+			"members": ["disabled", "activate"]
+		}
+	],
+	"a11y": [
+		{
+			"id": "button.icon-name",
+			"text": "A button with only an icon still needs a name.",
+			"members": ["icon"]
+		}
+	],
+	"detail": "Buttons submit nothing by themselves.\n\nListen for activate."
+}
