@@ -1,0 +1,83 @@
+name: Loam plugins
+
+# Loam's plugins live in endpoints/loam/plugins/<name>/, outside loam.yml's filters (Loam's L8), so
+# a plugin neither runs Loam's suite nor is run by it. Each plugin has one gate and one job here,
+# and a change runs only the plugins it reaches.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'endpoints/loam/plugins/**'
+      - '!endpoints/loam/plugins/*/docs/**'
+      # The crate Mail's engine builds on.
+      - 'packages/rust/**'
+      - '.cargo/config.toml'
+      - '.github/workflows/loam-plugins.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'endpoints/loam/plugins/**'
+      - '!endpoints/loam/plugins/*/docs/**'
+      - 'packages/rust/**'
+      - '.cargo/config.toml'
+      - '.github/workflows/loam-plugins.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+# A newer push to a pull request supersedes the checks still running on it; pushes to main all run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  scope:
+    # One step per plugin: its own folder but its documents, and what it builds on.
+    name: Affected plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mail: ${{ steps.mail.outputs.run }}
+    env:
+      AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - id: mail
+        run: node scripts/affected.mjs gate --path endpoints/loam/plugins/mail/ --except endpoints/loam/plugins/mail/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-plugins.yml
+
+  mail:
+    name: Mail engine (fmt, clippy, test)
+    needs: scope
+    if: needs.scope.outputs.mail == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: endpoints/loam/plugins/mail/engine
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # rustup is preinstalled on GitHub-hosted runners; with no arguments it installs the
+      # toolchain pinned in the engine's rust-toolchain.toml.
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: endpoints/loam/plugins/mail/engine
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked

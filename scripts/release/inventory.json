@@ -906,6 +906,27 @@
 			]
 		},
 		{
+			"id": "loam-mail",
+			"family": "loam",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "e04a852e2ba0a2aa12819e15bebf929e91e2f439",
+			"authority": "none: new Loam plugin engine authored in lushly-dev/afd; the crate is publish = false and cannot publish; no route, registry identity or release exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["loam-plugins.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "loam_mail",
+					"registry": "crates",
+					"manifest": "endpoints/loam/plugins/mail/engine/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "umbel",
 			"family": "umbel",
 			"protocol": "language-tag-v1",

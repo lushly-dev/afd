@@ -221,6 +221,20 @@ export const SUITES = [
 		],
 	},
 	{
+		workflow: 'loam-plugins.yml',
+		tools: ['cargo'],
+		remote: 'Linux',
+		steps: [
+			{ gate: 'mail', cwd: 'endpoints/loam/plugins/mail/engine', run: 'cargo fmt --check' },
+			{
+				gate: 'mail',
+				cwd: 'endpoints/loam/plugins/mail/engine',
+				run: 'cargo clippy --locked --all-targets -- -D warnings',
+			},
+			{ gate: 'mail', cwd: 'endpoints/loam/plugins/mail/engine', run: 'cargo test --locked' },
+		],
+	},
+	{
 		workflow: 'umbel.yml',
 		tools: ['cargo'],
 		remote:

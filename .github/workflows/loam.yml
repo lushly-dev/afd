@@ -6,6 +6,8 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
+      # Plugins have their own workflow, loam-plugins.yml (L8).
+      - '!endpoints/loam/plugins/**'
       # The foundations and AFD packages Loam builds on.
       - 'foundations/fast-af/**'
       - 'foundations/violet/**'
@@ -34,6 +36,7 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
+      - '!endpoints/loam/plugins/**'
       - 'foundations/fast-af/**'
       - 'foundations/violet/**'
       - 'foundations/specimen/**'

@@ -101,10 +101,19 @@ function readLockfile(git, root, base) {
 	return [baseText, existsSync(file) ? readFileSync(file, 'utf8') : null];
 }
 
-/** The unit root of a path: its first two segments (packages/core, foundations/violet, ...). */
-const unitRoot = (path) => path.split('/').slice(0, 2).join('/');
+/** Folders whose children are units of their own: a Loam plugin is not part of Loam (its D109). */
+const PLUGIN_ROOTS = ['endpoints/loam/plugins'];
+/**
+ * The unit root of a path: its first two segments (packages/core, foundations/violet, ...), or a
+ * plugin's own folder (endpoints/loam/plugins/mail).
+ */
+const unitRoot = (path) => {
+	const segments = path.split('/');
+	const plugins = PLUGIN_ROOTS.find((root) => path.startsWith(`${root}/`));
+	return segments.slice(0, plugins ? plugins.split('/').length + 1 : 2).join('/');
+};
 /** A unit's own documentation (endpoints/loam/docs/...): prose no package build or test reads. */
-const unitDocs = (path) => path.split('/')[2] === 'docs';
+const unitDocs = (path, unit) => path.slice(unit.length + 1).split('/')[0] === 'docs';
 
 /**
  * A family's provenance records. Only scripts/{specimen,fast-af,violet}-provenance.test.mjs read
@@ -194,7 +203,7 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		const ownTests = owners.length > 0 && TEST_FILE.test(file);
 		if (owners.length === 0) {
 			const unit = unitRoot(file);
-			if (unit !== file && !unitDocs(file))
+			if (unit !== file && !unitDocs(file, unit))
 				owners = packages.filter((pkg) => inside(pkg.dir, unit));
 		}
 		for (const pkg of owners) mark(pkg.name, file, ownTests);

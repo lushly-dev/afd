@@ -262,7 +262,7 @@ the first thing [phase 0](#8-phase-0-measure-before-specifying) measures.
 
 Phase 0 measured it: 3.9%, 12.1% and 3.7% of messages in three runs, against a threshold of two
 in ten. The owner left extractors out of the first specification on 2026-11-11. The engine keeps
-what they would need ([its section 10.4](engine.spec.md#104-extractors-deferred)).
+what they would need ([its section 10.4](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md#104-extractors-deferred)).
 
 ### 4.6 Working without a model
 
@@ -339,7 +339,7 @@ composes the two servers, and mail leaves the machine for an Umbel only by the p
 Names follow `domain-action`. The engine's specification fixes names, shapes and codes; this list
 shows the surface and each command's class from [4.4](#44-trust-and-authority).
 
-The [engine's specification](engine.spec.md#11-commands) now holds the list; where the two
+The [engine's specification](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md#11-commands) now holds the list; where the two
 differ, it wins.
 
 | Command | Does | Class |
@@ -452,7 +452,7 @@ phases depend on no other area beyond L8; the Loam app can start as soon as its 
 | Phase | What | Needs | Headline exit |
 | --- | --- | --- | --- |
 | 0 | Measure ([section 8](#8-phase-0-measure-before-specifying)) | The owner's go | The decision in 0.4 |
-| A | The [engine's specification](engine.spec.md). It is written beside this document and moves to the plugin's folder (M14) when step B1 creates it | Phase 0 | The owner's approval by pull request |
+| A | The [engine's specification](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md). It was written beside this document and moved to the plugin's folder (M14) when step B1 created it | Phase 0 | The owner's approval by pull request |
 | B | The connector and the log: accounts, a resumable sync for iCloud and Gmail, evidence, read commands, search, a command line and MCP | A; L8 for the plugin folder its first step creates | The owner's real mailbox synced and searched from the command line and by an agent over MCP |
 | C | Relationships, screening and stream stories | B | Stream stories on the real mailbox with no model |
 | D | Reversible mailbox commands with their inverses; drafts; send for a person at a terminal | B | An agent archives and labels under policy, and cannot send; a person sends at a terminal |
@@ -522,7 +522,7 @@ which are in the [prototype's README](prototype/README.md#the-three-runs-togethe
 | 9 | Extractors are left out of the first specification, with the design kept open for them (Q1) |
 | 10 | Screening is built as a lookup first; the mail a lookup cannot decide is the part a model ranks (Q2) |
 
-The [engine's specification](engine.spec.md) is the next document for the owner to approve.
+The owner approved the [engine's specification](../../../../endpoints/loam/plugins/mail/docs/engine.spec.md) on 2026-11-11.
 The shapes this plan proposes for decisions 3 and 7 are Loam's to specify.
 
 ## 12. Out of scope
