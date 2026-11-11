@@ -18,6 +18,8 @@ library only.
 python3 census.py --provider icloud --user you@icloud.com --limit 500 --out trial.counts.json
 python3 census.py --provider icloud --user you@icloud.com --out icloud.counts.json
 python3 census.py --provider gmail --user you@gmail.com --out gmail.counts.json
+# Leave out any mailbox that lists more than 100 000 messages:
+python3 census.py --provider icloud --user you@icloud.com --skip-over 100000 --out rest.counts.json
 ```
 
 It prompts for the password, or reads it from `--password-file`; it is never an argument. iCloud
@@ -87,6 +89,26 @@ report of the same behaviour on an Apple account exists
 mailbox's listing they cannot move Q1 or Q2 across a threshold. The engine's sync must expect them:
 it cannot wait for every listed message before it calls a mailbox synced.
 
+**One folder is 93% of the account.** The largest mailbox holds 283 721 of the 304 956 listed
+messages. The owner identified it as mail from GitHub that an automation files there, which he means
+to delete. So the whole-account figures mostly describe GitHub notifications. A second run on
+2026-11-11 left that mailbox out (`--skip-over 100000`, tool version 5;
+[`icloud-without-largest.counts.json`](icloud-without-largest.counts.json)): 21 248 messages,
+complete, every listed message returned.
+
+| Measure | Whole account | Without the largest mailbox | Threshold |
+| --- | --- | --- | --- |
+| Q1 | 3.9% | 12.1% (15.1% of inbound) | at least 2 in 10 in; under 1 in 10 out |
+| Q2 | 98.4% | 60.9% | at least 8 in 10 |
+| Inbound mail with a list-unsubscribe header | 93% | 31% | |
+| Inbound mail from the ten largest senders | 95% | 19% | |
+| Messages from strangers left for judgment | 4 583 | 4 584 | |
+
+Without that mailbox Q1 falls between its two thresholds and Q2 is not met: four in ten messages
+from strangers carry no list or bulk header and fit no recurring template. Most of this mail is
+from 2010 to 2021. Which figures describe the mail the client is for is the owner's decision in
+step 0.4.
+
 **Not yet run:** Gmail.
 
 ## The store measurement
@@ -139,6 +161,6 @@ python3 -m unittest test_census -v
 They cover the fingerprints, the response splitter, the aggregation, and whole runs against a fake
 connection: an iCloud-like and a Gmail-like account, a mailbox name sent as a literal, a dropped
 connection that recovers and one that does not, a mailbox that cannot be listed or opened,
-structures that cannot be fetched, a message listed but not returned, and the byte cap. They assert that only commands
+structures that cannot be fetched, a message listed but not returned, a mailbox left out by size, and the byte cap. They assert that only commands
 that cannot change anything are sent, and that no address, subject, mailbox name or hash reaches
 the output. They use no network.

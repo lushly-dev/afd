@@ -39,7 +39,7 @@ from html.parser import HTMLParser
 # mailbox of about 130 000 messages already exceeds.
 imaplib._MAXLINE = max(imaplib._MAXLINE, 64 * 1024 * 1024)
 
-TOOL_VERSION = 4
+TOOL_VERSION = 5
 TEMPLATE_MIN = 5  # a template is one seen at least this many times (the proposal's Q1)
 BATCH = 250
 BODY_PREFIX_BYTES = 128 * 1024  # how much of a sampled message is fetched
@@ -497,9 +497,14 @@ def run(args: argparse.Namespace, password: str) -> dict:
     header_started = time.time()
     extra = " X-GM-THRID" if gmail_ext else ""
     items = f"(UID RFC822.SIZE INTERNALDATE{extra} BODY.PEEK[HEADER.FIELDS ({HEADER_FIELDS})])"
-    listed = not_returned = 0
+    listed = not_returned = skipped_boxes = skipped_uids = 0
     for index, box in enumerate(counted):
-        uids = (session.uids_of(box["name"]) or [])[: args.limit or None]
+        uids = session.uids_of(box["name"]) or []
+        if args.skip_over and len(uids) > args.skip_over:  # a deliberate subset, recorded below
+            skipped_boxes += 1
+            skipped_uids += len(uids)
+            continue
+        uids = uids[: args.limit or None]
         listed += len(uids)
         for chunk in batches(uids, BATCH):
             ids = ",".join(map(str, chunk))
@@ -563,6 +568,11 @@ def run(args: argparse.Namespace, password: str) -> dict:
             "provider": args.provider or "custom",
             "host": preset["host"] if preset and not args.host else "custom",
             "limit_per_mailbox": args.limit or None,
+            "skipped_over": {
+                "threshold": args.skip_over or None,
+                "mailboxes": skipped_boxes,
+                "uids_listed": skipped_uids,
+            },
             "mailboxes": {
                 "listed": len(boxes),
                 "counted": len(counted),
@@ -647,6 +657,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, help="where to write the counts")
     parser.add_argument("--sample-mb", type=int, default=300, help="cap on body bytes fetched (default 300)")
     parser.add_argument("--limit", type=int, default=0, help="read at most this many messages per mailbox (a trial run)")
+    parser.add_argument(
+        "--skip-over",
+        type=int,
+        default=0,
+        help="leave out any mailbox that lists more than this many messages, to see the account without one dominant folder",
+    )
     args = parser.parse_args(argv)
     if not args.provider and not args.host:
         parser.error("give --provider or --host")
