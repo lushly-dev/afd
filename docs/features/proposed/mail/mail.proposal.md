@@ -11,8 +11,10 @@ when one is connected, adds knowledge, memory and context and is never required.
 ## Status
 
 - **State:** proposed. Written 2026-11-10 against `main` at `880a18c4`, from a design discussion
-  with the owner that day, and revised the same day on the owner's direction
-  ([Revision](#revision-of-2026-11-10)). Nothing is implemented and nothing is approved.
+  with the owner that day. The first version merged as
+  [#969](https://github.com/lushly-dev/afd/pull/969); this one revises it the same day on the
+  owner's direction ([Revision](#revision-of-2026-11-10)). Nothing is implemented, and nothing is
+  approved beyond that direction.
   [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** the facts in [What exists today](#2-what-exists-today) about this repository were
   read on `main` at `880a18c4`, in the documents and files each row names. No Rust or TypeScript
