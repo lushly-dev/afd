@@ -6,12 +6,14 @@ and indexes mail on the person's machine, mounted by Loam, with a native Loam ap
 engine calls no model; models and people propose, and it verifies and stores. An Umbel instance,
 when one is connected, adds knowledge, memory and context and is never required.
 
-"Mail" is a working title. The name is an open decision ([section 11](#11-for-the-owner)).
+Its name is Mail, Loam Mail in full. Where an identifier has to be unique it is `loam_mail`
+([section 11](#11-for-the-owner)).
 
 ## Status
 
-- **State:** proposed. Written 2026-11-10 against `main` at `880a18c4`, from a design discussion
-  with the owner that day. The first version merged as
+- **State:** active. The owner answered [section 11](#11-for-the-owner) on 2026-11-10 and said to
+  go on, so phase 0 has started. Written 2026-11-10 against `main` at `880a18c4`, from a design
+  discussion with the owner that day. The first version merged as
   [#969](https://github.com/lushly-dev/afd/pull/969); this one revises it the same day on the
   owner's direction ([Revision](#revision-of-2026-11-10)). Nothing is implemented, and nothing is
   approved beyond that direction.
@@ -29,8 +31,8 @@ when one is connected, adds knowledge, memory and context and is never required.
 - **Reviewed:** the first version had one independent review (revise; five blockers and eleven
   improvements, all applied) and a focused check of the fixes (approve). The revision's reviews
   are recorded in [STATUS.md](STATUS.md).
-- **Next:** the owner's answers in [section 11](#11-for-the-owner), then
-  [phase 0](#8-phase-0-measure-before-specifying).
+- **Next:** [phase 0](#8-phase-0-measure-before-specifying): the census tool, its run on the
+  owner's accounts, the store measurement, and the owner's decision on the numbers.
 
 ### Revision of 2026-11-10
 
@@ -84,7 +86,7 @@ a Loam app from one set of commands.
 | One app calls another's commands only under a `calls` grant, in phase 5. Calls to mounted servers are journaled but cannot be replayed | Loam architecture, section 9 and section 8, "Determinism and replay" |
 | Loam's phases 0 to 2 have exited. Phase 3 (identity) and phase 6 (hosts) are in progress. Phases 4, 5 (bus, copilot, mounted servers), 7 and 8 are not started | [Loam status](../../../../endpoints/loam/docs/STATUS.md) |
 | Umbel is a Rust host for capability plugins over MCP and a CLI, with knowledge, memory and context as first-party plugins. Every part of a result that came from a document is labelled `trust: "content"`, and every stored record carries a provenance envelope | [Umbel README](../../../../endpoints/umbel/README.md); Umbel architecture, principles 7 and 9 |
-| Long-running commands as MCP tasks are an active AFD feature, with a Rust pilot; its TypeScript phase is not done. Over HTTP the Rust server offers tasks only with authorization or when its hook identifies callers. Progress notifications are not delivered for tasks | [MCP Tasks](../../active/mcp-tasks/mcp-tasks.proposal.md), its status and "Limits"; `packages/rust/README.md`, "Features" |
+| Long-running commands as MCP tasks are an active AFD feature, with a Rust pilot; its TypeScript phase is not done. Over HTTP the Rust server offers tasks only with authorization or when its hook identifies callers. Progress notifications are not delivered for tasks | [MCP Tasks](../mcp-tasks/mcp-tasks.proposal.md), its status and "Limits"; `packages/rust/README.md`, "Features" |
 | A manifest names exactly one kind and cannot carry a mount's command line, location or credential: those are the deployer's entry. The app list is the deployer's file and no command writes an entry (D63); on the desktop the webview can write no command line (D106) | Loam phase 1 specification, section 2; Loam decisions, D63 and D106 |
 | A call to a mounted server has a 60-second deadline, and over the desktop mount a message is at most 1 MiB and a reply 4 MiB | Loam phase 1 specification, section 7.3; Loam phase 6 specification, section 10.4 |
 
@@ -124,6 +126,7 @@ All were retrieved 2026-11-10.
 | E7 | iCloud Mail offers IMAP and SMTP to other clients, signed in with an app-specific password | Apple's support page on iCloud Mail server settings; Nylas's iCloud guide | Neither lists the server's IMAP extensions |
 | E8 | Google requires a yearly security assessment of an app that stores or sends restricted Gmail data through a server; assessors charge 500 to 4 500 US dollars; personal use is exempt | Google's restricted-scope verification and app verification pages | That a client keeping data only on the person's machine is exempt is an inference from the wording |
 | E9 | A Gmail extension replies to up to 100 selected emails with AI-adjusted versions saved as drafts. No mail client was found that clusters mail and does this itself | cloudHQ's Bulk Email Reply guide; one search | The search was not exhaustive |
+| E10 | Gmail limits IMAP downloads to 2 500 MB a day | Google Workspace's Gmail bandwidth limits page | Written for Workspace; consumer accounts are assumed to be no looser |
 
 Links are in [Sources](#sources).
 
@@ -149,6 +152,8 @@ owner approves this document.
 | M9 | A story is a view over mail, never a move | The message list always exists, and a wrong grouping hides nothing permanently ([4.7](#47-stories)) |
 | M10 | Mail is a Loam plugin (the owner's direction): the engine as a mounted server and a native app over it (this plan) | The interface belongs in the shell with the owner's other apps; the engine stays usable without the shell, from a terminal or an agent |
 | M11 | Umbel is optional (the owner's direction) | With an instance connected, mail gains knowledge, memory and context ([4.10](#410-with-an-umbel-connected)); with none, nothing is missing that this document promises |
+| M13 | The plugin is Mail, Loam Mail in full, with `loam_mail` as its identifier where one must be unique (the owner's decision, 2026-11-10). `mail` is its command domain (this plan) | The owner named it; the command domain follows AFD's `domain-action` rule |
+| M14 | It lives in this repository (the owner's decision, 2026-11-10). Proposed: one self-contained plugin folder holding its app, its engine and its documents, `endpoints/loam/plugins/mail/` | The owner suggested Loam's directory and asked that plugins neither bloat the repository nor weigh on each other's CI. The folder and its CI rules are this plan's proposal and a need on Loam (L8) |
 | M12 | The engine shares no code with Umbel. It follows two of its conventions: the `trust: "content"` label and the fields of its provenance envelope | The owner's direction keeps Umbel out of the core. The conventions cost nothing and let a caller, Loam's copilot above all, read both servers the same way |
 
 ### 4.2 Shape
@@ -307,7 +312,7 @@ isolation real, and that is a requirement on Loam's copilot ([L6](#6-what-mail-n
 | Account | Read | Send | Sign-in |
 | --- | --- | --- | --- |
 | iCloud | IMAP | SMTP | An app-specific password (E7) |
-| Gmail | The Gmail API: labels and threads are native, and changes come as a history | The Gmail API | OAuth with the person's own client until an app is verified (E8) |
+| Gmail | The Gmail API, first, by the owner's decision: labels and threads are native, and changes come as a history | The Gmail API | OAuth with the person's own client until an app is verified (E8) |
 
 Both sit behind one provider interface inside the engine, so Microsoft Graph, JMAP or plain IMAP
 for any other server can follow. Candidate crates, to be audited in the engine's specification:
@@ -366,7 +371,8 @@ the `afd` crate alone, with sends made at a terminal.
 | L2 | The label holds when content passes to another app's command | A message can ask the copilot to act in a different app |
 | L3 | A surface for long-running commands: state, cancel, resume | Import here; rendering and generation in the deck and video apps the owner said he plans. Progress notifications are not delivered for tasks, so the surface reads state. It needs tasks in the TypeScript client (A2) |
 | L4 | A kit component for reviewing a batch of proposed changes: shared content once, the differences per item, one approval | Reply sets here; the same pattern in other apps |
-| L5 | A plugin whose engine is a local server | No app today brings a program of its own, and Loam's rules forbid one from adding it: a manifest names one kind and carries no command line or location, the app list is the deployer's and no command writes an entry (D63), only the workspace's owner adds a stdio instance (D56), and the desktop webview can write no command line (D106). So either the person or deployer writes the engine's mount entry by hand, or those decisions are amended so a plugin can bring its engine. Either way the plugin is two manifests, a mounted one and a native one joined by a phase 5 `calls` grant; mail must sync with the shell shut, so the engine is a long-lived server mounted over HTTP, not a stdio child; and reads must fit a mounted call's 60-second deadline and 4 MiB reply |
+| L5 | A plugin brings its engine | The owner's direction, 2026-11-10: Loam's rules should change so that a plugin can bring an engine, and engines stay out of Loam's core. Today they forbid it: a manifest names one kind and carries no command line or location, the app list is the deployer's and no command writes an entry (D63), only the workspace's owner adds a stdio instance (D56), and the desktop webview can write no command line (D106). The shape this plan proposes keeps what those rules protect: the manifest names an engine artifact and its hash, never a command line; a person who owns the workspace, or the deployer, installs it in the trusted host, which shows what will run, and no command or agent can; a changed binary needs consent again; the host starts it as a separate process the shell reaches only through the mount, so the kernel learns to start a declared engine and nothing about any one of them. Mail must sync with the shell shut, so its engine is a long-lived server mounted over HTTP, and reads must fit a mounted call's 60-second deadline and 4 MiB reply |
+| L8 | A place and a CI lane for plugins | The owner's direction, 2026-11-10: plugins live in this repository without bloating it or weighing on each other's CI. Loam's workflow runs on any change under `endpoints/loam/` but its documents, so a plugin there would run the whole suite and enlarge it. Proposed: `endpoints/loam/plugins/<name>/`, excluded from Loam's workflow as its documents are; one shared plugin workflow whose affected-units gate runs only the plugin that changed; and a one-way dependency, plugins importing Loam's SDK and test kit while Loam's core and its own suite load no real plugin |
 | L6 | The copilot composes each unit of a batch in a fresh context when a command asks for it | [4.8](#48-outbound-mail-and-reply-sets) |
 | L7 | An approval a person gives in the shell releases a mounted server's command that only a person may run | Loam's approval evidence comes from trusted shell code, but the engine issues its own tokens and reads evidence only from its context, and Loam's mount relay forwards a fixed list of headers. Two routes: the shell returns the engine's token over a carrier AFD defines (A1), or the engine's `HumanRelay` hands the decision to a page the shell serves |
 
@@ -386,20 +392,27 @@ be a third AFD need.
 
 ## 7. Measurement and exit criteria
 
-Phase 0 decides whether to go on and what the engine's specification assumes. Its thresholds are
-provisional; the owner confirms or changes them when answering [section 11](#11-for-the-owner).
+Phase 0 decides whether to go on and what the engine's specification assumes. The owner accepted
+its thresholds as written on 2026-11-10.
 
-| | Question | Measure | Provisional threshold |
+| | Question | Measure | Threshold |
 | --- | --- | --- | --- |
 | Q1 | Is enough mail templated for extractors to pay? | The share of all messages that belong to a template seen at least five times and carry no list-unsubscribe header. Templated mail that does carry one, newsletters and marketing, is reported apart: stream stories and screening handle it, not extractors | At least two in ten: extractors are in the first specification. Under one in ten: they are left out. Between: the owner decides |
 | Q2 | Can screening be a lookup? | Of messages from senders the person never wrote to, the share that carry a list or bulk header or belong to a template | At least eight in ten. The rest is the size of the problem a model would have to judge |
 | Q3 | Does a local store hold a mailbox? | For SQLite tables shaped for mail with a tantivy index: store-side import rate, database size against the messages' bytes without attachments, and the time to list 50 threads and to search, at 100 000 and 500 000 synthetic messages shaped like the census | A list in 50 ms and a search in 200 ms at the 95th percentile; an import of 500 messages a second; a database under three times those bytes |
 | Q4 | What do the providers offer? | iCloud's IMAP capabilities, read from the server; a Gmail history sync run once; each provider's fetch rate as observed and its documented limits, which bound a real import more than the store does; which sign-in Gmail accepts | Recorded, not judged |
 
+The census reports Q1 as defined, over all messages, and beside it the share of inbound mail alone
+and a variant that leaves replies out, since a long thread with one person shares a subject and a
+structure and so looks like a template. The thresholds are read against the first.
+
 A **template**, for the census, is the sending address or list id together with the message's MIME
-structure and a hash of its HTML body's element skeleton with the text removed; a plain-text body
-uses the sequence of its line shapes. The engine's specification may choose a better fingerprint;
-the census needs only one that is stable and computed locally.
+structure and the shape of its subject with numbers and identifiers removed. That needs no body, so it
+is computed for every message. On a sample of bodies the census also hashes each HTML body's
+element skeleton with the text removed, or a plain-text body's sequence of line shapes, and
+reports how often messages that share a template by the first measure share one by the second.
+The engine's specification may choose a better fingerprint; the census needs only one that is
+stable and computed locally.
 
 Later phases take their exit criteria from the engine's specification.
 
@@ -409,16 +422,18 @@ Phase 0 writes no engine. It produces numbers and one decision.
 
 | Step | What | Output |
 | --- | --- | --- |
-| 0.1 | **Mailbox census.** A read-only program opens each account without changing it, reads every message's headers, structure and body, keeps only hashes and counts, and computes Q1, Q2 and the size and thread distributions | A file of counts and distributions only. No address, subject or text leaves the machine or enters this repository |
+| 0.1 | **Mailbox census.** A read-only program opens each account without changing it, reads every message's headers and structure and a sample of bodies under a byte cap, keeps only hashes and counts, and computes Q1, Q2 and the size and thread distributions | A file of counts and distributions only. No address, subject or text leaves the machine or enters this repository |
 | 0.2 | **Provider probe.** Q4 | A short record beside the census |
 | 0.3 | **Store measurement.** A harness imports synthetic messages with the census's shape into SQLite tables shaped for mail and a tantivy index | Q3's numbers |
 | 0.4 | **Decision.** The owner reads 0.1 to 0.3 and decides to go on, change course or stop | Recorded in [STATUS.md](STATUS.md) |
 
-The census runs on the owner's machine against the owner's accounts. It needs a credential for
-each, given at a terminal: an app-specific password for iCloud, and for Gmail either an app
-password over IMAP or an OAuth client the owner creates, whichever step 0.2 finds Gmail accepts.
-The census program, the synthetic generator and the store harness live in a `prototype/` folder
-here, as the Component Briefs prototype does. They are measurement tools, not the engine. The
+The census runs on the owner's machine against the owner's accounts. It reads both over IMAP,
+which needs the least setup; the engine's choice of the Gmail API is unaffected. Bodies are
+sampled, not all read, because Gmail caps IMAP downloads (E10). It needs a credential for each
+account: an app-specific password for iCloud, and for Gmail an app password, or an OAuth client
+the owner creates if step 0.2 finds Gmail refuses one.
+The census program, the synthetic generator and the store harness live in the
+[`prototype/`](prototype/README.md) folder here, as the Component Briefs prototype does. They are measurement tools, not the engine. The
 census output does not enter the repository, beyond the counts.
 
 ## 9. Steps
@@ -429,7 +444,7 @@ phases depend on no other area; the Loam app can start as soon as its row's need
 | Phase | What | Needs | Headline exit |
 | --- | --- | --- | --- |
 | 0 | Measure ([section 8](#8-phase-0-measure-before-specifying)) | The owner's go | The decision in 0.4 |
-| A | The engine's specification, at the place decision 2 of [section 11](#11-for-the-owner) gives it | Phase 0 | The owner's approval by pull request |
+| A | The engine's specification, in the plugin's folder (M14) | Phase 0; L8 for the folder | The owner's approval by pull request |
 | B | The connector and the log: accounts, a resumable sync for iCloud and Gmail, evidence, read commands, search, a command line and MCP | A | The owner's real mailbox synced and searched from the command line and by an agent over MCP |
 | C | Relationships, screening and stream stories | B | Stream stories on the real mailbox with no model |
 | D | Reversible mailbox commands with their inverses; drafts; send for a person at a terminal | B | An agent archives and labels under policy, and cannot send; a person sends at a terminal |
@@ -460,10 +475,8 @@ phases depend on no other area; the Loam app can start as soon as its row's need
   instance is unreachable; mail runs on the desktop host or against a hosted engine. Loam's
   desktop lane is milestone M3 of its phase 6, which gates nothing before phase 7 (D100), so it
   may come late.
-- **"Installable" runs into Loam's rules (L5).** Today a person or deployer writes the engine's
-  mount entry by hand. A plugin that installs its own engine needs the manifest profile (phase 1,
-  section 2), D63 and D56 amended, and D106's desktop path with them, which is the owner's and
-  Loam's decision.
+- **"Installable" waits on Loam (L5).** The owner has directed that a plugin can bring its
+  engine. Until Loam specifies it, a person or deployer writes the engine's mount entry by hand.
 - **Isolation in reply sets is partly procedural** ([4.8](#48-outbound-mail-and-reply-sets)).
 - **A wrong grouping can bury a message.** M9, exceptions on the card and the rule on unsure
   memberships reduce it; they do not remove it.
@@ -479,21 +492,21 @@ phases depend on no other area; the Loam app can start as soon as its row's need
 
 ## 11. For the owner
 
-Decided 2026-11-10: mail is a Loam plugin with an engine of its own, not an Umbel plugin (M1,
-M10), and Umbel is optional (M11). Still open:
+The owner's answers of 2026-11-10. Rows 1 to 6 are decisions; row 7 is a direction he gave while
+asking for thoughts, and its shape is open.
 
-1. **Go on to phase 0?** It needs your mailbox, on your machine, and produces counts only.
-2. **Where does it live?** In this repository, as an engine under `endpoints/` and an app beside
-   Loam's, which is where this document assumes. The
-   [platform decision](../../active/platform-monorepo/decision.md) keeps Lushly, a product, in its
-   own repository; if mail is a product in that sense, it can build against the `afd` crate and
-   Loam from outside.
-3. **The name.** "Mail" is a working title and `mail` a working command domain.
-4. **Gmail through its API or through IMAP first?** This proposal recommends the API.
-5. **The thresholds in [section 7](#7-measurement-and-exit-criteria).**
-6. **How the engine gets installed (L5).** A person or deployer writes its mount entry, as Loam's
-   rules require today, or Loam amends its manifest profile, D63 and D56, and D106's desktop path
-   with them, so a plugin can bring its engine. An installable client depends on the answer.
+| | Answer |
+| --- | --- |
+| 1 | Mail is a Loam plugin with an engine of its own, not an Umbel plugin, and Umbel is optional (M1, M10, M11) |
+| 2 | Go on to phase 0 |
+| 3 | It lives in this repository, organized so that Loam's plugins do not bloat it or load each other's CI; under Loam's directory is his suggestion (M14, L8) |
+| 4 | The name is Mail, Loam Mail in full, with `loam_mail` where an identifier must be unique (M13) |
+| 5 | Gmail through its API first |
+| 6 | The thresholds in [section 7](#7-measurement-and-exit-criteria), as written |
+| 7 | Directed: Loam's rules should change so that a plugin can bring an engine, and engines stay out of Loam's core (L5) |
+
+Nothing is open for the owner until phase 0's numbers are in ([step 0.4](#8-phase-0-measure-before-specifying)).
+The shapes this plan proposes for decisions 3 and 7 are Loam's to specify.
 
 ## 12. Out of scope
 
@@ -521,4 +534,5 @@ Retrieved 2026-11-10.
 | E7 | [Apple, iCloud Mail server settings](https://support.apple.com/en-us/102525); [Nylas, iCloud messages guide](https://developer.nylas.com/docs/cookbook/email/messages/list-messages-icloud/) |
 | E8 | [Google, restricted scope verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification); [Google, security assessment](https://support.google.com/cloud/answer/13465431) |
 | E9 | [cloudHQ, Bulk Email Reply](https://support.cloudhq.net/getting-started-with-bulk-email-reply-how-to-set-up-reply-to-multiple-emails-at-once) |
+| E10 | [Google Workspace, Gmail bandwidth limits](https://knowledge.workspace.google.com/admin/gmail/gmail-bandwidth-limits) |
 | Projects | [Godwit](https://github.com/godwit-email/godwit), [EmailOps](https://github.com/emailops/emailops), [Zero](https://github.com/Mail-0/Zero), [Inbox Zero](https://github.com/elie222/inbox-zero), [MailCopilot](https://github.com/mailcopilot/mailcopilot), [GigaMail](https://github.com/adecubed/gigamail) |
