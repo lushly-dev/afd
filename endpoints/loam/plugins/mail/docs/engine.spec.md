@@ -128,6 +128,8 @@ Each crate's maintenance history was not read.
 | `afd` | 0.2.1, by path | MIT | Registry, journal, approvals, tasks, MCP server | None |
 | `rusqlite` | 0.41, bundled SQLite | MIT | The store | The version Umbel pins, so the repository carries one. 0.42 is current |
 | `tantivy` | 0.27 | MIT | The search index | None |
+| `sha2` | 0.11 | MIT or Apache-2.0 | The log's file names and a message's identity | The version the `afd` crate uses |
+| `zstd` | 0.14 | BSD-3-Clause | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |
 | `mail-parser` | 1.0.1 | Apache-2.0 or MIT | Parsing messages | The licence is stated on crates.io, which answers the proposal's follow-up |
 | `ammonia` | 4.2 | MIT or Apache-2.0 | Cleaning HTML for display | None |
 | `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Whether it exposes QRESYNC, `UID EXPUNGE` and the `COPYUID` response is not verified. Step B3 checks, and names `imap-codec` (2.0 alpha) as the fallback if it does not |
@@ -267,14 +269,29 @@ the hash of those bytes. A file is written once and never changed. A message hel
 file. A message fetched in parts (M20) has a file for its header block, one for each text part,
 and one for each attachment when it is fetched; its record says which parts are held.
 
-**The tables.** A sketch; step B2 fixes the columns.
+- **A read is checked.** Every read recomputes the hash and fails if it is not the file's name,
+  and stops at a size limit, so a damaged file is noticed and a hostile one cannot fill memory.
+- **A batch is on the disk before it is recorded.** A file appears under its name only when it
+  is written in full. The files of a batch are then flushed together, and only after that does
+  the store record them as held, so a row never names a file a power failure could take. One
+  flush covers the batch: a plain `fsync` for each file and one `F_FULLFSYNC` on macOS, `syncfs`
+  on Linux, a flush for each file elsewhere. Flushing each file fully held the log to about 260
+  header blocks a second on macOS, under [4.4](#44-limits-to-meet)'s limit; a flush for each
+  batch of 250 stored between 1 700 and 3 100 a second over five runs, and no flush at all 4 400.
+- **Storing again repairs.** Storing bytes that are already held reads the file there first. A
+  damaged one is moved to `blobs/damaged/`, never deleted, and written afresh. So fetching a
+  message again mends its file, whatever damaged it.
+
+**The tables.** A sketch. Step B2 fixes the columns of each table when it creates it: the
+first half creates what is not derived, the second half the rest.
 
 | Table | One row for | Derived from the log |
 | --- | --- | --- |
 | `account` | An account and its provider | No |
 | `mailbox` | A mailbox, with its provider identity, its role and its sync cursor | No |
-| `message` | A message: its identity, what is held, size, dates, sender, subject, a snippet, thread, template, the list and bulk headers found, the authentication header, the parser's version | Yes |
-| `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted | No: it is the record of what the provider showed |
+| `message` | A message: its identity, size, dates, sender, subject, a snippet, thread, template, the list and bulk headers found, the authentication header, the parser's version | Its identity no; the rest yes |
+| `held` | Which of a message's bytes the log holds: the header block, the whole, a text part or an attachment, each with its hash | No |
+| `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted: a row is ended, as superseded, removed or closed by a new `UIDVALIDITY`, and a new row is written | No: it is the record of what the provider showed |
 | `unreturned` | A listed message that did not arrive: the mailbox, the provider's id, how many tries, when | No |
 | `part` | A part of a message: its place, type, size, hash and whether it is held | Yes |
 | `thread` | A thread, with what a list needs: last date, counts, a snippet | Yes |
@@ -965,7 +982,7 @@ file.
 | --- | --- |
 | B0 | The Gmail API probe ([5.5](#55-gmail)), as a prototype beside the census. Corrects this document |
 | B1 | The plugin folder, the crate's skeleton, the workflow and the Loam exclusion (L8); `loam-mail help` runs |
-| B2 | The store: the log, the tables, migrations, the index, `mail-rebuild`; the harness run against it for [4.4](#44-limits-to-meet) |
+| B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet) |
 | B3 | The provider interface, the scripted IMAP server, iCloud sync with resume and unreturned messages; `mail-account-add`, `mail-sync`, `mail-status` |
 | B4 | Evidence, threads, labels on results; the read commands and `mail-search`; the fuzz targets |
 | B5 | `serve`, tokens, the layer and the two routes, stdio; the command line forwarding to a running server |

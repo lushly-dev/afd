@@ -1,12 +1,16 @@
 //! Loam Mail's engine: a person's mail on their machine, served as AFD commands.
 //!
-//! This is the skeleton of step B1 of the engine's specification
-//! (`../docs/engine.spec.md`). It holds the command registry, the rules every
-//! command in it must keep, and the command line's entry point. The commands
-//! themselves arrive with the steps that follow.
+//! Built a step at a time from the engine's specification
+//! (`../docs/engine.spec.md`). So far: the command registry and the rules every
+//! command in it must keep, the command line's entry point, the data
+//! directory, the log, and the store's tables that are not derived from the
+//! log. The commands themselves arrive with the steps that follow.
 
 pub mod cli;
+pub mod home;
+pub mod log;
 pub mod rules;
+pub mod store;
 
 use afd::CommandRegistry;
 

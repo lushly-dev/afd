@@ -18,8 +18,16 @@ cargo run -- help
 cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
 ```
 
-This is the skeleton of the specification's step B1. It answers `help` and `version`, and holds
-no mail command yet. What it does hold is the registry's rules, checked when the engine starts
+It is built a step at a time from the specification's section 15. It answers `help` and
+`version`, and holds no mail command yet. So far it has:
+
+- **The data directory** (`src/home.rs`): where it is, and the lock that lets one process own it.
+- **The log** (`src/log.rs`): each message's bytes as the provider returned them, one compressed
+  file each, named by the SHA-256 of the bytes and checked against it on every read.
+- **The store** (`src/store/`): the SQLite tables that are not derived from the log. They hold
+  accounts, mailboxes, each message's identity, which bytes are held, and what a provider showed.
+
+It also holds the registry's rules, checked when the engine starts
 and by its tests: a destructive command always requires approval, a command with an approval
 policy is exposed to the command line only, and every command's name starts with `mail-`.
 
