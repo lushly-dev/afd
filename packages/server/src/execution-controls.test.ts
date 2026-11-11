@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { McpClient } from '@lushly-dev/afd-client';
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createExecutionEngine } from './execution.js';
 import { defineCommand } from './schema.js';
@@ -125,18 +125,32 @@ describe('batch execution controls', () => {
 	});
 
 	it('enforces the remaining deadline while a command is awaited', async () => {
-		const engine = engineFor(async (_input, context) => {
-			await new Promise<void>((resolve) => {
-				context.signal?.addEventListener('abort', () => resolve(), { once: true });
+		// On the fake clock, so the deadline is exact however busy the machine is.
+		vi.useFakeTimers();
+		try {
+			let signal: AbortSignal | undefined;
+			const engine = engineFor(async (_input, context) => {
+				signal = context.signal;
+				await new Promise<void>((resolve) => {
+					context.signal?.addEventListener('abort', () => resolve(), { once: true });
+				});
+				return success({ late: true });
 			});
-			return success({ late: true });
-		});
-		const result = await engine.executeBatch({
-			commands: [{ command: 'work-run', input: { index: 0 } }],
-			options: { timeout: 10 },
-		});
+			const running = engine.executeBatch({
+				commands: [{ command: 'work-run', input: { index: 0 } }],
+				options: { timeout: 10 },
+			});
 
-		expect(result.results[0]?.result.error?.code).toBe('BATCH_TIMEOUT');
-		expect(result.timing.totalMs).toBeLessThan(100);
+			await vi.advanceTimersByTimeAsync(9);
+			expect(signal?.aborted).toBe(false);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(signal?.aborted).toBe(true);
+
+			const result = await running;
+			expect(result.results[0]?.result.error?.code).toBe('BATCH_TIMEOUT');
+			expect(result.timing.totalMs).toBe(10);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
