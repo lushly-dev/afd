@@ -24,6 +24,8 @@ A unit on the `npm-prerelease` route names its npm tag in the inventory (`distTa
 
 The npm workflow checks pending version intent independently from held fragments. Before any upload it creates a durable GitHub commit-status claim for the exact intent digest. A pending or failed claim holds later runs, including runs where every version reached npm but tag/release finalization did not finish. Success is recorded only after artifact integrity and finalization verification. Restoring identical intent bytes must preserve their existing claim. Runner receipts, plans and tarballs are retained as additional evidence; they are not the durable claim store.
 
+GitHub refuses a `GITHUB_TOKEN` push of a tag whose commit has different workflow files from main, which a workflow change merged during the release causes. So the tag push uses a GitHub App token when one is configured: the repository variable `RELEASE_TAG_APP_CLIENT_ID` and the secret `RELEASE_TAG_APP_PRIVATE_KEY`, for an App installed only on this repository with `Contents` and `Workflows` write. The token is created after the upload (after the quality gate in recovery), and reaches only that step's git. It is not an npm credential; uploads stay on trusted publishing. Without the App, or if its token cannot be created, the push falls back to `GITHUB_TOKEN`, and a refused push holds the release for recovery with the tags pushed by hand first.
+
 Changesets' own version/publish branch decision is not a publication-admission mechanism. Never use raw `changeset publish` on the complete workspace. Direct arbitrary shell execution remains trusted operator execution; these tools do not claim to sandbox an operator.
 
 ## Native routes

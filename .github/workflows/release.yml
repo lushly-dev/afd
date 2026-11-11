@@ -183,11 +183,37 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
 
+      # GITHUB_TOKEN cannot create a ref at a commit whose workflow files differ from main's, which a
+      # workflow change merged during the release causes (#952). This token is created late and
+      # reaches only the next step. Without the App, or if the token cannot be created, the push
+      # uses GITHUB_TOKEN as before.
+      - name: Create release tag token
+        id: tag-token
+        if: steps.intent.outputs.publishable == 'true' && vars.RELEASE_TAG_APP_CLIENT_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_TAG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_TAG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
       - name: Push release tags and create GitHub Releases
         if: steps.intent.outputs.publishable == 'true'
-        run: node scripts/release-finalize.mjs "$RUNNER_TEMP/npm-publication.json" "$RUNNER_TEMP/npm-plan.json"
+        run: |
+          if [ -n "$TAG_TOKEN" ]; then
+            # The empty value drops the credential actions/checkout stored; git sends only the App's.
+            credential=$(printf 'x-access-token:%s' "$TAG_TOKEN" | base64 -w0)
+            echo "::add-mask::$credential"
+            export GIT_CONFIG_COUNT=2
+            export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0=
+            export GIT_CONFIG_KEY_1=http.https://github.com/.extraheader
+            export GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $credential"
+          fi
+          node scripts/release-finalize.mjs "$RUNNER_TEMP/npm-publication.json" "$RUNNER_TEMP/npm-plan.json"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_TOKEN: ${{ steps.tag-token.outputs.token }}
 
       - name: Complete durable publication claim
         id: complete
@@ -264,10 +290,36 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      # GITHUB_TOKEN cannot create a ref at a commit whose workflow files differ from main's, which a
+      # workflow change merged during the release causes (#952). This token is created late and
+      # reaches only the next step. Without the App, or if the token cannot be created, the push
+      # uses GITHUB_TOKEN as before.
+      - name: Create release tag token
+        id: tag-token
+        if: vars.RELEASE_TAG_APP_CLIENT_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_TAG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_TAG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
       - name: Reconcile original artifacts and complete publication
-        run: node scripts/release-recover.mjs
+        run: |
+          if [ -n "$TAG_TOKEN" ]; then
+            # The empty value drops the credential actions/checkout stored; git sends only the App's.
+            credential=$(printf 'x-access-token:%s' "$TAG_TOKEN" | base64 -w0)
+            echo "::add-mask::$credential"
+            export GIT_CONFIG_COUNT=2
+            export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0=
+            export GIT_CONFIG_KEY_1=http.https://github.com/.extraheader
+            export GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $credential"
+          fi
+          node scripts/release-recover.mjs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_TOKEN: ${{ steps.tag-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: true
           RECOVERY_APPROVAL: ${{ inputs.recovery_approval }}
       - name: Retain recovery evidence
