@@ -21,10 +21,16 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 ## Status block
 
-- **State:** active. Phase 0 and steps A1, A2, B1, B2, B2a, C1 and C2 are done. The rest of phases B and C, and phase D, are not done.
-- **Last verified:** 2026-11-11 against `main` at `193b7cd1`, which contains #997 (step B2) and #998 (step C2), with step B2a's branch on it. Read: the B2a code, its tests, and a run of the library's 407 stories.
+- **State:** active. Phase 0 and steps A1, A2, B1, B2, B2a, C1, C2 and C3 are done. The rest of phases B and C, and phase D, are not done.
+- **Last verified:** 2026-11-11 for step C3, against `main` at `193b7cd1`: the Umbel gate
+  (`cargo fmt`, the workspace clippy, the component and `hello-mcp` builds, `cargo test --locked
+  --workspace`) and `pnpm verify`. Before that, 2026-11-10 against `main` at `d4c31d9e`, which contains
+  #949 (step A1) and #964 (step A2). Read:
+  `foundations/specimen/docs/pack-format.md`, `foundations/specimen/fixtures/pack/` and its
+  `invalid/cases.json` (25 cases), and the Umbel code the plugin specification lists in its status
+  block.
 - **Done:** see [Steps](#steps).
-- **Not done:** steps B3 and B4, steps C3 to C5, and phase D.
+- **Not done:** steps B3 and B4, steps C4 and C5, and phase D.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -39,17 +45,17 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | A2. Specifications | Done 2026-11-10: the owner approved them by merging [#964](https://github.com/lushly-dev/afd/pull/964), as `d4c31d9e` | The [plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md) and Umbel decisions D150 to D156; [T12](../specimens/implementation.md#ordered-implementation-queue) in the Specimens plan and status; this folder moved from `proposed/` to `active/` with this file |
 | B1. Guides | Done 2026-11-10 | [#968](https://github.com/lushly-dev/afd/pull/968): the `guides` key, the guide schema, the loader and the static checks in `specimen-validate`, with `src/guides.test.ts` |
 | B2. Guide obligations | Done 2026-11-11 | [#997](https://github.com/lushly-dev/afd/pull/997): `guides@1` in `specimen-coverage`, `guide:` obligations and `claim()`'s check, with `src/guide-coverage.test.ts`, `src/evidence.test.ts` and the guide-claims case in `src/coverage.test.ts` (`pnpm test:specimen`) |
-| B2a. Roles in a capture | Done 2026-11-11 | Branch `lush/specimen-capture-roles`: capture 0.9, each accessible element's computed role and name in `accessibility` (`host/src/aria.rs`, `roles`), with `src/feasibility.test.ts`'s roles and modal cases and `src/diff.test.ts`. See the session log for the library run and the exit criterion |
+| B2a. Roles in a capture | Done 2026-11-11 | [#1008](https://github.com/lushly-dev/afd/pull/1008), merged as `1e22a601`: capture 0.9, each accessible element's computed role and name in `accessibility` (`host/src/aria.rs`, `roles`), with `src/feasibility.test.ts`'s roles and modal cases and `src/diff.test.ts`. See the session log for the library run and the exit criterion |
 | B3. `specimen-pack` | Not started | Specimen's T12 |
 | B4. FAST-AF's pack | Not started | Specimen's T12 |
 | C1. Skeleton and reader | Done 2026-11-10 in [#976](https://github.com/lushly-dev/afd/pull/976). `components-brief` is declared and answers `NOT_IMPLEMENTED` until C2 | Plugin specification, section 12 and its amendments from step C1; `tests/fixtures_invalid.rs`, `tests/refusal.rs` and the Umbel gate |
 | C2. `components-brief` | Done 2026-11-11 in [#998](https://github.com/lushly-dev/afd/pull/998), merged as `06f61407`. Verified by the Umbel gate and `pnpm verify` on the shared Mac | Plugin specification, section 12 and its amendments from step C2 (A5 to A13). On the example pack and synthetic packs: criterion 7 (`tests/spaces.rs`), criterion 8 (`tests/content_stays_content.rs`), a 20-tag request in one call (`tests/twenty_tags.rs`: 37 844 of 40 000 bytes, only `examples` shed), every step of the shedding order forced (`tests/budget.rs`) and the text block's golden files (`tests/render.rs`) |
-| C3. Skill and surfaces | Not started | Plugin specification, section 12 |
+| C3. Skill and surfaces | Done 2026-11-11, in its pull request. Verified by the Umbel gate and `pnpm verify` on the shared Mac | Plugin specification, section 12 and its amendments from step C3 (A14 to A16). The `components-guide` skill (47 lines, section 12.1) served on all three delivery paths: the Skills extension and resources, byte for byte on every lane, and `skill-list` and `skill-export` (`plugins/components/tests/surfaces.rs`); `components-brief` the fifth first-party suggestion, seven first-class tools under the cap of eight, in every lane's `tools/list` and the binary's (`first-party/tests/first_class.rs`); `plugin-show` and the doctor as the host shows them, unchanged |
 | C4. Exit tests | Not started; needs B4 | Plugin specification, section 12 |
 | C5. First consumer | Not started; needs B4 | Plugin specification, section 12 |
 | D1 to D4 | Not started; each its own decision after the exit | [Proposal, Phase D](component-briefs.proposal.md#phase-d-after-the-exit) |
 
-What can run next: B3 in Specimen, and C3 in Umbel, side by side. C4 and C5 need B4's pack.
+What can run next: B3 in Specimen. Umbel's C4 and C5 need B4's pack.
 
 ## What step A2 settled
 
@@ -86,3 +92,4 @@ What can run next: B3 in Specimen, and C3 in Umbel, side by side. C4 and C5 need
 | 2026-11-11 | Step C2 | `components-brief` in Umbel's `components` plugin: tags and source, the brief's shape with a basis once per section, shared rules once, `known`, `versions`, fitting to the budget with `omitted`, and `render: "text"`. The 990-component measurement recorded. Nine amendments to the plugin specification (A5 to A13) |
 | 2026-11-11 | Step B2 | Guide statements are the `guides@1` obligation set in `specimen-coverage`, under `guides`: per-statement levels (`verified` or `authored`), counts, invalid claims and `complete` of their own. `guide:<id>` is accepted as an obligation; a story's guide claim carries its check, which `claim()` runs, and is invalid without one. A guide claim must be on the component its statement is about (or, for a rule, one it applies to): the narrowest reading of the proposal, recorded here. `schema-partitions@1`'s results are unchanged, shown by running the same stories with and without guides |
 | 2026-11-11 | Step B2a | Capture 0.9 records each accessible element's computed role and accessible name, joined by reference from Chromium's accessibility tree (the native host only). Every recorded role now has one owner, the nearest component whose reference contains it, so step 0.3's counting rule is no longer needed. On the library's 407 stories: 835 of 1 614 component instances have an accessible element of their own, the rest none at all (icons, decorative variants, closed popups); `violet-radio-group`, `violet-segmented-control` and `violet-option-group` expose roles only through `ElementInternals`, and are now read. **The exit criterion as written does not hold, and could not:** the 15 stories whose snapshot was empty in step 0.3 have nothing accessible at capture. Three overviews (checkbox, switch, radio group) move their component into a detached `<form>` in their play, so nothing is mounted; twelve are decorative or dismissed. Step 0.3 read their empty snapshot as a gap in reading roles; it was not one. Steps B3 and B4 may mark a role `observed` when a capture records it on the component or in its shadow tree. The proposal's B2a exit is amended to say what was tested instead. An independent review found no blockers; from it, a capture whose references changed before the tree was read records no roles and says so, and only open shadow roots are walked |
+| 2026-11-11 | Step C3 | The `components-guide` skill rewritten to the plugin specification's section 12.1 and proved on all three delivery paths; `components-brief` confirmed as the fifth first-party first-class suggestion, under the cap of eight; `plugin-show` and the doctor pinned as they show the plugin and an override; the README. Three amendments to the plugin specification (A14 to A16). No host code changed |

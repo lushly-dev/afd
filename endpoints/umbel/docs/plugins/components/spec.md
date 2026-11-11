@@ -10,11 +10,16 @@
 ## Status
 
 - **State:** approved by the owner 2026-11-10, by merging #964 (step A2 of the Component Briefs plan,
-  [D24](../../decisions.md), [D150](../../decisions.md)). Steps C1 and C2 are implemented, amended below
-  ([C1](#amendments-from-step-c1), [C2](#amendments-from-step-c2)): all three commands answer.
+  [D24](../../decisions.md), [D150](../../decisions.md)). Steps C1 to C3 are implemented, amended below
+  ([C1](#amendments-from-step-c1), [C2](#amendments-from-step-c2), [C3](#amendments-from-step-c3)): all three
+  commands answer, and the skill and the first-class suggestion are served.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-11 for step C2, against `main` at `d2c30f72`: the crate's `entry.rs`, `open.rs`,
+- **Last verified:** 2026-11-11 for step C3, against `main` at `193b7cd1`: `src/commands/plugin_show.rs`,
+  `src/plugins/doctor.rs` (`plugins.packs`, `plugins.skills`, `plugins.first_class`), `tests/skills.rs` and
+  `tests/first_class_plugins.rs` (how hello's skill and suggestion are proved), the testkit's `Client::lanes`, and
+  every first-party manifest's `first_class` and `[[skills]]` read; the Umbel gate run (section 12). Before that,
+  2026-11-11 for step C2, against `main` at `d2c30f72`: the crate's `entry.rs`, `open.rs`,
   `list.rs`, `fit.rs`, `select.rs` and the reader, context's `render.rs` (for the copied `quote` and `clean_header`),
   `src/plugins/grants.rs`'s `log`, and the test kit read; the Umbel gate run (section 12). Before that, 2026-11-10
   against `main` at `a1c52b37`, for the specification itself:
@@ -34,8 +39,8 @@
   - Read in the documents: the Umbel architecture's principles; D18, D24, D46, D48, D57, D64, D67, D75 and D112; the
     phase 5 specification's owner decision 3 (scopes); the Component Briefs proposal and its phase 0 records.
   - No Rust was built or run. No external source was re-checked; see the [trajectory refresh](#trajectory-refresh).
-- **Done:** steps C1 and C2 (section [12](#12-implementation-plan)).
-- **Not done:** steps C3 to C5 of section [12](#12-implementation-plan).
+- **Done:** steps C1 to C3 (section [12](#12-implementation-plan)).
+- **Not done:** steps C4 and C5 of section [12](#12-implementation-plan); both need Specimen's B4.
 - **Follow-ups:** the [table at the end](#follow-ups).
 
 ### Review response
@@ -95,6 +100,16 @@ The step found these points the document had not settled, and took the narrowest
 | A11 | No output budget on the call | The target is `maxBytes` alone, or none. AFD gives every call through the host a budget, so this is for direct use only |
 | A12 | The text block's lines (6.6), fixed by `tests/golden/example-full.txt` and `example-shed.txt` | A component's header is `[component <tag> <status>]`, with `replaced-by <tag>` for a replacement and `from <library>` when the answer holds more than one library. Its summary, then `import: <specifier>`, are quoted. Each section is `[<section> <basis>]` then one quoted line a fact: an attribute `name: type = default — description; rules: a, b`, with `values` as `a \| b` in place of the type; a slot `name accepts a, b — description` (`(default)` for the default slot); an event `name: detail — description`; a command `name — description`; a CSS property `name = default — description`; `associated: true`; a role `state: role; name …`; axe `violations: n; exceptions: …`; a statement `id: text`; a gap its JSON. `rules` is one header of ids; an example is `[example <story> <basis when it differs>]` over its quoted markup; `detail` is `[detail]` over the quoted long form. Rules follow as `[rule <id> <basis>]` over the quoted text. Then one header per `unknown` tag (`[unknown <tag> not-found nearest …]`, `[unknown <tag> ambiguous in …]`) and per `omitted` entry (`[left out below the minimum basis: n facts]`, `[left out to fit: <sections and pieces>; components-open returns them]`), so a harness that injects only the text loses neither |
 | A13 | Where `scale.rs` prints (11) | To stderr directly, past the test harness's capture, so a passing CI run shows the line |
+
+### Amendments from step C3
+
+The step found these points the document had not settled, and took the narrowest reading of each:
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A14 | Where "five, under the cap of eight" is proved | Only `umbel-first-party` links every first-party plugin (D3, D80), and the plugin's own tests may not depend on another plugin crate (`tests/no_plugin_dependency.rs`). So `tests/surfaces.rs` proves the plugin's one suggestion on its own host, on every lane, and `first-party/tests/first_class.rs` proves the set with all six plugins enabled: `workspace-show`, `event-list`, `knowledge-search`, `knowledge-open`, `memory-remember`, `context-bundle` and `components-brief`, in `plugins.enabled` and manifest order, the doctor's `plugins.first_class` passing, in every lane's `tools/list` and in the shipped binary's. The same test lists the six skills in enabled order. `first-party/tests/support`'s `with_plugins` gains `components`, as the binary has had since C1 |
+| A15 | The skill's "three delivery paths" (12.1, the proposal's C3 exit) | The phase 1 specification's section 8.3: the Skills extension (`skills/list`, `skills/get`) and resources (`resources/list`, `resources/read`), each in both eras on both transports and checked byte for byte against the file, and the commands `skill-list` and `skill-export` (CLI only), called in process, as `tests/skills.rs` proves them for hello. `tests/surfaces.rs` proves each for `components-guide`, and that the skill stays under 60 lines and names no command the manifest does not declare |
+| A16 | What "as `plugin-show` and doctor show them today" pins (11) | The answers as the host gives them, asserted whole where they are stable: the instance, grants, commands, the pack per space (`default` at the pack's own version `0.1.0` with 7 files, or `override` at the deployer's), the skill, and the doctor's plugin checks. Two facts of today's host are recorded, not changed (D151): `plugins.packs` counts directories, so the embedded default pack of a compiled plugin is not one of them; and it checks an override's layout only, so an override this plugin refuses (`PACK_INVALID`) still shows and passes the doctor. The refusal is the plugin's, on the call (9.1) |
 
 ## What this plugin serves
 
@@ -873,7 +888,8 @@ Each step's tests are listed with it in section 12. The files:
 | `tests/twenty_tags.rs` | A 20-tag request from a synthetic library of FAST-AF-like size is answered in one call inside the default budget |
 | `tests/scale.rs` | A synthetic 990-component library is served by a 20-tag brief; the wall time is printed in the test's output (a debug build, as Umbel's tests run) with no threshold, and step C2's pull request records the number on macOS and in CI for the cache follow-up to judge |
 | `tests/open.rs`, `tests/list.rs` | Section-by-section open with `skip`; list pages with `next`; `contains` and `prefix` |
-| `tests/surfaces.rs` | The plugin and an override as `plugin-show` and doctor show them today, unchanged by this plugin (step C3) |
+| `tests/surfaces.rs` | The plugin and an override as `plugin-show` and doctor show them today, unchanged by this plugin; the one first-class suggestion on every lane; the skill on the three delivery paths (step C3, A15, A16) |
+| `first-party/tests/first_class.rs` | With all six first-party plugins enabled, five suggestions and two built-ins in the first-class set, in every lane's `tools/list` and the binary's, and every skill listed (step C3, A14) |
 | `tests/no_plugin_dependency.rs` | No dependency on another plugin crate (D3), as context's test checks |
 
 The crate also builds for `wasm32-wasip2`: `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components
