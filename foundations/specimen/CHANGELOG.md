@@ -1,5 +1,27 @@
 # @lushly-dev/specimen
 
+## 2.2.0-preview.3
+
+### Minor Changes
+
+- [#997](https://github.com/lushly-dev/afd/pull/997) [`1c4eab8`](https://github.com/lushly-dev/afd/commit/1c4eab8f37ec33a10c5c04589bd184caecd9e46a) Thanks [@Falkicon](https://github.com/Falkicon)! - Guide statements are their own obligation set, `guides@1`: `specimen-coverage` reports each statement's level (`verified` or `authored`) under `guides`, with its own counts, invalid claims and `complete`, and leaves `schema-partitions@1`'s results unchanged. A claim may name `guide:<id>`, and `claim()` takes a fourth argument, the check it runs: a story's guide claim is recorded only when its check holds, fails the story when it does not, and is invalid without one.
+
+- [#968](https://github.com/lushly-dev/afd/pull/968) [`4eaa6be`](https://github.com/lushly-dev/afd/commit/4eaa6be3f4e47117f6ad1227c6c63cb2196971e2) Thanks [@Falkicon](https://github.com/Falkicon)! - Add guide files: the `guides` configuration key, a JSON Schema for each kind of guide file, and static checks for them in `specimen-validate`.
+
+- [#949](https://github.com/lushly-dev/afd/pull/949) [`6b7cc1a`](https://github.com/lushly-dev/afd/commit/6b7cc1aeafd089b055e0dd76913c05c5e41b88a7) Thanks [@Falkicon](https://github.com/Falkicon)! - Add the component pack format, version 0, at `@lushly-dev/specimen/pack`: Zod schemas for a component record, a library's shared rules and its catalog, `checkPack` with a code for each problem, canonical serialization, digests and the catalog writer, and a JSON Schema for each file kind at `@lushly-dev/specimen/pack/<kind>.schema.json`. The package now ships the format's description, `docs/pack-format.md`. Version 0 can change in any release; Specimen does not build packs yet.
+
+- [#977](https://github.com/lushly-dev/afd/pull/977) [`770930e`](https://github.com/lushly-dev/afd/commit/770930ecbe1eed0cbf018a089a12082e2949560d) Thanks [@Falkicon](https://github.com/Falkicon)! - Fail a retained story on an uncaught error or unhandled rejection, from when its module loads until its last check, with a new `error` failure category naming the message. Storybook's Vitest addon fails the run on the same errors, so a suite moved to Specimen keeps the check. As under Vitest, an event with no error value and any event of a kind the page listens for itself do not count. A story that passed while raising such an error now fails.
+
+### Patch Changes
+
+- [#993](https://github.com/lushly-dev/afd/pull/993) [`0fb1eb4`](https://github.com/lushly-dev/afd/commit/0fb1eb4649881f6734f143735be83acbaca0ce31) Thanks [@Falkicon](https://github.com/Falkicon)! - The review page applies a theme or a preset viewport as soon as you pick it. Before, picking one changed nothing until you pressed Apply, so a choice could look selected but not be in effect. Apply now appears only with Custom, where you type the width and height first.
+
+- [#992](https://github.com/lushly-dev/afd/pull/992) [`d2c30f7`](https://github.com/lushly-dev/afd/commit/d2c30f722f5d7aef19fe7a206608e163177d122e) Thanks [@Falkicon](https://github.com/Falkicon)! - The review page's breadcrumb now links every group segment. Each segment opens the index filtered to the specimens under it: "Backstage" in `Lushly / Backstage / Catalog Queues` shows every Backstage specimen. Before, only "All specimens" was a link.
+
+- [#976](https://github.com/lushly-dev/afd/pull/976) [`27cc1e4`](https://github.com/lushly-dev/afd/commit/27cc1e461e4060950896c54771f7cabb5ce40ffa) Thanks [@Falkicon](https://github.com/Falkicon)! - Add the `text-lone-surrogate` invalid fixture to the component pack format, so both pack readers are held to `TEXT_INVALID` on an unpaired surrogate escape.
+
+- [#1002](https://github.com/lushly-dev/afd/pull/1002) [`069af7b`](https://github.com/lushly-dev/afd/commit/069af7b6aa7f430032cf6bba207e8c1a553e76e5) Thanks [@Falkicon](https://github.com/Falkicon)! - The review page's theme and viewport selects draw their own arrow, inset from the right edge in the text's color. The native arrow sat flush against the edge.
+
 ## 2.2.0-preview.2
 
 ### Patch Changes
