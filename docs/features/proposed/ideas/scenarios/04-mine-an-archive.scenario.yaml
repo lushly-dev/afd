@@ -20,7 +20,6 @@ steps:
     command: ideas-source-add
     input:
       document: journal/compost.md
-      kind: notes
       thoughtOn: "2024-05-10"
     expect:
       success: true
@@ -37,11 +36,10 @@ steps:
     expect:
       success: true
 
-  - description: A whole sentence of mine is attested, with nothing to review
+  - description: A whole sentence of mine, cited by number so that no model types it, is attested
     command: ideas-capture
     input:
       type: principle
-      statement: Compost is ready when it smells like a forest floor.
       run: "${{ steps[1].data.run }}"
       sources:
         - source: "${{ steps[0].data.source }}"
@@ -55,7 +53,6 @@ steps:
     command: ideas-capture
     input:
       type: position
-      statement: Turning a pile weekly halves the wait.
       run: "${{ steps[1].data.run }}"
       sources:
         - source: "${{ steps[0].data.source }}"
@@ -137,6 +134,7 @@ steps:
     command: ideas-run-close
     input:
       run: "${{ steps[7].data.run }}"
+      done: ["${{ steps[0].data.source }}"]
     expect:
       success: true
 

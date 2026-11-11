@@ -66,11 +66,14 @@ steps:
     expect:
       success: true
 
-  - description: An article that used it
+  - description: A published article that used it
     command: ideas-output-record
     input:
       title: Growing tomatoes in a short season
       format: article
+      channel: newsletter
+      state: published
+      location: https://example.org/tomatoes-short-season
       ideas: ["${{ steps[0].data.id }}"]
     expect:
       success: true
@@ -156,13 +159,14 @@ steps:
   - description: What rested on the old view is reported
     command: ideas-check
     input:
-      checks: [rests-on-changed, synthesis-out-of-date]
+      checks: [rests-on-changed, synthesis-out-of-date, output-drifted]
     expect:
       success: true
       data:
         counts:
           rests-on-changed: 1
           synthesis-out-of-date: 1
+          output-drifted: 1
 
   - description: The article no longer matches
     command: ideas-output-show

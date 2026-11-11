@@ -62,6 +62,7 @@ steps:
     command: ideas-run-close
     input:
       run: "${{ steps[1].data.run }}"
+      done: ["${{ steps[0].data.source }}"]
     expect:
       success: true
 
@@ -198,3 +199,32 @@ steps:
       success: true
       data:
         standing: affirmed
+
+  - description: The extractor was not so careless after all; put the reversal of the revert in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: undo
+          run: "${{ steps[1].data.run }}"
+    expect:
+      success: true
+
+  - description: I take the revert back
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[20].data.review }}"
+      digest: "${{ steps[20].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: What it withdrew is back, beside the idea captured since
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 3

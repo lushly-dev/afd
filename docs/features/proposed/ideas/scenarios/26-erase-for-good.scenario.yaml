@@ -154,6 +154,17 @@ steps:
       error:
         code: CONFLICT
 
+  - description: So is a copy that differs only in trailing space
+    command: ideas-source-add
+    input:
+      title: Allotment notes (tablet)
+      kind: notes
+      content: "The fixture gate code is 4417.  \nPrune the plum in midsummer.  "
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+
   - description: And so is the same statement, from wherever it comes
     command: ideas-capture
     input:

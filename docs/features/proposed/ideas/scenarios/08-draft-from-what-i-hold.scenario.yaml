@@ -26,17 +26,15 @@ steps:
     command: ideas-source-add
     input:
       document: journal/salad.md
-      kind: notes
     expect:
       success: true
       data:
         attests: true
 
-  - description: My own words from them
+  - description: My own words from them, cited by number
     command: ideas-capture
     input:
       type: example
-      statement: Cut-and-come-again salad pays for its bed in a month.
       sources:
         - source: "${{ steps[1].data.source }}"
           sentences: [1]

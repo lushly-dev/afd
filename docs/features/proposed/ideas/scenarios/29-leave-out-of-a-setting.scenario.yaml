@@ -102,12 +102,49 @@ steps:
     command: ideas-bundle
     input:
       channel: blog
+      standing: [seed, attested, affirmed]
       ids: ["${{ steps[1].data.id }}"]
     expect:
       success: true
       data:
         framing: public
         ideas: { length: 1 }
+
+  - description: A channel that no framing has claimed is refused, with the ones that exist
+    command: ideas-bundle
+    input:
+      channel: podcast
+      standing: [seed, attested, affirmed]
+      ids: ["${{ steps[1].data.id }}"]
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+
+  - description: A newsletter piece that used the idea anyway is recorded, and flagged
+    command: ideas-output-record
+    input:
+      title: Before you dig
+      format: article
+      channel: newsletter
+      state: published
+      location: https://example.org/before-you-dig
+      ideas: ["${{ steps[1].data.id }}", "${{ steps[2].data.id }}"]
+    expect:
+      success: true
+      data:
+        attention:
+          leftOut: { length: 1 }
+
+  - description: The report says so
+    command: ideas-check
+    input:
+      checks: [output-holds-left-out]
+    expect:
+      success: true
+      data:
+        counts:
+          output-holds-left-out: 1
 
   - description: Putting something back in is my decision
     command: ideas-review-stage
@@ -122,8 +159,8 @@ steps:
   - description: The handbook is out, so I put it back
     command: ideas-review-apply
     input:
-      review: "${{ steps[10].data.review }}"
-      digest: "${{ steps[10].data.digest }}"
+      review: "${{ steps[13].data.review }}"
+      digest: "${{ steps[13].data.digest }}"
     expect:
       success: true
       data:
@@ -138,3 +175,13 @@ steps:
       success: true
       data:
         total: 2
+
+  - description: And the piece no longer holds anything that was left out
+    command: ideas-check
+    input:
+      checks: [output-holds-left-out]
+    expect:
+      success: true
+      data:
+        counts:
+          output-holds-left-out: 0

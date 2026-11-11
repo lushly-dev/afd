@@ -255,7 +255,7 @@ steps:
           split: 1
         created: { length: 2 }
 
-  - description: The original is retired and names both parts
+  - description: The original is retired, names both parts and keeps the record of where it was used
     command: ideas-open
     input:
       id: "${{ steps[2].data.id }}"
@@ -264,6 +264,7 @@ steps:
       data:
         standing: retired
         successors: { length: 2 }
+        uses: { length: 1 }
 
   - description: The first part kept its source and, since I saw its wording, is affirmed
     command: ideas-open

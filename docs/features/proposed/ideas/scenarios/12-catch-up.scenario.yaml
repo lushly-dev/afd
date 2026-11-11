@@ -19,7 +19,6 @@ steps:
     command: ideas-source-add
     input:
       document: journal/seed-saving.md
-      kind: notes
     expect:
       success: true
 
@@ -27,7 +26,6 @@ steps:
     command: ideas-capture
     input:
       type: principle
-      statement: Save seed from the best plant, not the last one.
       sources:
         - source: "${{ steps[0].data.source }}"
           sentences: [1]
@@ -120,7 +118,6 @@ steps:
     command: ideas-capture
     input:
       type: example
-      statement: Beans are the easiest seed to start with.
       run: "${{ steps[8].data.run }}"
       sources:
         - source: "${{ steps[0].data.source }}"
@@ -134,6 +131,7 @@ steps:
     command: ideas-run-close
     input:
       run: "${{ steps[8].data.run }}"
+      done: ["${{ steps[0].data.source }}"]
     expect:
       success: true
 

@@ -17,10 +17,11 @@ Its working name is Ideas, and the plugin id is `ideas` ([section 11](#11-for-th
   implemented and nothing is approved beyond the owner's directions listed in
   [section 11](#11-for-the-owner).
 - **Verified:** the facts in [What exists today](#2-what-exists-today) were read on `main` at
-  `8ef7aa68` in the files each row names, and in `lushly-dev/violet` at `c4e8663` for Violet's web
-  interface and plans. The rows on the person page, the tool list, guidance, loading sources,
-  erasure, retries and what a refusal can carry were read on `main` at `069af7b6`. No Rust, TypeScript or Python was built
-  or run. A status file's "exit criterion met" is reported as recorded, not re-run.
+  `8ef7aa68` in the files each row names, and in `lushly-dev/violet` at `c4e8663` for Violet's
+  web interface and plans. The rows on the person page, the tool list, guidance, loading
+  sources, erasure, retries and what a refusal can carry were read on `main` at `069af7b6`. No
+  Rust, TypeScript or Python was built or run. A status file's "exit criterion met" is reported
+  as recorded, not re-run.
 - **Not verified:** whether tantivy 0.27, as pinned, offers a more-like-this query; which local
   embedding model suits statements of a few sentences
   ([P3](#6-what-ideas-needs-from-the-platform)); whether a managed PostgreSQL reached over direct
@@ -122,7 +123,7 @@ The owner agreed the five design decisions behind the first walk's changes on 20
 - **Dropping attested and affirming a whole source at once.** Affirmed means "I hold this now".
   Applied to every sentence of a document that may be years old, it would say more than the
   person knows. Attested says less, and what it says can be checked.
-- **Cutting jobs.** The two job-list readers between them would cut or demote sixteen of the
+- **Cutting jobs.** The two job-list readers between them would cut or demote fourteen of the
   jobs as rare, repeated, features, constraints or upkeep. They stay in the list, because
   cutting is the owner's decision (question 11). The second reader's point that jobs 17 and 18
   are a mechanism the owner did not ask for is question 14.
@@ -137,6 +138,30 @@ The owner agreed the five design decisions behind the first walk's changes on 20
 - **Requiring an idempotency key on every write.** Every write takes one and none requires it,
   since a model that retries with a fresh key gains nothing from the rule. A capture refused
   against an identical statement from the same caller says so.
+
+The second walk's changes added five commands and one job, so what they touched was walked a
+third time, by one reader taking all three seats, who also reviewed the revision as a whole and
+checked the host claims again. That reader found six faults that would have blocked the plan,
+corrected here:
+
+- A job was assigned to a build step that came before the commands its scenario calls.
+- A scenario expected a bundle to return a seed, against the bundle's own rule.
+- The exit could not be checked, because a person-only call on a hosted instance needs a login
+  that no runner can give ([section 7](#7-measurement-and-exit-criteria)).
+- What attests could still be moved by what a caller says a source is. The deployer's setting
+  or the person's confirmation now fixes that (4.9).
+- Reverting a run could withdraw the person's own words, and nothing took a revert back (4.15).
+- Three inputs had no stated meaning when left out: the position of an output record, the
+  sources a run finished, and the part of a review ([section 5](#5-commands-draft)).
+
+It also asked for, and the plan now has: a statement taken from the sentences cited, so that no
+model retypes the person's words; a whole collection added in one call; a restriction that can
+cover a collection or an upload; what a review shows of restricted subjects; a refusal for a
+channel that no framing claims; near copies of erased files kept out; what agents changed
+listed in the loop, in the guide; and an exit for phases B and F. A focused pass then checked
+those corrections and found one more contradiction, in job 17: a framing's wording that the
+person had affirmed could be dropped by a plain write. It is now declined in a review. No
+command or job was added by any of this, so the walking stops here.
 
 ## 1. Problem and goal
 
@@ -213,7 +238,7 @@ the rest of what one flat set of ideas can do. **Whole** needs the hierarchy of 
 | 5 | I look at an area I have thought about for years | To see what I think now, what is contested and what is unsupported | `05-see-what-i-think` | slice |
 | 7 | Two ideas are one, or one is two | To fix it without losing where they came from, what links to them or where they were used | `07-refactor-ideas` | slice |
 | 9 | I need something to post today | Ideas I hold and have not used on that channel | `09-find-what-to-share` | slice |
-| 10 | I work on a book for months | An outline that lasts, shows thin chapters and what each used | `10-keep-a-long-work` | slice |
+| 10 | I work on a book for months | An outline that lasts, shows thin chapters and which drafts my thinking has moved on from | `10-keep-a-long-work` | slice |
 | 11 | I have published | To know which pieces no longer match my thinking, and to stop hearing about the ones I dealt with | `11-spot-stale-outputs` | slice |
 | 16 | An idea I affirmed long ago is never used | Not to be asked about it until it is | `16-stay-quiet-about-unused` | slice |
 | 19 | I explore without a question | To follow what supports what and what leads where | `19-explore-connections` | slice |
@@ -227,12 +252,13 @@ the rest of what one flat set of ideas can do. **Whole** needs the hierarchy of 
 Jobs 15 and 16 are things the store must never do, written as jobs. Job 25 is the calling
 agent's. Jobs 21 to 28 came from the first walk and job 29 from the second.
 
-**What the files show.** All twenty-nine parse and pass the runner's dry-run validation: 355
+**What the files show.** All twenty-nine parse and pass the runner's dry-run validation: 369
 steps. Every one of the 51 draft commands is used by a job, every error code the draft names is
 shown by a job, and no file calls a command the draft does not have. The fourteen loop files use
 31 commands, the rest of the slice adds 17, and the two whole jobs add 3. Not every reason for a
-refusal has a step: content over the size cap, a statement over the length limit, a match on a
-retired idea, and an idea whose sources the caller cannot read are not shown.
+refusal has a step. Not shown: content over the size cap, a statement over the length limit, a
+match on a retired idea, an idea whose sources the caller cannot read, a merge or split of a
+seed recorded as the person's own words, and a change to what an attesting source is.
 
 **What a scenario cannot show.** A scenario checks what commands return. It cannot judge whether
 a model extracted the right ideas or wrote a good draft, so each job splits: the engine's part is
@@ -294,7 +320,7 @@ measures in [section 7](#7-measurement-and-exit-criteria).
 | A graph | A per-space graph with neighbours, related, path and outline. Contributions belong to a stored document, and `knowledge-index` rewrites them with eight fixed edge kinds | `endpoints/umbel/store/src/graph.rs`, `endpoints/umbel/plugins/knowledge/src/graph.rs` |
 | Budgeted context for a task | `context-bundle` | `endpoints/umbel/plugins/context` |
 | Capture from a harness session | The `umbel-hook` adapter | `endpoints/umbel/adapters/hook` |
-| Results that explain themselves | `CommandResult`: `sources`, `reasoning`, `alternatives`, `suggestions`, `plan`, `warnings`, undo; shared codes including `ALREADY_EXISTS` and `CONFLICT`. A failure carries a code, a message, a suggestion and details, and no data; Umbel's SDK keeps content out of the details | `spec/error-codes.md`, `packages/rust/src/result.rs` |
+| Results that explain themselves | `CommandResult`: `sources`, `reasoning`, `alternatives`, `suggestions`, `plan`, `warnings`, undo; shared codes including `ALREADY_EXISTS` and `CONFLICT`. A failure carries a code, a message, a suggestion and details, and no data; Umbel's SDK documents that the details hold no content | `spec/error-codes.md`, `packages/rust/src/result.rs` |
 | Several commands in one call | The hybrid strategy with `afd-batch` and `afd-pipe`; pipelines shipped as data | `spec/tool-strategies.md`, `spec/pipeline-variables.md`, `spec/plugin-manifest.md` |
 | Long jobs, bounded reads | MCP Tasks and output budgets, in Rust | `packages/rust/src/server/tasks.rs`, `packages/rust/src/output_budget.rs` |
 | A hierarchy with inheritance | Violet's engine: a tree of nodes, five operations (add, override, subtract, reset, copy), shared sets, an operation log, resolution, lineage, compare, drift, and a dry run over a read-only overlay | `foundations/violet/packages/core/src/engine`, `foundations/violet/packages/core/src/db/overlay.ts`, `integrations/violet-afd/src/commands` |
@@ -574,7 +600,7 @@ hold what differs for a setting: a public voice, a book, a product.
 | Operation | In plain words | Effect in the framing |
 | --- | --- | --- |
 | state | states | A new idea exists here and in descendants |
-| reframe | reframes | The statement differs here; a new version |
+| reframe | reframes | The statement differs here; a new version, which waits here as it would at the root |
 | omit | leaves out | The idea does not resolve here or below |
 | restore | restores | Local changes are dropped; the ancestor's version resolves again |
 | borrow | uses the idea from | An idea from another framing resolves here, following its source |
@@ -587,17 +613,22 @@ Violet's interface does (`lushly-dev/violet`, `packages/web/src/app/vocabulary.t
 **Keeping material out.** Two different things keep an idea out. *Restricted* is for what must
 never appear publicly. *Omitted* is for what is fine to share and is not for one setting.
 
-- **A restriction is inherited.** A source or a capture can be marked restricted, and any caller
-  can add the mark later with `ideas-restrict`, since tightening needs no one's permission. An
-  idea taken from a restricted source is restricted. So is an idea derived from a restricted
-  idea: a rewording of it, a synthesis that summarises it, the survivor of a merge that includes
-  it, and each part of a split of it.
+- **A restriction is inherited.** A source or a capture can be marked restricted, a collection
+  or an upload can carry the mark for everything in it, and any caller can add the mark later
+  with `ideas-restrict`, since tightening needs no one's permission. An idea taken from a
+  restricted source is restricted. So is an idea derived from a restricted idea: a rewording of
+  it, a synthesis that summarises it, the survivor of a merge that includes it, and each part
+  of a split of it. One case does not restrict the idea: when an idea that is already
+  unrestricted is merely sighted again in a restricted source, the sighting is restricted, and
+  the idea is not.
 - **Restricted material is returned only to a call that asks for it.** A read that says nothing
   returns unrestricted ideas and says how many restricted ones it left out. A read that passes
   `includeRestricted` returns them, marked. A read or an output record that names a channel
   never does, and asking for both is refused. A restricted source's title and text follow the
-  same rule. So an agent that knows nothing about privacy, calling the first tool it sees with a
-  question, gets nothing private.
+  same rule, and so does matching: a capture that matches a restricted idea is refused naming
+  its id and that it is restricted, and its wording is returned only to a call that asks for
+  restricted material. So an agent that knows nothing about privacy, calling the first tool it
+  sees with a question, gets nothing private.
 - **Only the person lifts a restriction.** Releasing an idea, or everything from a source, is a
   decision in a review ([4.14](#414-review-in-conversation-confirmed-once)).
 - **A channel is where other people read.** An output names the channel it went to. An output on
@@ -609,9 +640,13 @@ That is all the loop has, and it needs no framings. The slice adds the other kin
 
 - **Omitting.** Any caller may omit an idea from a framing with `ideas-omit`. Putting it back is
   the person's, as a release to that framing. A framing names the channels that publish from
-  it, and a channel belongs to one framing. A read that names a channel resolves in the framing
-  that claims it, or in the root when none does, and naming a different framing beside it is
-  refused. The slice has the root and one level beneath it.
+  it, and a channel belongs to one framing. A read or an output record that names a channel
+  resolves in the framing that claims it, and naming a different framing beside it is refused.
+  Until some framing claims a channel, a channel is only a label on an output. Once one does, a
+  channel that no framing claims is refused, with the list of those that exist, so a misspelt
+  channel cannot fall through to the root. A published output that pins an idea left out of
+  its channel's framing is recorded, flagged and reported, like one that holds restricted
+  material. The slice has the root and one level beneath it.
 
 **What this guarantees, and what it does not.** A call gets restricted material only by asking
 for it by name, and a call for a channel never gets it. That does not stop an agent which asked
@@ -674,8 +709,8 @@ merge or a split can be undone ([4.15](#415-taking-back-and-erasing)).
   - *By upload.* A command issues a ticket: one short-lived address that takes any number of
     files from a shell or a browser. The address is the credential, the host computes each
     file's digest, and no model handles a byte (P17).
-  - *From the host's disk*, as a document in a synced collection. A one-machine instance can do
-    this today.
+  - *From the host's disk*, as a document in a synced collection, one at a time or a whole
+    collection in a call. A one-machine instance can do this today.
   - *In the call*, as content, for what was said in the conversation. It is capped in size. A
     model typed it, so nothing taken from it is ever attested, however it is quoted. Its ideas
     are seeds, affirmed in a review like any other.
@@ -683,23 +718,32 @@ merge or a split can be undone ([4.15](#415-taking-back-and-erasing)).
   Each is journaled as a digest. `ideas-source-open` reads a stored source back in windows, as
   numbered sentences, so mining again never needs the file a second time.
 - **Whose words.** An uploaded or synced source is the person's own when the deployer has
-  configured its collection as theirs, or when the person confirms it in a review, where they
-  are shown its name, date, size and opening lines and how many statements would become
-  attested. One decision can cover a whole upload. In a transcript only the turns of the speaker
-  named as the person are theirs, and a capture's result says whose turn it cited. A document
-  that a model drafted is not the person's until they say so.
+  configured its collection as theirs, or when the person confirms it in a review. Either one
+  also fixes what the source is: the person's own prose, or a transcript and the label of the
+  speaker who is the person. The deployer's setting says it for a collection. A confirmation
+  says it for a source, and the person is shown it with the name, date, size and opening lines
+  and the number of statements that would become attested. What a caller says a source is, is
+  a claim, and decides nothing about what attests. In a transcript only the turns of the
+  speaker who is the person are theirs, and a capture's result says whose turn it cited. A
+  document that a model drafted is not the person's until they say so, and a collection
+  configured as the person's own must not hold such files; that is the deployer's to get
+  right.
 - **Sentences.** The engine divides a source into sentences by one fixed rule and numbers them. A
-  capture cites numbers and repeats no text. A quote may be given instead and must be found in
-  the source, or the capture is refused. A statement is attested only if it is exactly the
-  sentences it cites, so a clause lifted out of "I no longer think that ..." is not. The
-  capture's result says whether it attests.
+  capture that cites numbers and gives no statement takes the sentences as its statement, so
+  the person's own words are never retyped by a model. A capture may give its own statement and
+  cite the sentences it rests on, which is a restatement and a seed. A quote may be given in
+  place of numbers and must be found in the source, or the capture is refused. A statement is
+  attested only if it is exactly the sentences it cites, so a clause lifted out of "I no longer
+  think that ..." is not. The capture's result says whether it attests.
 - **Earlier drafts.** A source can supersede another, as a later draft of the same document. The
   caller declares it, or the engine reports a source that largely overlaps an existing one as a
   likely version, for a judgment to be recorded. Sightings in drafts of one document count as
   one document. An idea attested only by a sentence that a later draft dropped is reported, so
-  an abandoned view does not pass as the person's. What is known about a source, such as its
-  date, its title or the speaker named, is corrected with `ideas-source-amend`. Its bytes never
-  change.
+  an abandoned view does not pass as the person's. What is known about a source is corrected
+  with `ideas-source-amend`: its title, and the date the thinking happened, which is marked as
+  supplied when it did not come from the file. What a source is, and who its speaker is, decide
+  what attests, so on a source that can attest they change only through a review. Its bytes
+  never change.
 - **Run.** A record of one extraction: the sources read, a label for the extractor (the model and
   the prompt version, supplied by the caller), and the time. The captures, sightings, links and
   proposed rewordings made under a run carry its id. Closing a run names the sources it
@@ -708,13 +752,15 @@ merge or a split can be undone ([4.15](#415-taking-back-and-erasing)).
   extractor labels are in use, so work that stopped is picked up where it stopped and the label
   is the same from one session to the next. A run's report says what was new, what matched an
   existing idea and was recorded as another sighting, what it proposed as a rewording, and what
-  was refused. A run can be reverted, alone or with every run of one extractor
-  ([4.15](#415-taking-back-and-erasing)).
+  was refused. A run can be reverted ([4.15](#415-taking-back-and-erasing)), and its sources
+  then count as unmined by that extractor again.
 - **Output.** A record with a title, a format, a channel and the idea versions it used.
   `ideas-ask` and `ideas-bundle` return the position of the log they read at. An output is
   recorded with that position and the ideas the draft used, and it pins the versions those
   ideas had there. The model lists ids, which is the honest signal of use, and repeats no
-  wording. Nothing is stored when a read is answered. An output record has a state: draft,
+  wording. Nothing is stored when a read is answered. A record made with no position, as when a
+  piece was written without a bundle, pins what is held at the moment it is recorded, and says
+  so. An output record has a state: draft,
   published with where and when, superseded by another, or withdrawn. An idea is *in use* once
   any record pins it, and *used on a channel* once a published record there does. The drift of
   an output is the difference between its versions and what resolves now. It is shown for any
@@ -782,8 +828,9 @@ ideas. What that takes:
   leases and the index writer hold session locks. A managed PostgreSQL has to be reached over its
   direct endpoint (P10).
 - **Backup.** `store-backup` makes a consistent copy of a space's stores today; restoring from
-  one arrives with phase 6. An instance is not trusted with a person's thinking until a restore
-  has been shown to work.
+  one arrives with phase 6. Until then the copy that restores is the plugin's own export. An
+  instance is not trusted with a person's thinking until an export has been read into an empty
+  instance and found whole (measure 12).
 
 ### 4.12 Trust
 
@@ -821,7 +868,7 @@ the knowledge plugin with another schema.
 
 What the three share is the host: the stores behind the traits, the index, the graph, the
 envelope, events, sign-in and spaces. Ideas brings no database of its own. It does need the host
-to offer more than it does today, which is P1 to P5 and P13.
+to offer more than it does today, which is P1 to P5, P13 and P15 to P17.
 
 Where they meet:
 
@@ -844,26 +891,38 @@ confirmed afterwards.
 - **Staging.** As the person answers in conversation, the agent records each answer with
   `ideas-review-stage`, an ordinary call that changes nothing in the store. A person has one
   review open, unless a caller opens another by name, as a background run does so that it does
-  not disturb a sitting. Each decision has a subject: a version of an idea, a source, or, for a
-  merge or a split, the ideas it names. A second decision about the same subject replaces the
-  first, and the result says so. `ideas-review-unstage` takes decisions out, one or all. "Not
-  now" is a decision taken out. It leaves no mark, and the idea comes up again when it is used.
+  not disturb a sitting. Each decision has a subject: a version of an idea, a source, a run that
+  was reverted, or, for a merge or a split, the ideas it names. A second decision about the same
+  subject replaces the first, and the result says so. The result also gives the first part's
+  digest, so a small review is applied without another read. `ideas-review-unstage` takes
+  decisions out, one or all. "Not now" is a decision taken out. It leaves no mark, and the idea
+  comes up again when it is used.
 - **The set.** `ideas-review-show` returns the review in pages: every decision with the wording
   or the source it concerns, when it was staged and by whom, counts by kind, what else each
-  decision would touch, and a digest. For a source to be confirmed it shows the name, date,
-  size and opening lines, and how many statements would become attested. For a change of
+  decision would touch, and the parts with their digests. The digest of the part being shown,
+  the first unless the call names another, is at the top of the result, beside a digest of the
+  whole review. For a source to be confirmed it shows
+  the name, date, size and opening lines, what the source is, and how many statements would
+  become attested. For a whole upload it shows the file names, in as many parts as they need:
+  the person is confirming that these files are their writing, by name. For a change of
   wording it lists what rests on the wording being left. For an erasure it lists copies, other
   drafts, the ideas quoted from the source and the ideas derived from them.
-- **Parts.** The engine divides a review into parts, each small enough for the person page to
-  show, with a digest for each part and one for the whole.
-- **Applying.** `ideas-review-apply` names the review, a part and its digest. The person page
-  shows that part as text, through `ideas-review-preview`: the host requires a preview to be a
-  command of its own that returns text and nothing else. The store applies exactly what was
-  shown. If a decision was staged or removed after the digest was taken, the call is refused
-  and the review is shown again. A decision whose subject changed in the meantime, such as an
-  idea that was merged away, is skipped and reported, and the rest apply. Decisions apply in a
-  fixed order: confirmations of sources, undos, affirmations and declines, retirements, merges
-  and splits, releases, and erasures last.
+- **Parts.** The engine puts a review's decisions in a fixed order, which is confirmations of
+  sources, undos, affirmations and declines, retirements, merges and splits, releases, and
+  erasures last and in a part of their own, and then divides it into parts, each small enough
+  for the person page to show and each with its own digest. Parts are applied in order: a part
+  is refused while one before it has been neither applied nor taken out.
+- **Applying.** `ideas-review-apply` names the review, a part, which is the first when none is
+  named, and that part's digest. The person page shows that part as text, through
+  `ideas-review-preview`: the host requires a preview to be a command of its own that returns
+  text and nothing else. The store applies exactly what was shown. If a decision in that part
+  was staged or removed after its digest was taken, the call is refused and the review is shown
+  again. A decision whose subject changed in the meantime, such as an idea that was merged away,
+  is skipped and reported, and the rest apply.
+- **What is private.** `ideas-review-show` gives the wording of a restricted subject only to a
+  call that asks for restricted material, and otherwise names it by id and kind. The preview
+  shows everything, because only the person sees it: it is served to the person page and at
+  the CLI, and not over MCP.
 
 | Decision | What the person is saying |
 | --- | --- |
@@ -874,7 +933,7 @@ confirmed afterwards.
 | own | This source, or everything in this upload, is my writing |
 | release | This restricted idea, or everything from this source, may be returned; or this omitted idea may resolve in these framings |
 | erase | Remove this idea's or this source's content for good |
-| undo | Take back an earlier decision, named by its review and its subject, or a whole applied review; or a merge or split of seeds that an agent made |
+| undo | Take back an earlier decision, named by its review and its subject, or a whole applied review; or something an agent did directly: a merge or split of seeds, or a revert of a run |
 
 A review is also where the person rewords. The agent records the new wording with
 `ideas-reframe`, which is a seed, and stages an affirmation of that version.
@@ -882,7 +941,8 @@ A review is also where the person rewords. The agent records the new wording wit
 **What the host has to change** (P15). Until it does, each part is one login. A sitting of 150
 decisions is staged in full in conversation and then confirmed in five to eight logins,
 depending on how long the wordings are. With a preview in pages and an approval bound to a
-digest of all of them, it is one. A decision also lapses 10 minutes after it is begun, which is
+digest of all of them, it is one: `ideas-review-apply` then takes the whole review and the
+digest of the whole. A decision also lapses 10 minutes after it is begun, which is
 too short for a person to read a long review. A harness that cannot open the page is refused by
 the host before the plugin is reached, so `ideas-review-stage` and `ideas-guide` say where a
 staged review can be confirmed.
@@ -893,14 +953,18 @@ staged review can be confirmed.
 
 - **A run.** `ideas-run-revert` withdraws what a run did that no person has decided on and no
   output has used: its seeds and attested captures, the sightings and links it recorded, and
-  the rewordings it proposed. What a person has since affirmed, or an output has pinned, is
-  kept and listed. A withdrawn idea takes no part in matching, so the right idea can be
-  captured afterwards. Any caller may revert a run, because it removes only what nobody has
-  relied on, and may name an extractor to revert every run made with it.
+  the rewordings it proposed. Three things are kept and listed: what a person has since decided
+  on, whether with a yes or a no, what an output has pinned, and a seed recorded as the
+  person's own words. A
+  withdrawn idea takes no part in matching, so the right idea can be captured afterwards, and
+  the run's sources count as unmined again. Any caller may revert a run, one run at a time,
+  because nothing is destroyed: the person can undo a revert, and the guide and the digest list
+  the reverts that agents made.
 - **A decision.** `undo`, as a decision in a review, names an earlier decision by its review and
   its subject, or a whole applied review, and returns each subject to the version and standing
   it had. That covers an affirmation, a decline, a retirement, a release and a confirmation of
-  a source. An erasure cannot be undone.
+  a source. It can also name a revert of a run, which returns what was withdrawn. An erasure
+  cannot be undone.
 - **A merge or a split.** Undoing a merge returns the retired ideas and takes back from the
   survivor what they brought: sources, sightings, links, uses and places. Undoing a split
   returns the original. Its parts remain, to be kept or declined.
@@ -915,9 +979,12 @@ a person's decision in a review. The review lists what else holds the same text,
 person can add it to the decision or leave it: copies and near copies of a source, its other
 drafts, the ideas quoted from it, and the ideas derived from those. An idea that cited an erased
 source keeps its wording, says that a source was erased, and is a seed again if that source was
-what attested it. So that erased content stays out, a digest of each erased source and statement
-is kept under a key that only the host holds. The same file, or the same statement, is refused
-if it comes in again, as it would when an archive is loaded a second time.
+what attested it. So that erased content stays out, a digest of each erased source, in its
+exact and its normalised form, and of each erased statement, is kept under a key that only the
+host holds. The same file, a near copy of it, or the same statement is refused if it comes in
+again, as it would when an archive is loaded a second time. The key is the instance's, so an
+export carries the markers and not the block: another instance that reads the archive does not
+refuse that content, and the export's manifest says how many markers it holds.
 
 Erasure does not reach back in time. A backup taken earlier holds the content until the
 deployer's retention removes it, and an output already written is outside the store. The host
@@ -942,8 +1009,9 @@ findable:
   kinds and standings; the formats; the framings and channels, where an instance has them; the
   catalogue of types and tags with counts; the limits; the extractor labels in use and the runs
   left open; what needs the person, which is the decisions staged and the seeds and due ideas
-  that outputs have used, apart from plain totals; where a review can be confirmed; and a short
-  account of how to capture, ask and review.
+  that outputs have used, apart from plain totals; what agents have changed since the person
+  last confirmed a review, such as rewordings, restrictions, reverts and settlements; where a
+  review can be confirmed; and a short account of how to capture, ask and review.
 - **Refusals that say what is valid.** A refusal carries no stored text, and it can carry
   vocabulary. A capture with a type the pack does not have lists the valid types in its
   details, so the second call is right without the guide.
@@ -961,29 +1029,30 @@ can load one. Nothing depends on it.
 All in the `ideas` domain. Names and inputs are settled by the plugin's specification. The third
 column says when a command arrives: with the loop, with the rest of the slice, or with the whole
 plan. Every write takes an `idempotency_key`, and a write sent again with the same key returns
-its first result. Every read that returns a list is paged inside a budget and returns a total.
+its first result, marked as a replay. Every read that returns a list is paged inside a budget
+and returns a total.
 
 | Command | Kind | In | What it does |
 | --- | --- | --- | --- |
-| `ideas-capture` | write | loop | States a new idea as a seed, with type, statement, tags, the sentences of the sources it cites, links, whether the person said it, and whether it is restricted. Refuses a match in the same band with `ALREADY_EXISTS`, naming what it matched by id in the details, with the three ways forward. A capture that succeeds returns the idea's version and standing, whether it attests and is restricted, the related band as link candidates, and any existing label that one of its tags nearly repeats |
-| `ideas-match` | read | loop | Takes any number of candidate statements and returns, for each, the ideas in the same band and in the related band, with their wordings. What a caller reads after a refusal, and what an extractor calls once for a document before it writes |
+| `ideas-capture` | write | loop | States a new idea as a seed, with type, statement, tags, the sentences of the sources it cites, links, whether the person said it, and whether it is restricted. Refuses a match in the same band with `ALREADY_EXISTS`, naming what it matched by id in the details, with the three ways forward. A capture that cites sentences and gives no statement takes them as its statement. One that succeeds returns the idea's version and standing, whether it attests and is restricted, the related band as link candidates, and any existing label that one of its tags nearly repeats |
+| `ideas-match` | read | loop | Takes any number of candidate statements and returns, for each, the ideas in the same band and in the related band, with their wordings; a restricted idea's wording only to a call that asks for restricted material. What a caller reads after a refusal, and what an extractor calls once for a document before it writes |
 | `ideas-observe` | write | loop | Records another sighting of an existing idea, in a source or in conversation |
 | `ideas-reframe` | write | loop | A new wording: a new version, which is a seed and waits |
 | `ideas-link`, `ideas-unlink` | write | loop | State or withdraw a typed link |
 | `ideas-restrict` | write | loop | Marks an idea or a source restricted. Any caller may; lifting it is a release, in a review |
 | `ideas-settle` | write | loop | Records a judgment on a finding, with a reason: a pair is distinct, a candidate is unrelated, an idea still holds, a challenge or a published piece stands, two sources are one document. It is pinned to the versions it was made against and reopens when one of them changes |
 | `ideas-review-stage`, `ideas-review-unstage` | write | loop | Add decisions to a review, or take them out. Nothing in the store changes |
-| `ideas-review-show` | read | loop | A review in pages: its decisions with what each concerns and would touch, counts by kind, its parts and their digests |
-| `ideas-review-preview` | read | loop | One part of a review as text, for the person page |
-| `ideas-review-apply` | write, person only | loop | Applies the part of a review whose digest is given. Refuses with `CONFLICT` if the set has changed since the digest was taken |
-| `ideas-source-add` | write | loop | Adds a source by a document in a collection, by an upload ticket, as a reference, or by content sent in the call. Reports copies, near copies and likely earlier drafts, how it arrived, whether it can attest, and whether it is restricted. Refuses content that was erased |
-| `ideas-source-open`, `ideas-source-list` | read | loop | Read a stored source in windows, as numbered sentences; list sources by kind, arrival and restriction, with what each extractor has and has not mined, the runs left open and the extractor labels in use |
-| `ideas-run-open`, `ideas-run-close` | write | loop | Open a run over sources with an extractor's label; close it, naming the sources it finished |
+| `ideas-review-show` | read | loop | A review in pages: its decisions with what each concerns and would touch, counts by kind, its parts and their digests, and the digest of the part shown and of the whole. A restricted subject's wording only to a call that asks for restricted material |
+| `ideas-review-preview` | read; the person page and the CLI | loop | One part of a review as text, in full. Not served over MCP |
+| `ideas-review-apply` | write, person only | loop | Applies a part of a review, the first when none is named, whose digest is given; or the whole review by its digest, where the host can show it whole (P15). Refuses with `CONFLICT` if that part has changed since the digest was taken, or if a part before it is still waiting |
+| `ideas-source-add` | write | loop | Adds a source by a document in a collection, or every document of a collection not yet added; by an upload ticket; as a reference; or by content sent in the call. Reports copies, near copies and likely earlier drafts, how it arrived, whether it can attest, and whether it is restricted. Refuses content that was erased |
+| `ideas-source-open`, `ideas-source-list` | read | loop | Read a stored source in windows, as numbered sentences; list sources by collection, kind, arrival and restriction, with what each extractor has and has not mined, the runs left open and the extractor labels in use |
+| `ideas-run-open`, `ideas-run-close` | write | loop | Open a run over sources with an extractor's label; close it, naming the sources it finished. The naming is required, and a source that is not named is not marked as mined |
 | `ideas-run-show` | read | loop | What a run captured, observed, proposed and was refused |
-| `ideas-run-revert` | write | loop | Withdraws what a run, or every run of one extractor, did that nobody has relied on ([4.15](#415-taking-back-and-erasing)) |
+| `ideas-run-revert` | write | loop | Withdraws what one run did that nobody has relied on, and says what it kept. The person can undo it ([4.15](#415-taking-back-and-erasing)) |
 | `ideas-ask` | read | loop | A question in the person's words, for an answer. Returns the ideas that bear on it, a synthesis where one fits, what supports and challenges them, their sources and standing, which of them are unreviewed, due or dated, how many restricted ones were left out, and the position it read at. Says so when nothing bears on it |
-| `ideas-bundle` | read | loop | The same for a piece of writing: a selection by ids or criteria, a format whose guidance is returned, and a channel. Affirmed and attested ideas unless seeds are asked for. Says what it left out and why |
-| `ideas-output-record` | write | loop | Records an output by the position it was written at and the ideas it used: its title, format, channel and state, and the work and section it belongs to. Returns the seeds, due and restricted ideas among those it pinned |
+| `ideas-bundle` | read | loop | The same for a piece of writing: a selection by ids or criteria, a format whose guidance is returned, and a channel. Affirmed and attested ideas unless seeds are asked for, with a count of what was left out for its standing. An id the call may not see is `NOT_FOUND`, as if it did not exist |
+| `ideas-output-record` | write | loop | Records an output by the position it was written at and the ideas it used, or with no position, as of the moment it is recorded: its title, format, channel and state, and the work and section it belongs to. Returns the seeds and due ideas among those it pinned, and any that are restricted or left out of the channel's framing |
 | `ideas-output-show` | read | loop | An output's state, what it pinned, and how far the present has moved from it |
 | `ideas-output-update` | write | loop | Marks an output published, with where and when, superseded by another, or withdrawn |
 | `ideas-find` | read | loop | Ideas by meaning and words, and by type, standing, tag, source, run, link, restriction, whether a question is open and, in the slice, by framing and by where they have and have not been used. Returns held and pending version numbers |
@@ -992,7 +1061,7 @@ its first result. Every read that returns a list is paged inside a budget and re
 | `ideas-guide` | read | loop | [4.16](#416-how-an-agent-finds-its-way) |
 | `ideas-export`, `ideas-import` | read, write; CLI only | loop | The operation log, the sources and the output records, in pages that an adapter writes to files, with a manifest and its digest on the last. Reading pages in adds what is missing and says whether the store matches |
 | `ideas-source-upload` | write | slice | Issues a ticket and one address that takes any number of files |
-| `ideas-source-amend` | write | slice | Corrects what is known about a source: its date, title, kind or the speaker named. Never its bytes |
+| `ideas-source-amend` | write | slice | Corrects a source's title and the date its thinking happened, marking a date as supplied. What a source is, and its speaker, change only through a review once the source can attest. Never its bytes |
 | `ideas-tag`, `ideas-tag-rename` | write | slice | Add or remove labels on ideas and correct a type; rename a label everywhere, or merge it into another. Neither creates a version |
 | `ideas-merge`, `ideas-split` | write | slice | [4.8](#48-merging-and-splitting). Direct for seeds. Refused with `FORBIDDEN` when a version involved has standing, naming `ideas-review-stage` |
 | `ideas-framing-create`, `ideas-framing-update` | write | slice | A framing beneath the root and the channels that publish from it; add or remove a channel |
@@ -1002,7 +1071,7 @@ its first result. Every read that returns a list is paged inside a budget and re
 | `ideas-themes` | read | slice | The derived themes, each with its synthesis and whether it is out of date |
 | `ideas-link-candidates` | read | slice | Pairs in the related band with no link and no judgment, ranked |
 | `ideas-digest`, `ideas-digest-ack` | read, write | slice | [4.9](#49-sources-runs-outputs-and-the-digest): the digest, and the person's mark of how far they have read |
-| `ideas-restore` | write | whole | Drops a framing's own wording, so the ancestor's resolves again |
+| `ideas-restore` | write | whole | Drops a framing's own wording that has no standing, so the ancestor's resolves again. Refused with `FORBIDDEN` when it has standing; declining that version in a review does it then |
 | `ideas-compare` | read | whole | Two framings |
 | `ideas-preview` | read | whole | What a set of proposed operations would change, where, and which findings it would add or clear, with the commands that apply it |
 
@@ -1017,12 +1086,23 @@ and every other command is found through `afd-discover` or named by `ideas-guide
 for a person, and it is never a step of `afd-batch` or `afd-pipe`. Everything else can be: an
 extractor sends a document's captures and sightings as one batch.
 
-**How many calls a job takes.** A design that needs "a ton of tool calls" was one of the faults
-of what came before. Three things keep the count down: `ideas-find` takes its criteria together
+**How many calls a job takes.** Needing many calls for one task was a fault of what came
+before. Three things keep the count down: `ideas-find` takes its criteria together
 in one call; `ideas-ask` and `ideas-bundle` return ideas with what supports and challenges them,
 their sources and their standing in one call; and `ideas-match` with a batch turns a document
 into about four calls, where a capture for each statement and a read for each refusal would be
 about twenty-six. [Section 7](#7-measurement-and-exit-criteria) holds each job to a number.
+
+**What is refused.** Every refusal's suggestion names the next command, and where a value was
+not valid its details list the ones that are.
+
+| Code | When |
+| --- | --- |
+| `ALREADY_EXISTS` | A capture in the same band as an idea that is a seed, attested, affirmed, declined or retired |
+| `CONFLICT` | An apply whose part changed after its digest was taken, or with a part before it still waiting; a source or a statement that was erased |
+| `FORBIDDEN` | A direct merge or split of an idea with standing, or of a seed recorded as the person's own words; a restore of a framing's wording that has standing; a change to what a source is, once it can attest |
+| `NOT_FOUND` | An id that does not exist, or that the call may not see: a restricted idea when restricted material was not asked for, an idea left out of the channel's framing, an erased source |
+| `VALIDATION_ERROR` | A type, link kind or channel the instance does not have; a decision that names no version; a quote that is not in its source; a split that leaves a link or a place unplaced; a channel named with a different framing, or with the ask for restricted material; content over the size cap; a statement over the length limit |
 
 **Every finding names what clears it, and "no" is always one of the answers:**
 
@@ -1040,9 +1120,9 @@ about twenty-six. [Section 7](#7-measurement-and-exit-criteria) holds each job t
 | An idea attested only in a draft that a later one dropped | Affirm or decline it |
 | A link whose end no longer resolves | Unlink it, or settle it as accepted |
 | A published output that pins a retired or reworded idea | Supersede or withdraw the output, or settle that it stands as written |
-| A published output that holds restricted material | Withdraw or supersede the output, or release the idea |
+| A published output that holds restricted material, or an idea left out of its channel's framing | Withdraw or supersede the output, or release the idea |
 | A section of a work that is thin or has moved | Edit the work or record a new draft, or settle it as accepted |
-| With framings: a reframe equal to what it inherits | Restore it, or settle it as accepted |
+| With framings: a reframe equal to what it inherits | Restore it, or decline it in a review if it has standing, or settle it as accepted |
 
 ## 6. What Ideas needs from the platform
 
@@ -1082,10 +1162,17 @@ connector belongs.
 
 ## 7. Measurement and exit criteria
 
-The plan is done when every scenario in [`scenarios/`](scenarios/) passes against a hosted
-instance, and the measures below hold on the phase 0 corpus and a seeded fixture. Phase 0 sets
-every threshold. The scenarios show that each job works once. The measures show that it keeps
-working at size, and with a caller that does not do everything right.
+The plan is done when every scenario in [`scenarios/`](scenarios/) passes and the measures below
+hold on the phase 0 corpus and a seeded fixture. Phase 0 sets every threshold. The scenarios
+show that each job works once. The measures show that it keeps working at size, with a caller
+that does not do everything right, and on a hosted instance.
+
+**How the scenarios are run.** In the plugin's own tests, in process, as
+`packages/view-state` runs its scenarios. There the test actor stands in for the person at
+`ideas-review-apply`, the operator's commands can be called, and a fixture workspace supplies
+the collections. They are not run against the hosted instance: a person-only call there needs a
+real login, which no runner can give. The hosted instance is held to measures 11, 13 and 14,
+which are shown by hand, over MCP, with a person confirming on the person page.
 
 1. Capture refuses the labelled duplicate pairs, paraphrases among them, and admits the labelled
    distinct pairs, at the rates phase 0 fixes.
@@ -1113,29 +1200,33 @@ working at size, and with a caller that does not do everything right.
     Every idea derived from a restricted one is restricted.
 11. Two different harnesses capture and ask against one hosted instance over stateless MCP,
     after signing in, each in one call once the vocabulary is known and in two the first time.
-12. An instance is backed up and restored with no loss, and an export read into an empty
-    instance reproduces every idea, version, source and output record.
+12. An export read into an empty instance reproduces every idea, version, source and output
+    record. Where the host can restore, which arrives with phase 6, an instance is also backed
+    up and restored with no loss.
 13. A review of 150 decisions is staged without a login and confirmed with one where P15 is
-    built, and with one for each part where it is not. What is applied is what was shown: a
-    decision staged after a digest was taken is never applied.
+    built, and with one for each part, in order, where it is not. What is applied is what was
+    shown: a decision staged after a digest was taken is never applied.
 14. An agent with no skill installed, given only the instance's tool list and instructions,
     saves to Ideas and asks Ideas for a seeded set of everyday requests, and passes no
     restricted idea into a draft for a channel, at the rates phase 0 fixes, in each harness the
     owner uses.
-15. A file loaded by upload has the digest of the file on disk. For a seeded archive, later
-    drafts are recognised, and a run that stops is picked up without mining a finished source
-    twice.
-16. After a run is reverted, nothing it captured refuses a capture. After an erasure, no command
+15. A file loaded by upload has the digest of the file on disk. For a seeded archive of several
+    hundred files, later drafts are recognised, confirming the upload as the person's takes no
+    more logins than its file names need parts, and a run that stops is picked up without
+    mining a finished source twice.
+16. After a run is reverted, nothing it withdrew refuses a capture. After an erasure, no command
     returns the erased text, the stores, the index and the vectors hold none of it, and the same
-    file and the same statement are refused.
+    file, a near copy of it and the same statement are refused.
 17. Every write sent twice with one key has the effect of one.
 18. Each job stays inside the number of calls phase 0 fixes for it at the volume of this
     section. Mining one file is at most a handful of calls, and mining it again costs no more
     than the first time.
 
-The loop is done when every scenario tagged `loop` passes against the hosted instance, it meets
-1 to 4, 10 to 14, 16 for a run and 17, and the owner has used it daily. The slice is done when
-every scenario tagged `loop` or `slice` passes, and it meets 1 to 7 and 10 to 18.
+The loop is done when every scenario tagged `loop` passes, it meets 1 to 4, 10, 12 for an
+export, 16 for a run and 17, the hosted instance meets 11, 13 and 14, and the owner has used
+it daily. The
+slice is done when every scenario tagged `loop` or `slice` passes, and it meets 1 to 7 and 10
+to 18.
 
 ## 8. Phase 0: measure before specifying
 
@@ -1167,11 +1258,11 @@ scenarios it names passing, and no scenario needs a later step.
 | --- | --- | --- |
 | 0. Prove it | [Section 8](#8-phase-0-measure-before-specifying), recorded beside this file | A corpus |
 | A. Specify | A1: P1 as amendments to Umbel's architecture and decision log. A2: P2, P3 and P15 to P18 as host specifications. A3: the plugin's specification for the loop and the slice at `endpoints/umbel/docs/plugins/ideas/spec.md`, in the shape decision D150 sets, with the scenarios moved beside it. A4: P14, and the part of P15 that changes AFD's relay, as AFD changes, specification first | Phase 0; the owner's answers |
-| B. Matching in the host | P2 and P3 in the store traits, the embedded backend and the conformance suite | A2 |
-| C. The loop, hosted | Served over stateless MCP on one machine, with sign-in, from the first step. C1: the crate, pack and records; capture with the refusal, match, observe, link and unlink, find and open; the guide, the instructions paragraph and the first-class list; export and import, shown to restore into an empty instance before the owner relies on it (jobs 1, 14, 25, 28). C2: reviews through the person page, in parts, with reframe, affirm, decline, retire and undo (22, 15). C3: sources from a synced collection and in the call, read back as numbered sentences; runs that close as they go and can be reverted; attested standing (2, 4, 24). C4: ask, bundle and output records with their states (21, 8). C5: restriction, release, the checks the loop needs and settle (13, 3, 6). The owner uses each step as it lands | A3, B; phase 5's exit |
+| B. Matching in the host | P2 and P3 in the store traits, the embedded backend and the conformance suite. Done when the suite passes and the labelled pairs of phase 0.2 meet measure 1 | A2 |
+| C. The loop, hosted | Served over stateless MCP on one machine, with sign-in, from the first step. C1: the crate, pack and records; capture with the refusal, match, observe, link and unlink, find and open; the guide, the instructions paragraph and the first-class list; export and import, shown to restore into an empty instance before the owner relies on it (jobs 1, 14, 25). C2: reviews through the person page, in parts, with reframe, affirm, decline, retire and undo (22, 15). C3: sources from a synced collection, in the call and as references, read back as numbered sentences; runs that close as they go and can be reverted; attested standing (2, 4, 24). C4: ask, bundle and output records with their states (21, 8, and 28, whose archive holds a history and a use). C5: restriction, release, the checks the loop needs and settle (13, 3, 6). The owner uses each step as it lands | A3, B; phase 5's exit |
 | D. The rest of the slice | D1: upload, confirming an upload as the person's, earlier drafts, amending a source (23). D2: the digest with its acknowledged cursor, the full report, link candidates (12, 11, 16, 20). D3: merge and split, themes, related (5, 7, 19). D4: works, finding by use, tags, one level of framings with channels and omit (9, 10, 27, 29). D5: erasure, the skill, the hook capture (26) | C; P17 for D1, P16 for D5 |
 | E. Specify the rest | E1: the hierarchy semantics and its vectors (P7). E2: P4 to P6 and P13 as a host specification. E3: P8 as an AFD proposal, specification first. E4: the plugin's specification amended for the full hierarchy, compare and preview | 0.6; what the loop and the slice taught; the owner's answer to question 14 |
-| F. Engine and host | The Rust engine and the vectors, with Violet's engine run against them and each difference fixed or recorded. P4 to P6 and P13 in the host | E1, E2 |
+| F. Engine and host | The Rust engine and the vectors, with Violet's engine run against them and each difference fixed or recorded. P4 to P6 and P13 in the host. Done when measure 8 holds and each host change passes its conformance tests | E1, E2 |
 | G. The plugin, whole | The framing operations and lineage on the engine; compare; preview; links and themes on the host graph; demand signals in the digest and the report (17, 18) | E4, F |
 | H. After the exit | P9 to P12; a code mode when Umbel has one | G |
 
@@ -1196,9 +1287,9 @@ and 18 are the only two that need phases E to G.
 | Two engines drift | P7's vectors, run in both languages on every change |
 | A source carries instructions that reach an agent through an idea | Labelled content, scanned and flagged; statements are never used as messages |
 | A harness cannot open the person page | Phase 0.9 finds out before anything is specified. A review can be confirmed at the CLI, and P15 lets it be confirmed from a browser |
-| A person approves a long review without reading it | No design prevents that. The page shows the set by kind with the destructive decisions first, what is applied is exactly what was shown, and every decision but an erasure can be reversed |
+| A person approves a long review without reading it | No design prevents that. Each part says at its top how many decisions of each kind it holds, erasures come last and in a part of their own, what is applied is exactly what was shown, and every decision but an erasure can be reversed |
 | An attested sentence is one the person wrote and no longer believes, or wrote in order to reject it | It claims only that they wrote it. It carries the source's date wherever it is returned, a read lists the old ones before a draft is written, a later draft that drops it reports it, and phase 0.4 measures how often it misleads |
-| An agent reads private material for a private purpose and writes it somewhere public | The store cannot prevent this. A result says which framing it resolved and what in it is restricted, a read for a channel never returns restricted material, and an output recorded outside its framing is flagged until it is dealt with |
+| An agent reads private material for a private purpose and writes it somewhere public | The store cannot prevent this. Restricted material is returned only to a call that asks for it by name, a result marks which of its ideas are restricted, a read for a channel never returns one, and a published output that holds one is flagged until it is dealt with |
 | An agent settles findings to keep the digest quiet | A settlement records who made it and why, the digest counts those that agents made, and any can be reopened |
 | Erased content survives in a backup | Stated to the person, with the deployer's retention as the limit |
 | The command list has grown to 51, and the loop to 31 of them | Each walk found that daily use over hosted MCP is unsafe without something more: a way back, a copy, a read before a write. Each command is used by a job, and the owner's cut of the jobs cuts commands with them |

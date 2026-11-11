@@ -4,7 +4,9 @@
 # Four ideas stand in for a sitting of a hundred or more, which would come in several parts,
 # each small enough for the person page to show. Every step runs as the test actor, so the file
 # cannot show that an agent is refused at ideas-review-apply and a person is allowed; that rule
-# is tested at the host. How long a real sitting takes is measured in phase 0.4.
+# is tested at the host. The preview is the person page's and the operator's: it is not served
+# over MCP, and the step here runs in process. How long a real sitting takes is measured in
+# phase 0.4.
 
 name: Review a batch in one sitting
 description: >-
@@ -108,7 +110,7 @@ steps:
       success: true
       data:
         total: 4
-        parts: 1
+        parts: { length: 1 }
         counts:
           affirm: 3
           decline: 1

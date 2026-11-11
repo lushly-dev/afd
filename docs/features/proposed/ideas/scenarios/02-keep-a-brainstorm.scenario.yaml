@@ -84,10 +84,11 @@ steps:
       data:
         standing: seed
 
-  - description: Close the run, so the source counts as mined by this extractor
+  - description: Close the run, naming the source it finished, so that it counts as mined by this extractor
     command: ideas-run-close
     input:
       run: "${{ steps[1].data.run }}"
+      done: ["${{ steps[0].data.source }}"]
     expect:
       success: true
       data:

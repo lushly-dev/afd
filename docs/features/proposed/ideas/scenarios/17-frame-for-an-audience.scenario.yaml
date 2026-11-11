@@ -62,6 +62,26 @@ steps:
       reason: Plain words for a first-year grower.
     expect:
       success: true
+      data:
+        standing: seed
+
+  - description: It waits like any other new wording; put it in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[5].data.version }}"
+    expect:
+      success: true
+
+  - description: I agree to it for that audience
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[6].data.review }}"
+      digest: "${{ steps[6].data.digest }}"
+    expect:
+      success: true
 
   - description: The beginners framing resolves the plain wording
     command: ideas-open
@@ -98,15 +118,15 @@ steps:
       decisions:
         - decide: affirm
           id: "${{ steps[2].data.id }}"
-          version: "${{ steps[8].data.version }}"
+          version: "${{ steps[10].data.version }}"
     expect:
       success: true
 
   - description: I hold it
     command: ideas-review-apply
     input:
-      review: "${{ steps[9].data.review }}"
-      digest: "${{ steps[9].data.digest }}"
+      review: "${{ steps[11].data.review }}"
+      digest: "${{ steps[11].data.digest }}"
     expect:
       success: true
 
@@ -142,14 +162,39 @@ steps:
       data:
         differs: { length: 1 }
 
-  - description: Drop the beginners wording
+  - description: The beginners wording has standing, so dropping it directly is refused, with the way forward
     command: ideas-restore
     input:
       id: "${{ steps[2].data.id }}"
       framing: beginners
       reason: The sharper wording is plain enough.
     expect:
+      success: false
+      error:
+        code: FORBIDDEN
+        suggestion: { contains: ideas-review-stage }
+
+  - description: Put my no to the beginners wording in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: decline
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[5].data.version }}"
+          reason: The sharper wording is plain enough.
+    expect:
       success: true
+
+  - description: I decline it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[17].data.review }}"
+      digest: "${{ steps[17].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          decline: 1
 
   - description: The beginners framing follows the root again
     command: ideas-open

@@ -1,10 +1,9 @@
 # Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
 # the statements are invented fixtures about gardening and assert nothing about the world.
 #
-# The upload itself is a request a shell or a browser makes to the ticket's address, between
-# the first step and a later ideas-source-add that names the ticket. A scenario cannot make
-# that request, so the two files below are a fixture instead (P14): a workspace whose
-# collection `inbox`, which nobody has configured as the person's own, holds
+# The upload itself is a request a shell or a browser makes to the ticket's address. A scenario
+# cannot make that request, so after the first step the two files are a fixture instead (P14):
+# a workspace whose collection `inbox`, which nobody has configured as the person's own, holds
 #   plan-2019.md:  Plant the orchard on the north boundary.
 #                  Keep hens under the fruit trees.
 #   plan-2021.md:  Plant the orchard on the south slope.
@@ -23,7 +22,6 @@ steps:
     command: ideas-source-upload
     input:
       files: 2
-      kind: notes
     expect:
       success: true
       data:
@@ -31,54 +29,63 @@ steps:
         url: { matches: '^https://' }
         expires: { exists: true }
 
-  - description: A first draft, which nobody has yet said is mine
+  - description: Register everything that arrived in one call; a later draft is reported as a likely version
     command: ideas-source-add
     input:
-      document: inbox/plan-2019.md
-      kind: notes
-      thoughtOn: "2019-03-01"
+      collection: inbox
     expect:
       success: true
       data:
-        attests: false
+        added: 2
+        likelyVersions: 1
 
-  - description: A later draft is reported as a likely version of the first
-    command: ideas-source-add
+  - description: What arrived, in order of name; nobody has yet said it is mine
+    command: ideas-source-list
     input:
-      document: inbox/plan-2021.md
-      kind: notes
-      thoughtOn: "2021-03-01"
+      collection: inbox
     expect:
       success: true
       data:
-        likelyVersionOf: { matches: '^src-' }
+        total: 2
+        sources: { length: 2 }
 
-  - description: The caller judges that they are one document, earlier and later, and that is recorded
+  - description: The caller judges that the two are one document, earlier and later, and that is recorded
     command: ideas-settle
     input:
       check: source-versions
-      subjects: ["${{ steps[1].data.source }}", "${{ steps[2].data.source }}"]
+      subjects: ["${{ steps[2].data.sources[0].source }}", "${{ steps[2].data.sources[1].source }}"]
       how: same-document
       reason: The 2021 file is a later draft of the 2019 one.
     expect:
       success: true
+
+  - description: The first file's date is when it was copied, not when it was written; that is corrected
+    command: ideas-source-amend
+    input:
+      source: "${{ steps[2].data.sources[0].source }}"
+      thoughtOn: "2019-03-01"
+    expect:
+      success: true
+      data:
+        thoughtOn: "2019-03-01"
+        dateSupplied: true
 
   - description: Put both in front of me as my own writing
     command: ideas-review-stage
     input:
       decisions:
         - decide: own
-          source: "${{ steps[1].data.source }}"
+          source: "${{ steps[2].data.sources[0].source }}"
         - decide: own
-          source: "${{ steps[2].data.source }}"
+          source: "${{ steps[2].data.sources[1].source }}"
     expect:
       success: true
 
-  - description: I confirm both at once, having been shown their titles, dates and opening lines
+  - description: I confirm both, having been shown their names, dates and opening lines
     command: ideas-review-apply
     input:
-      review: "${{ steps[4].data.review }}"
-      digest: "${{ steps[4].data.digest }}"
+      review: "${{ steps[5].data.review }}"
+      digest: "${{ steps[5].data.digest }}"
     expect:
       success: true
       data:
@@ -97,19 +104,18 @@ steps:
   - description: A run over both
     command: ideas-run-open
     input:
-      sources: ["${{ steps[1].data.source }}", "${{ steps[2].data.source }}"]
+      sources: ["${{ steps[2].data.sources[0].source }}", "${{ steps[2].data.sources[1].source }}"]
       extractor: fixture-model, prompt 1
     expect:
       success: true
 
-  - description: A sentence that both drafts share
+  - description: A sentence that both drafts share, cited by number
     command: ideas-capture
     input:
       type: principle
-      statement: Keep hens under the fruit trees.
-      run: "${{ steps[7].data.run }}"
+      run: "${{ steps[8].data.run }}"
       sources:
-        - source: "${{ steps[1].data.source }}"
+        - source: "${{ steps[2].data.sources[0].source }}"
           sentences: [2]
     expect:
       success: true
@@ -119,9 +125,9 @@ steps:
   - description: Seen again in the later draft, it counts as one document, not two
     command: ideas-observe
     input:
-      id: "${{ steps[8].data.id }}"
-      run: "${{ steps[7].data.run }}"
-      source: "${{ steps[2].data.source }}"
+      id: "${{ steps[9].data.id }}"
+      run: "${{ steps[8].data.run }}"
+      source: "${{ steps[2].data.sources[1].source }}"
       sentences: [2]
     expect:
       success: true
@@ -133,10 +139,9 @@ steps:
     command: ideas-capture
     input:
       type: position
-      statement: Plant the orchard on the north boundary.
-      run: "${{ steps[7].data.run }}"
+      run: "${{ steps[8].data.run }}"
       sources:
-        - source: "${{ steps[1].data.source }}"
+        - source: "${{ steps[2].data.sources[0].source }}"
           sentences: [1]
     expect:
       success: true
@@ -144,8 +149,8 @@ steps:
   - description: The run stops after the first file, and says which one it finished
     command: ideas-run-close
     input:
-      run: "${{ steps[7].data.run }}"
-      done: ["${{ steps[1].data.source }}"]
+      run: "${{ steps[8].data.run }}"
+      done: ["${{ steps[2].data.sources[0].source }}"]
     expect:
       success: true
 
@@ -161,7 +166,7 @@ steps:
   - description: A second run, in another session, takes what is left
     command: ideas-run-open
     input:
-      sources: ["${{ steps[2].data.source }}"]
+      sources: ["${{ steps[2].data.sources[1].source }}"]
       extractor: fixture-model, prompt 1
     expect:
       success: true
@@ -169,7 +174,8 @@ steps:
   - description: And finishes it
     command: ideas-run-close
     input:
-      run: "${{ steps[13].data.run }}"
+      run: "${{ steps[14].data.run }}"
+      done: ["${{ steps[2].data.sources[1].source }}"]
     expect:
       success: true
 
@@ -191,13 +197,3 @@ steps:
       data:
         counts:
           attested-in-earlier-draft: 1
-
-  - description: The date the agent guessed for the first draft is corrected; its bytes are untouched
-    command: ideas-source-amend
-    input:
-      source: "${{ steps[1].data.source }}"
-      thoughtOn: "2019-04-12"
-    expect:
-      success: true
-      data:
-        thoughtOn: "2019-04-12"

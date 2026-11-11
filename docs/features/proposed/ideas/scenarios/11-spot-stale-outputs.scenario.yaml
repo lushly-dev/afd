@@ -134,15 +134,15 @@ steps:
       data:
         outputsDrifted: { length: 1 }
 
-  - description: The report finds a published piece that pins a retired idea
+  - description: The report finds a published piece that no longer matches
     command: ideas-check
     input:
-      checks: [output-pins-retired]
+      checks: [output-drifted]
     expect:
       success: true
       data:
         counts:
-          output-pins-retired: 1
+          output-drifted: 1
 
   - description: A corrected article is written from what I hold now, and recorded as published
     command: ideas-output-record
@@ -180,9 +180,9 @@ steps:
   - description: And so does the report
     command: ideas-check
     input:
-      checks: [output-pins-retired]
+      checks: [output-drifted]
     expect:
       success: true
       data:
         counts:
-          output-pins-retired: 0
+          output-drifted: 0
