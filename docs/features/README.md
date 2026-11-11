@@ -119,6 +119,7 @@ A feature that adds or changes commands starts from the jobs it serves. Each job
 - A job that cannot be written with the drafted commands is a gap in the design.
 - A drafted command no job uses is cut, or the proposal says why it stays.
 - The exit criteria start from "every scenario passes".
+- Readers who did not write the jobs walk the paths before the owner is asked to decide.
 - The owner cuts, adds and ranks the jobs.
 
 Once the feature is built, the same files move beside the code and run as its acceptance tests. The steps, the checks that work before anything is built, and what a scenario cannot express are in [jobs first](../../.claude/skills/afd/references/jobs-first.md). Features with no commands (tooling, CI, releases, documentation) skip this.
@@ -129,4 +130,4 @@ Once the feature is built, the same files move beside the code and run as its ac
 Proposed → Review → Active → Implementation → Complete
 ```
 
-A proposal that adds or changes commands is ready for review when its jobs are written as scenarios and they pass the checks.
+A proposal that adds or changes commands is ready for review when its jobs are written as scenarios, they pass the checks, and readers who did not write them have walked the paths. A revision needs the walk again only when it adds jobs or commands.

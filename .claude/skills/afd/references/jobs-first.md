@@ -25,13 +25,20 @@ have no scenarios; add them when one is next revised, not as a side task.
 5. **Change the plan where the writing shows a gap.** A job that cannot be written with the
    drafted commands is a gap in the design: fix the design rather than bending the job. A
    drafted command no job uses is cut, or the proposal says why it stays.
-6. **Put the result in the proposal:** the jobs, what writing them changed, what a scenario
-   could not express (the limits below), and what scenarios cannot show at all. Quality and
-   scale need measures, not scenarios.
-7. **Tie the exit criteria to them.** They start from "every scenario passes". Tag the scenarios
+6. **Have the paths walked by readers who did not write them**
+   ([Walking the paths](#walking-the-paths)), for a new proposal and for a revision that adds
+   jobs or commands. Passing the checks shows that the commands can express each job once. It
+   does not show that the jobs are the right ones, or that a person gets through the whole
+   path. Take what the readers find back to steps 1 to 5 and rerun the checks. Walk again only
+   if the fixes added jobs or commands.
+7. **Put the result in the proposal:** the jobs, what writing them changed, which seats walked
+   them, what that changed and what was declined and why, what a scenario could not express
+   (the limits below), and what scenarios cannot show at all. Quality and scale need measures,
+   not scenarios.
+8. **Tie the exit criteria to them.** They start from "every scenario passes". Tag the scenarios
    a first slice must pass (`slice`, say) and name the tag in the criteria, so the slice has a
    definition.
-8. **Ask the owner to cut, add and rank the jobs**, as a decision in the proposal's section for
+9. **Ask the owner to cut, add and rank the jobs**, as a decision in the proposal's section for
    the owner. A list an agent drafted is a draft, and the ranking decides what is built first.
 
 ## A job as a scenario
@@ -114,6 +121,38 @@ console.log('not drafted:', data.commandCoverage.map((entry) => entry.command)
 
 Paste what the checks print into the pull request's test plan. No CI job reads scenario files
 under `docs/`, and a reviewer reads them and does not run them.
+
+## Walking the paths
+
+Brief fresh readers as `review-code` describes, before the owner is asked to decide. Give each
+reader its seat's paragraph below as its task, with the proposal and the scenario files and
+without your conclusions. Three seats find different things:
+
+- **The person.** Walk the journeys end to end at the volume the proposal expects: the first
+  week from nothing, an ordinary day, a session of many decisions in a row, a year in, and
+  things going wrong (a mistake by the person, by an agent, by a bulk run). At each step, name
+  the command or rule that serves it, or say that nothing does.
+- **The job list.** This reader gets the owner's request first, in the owner's words, and
+  drafts its own list of jobs before it opens the proposal. Then it compares: jobs that are
+  missing, features dressed as jobs, and jobs whose last step stops short of their "so that".
+- **The calling agent.** This reader also gets the specification of the host that will serve
+  the commands. It reads how that host lists tools, asks a person to confirm, and bounds input
+  and output. Then, for each job at volume, it estimates the calls, the tokens and the
+  person-only interruptions, and says what a model must know when no skill is installed.
+
+What these readers tend to find, and writing the scenarios does not:
+
+- A job that ends at detection: a finding is reported, and no command clears it or records "no".
+- A guarantee that holds only when the caller asks in the right way.
+- A person-only step that the plan makes frequent, where each confirmation takes the person out
+  of the conversation.
+- Content the agent must read and repeat as input, because no command takes it by reference.
+- No way back from a mistake.
+
+Keep that list out of the briefs, so the readers are not led to it, and use it afterwards to
+see what none of them looked at. Check what a reader says about the host against the host's
+own specification before acting on it. For a feature of a few commands, one reader covering
+all three seats is enough.
 
 ## What a scenario cannot express
 
