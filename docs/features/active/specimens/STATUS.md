@@ -47,7 +47,7 @@ The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple")
 
 **Optional, and not needed for cutover:** T09, T10 and T11, along with pixel comparison.
 
-**Component packs (T12):** Specimen's half of [Component Briefs](../component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The owner approved that plan's step A2 on 2026-11-10 (#964); step B1 (guide files) is in progress; B2 to B4 are not started, and all need only Specimen and FAST-AF. Not needed for cutover.
+**Component packs (T12):** Specimen's half of [Component Briefs](../component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The owner approved that plan's step A2 on 2026-11-10 (#964); step B1 (guide files) is done (#968); B2 to B4 are not started, and all need only Specimen and FAST-AF. Not needed for cutover.
 
 ### Handoff, 2026-11-02: resume here
 

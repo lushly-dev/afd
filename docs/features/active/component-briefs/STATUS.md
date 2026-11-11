@@ -21,14 +21,14 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 ## Status block
 
-- **State:** active. Phase 0 and steps A1 and A2 are done. Phases B, C and D are not started.
+- **State:** active. Phase 0 and steps A1, A2 and B1 are done. The rest of phases B and C, and phase D, are not done.
 - **Last verified:** 2026-11-10 against `main` at `d4c31d9e`, which contains #949 (step A1) and #964
   (step A2). Read:
   `foundations/specimen/docs/pack-format.md`, `foundations/specimen/fixtures/pack/` and its
   `invalid/cases.json` (25 cases), and the Umbel code the plugin specification lists in its status
   block.
 - **Done:** see [Steps](#steps).
-- **Not done:** every step of phases B, C and D.
+- **Not done:** steps B2 to B4, and every step of phases C and D.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -41,7 +41,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 0.4. Decision | Done 2026-11-09: the owner decided go, the brief as planned | [Proposal, Status](component-briefs.proposal.md#status) |
 | A1. Pack format, version 0 | Done 2026-11-10 | [#949](https://github.com/lushly-dev/afd/pull/949), merged as `a1c52b37`: [the format](../../../../foundations/specimen/docs/pack-format.md), `@lushly-dev/specimen/pack`, its JSON Schema files and `foundations/specimen/fixtures/pack/` |
 | A2. Specifications | Done 2026-11-10: the owner approved them by merging [#964](https://github.com/lushly-dev/afd/pull/964), as `d4c31d9e` | The [plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md) and Umbel decisions D150 to D156; [T12](../specimens/implementation.md#ordered-implementation-queue) in the Specimens plan and status; this folder moved from `proposed/` to `active/` with this file |
-| B1. Guides | In progress on `lush/specimen-guides-b1`: the `guides` key, the guide schema, the loader and the static checks | Specimen's T12 |
+| B1. Guides | Done 2026-11-10 | [#968](https://github.com/lushly-dev/afd/pull/968): the `guides` key, the guide schema, the loader and the static checks in `specimen-validate`, with `src/guides.test.ts` |
 | B2. Guide obligations | Not started | Specimen's T12 |
 | B2a. Roles in a capture | Not started | Specimen's T12 |
 | B3. `specimen-pack` | Not started | Specimen's T12 |
