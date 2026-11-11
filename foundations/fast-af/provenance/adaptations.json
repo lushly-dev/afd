@@ -1162,11 +1162,11 @@
       "upstream_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
       "staged_path": "packages/element/packages/fast-element/src/components/element-controller.pw.spec.ts",
       "staged_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
-      "current_import_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
+      "current_import_sha256": "9cf617208dc9cec78db0bf35e720e895ac9f809a2bbe1c46307353763c5a007f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Sets the observable on the element before its upgrade, instead of relying on the test runner compiling a declared class field into a constructor assignment: Playwright 1.65 erases the declaration, as TypeScript does, so the change handler the test observes never ran; FAST's connection order is unchanged (#901)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-controller.ts",
