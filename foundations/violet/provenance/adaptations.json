@@ -954,7 +954,7 @@
       "path": "foundations/violet/packages/core/src/export/transformers/dart.ts",
       "upstream_path": "packages/core/src/export/transformers/dart.ts",
       "upstream_sha256": "899738f477cdae519917ce5bd1a997ca4f4459000e11d4e5087254769525deaf",
-      "current_import_sha256": "87b7073828a61ce90a76df4d4acfc5d4d80fe4c694ad74d933d4268852b65286",
+      "current_import_sha256": "ce0c773caa221db3451d80e02bcb567fcaaf9811b48431236a7954449ea2fd88",
       "classification": "adapted",
       "reason": "Eight-digit CSS hex (#RRGGBBAA) becomes Color(0xAARRGGBB), and String literals escape backslashes, single quotes, $ and control characters (lushly-dev/afd#605); four-digit CSS hex (#RGBA) is a colour and keeps its alpha (lushly-dev/afd#974)",
       "candidate": {
@@ -1006,7 +1006,7 @@
       "path": "foundations/violet/packages/core/src/export/transformers/kotlin.ts",
       "upstream_path": "packages/core/src/export/transformers/kotlin.ts",
       "upstream_sha256": "a37e011bfdacc3e8060278d728c71867181a5faf0bf30145c145087a4d11b1cb",
-      "current_import_sha256": "97477733a1801646213813dc021bc171533afff70b1fd4fec2e090374dc7c10d",
+      "current_import_sha256": "945e80c58287ae7af2ae0e8562faa871efee83c1837361f741b9c5dc5922b3ac",
       "classification": "adapted",
       "reason": "Eight-digit CSS hex (#RRGGBBAA) becomes Color(0xAARRGGBB), and string literals escape backslashes, double quotes, $ and control characters (lushly-dev/afd#605); four-digit CSS hex (#RGBA) is a colour and keeps its alpha (lushly-dev/afd#974)",
       "candidate": {

@@ -202,7 +202,7 @@ function escapeKotlinString(str: string): string {
 function toArgbHex(value: string): string {
 	let hex = value.replace('#', '').toUpperCase();
 	// Expand 3- and 4-digit hex to 6 and 8 digits
-	if (hex.length <= 4)
+	if (hex.length === 3 || hex.length === 4)
 		hex = hex
 			.split('')
 			.map((c) => c + c)
