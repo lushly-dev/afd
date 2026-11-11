@@ -32,6 +32,11 @@ updates:
         update-types:
           - minor
           - patch
+        # Playwright moves only in the group above. This group took `@playwright/test`
+        # as well and moved it alone, which split the lockfile the same way (#961).
+        exclude-patterns:
+          - playwright
+          - '@playwright/test'
 
   - package-ecosystem: uv
     directory: /python
