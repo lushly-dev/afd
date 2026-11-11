@@ -1,0 +1,6 @@
+pack_version = 1
+id = "library"
+plugin = "components"
+version = "0.1.0"
+title = "Component libraries"
+description = "The component libraries this space's agents are briefed on, in Specimen's exported pack form. The plugin ships one small example; a space replaces it whole with its own."
