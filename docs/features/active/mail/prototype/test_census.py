@@ -206,14 +206,14 @@ class FakeConnection:
         return "BYE", []
 
 
-def run_census(store, connections, provider="icloud", sample_mb=1):
+def run_census(store, connections, provider="icloud", sample_mb=1, skip_over=0):
     """Run the census against fake connections handed out one per (re)connect."""
     queue = list(connections)
     capabilities = ["IDLE", "X-GM-EXT-1"] if store.gmail else ["IDLE", "CONDSTORE"]
     original = census.connect
     census.connect = lambda host, user, password: (queue.pop(0), {"before_login": ["IDLE"], "after_login": capabilities})
     try:
-        args = argparse.Namespace(provider=provider, host=None, user="me@example.com", alias=[], limit=0, sample_mb=sample_mb)
+        args = argparse.Namespace(provider=provider, host=None, user="me@example.com", alias=[], limit=0, sample_mb=sample_mb, skip_over=skip_over)
         return census.run(args, "unused")
     finally:
         census.connect = original
@@ -235,9 +235,9 @@ class FullRun(unittest.TestCase):
         self.assertEqual(out["q2"]["left_for_judgment"], 2)   # the cold sender twice; ann was written to
         self.assertEqual(out["by_year"], {"2026": 18})
         self.assertEqual(out["body_sample"]["agreement"], 1.0)
-        self.assertEqual(out["coverage"], {"uids_listed": 18, "messages_read": 18, "vanished_before_fetch": 0,
+        self.assertEqual(out["coverage"], {"uids_listed": 18, "messages_read": 18, "listed_not_returned": 0,
                                            "sent_uids_listed": 1, "sent_messages_read": 1,
-                                           "sent_vanished_before_fetch": 0, "mailboxes_not_listed": 0})
+                                           "sent_listed_not_returned": 0, "mailboxes_not_listed": 0})
 
     def test_sends_only_commands_that_cannot_change_anything(self):
         store = Store()
@@ -297,12 +297,19 @@ class FullRun(unittest.TestCase):
         self.assertFalse(out["complete"])                      # Q1's templates would be split
         self.assertGreater(out["errors"]["without_structure"], 0)
 
-    def test_a_message_deleted_during_the_run_does_not_make_it_incomplete(self):
+    def test_a_message_listed_but_not_returned_is_counted_and_does_not_make_it_incomplete(self):
         store = Store()
         out = run_census(store, [FakeConnection(store, vanish={115})])
         self.assertTrue(out["complete"])
-        self.assertEqual(out["coverage"]["vanished_before_fetch"], 1)
+        self.assertEqual(out["coverage"]["listed_not_returned"], 1)
         self.assertEqual(out["coverage"]["messages_read"], 17)
+
+    def test_a_mailbox_over_the_skip_threshold_is_left_out_and_recorded(self):
+        store = Store()
+        out = run_census(store, [FakeConnection(store)], skip_over=5)   # the inbox lists 16
+        self.assertEqual(out["skipped_over"], {"threshold": 5, "mailboxes": 1, "uids_listed": 16})
+        self.assertEqual(out["messages"], 2)
+        self.assertTrue(out["complete"])
 
     def test_the_byte_cap_stops_the_body_sample(self):
         store = Store()

@@ -39,7 +39,7 @@ from html.parser import HTMLParser
 # mailbox of about 130 000 messages already exceeds.
 imaplib._MAXLINE = max(imaplib._MAXLINE, 64 * 1024 * 1024)
 
-TOOL_VERSION = 3
+TOOL_VERSION = 5
 TEMPLATE_MIN = 5  # a template is one seen at least this many times (the proposal's Q1)
 BATCH = 250
 BODY_PREFIX_BYTES = 128 * 1024  # how much of a sampled message is fetched
@@ -349,7 +349,7 @@ class Census:
                 self.uids.append((mailbox, uid, record["template"]))
         # What is left has only its header-level template. If the fetch failed that makes
         # the run incomplete; if it worked, the message went away between the two fetches.
-        self.errors["without_structure" if not fetched else "structure_vanished"] += len(self.pending)
+        self.errors["without_structure" if not fetched else "structure_not_returned"] += len(self.pending)
         self.pending.clear()
 
     def mark_self(self) -> None:
@@ -478,7 +478,7 @@ def run(args: argparse.Namespace, password: str) -> dict:
     counted, sent = choose_mailboxes(boxes)
     note(f"{len(boxes)} mailboxes; counting {len(counted)}, reading {len(sent)} for who was written to")
 
-    sent_listed = sent_read = sent_vanished = 0
+    sent_listed = sent_read = sent_not_returned = 0
     for box in sent:
         uids = (session.uids_of(box["name"]) or [])[: args.limit or None]
         sent_listed += len(uids)
@@ -486,8 +486,8 @@ def run(args: argparse.Namespace, password: str) -> dict:
             ids = ",".join(map(str, chunk))
             data = session.uid(box["name"], "FETCH", ids, "(BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
             answered = split_fetch(data or [])
-            if data is not None:  # the fetch worked: a UID with no answer was deleted meanwhile
-                sent_vanished += max(0, len(chunk) - len(answered))
+            if data is not None:  # the fetch worked: the server listed this UID and returned nothing for it
+                sent_not_returned += max(0, len(chunk) - len(answered))
             for _, literals in answered:
                 if literals:
                     census.add_sent(literals[0])
@@ -497,16 +497,21 @@ def run(args: argparse.Namespace, password: str) -> dict:
     header_started = time.time()
     extra = " X-GM-THRID" if gmail_ext else ""
     items = f"(UID RFC822.SIZE INTERNALDATE{extra} BODY.PEEK[HEADER.FIELDS ({HEADER_FIELDS})])"
-    listed = vanished = 0
+    listed = not_returned = skipped_boxes = skipped_uids = 0
     for index, box in enumerate(counted):
-        uids = (session.uids_of(box["name"]) or [])[: args.limit or None]
+        uids = session.uids_of(box["name"]) or []
+        if args.skip_over and len(uids) > args.skip_over:  # a deliberate subset, recorded below
+            skipped_boxes += 1
+            skipped_uids += len(uids)
+            continue
+        uids = uids[: args.limit or None]
         listed += len(uids)
         for chunk in batches(uids, BATCH):
             ids = ",".join(map(str, chunk))
             data = session.uid(box["name"], "FETCH", ids, items)
             answered = split_fetch(data or [])
             if data is not None:
-                vanished += max(0, len(chunk) - len(answered))
+                not_returned += max(0, len(chunk) - len(answered))
             for text, literals in answered:
                 if not literals:
                     census.errors["without_headers"] += 1
@@ -538,10 +543,12 @@ def run(args: argparse.Namespace, password: str) -> dict:
     census.mark_self()
     result = aggregate(census.records, census.written_to)
     # Complete means every mailbox was listed, and every listed message was either read in
-    # full or had been deleted by the time it was fetched. Anything else is a partial run.
+    # full or was one the server listed and then returned nothing for on a fetch that
+    # succeeded. That happens when a message is deleted meanwhile, and iCloud also lists
+    # messages it never returns. Those are counted, not hidden. Anything else is a partial run.
     complete = (
-        len(census.records) + vanished == listed
-        and sent_read + sent_vanished == sent_listed
+        len(census.records) + not_returned == listed
+        and sent_read + sent_not_returned == sent_listed
         and not census.errors["mailbox_not_listed"]
         and not census.errors["without_structure"]
     )
@@ -552,15 +559,20 @@ def run(args: argparse.Namespace, password: str) -> dict:
             "coverage": {
                 "uids_listed": listed,
                 "messages_read": len(census.records),
-                "vanished_before_fetch": vanished,
+                "listed_not_returned": not_returned,
                 "sent_uids_listed": sent_listed,
                 "sent_messages_read": sent_read,
-                "sent_vanished_before_fetch": sent_vanished,
+                "sent_listed_not_returned": sent_not_returned,
                 "mailboxes_not_listed": census.errors["mailbox_not_listed"],
             },
             "provider": args.provider or "custom",
             "host": preset["host"] if preset and not args.host else "custom",
             "limit_per_mailbox": args.limit or None,
+            "skipped_over": {
+                "threshold": args.skip_over or None,
+                "mailboxes": skipped_boxes,
+                "uids_listed": skipped_uids,
+            },
             "mailboxes": {
                 "listed": len(boxes),
                 "counted": len(counted),
@@ -645,6 +657,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, help="where to write the counts")
     parser.add_argument("--sample-mb", type=int, default=300, help="cap on body bytes fetched (default 300)")
     parser.add_argument("--limit", type=int, default=0, help="read at most this many messages per mailbox (a trial run)")
+    parser.add_argument(
+        "--skip-over",
+        type=int,
+        default=0,
+        help="leave out any mailbox that lists more than this many messages, to see the account without one dominant folder",
+    )
     args = parser.parse_args(argv)
     if not args.provider and not args.host:
         parser.error("give --provider or --host")

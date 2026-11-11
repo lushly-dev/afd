@@ -1,0 +1,50 @@
+{
+	"import": {
+		"messages_per_second": 14454.58,
+		"seconds": 34.59
+	},
+	"index_bytes": 394855236,
+	"list_50_threads_ms": {
+		"max": 6.69,
+		"p50": 0.08,
+		"p95": 4.13
+	},
+	"messages": 500000,
+	"raw_bytes": 1039994410,
+	"search_ms": {
+		"hits_returned": 15000,
+		"max": 2.6,
+		"p50": 0.76,
+		"p95": 1.83,
+		"queries": 300,
+		"queries_with_hits": 300
+	},
+	"shape": {
+		"in_threads": 0.67,
+		"senders": 2906,
+		"templated": 0.82,
+		"vocabulary": 50000
+	},
+	"size_ratio": 1.66,
+	"sqlite_bytes": 1330483200,
+	"threads": 162672,
+	"thresholds": {
+		"import_per_second": {
+			"limit": 500.0,
+			"met": true
+		},
+		"list_p95_ms": {
+			"limit": 50.0,
+			"met": true
+		},
+		"search_p95_ms": {
+			"limit": 200.0,
+			"met": true
+		},
+		"size_ratio": {
+			"limit": 3.0,
+			"met": true
+		}
+	},
+	"tool": "loam_mail_store_bench"
+}
