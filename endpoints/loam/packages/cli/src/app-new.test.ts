@@ -67,7 +67,10 @@ describe('loam app new', () => {
 					execFileSync(tsc, args, { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
 					return '';
 				} catch (error) {
-					return String((error as { stdout?: string }).stdout);
+					// tsc writes its diagnostics to stdout; a failure to start it has none.
+					const { stdout } = error as { stdout?: string };
+					if (typeof stdout !== 'string') throw error;
+					return stdout;
 				}
 			};
 			expect(run('-p', 'tsconfig.json')).toBe('');

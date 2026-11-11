@@ -2432,7 +2432,8 @@ Node program with no kernel. Output is a `CommandResult` as JSON; exit 0 on succ
     first UI is the console (D48);
   - for `native`: `src/app.ts` with `defineApp` and the handler; for `view`: also `src/handlers.ts`,
     `src/main.html`; for `mounted`: nothing else;
-  - `schemas/<id>-ping.input.json`, `package.json`, `vite.config.ts`, `tsconfig.json`;
+  - `schemas/<id>-ping.input.json`, `package.json`, `vite.config.ts`, `tsconfig.json`, and
+    `tsconfig.browser.json`, which checks `src` without Node's types (#926);
   - `test/app.test.ts`, using `createAppTestKernel`;
   - `README.md` with the trust line for the kind.
 
