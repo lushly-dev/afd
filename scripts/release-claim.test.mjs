@@ -443,3 +443,36 @@ test('explicit recovery preserves failed history and binds the replacement claim
 	assert.match(recovered.targetUrl, /456/);
 	assert.throws(() => f.invoke('reconcile', options), /exact failed claim/);
 });
+
+test('recovery accepts a release carried past the commit that introduced its intent', (t) => {
+	const f = fixture(t);
+	const failed = f.invoke('fail', { claim: f.invoke('acquire') });
+	// A later push carries the publication: the plan is built at a descendant of the intent commit.
+	f.write('later.txt', 'carried');
+	git(f.root, ['add', '.']);
+	git(f.root, ['commit', '-m', 'later']);
+	const head = git(f.root, ['rev-parse', 'HEAD']).trim();
+	assert.notEqual(head, failed.commit);
+	const options = {
+		claim: failed,
+		receipt: { state: 'held' },
+		environment: { ...environment, GITHUB_RUN_ID: '456' },
+		reconcile: () => ({ verified: ['a'], missing: [] }),
+	};
+	// A plan bound to any revision but the checkout's own is refused, the intent commit included.
+	for (const sourceRevision of [failed.commit, 'f'.repeat(40)])
+		assert.throws(
+			() =>
+				f.invoke('reconcile', {
+					...options,
+					plan: { sourceRevision, intentDigest: failed.intentDigest },
+				}),
+			/exact failed claim/
+		);
+	const recovered = f.invoke('reconcile', {
+		...options,
+		plan: { sourceRevision: head, intentDigest: failed.intentDigest },
+	});
+	assert.equal(recovered.state, 'pending');
+	assert.equal(recovered.commit, failed.commit);
+});

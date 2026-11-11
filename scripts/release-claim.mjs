@@ -231,7 +231,10 @@ export function releaseClaim({
 			claim.targetUrl !== current.target_url ||
 			claim.targetUrl === targetUrl ||
 			Object.entries(key).some(([name, value]) => claim[name] !== value) ||
-			plan?.sourceRevision !== key.commit ||
+			// The plan's revision, not the intent's: a release carried by a later push is built
+			// after the commit that introduced its intent. The key is read from this checkout's
+			// history, so the intent commit is an ancestor of it.
+			plan?.sourceRevision !== command('git', ['rev-parse', 'HEAD'], root).trim() ||
 			plan.intentDigest !== key.intentDigest
 		)
 			throw held('recovery does not match the exact failed claim');
