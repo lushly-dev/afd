@@ -324,7 +324,12 @@ export async function installPage(
 					'nav',
 					{ className: 'specimen-crumbs', ariaLabel: 'Breadcrumb' },
 					h('a', { href: indexUrl.href }, 'All specimens'),
-					` / ${path(group)}`
+					// Each segment opens the index filtered to the specimens under it.
+					...group.split('/').flatMap((segment, index, segments) => {
+						const groupUrl = new URL(indexUrl);
+						groupUrl.searchParams.set('q', segments.slice(0, index + 1).join('/'));
+						return [' / ', h('a', { href: groupUrl.href }, segment)];
+					})
 				),
 				h('h1', {}, name),
 				h(
