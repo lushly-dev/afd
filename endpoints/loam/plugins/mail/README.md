@@ -20,7 +20,7 @@ cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo
 
 This is the skeleton of the specification's step B1. It answers `help` and `version`, and holds
 no mail command yet. What it does hold is the registry's rules, checked when the engine starts
-and by its tests: a destructive command carries an approval policy, a command with an approval
+and by its tests: a destructive command always requires approval, a command with an approval
 policy is exposed to the command line only, and every command's name starts with `mail-`.
 
 The [Loam plugins workflow](../../../../.github/workflows/loam-plugins.yml) runs those three

@@ -596,6 +596,36 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	assert.match(umbel, /actions\/upload-artifact@[0-9a-f]{40} # v/);
 });
 
+test("Mail's engine is a private, route-less Loam plugin outside Loam's workflow", async () => {
+	const { loadInventory } = await import('./release/control.mjs');
+	const manifestPath = 'endpoints/loam/plugins/mail/engine/Cargo.toml';
+	const unit = loadInventory(repoRoot).units.find((entry) => entry.id === 'loam-mail');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(unit.gates, ['loam-plugins.yml', 'release-approval']);
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest, entry.format, entry.private]),
+		[['loam_mail', manifestPath, 'rust', true]]
+	);
+	const boundary = JSON.parse(read('architecture.json')).units.find(
+		(entry) => entry.manifest === manifestPath
+	);
+	assert.equal(boundary.family, 'loam');
+	assert.equal(boundary.layer, 'endpoint');
+	const manifest = read(manifestPath);
+	assert.match(manifest, /^publish = false$/m);
+	assert.match(manifest, /^afd = \{ path = "\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\/rust"/m);
+	// The engine is a binary: its lock is committed so CI builds what it tested.
+	assert.match(read('.gitignore'), /^!endpoints\/loam\/plugins\/mail\/engine\/Cargo\.lock$/m);
+	// Loam's D109: a plugin is outside Loam's workflow, on push and on pull request.
+	const loam = read('.github/workflows/loam.yml');
+	assert.equal(loam.split("- '!endpoints/loam/plugins/**'").length - 1, 2);
+	const plugins = read('.github/workflows/loam-plugins.yml');
+	assert.match(plugins, /permissions:\n {2}contents: read/);
+	assert.doesNotMatch(plugins, /publish|upload|id-token|secrets\./);
+	assert.equal(plugins.split("- '!endpoints/loam/plugins/*/docs/**'").length - 1, 2);
+});
+
 test("Umbel's test identity provider is a private, route-less, test-only unit", async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'

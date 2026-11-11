@@ -30,13 +30,19 @@ fn check_command(command: &CommandDefinition) -> Vec<String> {
         Some(ApprovalPolicy::Required | ApprovalPolicy::Conditional(_))
     );
 
-    if !name.starts_with(&format!("{DOMAIN}-")) {
+    if name
+        .strip_prefix(DOMAIN)
+        .and_then(|rest| rest.strip_prefix('-'))
+        .is_none_or(str::is_empty)
+    {
         broken.push(format!("{name}: a command's name starts with `{DOMAIN}-`"));
     }
-    // M29: what cannot be undone needs the person's approval.
-    if command.destructive == Some(true) && !holds_for_approval {
+    // M29: what cannot be undone needs the person's approval, every time. A
+    // policy decided per call could waive it, so only `Required` counts.
+    let always_held = matches!(command.approval, Some(ApprovalPolicy::Required));
+    if command.destructive == Some(true) && !always_held {
         broken.push(format!(
-            "{name}: a destructive command carries an approval policy (M29)"
+            "{name}: a destructive command always requires approval (M29)"
         ));
     }
     if command.destructive == Some(true) && !command.mutation {

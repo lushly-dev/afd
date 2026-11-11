@@ -138,7 +138,7 @@ test('the workspace graph follows every dependency field in both directions', (t
 });
 
 test('files map to owning packages, unit roots and shared inputs', (t) => {
-	const { root } = fixture(t);
+	const { root, write } = fixture(t);
 	const scope = (files) => resolveScope({ root, files, git: () => '' });
 	const core = scope(['packages/core/src/index.ts']);
 	assert.equal(core.mode, 'affected');
@@ -157,6 +157,16 @@ test('files map to owning packages, unit roots and shared inputs', (t) => {
 	// A unit's own docs/ reach none of its packages, unlike its other root files.
 	assert.deepEqual(scope(['foundations/violet/docs/STATUS.md']).affected, []);
 	assert.deepEqual(scope(['foundations/violet/docs/phases/0/spec.md']).affected, []);
+	// A plugin is a unit of its own (Loam's D109): its files reach none of Loam's packages.
+	write(
+		'pnpm-workspace.yaml',
+		'packages:\n  - "packages/*"\n  - "foundations/*/packages/*"\n  - "endpoints/loam/packages/*"\n'
+	);
+	write('endpoints/loam/packages/kernel/package.json', { name: '@x/loam-kernel' });
+	assert.deepEqual(scope(['endpoints/loam/README.md']).changed, ['@x/loam-kernel']);
+	assert.deepEqual(scope(['endpoints/loam/plugins/mail/engine/src/lib.rs']).affected, []);
+	assert.deepEqual(scope(['endpoints/loam/plugins/mail/README.md']).affected, []);
+	assert.deepEqual(scope(['endpoints/loam/plugins/mail/docs/engine.spec.md']).affected, []);
 	assert.deepEqual(scope(['foundations/violet/README.md']).affected, [
 		'@x/violet-core',
 		'@x/violet-runtime',

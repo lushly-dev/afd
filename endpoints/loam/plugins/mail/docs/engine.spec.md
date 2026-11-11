@@ -114,7 +114,7 @@ but its documents. So:
   the plugin that changed. Loam's ledger records this as its D109.
 - The proposal, the status file and the prototype stay in `docs/features/active/mail/`.
 - The crate is its own Cargo workspace, as Umbel is, with `publish = false`. It depends on the
-  `afd` crate by path, with the `approval` and `journal-file` features; step B5 adds `server`
+  `afd` crate by path, with the `native`, `approval` and `journal-file` features; step B5 adds `server`
   when it serves MCP, so that the lockfile carries the MCP SDK only once it is used. A change
   under `packages/rust/**` runs the plugin's workflow.
 - `pnpm check` does not cover it. The workflow runs `cargo fmt --check`, clippy with
@@ -134,8 +134,9 @@ Each crate's maintenance history was not read.
 | `lettre` | 0.11 | MIT | SMTP, from phase D | None |
 | `keyring` | 4.2 | MIT or Apache-2.0 | The operating system's keychain | None |
 
-Every crate here is permissively licensed. Step B1 adds a licence check to the workflow so a
-transitive dependency cannot change that unnoticed.
+Every crate here is permissively licensed. Step B1 added a licence check so a transitive
+dependency cannot change that unnoticed: a test in the crate reads the lockfile's packages and
+fails on a licence outside its allowlist, and the workflow runs it with the other tests.
 
 ## 3. Process and surfaces
 
