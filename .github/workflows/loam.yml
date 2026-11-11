@@ -82,11 +82,13 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
+      # `theme:check` below scans every `.ts` file of violet-elements' source, specs included, and a
+      # spec reaches no dependent, so the path is named: no other workflow runs that check.
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml
-      # The same, and an Umbel or `afd` crate change, which reaches this job and not the one below.
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path foundations/fast-af/packages/violet-elements/src/ --path .cargo/config.toml --path .github/workflows/loam.yml
+      # The same packages, and an Umbel or `afd` crate change, which reaches this job and not the one below.
       - id: mounted
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-checklist --package @lushly-dev/loam-app-hello --package @lushly-dev/loam-app-notes --package @lushly-dev/loam-app-tally --package @lushly-dev/loam-app-tasks --package @lushly-dev/loam-chrome --package @lushly-dev/loam-cli --package @lushly-dev/loam-console --package @lushly-dev/loam-host --package @lushly-dev/loam-identity --package @lushly-dev/loam-kernel --package @lushly-dev/loam-manifest --package @lushly-dev/loam-sdk --package @lushly-dev/loam-testing --package @lushly-dev/loam-theme --package @lushly-dev/loam-web --path .cargo/config.toml --path .github/workflows/loam.yml --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/
 
   loam:
     name: Build, unit and Chromium
