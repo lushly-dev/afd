@@ -1,3 +1,5 @@
+// biome-ignore-all lint/performance/useDomNodeTextContent: innerText() here is Playwright's locator method, which reads the rendered text the tests assert
+
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';

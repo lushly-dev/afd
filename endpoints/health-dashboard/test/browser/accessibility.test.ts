@@ -1,3 +1,5 @@
+// biome-ignore-all lint/performance/useDomNodeTextContent: innerText() here is Playwright's locator method, which reads the rendered text the tests assert
+
 import { pathToFileURL } from 'node:url';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

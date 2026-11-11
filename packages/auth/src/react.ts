@@ -4,6 +4,8 @@
  * Sub-path export: import from '@lushly-dev/afd-auth/react'
  */
 
+// biome-ignore-all lint/correctness/noComponentHookFactories: createAuthHooks is called once per adapter, at module level, so each hook it returns keeps one identity
+
 import { useCallback, useSyncExternalStore } from 'react';
 import { areSessionStatesEqual } from './session-state.js';
 import type { AuthAdapter, AuthSessionState, User } from './types.js';

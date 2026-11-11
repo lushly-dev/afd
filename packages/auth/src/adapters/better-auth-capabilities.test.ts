@@ -40,7 +40,7 @@ function stubClient(overrides: Partial<BetterAuthClient> = {}) {
 /** A browser with WebAuthn; `conditional` is what `isConditionalMediationAvailable` answers, or absent. */
 function withWebAuthn(conditional: boolean | 'absent' = true) {
 	const PublicKeyCredential = Object.assign(
-		function PublicKeyCredential() {},
+		() => {},
 		conditional === 'absent' ? {} : { isConditionalMediationAvailable: async () => conditional }
 	);
 	vi.stubGlobal('PublicKeyCredential', PublicKeyCredential);
