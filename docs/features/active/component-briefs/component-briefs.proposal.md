@@ -6,12 +6,16 @@ Umbel plugin serves it in batches.
 
 ## Status
 
-- **State:** a proposal with phase 0 and step A1 done. Written 2026-11-09 against `main`
-  at `cfb70942`, and revised the same day after the author's own review, two
-  independent reviews (each: revise) and a focused check of the fixes.
-  Step A1 put the pack format's version 0 in Specimen (2026-11-10). Nothing
-  else is specified or implemented, and nothing is approved beyond the
-  owner's decision to go on to phase A.
+- **State:** active, with phase 0 and step A1 done and step A2 in review.
+  Written 2026-11-09 against `main` at `cfb70942`, and revised the same day
+  after the author's own review, two independent reviews (each: revise) and a
+  focused check of the fixes. Step A1 put the pack format's version 0 in
+  Specimen (2026-11-10, #949). Step A2's specifications were written
+  2026-11-10 and await the owner's approval: the
+  [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md)
+  and Specimen's [T12](../specimens/implementation.md#ordered-implementation-queue).
+  Nothing else is implemented, and nothing is approved beyond the owner's
+  decision to go on to phase A. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** the facts in [What exists today](#2-what-exists-today) were
   read on `main` at `cfb70942`. The numbers in [Baseline](#3-baseline) are
   printed by [`baseline.mjs`](./baseline.mjs) on that commit. Phase 0 ran:
@@ -28,16 +32,16 @@ Umbel plugin serves it in batches.
   The owner decided **go** on 2026-11-09 (step 0.4) on that understanding.
   Step 0.3 changed three things below: roles need a capture change first
   (step B2a), examples are checked by mounting them again, and records take
-  less from an observation. Phase A has started: step A1 is done, step A2
-  (the specifications) has not started.
+  less from an observation. Phase A has started: step A1 is done, and step A2
+  (the specifications) is written and in review.
 - **Owner's decisions:** given 2026-11-09 ([For the owner](#13-for-the-owner)).
   Phase A's specifications still need the owner's approval by pull request
-  (step A2).
+  (step A2); the plugin specification asks one question, its section 13.
 
 | Field | Value |
 | --- | --- |
 | Units touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `integrations/specimen-fast-af`, `foundations/fast-af/packages/violet-elements`, `endpoints/umbel` (a new plugin crate), `endpoints/loam` (its design record) and `.claude/skills/loam-design` (step C5) |
-| Related | [Specimens status](../../active/specimens/STATUS.md), [Umbel status](../../../../endpoints/umbel/docs/STATUS.md), [Umbel architecture](../../../../endpoints/umbel/docs/architecture.md), [Output budgets](../../../../spec/output-budgets.md) |
+| Related | [Specimens status](../specimens/STATUS.md), [Umbel status](../../../../endpoints/umbel/docs/STATUS.md), [Umbel architecture](../../../../endpoints/umbel/docs/architecture.md), [Output budgets](../../../../spec/output-budgets.md) |
 
 ## 1. Problem and goal
 
@@ -574,7 +578,9 @@ change there reruns the Umbel side.
 **Where its specification lives.** `endpoints/umbel/docs/plugins/components/spec.md`,
 in D24's shape (status block, principles served, decisions, trajectory
 rows). D18 says each further plugin gets its own specification and no plugin
-has taken that path yet, so step A2 records the location as a decision.
+had taken that path, so step A2 recorded the location as a decision (D150).
+The [specification](../../../../endpoints/umbel/docs/plugins/components/spec.md)
+is exact where this section is a sketch, and holds where the two differ.
 
 ## 10. Measurement and exit criteria
 
@@ -700,7 +706,7 @@ costlier, or as good and cheaper. The first rule that matches decides.
 | Step | Deliverable | Exit |
 | --- | --- | --- |
 | A1. Pack format, version 0 | In Specimen: the format's description, its schema exported from the package, and fixture packs (the valid example library in both forms, and each invalid case named, including an identifier that fails its pattern). A changeset. Gate: `pnpm test:specimen`, since the package's files and exports change and its packed-artifact consumers must still pass | The fixtures validate against the schema in Specimen's browser-free tests. Done 2026-11-10: [the format](../../../../foundations/specimen/docs/pack-format.md), `@lushly-dev/specimen/pack` and its JSON Schema files, and `foundations/specimen/fixtures/pack/` with 25 invalid cases that cover all 16 problem codes `checkPack` reports. The example has four components, one deprecated with its replacement and no summary, so a reader has a valid record of each kind |
-| A2. Specifications | The Umbel plugin's specification with its decisions in the Umbel decision log; a Specimen workstream entry (T12; T09 to T11 are taken) in the [implementation plan](../../active/specimens/implementation.md) and status; this folder moved to `active/` with a `STATUS.md`. Each gets an independent review and a revision before the owner's approval | Approved by the owner by pull request (D24) |
+| A2. Specifications | The Umbel plugin's specification with its decisions in the Umbel decision log; a Specimen workstream entry (T12; T09 to T11 are taken) in the [implementation plan](../specimens/implementation.md) and status; this folder moved to `active/` with a `STATUS.md`. Each gets an independent review and a revision before the owner's approval | Approved by the owner by pull request (D24). Written 2026-11-10: the [plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md) with D150 to D156, [T12](../specimens/implementation.md#ordered-implementation-queue) in the Specimens plan and status, and this folder in `active/` with [STATUS.md](STATUS.md); in review |
 
 ### Phase B. Specimen builds packs
 
@@ -760,7 +766,7 @@ Each is its own decision, not part of the exit.
 | Budgets are guessed | Step 0.1 measures before anything is built; the budget is a manifest value, not code |
 | The component build has no budget | Decision 9; D2 waits for the host rather than giving the component a different contract |
 | A new override needs a restart; a changed one is served at once and unchecked | Export renames a finished directory into place; the plugin checks each record against the catalog's digest; stated in the plugin's README; D4 |
-| Umbel's phase 5 is in flight and phase 6 is next | The plugin is a crate of its own and needs no host change: no store, no auth code, nothing added to `plugin-show` or doctor. It declares its scope under phase 5's per-command scope rule, which step A2 confirms against the phase 5 specification as merged |
+| Umbel's phase 5 is in flight and phase 6 is next | The plugin is a crate of its own and needs no host change: no store, no auth code, nothing added to `plugin-show` or doctor. Step A2 checked phase 5 as merged: there is no per-command scope rule. Scopes are resolved per call and never declared (D112; manifest version 5 keeps `scopes` reserved), so the plugin declares none and its `inspect` commands need `umbel:read` (D155) |
 | Wiring the FAST-AF plugin into `violet-elements` changes what coverage and the story contract see | It adds finite values and commands to the schema of every component a story names, so `test:stories` results can move. Step B4 does the wiring as its own commit and records what moved before any pack is built |
 | Evidence labels may not matter to an agent | Phase 0 tests whether a brief helps, with hand-written labels. It does not test whether labels earned from a run serve an agent better. That stays an assumption; phase B's value that does not rest on it is that what agents are told cannot drift from the code unnoticed |
 | Specimen's preview API changes under consumers | Additions only: a new command, a new configuration key, a new obligation set beside the existing one, and a plugin point added with its first user |

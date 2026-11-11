@@ -18,6 +18,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 |---------|-------------|
 | [Platform Monorepo](./active/platform-monorepo/) | Consolidate independent foundations and composable developer endpoints with guarded publishing; Lushly remains separate and Creator is excluded. |
 | [Specimens](./active/specimens/STATUS.md) | Native component observation and CPU/memory pilots; workstream 0 acceptance, retained-CSF compatibility and consumer cutover remain open. |
+| [Component Briefs](./active/component-briefs/STATUS.md) | One call that tells an agent how to use every component on a page: Specimen builds an evidence-labelled pack per component library and an Umbel `components` plugin serves it in batches. Plan revised after independent review; prototype run 2026-11-09 and the owner decided to go; step A1 (the pack format) done in #949; step A2's specifications written, awaiting the owner's approval |
 | [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
 | [Language Parity Closure](./active/parity-closure/parity-closure.plan.md) | Close the unintended cross-language gaps in [Language Parity](../language-parity.md): spec first, in waves 0–4, with every undeclared gap decided |
 | [MCP 2026-07-28 upgrade](./active/mcp-2026-07-28/proposal.md) | Move every AFD MCP surface to the stateless 2026-07-28 spec, served dual-era, with legacy lanes removed in 3.0 |
@@ -65,7 +66,6 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
-| [Component Briefs](./proposed/component-briefs/component-briefs.proposal.md) | One call that tells an agent how to use every component on a page: Specimen builds an evidence-labelled pack per component library and an Umbel `components` plugin serves it in batches. Plan revised after independent review; prototype run 2026-11-09 and the owner decided to go; specification not started |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |

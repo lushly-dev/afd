@@ -23,7 +23,7 @@ phase 0 experiment, fixed before any run.
 
 ## Numbers
 
-Run `node docs/features/proposed/component-briefs/baseline.mjs` (add
+Run `node docs/features/active/component-briefs/baseline.mjs` (add
 `--json` for the same numbers as JSON). Bytes are UTF-8 bytes of compact
 JSON, or a file's size where a file is named.
 
