@@ -5,7 +5,7 @@ asks for before any specification is written. They are not the engine.
 
 | Tool | Step | State |
 | --- | --- | --- |
-| [`census.py`](census.py) | 0.1 and 0.2: counts from a real mailbox, and what the provider offers | Run on the owner's iCloud account 2026-11-10; Gmail not yet run |
+| [`census.py`](census.py) | 0.1 and 0.2: counts from a real mailbox, and what the provider offers | Run on the owner's iCloud account 2026-11-10 and Gmail account 2026-11-11 |
 | [`store-bench/`](store-bench/src/main.rs) | 0.3: a local store at mailbox size | Run with a default shape and with the iCloud census's shape; every threshold met |
 
 ## The census
@@ -109,7 +109,33 @@ from strangers carry no list or bulk header and fit no recurring template. Most 
 from 2010 to 2021. Which figures describe the mail the client is for is the owner's decision in
 step 0.4.
 
-**Not yet run:** Gmail.
+## The Gmail run
+
+Run 2026-11-11 on the owner's Gmail account with version 5 of the tool, over IMAP with an app
+password, reading All Mail (which leaves out Spam and Trash). The record is
+[`gmail.counts.json`](gmail.counts.json): 17 937 messages (1.8 GB), complete, no errors, every listed
+message returned, in 131 seconds.
+
+| Measure | Result | Threshold | Outcome |
+| --- | --- | --- | --- |
+| Q1 | 3.7% (4.0% of inbound) | at least 2 in 10 in; under 1 in 10 out | Left out |
+| Q2 | 85.3% | at least 8 in 10 | Met |
+
+80% of inbound mail carries a list-unsubscribe header, 2 359 messages from strangers are left for
+judgment, and the ten largest senders account for 24% of inbound mail. Mail by year rises from
+1 536 in 2024 to 4 964 in 2025, with 2 479 so far in 2026. Gmail advertises CONDSTORE, IDLE, MOVE
+and its own extensions, and not QRESYNC.
+
+## The three runs together
+
+| Run | Messages | Q1 | Q2 |
+| --- | --- | --- | --- |
+| iCloud, whole account | 296 697 | 3.9% | 98.4% |
+| iCloud, without the largest mailbox | 21 248 | 12.1% | 60.9% |
+| Gmail | 17 937 | 3.7% | 85.3% |
+
+Q1 is under one in ten in two runs and between the thresholds in one. Q2 is met in two runs and
+missed in one. What follows from that is the owner's decision in step 0.4.
 
 ## The store measurement
 

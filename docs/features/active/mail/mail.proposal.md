@@ -260,6 +260,10 @@ until a new one is approved.
 A model is used once, to write the proposal. Whether enough mail is templated for this to pay is
 the first thing [phase 0](#8-phase-0-measure-before-specifying) measures.
 
+Phase 0 measured it: 3.9%, 12.1% and 3.7% of messages in three runs, against a threshold of two
+in ten. The owner left extractors out of the first specification on 2026-11-11. The engine keeps
+what they would need ([its section 10.4](engine.spec.md#104-extractors-deferred)).
+
 ### 4.6 Working without a model
 
 | What is present | What works |
@@ -335,6 +339,9 @@ composes the two servers, and mail leaves the machine for an Umbel only by the p
 Names follow `domain-action`. The engine's specification fixes names, shapes and codes; this list
 shows the surface and each command's class from [4.4](#44-trust-and-authority).
 
+The [engine's specification](engine.spec.md#11-commands) now holds the list; where the two
+differ, it wins.
+
 | Command | Does | Class |
 | --- | --- | --- |
 | `mail-account-add`, `mail-account-remove` | Connects or removes an account | Local; a person |
@@ -345,8 +352,8 @@ shows the surface and each command's class from [4.4](#44-trust-and-authority).
 | `mail-sender-list`, `mail-sender-show` | Reads relationships | Read |
 | `mail-sender-screen` | Records the person's decision on a sender | Local |
 | `mail-record-list`, `mail-record-propose` | Reads records; proposes records with passages the engine checks | Read; local |
-| `mail-extractor-propose`, `mail-extractor-list` | Proposes or lists extractors | Local; read |
-| `mail-extractor-approve` | Puts an extractor into use | Local; a person |
+| `mail-extractor-propose`, `mail-extractor-list` | Proposes or lists extractors | Local; read. Deferred by the owner's decision of 2026-11-11 |
+| `mail-extractor-approve` | Puts an extractor into use | Local; a person. Deferred with them |
 | `mail-story-list`, `mail-story-open`, `mail-story-changes` | Reads stories and what changed since a cursor | Read |
 | `mail-thread-snooze` | Hides a thread until a time; kept by the engine, since neither provider is known to offer it | Local |
 | `mail-thread-archive`, `mail-thread-label`, `mail-thread-mark`, `mail-thread-trash` | Changes the mailbox at the provider | Remote, can be undone |
@@ -361,8 +368,8 @@ shows the surface and each command's class from [4.4](#44-trust-and-authority).
 None of these is designed here. Each is a question for the area that owns it, and each that is
 accepted becomes that area's own specification. Loam's are recorded in the Loam status file;
 AFD's are tracked in this feature's [STATUS.md](STATUS.md) until AFD takes them up. The engine
-itself needs nothing from another area to start: phases B to E in [section 9](#9-steps) build on
-the `afd` crate alone, with sends made at a terminal.
+itself needs one thing from another area: L8, for the folder it is built in. Beyond that, phases B
+to E in [section 9](#9-steps) build on the `afd` crate alone, with sends made at a terminal.
 
 **From Loam**
 
@@ -440,16 +447,16 @@ census output does not enter the repository, beyond the counts.
 ## 9. Steps
 
 Each step after phase 0 is one or more pull requests with its own specification. The engine's
-phases depend on no other area; the Loam app can start as soon as its row's needs are met.
+phases depend on no other area beyond L8; the Loam app can start as soon as its row's needs are met.
 
 | Phase | What | Needs | Headline exit |
 | --- | --- | --- | --- |
 | 0 | Measure ([section 8](#8-phase-0-measure-before-specifying)) | The owner's go | The decision in 0.4 |
-| A | The engine's specification, in the plugin's folder (M14) | Phase 0; L8 for the folder | The owner's approval by pull request |
-| B | The connector and the log: accounts, a resumable sync for iCloud and Gmail, evidence, read commands, search, a command line and MCP | A | The owner's real mailbox synced and searched from the command line and by an agent over MCP |
+| A | The [engine's specification](engine.spec.md). It is written beside this document and moves to the plugin's folder (M14) when step B1 creates it | Phase 0 | The owner's approval by pull request |
+| B | The connector and the log: accounts, a resumable sync for iCloud and Gmail, evidence, read commands, search, a command line and MCP | A; L8 for the plugin folder its first step creates | The owner's real mailbox synced and searched from the command line and by an agent over MCP |
 | C | Relationships, screening and stream stories | B | Stream stories on the real mailbox with no model |
 | D | Reversible mailbox commands with their inverses; drafts; send for a person at a terminal | B | An agent archives and labels under policy, and cannot send; a person sends at a terminal |
-| E | Records by proposal, extractors, situation stories, reply sets | C, D | A reply set sent from a reviewed batch, each reply traceable to its inputs |
+| E | Records by proposal, situation stories, reply sets. Extractors were in this phase and are deferred (the owner, 2026-11-11) | C, D | A reply set sent from a reviewed batch, each reply traceable to its inputs |
 | F | The Loam plugin: the mount and the native app, with its own specification | B; Loam's phase 5, and phase 6's desktop lane (its milestone M3) or a hosted profile run locally; L1 to L7 as accepted; A1 and A2 | Decided by that specification. Sending from the app waits on L7 |
 | G | Composition with a connected Umbel ([4.10](#410-with-an-umbel-connected)) | F; an Umbel instance | Decided with the app's specification |
 
@@ -506,7 +513,16 @@ asking for thoughts, and its shape is open.
 | 6 | The thresholds in [section 7](#7-measurement-and-exit-criteria), as written |
 | 7 | Directed: Loam's rules should change so that a plugin can bring an engine, and engines stay out of Loam's core (L5) |
 
-Nothing is open for the owner until phase 0's numbers are in ([step 0.4](#8-phase-0-measure-before-specifying)).
+The owner's decision of 2026-11-11 on phase 0's numbers ([step 0.4](#8-phase-0-measure-before-specifying)),
+which are in the [prototype's README](prototype/README.md#the-three-runs-together):
+
+| | Answer |
+| --- | --- |
+| 8 | Go on to the engine's specification |
+| 9 | Extractors are left out of the first specification, with the design kept open for them (Q1) |
+| 10 | Screening is built as a lookup first; the mail a lookup cannot decide is the part a model ranks (Q2) |
+
+The [engine's specification](engine.spec.md) is the next document for the owner to approve.
 The shapes this plan proposes for decisions 3 and 7 are Loam's to specify.
 
 ## 12. Out of scope

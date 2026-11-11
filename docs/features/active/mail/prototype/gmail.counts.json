@@ -1,0 +1,192 @@
+{
+	"addresses_treated_as_the_person": 1,
+	"body_sample": {
+		"agreement": 0.4272,
+		"bodies_fetched": 309,
+		"byte_cap": 314572800,
+		"bytes_fetched": 11333761,
+		"bytes_per_second": 246992,
+		"templates_sampled": 103,
+		"templates_whose_bodies_share_one_shape": 44
+	},
+	"by_year": {
+		"2006": 84,
+		"2007": 305,
+		"2008": 577,
+		"2009": 476,
+		"2010": 1050,
+		"2011": 466,
+		"2012": 596,
+		"2013": 325,
+		"2014": 530,
+		"2015": 419,
+		"2016": 470,
+		"2017": 400,
+		"2018": 236,
+		"2019": 112,
+		"2020": 203,
+		"2021": 648,
+		"2022": 934,
+		"2023": 1127,
+		"2024": 1536,
+		"2025": 4964,
+		"2026": 2479
+	},
+	"capabilities": {
+		"after_login": [
+			"APPENDLIMIT=35651584",
+			"CHILDREN",
+			"COMPRESS=DEFLATE",
+			"CONDSTORE",
+			"ENABLE",
+			"ESEARCH",
+			"ID",
+			"IDLE",
+			"IMAP4rev1",
+			"LIST-EXTENDED",
+			"LIST-STATUS",
+			"LITERAL-",
+			"MOVE",
+			"NAMESPACE",
+			"QUOTA",
+			"SPECIAL-USE",
+			"UIDPLUS",
+			"UNSELECT",
+			"UTF8=ACCEPT",
+			"X-GM-EXT-1",
+			"XLIST"
+		],
+		"before_login": [
+			"AUTH=OAUTHBEARER",
+			"AUTH=PLAIN",
+			"AUTH=PLAIN-CLIENTTOKEN",
+			"AUTH=XOAUTH2",
+			"CHILDREN",
+			"ID",
+			"IDLE",
+			"IMAP4REV1",
+			"NAMESPACE",
+			"QUOTA",
+			"SASL-IR",
+			"UNSELECT",
+			"X-GM-EXT-1",
+			"XLIST",
+			"XYZZY"
+		]
+	},
+	"complete": true,
+	"coverage": {
+		"listed_not_returned": 0,
+		"mailboxes_not_listed": 0,
+		"messages_read": 17937,
+		"sent_listed_not_returned": 0,
+		"sent_messages_read": 1616,
+		"sent_uids_listed": 1616,
+		"uids_listed": 17937
+	},
+	"distinct_addresses_written_to": 251,
+	"errors": {},
+	"from_the_person": 1616,
+	"host": "imap.gmail.com",
+	"inbound": 16321,
+	"limit_per_mailbox": null,
+	"mailboxes": {
+		"counted": 1,
+		"listed": 11,
+		"sent": 1,
+		"special_use_flags_seen": [
+			"\\all",
+			"\\drafts",
+			"\\flagged",
+			"\\haschildren",
+			"\\hasnochildren",
+			"\\important",
+			"\\junk",
+			"\\noselect",
+			"\\sent",
+			"\\trash"
+		]
+	},
+	"messages": 17937,
+	"provider": "gmail",
+	"q1": {
+		"excluding_replies": {
+			"share": 0.0337,
+			"templated_without_list_unsubscribe": 604
+		},
+		"question": "share of all messages in a template seen at least 5 times that carry no list-unsubscribe header",
+		"share": 0.0365,
+		"share_of_inbound": 0.0401,
+		"share_templated_with_list_unsubscribe": 0.0796,
+		"templated_with_list_unsubscribe": 1427,
+		"templated_without_list_unsubscribe": 655,
+		"untemplated_inbound": 14239
+	},
+	"q2": {
+		"decided_by_lookup": 13712,
+		"from_senders_never_written_to": 16071,
+		"from_senders_written_to": 250,
+		"left_for_judgment": 2359,
+		"question": "of inbound messages from senders the person never wrote to, the share with a list or bulk header or in a template",
+		"share": 0.8532
+	},
+	"rates": {
+		"body_pass_bytes_per_second": 246992,
+		"header_pass_messages_per_second": 218.8,
+		"header_pass_seconds": 82.0
+	},
+	"replies": 407,
+	"seconds": 130.8,
+	"senders": {
+		"by_volume": {
+			"1": 668,
+			"100-999": 43,
+			"2-4": 244,
+			"20-99": 101,
+			"5-19": 160
+		},
+		"distinct": 1216,
+		"share_of_inbound_from_top_10": 0.2353,
+		"share_of_inbound_from_top_100": 0.7531
+	},
+	"sizes_bytes": {
+		"1-4096": 1334,
+		"10485761+": 14,
+		"1048577-10485760": 129,
+		"16385-65536": 8689,
+		"262145-1048576": 119,
+		"4097-16384": 1922,
+		"65537-262144": 5730
+	},
+	"skipped_over": {
+		"mailboxes": 0,
+		"threshold": null,
+		"uids_listed": 0
+	},
+	"templates": {
+		"by_size": {
+			"1": 12778,
+			"100-999": 5,
+			"2-4": 642,
+			"20-99": 12,
+			"5-19": 86
+		},
+		"distinct": 13523,
+		"seen_at_least_min": 103
+	},
+	"threads": {
+		"by_size": {
+			"1": 16551,
+			"11-50": 4,
+			"2": 354,
+			"3-5": 137,
+			"6-10": 20
+		},
+		"distinct": 17066
+	},
+	"tool_version": 5,
+	"total_bytes": 1838119185,
+	"with_any_bulk_header": 13239,
+	"with_authentication_results": 16319,
+	"with_list_unsubscribe": 13004
+}
