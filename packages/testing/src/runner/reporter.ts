@@ -21,7 +21,8 @@ export interface ReporterConfig {
 
 	/**
 	 * Use colors in output. By default, human output is colored when `output` is a terminal,
-	 * unless `NO_COLOR` is set; `FORCE_COLOR` turns color on (or off with `0` or `false`).
+	 * unless `NO_COLOR` is set or `TERM` is `dumb`; `FORCE_COLOR` turns color on (or off with
+	 * `0` or `false`).
 	 */
 	colors?: boolean;
 
@@ -46,17 +47,19 @@ const colors = {
 };
 
 /**
- * Whether output to `stream` is colored by default: when it is a terminal and `NO_COLOR` is
- * unset or empty. `FORCE_COLOR` decides instead when it is set, as chalk reads it: `0` and
- * `false` turn color off, any other value turns it on.
+ * Whether output to `stream` is colored by default, by chalk's rules: `FORCE_COLOR` set to an
+ * empty string, `true` or a number above 0 turns color on, and `0` or `false` turns it off;
+ * otherwise a terminal is colored unless `NO_COLOR` is set or `TERM` is `dumb`.
  */
 export function supportsColor(
 	stream: NodeJS.WritableStream,
 	env: Record<string, string | undefined> = process.env
 ): boolean {
 	const force = env.FORCE_COLOR;
-	if (force !== undefined) return force !== '0' && force !== 'false';
-	if (env.NO_COLOR) return false;
+	if (force === '' || force === 'true') return true;
+	if (force === 'false') return false;
+	if (force !== undefined && /^\d+$/.test(force)) return Number(force) > 0;
+	if (env.NO_COLOR || env.TERM === 'dumb') return false;
 	return (stream as { isTTY?: boolean }).isTTY === true;
 }
 

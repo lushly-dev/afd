@@ -525,6 +525,15 @@ describe('supportsColor', () => {
 		expect(supportsColor(pipe, { FORCE_COLOR: '1', NO_COLOR: '1' })).toBe(true);
 		expect(supportsColor(terminal, { FORCE_COLOR: '0' })).toBe(false);
 		expect(supportsColor(terminal, { FORCE_COLOR: 'false' })).toBe(false);
+		expect(supportsColor(pipe, { FORCE_COLOR: 'true' })).toBe(true);
+		expect(supportsColor(pipe, { FORCE_COLOR: '3' })).toBe(true);
+	});
+
+	it('defers to the stream for a FORCE_COLOR chalk does not read, and treats TERM=dumb as plain', () => {
+		expect(supportsColor(pipe, { FORCE_COLOR: 'yes' })).toBe(false);
+		expect(supportsColor(terminal, { FORCE_COLOR: 'yes' })).toBe(true);
+		expect(supportsColor(terminal, { TERM: 'dumb' })).toBe(false);
+		expect(supportsColor(terminal, { TERM: 'dumb', FORCE_COLOR: '1' })).toBe(true);
 	});
 });
 

@@ -39,17 +39,21 @@ _COLORS = {
 
 
 def supports_color(stream: TextIO, env: Mapping[str, str] | None = None) -> bool:
-    """Whether output to ``stream`` is colored by default.
+    """Whether output to ``stream`` is colored by default, by chalk's rules.
 
-    A terminal is colored unless ``NO_COLOR`` is set and non-empty. ``FORCE_COLOR``
-    decides instead when it is set, as chalk reads it: ``0`` and ``false`` turn color
-    off, any other value turns it on.
+    ``FORCE_COLOR`` set to an empty string, ``true`` or a number above 0 turns color
+    on, and ``0`` or ``false`` turns it off. Otherwise a terminal is colored unless
+    ``NO_COLOR`` is set or ``TERM`` is ``dumb``.
     """
     env = os.environ if env is None else env
     force = env.get('FORCE_COLOR')
-    if force is not None:
-        return force not in ('0', 'false')
-    if env.get('NO_COLOR'):
+    if force in ('', 'true'):
+        return True
+    if force == 'false':
+        return False
+    if force is not None and force.isascii() and force.isdigit():
+        return int(force) > 0
+    if env.get('NO_COLOR') or env.get('TERM') == 'dumb':
         return False
     isatty = getattr(stream, 'isatty', None)
     try:

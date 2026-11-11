@@ -1167,6 +1167,12 @@ class TestReporterColorDefault:
         assert supports_color(StringIO(), {'FORCE_COLOR': '1', 'NO_COLOR': '1'}) is True
         assert supports_color(_Terminal(), {'FORCE_COLOR': '0'}) is False
         assert supports_color(_Terminal(), {'FORCE_COLOR': 'false'}) is False
+        assert supports_color(StringIO(), {'FORCE_COLOR': 'true'}) is True
+        assert supports_color(StringIO(), {'FORCE_COLOR': '3'}) is True
+        assert supports_color(StringIO(), {'FORCE_COLOR': 'yes'}) is False
+        assert supports_color(_Terminal(), {'FORCE_COLOR': 'yes'}) is True
+        assert supports_color(_Terminal(), {'TERM': 'dumb'}) is False
+        assert supports_color(_Terminal(), {'TERM': 'dumb', 'FORCE_COLOR': '1'}) is True
 
     def test_no_ansi_codes_when_the_output_is_not_a_terminal(self, monkeypatch):
         monkeypatch.delenv('FORCE_COLOR', raising=False)
