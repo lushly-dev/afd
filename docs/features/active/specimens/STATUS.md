@@ -1,6 +1,6 @@
 # Specimens status
 
-Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-11-10** against fetched main `a1c52b37`, which contains every pull request named below. Named source SHAs retain the measured/reviewed checkpoints.
+Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-11-10** against fetched main `d4c31d9e`, which contains every pull request named below. Named source SHAs retain the measured/reviewed checkpoints.
 
 ## Where the epic stands
 
@@ -47,7 +47,7 @@ The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple")
 
 **Optional, and not needed for cutover:** T09, T10 and T11, along with pixel comparison.
 
-**Component packs (T12):** Specimen's half of [Component Briefs](../component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The rest waits for the owner's approval of that plan's step A2, by pull request; its steps B1 to B4 then need only Specimen and FAST-AF. Not needed for cutover.
+**Component packs (T12):** Specimen's half of [Component Briefs](../component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The owner approved that plan's step A2 on 2026-11-10 (#964); steps B1 to B4 are not started and need only Specimen and FAST-AF. Not needed for cutover.
 
 ### Handoff, 2026-11-02: resume here
 
@@ -270,3 +270,4 @@ All rows were reconciled on 2026-11-02. Rows marked open have no owner or issue 
 | 2026-11-04 | Index review and the settled accessibility check | [#785](https://github.com/lushly-dev/afd/pull/785), branch `lush/specimens-settled-a11y`, from main `2810474c`. The owner reviewed the index ("Index looks good, nice and simple"). `test.settledAccessibility` adds a check once a story has settled; `compat/settled/` shows Storybook and the default check pass a story the settled check fails. On for AFD's stories: 407 of 407 pass both after fixing a disabled listbox's options, which claimed `aria-disabled="false"`, and a disabled switch's dimmed supporting text, with the checkbox and radio following the same rule |
 | 2026-11-02 | Handoff | Against main `a5830b4d`. Added the [handoff](#handoff-2026-11-02-resume-here). Documents only |
 | 2026-11-10 | Component packs (T12) | [#949](https://github.com/lushly-dev/afd/pull/949), merged as `a1c52b37`: the pack format, version 0, at `@lushly-dev/specimen/pack`, with its JSON Schema files, description and fixtures (Component Briefs step A1). Then, on branch `lush/specimen-pack-umbel-plugin`: T12 added to the plan and this ledger, with the Umbel plugin's specification, for the owner's approval (step A2). Documents only |
+| 2026-11-10 | Component packs (T12) | The owner approved Component Briefs step A2, with T12, by merging [#964](https://github.com/lushly-dev/afd/pull/964) as `d4c31d9e`. T12 can start at step B1 |
