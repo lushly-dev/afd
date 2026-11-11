@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import {
+	hasStaleShape,
 	manifestShape,
 	matchesRecord,
 	recordProvenance,
@@ -91,6 +92,48 @@ test("a release's Changesets edits are recorded, and the records' digest follows
 		read(root, 'foundations/specimen/provenance/adaptations.json').files[0].import_reason,
 		'Versioned; Again'
 	);
+});
+
+// #968 added an export to Specimen's manifest and updated the record's digest by hand. `main`
+// passed, and every Dependabot update to that manifest then failed (#981, #982).
+test('a digest updated by hand leaves a stale shape, which recording again refreshes', (t) => {
+	const root = fixture(t);
+	const reviewed = '{ "name": "@fixture/specimen", "dependencies": { "lit": "^3.0.0" } }\n';
+	write(root, 'foundations/specimen/package.json', reviewed);
+	recordProvenance(root, 'specimen', 'Reviewed');
+	const records = 'foundations/specimen/provenance/adaptations.json';
+	const record = () => read(root, records).files[0];
+	assert.ok(!hasStaleShape(record(), Buffer.from(reviewed)));
+
+	// A hand edit: a new field in the manifest, and only the digest in its record.
+	const edited = reviewed.replace('"dependencies"', '"exports": {}, "dependencies"');
+	write(root, 'foundations/specimen/package.json', edited);
+	const adaptations = read(root, records);
+	adaptations.files[0].current_import_sha256 = sha(edited);
+	write(root, records, `${JSON.stringify(adaptations, null, 2)}\n`);
+	assert.ok(matchesRecord(record(), Buffer.from(edited)), 'main passes');
+	assert.ok(hasStaleShape(record(), Buffer.from(edited)));
+	const bumped = Buffer.from(edited.replace('^3.0.0', '^3.3.1'));
+	assert.ok(!matchesRecord(record(), bumped), 'a dependency update fails');
+
+	assert.deepEqual(recordProvenance(root, 'specimen', 'Unused'), [
+		'foundations/specimen/package.json',
+	]);
+	assert.ok(!hasStaleShape(record(), Buffer.from(edited)));
+	assert.ok(matchesRecord(record(), bumped));
+	assert.equal(
+		record().import_reason,
+		'Reviewed',
+		'the file did not change, so no reason is added'
+	);
+	assert.equal(
+		read(root, 'foundations/specimen/provenance/provenance.json').records.adaptations.sha256,
+		sha(readFileSync(join(root, records)))
+	);
+	// After a dependency update the digest is behind and the shape current: not stale.
+	assert.ok(!hasStaleShape(record(), bumped));
+	// A file with no shape is never stale.
+	assert.ok(!hasStaleShape({ current_import_sha256: sha(edited) }, Buffer.from(edited)));
 });
 
 test('recording requires a known family and a reason', (t) => {
