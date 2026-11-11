@@ -161,12 +161,43 @@ pub(crate) fn invalid(what: &str) -> Outcome {
     )
 }
 
-/// `components-brief` before the specification's step C2.
-pub(crate) fn brief_not_implemented() -> Outcome {
+/// `TOO_MANY_TAGS`: more than 128 tags asked for in all (section 6.2).
+pub(crate) fn too_many_tags(count: usize) -> Outcome {
     failure(
-        "NOT_IMPLEMENTED",
-        "components-brief is declared but not implemented yet",
-        "Use components-list to find a tag and components-open to read it; components-brief arrives with step C2 of the plugin's specification.",
+        "TOO_MANY_TAGS",
+        &format!("{count} tags were asked for, and a brief answers at most 128"),
+        "Brief part of the page at a time: pass fewer tags, or a smaller part of the source.",
+    )
+    .with_error_details(json!({ "count": count }))
+}
+
+/// `OUTPUT_BUDGET_EXCEEDED` for a brief whose floors do not fit (section 6.4).
+pub(crate) fn brief_budget_exceeded(fits: usize) -> Outcome {
+    failure(
+        "OUTPUT_BUDGET_EXCEEDED",
+        &format!(
+            "the brief does not fit in the call's output budget even with every section left out; the first {fits} requested tag(s) would"
+        ),
+        "Brief fewer tags at a time (details.fits says how many fit), or ask for a larger budget per call with `_meta[\"dev.afd/outputBudget\"]`, up to the command's 96 000; `maxBytes` only lowers it.",
+    )
+    .with_error_details(json!({ "fits": fits }))
+}
+
+/// Adds `LIBRARY_VERSION_MISMATCH` for one library (section 6.5). Every value is a checked
+/// identifier: the catalog's package and version, and the caller's own.
+pub(crate) fn warn_version(
+    outcome: Outcome,
+    library: &str,
+    package: &str,
+    installed: &str,
+    pack: &str,
+) -> Outcome {
+    outcome.with_warning_details(
+        "LIBRARY_VERSION_MISMATCH",
+        &format!(
+            "the library `{library}` was built from {package}@{pack}, and {installed} is installed; facts may differ"
+        ),
+        json!({ "library": library, "package": package, "installed": installed, "pack": pack }),
     )
 }
 

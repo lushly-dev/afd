@@ -10,11 +10,14 @@
 ## Status
 
 - **State:** approved by the owner 2026-11-10, by merging #964 (step A2 of the Component Briefs plan,
-  [D24](../../decisions.md), [D150](../../decisions.md)). Step C1 is implemented, [amended below](#amendments-from-step-c1);
-  `components-brief` is declared and answers `NOT_IMPLEMENTED` until step C2.
+  [D24](../../decisions.md), [D150](../../decisions.md)). Steps C1 and C2 are implemented, amended below
+  ([C1](#amendments-from-step-c1), [C2](#amendments-from-step-c2)): all three commands answer.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-10 against `main` at `a1c52b37`.
+- **Last verified:** 2026-11-11 for step C2, against `main` at `d2c30f72`: the crate's `entry.rs`, `open.rs`,
+  `list.rs`, `fit.rs`, `select.rs` and the reader, context's `render.rs` (for the copied `quote` and `clean_header`),
+  `src/plugins/grants.rs`'s `log`, and the test kit read; the Umbel gate run (section 12). Before that, 2026-11-10
+  against `main` at `a1c52b37`, for the specification itself:
   - Read in the code: `sdk/src/lib.rs` (`Plugin`: `manifest`, `assets`, `handle`), `sdk/src/cx.rs`
     (`CallContext::output_budget`, `Cx::pack_read`, `Cx::pack_list`, `Cx::config`, `Cx::log`), `sdk/src/outcome.rs`,
     `src/plugins/packs.rs` (`MAX_PACK_FILES` 1 000, `MAX_PACK_BYTES` 64 MiB, `data`, `reference` and `rules` as the
@@ -31,8 +34,8 @@
   - Read in the documents: the Umbel architecture's principles; D18, D24, D46, D48, D57, D64, D67, D75 and D112; the
     phase 5 specification's owner decision 3 (scopes); the Component Briefs proposal and its phase 0 records.
   - No Rust was built or run. No external source was re-checked; see the [trajectory refresh](#trajectory-refresh).
-- **Done:** step C1 (section [12](#12-implementation-plan)).
-- **Not done:** steps C2 to C5 of section [12](#12-implementation-plan).
+- **Done:** steps C1 and C2 (section [12](#12-implementation-plan)).
+- **Not done:** steps C3 to C5 of section [12](#12-implementation-plan).
 - **Follow-ups:** the [table at the end](#follow-ups).
 
 ### Review response
@@ -76,6 +79,22 @@ refuses it either way. One-off differential runs on 2,100 random single- and mul
 example, the last after every fix below, agreed with `checkPack` on every problem, including its Zod rules for which checks run after a failure, and an
 independent review's further differences (Zod counts string lengths in code points; a malformed overflowing number is
 `JSON_INVALID`) are fixed, each with a test. `serde_json`'s `float_roundtrip` is on, so a number parses as JavaScript parses it.
+
+### Amendments from step C2
+
+The step found these points the document had not settled, and took the narrowest reading of each:
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A5 | Which libraries are "in an answer" (5.1, 5.4, 6.5) | The libraries that answer at least one entry, in library order. They make `libraries` and `content.libraries`, decide whether rule ids are qualified, and are the ones `versions` is compared with. A brief that answers no entry has empty lists. With more than one, a bare id in `known` matches no rule, since every id in that answer is qualified; only `<library>/<id>` does |
+| A6 | What an attribute's `values` compare their basis with (5.2) | The attribute's own basis: a value carries `basis` only when it differs from the attribute's. The attribute then carries its own only when it differs from the section's |
+| A7 | Rule text with `detail` and `sections` (5.4, 6.1) | `detail: "api"` sends no `content.rules` at all. Otherwise `content.rules` holds the text of every rule the served sections name (the `rules` section and the attributes' `rules`), minus `known`, and is `[]` when they name none. With `sections`, rule text is sent as with `brief` |
+| A8 | Unknown names from `source` (6.2, 7) | They are requested tags like any other, in the order found: they count toward the 128, keep their place in `unknown`, and get `nearest` as any `not-found` does. An unknown name loses its trailing `.`, `_` and `-` as a known one does, and one that `umbel-scan` reads as an instruction, its separators read as spaces (3.2), is dropped: a page may be a third party's, and section 5.1 lets only scanned identifiers outside the content part. A tag in `tags` is the caller's own and is checked against the tag pattern only |
+| A9 | `omitted` when a step takes nothing (6.4) | A step that removes nothing from any entry is not named. Step 10 still leaves out an empty `content.rules`, unnamed. `sections` and `pieces` are both always present in the budget entry, `pieces` possibly empty; `open.sections` is in shedding order with no repeats. The `minimum-basis` entry comes first, and counts every fact the setting left out of the answered records, as `components-open` counts them |
+| A10 | `details.fits` (6.4) | The largest number of leading requested tags, entries and unknown tags alike, whose answer fits with every step applied, each measured whole, its own `omitted` included |
+| A11 | No output budget on the call | The target is `maxBytes` alone, or none. AFD gives every call through the host a budget, so this is for direct use only |
+| A12 | The text block's lines (6.6), fixed by `tests/golden/example-full.txt` and `example-shed.txt` | A component's header is `[component <tag> <status>]`, with `replaced-by <tag>` for a replacement and `from <library>` when the answer holds more than one library. Its summary, then `import: <specifier>`, are quoted. Each section is `[<section> <basis>]` then one quoted line a fact: an attribute `name: type = default — description; rules: a, b`, with `values` as `a \| b` in place of the type; a slot `name accepts a, b — description` (`(default)` for the default slot); an event `name: detail — description`; a command `name — description`; a CSS property `name = default — description`; `associated: true`; a role `state: role; name …`; axe `violations: n; exceptions: …`; a statement `id: text`; a gap its JSON. `rules` is one header of ids; an example is `[example <story> <basis when it differs>]` over its quoted markup; `detail` is `[detail]` over the quoted long form. Rules follow as `[rule <id> <basis>]` over the quoted text. Then one header per `unknown` tag (`[unknown <tag> not-found nearest …]`, `[unknown <tag> ambiguous in …]`) and per `omitted` entry (`[left out below the minimum basis: n facts]`, `[left out to fit: <sections and pieces>; components-open returns them]`), so a harness that injects only the text loses neither |
+| A13 | Where `scale.rs` prints (11) | To stderr directly, past the test harness's capture, so a passing CI run shows the line |
 
 ## What this plugin serves
 
@@ -914,6 +933,6 @@ lives (D150), reading whole libraries on every call (D152), the shedding order's
 | --- | --- | --- | --- |
 | 2026-11-10 | This specification | Specimen's fixtures have no lone-surrogate case; both readers should be held to `TEXT_INVALID` on it | Step C1, with Specimen's T12 |
 | 2026-11-10 | This specification | Specimen's `specimen-pack-export` swaps the pack directory; it must carry the deployer's `pack.toml` across, or the host loses the override | Specimen's T12, step B3 |
-| 2026-11-10 | This specification | Reading every record on every call is measured in C2 (`scale.rs`); a cache keyed by the catalog's digest, re-checking each record's digest, is the answer if it is too slow, and a component build cannot keep one | After C1, on its measurement |
+| 2026-11-10 | This specification | Reading every record on every call is measured in C2 (`scale.rs`); a cache keyed by the catalog's digest, re-checking each record's digest, is the answer if it is too slow, and a component build cannot keep one | Measured 2026-11-11 in step C2: a 20-tag brief on a 990-record library (992 files, 3.0 MB) took 0.29 to 0.38 s a call in a debug build on the shared 10-core Mac with the load under 20 (0.9 to 3.3 s under a load of 25 to 33), and `components-list` 0.28 s, so the read and check dominate. Read time grows with the library, so FAST-AF's 77 components should cost about a tenth of that; not measured. No cache yet: C4 measures B4's real pack, and C5 records what a session pays |
 | 2026-11-10 | This specification | A new override needs a restart, and a changed one is served unchecked against the pack limits (D46). Stated in the README; the host change is the proposal's step D4 | Proposal step D4 |
 | 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Proposal step D2 |

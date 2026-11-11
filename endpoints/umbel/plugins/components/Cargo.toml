@@ -30,6 +30,9 @@ tempfile = "3"
 # The tests pass an instance's `config` table.
 toml = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# `tests/content_stays_content.rs` keeps what the host logs, to look for pack text in it.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
 # The tests boot a host with the plugin and its grants, with no loader (so no wasmtime).
 umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
 

@@ -229,21 +229,3 @@ async fn a_tag_in_two_libraries_needs_a_library_or_a_default() {
         .await;
     assert_eq!(component(&result)["library"], "zed");
 }
-
-#[tokio::test]
-async fn components_brief_says_it_is_not_implemented_yet() {
-    let fx = Pack::example().host();
-    let result = serde_json::to_value(
-        fx.host
-            .call("components-brief", json!({ "tags": ["example-field"] }))
-            .await,
-    )
-    .unwrap();
-    assert_eq!(code(&result), "NOT_IMPLEMENTED");
-    assert!(
-        result["error"]["suggestion"]
-            .as_str()
-            .unwrap()
-            .contains("components-open")
-    );
-}

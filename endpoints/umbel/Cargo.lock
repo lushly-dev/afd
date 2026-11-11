@@ -4091,6 +4091,8 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "tracing",
+ "tracing-subscriber",
  "umbel",
  "umbel-scan",
  "umbel-sdk",
