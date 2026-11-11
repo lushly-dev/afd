@@ -3784,11 +3784,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5604602feac97788b22774b8daaf41e62b22405ed946b6ef7eb7bbd78e5aa7a2",
+      "current_import_sha256": "f64bd65440873e842a33c321a6c9461242aa5b4ac0c7296fe2f7d5d59b41256a",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Widen the review page to fit the Wide preset and drop the stage background"
+      "import_reason": "Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Widen the review page to fit the Wide preset and drop the stage background; The review page's selects draw their own arrow, inset from the right edge"
     },
     {
       "path": "foundations/specimen/compat/elements/late-style.ts",
