@@ -275,6 +275,36 @@ enterprise identity provider, with no change.
 - Nothing crosses spaces. A framing tree lives in one space.
 - An idea whose only sources the caller cannot read is denied, as derived content is today.
 
+### 4.10 Beside memory and knowledge
+
+Umbel has two stores with two write paths (principle 8, decision D9). Ideas is a third. It is not
+the knowledge plugin with another schema.
+
+| | memory | knowledge | ideas |
+| --- | --- | --- | --- |
+| Unit | A record of a session, a fact someone asserted, a note on how something is done | A document | An idea, with versions |
+| Who writes | Agents | A proposal that a person or a policy approves | Agents and people, at once |
+| Standing | None: nothing in memory is verified | Verified, with a verify-by date | A seed until a person affirms the wording |
+| Lifetime | Expires | Durable | Durable |
+| Relations | None of its own | Derived from structure: hierarchy, headings, links, tags, owners | Authored and typed: supports, challenges, refines |
+| Variation | By scope: space, project, actor, session | By collection and access | By framings that inherit |
+| The record | Bitemporal records | The current document and its changes | An operation log; state is computed |
+| What it is for | Remembering | Reference that an agent reads | A body of thinking that an agent answers and writes from |
+
+What the three share is the host: the stores behind the traits, the index, the graph, the
+envelope, events, sign-in and spaces. Ideas brings no database of its own. It does need the host
+to offer more than it does today, which is P1 to P5.
+
+Where they meet:
+
+- A knowledge document, or any file in a collection, can be a source. An idea cites it, and with
+  P4 that citation is an edge in the graph.
+- Memory that has settled could become seeds, as the curator turns it into knowledge proposals
+  today.
+- An affirmed idea that an organisation wants as reference is proposed to knowledge like any
+  other change.
+- With P9 a context bundle can carry ideas beside knowledge and memory.
+
 ## 5. Commands (draft)
 
 All in the `ideas` domain. Names and inputs are settled by the plugin's specification.
