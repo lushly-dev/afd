@@ -81,7 +81,9 @@ jobs:
         run: pnpm -F @lushly-dev/health-dashboard fixtures:check
       - name: Headless Health wheel has no unconditional or frontend dependency
         run: node endpoints/health-dashboard/scripts/verify-health-isolation.mjs
+      # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - run: pnpm -F @lushly-dev/health-dashboard exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Chromium suite (every status, invalid files, keyboard, CSP, axe WCAG 2.2 AA)
         run: pnpm -F @lushly-dev/health-dashboard test:browser
       - name: Build leaves tracked files unchanged

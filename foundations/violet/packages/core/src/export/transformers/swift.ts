@@ -195,7 +195,7 @@ function escapeSwiftString(str: string): string {
  */
 function isHexColor(value: unknown): boolean {
 	if (typeof value !== 'string') return false;
-	return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value);
+	return /^#([0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value);
 }
 
 /**
@@ -212,6 +212,8 @@ extension SwiftUI.Color {
         switch hex.count {
         case 3: // RGB (12-bit)
             (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 4: // RGBA (16-bit), CSS order: alpha last
+            (r, g, b, a) = ((int >> 12) * 17, (int >> 8 & 0xF) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
         case 6: // RGB (24-bit)
             (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
         case 8: // RGBA (32-bit), CSS order: alpha last

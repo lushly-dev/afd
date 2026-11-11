@@ -1,0 +1,14 @@
+{
+	"tag": "plain-button",
+	"usage": [
+		{ "id": "plain-button.label", "text": "Give it a label that says what it does." },
+		{ "id": "plain-button.focus", "text": "It takes focus through the button inside it." }
+	],
+	"a11y": [
+		{
+			"id": "plain-button.disabled-attribute",
+			"text": "Set disabled as an attribute, so assistive technology sees it.",
+			"members": ["disabled"]
+		}
+	]
+}

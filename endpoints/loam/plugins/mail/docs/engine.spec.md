@@ -1,8 +1,8 @@
 # Mail: the engine's specification
 
-Phase A of the [Mail proposal](mail.proposal.md). It specifies the engine: the Rust program that
+Phase A of the [Mail proposal](../../../../../docs/features/active/mail/mail.proposal.md). It specifies the engine: the Rust program that
 holds a person's mail on their machine and serves it as AFD commands. Read the
-[status](STATUS.md) first, then the proposal; this document does not repeat the proposal's
+[status](../../../../../docs/features/active/mail/STATUS.md) first, then the proposal; this document does not repeat the proposal's
 reasons.
 
 ## Status
@@ -10,8 +10,8 @@ reasons.
 - **State:** approved. The owner approved it on 2026-11-11 by merging
   [#995](https://github.com/lushly-dev/afd/pull/995), and answered the four choices of
   [section 16](#16-for-the-owner) the same day. His answers added M28 and M29.
-- **Written:** 2026-11-11, against `main` at `d2c30f72`.
-- **Covers:** phases B to E of the proposal's [section 9](mail.proposal.md#9-steps). Phase B is
+- **Written:** 2026-11-11, against `main` at `d2c30f72`. Moved to the plugin's folder by step B1.
+- **Covers:** phases B to E of the proposal's [section 9](../../../../../docs/features/active/mail/mail.proposal.md#9-steps). Phase B is
   specified in full, apart from the points it names as decided by one of its steps. Phases C to E
   are fixed in shape; what each leaves open is listed as "decided by step" and is settled in that
   step's pull request, as Loam's phase specifications do.
@@ -21,13 +21,13 @@ reasons.
   context hook, the approval middleware and the journal recorder; `spec/command-metadata.md`
   (exposure and tasks); Loam's workflow path filters; Umbel's decisions D67, D115 and D153 and
   its provenance envelope; the three census records and the store results in
-  [`prototype/`](prototype/README.md). The crates named in [section 2](#2-units-placement-and-crates)
+  [`prototype/`](../../../../../docs/features/active/mail/prototype/README.md). The crates named in [section 2](#2-units-placement-and-crates)
   were looked up on crates.io on 2026-11-11 for licence, version and minimum Rust; none was built
   or run for this document. Statements about a provider that were not observed are marked
   "not verified".
 - **Review:** one independent review on 2026-11-11 (revise; eleven blockers and its
   improvements, all applied), and one of the owner's answers the same day (revise; five small
-  blockers, all applied), recorded in the [status](STATUS.md#session-log).
+  blockers, all applied), recorded in the [status](../../../../../docs/features/active/mail/STATUS.md#session-log).
 
 ## What phase 0 decided
 
@@ -107,17 +107,16 @@ record what he added when he answered [section 16](#16-for-the-owner).
 folder needs Loam's need L8, because Loam's workflow runs on any change under `endpoints/loam/`
 but its documents. So:
 
-- This document stays in `docs/features/active/mail/` until the folder exists.
-- Step B1 creates `endpoints/loam/plugins/mail/` with `engine/` (the crate) and `docs/` (this
-  document moves there). In the same pull request it excludes `endpoints/loam/plugins/**` from
-  both path lists of `loam.yml` (push and pull request) and adds one workflow,
-  `loam-plugins.yml`, whose affected-units gate runs only the plugin that changed. That pull
-  request is a change to Loam and is reviewed as one; Loam's ledger records L8 as the owner's
-  request, not yet as a decision. So phase B needs one thing from another area: L8, in its first
-  step.
+- Step B1 created `endpoints/loam/plugins/mail/` with `engine/` (the crate) and `docs/` (this
+  document, which was written in `docs/features/active/mail/` and moved here). The same pull
+  request excluded `endpoints/loam/plugins/**` from both path lists of `loam.yml` (push and
+  pull request) and added one workflow, `loam-plugins.yml`, whose affected-units gate runs only
+  the plugin that changed. Loam's ledger records this as its D109.
+- The proposal, the status file and the prototype stay in `docs/features/active/mail/`.
 - The crate is its own Cargo workspace, as Umbel is, with `publish = false`. It depends on the
-  `afd` crate by path, with the `server`, `approval` and `journal-file` features. A change under
-  `packages/rust/**` runs the plugin's workflow.
+  `afd` crate by path, with the `native`, `approval` and `journal-file` features; step B5 adds `server`
+  when it serves MCP, so that the lockfile carries the MCP SDK only once it is used. A change
+  under `packages/rust/**` runs the plugin's workflow.
 - `pnpm check` does not cover it. The workflow runs `cargo fmt --check`, clippy with
   `-D warnings` and `cargo test --locked`.
 
@@ -135,8 +134,9 @@ Each crate's maintenance history was not read.
 | `lettre` | 0.11 | MIT | SMTP, from phase D | None |
 | `keyring` | 4.2 | MIT or Apache-2.0 | The operating system's keychain | None |
 
-Every crate here is permissively licensed. Step B1 adds a licence check to the workflow so a
-transitive dependency cannot change that unnoticed.
+Every crate here is permissively licensed. Step B1 added a licence check so a transitive
+dependency cannot change that unnoticed: a test in the crate reads the lockfile's packages and
+fails on a licence outside its allowlist, and the workflow runs it with the other tests.
 
 ## 3. Process and surfaces
 
@@ -748,8 +748,8 @@ later command that deletes mail for good joins them.
 
 ## 10. Records, proposed stories and reply sets
 
-Phase E. Its shape is the proposal's ([4.3](mail.proposal.md#43-layers),
-[4.7](mail.proposal.md#47-stories), [4.8](mail.proposal.md#48-outbound-mail-and-reply-sets)); what
+Phase E. Its shape is the proposal's ([4.3](../../../../../docs/features/active/mail/mail.proposal.md#43-layers),
+[4.7](../../../../../docs/features/active/mail/mail.proposal.md#47-stories), [4.8](../../../../../docs/features/active/mail/mail.proposal.md#48-outbound-mail-and-reply-sets)); what
 this document adds is below. The record types, their fields and a proposal's size limits are
 decided by step E1.
 
@@ -1003,7 +1003,7 @@ account and period of the flood for step C3. Loam's L8 comes as step B1's pull r
 
 ## 17. Out of scope
 
-Beside the proposal's [section 12](mail.proposal.md#12-out-of-scope):
+Beside the proposal's [section 12](../../../../../docs/features/active/mail/mail.proposal.md#12-out-of-scope):
 
 - A hosted engine and the OAuth resource-server mode.
 - Extractors ([10.4](#104-extractors-deferred)).

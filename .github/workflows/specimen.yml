@@ -130,7 +130,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/specimen-cli..." build
+      # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
@@ -173,6 +175,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/violet-elements..." build
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
@@ -201,6 +204,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/specimen-cli..." -F "@lushly-dev/specimen-fast-af..." build
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install

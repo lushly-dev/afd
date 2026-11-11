@@ -82,6 +82,17 @@ describe('kotlin transformer', () => {
 		expect(kotlinValue(kotlin, 'Opaque')).toBe('Color(0xFF0078D4)');
 	});
 
+	it('expands four-digit CSS hex and moves its alpha to the front', () => {
+		const kotlin = kotlinTransformer.transform([
+			token('color.tint', '#F008'),
+			token('border.veil', '#0a3c'),
+		]);
+
+		expect(kotlinValue(kotlin, 'Tint')).toBe('Color(0x88FF0000)');
+		// A four-digit hex value outside the color category is still a color.
+		expect(kotlinValue(kotlin, 'Veil')).toBe('Color(0xCC00AA33)');
+	});
+
 	it('converts dimensions to dp, sp for font-like names, with a 16px rem base', () => {
 		const kotlin = kotlinTransformer.transform([
 			token('spacing.px', '12px'),

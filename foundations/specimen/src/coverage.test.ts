@@ -36,6 +36,14 @@ describe('a specimen\u2019s claims and expectations', () => {
 		expect(() => specimen({ scenario: [check], coverage: [bad] })).toThrow(message);
 	});
 
+	it('accepts a guide statement as an obligation, named by its id', () => {
+		const guided = { ...claim, obligation: 'guide:button.icon-name' };
+		expect(specimen({ scenario: [check], coverage: [guided] }).specimen.coverage).toEqual([guided]);
+		expect(() =>
+			specimen({ scenario: [check], coverage: [{ ...claim, obligation: 'guide:Button' }] })
+		).toThrow("'guide:Button' is not an obligation");
+	});
+
 	it('refuses an expectation that comes after the checkpoint it would prove', () => {
 		expect(() =>
 			specimen({
@@ -235,9 +243,9 @@ describe('specimen-coverage', () => {
 			configFile: resolve(import.meta.dirname, '../compat/claims.config.json'),
 		});
 		try {
-			const played = await retained.coverage();
+			const run = await retained.coverage();
 			const of = (tag: string, id: string) =>
-				played.components
+				run.components
 					.find((component) => component.tag === tag)
 					?.obligations.find((item) => item.id === id);
 			const disabled = of('plain-button', 'property:disabled=true');
@@ -245,7 +253,7 @@ describe('specimen-coverage', () => {
 			expect(disabled?.evidence[0]?.expectations).toEqual(['has-disabled']);
 			expect(of('plain-button', 'property:disabled=false')?.level).toBe('verified');
 			// Its target is not disabled, so this is false, and reported.
-			expect(played.invalidClaims).toEqual([
+			expect(run.invalidClaims).toEqual([
 				{
 					specimen: 'fixtures-claims--false-in-play',
 					target: 'plain-button',
@@ -261,6 +269,74 @@ describe('specimen-coverage', () => {
 			]);
 		} finally {
 			await retained.close();
+		}
+	}, 60_000);
+
+	it('verifies a guide statement only by the check its claim ran, in guides@1 alone', async () => {
+		const open = (file: string) =>
+			createSpecimenBench({
+				root: resolve(import.meta.dirname, '../compat'),
+				configFile: resolve(import.meta.dirname, `../compat/${file}`),
+			});
+		const [guided, bare] = await Promise.all([
+			open('guide-claims.config.json'),
+			open('guide-claims-bare.config.json'),
+		]);
+		try {
+			const [withGuides, without] = await Promise.all([
+				guided.coverage({ workers: 1 }),
+				bare.coverage({ workers: 1 }),
+			]);
+			const guides = withGuides.guides;
+			expect(guides?.obligations).toBe('guides@1');
+			expect(guides?.statements.map(({ id, level }) => [id, level])).toEqual([
+				['guide:plain-button.label', 'verified'],
+				// Its check threw: the story failed, so nothing it claimed counts.
+				['guide:plain-button.focus', 'authored'],
+				['guide:plain-button.disabled-attribute', 'verified'],
+				['guide:fields.in-a-form', 'authored'],
+			]);
+			expect(guides?.statements[0]?.evidence).toEqual([
+				{
+					specimen: 'fixtures-guide-claims--labelled',
+					checkpoint: 'after-run',
+					target: expect.any(String),
+					expectations: ['says-save'],
+				},
+			]);
+			expect(guides?.counts).toEqual({ verified: 2, authored: 2 });
+			expect(guides?.invalidClaims).toEqual([
+				{
+					specimen: 'fixtures-guide-claims--unchecked',
+					target: 'plain-button',
+					obligation: 'guide:plain-button.focus',
+					reason: 'A story\u2019s guide claim needs its check: pass it to claim(), which runs it.',
+				},
+				{
+					specimen: 'fixtures-guide-claims--unchecked',
+					target: 'plain-button',
+					obligation: 'guide:plain-button.nope',
+					reason: "No guide states 'plain-button.nope'.",
+				},
+			]);
+			expect(guides?.complete).toBe(false);
+			expect(withGuides.cases.failed.map((item) => item.id)).toEqual([
+				'fixtures-guide-claims--focus-fails',
+			]);
+			expect(coverageRunSchema.parse(withGuides)).toBeTruthy();
+			// Adding guides changes nothing schema-partitions@1 reports, its `complete` included.
+			const partitions = ({ guides: _, elapsedMs: __, ...rest }: CoverageRun) => rest;
+			expect(partitions(withGuides)).toEqual(partitions(without));
+			// With no guide files, every guide claim names an unknown statement.
+			expect(without.guides?.statements).toEqual([]);
+			expect(without.guides?.invalidClaims.map((item) => item.reason)).toEqual([
+				"No guide states 'plain-button.label'.",
+				"No guide states 'plain-button.disabled-attribute'.",
+				"No guide states 'plain-button.focus'.",
+				"No guide states 'plain-button.nope'.",
+			]);
+		} finally {
+			await Promise.all([guided.close(), bare.close()]);
 		}
 	}, 60_000);
 

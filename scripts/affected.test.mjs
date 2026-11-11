@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import test from 'node:test';
 import { changedImporters, parseLockfile } from './affected/lockfile.mjs';
-import { resolveScope } from './affected/scope.mjs';
+import { OWN_TESTS, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, readTrigger, SUITES } from './affected/suites.mjs';
 import { readWorkspace, withDependencies, withDependents } from './affected/workspace.mjs';
 import { checkEnvironment, gate, parseArgs, planSuites, pnpmArgs } from './affected.mjs';
@@ -138,7 +138,7 @@ test('the workspace graph follows every dependency field in both directions', (t
 });
 
 test('files map to owning packages, unit roots and shared inputs', (t) => {
-	const { root } = fixture(t);
+	const { root, write } = fixture(t);
 	const scope = (files) => resolveScope({ root, files, git: () => '' });
 	const core = scope(['packages/core/src/index.ts']);
 	assert.equal(core.mode, 'affected');
@@ -157,6 +157,16 @@ test('files map to owning packages, unit roots and shared inputs', (t) => {
 	// A unit's own docs/ reach none of its packages, unlike its other root files.
 	assert.deepEqual(scope(['foundations/violet/docs/STATUS.md']).affected, []);
 	assert.deepEqual(scope(['foundations/violet/docs/phases/0/spec.md']).affected, []);
+	// A plugin is a unit of its own (Loam's D109): its files reach none of Loam's packages.
+	write(
+		'pnpm-workspace.yaml',
+		'packages:\n  - "packages/*"\n  - "foundations/*/packages/*"\n  - "endpoints/loam/packages/*"\n'
+	);
+	write('endpoints/loam/packages/kernel/package.json', { name: '@x/loam-kernel' });
+	assert.deepEqual(scope(['endpoints/loam/README.md']).changed, ['@x/loam-kernel']);
+	assert.deepEqual(scope(['endpoints/loam/plugins/mail/engine/src/lib.rs']).affected, []);
+	assert.deepEqual(scope(['endpoints/loam/plugins/mail/README.md']).affected, []);
+	assert.deepEqual(scope(['endpoints/loam/plugins/mail/docs/engine.spec.md']).affected, []);
 	assert.deepEqual(scope(['foundations/violet/README.md']).affected, [
 		'@x/violet-core',
 		'@x/violet-runtime',
@@ -189,6 +199,164 @@ test('spec prose reaches no package; the files beside it reach their readers', (
 	]);
 	assert.ok(scope(['spec/plugin-manifest.json']).changed.includes('@lushly-dev/loam-manifest'));
 	assert.ok(scope(['spec/VERSION']).changed.includes('@lushly-dev/loam-manifest'));
+});
+
+test('a test file reaches its package and not the dependents', (t) => {
+	const { root } = fixture(t);
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	const tests = scope(['packages/core/src/a.test.ts']);
+	assert.deepEqual(tests.changed, ['@x/core']);
+	assert.deepEqual(tests.affected, ['@x/core']);
+	assert.deepEqual(tests.build, ['@x/core']);
+	assert.equal(tests.reasons.get('@x/core'), `packages/core/src/a.test.ts (${OWN_TESTS})`);
+	assert.equal(gate(tests, { packages: ['@x/server'], paths: [] }).run, false);
+	assert.deepEqual(gate(tests, { packages: ['@x/core'], paths: [] }), {
+		run: true,
+		reason: `@x/core is affected (packages/core/src/a.test.ts (${OWN_TESTS}))`,
+	});
+	for (const file of ['a.spec.ts', 'a.pw.spec.ts', 'a.test.mjs', 'ui/a.test.tsx', 'a.e2e.test.ts'])
+		assert.deepEqual(scope([`packages/core/${file}`]).affected, ['@x/core'], file);
+
+	// A source file beside it selects the dependents, and is the reason shown for them.
+	const mixed = scope(['packages/core/src/a.test.ts', 'packages/core/src/index.ts']);
+	assert.deepEqual(mixed.affected, ['@x/cli', '@x/core', '@x/server']);
+	assert.equal(mixed.reasons.get('@x/core'), 'packages/core/src/index.ts');
+	// Each package is judged alone: server's test file adds nothing to what core's source selects.
+	assert.deepEqual(
+		scope(['packages/server/src/a.test.ts', 'foundations/violet/packages/core/a.ts']).affected,
+		['@x/server', '@x/violet-core', '@x/violet-runtime']
+	);
+
+	// What tests share, and files only named like tests, still reach the dependents.
+	for (const file of [
+		'src/a.test-support.ts',
+		'src/test.ts',
+		'test/fixtures/a.json',
+		'src/__snapshots__/a.test.ts.snap',
+		'a.spec.md',
+		'a.test.yml',
+	])
+		assert.deepEqual(
+			scope([`packages/core/${file}`]).affected,
+			['@x/cli', '@x/core', '@x/server'],
+			file
+		);
+	// Outside any package a test file is a unit file like any other.
+	assert.deepEqual(scope(['foundations/violet/a.test.ts']).affected, [
+		'@x/violet-core',
+		'@x/violet-runtime',
+	]);
+});
+
+test('the rule for test files holds in this repository', () => {
+	const root = join(import.meta.dirname, '..');
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	assert.deepEqual(scope(['packages/server/src/execution-controls.test.ts']).affected, [
+		'@lushly-dev/afd-server',
+	]);
+
+	// No package imports a test file of another, so none reaches another package's build or suite.
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	const imported = /['"]([^'"]*\.(?:test|spec)(?:\.[cm]?[jt]sx?)?)['"]/;
+	// git grep takes the same expression in POSIX form, which has no `(?:`.
+	let hits = '';
+	try {
+		hits = execFileSync(
+			'git',
+			[
+				'grep',
+				'-nIE',
+				`(from|import|require)[[:space:]]*\\(?[[:space:]]*${imported.source.replaceAll('(?:', '(')}`,
+				'--',
+				...['ts', 'tsx', 'mts', 'cts', 'js', 'jsx', 'mjs', 'cjs'].map((kind) => `*.${kind}`),
+			],
+			{ cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+		);
+	} catch (error) {
+		// git grep exits 1 when nothing matches.
+		if (error.status !== 1) throw error;
+	}
+	const workspace = readWorkspace(root);
+	const owners = (file) => workspace.filter((pkg) => file.startsWith(`${pkg.dir}/`));
+	const crossing = hits.split('\n').filter((hit) => {
+		if (!hit) return false;
+		const [file, , ...text] = hit.split(':');
+		const [, specifier] = text.join(':').match(imported);
+		if (!specifier.startsWith('.')) return true;
+		const target = posix.join(dirname(file), specifier);
+		return owners(target).some((pkg) => !file.startsWith(`${pkg.dir}/`));
+	});
+	assert.deepEqual(
+		crossing,
+		[],
+		'a test file of another package is imported; move what is shared to a helper (a.test-support.ts), which selects dependents'
+	);
+
+	// The suites that scan another package's files, tests included, declare them (EXTRA_INPUTS).
+	const reached = (file) => scope([file]).affected;
+	const kernel = reached('endpoints/loam/packages/kernel/src/a.test.ts');
+	assert.ok(
+		kernel.includes('@lushly-dev/loam-web') && kernel.includes('@lushly-dev/loam-identity')
+	);
+	const chrome = reached('endpoints/loam/packages/chrome/src/a.test.ts');
+	assert.ok(
+		chrome.includes('@lushly-dev/loam-web') && chrome.includes('@lushly-dev/loam-identity')
+	);
+	// A workflow whose jobs run a unit's suites names every package of the unit in its gates: a
+	// test-only change reaches no dependent, so a package left out would skip its own workflow.
+	const loam = workspace.filter((pkg) => pkg.dir.startsWith('endpoints/loam/'));
+	assert.ok(loam.length >= 16);
+	const gates = readTrigger(readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8')).gates;
+	for (const id of ['run', 'mounted']) {
+		const named = parseArgs(['gate', ...gates.get(id)], {}).packages;
+		for (const pkg of loam) assert.ok(named.includes(pkg.name), `loam.yml gate ${id}: ${pkg.name}`);
+	}
+	// Its `theme:check` step scans violet-elements' source, specs included: a path of the gate, as
+	// no package's suite runs the check.
+	const spec = scope(['foundations/fast-af/packages/violet-elements/src/button/a.spec.ts']);
+	assert.deepEqual(spec.affected, ['@lushly-dev/violet-elements']);
+	assert.equal(gate(spec, parseArgs(['gate', ...gates.get('run')], {})).run, true);
+});
+
+test('provenance records reach no package', (t) => {
+	const { root, write } = fixture(t);
+	// Specimen's shape: the family's root is itself a package, and holds the records.
+	write(
+		'pnpm-workspace.yaml',
+		'packages:\n  - "packages/*"\n  - "foundations/*"\n  - "foundations/*/packages/*"\n'
+	);
+	write('foundations/specimen/package.json', { name: '@x/specimen' });
+	write('packages/cli/package.json', { name: '@x/cli', dependencies: { '@x/specimen': '*' } });
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	assert.deepEqual(scope(['foundations/specimen/src/a.ts']).affected, ['@x/cli', '@x/specimen']);
+	assert.deepEqual(scope(['foundations/specimen/provenance/adaptations.json']).affected, []);
+	// FAST-AF's and Violet's: beside the packages, where a unit file selects them all.
+	assert.deepEqual(scope(['foundations/violet/provenance/provenance.json']).affected, []);
+	assert.deepEqual(scope(['foundations/violet/tsconfig.json']).affected, [
+		'@x/violet-core',
+		'@x/violet-runtime',
+	]);
+	// Only a family's records directory: the same name elsewhere is an ordinary file.
+	assert.deepEqual(scope(['packages/cli/provenance/a.json']).affected, ['@x/cli']);
+
+	// The records select nothing because the tests that read them run for every change.
+	for (const family of ['specimen', 'fast-af', 'violet']) {
+		const suite = `scripts/${family}-provenance.test.mjs`;
+		assert.ok(testFiles.includes(suite), suite);
+		assert.ok(!releaseTestFiles.includes(suite), suite);
+	}
+	const repository = join(import.meta.dirname, '..');
+	const real = (files) => resolveScope({ root: repository, files, git: () => '' }).affected;
+	assert.deepEqual(real(['foundations/specimen/provenance/adaptations.json']), []);
+	assert.deepEqual(
+		real([
+			'foundations/fast-af/packages/element/packages/fast-element/src/a.pw.spec.ts',
+			'foundations/fast-af/provenance/adaptations.json',
+		]),
+		['@lushly-dev/fast-element']
+	);
 });
 
 test('the diff runs against the merge base and the lockfile is compared by importer', (t) => {

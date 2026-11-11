@@ -1,0 +1,37 @@
+[package]
+name = "loam_mail"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+license = "MIT"
+description = "Loam Mail's engine: a person's mail on their machine, served as AFD commands"
+repository = "https://github.com/lushly-dev/afd"
+
+# The engine is its own workspace, as Umbel is (the engine's specification, section 2).
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+
+[lib]
+name = "loam_mail"
+
+[[bin]]
+name = "loam-mail"
+path = "src/main.rs"
+
+[dependencies]
+# Step B5 adds `server` when it serves MCP; until then the lock stays without the MCP SDK.
+afd = { path = "../../../../../packages/rust", default-features = false, features = ["native", "approval", "journal-file"] }
+
+[dev-dependencies]
+async-trait = "0.1"
+serde_json = "1"

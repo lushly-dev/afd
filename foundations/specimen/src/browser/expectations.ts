@@ -77,7 +77,7 @@ export async function expectOf(
 }
 
 const OBLIGATION =
-	/^(?:default|property:.+=.+|slot:.+=(?:filled|empty)|event:.+|command:.+|form:(?:participation|validity))$/;
+	/^(?:default|property:.+=.+|slot:.+=(?:filled|empty)|event:.+|command:.+|form:(?:participation|validity)|guide:[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+)$/;
 
 /** A state, form or validity expectation, on a declared target. */
 export function elementExpectation(

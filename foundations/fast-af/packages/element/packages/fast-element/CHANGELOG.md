@@ -1,5 +1,11 @@
 # Change Log - @microsoft/fast-element
 
+## 3.0.1-preview.2
+
+### Patch Changes
+
+- [#960](https://github.com/lushly-dev/afd/pull/960) [`2393aaa`](https://github.com/lushly-dev/afd/commit/2393aaa8a753e9f03aebc99f2e6009da517f79a0) Thanks [@Falkicon](https://github.com/Falkicon)! - fast-element is now built with TypeScript 7. The ESM modules and declarations describe the same API: the JavaScript differs only in formatting (line wraps, separate `var` declarations for helper temporaries, their numbering), and five declaration files spell types differently (numeric keys in brackets, member and union order, `typeof noop` for `() => undefined`). The `dist/fast-element*.js` bundles are now built from that ESM output: they inline TypeScript's `__rest` helper in the two modules that use it instead of importing one copy from tslib, which adds 290 bytes to the minified bundles (gzipped, they stay within 4 bytes of before).
+
 ## 3.0.1-preview.1
 
 ### Patch Changes

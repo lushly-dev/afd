@@ -193,7 +193,8 @@ function memberNames(schema: ComponentSchema): Set<string> {
 		].filter((name): name is string => Boolean(name))
 	);
 }
-function attributeNames(schema: ComponentSchema): string[] {
+/** The attributes a component has, which a rule's `appliesTo.attributes` names. */
+export function attributeNames(schema: ComponentSchema): string[] {
 	return [
 		...schema.properties.flatMap((item) => (item.attribute ? [item.attribute] : [])),
 		...schema.attributes.map((item) => item.name),

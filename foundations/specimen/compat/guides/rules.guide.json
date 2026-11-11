@@ -1,0 +1,9 @@
+{
+	"rules": [
+		{
+			"id": "fields.in-a-form",
+			"text": "Put a field inside a form, so its value is submitted.",
+			"appliesTo": { "tags": ["fixture-field"] }
+		}
+	]
+}
