@@ -277,7 +277,7 @@ and one for each attachment when it is fetched; its record says which parts are 
   flush covers the batch: a plain `fsync` for each file and one `F_FULLFSYNC` on macOS, `syncfs`
   on Linux, a flush for each file elsewhere. Flushing each file fully held the log to about 260
   header blocks a second on macOS, under [4.4](#44-limits-to-meet)'s limit; a flush for each
-  batch of 250 stored 1 700 a second, and no flush at all 4 400.
+  batch of 250 stored between 1 700 and 3 100 a second over five runs, and no flush at all 4 400.
 - **Storing again repairs.** Storing bytes that are already held reads the file there first. A
   damaged one is moved to `blobs/damaged/`, never deleted, and written afresh. So fetching a
   message again mends its file, whatever damaged it.

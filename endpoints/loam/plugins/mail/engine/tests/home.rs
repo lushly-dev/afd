@@ -50,7 +50,13 @@ fn the_data_home_variable_comes_before_the_home_directory() {
         ("HOME", "/home/p"),
     ]))
     .expect("a directory");
-    assert_eq!(home.root(), Path::new("/data/loam-mail"));
+    assert_eq!(home.root(), Path::new("/data/loam-mail")); // A relative value is ignored.
+    let home = Home::resolve(environment(&[
+        ("XDG_DATA_HOME", "data"),
+        ("HOME", "/home/p"),
+    ]))
+    .expect("a directory");
+    assert_eq!(home.root(), Path::new("/home/p/.local/share/loam-mail"));
 }
 
 #[test]

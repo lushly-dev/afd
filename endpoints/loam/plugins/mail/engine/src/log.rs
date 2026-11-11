@@ -103,7 +103,12 @@ impl Log {
     /// When the directory cannot be created.
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, LogError> {
         let root = root.into();
+        let created = !root.is_dir();
         create_private_dir(&root)?;
+        if created {
+            // The log's own name must survive a power failure too.
+            durable::flush_directory(root.parent())?;
+        }
         Ok(Self {
             root,
             next_temporary: AtomicU64::new(0),
@@ -172,8 +177,9 @@ impl Log {
         )
     }
 
-    /// Waits until the files under `ids`, and their names, are on the disk,
-    /// so that a power failure cannot take them. One flush covers the batch.
+    /// Waits until the files under `ids` are on the disk, and on macOS and
+    /// Linux their names too, so that a power failure cannot take them. One
+    /// flush covers the batch.
     ///
     /// # Errors
     /// When a file is not held or the flush fails.
@@ -249,13 +255,25 @@ fn write_compressed(path: &Path, bytes: &[u8]) -> io::Result<()> {
 
 /// Making files durable, as each platform allows.
 mod durable {
+    /// Flushes a directory, so that the names in it survive a power failure.
+    /// Windows has no such call; a directory's entries are its journal's there.
+    pub(super) fn flush_directory(directory: Option<&Path>) -> io::Result<()> {
+        #[cfg(unix)]
+        if let Some(directory) = directory.filter(|path| !path.as_os_str().is_empty()) {
+            File::open(directory)?.sync_all()?;
+        }
+        #[cfg(not(unix))]
+        let _ = directory;
+        Ok(())
+    }
+
     use std::fs::File;
     use std::io;
     use std::path::{Path, PathBuf};
 
     /// Flushes `paths`, files of the log under `root`, and their directory entries.
     #[cfg(target_vendor = "apple")]
-    pub(super) fn flush(_root: &Path, paths: &[PathBuf]) -> io::Result<()> {
+    pub(super) fn flush(root: &Path, paths: &[PathBuf]) -> io::Result<()> {
         // `fsync` hands each file to the drive; one `F_FULLFSYNC` then has the
         // drive write its cache out, which covers everything handed over.
         let mut last = None;
@@ -264,8 +282,11 @@ mod durable {
             rustix::fs::fsync(&file)?;
             last = Some(file);
         }
-        let directories: std::collections::BTreeSet<&Path> =
+        // Each file's directory holds its name, and the root holds the name
+        // of a directory made for this batch.
+        let mut directories: std::collections::BTreeSet<&Path> =
             paths.iter().filter_map(|path| path.parent()).collect();
+        directories.insert(root);
         for directory in directories {
             rustix::fs::fsync(File::open(directory)?)?;
         }
