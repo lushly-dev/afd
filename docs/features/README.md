@@ -101,7 +101,8 @@ Each feature folder contains:
 
 ```
 feature-name/
-├── proposal.md      # The what/why (required)
+├── <feature>.proposal.md  # The what/why (required; older folders name it proposal.md)
+├── scenarios/       # The jobs the feature serves, one *.scenario.yaml each (required when it adds or changes commands)
 ├── spec.md          # The how (after approval)
 ├── STATUS.md        # Exactly what is done and not done, how it was verified, and follow-ups not yet issues; kept current by every session once work starts
 └── assets/          # Diagrams, screenshots (optional)
@@ -111,8 +112,22 @@ feature-name/
 
 A status file exists so that an agent never has to scan the codebase to learn what is current: it names what is done with evidence, what is not, and what future sessions must know. The [Umbel status](../../endpoints/umbel/docs/STATUS.md) is the reference shape.
 
+## Jobs first
+
+A feature that adds or changes commands starts from the jobs it serves. Each job is written as an AFD scenario file in the feature's `scenarios/` folder before the commands are specified, and the proposal is held to them:
+
+- A job that cannot be written with the drafted commands is a gap in the design.
+- A drafted command no job uses is cut, or the proposal says why it stays.
+- The exit criteria start from "every scenario passes".
+- Readers who did not write the jobs walk the paths before the owner is asked to decide.
+- The owner cuts, adds and ranks the jobs.
+
+Once the feature is built, the same files move beside the code and run as its acceptance tests. The steps, the checks that work before anything is built, and what a scenario cannot express are in [jobs first](../../.claude/skills/afd/references/jobs-first.md). Features with no commands (tooling, CI, releases, documentation) skip this.
+
 ## Workflow
 
 ```
 Proposed → Review → Active → Implementation → Complete
 ```
+
+A proposal that adds or changes commands is ready for review when its jobs are written as scenarios, they pass the checks, and readers who did not write them have walked the paths. A revision needs the walk again only when it adds jobs or commands.
