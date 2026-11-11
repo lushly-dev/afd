@@ -4014,6 +4014,7 @@ dependencies = [
  "umbel",
  "umbel-hook",
  "umbel-okf",
+ "umbel-plugin-components",
  "umbel-plugin-context",
  "umbel-plugin-curator",
  "umbel-plugin-knowledge",
@@ -4076,6 +4077,23 @@ dependencies = [
  "serde_json",
  "umbel-scan",
  "umbel-store",
+]
+
+[[package]]
+name = "umbel-plugin-components"
+version = "0.1.0"
+dependencies = [
+ "afd",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "tokio",
+ "toml",
+ "umbel",
+ "umbel-scan",
+ "umbel-sdk",
 ]
 
 [[package]]

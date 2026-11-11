@@ -1,0 +1,80 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"tags": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 64,
+			"items": {
+				"type": "string",
+				"maxLength": 100
+			},
+			"description": "Components to brief on"
+		},
+		"source": {
+			"type": "string",
+			"description": "A page's markup or code, at most 262 144 UTF-8 bytes; tags are found in it"
+		},
+		"library": {
+			"type": "string",
+			"description": "Look only in this library"
+		},
+		"detail": {
+			"type": "string",
+			"enum": ["brief", "api", "full"],
+			"default": "brief",
+			"description": "api: the floor and the API sections with rule ids only. brief: every section but detail. full: every section"
+		},
+		"sections": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": [
+					"attributes",
+					"slots",
+					"events",
+					"commands",
+					"cssProperties",
+					"form",
+					"roles",
+					"axe",
+					"a11y",
+					"usage",
+					"rules",
+					"examples",
+					"gaps",
+					"detail"
+				]
+			},
+			"description": "Exactly these sections, in place of detail's choice"
+		},
+		"known": {
+			"type": "array",
+			"maxItems": 256,
+			"items": { "type": "string", "maxLength": 193 },
+			"description": "Rule ids the caller already holds, each bare or <library>/<id>: their ids stay in entries and their text is not sent"
+		},
+		"versions": {
+			"type": "object",
+			"additionalProperties": { "type": "string" },
+			"description": "The versions the caller has installed, npm package name to version, at most 32 entries"
+		},
+		"render": {
+			"type": "string",
+			"enum": ["none", "text"],
+			"default": "none",
+			"description": "text: the answer's content is data.text, a quoted block"
+		},
+		"maxBytes": {
+			"type": "integer",
+			"minimum": 1024,
+			"maximum": 96000,
+			"description": "The most bytes of the whole result, as the output budget measures it; the smaller of this and the call's budget applies"
+		}
+	}
+}

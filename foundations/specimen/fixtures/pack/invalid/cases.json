@@ -50,6 +50,18 @@
 			"regenerated": true
 		},
 		{
+			"description": "A statement holds an unpaired surrogate escape, which the format refuses as text and a strict JSON parser refuses outright.",
+			"name": "text-lone-surrogate",
+			"problems": [
+				{
+					"at": "/usage/0/text",
+					"code": "TEXT_INVALID",
+					"path": "data/example/components/example-field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
 			"description": "A record has a key the format does not define.",
 			"name": "unknown-key",
 			"problems": [
