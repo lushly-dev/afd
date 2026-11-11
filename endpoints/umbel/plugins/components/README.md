@@ -8,6 +8,17 @@ The design is in the [plugin specification](../../docs/plugins/components/spec.m
 `source`, or both. `components-list` lists a library's tags, and `components-open` returns one
 component's whole record.
 
+`components-brief` is the plugin's one first-class suggestion, so an MCP client sees it in
+`tools/list`; the other two are found through `afd-discover` and called by name. With every
+first-party plugin enabled the first-class set is the two built-ins and five suggestions, under the
+host's cap of eight. A deployer's `mcp.first_class_tools` replaces the set.
+
+The skill `components-guide` teaches the loop: brief once for the page, write, and open a
+component only when the brief left out what you need. It is served as every plugin skill is: by
+the MCP Skills extension (`skills/list`, `skills/get`), as the resource
+`skill://components-guide/SKILL.md`, and by `umbel skill list` and `umbel skill export` for a
+harness that reads skills from a directory.
+
 With `render: "text"` the brief is one block to inject into a session, every line of library text
 quoted. For the example pack, shortened:
 
