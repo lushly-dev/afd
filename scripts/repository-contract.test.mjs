@@ -149,6 +149,38 @@ test('npm publication requires durable ownership before upload and completion af
 	assert.match(workflow, /registry versions exist without verified finalization/);
 });
 
+test('the release tag token is narrow, late and reaches only the tag push', () => {
+	const workflow = read('.github/workflows/release.yml');
+	const release = workflow.slice(
+		workflow.indexOf('\n  release:'),
+		workflow.indexOf('\n  recover:')
+	);
+	const recover = workflow.slice(workflow.indexOf('\n  recover:'));
+	for (const [job, before, pusher] of [
+		[release, 'run: pnpm publish:npm', 'node scripts/release-finalize.mjs'],
+		[recover, 'run: pnpm check:all', 'node scripts/release-recover.mjs'],
+	]) {
+		const start = job.indexOf('- name: Create release tag token');
+		const push = job.indexOf(pusher);
+		assert.ok(job.indexOf(before) >= 0 && start > job.indexOf(before), 'created after the gate');
+		assert.ok(push > start, 'created before the tag push');
+		const step = job.slice(start, job.indexOf('\n\n', start));
+		// A missing or broken App must not hold a release GITHUB_TOKEN could still finish.
+		assert.match(step, /continue-on-error: true/);
+		assert.match(step, /vars\.RELEASE_TAG_APP_CLIENT_ID != ''/);
+		assert.deepEqual(step.match(/permission-[a-z-]+: \w+/g), [
+			'permission-contents: write',
+			'permission-workflows: write',
+		]);
+		assert.equal(job.match(/steps\.tag-token\.outputs\.token/g)?.length, 1, 'one step gets it');
+		const nextStep = job.indexOf('\n      - ', push);
+		const env = job.slice(job.lastIndexOf('\n      - ', push), nextStep);
+		assert.match(env, /TAG_TOKEN: \$\{\{ steps\.tag-token\.outputs\.token \}\}/);
+		assert.match(env, /GIT_CONFIG_VALUE_0=\n/, 'clears the credential checkout stored');
+		assert.match(env, /add-mask::\$credential/);
+	}
+});
+
 test('an approved Specimen release builds and stages every prebuilt host before packing', () => {
 	const workflow = read('.github/workflows/release.yml');
 	const platforms = readdirSync(join(repoRoot, 'foundations/specimen/packages'))
