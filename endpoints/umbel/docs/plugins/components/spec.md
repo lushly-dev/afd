@@ -10,7 +10,8 @@
 ## Status
 
 - **State:** approved by the owner 2026-11-10, by merging #964 (step A2 of the Component Briefs plan,
-  [D24](../../decisions.md), [D150](../../decisions.md)); nothing here is implemented.
+  [D24](../../decisions.md), [D150](../../decisions.md)). Step C1 is implemented, [amended below](#amendments-from-step-c1);
+  `components-brief` is declared and answers `NOT_IMPLEMENTED` until step C2.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
 - **Last verified:** 2026-11-10 against `main` at `a1c52b37`.
@@ -30,8 +31,8 @@
   - Read in the documents: the Umbel architecture's principles; D18, D24, D46, D48, D57, D64, D67, D75 and D112; the
     phase 5 specification's owner decision 3 (scopes); the Component Briefs proposal and its phase 0 records.
   - No Rust was built or run. No external source was re-checked; see the [trajectory refresh](#trajectory-refresh).
-- **Done:** nothing; this is the specification.
-- **Not done:** every step of section [12](#12-implementation-plan).
+- **Done:** step C1 (section [12](#12-implementation-plan)).
+- **Not done:** steps C2 to C5 of section [12](#12-implementation-plan).
 - **Follow-ups:** the [table at the end](#follow-ups).
 
 ### Review response
@@ -56,6 +57,25 @@ against the code; all held. Changes:
 | I9 | `scale.rs` timed a brief in C1, against a release run that does not exist | Moved to C2; prints the time, no threshold (11, 12) |
 | I10 | The `random` grant's reason did not hold for a compiled plugin | Dropped until the component build (2.1, D151) |
 | I11 | Minor: `umbel-scan`'s dependencies, D154's wording, `catalog-missing`'s code | Corrected (status block, D154, 3.3) |
+
+### Amendments from step C1
+
+The step found four points this document had not settled, or had wrong, and settled them here:
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A1 | Sections 6.1 and 8 give inputs a `pattern`, `anyOf` and `uniqueItems`, which the host's input schemas refuse: AFD's schema subset has none of the three | The schemas keep what the subset allows (`type`, `enum`, `minLength`, `maxLength`, `minimum`, `maximum`, `minItems`, `maxItems`, `required`, `additionalProperties`). The plugin checks each caller identifier against the format's own patterns before it can appear in an answer, and refuses with `COMPONENTS_INVALID` (section 9, added). Repeated section names are read as one. At least one of `tags` and `source` (6.1) is `components-brief`'s check, in C2 |
+| A2 | `components-open`'s `skip` needs one list-holding section, and a schema without `dependentSchemas` cannot say so | `COMPONENTS_INVALID` |
+| A3 | `after` names a tag, but a tag can be in two listed libraries, and a cursor by tag alone could repeat or lose a page | With more than one library listed, `next.after` is `<library>/<tag>`, as rule ids are qualified (5.4). A bare `after` in that case is read in the first listed library that holds the tag, else the first listed library (8.1) |
+| A4 | The shape of a section in `components-open`'s answer | A list section is `{ "items": [...] }`, `form` and `axe` the same with one item; `rules` and `gaps` are arrays, as in the brief; `detail` is a string (8.2) |
+
+Two more points were found while writing the reader and need no change here: a lone-surrogate key follows the unknown-key
+rule, so it is `SCHEMA_INVALID` at the object that holds it, with no pointer only at the root (section 3.3 says this for
+the root); and a JSON file nested past `serde_json`'s depth of 128 is `JSON_INVALID`, where `checkPack` would go on, which
+refuses it either way. One-off differential runs on 2,100 random single- and multi-defect packs from the exported
+example, the last after every fix below, agreed with `checkPack` on every problem, including its Zod rules for which checks run after a failure, and an
+independent review's further differences (Zod counts string lengths in code points; a malformed overflowing number is
+`JSON_INVALID`) are fixed, each with a test. `serde_json`'s `float_roundtrip` is on, so a number parses as JavaScript parses it.
 
 ## What this plugin serves
 
@@ -365,7 +385,8 @@ Points the Rust reader has to get right, each with a test:
 - **A lone surrogate.** The format refuses a string holding an unpaired `\ud800`–`\udfff` escape. `serde_json`
   refuses such a string while parsing, which would make it `JSON_INVALID` here. So before parsing, a JSON string
   lexer (one that knows `\\ud800` is an escaped backslash, not an escape) replaces each unpaired surrogate escape
-  with `\ufffd` and records the string it was in. After parsing, that string's problem is whatever `checkPack`
+  with a character the file uses nowhere else, so a string holds that character exactly when it held such an escape,
+  and a legal U+FFFD beside it is not mistaken for one. After parsing, that string's problem is whatever `checkPack`
   reports for a lone surrogate in that place: `TEXT_INVALID` in a text field, `IDENTIFIER_INVALID` in an identifier
   field (its pattern fails), and `SCHEMA_INVALID` with no pointer in a key. The file is not then also
   `NOT_CANONICAL` for that escape. Specimen's fixtures have no such case yet: step C1 adds `text-lone-surrogate` to
@@ -374,7 +395,8 @@ Points the Rust reader has to get right, each with a test:
   `checkPack`'s `shownPath` shows it: up to its first segment that is not a plain name (ASCII letters, digits, `.`,
   `_` and `-`, at most 100 characters), then `…`. Nothing from a file's content is ever in a problem. Such a shown
   path is the one value outside the content part that is not a format identifier; it is bounded the same way and
-  scanned as 3.2 scans identifiers, and a hit shows only the first segment and `…`.
+  scanned as 3.2 scans identifiers, its `/` read as a space too, and a hit shows only the first segment and `…`. Any
+  problem's path goes through the same cut, so a tag the scan hit in a file name is not shown either.
 - **How many.** `details.problems` holds at most 32 problems, sorted as above, and `details.count` says how many there
   were.
 
@@ -518,7 +540,7 @@ hidden-text check finds what the format allows: zero-width characters, U+2060, U
 ### 6.1 Input
 
 `schemas/components-brief.input.json`, `additionalProperties: false`, and at least one of `tags` and `source`
-(`anyOf` of two `required` lists):
+(checked by the handler; the host's schema subset has no `anyOf`):
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -697,7 +719,8 @@ One pass over the bytes, with no regular expression over the source; the 262 144
 
 Input: `space`; `library`; `prefix` (a tag prefix, `^[a-z][a-z0-9._-]{0,99}$`); `contains` (1 to 64 characters,
 matched case-insensitively, by ASCII case folding, against each tag and summary); `after` (a tag: the page starts
-after it). It reads every touched library whole (3.1), as every command does, and answers from the catalogs.
+after it; `<library>/<tag>` when more than one library is listed, as `next.after` gives it). It reads every touched
+library whole (3.1), as every command does, and answers from the catalogs.
 
 ```jsonc
 {
@@ -722,7 +745,8 @@ start). Like the brief, it has no `maxBytes`: its target is the call's `output_b
 
 The answer's `content.component` is the entry for `tag` with the requested sections, each item with its own basis
 written out (no per-section basis: an open is for reading one record closely), plus `content.rules` with the text of
-every rule it names.
+every rule it names. A list section is `{ "items": [...] }`, and `form` and `axe` are the same with one item; `rules`
+and `gaps` are arrays; `detail` is a string.
 
 Sections are added in 5.3's order while the result fits. A section that does not fit is left out and named in
 `omitted` as `{ "reason": "budget", "sections": [...], "open": { "command": "components-open", "sections": [...] } }`.
@@ -750,6 +774,7 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 | `LIBRARY_NOT_FOUND` | `library` or a needed `default_library` names no library in the pack | No | `library`, `libraries` | Pass one of the libraries listed, or call `components-list` |
 | `TAG_NOT_FOUND` | `components-open` on a tag no touched library has | No | `tag`, `nearest` | Check the name, or call `components-list` |
 | `TAG_AMBIGUOUS` | `components-open` on a tag in several libraries, undecided | No | `tag`, `libraries` | Pass `library` |
+| `COMPONENTS_INVALID` | An input the schema subset cannot check: an identifier outside the format's patterns, or `skip` without one list section | No | none | Fix the field the message names and run the command again |
 | `TOO_MANY_TAGS` | More than 128 tags requested (6.2) | No | `count` | Brief part of the page at a time |
 | `OUTPUT_BUDGET_EXCEEDED` | The floors do not fit (6.4), or one item does not (8.2) | No | `fits` (brief) | Brief fewer tags at a time, or ask for a larger budget per call with `_meta["dev.afd/outputBudget"]`, up to the command's maximum; `maxBytes` only lowers it |
 

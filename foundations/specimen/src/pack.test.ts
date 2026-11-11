@@ -105,7 +105,7 @@ describe('component pack format', () => {
 	});
 
 	it('names every invalid case, each with its own overlay', () => {
-		expect(manifest.cases.length).toBe(25);
+		expect(manifest.cases.length).toBe(26);
 		expect(new Set(manifest.cases.map((entry) => entry.name)).size).toBe(manifest.cases.length);
 		expect(
 			manifest.cases.flatMap((entry) => entry.problems.map((problem) => problem.code))
@@ -303,8 +303,11 @@ describe('JSON Schema', () => {
 			'SCHEMA_INVALID',
 			'FORMAT_UNSUPPORTED',
 		]);
-		const cases = manifest.cases.filter((entry) =>
-			entry.problems.every((problem) => shape.has(problem.code))
+		// A JSON Schema pattern cannot see an unpaired surrogate; only checkPack refuses one.
+		const cases = manifest.cases.filter(
+			(entry) =>
+				entry.name !== 'text-lone-surrogate' &&
+				entry.problems.every((problem) => shape.has(problem.code))
 		);
 		expect(cases.length).toBe(9);
 		for (const entry of cases) {

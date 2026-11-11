@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.97"
 publish = false
 license = "MIT"
-description = "AFD Umbel first-party binary: the umbel command line with the sources, knowledge, memory, context and curator plugins compiled in"
+description = "AFD Umbel first-party binary: the umbel command line with the sources, knowledge, memory, context, components and curator plugins compiled in"
 repository = "https://github.com/lushly-dev/afd"
 
 # The only crate that depends on the memory and context plugins together (D80), and the curator
@@ -20,6 +20,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 # The command line, the embedded stores and the hosted HTTP surface (`auth`, phase 5), and no
 # loader (so no wasmtime), as `umbel-knowledge` and `umbel-memory` do.
 umbel = { path = "..", default-features = false, features = ["auth", "cli", "store-embedded"] }
+umbel-plugin-components = { path = "../plugins/components" }
 umbel-plugin-context = { path = "../plugins/context" }
 umbel-plugin-curator = { path = "../plugins/curator" }
 umbel-plugin-knowledge = { path = "../plugins/knowledge" }

@@ -4024,7 +4024,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "e19cbe0b39fa86e062d7669c5209bf5a570270d1dd929007ef06d9d2fa39a307",
+      "current_import_sha256": "42ad66786d31c5bc1a9ada9366a9b827c12d07dba20e48d022328684296a2a4b",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -4475,6 +4475,30 @@
       "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
     },
     {
+      "path": "foundations/specimen/fixtures/pack/invalid/text-lone-surrogate/data/example/components/example-field.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "75555bff3513fd9348d9f7867249e7125ac08edcb1fd57d47aa778350b0d659d",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step C1: the invalid case for an unpaired surrogate escape in text"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack/invalid/text-lone-surrogate/data/example/library.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "5c85a1af8d685a4ceb4fa8af3ed44899509e811544eac858ea224f5040cedd6c",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step C1: the invalid case for an unpaired surrogate escape in text"
+    },
+    {
       "path": "foundations/specimen/fixtures/pack/invalid/unexpected-file/data/example/notes.json",
       "upstream_path": null,
       "upstream_sha256": null,
@@ -4564,7 +4588,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "c9549e0cbf529832993a58223c6a4e7047a89a39b852a641ab3dafc18e4ff65f",
+      "current_import_sha256": "d69cd1721291e7fc914568f48aab68bc7c08e71258cbe29f208f1f5e859549a1",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",

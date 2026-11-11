@@ -1,0 +1,48 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["tag"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"tag": {
+			"type": "string",
+			"maxLength": 100,
+			"description": "The component to open"
+		},
+		"library": {
+			"type": "string",
+			"description": "Look only in this library"
+		},
+		"sections": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": [
+					"attributes",
+					"slots",
+					"events",
+					"commands",
+					"cssProperties",
+					"form",
+					"roles",
+					"axe",
+					"a11y",
+					"usage",
+					"rules",
+					"examples",
+					"gaps",
+					"detail"
+				]
+			},
+			"description": "The sections to return; default: every section"
+		},
+		"skip": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Only when sections names exactly one section that holds a list: how many of its items to skip from its start, as an earlier answer's omitted entry gave it"
+		}
+	}
+}
