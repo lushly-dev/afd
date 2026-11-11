@@ -26,6 +26,7 @@ import {
 import {
 	type BetterAuthClient,
 	type BetterAuthMethodResponse,
+	type BetterAuthSessionStore,
 	type BetterAuthSessionValue,
 	describeError,
 	mapThrownError,
@@ -62,7 +63,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 	private readonly listeners: ListenerSet<AuthSessionState>;
 	private currentState: AuthSessionState = LOADING;
 	private unsubscribeStore: (() => void) | null = null;
-	private store: { get: () => BetterAuthSessionValue } | null = null;
+	private store: BetterAuthSessionStore | null = null;
 	/** `initial` until the store first answers; then `undefined`. */
 	private initial: AuthSessionState | undefined;
 	readonly sessions: SessionManagement;
@@ -147,7 +148,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 	 * the session, or none after a 401. Rejects when the provider did not answer, since Better
 	 * Auth's `refetch` resolves anyway and keeps the stale session: `NETWORK_ERROR` for a transport
 	 * failure, `REFRESH_FAILED` for any other (a 5xx), so a caller never reads "unreachable" as
-	 * "the session was kept".
+	 * "the session was kept". When a newer fetch replaces this one, its answer is the one reported.
 	 */
 	async refresh(): Promise<void> {
 		const store = this.store;
@@ -158,7 +159,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 		} catch (error) {
 			throw mapThrownError(error);
 		}
-		const value = store.get();
+		const value = await settledValue(store);
 		this.updateState(value);
 		const { error } = value;
 		if (error === undefined || error === null || statusOf(error) === 401) return;
@@ -254,6 +255,28 @@ export class BetterAuthAdapter implements AuthAdapter {
  * Better Auth answers a social sign-in with `{ url, redirect: true }` and
  * navigates the browser there; the session exists only after the callback.
  */
+/**
+ * The store's value once no fetch is under way. Better Auth aborts a fetch when a newer one starts
+ * (focus, polling, the session signal), and the aborted `refetch` resolves with nothing stored, so
+ * the newer fetch holds the answer.
+ */
+function settledValue(store: BetterAuthSessionStore): Promise<BetterAuthSessionValue> {
+	const current = store.get();
+	if (!current.isRefetching) return Promise.resolve(current);
+	return new Promise((resolve) => {
+		let settled = false;
+		let unsubscribe: (() => void) | undefined;
+		unsubscribe = store.subscribe((value) => {
+			if (settled || value.isRefetching) return;
+			settled = true;
+			unsubscribe?.();
+			resolve(value);
+		});
+		// A store may call back before subscribe() returns.
+		if (settled) unsubscribe();
+	});
+}
+
 function toSignInOutcome(result: BetterAuthMethodResponse): SignInOutcome {
 	const data = result?.data;
 	if (typeof data === 'object' && data !== null && 'redirect' in data && data.redirect === true) {

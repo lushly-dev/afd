@@ -43,6 +43,8 @@ export interface BetterAuthSessionValue {
 	 * 5xx it stores the error here, keeps the stale `data` and resolves. A 401 clears `data`.
 	 */
 	error?: unknown;
+	/** A fetch is under way. Better Auth clears this when the latest fetch has its answer. */
+	isRefetching?: boolean;
 	/** Better Auth's session atom fetches the session again through this. */
 	refetch?: () => Promise<unknown>;
 }

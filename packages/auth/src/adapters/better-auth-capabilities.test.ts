@@ -204,6 +204,50 @@ describe('P3-E9: BetterAuthAdapter initial and refresh', () => {
 		adapter.dispose();
 	});
 
+	it('refresh() waits for the newer fetch that replaced its own, and reports that answer', async () => {
+		const { client, emit, refetch } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		// An aborted refetch resolves while the newer fetch is still running.
+		refetch.mockImplementation(async () => {
+			emit({ ...SIGNED_IN, isRefetching: true });
+		});
+		let settled = false;
+		const refreshing = adapter.refresh().finally(() => {
+			settled = true;
+		});
+		await vi.waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		emit({ ...SIGNED_IN, isRefetching: false, error: new TypeError('Failed to fetch') });
+		await expect(refreshing).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+		adapter.dispose();
+	});
+
+	it('refresh() handles a store that calls back as soon as it is subscribed to', async () => {
+		const refetching = {
+			data: null,
+			isPending: false,
+			isRefetching: true,
+			refetch: async () => {},
+		};
+		const adapter = new BetterAuthAdapter({
+			client: {
+				signIn: { social: vi.fn(), email: vi.fn() },
+				signOut: vi.fn(),
+				useSession: {
+					subscribe: (callback) => {
+						callback({ ...refetching, isRefetching: false });
+						return () => {};
+					},
+					get: () => refetching,
+				},
+			},
+		});
+		await expect(adapter.refresh()).resolves.toBeUndefined();
+		adapter.dispose();
+	});
+
 	it('refresh() resolves on a 401, with the session gone', async () => {
 		const { client, emit, refetch } = stubClient();
 		const adapter = new BetterAuthAdapter({ client });

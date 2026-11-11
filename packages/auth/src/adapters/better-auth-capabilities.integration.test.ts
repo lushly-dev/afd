@@ -299,3 +299,23 @@ it('refresh() rejects with NETWORK_ERROR when the provider is unreachable, keepi
 	await expect(ada.adapter.refresh()).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
 	expect(ada.adapter.getSession().status).toBe('authenticated');
 }, 20_000);
+
+it('refresh() reports the outcome of a newer fetch that replaced its own (#929)', async () => {
+	const { baseURL, stop } = await startProvider();
+	const ada = signedInClient(baseURL, CHROME_MAC);
+	await ada.client.signUp.email({
+		email: 'ada@example.test',
+		password: 'pw-ada-123456',
+		name: 'Ada',
+	});
+	await settle(ada.adapter, 'authenticated');
+
+	await stop();
+	// Better Auth aborts a fetch when a newer one starts, as focus, polling or the session signal
+	// do. The aborted refetch resolves with no error stored, so refresh() has to wait for the newer.
+	const refreshing = ada.adapter.refresh();
+	const newer = ada.client.useSession.get().refetch();
+	await expect(refreshing).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+	await newer;
+	expect(ada.adapter.getSession().status).toBe('authenticated');
+}, 20_000);
