@@ -369,6 +369,7 @@ dependencies = [
  "afd",
  "async-trait",
  "rusqlite",
+ "rustix",
  "serde_json",
  "sha2",
  "tempfile",

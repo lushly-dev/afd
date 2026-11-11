@@ -392,7 +392,8 @@ fn a_listed_message_that_does_not_arrive_is_counted_until_it_does() {
         MailboxCounts {
             headers_held: 1,
             bodies_held: 0,
-            not_returned: 2
+            awaited: 2,
+            unreturned: 0,
         }
     );
     assert_eq!(rows(&store, "SELECT count(*) FROM message"), 1);
@@ -405,7 +406,8 @@ fn a_listed_message_that_does_not_arrive_is_counted_until_it_does() {
         MailboxCounts {
             headers_held: 2,
             bodies_held: 0,
-            not_returned: 1
+            awaited: 1,
+            unreturned: 0,
         }
     );
 }
@@ -424,10 +426,20 @@ fn a_message_that_leaves_the_listing_is_ended_not_deleted() {
         .unwrap();
     store.record_not_returned(inbox, "", &["3"], 2).unwrap();
     // "9" was never seen: removing it ends nothing.
+    let changes = store.last_change().unwrap();
     assert_eq!(
         store
             .record_removed(inbox, "", &["1", "3", "9"], 3)
             .unwrap(),
+        1
+    );
+    // One change, for the one observation that ended.
+    assert_eq!(store.last_change().unwrap(), changes + 1);
+    assert_eq!(
+        rows(
+            &store,
+            "SELECT count(*) FROM change WHERE kind = 'observation-ended'"
+        ),
         1
     );
     assert_eq!(
@@ -435,7 +447,8 @@ fn a_message_that_leaves_the_listing_is_ended_not_deleted() {
         MailboxCounts {
             headers_held: 1,
             bodies_held: 0,
-            not_returned: 0
+            awaited: 0,
+            unreturned: 0,
         }
     );
     assert_eq!(rows(&store, "SELECT count(*) FROM observation"), 2);
@@ -463,6 +476,7 @@ fn a_new_generation_closes_the_mailbox_and_matches_its_messages_again() {
     let (_directory, home) = home();
     let (mut store, inbox, archive) = seeded(&home);
     assert!(store.set_validity(inbox, "100", 1).unwrap());
+    assert_eq!(store.last_change().unwrap(), 0);
     assert!(!store.set_validity(inbox, "100", 1).unwrap());
     store
         .record_headers(
@@ -482,7 +496,21 @@ fn a_new_generation_closes_the_mailbox_and_matches_its_messages_again() {
         ("100".to_string(), Some("modseq 9".to_string()))
     );
 
+    let changes = store.last_change().unwrap();
     assert!(store.set_validity(inbox, "200", 3).unwrap());
+    // A view of the mailbox is told, with one row.
+    assert_eq!(store.last_change().unwrap(), changes + 1);
+    assert_eq!(
+        store
+            .connection
+            .query_row(
+                "SELECT kind, subject FROM change ORDER BY seq DESC LIMIT 1",
+                [],
+                |row| { Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)) }
+            )
+            .unwrap(),
+        ("mailbox-closed".to_string(), inbox.0)
+    );
     assert_eq!(
         store.mailbox_position(inbox).unwrap(),
         ("200".to_string(), None)
@@ -526,6 +554,14 @@ fn a_new_generation_closes_the_mailbox_and_matches_its_messages_again() {
     assert_eq!(rows(&store, "SELECT count(*) FROM message"), 3);
 }
 
+fn part<'a>(message: MessageId, place: Place<'a>, bytes: &'a [u8]) -> PartSeen<'a> {
+    PartSeen {
+        message,
+        place,
+        bytes,
+    }
+}
+
 #[test]
 fn a_message_held_in_part_and_later_whole_keeps_its_row() {
     let (_directory, home) = home();
@@ -548,22 +584,241 @@ fn a_message_held_in_part_and_later_whole_keeps_its_row() {
         Err(StoreError::NotFound("part"))
     ));
 
-    store.record_text_part(message, "1", b"the text").unwrap();
-    assert_eq!(store.mailbox_counts(inbox).unwrap().bodies_held, 0);
     store
-        .record_attachment(message, "2", &[0, 159, 146, 150])
+        .record_parts(&[
+            part(message, Place::Text("1"), b"the text"),
+            part(message, Place::Attachment("2.1"), &[0, 159, 146, 150]),
+        ])
         .unwrap();
+    assert_eq!(store.mailbox_counts(inbox).unwrap().bodies_held, 0);
     let whole = [seen.header_block.as_slice(), b"the text"].concat();
-    store.record_whole(message, &whole).unwrap();
+    store
+        .record_parts(&[part(message, Place::Whole, &whole)])
+        .unwrap();
     assert_eq!(store.read_part(message, "whole").unwrap(), whole);
     assert_eq!(store.read_part(message, "1").unwrap(), b"the text");
-    assert_eq!(store.read_part(message, "2").unwrap(), [0, 159, 146, 150]);
+    assert_eq!(store.read_part(message, "2.1").unwrap(), [0, 159, 146, 150]);
     assert_eq!(store.mailbox_counts(inbox).unwrap().bodies_held, 1);
     assert_eq!(rows(&store, "SELECT count(*) FROM message"), 1);
+    assert_eq!(
+        rows(
+            &store,
+            "SELECT count(*) FROM held WHERE kind IN ('text', 'attachment', 'whole')"
+        ),
+        3
+    );
+}
+
+#[test]
+fn parts_are_recorded_all_or_none_and_never_overwritten() {
+    let (_directory, home) = home();
+    let (mut store, inbox, _) = seeded(&home);
+    let seen = header("1", "a", &[]);
+    store
+        .record_headers(inbox, "", std::slice::from_ref(&seen), 2)
+        .unwrap();
+    let message = store
+        .find_message(&seen.header_block, seen.reported_size)
+        .unwrap()
+        .unwrap();
+    let held = |store: &Store| rows(store, "SELECT count(*) FROM held");
+
+    // The second part's message does not exist: the first is not recorded either.
+    let refused = store.record_parts(&[
+        part(message, Place::Text("1"), b"text"),
+        part(MessageId(999), Place::Whole, b"x"),
+    ]);
+    assert!(
+        matches!(refused, Err(StoreError::NotFound("message"))),
+        "{refused:?}"
+    );
+    assert_eq!(held(&store), 1);
+
+    // A place cannot stand in for the header block or the whole message.
+    for place in ["header", "whole", "", "1.", ".1", "1..2", "1a", "-1"] {
+        for bad in [Place::Text(place), Place::Attachment(place)] {
+            let refused = store.record_parts(&[part(message, bad, b"other")]);
+            assert!(
+                matches!(refused, Err(StoreError::BadPlace)),
+                "{place}: {refused:?}"
+            );
+        }
+    }
+    assert_eq!(
+        store.read_part(message, "header").unwrap(),
+        seen.header_block
+    );
+
+    // The same bytes again change nothing; other bytes for a held part are refused.
+    store
+        .record_parts(&[part(message, Place::Whole, b"first")])
+        .unwrap();
+    store
+        .record_parts(&[part(message, Place::Whole, b"first")])
+        .unwrap();
     assert!(matches!(
-        store.record_whole(MessageId(999), b"x"),
-        Err(StoreError::NotFound("message"))
+        store.record_parts(&[part(message, Place::Whole, b"second")]),
+        Err(StoreError::Conflict)
     ));
+    assert_eq!(store.read_part(message, "whole").unwrap(), b"first");
+    assert_eq!(held(&store), 2);
+}
+
+#[test]
+fn a_damaged_file_is_reported_on_read_and_repaired_by_storing_again() {
+    let (_directory, home) = home();
+    let (mut store, inbox, _) = seeded(&home);
+    let seen = header("1", "a", &[]);
+    store
+        .record_headers(inbox, "", std::slice::from_ref(&seen), 2)
+        .unwrap();
+    let message = store
+        .find_message(&seen.header_block, seen.reported_size)
+        .unwrap()
+        .unwrap();
+    // Empty the header block's file, as a power failure could.
+    let shard = std::fs::read_dir(home.blobs())
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let file = std::fs::read_dir(shard)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    std::fs::write(&file, b"").unwrap();
+    assert!(matches!(
+        store.read_part(message, "header"),
+        Err(StoreError::Log(LogError::Corrupt(_)))
+    ));
+    // The provider returns the header again: the file is written afresh.
+    let again = store
+        .record_headers(inbox, "", std::slice::from_ref(&seen), 3)
+        .unwrap();
+    assert_eq!(
+        again,
+        BatchOutcome {
+            unchanged: 1,
+            ..BatchOutcome::default()
+        }
+    );
+    assert_eq!(
+        store.read_part(message, "header").unwrap(),
+        seen.header_block
+    );
+    // The damaged file was set aside, not deleted.
+    assert_eq!(
+        std::fs::read_dir(home.blobs().join("damaged"))
+            .unwrap()
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn a_thread_the_provider_changes_supersedes() {
+    let (_directory, home) = home();
+    let (mut store, inbox, _) = seeded(&home);
+    let mut seen = header("1", "a", &[]);
+    seen.provider_thread = Some("t1".to_string());
+    store
+        .record_headers(inbox, "", std::slice::from_ref(&seen), 2)
+        .unwrap();
+    assert_eq!(
+        store
+            .record_headers(inbox, "", std::slice::from_ref(&seen), 3)
+            .unwrap()
+            .unchanged,
+        1
+    );
+    seen.provider_thread = Some("t2".to_string());
+    assert_eq!(
+        store
+            .record_headers(inbox, "", std::slice::from_ref(&seen), 4)
+            .unwrap()
+            .changed,
+        1
+    );
+}
+
+#[test]
+fn a_pass_records_its_cursor_and_clears_the_last_error() {
+    let (_directory, home) = home();
+    let (mut store, inbox, _) = seeded(&home);
+    let error = |store: &Store| {
+        store
+            .connection
+            .query_row(
+                "SELECT last_error, last_pass_at FROM mailbox WHERE id = ?1",
+                [inbox.0],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<i64>>(1)?,
+                    ))
+                },
+            )
+            .unwrap()
+    };
+    store
+        .set_error(inbox, "the provider could not be reached")
+        .unwrap();
+    assert_eq!(
+        error(&store),
+        (Some("the provider could not be reached".to_string()), None)
+    );
+    store.set_cursor(inbox, Some("c"), 9).unwrap();
+    assert_eq!(error(&store), (None, Some(9)));
+    for refused in [
+        store.set_cursor(MailboxId(999), None, 1),
+        store.set_error(MailboxId(999), "x"),
+        store.set_validity(MailboxId(999), "1", 1).map(|_| ()),
+        store.mailbox_position(MailboxId(999)).map(|_| ()),
+    ] {
+        assert!(
+            matches!(refused, Err(StoreError::NotFound("mailbox"))),
+            "{refused:?}"
+        );
+    }
+}
+
+#[test]
+fn a_message_is_unreturned_after_three_tries() {
+    let (_directory, home) = home();
+    let (mut store, inbox, _) = seeded(&home);
+    for (now, ids) in [(1, &["7", "8"][..]), (2, &["7"]), (3, &["7"])] {
+        store.record_not_returned(inbox, "", ids, now).unwrap();
+    }
+    let counts = store.mailbox_counts(inbox).unwrap();
+    assert_eq!((counts.awaited, counts.unreturned), (1, 1));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_directory_that_was_open_to_others_is_closed() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_directory, home) = home();
+    std::fs::create_dir_all(home.root()).unwrap();
+    std::fs::set_permissions(home.root(), std::fs::Permissions::from_mode(0o755)).unwrap();
+    let _store = Store::open(&home).unwrap();
+    assert_eq!(
+        home.root().metadata().unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    for file in ["mail.sqlite3", "mail.sqlite3-wal", "mail.sqlite3-shm"] {
+        let mode = home
+            .root()
+            .join(file)
+            .metadata()
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "{file}");
+    }
 }
 
 #[test]

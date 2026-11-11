@@ -39,6 +39,11 @@ sha2 = "0.11"
 # The log is compressed: mail is mostly text.
 zstd = { version = "0.14", default-features = false }
 
+# Making a batch of the log's files durable with one flush: a plain `fsync` per file and one
+# `F_FULLFSYNC` on macOS, `syncfs` on Linux. `std` offers only the full flush per file.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
 [dev-dependencies]
 async-trait = "0.1"
 serde_json = "1"

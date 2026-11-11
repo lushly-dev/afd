@@ -82,6 +82,9 @@ impl From<io::Error> for LogError {
     }
 }
 
+/// The directory, inside the log's, that holds files found damaged.
+const DAMAGED: &str = "damaged";
+
 /// zstd's level 3: about a third of the size for mail, at hundreds of megabytes a second.
 const COMPRESSION_LEVEL: i32 = 3;
 
@@ -119,24 +122,29 @@ impl Log {
         self.path(id).is_file()
     }
 
-    /// Holds `bytes` and returns their id. Bytes already held are not written
-    /// again. The file appears under its name only once it is written in full,
-    /// so a stop of the program midway leaves no half-written message.
+    /// Holds `bytes` and returns their id. The file appears under its name
+    /// only once it is written in full, so a stop of the program midway
+    /// leaves no half-written message.
     ///
-    /// The file is not forced to the disk: doing that for each message held
-    /// the log to about 260 messages a second on macOS, under the
-    /// specification's limit of 500. A power failure can therefore leave a
-    /// file that is short or empty. [`Log::get`] checks every read against
-    /// the id, reports such a file as [`LogError::Corrupt`], and
-    /// [`Log::discard`] removes it so that the bytes can be fetched again.
+    /// Bytes already held are not written again, but the file there is read
+    /// and checked first: a damaged one is set aside and written afresh, so
+    /// fetching a message again repairs it.
+    ///
+    /// The file is not yet safe from a power failure. Call
+    /// [`Log::make_durable`] for a batch before recording that it is held.
     ///
     /// # Errors
     /// When the file cannot be written.
     pub fn put(&self, bytes: &[u8]) -> Result<BlobId, LogError> {
         let id = BlobId::of(bytes);
         let path = self.path(id);
-        if path.is_file() {
-            return Ok(id);
+        match self.get(id, u64::try_from(bytes.len()).unwrap_or(u64::MAX)) {
+            Ok(_) => return Ok(id),
+            Err(LogError::NotHeld(_)) => {}
+            Err(LogError::Corrupt(_) | LogError::TooLong(_)) => {
+                self.set_aside(id)?;
+            }
+            Err(error) => return Err(error),
         }
         let Some(directory) = path.parent() else {
             return Err(LogError::Io(io::Error::other(
@@ -144,12 +152,7 @@ impl Log {
             )));
         };
         create_private_dir(directory)?;
-        let temporary = directory.join(format!(
-            ".{}.{}.{}.tmp",
-            id.to_hex(),
-            std::process::id(),
-            self.next_temporary.fetch_add(1, Ordering::Relaxed)
-        ));
+        let temporary = directory.join(format!(".{}.{}.tmp", id.to_hex(), self.unique()));
         let written =
             write_compressed(&temporary, bytes).and_then(|()| fs::rename(&temporary, &path));
         if let Err(error) = written {
@@ -158,6 +161,45 @@ impl Log {
             return Err(LogError::Io(error));
         }
         Ok(id)
+    }
+
+    /// A name part no other call in any process shares.
+    fn unique(&self) -> String {
+        format!(
+            "{}.{}",
+            std::process::id(),
+            self.next_temporary.fetch_add(1, Ordering::Relaxed)
+        )
+    }
+
+    /// Waits until the files under `ids`, and their names, are on the disk,
+    /// so that a power failure cannot take them. One flush covers the batch.
+    ///
+    /// # Errors
+    /// When a file is not held or the flush fails.
+    pub fn make_durable(&self, ids: &[BlobId]) -> Result<(), LogError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let paths: Vec<PathBuf> = ids.iter().map(|id| self.path(*id)).collect();
+        Ok(durable::flush(&self.root, &paths)?)
+    }
+
+    /// Moves the file under `id` out of the log into `damaged/`, so that its
+    /// bytes can be fetched again and nothing is deleted on a suspicion.
+    /// Returns whether there was a file.
+    ///
+    /// # Errors
+    /// When the file is there and cannot be moved.
+    pub fn set_aside(&self, id: BlobId) -> Result<bool, LogError> {
+        let damaged = self.root.join(DAMAGED);
+        create_private_dir(&damaged)?;
+        let target = damaged.join(format!("{}.{}", id.to_hex(), self.unique()));
+        match fs::rename(self.path(id), target) {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(LogError::Io(error)),
+        }
     }
 
     /// The bytes held under `id`, checked against it. At most `limit` bytes
@@ -182,7 +224,9 @@ impl Log {
             .read_to_end(&mut bytes)
         {
             Ok(_) => {}
-            // zstd reports a frame it cannot read as invalid data.
+            // The operating system's own refusal is not damage: the file may be whole.
+            Err(error) if error.raw_os_error().is_some() => return Err(LogError::Io(error)),
+            // What is left is zstd saying it cannot read the frame.
             Err(_) => return Err(LogError::Corrupt(id)),
         }
         if u64::try_from(bytes.len()).is_ok_and(|length| length > limit) {
@@ -195,25 +239,60 @@ impl Log {
     }
 }
 
-impl Log {
-    /// Removes the file under `id`, so that a damaged one can be replaced by
-    /// fetching its bytes again. Returns whether there was a file.
-    ///
-    /// # Errors
-    /// When the file is there and cannot be removed.
-    pub fn discard(&self, id: BlobId) -> Result<bool, LogError> {
-        match fs::remove_file(self.path(id)) {
-            Ok(()) => Ok(true),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(LogError::Io(error)),
-        }
-    }
-}
-
 /// Writes `bytes`, compressed, to a new private file at `path`.
 fn write_compressed(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let file = private_file().create_new(true).open(path)?;
     let mut encoder = zstd::stream::write::Encoder::new(file, COMPRESSION_LEVEL)?;
     encoder.write_all(bytes)?;
     encoder.finish()?.flush()
+}
+
+/// Making files durable, as each platform allows.
+mod durable {
+    use std::fs::File;
+    use std::io;
+    use std::path::{Path, PathBuf};
+
+    /// Flushes `paths`, files of the log under `root`, and their directory entries.
+    #[cfg(target_vendor = "apple")]
+    pub(super) fn flush(_root: &Path, paths: &[PathBuf]) -> io::Result<()> {
+        // `fsync` hands each file to the drive; one `F_FULLFSYNC` then has the
+        // drive write its cache out, which covers everything handed over.
+        let mut last = None;
+        for path in paths {
+            let file = File::open(path)?;
+            rustix::fs::fsync(&file)?;
+            last = Some(file);
+        }
+        let directories: std::collections::BTreeSet<&Path> =
+            paths.iter().filter_map(|path| path.parent()).collect();
+        for directory in directories {
+            rustix::fs::fsync(File::open(directory)?)?;
+        }
+        match last {
+            Some(file) => Ok(rustix::fs::fcntl_fullfsync(file)?),
+            None => Ok(()),
+        }
+    }
+
+    /// Flushes `paths`, files of the log under `root`, and their directory entries.
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    pub(super) fn flush(root: &Path, paths: &[PathBuf]) -> io::Result<()> {
+        // One call writes out everything pending on the log's file system,
+        // file contents and directory entries alike. A missing file is still
+        // an error, as on the other platforms.
+        for path in paths {
+            path.metadata()?;
+        }
+        Ok(rustix::fs::syncfs(File::open(root)?)?)
+    }
+
+    /// Flushes `paths`, files of the log under `root`, and their directory entries.
+    #[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android")))]
+    pub(super) fn flush(_root: &Path, paths: &[PathBuf]) -> io::Result<()> {
+        for path in paths {
+            File::open(path)?.sync_all()?;
+        }
+        Ok(())
+    }
 }

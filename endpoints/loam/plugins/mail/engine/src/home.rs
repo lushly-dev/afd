@@ -64,10 +64,13 @@ impl Home {
         let base = if cfg!(target_os = "macos") {
             set("HOME").map(|home| Path::new(&home).join("Library/Application Support"))
         } else if cfg!(windows) {
-            set("APPDATA").map(PathBuf::from)
+            // The local profile: half a million files should not roam.
+            set("LOCALAPPDATA").map(PathBuf::from)
         } else {
+            // A relative value is ignored, as the XDG specification says.
             set("XDG_DATA_HOME")
                 .map(PathBuf::from)
+                .filter(|path| path.is_absolute())
                 .or_else(|| set("HOME").map(|home| Path::new(&home).join(".local/share")))
         };
         base.map(|base| Self::at(base.join(DIRECTORY_NAME)))
@@ -116,6 +119,8 @@ impl Home {
     /// [`HomeError::InUse`] when another process holds the lock.
     pub fn lock(&self) -> Result<HomeLock, HomeError> {
         create_private_dir(&self.root)?;
+        // A directory that was already there may be open to others.
+        make_private_dir(&self.root)?;
         let file = private_file()
             .create(true)
             .truncate(false)
@@ -146,6 +151,20 @@ pub(crate) fn create_private_dir(path: &Path) -> io::Result<()> {
         builder.mode(0o700);
     }
     builder.create(path)
+}
+
+/// Closes an existing directory to everyone but its owner.
+fn make_private_dir(path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if path.metadata()?.permissions().mode() & 0o077 != 0 {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
 }
 
 /// Options for a file readable and writable by the owner alone (`0600`).

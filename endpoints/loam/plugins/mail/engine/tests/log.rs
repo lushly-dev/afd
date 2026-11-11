@@ -111,17 +111,43 @@ fn a_damaged_file_is_noticed() {
     // An empty file, as a power failure can leave.
     fs::write(&path, b"").expect("emptied");
     assert!(matches!(log.get(id, NO_LIMIT), Err(LogError::Corrupt(_))));
-    // Storing the bytes again does not repair it: the file is there. Discarding it does.
-    log.put(&b"some mail ".repeat(100)).expect("stored");
-    assert!(matches!(log.get(id, NO_LIMIT), Err(LogError::Corrupt(_))));
-    assert!(log.discard(id).expect("discarded"));
-    assert!(!log.discard(id).expect("nothing to discard"));
-    assert!(matches!(log.get(id, NO_LIMIT), Err(LogError::NotHeld(_))));
-    log.put(&b"some mail ".repeat(100)).expect("stored");
+    // Storing the bytes again repairs it, and the damaged file is kept aside.
+    assert_eq!(log.put(&b"some mail ".repeat(100)).expect("stored"), id);
     assert_eq!(
         log.get(id, NO_LIMIT).expect("read"),
         b"some mail ".repeat(100)
     );
+    let aside = directory.path().join("blobs/damaged");
+    assert_eq!(
+        fs::read_dir(&aside).expect("the damaged directory").count(),
+        1
+    );
+    // Setting a file aside by hand: it is gone from the log, and still on disk.
+    assert!(log.set_aside(id).expect("set aside"));
+    assert!(!log.set_aside(id).expect("nothing to set aside"));
+    assert!(matches!(log.get(id, NO_LIMIT), Err(LogError::NotHeld(_))));
+    assert_eq!(
+        fs::read_dir(&aside).expect("the damaged directory").count(),
+        2
+    );
+}
+
+#[test]
+fn a_batch_is_made_durable_and_a_missing_file_is_an_error() {
+    let (_directory, log) = log();
+    let ids = [
+        log.put(b"one").expect("stored"),
+        log.put(b"two").expect("stored"),
+    ];
+    log.make_durable(&ids).expect("flushed");
+    log.make_durable(&[]).expect("nothing to flush");
+    assert!(matches!(
+        log.make_durable(&[BlobId::of(b"never stored")]),
+        Err(LogError::Io(_))
+    ));
+    for id in ids {
+        assert!(log.holds(id));
+    }
 }
 
 #[test]

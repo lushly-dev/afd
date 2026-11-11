@@ -32,6 +32,10 @@ pub enum StoreError {
     ValidityMismatch,
     /// A row the caller named does not exist.
     NotFound(&'static str),
+    /// A part's place in its message is not numbers joined by dots.
+    BadPlace,
+    /// Other bytes are already held for that part of the message.
+    Conflict,
     /// The data directory refused.
     Home(HomeError),
     /// The log refused.
@@ -55,6 +59,8 @@ impl fmt::Display for StoreError {
                 )
             }
             Self::NotFound(what) => write!(f, "the {what} does not exist"),
+            Self::BadPlace => write!(f, "a part's place is numbers joined by dots"),
+            Self::Conflict => write!(f, "other bytes are already held for that part"),
             Self::Home(error) => error.fmt(f),
             Self::Log(error) => error.fmt(f),
             Self::Sqlite(error) => write!(f, "the store's database refused: {error}"),
@@ -167,6 +173,51 @@ pub struct HeaderSeen {
     pub header_block: Vec<u8>,
 }
 
+/// Which bytes of a message a [`PartSeen`] holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place<'a> {
+    /// The whole message, exactly as returned.
+    Whole,
+    /// A text part of a message fetched in parts (the specification's M20),
+    /// at this place in the message, such as `1.2`.
+    Text(&'a str),
+    /// An attachment, at this place in the message.
+    Attachment(&'a str),
+}
+
+impl<'a> Place<'a> {
+    /// A part's place is numbers joined by dots, so that it can never be
+    /// mistaken for `header` or `whole`.
+    fn is_valid(self) -> bool {
+        match self {
+            Self::Whole => true,
+            Self::Text(place) | Self::Attachment(place) => place
+                .split('.')
+                .all(|number| !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit())),
+        }
+    }
+
+    /// The `part` and `kind` columns.
+    fn columns(self) -> (&'a str, &'static str) {
+        match self {
+            Self::Whole => ("whole", "whole"),
+            Self::Text(place) => (place, "text"),
+            Self::Attachment(place) => (place, "attachment"),
+        }
+    }
+}
+
+/// Bytes fetched for a message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartSeen<'a> {
+    /// The message they belong to.
+    pub message: MessageId,
+    /// Which of its bytes they are.
+    pub place: Place<'a>,
+    /// The bytes, exactly as returned.
+    pub bytes: &'a [u8],
+}
+
 /// What recording a batch of headers did.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BatchOutcome {
@@ -187,9 +238,17 @@ pub struct MailboxCounts {
     pub headers_held: u64,
     /// Of those, the ones held whole.
     pub bodies_held: u64,
-    /// Listed messages that have not arrived, however many times they were tried.
-    pub not_returned: u64,
+    /// Listed messages that have not arrived and are still tried each pass.
+    pub awaited: u64,
+    /// Listed messages that did not arrive in [`UNRETURNED_AFTER_TRIES`]
+    /// tries: they no longer hold the mailbox back from "synced".
+    pub unreturned: u64,
 }
+
+/// How many tries make a listed message unreturned (the specification's
+/// section 5.4). Sync decides what counts as a try: a pass, at least an hour
+/// after the last.
+pub const UNRETURNED_AFTER_TRIES: u32 = 3;
 
 /// The longest header block or message the store will read back from the log.
 /// A provider's largest message is far below it.
@@ -218,18 +277,16 @@ impl Store {
     fn open_with(home: &Home, migrations: &[&str]) -> Result<Self, StoreError> {
         let lock = home.lock()?;
         let log = Log::open(home.blobs())?;
-        let existed = home.database().exists();
         let mut connection = Connection::open(home.database())?;
-        if !existed {
-            restrict_to_owner(&home.database());
-        }
+        restrict_to_owner(&home.database())?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "NORMAL")?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         schema::migrate(&mut connection, migrations)?;
-        // The write-ahead log and its index are created by the first write.
-        restrict_to_owner(&home.database().with_extension("sqlite3-wal"));
-        restrict_to_owner(&home.database().with_extension("sqlite3-shm"));
+        // The write-ahead log and its index take the database file's mode
+        // when SQLite creates them; this covers ones left from before.
+        restrict_to_owner(&home.database().with_extension("sqlite3-wal"))?;
+        restrict_to_owner(&home.database().with_extension("sqlite3-shm"))?;
         Ok(Self {
             connection,
             log,
@@ -351,11 +408,15 @@ impl Store {
         if stored == validity {
             return Ok(false);
         }
-        transaction.execute(
+        let closed = transaction.execute(
             "UPDATE observation SET ended_at = ?2, ended_by = 'closed'
              WHERE mailbox_id = ?1 AND ended_at IS NULL",
             params![mailbox.0, now],
         )?;
+        if closed > 0 {
+            // One row for the mailbox: a view of it reads it again in full.
+            note_change(&transaction, now, "mailbox-closed", mailbox.0)?;
+        }
         transaction.execute("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
         transaction.execute(
             "UPDATE mailbox SET validity = ?2, cursor = NULL WHERE id = ?1",
@@ -386,6 +447,23 @@ impl Store {
         }
     }
 
+    /// Records why a mailbox's last pass failed, in the engine's own words:
+    /// never text from a message or from the provider.
+    ///
+    /// # Errors
+    /// [`StoreError::NotFound`] when the mailbox does not exist.
+    pub fn set_error(&mut self, mailbox: MailboxId, error: &str) -> Result<(), StoreError> {
+        let changed = self.connection.execute(
+            "UPDATE mailbox SET last_error = ?2 WHERE id = ?1",
+            params![mailbox.0, error],
+        )?;
+        if changed == 0 {
+            Err(StoreError::NotFound("mailbox"))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Records a batch of headers a provider returned for a mailbox, all or
     /// none: each header block goes to the log, each message is found by its
     /// identity or created, and what the mailbox now shows is recorded. A
@@ -406,6 +484,8 @@ impl Store {
             .iter()
             .map(|seen| self.log.put(&seen.header_block))
             .collect::<Result<_, _>>()?;
+        // On the disk before any row says they are held.
+        self.log.make_durable(&blobs)?;
         let transaction = self.connection.transaction()?;
         check_validity(&transaction, mailbox, validity)?;
         let mut outcome = BatchOutcome::default();
@@ -424,71 +504,69 @@ impl Store {
         Ok(outcome)
     }
 
-    /// Records the whole of a message, exactly as returned.
+    /// Records bytes fetched for messages, all or none: the whole of a
+    /// message, a text part, or an attachment someone opened. The files are
+    /// on the disk before any row says they are held.
+    ///
+    /// A part already held with the same bytes is left as it is. One held
+    /// with other bytes is refused: a message's identity fixes its bytes, so
+    /// a difference is something to look at, not to overwrite.
     ///
     /// # Errors
-    /// [`StoreError::NotFound`] when the message does not exist.
-    pub fn record_whole(&mut self, message: MessageId, bytes: &[u8]) -> Result<BlobId, StoreError> {
-        self.record_part(message, "whole", "whole", bytes)
-    }
-
-    /// Records one part of a message fetched in parts (the specification's
-    /// M20): `place` is the part's place in the message, such as `1.2`.
-    ///
-    /// # Errors
-    /// [`StoreError::NotFound`] when the message does not exist.
-    pub fn record_text_part(
-        &mut self,
-        message: MessageId,
-        place: &str,
-        bytes: &[u8],
-    ) -> Result<BlobId, StoreError> {
-        self.record_part(message, place, "text", bytes)
-    }
-
-    /// Records an attachment fetched because someone opened it.
-    ///
-    /// # Errors
-    /// [`StoreError::NotFound`] when the message does not exist.
-    pub fn record_attachment(
-        &mut self,
-        message: MessageId,
-        place: &str,
-        bytes: &[u8],
-    ) -> Result<BlobId, StoreError> {
-        self.record_part(message, place, "attachment", bytes)
-    }
-
-    fn record_part(
-        &mut self,
-        message: MessageId,
-        place: &str,
-        kind: &str,
-        bytes: &[u8],
-    ) -> Result<BlobId, StoreError> {
-        let exists: Option<i64> = self
-            .connection
-            .query_row("SELECT id FROM message WHERE id = ?1", [message.0], |row| {
-                row.get(0)
-            })
-            .optional()?;
-        if exists.is_none() {
-            return Err(StoreError::NotFound("message"));
+    /// [`StoreError::NotFound`] when a message does not exist,
+    /// [`StoreError::BadPlace`] when a part's place is not digits and dots,
+    /// and [`StoreError::Conflict`] when other bytes are held there.
+    pub fn record_parts(&mut self, parts: &[PartSeen<'_>]) -> Result<Vec<BlobId>, StoreError> {
+        for part in parts {
+            if !part.place.is_valid() {
+                return Err(StoreError::BadPlace);
+            }
         }
-        let blob = self.log.put(bytes)?;
-        self.connection.execute(
-            "INSERT INTO held (message_id, part, kind, blob, size) VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT (message_id, part) DO UPDATE
-             SET kind = excluded.kind, blob = excluded.blob, size = excluded.size",
-            params![
-                message.0,
-                place,
-                kind,
-                blob.as_bytes().as_slice(),
-                size_of(bytes)
-            ],
-        )?;
-        Ok(blob)
+        let blobs: Vec<BlobId> = parts
+            .iter()
+            .map(|part| self.log.put(part.bytes))
+            .collect::<Result<_, _>>()?;
+        self.log.make_durable(&blobs)?;
+        let transaction = self.connection.transaction()?;
+        for (part, blob) in parts.iter().zip(&blobs) {
+            let exists: Option<i64> = transaction
+                .query_row(
+                    "SELECT id FROM message WHERE id = ?1",
+                    [part.message.0],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if exists.is_none() {
+                return Err(StoreError::NotFound("message"));
+            }
+            let (place, kind) = part.place.columns();
+            let held: Option<Vec<u8>> = transaction
+                .query_row(
+                    "SELECT blob FROM held WHERE message_id = ?1 AND part = ?2",
+                    params![part.message.0, place],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            match held {
+                Some(other) if other != blob.as_bytes() => return Err(StoreError::Conflict),
+                Some(_) => {}
+                None => {
+                    transaction.execute(
+                        "INSERT INTO held (message_id, part, kind, blob, size)
+                         VALUES (?1, ?2, ?3, ?4, ?5)",
+                        params![
+                            part.message.0,
+                            place,
+                            kind,
+                            blob.as_bytes().as_slice(),
+                            size_of(part.bytes)
+                        ],
+                    )?;
+                }
+            }
+        }
+        transaction.commit()?;
+        Ok(blobs)
     }
 
     /// Counts a try for each listed message that did not arrive (the
@@ -617,15 +695,17 @@ impl Store {
             [mailbox.0],
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
         )?;
-        let not_returned: i64 = self.connection.query_row(
-            "SELECT count(*) FROM unreturned WHERE mailbox_id = ?1",
-            [mailbox.0],
-            |row| row.get(0),
+        let (awaited, unreturned) = self.connection.query_row(
+            "SELECT count(*) FILTER (WHERE tries < ?2), count(*) FILTER (WHERE tries >= ?2)
+             FROM unreturned WHERE mailbox_id = ?1",
+            params![mailbox.0, UNRETURNED_AFTER_TRIES],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
         )?;
         Ok(MailboxCounts {
             headers_held: count(headers_held),
             bodies_held: count(bodies_held),
-            not_returned: count(not_returned),
+            awaited: count(awaited),
+            unreturned: count(unreturned),
         })
     }
 
@@ -820,17 +900,22 @@ fn count(value: i64) -> u64 {
     u64::try_from(value).unwrap_or(0)
 }
 
-/// Makes an existing file readable and writable by its owner alone. SQLite
-/// creates its files with the process's default mode.
-fn restrict_to_owner(path: &std::path::Path) {
+/// Makes a file readable and writable by its owner alone, if it exists.
+/// SQLite creates its files with the process's default mode, inside a
+/// directory only the owner can enter.
+fn restrict_to_owner(path: &std::path::Path) -> Result<(), StoreError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        // A file that is not there yet is created inside a directory only the owner can enter.
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        match std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(StoreError::Home(HomeError::Io(error))),
+        }
     }
     #[cfg(not(unix))]
     let _ = path;
+    Ok(())
 }
 
 #[cfg(test)]

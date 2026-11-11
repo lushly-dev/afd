@@ -129,7 +129,7 @@ Each crate's maintenance history was not read.
 | `rusqlite` | 0.41, bundled SQLite | MIT | The store | The version Umbel pins, so the repository carries one. 0.42 is current |
 | `tantivy` | 0.27 | MIT | The search index | None |
 | `sha2` | 0.11 | MIT or Apache-2.0 | The log's file names and a message's identity | The version the `afd` crate uses |
-| `zstd` | 0.14 | MIT or Apache-2.0 | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |
+| `zstd` | 0.14 | BSD-3-Clause | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |
 | `mail-parser` | 1.0.1 | Apache-2.0 or MIT | Parsing messages | The licence is stated on crates.io, which answers the proposal's follow-up |
 | `ammonia` | 4.2 | MIT or Apache-2.0 | Cleaning HTML for display | None |
 | `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Whether it exposes QRESYNC, `UID EXPUNGE` and the `COPYUID` response is not verified. Step B3 checks, and names `imap-codec` (2.0 alpha) as the fallback if it does not |
@@ -271,13 +271,16 @@ and one for each attachment when it is fetched; its record says which parts are 
 
 - **A read is checked.** Every read recomputes the hash and fails if it is not the file's name,
   and stops at a size limit, so a damaged file is noticed and a hostile one cannot fill memory.
-- **A write is not forced to the disk.** Forcing each file held the log to about 260 messages a
-  second on macOS, under [4.4](#44-limits-to-meet)'s limit; without it the same run stored
-  4 400 a second. A file appears under its name only when it is written in full, so stopping
-  the program leaves nothing half-written. A power failure can leave a short or empty file:
-  the check on read reports it, the file is discarded, and sync fetches the bytes again
-  (step B3). The log is therefore the source for everything derived, and the provider is the
-  source for the log.
+- **A batch is on the disk before it is recorded.** A file appears under its name only when it
+  is written in full. The files of a batch are then flushed together, and only after that does
+  the store record them as held, so a row never names a file a power failure could take. One
+  flush covers the batch: a plain `fsync` for each file and one `F_FULLFSYNC` on macOS, `syncfs`
+  on Linux, a flush for each file elsewhere. Flushing each file fully held the log to about 260
+  header blocks a second on macOS, under [4.4](#44-limits-to-meet)'s limit; a flush for each
+  batch of 250 stored 1 700 a second, and no flush at all 4 400.
+- **Storing again repairs.** Storing bytes that are already held reads the file there first. A
+  damaged one is moved to `blobs/damaged/`, never deleted, and written afresh. So fetching a
+  message again mends its file, whatever damaged it.
 
 **The tables.** A sketch. Step B2 fixes the columns of each table when it creates it: the
 first half creates what is not derived, the second half the rest.
