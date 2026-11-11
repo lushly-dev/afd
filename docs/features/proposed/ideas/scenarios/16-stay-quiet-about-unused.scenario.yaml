@@ -1,5 +1,7 @@
 # Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
 # the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# The runner cannot move the clock between steps, so the reads take a date instead.
 
 name: Stay quiet about ideas I never use
 description: >-
@@ -25,10 +27,24 @@ steps:
     expect:
       success: true
 
-  - description: I hold both
-    command: ideas-affirm
+  - description: Put both in front of me
+    command: ideas-review-stage
     input:
-      ids: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}"]
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      digest: "${{ steps[2].data.digest }}"
     expect:
       success: true
 
@@ -52,7 +68,18 @@ steps:
       data:
         dueInUse: { length: 0 }
 
-  - description: One of them is used
+  - description: A draft reaches for one of them, and the bundle says it is due before it is used
+    command: ideas-bundle
+    input:
+      ids: ["${{ steps[1].data.id }}"]
+      asOf: "2030-01-01"
+    expect:
+      success: true
+      data:
+        attention:
+          due: { length: 1 }
+
+  - description: It is used anyway
     command: ideas-output-record
     input:
       title: Brassicas without the pigeons

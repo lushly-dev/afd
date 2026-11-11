@@ -4,7 +4,8 @@
 name: Connect older ideas as the store grows
 description: >-
   When the store has grown, I want older ideas that belong together to be offered for linking,
-  so that connections do not depend on what I remembered at capture.
+  and a pair I have judged not to belong never offered again, so that connections do not depend
+  on what I remembered at capture.
 job: connect-older-ideas
 tags: [organise, slice]
 
@@ -27,19 +28,39 @@ steps:
       data:
         related: { length: 1 }
 
-  - description: The pair is offered
+  - description: One that only sounds related
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Clear a bed the day its crop is finished, before pests settle in.
+    expect:
+      success: true
+      data:
+        related: { length: 1 }
+
+  - description: Both pairs are offered
     command: ideas-link-candidates
     expect:
       success: true
       data:
-        total: 1
+        total: 2
 
-  - description: A model judges it and states the link
+  - description: A model judges the first pair and states the link
     command: ideas-link
     input:
       from: "${{ steps[1].data.id }}"
       kind: supports
       to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: It judges that the second pair does not belong together, and that is recorded
+    command: ideas-settle
+    input:
+      check: link-candidate
+      subjects: ["${{ steps[0].data.id }}", "${{ steps[2].data.id }}"]
+      how: unrelated
+      reason: One is about what to sow, the other about pests.
     expect:
       success: true
 

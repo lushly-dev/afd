@@ -109,3 +109,23 @@ steps:
         counts:
           unsupported-position: 1
           contested: 1
+
+  - description: I know about the challenge and hold the position anyway, and say so
+    command: ideas-settle
+    input:
+      check: contested
+      subjects: ["${{ steps[1].data.id }}", "${{ steps[5].data.id }}"]
+      how: stands
+      reason: Open ground is the exception I already allow for.
+    expect:
+      success: true
+
+  - description: It is not reported again until one of the two changes
+    command: ideas-check
+    input:
+      checks: [contested]
+    expect:
+      success: true
+      data:
+        counts:
+          contested: 0

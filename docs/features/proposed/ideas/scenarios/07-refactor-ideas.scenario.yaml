@@ -4,39 +4,38 @@
 name: Merge two ideas that are one, and split one that is two
 description: >-
   When I notice that two ideas are really one, or that one is really two, I want to fix it
-  without losing where they came from, so that the store follows my thinking.
+  without losing where they came from, what links to them or where they were used, so that the
+  store follows my thinking.
 job: refactor-ideas
 tags: [organise, slice]
 
 steps:
-  - description: A first source
+  - description: Notes from a conversation in spring
     command: ideas-source-add
     input:
       title: Spring notes
       kind: notes
-      collection: journal
       content: "Sow carrots thinly to save thinning later."
     expect:
       success: true
 
-  - description: A second source
+  - description: Notes from a conversation in autumn
     command: ideas-source-add
     input:
       title: Autumn notes
       kind: notes
-      collection: journal
       content: "Thin sowing means no thinning, and pelleted seed makes it easy."
     expect:
       success: true
 
-  - description: The idea from the first source
+  - description: The idea from the first
     command: ideas-capture
     input:
       type: principle
       statement: Sow carrots thinly to save thinning later.
       sources:
         - source: "${{ steps[0].data.source }}"
-          quote: Sow carrots thinly to save thinning later.
+          sentences: [1]
     expect:
       success: true
 
@@ -49,7 +48,7 @@ steps:
       reason: Fixture step that sets up a merge.
       sources:
         - source: "${{ steps[1].data.source }}"
-          quote: Thin sowing means no thinning, and pelleted seed makes it easy.
+          sentences: [1]
     expect:
       success: true
 
@@ -64,7 +63,16 @@ steps:
     expect:
       success: true
 
-  - description: Merge the two; the survivor keeps both sources and the link
+  - description: A thread that used the second
+    command: ideas-output-record
+    input:
+      title: Sowing carrots
+      format: thread
+      ideas: ["${{ steps[3].data.id }}"]
+    expect:
+      success: true
+
+  - description: Both are seeds, so an agent may merge them; the survivor keeps the sources, the link and the use
     command: ideas-merge
     input:
       ids: ["${{ steps[2].data.id }}", "${{ steps[3].data.id }}"]
@@ -73,10 +81,10 @@ steps:
     expect:
       success: true
       data:
-        id: "${{ steps[2].data.id }}"
         retired: { length: 1 }
         sources: 2
         links: 1
+        uses: 1
 
   - description: The other is retired and names the survivor
     command: ideas-open
@@ -86,9 +94,96 @@ steps:
       success: true
       data:
         standing: retired
-        successor: "${{ steps[2].data.id }}"
+        successors: { length: 1 }
 
-  - description: Split the survivor into the principle and the technique
+  - description: I am not sure the agent was right; put the reversal in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: undo
+          id: "${{ steps[3].data.id }}"
+    expect:
+      success: true
+
+  - description: I take the merge back
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[8].data.review }}"
+      digest: "${{ steps[8].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: The second idea is back as it was, with its link
+    command: ideas-open
+    input:
+      id: "${{ steps[3].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: seed
+        links:
+          in: { length: 1 }
+
+  - description: Put the first idea's wording in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[2].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[11].data.review }}"
+      digest: "${{ steps[11].data.digest }}"
+    expect:
+      success: true
+
+  - description: Having read both, they are one after all; it has standing now, so the merge is put in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: merge
+          ids: ["${{ steps[2].data.id }}", "${{ steps[3].data.id }}"]
+          survivor: "${{ steps[2].data.id }}"
+          reason: The same principle, noted twice.
+    expect:
+      success: true
+      data:
+        counts:
+          merge: 1
+
+  - description: I agree to it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[13].data.review }}"
+      digest: "${{ steps[13].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          merge: 1
+
+  - description: The survivor shows both sources, the link and the use, and is still what I hold
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        sources: { length: 2 }
+        uses: { length: 1 }
+        links:
+          in: { length: 1 }
+
+  - description: It is really two things; splitting it directly is refused, with the way forward
     command: ideas-split
     input:
       id: "${{ steps[2].data.id }}"
@@ -99,11 +194,68 @@ steps:
         - type: example
           statement: Pelleted seed makes thin sowing easy.
     expect:
+      success: false
+      error:
+        code: FORBIDDEN
+        suggestion: { contains: ideas-review-stage }
+
+  - description: A staged split that leaves the incoming link with neither part is refused
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: split
+          id: "${{ steps[2].data.id }}"
+          reason: Two separate things.
+          into:
+            - type: principle
+              statement: Sow carrots thinly so that they need no thinning.
+            - type: example
+              statement: Pelleted seed makes thin sowing easy.
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+
+  - description: Put the split in front of me, with the source and the link each part keeps
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: split
+          id: "${{ steps[2].data.id }}"
+          reason: Two separate things.
+          into:
+            - type: principle
+              statement: Sow carrots thinly so that they need no thinning.
+              sources:
+                - source: "${{ steps[0].data.source }}"
+                  sentences: [1]
+            - type: example
+              statement: Pelleted seed makes thin sowing easy.
+              sources:
+                - source: "${{ steps[1].data.source }}"
+                  sentences: [1]
+              links:
+                - kind: example-of
+                  from: "${{ steps[4].data.id }}"
+    expect:
       success: true
       data:
-        ids: { length: 2 }
+        counts:
+          split: 1
 
-  - description: The original is retired
+  - description: I agree, having seen both wordings
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[18].data.review }}"
+      digest: "${{ steps[18].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          split: 1
+        created: { length: 2 }
+
+  - description: The original is retired and names both parts
     command: ideas-open
     input:
       id: "${{ steps[2].data.id }}"
@@ -111,3 +263,25 @@ steps:
       success: true
       data:
         standing: retired
+        successors: { length: 2 }
+
+  - description: The first part kept its source and, since I saw its wording, is affirmed
+    command: ideas-open
+    input:
+      id: "${{ steps[19].data.created[0] }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        sources: { length: 1 }
+
+  - description: The second kept its source and the link that pointed at the original
+    command: ideas-open
+    input:
+      id: "${{ steps[19].data.created[1] }}"
+    expect:
+      success: true
+      data:
+        sources: { length: 1 }
+        links:
+          in: { length: 1 }

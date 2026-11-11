@@ -4,9 +4,10 @@
 name: File research as evidence, apart from my own positions
 description: >-
   When I finish a research session, I want the findings stored as evidence with their citations,
-  apart from my own positions, so that I can tell what I think from what I found.
+  apart from my own positions, so that I can tell what I think from what I found and trace each
+  finding to where it came from.
 job: file-research
-tags: [collect, slice]
+tags: [collect, loop]
 
 steps:
   - description: Register a web page as a reference source, with the passages relied on
@@ -21,17 +22,18 @@ steps:
     expect:
       success: true
       data:
-        source: { matches: '^ref:' }
-        attestable: false
+        source: { matches: '^src-' }
+        reference: true
+        attests: false
 
-  - description: Capture the finding as evidence that cites the passage
+  - description: Capture the finding as evidence that cites the passage; a reference never attests
     command: ideas-capture
     input:
       type: evidence
-      statement: In the fixture trial, straw mulch cut water use by 40 percent over a season.
+      statement: Plots mulched with straw needed 40 percent less water over the fixture season.
       sources:
         - source: "${{ steps[0].data.source }}"
-          quote: Plots mulched with straw needed 40 percent less water over the fixture season.
+          excerpt: 1
     expect:
       success: true
       data:
@@ -73,7 +75,16 @@ steps:
         links:
           in: { length: 1 }
 
-  - description: The position is no longer reported as unsupported
+  - description: The finding traces back to the passage it came from
+    command: ideas-open
+    input:
+      id: "${{ steps[1].data.id }}"
+    expect:
+      success: true
+      data:
+        sources: { length: 1 }
+
+  - description: The position is not reported as unsupported
     command: ideas-check
     input:
       checks: [unsupported-position]

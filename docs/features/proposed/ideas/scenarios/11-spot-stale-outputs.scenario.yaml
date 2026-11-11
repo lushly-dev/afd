@@ -4,7 +4,7 @@
 name: Spot published pieces that no longer match my thinking
 description: >-
   When I have published, I want to know which pieces no longer match what I think, so that I
-  can correct or retire them.
+  can correct or retire them, and stop hearing about the ones I have dealt with.
 job: spot-stale-outputs
 tags: [change, slice]
 
@@ -25,10 +25,24 @@ steps:
     expect:
       success: true
 
-  - description: I hold both
-    command: ideas-affirm
+  - description: Put both in front of me
+    command: ideas-review-stage
     input:
-      ids: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}"]
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      digest: "${{ steps[2].data.digest }}"
     expect:
       success: true
 
@@ -41,6 +55,20 @@ steps:
       ideas: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}"]
     expect:
       success: true
+      data:
+        state: draft
+
+  - description: It was published, and the record says where
+    command: ideas-output-update
+    input:
+      output: "${{ steps[4].data.output }}"
+      state: published
+      location: https://example.org/autumn-jobs
+      publishedOn: "2026-10-20"
+    expect:
+      success: true
+      data:
+        state: published
 
   - description: What I think now, in place of the first
     command: ideas-capture
@@ -50,18 +78,7 @@ steps:
     expect:
       success: true
 
-  - description: I retire the first, naming what replaced it
-    command: ideas-retire
-    input:
-      id: "${{ steps[0].data.id }}"
-      successor: "${{ steps[4].data.id }}"
-      reason: Went no-dig.
-    expect:
-      success: true
-      data:
-        standing: retired
-
-  - description: I reword the second
+  - description: A new wording for the second
     command: ideas-reframe
     input:
       id: "${{ steps[1].data.id }}"
@@ -70,11 +87,39 @@ steps:
     expect:
       success: true
 
-  - description: The article is compared with the present
-    command: ideas-compare
+  - description: Put the changes in front of me, the new view among them
+    command: ideas-review-stage
     input:
-      a:
-        output: "${{ steps[3].data.output }}"
+      decisions:
+        - decide: affirm
+          id: "${{ steps[6].data.id }}"
+          version: "${{ steps[6].data.version }}"
+        - decide: retire
+          id: "${{ steps[0].data.id }}"
+          successor: "${{ steps[6].data.id }}"
+          reason: Went no-dig.
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[7].data.version }}"
+    expect:
+      success: true
+
+  - description: I agree to all three
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[8].data.review }}"
+      digest: "${{ steps[8].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          retire: 1
+          affirm: 2
+
+  - description: The article is compared with the present
+    command: ideas-output-show
+    input:
+      output: "${{ steps[4].data.output }}"
     expect:
       success: true
       data:
@@ -89,7 +134,7 @@ steps:
       data:
         outputsDrifted: { length: 1 }
 
-  - description: The report finds an output that pins a retired idea
+  - description: The report finds a published piece that pins a retired idea
     command: ideas-check
     input:
       checks: [output-pins-retired]
@@ -98,3 +143,46 @@ steps:
       data:
         counts:
           output-pins-retired: 1
+
+  - description: A corrected article is written from what I hold now, and recorded as published
+    command: ideas-output-record
+    input:
+      title: Autumn jobs, without the spade
+      format: article
+      channel: newsletter
+      state: published
+      location: https://example.org/autumn-jobs-2
+      ideas: ["${{ steps[6].data.id }}", "${{ steps[1].data.id }}"]
+    expect:
+      success: true
+      data:
+        attention:
+          seeds: { length: 0 }
+
+  - description: The old one is marked as replaced by it
+    command: ideas-output-update
+    input:
+      output: "${{ steps[4].data.output }}"
+      state: superseded
+      supersededBy: "${{ steps[13].data.output }}"
+    expect:
+      success: true
+      data:
+        state: superseded
+
+  - description: The digest stops listing it
+    command: ideas-digest
+    expect:
+      success: true
+      data:
+        outputsDrifted: { length: 0 }
+
+  - description: And so does the report
+    command: ideas-check
+    input:
+      checks: [output-pins-retired]
+    expect:
+      success: true
+      data:
+        counts:
+          output-pins-retired: 0

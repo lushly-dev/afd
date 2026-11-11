@@ -1,26 +1,33 @@
 # Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
 # the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# Fixture the runner cannot yet set up (P14): a workspace whose collection `journal` is
+# configured by the deployer as the person's own writing, holding `compost.md` with two lines:
+#   Compost is ready when it smells like a forest floor.
+#   Turning a pile weekly halves the wait.
+# The host read that file from its own disk, so no model typed it. One file stands in for an
+# archive. How much is left to review after several hundred files is a measure (section 7).
 
 name: Mine years of documents once, without drowning in review
 description: >-
   When I start with years of my own documents, I want them mined once without a mountain of
   review, so that I get value in days and mining again costs nothing.
 job: mine-an-archive
-tags: [collect, slice]
+tags: [collect, loop]
 
 steps:
-  - description: Add one of my own documents
+  - description: Register one of my own documents, which the instance already holds on its disk
     command: ideas-source-add
     input:
-      title: Notes on compost
+      document: journal/compost.md
       kind: notes
-      collection: journal
       thoughtOn: "2024-05-10"
-      content: "Compost is ready when it smells like a forest floor.\nTurning a pile weekly halves the wait."
     expect:
       success: true
       data:
-        attestable: true
+        source: { matches: '^src-' }
+        arrived: disk
+        attests: true
 
   - description: First run
     command: ideas-run-open
@@ -30,7 +37,7 @@ steps:
     expect:
       success: true
 
-  - description: Capture my own words
+  - description: A whole sentence of mine is attested, with nothing to review
     command: ideas-capture
     input:
       type: principle
@@ -38,13 +45,13 @@ steps:
       run: "${{ steps[1].data.run }}"
       sources:
         - source: "${{ steps[0].data.source }}"
-          quote: Compost is ready when it smells like a forest floor.
+          sentences: [1]
     expect:
       success: true
       data:
         standing: attested
 
-  - description: And again
+  - description: And another
     command: ideas-capture
     input:
       type: position
@@ -52,11 +59,47 @@ steps:
       run: "${{ steps[1].data.run }}"
       sources:
         - source: "${{ steps[0].data.source }}"
-          quote: Turning a pile weekly halves the wait.
+          sentences: [2]
     expect:
       success: true
       data:
         standing: attested
+
+  - description: A model's restatement of the same document is a seed
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Judge compost by its smell, not by the calendar.
+      run: "${{ steps[1].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          sentences: [1]
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: A capture that quotes words the source does not contain is refused
+    command: ideas-capture
+    input:
+      type: position
+      statement: Compost is ready in six weeks.
+      run: "${{ steps[1].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          quote: Compost is ready in six weeks.
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+
+  - description: Close the first run, naming the source it finished
+    command: ideas-run-close
+    input:
+      run: "${{ steps[1].data.run }}"
+      done: ["${{ steps[0].data.source }}"]
+    expect:
+      success: true
 
   - description: Mine the same source again with the same extractor
     command: ideas-run-open
@@ -66,45 +109,59 @@ steps:
     expect:
       success: true
 
-  - description: The same statement is refused
-    command: ideas-capture
+  - description: The extractor checks what it found against the store in one call, before writing
+    command: ideas-match
     input:
-      type: principle
-      statement: Compost is ready when it smells like a forest floor.
-      run: "${{ steps[4].data.run }}"
-      sources:
-        - source: "${{ steps[0].data.source }}"
-          quote: Compost is ready when it smells like a forest floor.
+      statements:
+        - Compost is ready when it smells like a forest floor.
+        - Turning a pile weekly halves the wait.
     expect:
-      success: false
-      error:
-        code: ALREADY_EXISTS
+      success: true
+      data:
+        results: { length: 2 }
+        new: 0
 
   - description: Recording the same sighting twice does not count twice
     command: ideas-observe
     input:
       id: "${{ steps[2].data.id }}"
-      run: "${{ steps[4].data.run }}"
+      run: "${{ steps[7].data.run }}"
       source: "${{ steps[0].data.source }}"
-      quote: Compost is ready when it smells like a forest floor.
+      sentences: [1]
     expect:
       success: true
       data:
         sightings: 1
 
+  - description: Close the second run
+    command: ideas-run-close
+    input:
+      run: "${{ steps[7].data.run }}"
+    expect:
+      success: true
+
   - description: The second run created nothing
     command: ideas-run-show
     input:
-      run: "${{ steps[4].data.run }}"
+      run: "${{ steps[7].data.run }}"
     expect:
       success: true
       data:
         captured: 0
 
-  - description: Nothing is waiting to be looked at
+  - description: What I have not looked at is the restatement only
     command: ideas-find
     input:
       standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: Nothing is left for this extractor to mine
+    command: ideas-source-list
+    input:
+      notMinedBy: fixture-model, prompt 1
     expect:
       success: true
       data:

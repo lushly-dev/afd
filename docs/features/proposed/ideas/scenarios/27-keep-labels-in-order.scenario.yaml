@@ -1,0 +1,112 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Keep the catalogue in order
+description: >-
+  When I want to see how my ideas are labelled, or the labels have drifted into two spellings
+  of one thing, I want the catalogue in one read and to rename, merge or correct a label once,
+  without disturbing what I hold, so that the store stays organised and tidying costs nothing
+  in review.
+job: keep-labels-in-order
+tags: [organise, slice]
+
+steps:
+  - description: An idea under one spelling
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Mulch after rain, never before it.
+      tags: [mulch]
+    expect:
+      success: true
+
+  - description: Another under a second spelling; the capture says a label very like it exists
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Renew wood-chip paths every second year.
+      tags: [mulching]
+    expect:
+      success: true
+      data:
+        nearTags: { length: 1 }
+
+  - description: Put both in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      digest: "${{ steps[2].data.digest }}"
+    expect:
+      success: true
+
+  - description: The catalogue, by type and by label, with counts
+    command: ideas-guide
+    expect:
+      success: true
+      data:
+        catalogue:
+          tags: { length: 2 }
+
+  - description: Merge the second spelling into the first
+    command: ideas-tag-rename
+    input:
+      from: mulching
+      to: mulch
+    expect:
+      success: true
+      data:
+        renamed: 1
+
+  - description: Both ideas are under the one label
+    command: ideas-find
+    input:
+      tag: mulch
+    expect:
+      success: true
+      data:
+        total: 2
+
+  - description: The relabelled idea is still affirmed, in the same version
+    command: ideas-open
+    input:
+      id: "${{ steps[1].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        history: { length: 1 }
+
+  - description: Add a label to one idea, and correct its type, which was filed wrongly
+    command: ideas-tag
+    input:
+      ids: ["${{ steps[0].data.id }}"]
+      add: [water]
+      type: position
+    expect:
+      success: true
+      data:
+        changed: 1
+
+  - description: That left its standing alone too
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        type: position
+        standing: affirmed
+        history: { length: 1 }

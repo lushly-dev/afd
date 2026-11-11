@@ -1,0 +1,140 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# Leaving out is not privacy. What must never appear publicly is restricted (13), which no
+# setting can pick up. This job is about material that is fine to share and is not for here.
+
+name: Leave ideas out of one setting
+description: >-
+  When some ideas are not for one setting, such as ideas I am saving for a book, I want to
+  leave them out of that setting once, and to decide myself when they go back in, so that no
+  draft for it can pick them up.
+job: leave-out-of-a-setting
+tags: [use, slice]
+
+steps:
+  - description: A framing for what I publish, and the channel that publishes from it
+    command: ideas-framing-create
+    input:
+      id: public
+      title: Public
+      parent: core
+      channels: [newsletter]
+    expect:
+      success: true
+
+  - description: Something for the newsletter
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Check the water supply before breaking ground.
+    expect:
+      success: true
+
+  - description: Something I am saving
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Dig a test hole and time how fast it drains.
+    expect:
+      success: true
+
+  - description: Leave it out of the public framing; anyone may leave something out
+    command: ideas-omit
+    input:
+      id: "${{ steps[2].data.id }}"
+      framing: public
+      reason: Saving it for the handbook.
+    expect:
+      success: true
+
+  - description: The public framing holds one idea
+    command: ideas-find
+    input:
+      framing: public
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: A newsletter bundle resolves in the framing that claims the channel, and cannot name what was left out
+    command: ideas-bundle
+    input:
+      channel: newsletter
+      ids: ["${{ steps[2].data.id }}"]
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+
+  - description: A caller cannot pair the channel with a wider framing
+    command: ideas-bundle
+    input:
+      channel: newsletter
+      framing: core
+      ids: ["${{ steps[1].data.id }}"]
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+
+  - description: A question asked for the newsletter is answered from what is in its framing
+    command: ideas-ask
+    input:
+      question: What should I do before starting a new bed?
+      channel: newsletter
+    expect:
+      success: true
+      data:
+        framing: public
+        found: 1
+
+  - description: A second channel starts to publish from the same framing, and inherits what it leaves out
+    command: ideas-framing-update
+    input:
+      id: public
+      channels:
+        add: [blog]
+    expect:
+      success: true
+
+  - description: A bundle for the new channel resolves in that framing too
+    command: ideas-bundle
+    input:
+      channel: blog
+      ids: ["${{ steps[1].data.id }}"]
+    expect:
+      success: true
+      data:
+        framing: public
+        ideas: { length: 1 }
+
+  - description: Putting something back in is my decision
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: release
+          id: "${{ steps[2].data.id }}"
+          to: [public]
+    expect:
+      success: true
+
+  - description: The handbook is out, so I put it back
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[10].data.review }}"
+      digest: "${{ steps[10].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          release: 1
+
+  - description: The public framing holds both
+    command: ideas-find
+    input:
+      framing: public
+    expect:
+      success: true
+      data:
+        total: 2
