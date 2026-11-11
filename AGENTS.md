@@ -82,6 +82,7 @@ endpoints/loam/             # AFD Loam — application shell; private, quarantin
 
 ## Key Conventions
 
+- **Jobs first**: a feature that adds or changes commands starts from the jobs it serves, each written as a `*.scenario.yaml` before the commands are specified; see [jobs first](.claude/skills/afd/references/jobs-first.md)
 - **Command naming**: `domain-action` kebab-case — `todo-create`, `user-get`, `order-list`
 - **CommandResult**: Always return `success(data, { reasoning, confidence })` or `failure({ code, message, suggestion })`
 - **Errors**: Always include `suggestion` for recovery guidance
@@ -153,7 +154,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 
 | Skill | When to Use |
 |-------|-------------|
-| [afd](.claude/skills/afd/) | Core AFD rules, philosophy, command design, meta-tools, CLI |
+| [afd](.claude/skills/afd/) | Core AFD rules, philosophy, jobs before commands, command design, meta-tools, CLI |
 | [afd-site-design](.claude/skills/afd-site-design/) | afd.dev design system: tokens, colour fields, type ramp, section patterns, motion rules |
 | [loam-design](.claude/skills/loam-design/) | Loam's chrome and kit design: token contract, type ramp, contrast floors, density, parts, motion, focus and state, layout classes, component checklist |
 | [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic and the MCP SDK |
