@@ -204,7 +204,8 @@ async function runScenarios(path: string, options: RunOptions): Promise<void> {
 		const reporter = new TerminalReporter({
 			format: options.json ? 'json' : 'human',
 			verbose: options.verbose,
-			colors: options.color !== false,
+			// Off with --no-color; otherwise the reporter colors only a terminal.
+			colors: options.color === false ? false : undefined,
 		});
 
 		if (!options.server) {
