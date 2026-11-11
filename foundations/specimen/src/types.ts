@@ -115,6 +115,8 @@ export interface ClaimRecord {
 	checkpoint: string;
 	expectations: string[];
 	source: 'declared' | 'play';
+	/** A play's `guide:` claim only: whether it gave the check that `claim()` ran. */
+	checked?: boolean;
 }
 export interface EvidenceChannel {
 	expectations: ExpectationRecord[];
@@ -427,6 +429,29 @@ export interface CoverageRequest {
 	timeoutMs?: number;
 	workers?: number;
 }
+/** `verified`: a claim's check ran and held. `authored`: only a person says so. */
+export type GuideLevel = 'verified' | 'authored';
+export interface GuideStatementCoverage {
+	/** The obligation: `guide:` and the statement's id. */
+	id: string;
+	/** `usage` or `a11y` of one component's guide, or a shared `rule`. */
+	kind: 'usage' | 'a11y' | 'rule';
+	/** The component, for a component's statement. */
+	tag?: string;
+	file: string;
+	level: GuideLevel;
+	/** The first few claims that verified it; `evidenceCount` is how many did. */
+	evidence: { specimen: string; checkpoint: string; target: string; expectations: string[] }[];
+	evidenceCount: number;
+}
+export interface GuideCoverage {
+	obligations: string;
+	/** Whether there is a statement, every statement is verified and no guide claim is invalid. */
+	complete: boolean;
+	statements: GuideStatementCoverage[];
+	counts: Record<GuideLevel, number>;
+	invalidClaims: { specimen: string; target: string; obligation: string; reason: string }[];
+}
 export interface CoverageRun {
 	/** The obligations required, by version. */
 	obligations: string;
@@ -443,6 +468,11 @@ export interface CoverageRun {
 	};
 	/** Claims the run could not honor. Any of these keeps a run from being complete. */
 	invalidClaims: { specimen: string; target: string; obligation: string; reason: string }[];
+	/**
+	 * The guide statements' own obligation set, `guides@1`, when the project has guides or a case
+	 * claims one. It never changes the fields above.
+	 */
+	guides?: GuideCoverage;
 	/** What the evidence came from: only cases that passed count. */
 	cases: {
 		total: number;

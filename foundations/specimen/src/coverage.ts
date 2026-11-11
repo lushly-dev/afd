@@ -17,6 +17,9 @@ import type {
 /** The obligations this version requires of a component; a report names the version it used. */
 export const COVERAGE_OBLIGATIONS = 'schema-partitions@1';
 
+/** How a claim names a guide statement: `guide:` and the statement's id. */
+export const GUIDE_PREFIX = 'guide:';
+
 /**
  * `represented`: observed in that state. `asserted`: in that state, and a claim's expectations
  * ran and held, without being about this. `verified`: they were. `missing`: no specimen shows it.
@@ -329,7 +332,11 @@ function applyClaims(
 	for (const { id: specimen, observation } of cases) {
 		const checkpoint = observation.manifest.checkpoint.name;
 		const { claims, expectations } = observation.channels.evidence;
-		for (const claim of claims.filter((item) => item.checkpoint === checkpoint)) {
+		// A guide statement is an obligation of its own set, `guides@1`, and never one of these.
+		const own = claims.filter(
+			(item) => item.checkpoint === checkpoint && !item.obligation.startsWith(GUIDE_PREFIX)
+		);
+		for (const claim of own) {
 			const fail = (reason: string) =>
 				invalid.push({ specimen, target: claim.target, obligation: claim.obligation, reason });
 			const element = observation.channels.elements.find((item) => item.ref === claim.ref);

@@ -218,6 +218,7 @@ export const observationSchema = z
 									checkpoint: z.string(),
 									expectations: z.array(z.string()),
 									source: z.enum(['declared', 'play']),
+									checked: z.boolean().optional(),
 								})
 								.strict()
 						),
@@ -593,6 +594,39 @@ export const coverageRunSchema = z.strictObject({
 			reason: z.string(),
 		})
 	),
+	guides: z
+		.strictObject({
+			obligations: z.string().min(1),
+			complete: z.boolean(),
+			statements: z.array(
+				z.strictObject({
+					id: z.string().min(1),
+					kind: z.enum(['usage', 'a11y', 'rule']),
+					tag: z.string().optional(),
+					file: z.string(),
+					level: z.enum(['verified', 'authored']),
+					evidence: z.array(
+						z.strictObject({
+							specimen: z.string(),
+							checkpoint: z.string(),
+							target: z.string(),
+							expectations: z.array(z.string()),
+						})
+					),
+					evidenceCount: z.number(),
+				})
+			),
+			counts: z.strictObject({ verified: z.number(), authored: z.number() }),
+			invalidClaims: z.array(
+				z.strictObject({
+					specimen: z.string(),
+					target: z.string(),
+					obligation: z.string(),
+					reason: z.string(),
+				})
+			),
+		})
+		.optional(),
 	cases: z.strictObject({
 		total: z.number(),
 		passed: z.number(),

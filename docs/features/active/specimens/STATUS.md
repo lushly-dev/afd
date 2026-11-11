@@ -47,7 +47,7 @@ The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple")
 
 **Optional, and not needed for cutover:** T09, T10 and T11, along with pixel comparison.
 
-**Component packs (T12):** Specimen's half of [Component Briefs](../component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The owner approved that plan's step A2 on 2026-11-10 (#964); step B1 (guide files) is done (#968); B2 to B4 are not started, and all need only Specimen and FAST-AF. Not needed for cutover.
+**Component packs (T12):** Specimen's half of [Component Briefs](../component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The owner approved that plan's step A2 on 2026-11-10 (#964); step B1 (guide files) is done (#968), and B2 (guide statements as the `guides@1` obligation set, with `claim()`'s check) is done; B2a to B4 are not started, and all need only Specimen and FAST-AF. Not needed for cutover.
 
 ### Handoff, 2026-11-02: resume here
 
@@ -271,3 +271,4 @@ All rows were reconciled on 2026-11-02. Rows marked open have no owner or issue 
 | 2026-11-02 | Handoff | Against main `a5830b4d`. Added the [handoff](#handoff-2026-11-02-resume-here). Documents only |
 | 2026-11-10 | Component packs (T12) | [#949](https://github.com/lushly-dev/afd/pull/949), merged as `a1c52b37`: the pack format, version 0, at `@lushly-dev/specimen/pack`, with its JSON Schema files, description and fixtures (Component Briefs step A1). Then, on branch `lush/specimen-pack-umbel-plugin`: T12 added to the plan and this ledger, with the Umbel plugin's specification, for the owner's approval (step A2). Documents only |
 | 2026-11-10 | Component packs (T12) | The owner approved Component Briefs step A2, with T12, by merging [#964](https://github.com/lushly-dev/afd/pull/964) as `d4c31d9e`. T12 can start at step B1 |
+| 2026-11-11 | Component packs (T12), step B2 | Branch `lush/specimen-guide-obligations`, from main `d2c30f72`. `guides@1` in `specimen-coverage` (`src/guide-coverage.ts`), `guide:` obligations, `claim()`'s fourth argument (the check). Verified with `src/guide-coverage.test.ts`, `src/evidence.test.ts` and the Chromium case in `src/coverage.test.ts`, which also shows `schema-partitions@1` unchanged when guides are added |

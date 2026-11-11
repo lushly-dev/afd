@@ -233,13 +233,24 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	const commandsRun: string[] = [];
 	/** A specimen's declared claims, and those a play made as it ran. */
 	let declaredClaims: CoverageClaim[] = [];
-	const playClaims: { element: Element; obligation: string; expectation: string }[] = [];
+	const playClaims: {
+		element: Element;
+		obligation: string;
+		expectation: string;
+		checked?: boolean;
+	}[] = [];
 	(globalThis as { __specimenClaim?: unknown }).__specimenClaim = (
 		element: Element,
 		obligation: string,
-		expectation: string
+		expectation: string,
+		checked?: boolean
 	) => {
-		playClaims.push({ element, obligation, expectation });
+		playClaims.push({
+			element,
+			obligation,
+			expectation,
+			...(checked === undefined ? {} : { checked }),
+		});
 		expectations.push({ id: expectation, kind: 'play', target: element.localName });
 	};
 	/** The properties a coverage run asked to read live, by tag, and attributes set on those tags. */
@@ -593,13 +604,14 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 							ref: named[index] ? (refs.shift() ?? null) : null,
 							source: 'declared' as const,
 						})),
-						...playClaims.map(({ element, obligation, expectation }) => ({
+						...playClaims.map(({ element, obligation, expectation, checked }) => ({
 							target: element.localName,
 							ref: refs.shift() ?? null,
 							obligation,
 							checkpoint: 'after-run',
 							expectations: [expectation],
 							source: 'play' as const,
+							...(checked === undefined ? {} : { checked }),
 						})),
 					],
 					commands: [...commandsRun],
