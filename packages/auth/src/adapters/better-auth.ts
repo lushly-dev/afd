@@ -26,6 +26,7 @@ import {
 import {
 	type BetterAuthClient,
 	type BetterAuthMethodResponse,
+	type BetterAuthSessionStore,
 	type BetterAuthSessionValue,
 	describeError,
 	mapThrownError,
@@ -62,7 +63,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 	private readonly listeners: ListenerSet<AuthSessionState>;
 	private currentState: AuthSessionState = LOADING;
 	private unsubscribeStore: (() => void) | null = null;
-	private store: { get: () => BetterAuthSessionValue } | null = null;
+	private store: BetterAuthSessionStore | null = null;
 	/** `initial` until the store first answers; then `undefined`. */
 	private initial: AuthSessionState | undefined;
 	readonly sessions: SessionManagement;
@@ -148,6 +149,11 @@ export class BetterAuthAdapter implements AuthAdapter {
 	 * Auth's `refetch` resolves anyway and keeps the stale session: `NETWORK_ERROR` for a transport
 	 * failure, `REFRESH_FAILED` for any other (a 5xx), so a caller never reads "unreachable" as
 	 * "the session was kept".
+	 *
+	 * Better Auth cancels a session request when a newer one starts (after a sign-in or sign-out,
+	 * on window focus, from another tab, on its poll), and the cancelled `refetch` resolves with
+	 * the newer request still in flight and no error stored. The answer is then that request's, so
+	 * this waits for the store to settle before reading it.
 	 */
 	async refresh(): Promise<void> {
 		const store = this.store;
@@ -158,9 +164,8 @@ export class BetterAuthAdapter implements AuthAdapter {
 		} catch (error) {
 			throw mapThrownError(error);
 		}
-		const value = store.get();
-		this.updateState(value);
-		const { error } = value;
+		const { error } = await settledValue(store);
+		this.updateState(store.get());
 		if (error === undefined || error === null || statusOf(error) === 401) return;
 		const message = error instanceof Error ? error.message : describeStoreError(error);
 		throw isKnownNetworkFailure(error, message)
@@ -261,6 +266,30 @@ function toSignInOutcome(result: BetterAuthMethodResponse): SignInOutcome {
 		return url === undefined ? { kind: 'redirect' } : { kind: 'redirect', url };
 	}
 	return { kind: 'signed-in' };
+}
+
+/**
+ * The store's value once no session request is in flight: the current one, or the first one a
+ * request in flight settles to. The value is the one the store held as it settled, so a request
+ * that starts afterwards and clears `error` cannot hide the answer.
+ */
+function settledValue(
+	store: BetterAuthSessionStore
+): BetterAuthSessionValue | Promise<BetterAuthSessionValue> {
+	const current = store.get();
+	if (current.isRefetching !== true) return current;
+	return new Promise((resolve) => {
+		let settled = false;
+		// A store may call back before `subscribe` returns, so the handle can still be unset here.
+		let unsubscribe: (() => void) | undefined;
+		unsubscribe = store.subscribe((value) => {
+			if (settled || value.isRefetching === true) return;
+			settled = true;
+			unsubscribe?.();
+			resolve(value);
+		});
+		if (settled) unsubscribe();
+	});
 }
 
 /** The HTTP status of a stored session error, when it has one. */

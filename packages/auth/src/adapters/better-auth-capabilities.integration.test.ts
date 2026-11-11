@@ -299,3 +299,26 @@ it('refresh() rejects with NETWORK_ERROR when the provider is unreachable, keepi
 	await expect(ada.adapter.refresh()).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
 	expect(ada.adapter.getSession().status).toBe('authenticated');
 }, 20_000);
+
+// Better Auth signals its session store 10 ms after a sign-up or sign-in, and the request that
+// starts cancels the one in flight. The test above reaches its last refresh() 4 to 12 ms after
+// the sign-up, so now and then the signal landed inside it (#929). This starts the newer request
+// by hand, so the cancellation happens on every run.
+it('refresh() rejects with NETWORK_ERROR when a newer session request cancels its own', async () => {
+	const { baseURL, stop } = await startProvider();
+	const ada = signedInClient(baseURL, CHROME_MAC);
+	await ada.client.signUp.email({
+		email: 'ada@example.test',
+		password: 'pw-ada-123456',
+		name: 'Ada',
+	});
+	await settle(ada.adapter, 'authenticated');
+
+	await stop();
+	const refreshing = ada.adapter.refresh();
+	// Cancels the request refresh() just started, before it is sent.
+	const newer = ada.client.useSession.get().refetch();
+	await expect(refreshing).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+	await newer;
+	expect(ada.adapter.getSession().status).toBe('authenticated');
+}, 20_000);

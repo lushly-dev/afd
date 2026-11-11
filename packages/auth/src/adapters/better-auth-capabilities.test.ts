@@ -14,16 +14,16 @@ const SIGNED_IN: BetterAuthSessionValue = {
 
 function stubClient(overrides: Partial<BetterAuthClient> = {}) {
 	let value: BetterAuthSessionValue = { data: null, isPending: true };
-	let subscriber: ((next: BetterAuthSessionValue) => void) | null = null;
+	const subscribers = new Set<(next: BetterAuthSessionValue) => void>();
 	const refetch = vi.fn(async () => undefined);
 	const client: BetterAuthClient = {
 		signIn: { social: vi.fn(), email: vi.fn(), passkey: vi.fn(async () => ({ data: {} })) },
 		signOut: vi.fn(),
 		useSession: {
 			subscribe: (callback) => {
-				subscriber = callback;
+				subscribers.add(callback);
 				return () => {
-					subscriber = null;
+					subscribers.delete(callback);
 				};
 			},
 			get: () => ({ ...value, refetch }),
@@ -32,7 +32,7 @@ function stubClient(overrides: Partial<BetterAuthClient> = {}) {
 	};
 	const emit = (next: BetterAuthSessionValue) => {
 		value = next;
-		subscriber?.({ ...next, refetch });
+		for (const subscriber of [...subscribers]) subscriber({ ...next, refetch });
 	};
 	return { client, emit, refetch };
 }
@@ -212,6 +212,57 @@ describe('P3-E9: BetterAuthAdapter initial and refresh', () => {
 			emit({ data: null, isPending: false, error: { status: 401, statusText: 'Unauthorized' } });
 		});
 		await expect(adapter.refresh()).resolves.toBeUndefined();
+		expect(adapter.getSession().status).toBe('unauthenticated');
+		adapter.dispose();
+	});
+
+	// Better Auth cancels a session request when a newer one starts (`fetchSession` in
+	// client/session-atom.mjs), and the cancelled `refetch` resolves with the newer request in
+	// flight: `isRefetching: true` and `error` cleared. Its sign-up and sign-in signal does this
+	// 10 ms after the call, which is how a refresh() of an unreachable provider once resolved.
+	it('refresh() waits for the request that cancelled its own, and rejects with what it found', async () => {
+		const { client, emit, refetch } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		refetch.mockImplementation(async () => {
+			emit({ ...SIGNED_IN, isRefetching: true });
+		});
+		let outcome = 'pending';
+		const refreshing = adapter.refresh().then(
+			() => {
+				outcome = 'resolved';
+			},
+			(error: { code?: string }) => {
+				outcome = `rejected ${error.code}`;
+			}
+		);
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(outcome).toBe('pending');
+
+		emit({ ...SIGNED_IN, isRefetching: false, error: new TypeError('Failed to fetch') });
+		// A request that starts next clears the error; the answer was already read.
+		emit({ ...SIGNED_IN, isRefetching: true });
+		await refreshing;
+		expect(outcome).toBe('rejected NETWORK_ERROR');
+		expect(adapter.getSession().status).toBe('authenticated');
+		adapter.dispose();
+	});
+
+	it('refresh() resolves when the request that cancelled its own is answered', async () => {
+		const { client, emit, refetch } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		refetch.mockImplementation(async () => {
+			emit({ data: null, isPending: true, isRefetching: true });
+		});
+		const refreshing = adapter.refresh();
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(adapter.getSession().status).toBe('loading');
+
+		emit({ ...SIGNED_IN, isRefetching: false });
+		await expect(refreshing).resolves.toBeUndefined();
+		expect(adapter.getSession().status).toBe('authenticated');
+		// The wait's own subscription is gone; the adapter's still follows the store.
+		emit({ data: null, isPending: false });
 		expect(adapter.getSession().status).toBe('unauthenticated');
 		adapter.dispose();
 	});
