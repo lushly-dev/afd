@@ -473,18 +473,27 @@ describe('P2-D9: references and embed', () => {
 				['unavailable', 'Document', null],
 				['unavailable', 'Document', null],
 			]);
-		const shown = await page.evaluate(() => {
-			const frame = document
-				.querySelector('loam-shell')
-				?.shadowRoot?.querySelector('loam-editor-frame:not([hidden])');
-			const editor = frame?.querySelector('loam-mount')?.shadowRoot?.querySelector('notes-editor');
-			return [...(editor?.shadowRoot?.querySelectorAll('ul.embeds loam-embed') ?? [])].map(
-				(embed) =>
-					embed.shadowRoot?.querySelector('.embed')?.textContent?.replace(/\s+/g, ' ').trim()
-			);
-		});
-		expect(shown[1]).toBe(shown[2]);
-		expect(JSON.stringify(shown)).not.toContain('Secret');
+		// The element's properties move a render before its text, so the text is waited for too.
+		const shown = () =>
+			page.evaluate(() => {
+				const frame = document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector('loam-editor-frame:not([hidden])');
+				const editor = frame
+					?.querySelector('loam-mount')
+					?.shadowRoot?.querySelector('notes-editor');
+				return [...(editor?.shadowRoot?.querySelectorAll('ul.embeds loam-embed') ?? [])].map(
+					(embed) =>
+						embed.shadowRoot?.querySelector('.embed')?.textContent?.replace(/\s+/g, ' ').trim()
+				);
+			});
+		await expect
+			.poll(async () => {
+				const [, vaulted, missing] = await shown();
+				return vaulted !== undefined && vaulted === missing;
+			})
+			.toBe(true);
+		expect(JSON.stringify(await shown())).not.toContain('Secret');
 		// Read-only: a mutation through the embedded note's own client is EMBED_READ_ONLY, journaled.
 		const refused = await page.evaluate(async (document) => {
 			const frame = window.document

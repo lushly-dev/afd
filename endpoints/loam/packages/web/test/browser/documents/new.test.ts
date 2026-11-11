@@ -771,11 +771,20 @@ describe('P2-D8: the reviews of step 11', () => {
 		await kernelCall(page, 'document-trash', { document: second });
 		const section = page.locator('loam-main loam-documents-section');
 		await section.locator('select[data-ref="status"]').selectOption('trashed');
-		await expect.poll(() => section.locator('tbody tr').count()).toBe(2);
-		const [top] = await section.locator('tbody tr td:first-child').allTextContents();
-		const other = top === 'First' ? 'Second' : 'First';
-		await section.getByRole('button', { name: `Restore ${top}` }).click();
-		await expect.poll(async () => (await deepFocus(page)).label).toBe(`Restore ${other}`);
+		// One read of the Trash view's own buttons: the rows of the Active table can still be showing,
+		// and can paint empty, between a count of them and a read of them.
+		let restores: Array<string | null> = [];
+		await expect
+			.poll(async () => {
+				restores = await section
+					.locator('tbody button')
+					.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')));
+				return restores.length;
+			})
+			.toBe(2);
+		const [top, other] = restores as [string, string];
+		await section.getByRole('button', { name: top }).click();
+		await expect.poll(async () => (await deepFocus(page)).label).toBe(other);
 		await page.keyboard.press('Enter');
 		await expect.poll(async () => (await deepFocus(page)).tag).toBe('h1');
 		expect(opened.errors).toEqual([]);
