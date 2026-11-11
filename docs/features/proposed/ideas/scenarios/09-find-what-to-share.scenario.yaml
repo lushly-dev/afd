@@ -1,0 +1,66 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Find something worth sharing today
+description: >-
+  When I need something to post today, I want the ideas worth sharing that I have not used on
+  that channel, so that I do not repeat myself.
+job: find-what-to-share
+tags: [use, slice]
+
+steps:
+  - description: One idea
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Plant garlic on the shortest day and harvest it on the longest.
+    expect:
+      success: true
+
+  - description: Another
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Never leave soil bare over winter.
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-affirm
+    input:
+      ids: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}"]
+    expect:
+      success: true
+      data:
+        affirmed: 2
+
+  - description: The first was posted
+    command: ideas-output-record
+    input:
+      title: Garlic by the calendar
+      format: thread
+      channel: social
+      ideas: ["${{ steps[0].data.id }}"]
+    expect:
+      success: true
+
+  - description: What I hold and have not used on that channel
+    command: ideas-find
+    input:
+      standing: [affirmed]
+      unusedIn:
+        channel: social
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: What I have used there
+    command: ideas-find
+    input:
+      usedIn:
+        channel: social
+    expect:
+      success: true
+      data:
+        total: 1

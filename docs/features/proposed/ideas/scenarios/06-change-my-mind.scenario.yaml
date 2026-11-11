@@ -1,0 +1,127 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Change my mind once, and see what rested on it
+description: >-
+  When my view on something changes, I want to change it once and see everything that rested on
+  the old view, so that nothing stale survives.
+job: change-my-mind
+tags: [change, slice]
+
+steps:
+  - description: The view
+    command: ideas-capture
+    input:
+      type: position
+      statement: Tomatoes should be pruned to a single stem.
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-affirm
+    input:
+      ids: ["${{ steps[0].data.id }}"]
+    expect:
+      success: true
+      data:
+        affirmed: 1
+
+  - description: A practice that rests on it
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Space tomato plants 45 cm apart.
+    expect:
+      success: true
+
+  - description: Say that it rests on it
+    command: ideas-link
+    input:
+      from: "${{ steps[2].data.id }}"
+      kind: depends-on
+      to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: A synthesis that summarises it
+    command: ideas-capture
+    input:
+      type: synthesis
+      statement: Tomato care here is built around single-stem plants.
+      links:
+        - kind: summarises
+          to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: An article that used it
+    command: ideas-output-record
+    input:
+      title: Growing tomatoes in a short season
+      format: article
+      ideas: ["${{ steps[0].data.id }}"]
+    expect:
+      success: true
+      data:
+        output: { matches: '^out-' }
+        pinned: 1
+
+  - description: I change my mind, with the reason
+    command: ideas-reframe
+    input:
+      id: "${{ steps[0].data.id }}"
+      statement: Tomatoes do better on two stems where the season is long enough.
+      reason: Two seasons of side-by-side rows.
+    expect:
+      success: true
+      data:
+        standing: seed
+        previous: { exists: true }
+
+  - description: The idea keeps its history
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        history: { length: 2 }
+
+  - description: What rested on the old view is reported
+    command: ideas-check
+    input:
+      checks: [rests-on-changed, synthesis-out-of-date]
+    expect:
+      success: true
+      data:
+        counts:
+          rests-on-changed: 1
+          synthesis-out-of-date: 1
+
+  - description: The article no longer matches
+    command: ideas-compare
+    input:
+      a:
+        output: "${{ steps[5].data.output }}"
+    expect:
+      success: true
+      data:
+        drift:
+          changed: 1
+
+  - description: I affirm the new wording
+    command: ideas-affirm
+    input:
+      ids: ["${{ steps[0].data.id }}"]
+    expect:
+      success: true
+
+  - description: The new wording is what I hold
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        statement: { contains: two stems }

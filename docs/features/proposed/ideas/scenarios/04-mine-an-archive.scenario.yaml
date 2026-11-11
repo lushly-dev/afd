@@ -1,0 +1,111 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Mine years of documents once, without drowning in review
+description: >-
+  When I start with years of my own documents, I want them mined once without a mountain of
+  review, so that I get value in days and mining again costs nothing.
+job: mine-an-archive
+tags: [collect, slice]
+
+steps:
+  - description: Add one of my own documents
+    command: ideas-source-add
+    input:
+      title: Notes on compost
+      kind: notes
+      collection: journal
+      thoughtOn: "2024-05-10"
+      content: "Compost is ready when it smells like a forest floor.\nTurning a pile weekly halves the wait."
+    expect:
+      success: true
+      data:
+        attestable: true
+
+  - description: First run
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[0].data.source }}"]
+      extractor: fixture-model, prompt 1
+    expect:
+      success: true
+
+  - description: Capture my own words
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Compost is ready when it smells like a forest floor.
+      run: "${{ steps[1].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          quote: Compost is ready when it smells like a forest floor.
+    expect:
+      success: true
+      data:
+        standing: attested
+
+  - description: And again
+    command: ideas-capture
+    input:
+      type: position
+      statement: Turning a pile weekly halves the wait.
+      run: "${{ steps[1].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          quote: Turning a pile weekly halves the wait.
+    expect:
+      success: true
+      data:
+        standing: attested
+
+  - description: Mine the same source again with the same extractor
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[0].data.source }}"]
+      extractor: fixture-model, prompt 1
+    expect:
+      success: true
+
+  - description: The same statement is refused
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Compost is ready when it smells like a forest floor.
+      run: "${{ steps[4].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          quote: Compost is ready when it smells like a forest floor.
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+
+  - description: Recording the same sighting twice does not count twice
+    command: ideas-observe
+    input:
+      id: "${{ steps[2].data.id }}"
+      run: "${{ steps[4].data.run }}"
+      source: "${{ steps[0].data.source }}"
+      quote: Compost is ready when it smells like a forest floor.
+    expect:
+      success: true
+      data:
+        sightings: 1
+
+  - description: The second run created nothing
+    command: ideas-run-show
+    input:
+      run: "${{ steps[4].data.run }}"
+    expect:
+      success: true
+      data:
+        captured: 0
+
+  - description: Nothing is waiting to be looked at
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 0

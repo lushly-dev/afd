@@ -1,0 +1,106 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Catch up, and mine again with a better model
+description: >-
+  When weeks have passed or a better model has arrived, I want a briefing of what changed and
+  to review only what is new, so that keeping up is cheap.
+job: catch-up
+tags: [change, slice]
+
+steps:
+  - description: Where the digest stands now
+    command: ideas-digest
+    expect:
+      success: true
+      data:
+        cursor: { exists: true }
+
+  - description: A source mined before
+    command: ideas-source-add
+    input:
+      title: Notes on seed saving
+      kind: notes
+      collection: journal
+      content: "Save seed from the best plant, not the last one.\nBeans are the easiest seed to start with."
+    expect:
+      success: true
+
+  - description: An idea from it
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Save seed from the best plant, not the last one.
+      sources:
+        - source: "${{ steps[1].data.source }}"
+          quote: Save seed from the best plant, not the last one.
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-affirm
+    input:
+      ids: ["${{ steps[2].data.id }}"]
+    expect:
+      success: true
+
+  - description: A run with a better extractor
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[1].data.source }}"]
+      extractor: better-fixture-model, prompt 2
+    expect:
+      success: true
+
+  - description: It finds the idea I already hold, in other words, and is refused
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Choose your strongest plant as the seed parent instead of whichever is left at the end.
+      run: "${{ steps[4].data.run }}"
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+
+  - description: It finds one the first run missed
+    command: ideas-capture
+    input:
+      type: example
+      statement: Beans are the easiest seed to start with.
+      run: "${{ steps[4].data.run }}"
+      sources:
+        - source: "${{ steps[1].data.source }}"
+          quote: Beans are the easiest seed to start with.
+    expect:
+      success: true
+
+  - description: The run says what was new and what was refused
+    command: ideas-run-show
+    input:
+      run: "${{ steps[4].data.run }}"
+    expect:
+      success: true
+      data:
+        captured: 1
+        refused: 1
+
+  - description: The digest since the cursor has one new idea
+    command: ideas-digest
+    input:
+      since: "${{ steps[0].data.cursor }}"
+    expect:
+      success: true
+      data:
+        new:
+          total: 2
+
+  - description: What I affirmed was not touched
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        history: { length: 1 }

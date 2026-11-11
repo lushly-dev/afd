@@ -1,0 +1,84 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Keep private material out of public work
+description: >-
+  When I hold material that must never appear publicly, I want that guaranteed by the store and
+  not left to memory, so that an agent cannot leak it.
+job: keep-private-out
+tags: [trust, slice]
+
+steps:
+  - description: A public framing under the root
+    command: ideas-framing-create
+    input:
+      id: public
+      title: Public
+      parent: core
+    expect:
+      success: true
+
+  - description: Something private
+    command: ideas-capture
+    input:
+      type: example
+      statement: The fixture neighbour's plot failed because the well ran dry.
+    expect:
+      success: true
+
+  - description: Something that can be shared
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Check the water supply before breaking ground.
+    expect:
+      success: true
+
+  - description: Leave the private one out of the public framing
+    command: ideas-omit
+    input:
+      id: "${{ steps[1].data.id }}"
+      framing: public
+      reason: Names a neighbour.
+    expect:
+      success: true
+
+  - description: The public framing holds one idea
+    command: ideas-find
+    input:
+      framing: public
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: A public bundle that names the private idea is refused
+    command: ideas-bundle
+    input:
+      framing: public
+      ids: ["${{ steps[1].data.id }}"]
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+
+  - description: A public output cannot be recorded as having used it
+    command: ideas-output-record
+    input:
+      title: Before you dig
+      format: article
+      framing: public
+      ideas: ["${{ steps[1].data.id }}", "${{ steps[2].data.id }}"]
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+
+  - description: The root still holds both
+    command: ideas-find
+    input:
+      framing: core
+    expect:
+      success: true
+      data:
+        total: 2

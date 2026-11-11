@@ -1,0 +1,111 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: See what I think about an area
+description: >-
+  When I look at an area I have thought about for years, I want to see what I think now, where
+  I contradict myself and what is unsupported, so that I know what to develop.
+job: see-what-i-think
+tags: [organise, slice]
+
+steps:
+  - description: A position
+    command: ideas-capture
+    input:
+      type: position
+      statement: Feed the soil and the plants look after themselves.
+    expect:
+      success: true
+
+  - description: A narrower position
+    command: ideas-capture
+    input:
+      type: position
+      statement: Bought fertiliser is only worth it for containers.
+    expect:
+      success: true
+
+  - description: The second refines the first
+    command: ideas-link
+    input:
+      from: "${{ steps[1].data.id }}"
+      kind: refines
+      to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: Evidence for the first
+    command: ideas-capture
+    input:
+      type: evidence
+      statement: In the fixture plots, yields held for five years on compost alone.
+    expect:
+      success: true
+
+  - description: It supports the first
+    command: ideas-link
+    input:
+      from: "${{ steps[3].data.id }}"
+      kind: supports
+      to: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+
+  - description: Evidence against the second
+    command: ideas-capture
+    input:
+      type: evidence
+      statement: In the fixture plots, heavy feeders in open ground doubled their yield with bought fertiliser.
+    expect:
+      success: true
+
+  - description: It challenges the second
+    command: ideas-link
+    input:
+      from: "${{ steps[5].data.id }}"
+      kind: challenges
+      to: "${{ steps[1].data.id }}"
+    expect:
+      success: true
+
+  - description: The linked ideas form one theme, with no synthesis yet
+    command: ideas-themes
+    expect:
+      success: true
+      data:
+        themes: { length: 1 }
+        withoutSynthesis: 1
+
+  - description: Write what is thought about the theme
+    command: ideas-capture
+    input:
+      type: synthesis
+      statement: Soil comes first; bought fertiliser is the exception, and where the exception lies is still contested.
+      links:
+        - kind: summarises
+          to: "${{ steps[0].data.id }}"
+        - kind: summarises
+          to: "${{ steps[1].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: The theme now has a synthesis that is up to date
+    command: ideas-themes
+    expect:
+      success: true
+      data:
+        withoutSynthesis: 0
+        outOfDate: 0
+
+  - description: The report says what is unsupported and what is contested
+    command: ideas-check
+    input:
+      checks: [unsupported-position, contested]
+    expect:
+      success: true
+      data:
+        counts:
+          unsupported-position: 1
+          contested: 1

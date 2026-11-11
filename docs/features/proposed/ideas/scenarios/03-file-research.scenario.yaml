@@ -1,0 +1,84 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: File research as evidence, apart from my own positions
+description: >-
+  When I finish a research session, I want the findings stored as evidence with their citations,
+  apart from my own positions, so that I can tell what I think from what I found.
+job: file-research
+tags: [collect, slice]
+
+steps:
+  - description: Register a web page as a reference source, with the passages relied on
+    command: ideas-source-add
+    input:
+      title: Fixture trial report
+      kind: reference
+      uri: https://example.org/fixture-trial-report
+      accessedOn: "2026-11-01"
+      excerpts:
+        - Plots mulched with straw needed 40 percent less water over the fixture season.
+    expect:
+      success: true
+      data:
+        source: { matches: '^ref:' }
+        attestable: false
+
+  - description: Capture the finding as evidence that cites the passage
+    command: ideas-capture
+    input:
+      type: evidence
+      statement: In the fixture trial, straw mulch cut water use by 40 percent over a season.
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          quote: Plots mulched with straw needed 40 percent less water over the fixture season.
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: Capture my own position
+    command: ideas-capture
+    input:
+      type: position
+      statement: Mulching is worth doing before any irrigation system is bought.
+    expect:
+      success: true
+
+  - description: Say that the finding supports the position
+    command: ideas-link
+    input:
+      from: "${{ steps[1].data.id }}"
+      kind: supports
+      to: "${{ steps[2].data.id }}"
+    expect:
+      success: true
+
+  - description: Evidence can be found apart from positions
+    command: ideas-find
+    input:
+      type: evidence
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: The position shows what supports it
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+    expect:
+      success: true
+      data:
+        links:
+          in: { length: 1 }
+
+  - description: The position is no longer reported as unsupported
+    command: ideas-check
+    input:
+      checks: [unsupported-position]
+    expect:
+      success: true
+      data:
+        counts:
+          unsupported-position: 0
