@@ -141,6 +141,17 @@ const TSCONFIG = {
 	include: ['src', 'test', 'vite.config.ts'],
 };
 
+/**
+ * The code that runs in the browser, checked without Node's globals or `node:` modules, as the
+ * repository's apps are (#811). tsconfig.json keeps Node's types for the test and the Vite config.
+ */
+const TSCONFIG_BROWSER = {
+	extends: './tsconfig.json',
+	compilerOptions: { types: [] },
+	include: ['src'],
+	exclude: ['**/*.test.ts'],
+};
+
 function appTest(id: string): string {
 	return `import { fileURLToPath } from 'node:url';
 import { readAppManifest } from '@lushly-dev/loam-cli';
@@ -185,7 +196,7 @@ function packageJson(id: string, kind: AppKind, depSpec: string): string {
 			check: 'loam app check .',
 			pack: 'loam app pack . --out dist/package',
 			test: 'vitest run',
-			typecheck: 'tsc',
+			typecheck: 'tsc && tsc -p tsconfig.browser.json',
 		},
 		dependencies: { '@lushly-dev/loam-sdk': specFor(depSpec, 'sdk') },
 		devDependencies: {
@@ -229,6 +240,7 @@ export function scaffold(id: string, kind: AppKind, depSpec: string): Record<str
 	});
 	files['src/app.ts'] = appSource(id);
 	files['tsconfig.json'] = json(TSCONFIG);
+	files['tsconfig.browser.json'] = json(TSCONFIG_BROWSER);
 	files['test/app.test.ts'] = appTest(id);
 	if (kind === 'native') {
 		files['vite.config.ts'] = NATIVE_VITE;
