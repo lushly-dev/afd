@@ -18,8 +18,8 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 ## Status block
 
-- **State:** proposed. Nothing is implemented and nothing is approved. The owner decided the shape
-  on 2026-11-10: a Loam plugin with an engine of its own, not an Umbel plugin, with Umbel optional.
+- **State:** active; phase 0 in progress. The owner answered the proposal's section 11 on
+  2026-11-10 and said to go on. Nothing of the engine or the app is implemented.
 - **Last verified:** 2026-11-10 against `main` at `880a18c4`. Read: `packages/rust` (its README,
   `Cargo.toml` features and the command metadata in `src/commands.rs`) and `spec/command-metadata.md`
   ("Approvals"); the Loam proposal, architecture (sections 8 and 9), decisions (D20, D41, D56, D63,
@@ -27,18 +27,19 @@ not, so an agent never has to scan the code to learn what is current. It follows
   (section 10.4) and status; the Umbel README, architecture (principles, section 5) and decisions
   (D106, D115); the MCP Tasks proposal; the feature index. No code was built or run.
 - **Done:** the [proposal and plan](mail.proposal.md): its first version merged 2026-11-10 in
-  [#969](https://github.com/lushly-dev/afd/pull/969). The revision of the same day is done when its
-  pull request merges. Reviews are in the [session log](#session-log).
-- **Not done:** the owner's answers to the proposal's section 11; every step below.
+  [#969](https://github.com/lushly-dev/afd/pull/969), and its revision to a Loam plugin the same day
+  in [#973](https://github.com/lushly-dev/afd/pull/973). Reviews are in the
+  [session log](#session-log).
+- **Not done:** every step below that is not marked done.
 - **Follow-ups:** the [table at the end](#follow-ups-not-yet-issues).
 
 ## Steps
 
 | Phase | Step | State |
 | --- | --- | --- |
-| 0 | 0.1 Mailbox census | Not started; waits on the owner's go |
+| 0 | 0.1 Mailbox census | In progress: the tool is in [`prototype/`](prototype/); the run on the owner's accounts is not done |
 | 0 | 0.2 Provider probe | Not started |
-| 0 | 0.3 Store measurement | Not started |
+| 0 | 0.3 Store measurement | Run 2026-11-10 with a default shape: every Q3 threshold met at 100 000 and 500 000 messages ([results](prototype/README.md#the-store-measurement)). To be run again with the census's shape |
 | 0 | 0.4 The owner's decision | Not started |
 | A | The engine's specification | Not started; waits on phase 0 |
 | B to E | The connector and log; relationships and stream stories; reversible commands and send; records, extractors and reply sets | Not started; need no other area |
@@ -49,10 +50,10 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-11-10 | Design discussion with the owner | The owner's answers to the proposal's section 11: go on to phase 0, plugin or server, whether mail answers Umbel's O1, where it lives, the name, Gmail through its API or IMAP first, and the phase 0 thresholds | Partly closed 2026-11-10: plugin or server, and O1, are settled by the owner's direction (the next row). Open: phase 0, where it lives, the name, Gmail's API or IMAP first, the thresholds and, added with the revision, how the engine gets installed |
+| 2026-11-10 | Design discussion with the owner | The owner's answers to the proposal's section 11: go on to phase 0, plugin or server, whether mail answers Umbel's O1, where it lives, the name, Gmail through its API or IMAP first, and the phase 0 thresholds | Closed 2026-11-10: the owner answered every question (the proposal's section 11 lists six decisions and one direction). Nothing is open for the owner until phase 0's numbers are in |
 | 2026-11-10 | Design discussion with the owner | Whether mail is an Umbel plugin or a server of its own | Closed 2026-11-10 by the owner: a Loam plugin with an engine of its own; Umbel optional (the proposal's M1, M10 and M11) |
 | 2026-11-10 | Design discussion with the owner | Umbel's needs U1 to U8 are recorded in the Umbel status; none is accepted or designed | Superseded 2026-11-10: the revision asks nothing of Umbel, and the Umbel status rows are marked superseded |
-| 2026-11-10 | Design discussion with the owner | Loam's needs L1 to L7 are recorded in the Loam status; none is accepted or designed | Open; the list was revised 2026-11-10 with the proposal |
+| 2026-11-10 | Design discussion with the owner | Loam's needs L1 to L7 are recorded in the Loam status; none is accepted or designed | Open; the list was revised 2026-11-10 with the proposal, and L8 (a place and a CI lane for plugins) added with the owner's answers. The owner has directed L5 and asked for L8; Loam specifies them |
 | 2026-11-10 | Review of the revision | AFD's needs: a carrier for approval evidence from a trusted MCP client to a mounted server (A1), and tasks in the TypeScript client (A2). Neither is proposed yet; A2 is the MCP Tasks proposal's next phase | Open |
 | 2026-11-10 | Design discussion with the owner | Audit the candidate crates' licences and maintenance in the plugin specification; `mail-parser`'s licence is not classified by GitHub | Open; now for the engine's specification |
 | 2026-11-10 | Design discussion with the owner | Read iCloud's IMAP capabilities from the server in step 0.2; no source checked lists them | Open |
@@ -65,3 +66,5 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | --- | --- | --- |
 | 2026-11-10 | Design discussion with the owner | Six open-source mail projects and two commercial engines read as references; research on mail volume, trust in AI summaries, attacks through mail and agent identity; the owner's direction recorded (iCloud and Gmail first, commands before interface, a client that works without a model, stories and reply sets, a Loam app among several). The proposal and plan, this file and the feature index row written; needs recorded in the Umbel and Loam status files. One independent review (revise), its findings checked against the repository and applied: person-only commands over MCP (U8, L7), tasks on a local deployment (U4), the five effects, the scale profiles, and the needs of each phase. Planning only: no code |
 | 2026-11-10 | Revision on the owner's direction | The first version merged as [#969](https://github.com/lushly-dev/afd/pull/969). The owner, who had also said he plans deck and video apps, that Violet may get a Loam app and that each instance chooses its apps, directed that mail is a Loam plugin, not an Umbel plugin: Umbel is primarily an MCP harness for tools shared across harnesses and its instances will typically be remote, Loam is for local tools with interfaces people work in, and a Loam app does not take Umbel as its core; mail may use Umbel's features when an instance is connected. The proposal rewritten to that shape: an engine of its own on the `afd` crate, mounted by Loam, a native app over it, Umbel optional, composed by the caller and sharing no code with the engine. The eight needs on Umbel's host dropped, and the Umbel status left unchanged; Loam's needs revised to L1 to L7. One independent review of the revision (revise; three blockers and nine improvements, all applied): the approval route (L7, and AFD's A1 and A2), Loam's rules against a plugin adding its own server (L5, D56, D63, D106), and the wording of what the owner decided. A focused check of those fixes (revise; two narrow blockers and one improvement, applied): no option to share Umbel's command line, and the full list of Loam rules an installing plugin would need amended. Planning only: no code |
+| 2026-11-10 | The owner's answers | The owner answered section 11: go on to phase 0; mail lives in this repository, organized so plugins do not bloat it or each other's CI; the name is Mail, Loam Mail in full, with `loam_mail` as its unique identifier; Gmail through its API first; the thresholds as written; and, as a direction, Loam's rules should change so that a plugin can bring an engine. Recorded in the proposal (M13, M14, L5, L8, section 11) and in the Loam status. The feature moved from proposed to active. Step 0.1's design refined: headers and structure for every message, bodies sampled under a byte cap, because Gmail limits IMAP downloads to 2 500 MB a day. The census tool written, with tests. One independent review (revise; four blockers and its improvements, all applied): a search line too long for imaplib on a large mailbox, Q1's denominator, a dropped connection silently losing the rest of a mailbox, and two rows that attributed more to the owner than he said. A focused check of the fixes (revise; two blockers, applied with a test for each): a mailbox that could not be listed, and structures that could not be fetched, each left the run marked complete |
+| 2026-11-10 | Phase 0, step 0.3 | The store harness written (`prototype/store-bench`, Rust, on the `rusqlite` and `tantivy` versions Umbel pins) and run at 100 000 and 500 000 synthetic messages with a default shape. At 500 000: import 11 443 messages a second, a list of 50 threads in 7.36 ms and a search in 1.82 ms at the 95th percentile, and 1.61 times the messages' bytes on disk; every threshold met. Not independently reviewed. The census was not run: a request for the owner's iCloud address went unanswered for half an hour |
