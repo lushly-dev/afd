@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "cad25de8bed6f843894d86709d8aa74c59d147b8770c618e242a8c01624b6799",
+      "current_import_sha256": "240da60c6de2d2a29a4559fb564fd7f863da423271570b8cd3104cc5fd545365",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779)"
     },
     {
       "path": "LICENSE",
@@ -1707,11 +1707,11 @@
       "path": "src/botcore/commands/docs.py",
       "upstream_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
       "staged_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
-      "current_import_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
+      "current_import_sha256": "f95625f2aa0eb518114b05ef2b00c5adbe5c6ed30e79f2e7068c3bbd37661f49",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Docs checks cover the whole repository: nearest changelog per package, structural changes in any language, single-file and skip-aware lint, Changesets-aware suggestions (lushly-dev/afd#779)"
     },
     {
       "path": "src/botcore/commands/info.py",
@@ -3457,11 +3457,11 @@
       "path": "src/botcore/skills/docs-manager/SKILL.md",
       "upstream_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
       "staged_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
-      "current_import_sha256": "7a4412d3d77075cf137236f948f12fb712a9d6244377157e34aa733ddca8935b",
+      "current_import_sha256": "28c0cd3a6f88656482180b7a2cd1c06ea6dfe033cf13a402fcb24b07fd36f86d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer"
+      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; Describe the docs checks as they now are (lushly-dev/afd#779)"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/doc-architecture.md",
@@ -5227,21 +5227,21 @@
       "path": "tests/test_docs.py",
       "upstream_sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
       "staged_sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
-      "current_import_sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
+      "current_import_sha256": "f7514238cebb9f4c94b9fbd95571eba3236e35573e1e32730f3f27d3a5184800",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Pin the workspace in the preflight suggestion test (lushly-dev/afd#779)"
     },
     {
       "path": "tests/test_docs_extended.py",
       "upstream_sha256": "a9b9691d994ddd271c5ce73486c96e59a0dcc1d42ce9907a73c69b2ac264e5ab",
       "staged_sha256": "a9b9691d994ddd271c5ce73486c96e59a0dcc1d42ce9907a73c69b2ac264e5ab",
-      "current_import_sha256": "a9b9691d994ddd271c5ce73486c96e59a0dcc1d42ce9907a73c69b2ac264e5ab",
+      "current_import_sha256": "d1959e0e0d47eb29fc3c76af918c3175f62bc645fbb9a28f393ecbeada0e4c65",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Cover whole-repository docs checks (lushly-dev/afd#779)"
     },
     {
       "path": "tests/test_frontmatter.py",

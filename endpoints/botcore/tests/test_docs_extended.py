@@ -311,3 +311,123 @@ async def test_docs_check_agents_no_structural_changes(tmp_path) -> None:
 
     data = assert_success(result)
     assert data["needs_update"] is False
+
+
+# ── #779: whole-repository coverage ──────────────────────────────────────
+
+
+def _staged(stdout: str):
+    """A ``subprocess.run`` stand-in answering every ``git diff --cached`` with ``stdout``."""
+    return subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
+
+
+async def test_docs_lint_checks_a_single_file(tmp_path) -> None:
+    """A file path is linted, not passed with nothing checked."""
+    page = tmp_path / "README.md"
+    page.write_text("[gone](missing.md)\n")
+
+    with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
+        result = await docs_lint(path=str(page))
+
+    error = assert_error(result, "BROKEN_LINKS")
+    assert error.details["issues"]
+
+
+async def test_docs_lint_skips_installed_and_generated_directories(tmp_path) -> None:
+    """node_modules, .venv and build output are not the repository's docs."""
+    for skipped in ("node_modules/pkg", ".venv/lib", "dist"):
+        (tmp_path / skipped).mkdir(parents=True)
+        (tmp_path / skipped / "README.md").write_text("[gone](missing.md)\n")
+    (tmp_path / "guide.md").write_text("# Guide\n")
+
+    with patch("botcore.commands.docs.find_workspace", return_value=tmp_path):
+        result = await docs_lint(path=str(tmp_path))
+
+    data = assert_success(result)
+    assert data["files_checked"] == 1
+
+
+async def test_docs_check_changelog_reads_each_packages_own_changelog(tmp_path) -> None:
+    """In a monorepo, a package's source answers to the CHANGELOG.md nearest it."""
+    (tmp_path / "CHANGELOG.md").write_text("# Index\n")
+    (tmp_path / "packages/core").mkdir(parents=True)
+    (tmp_path / "packages/core/CHANGELOG.md").write_text("# Core\n")
+
+    with (
+        patch("botcore.commands.docs.find_workspace", return_value=tmp_path),
+        patch(
+            "botcore.commands.docs.subprocess.run",
+            return_value=_staged("packages/core/src/index.ts\npython/src/afd/core.py\n"),
+        ),
+    ):
+        result = await docs_check_changelog()
+
+    data = assert_success(result)
+    assert data["needs_update"] is True
+    assert data["staged_src_files"] == ["packages/core/src/index.ts", "python/src/afd/core.py"]
+    assert data["changelogs"] == ["CHANGELOG.md", "packages/core/CHANGELOG.md"]
+
+    with (
+        patch("botcore.commands.docs.find_workspace", return_value=tmp_path),
+        patch(
+            "botcore.commands.docs.subprocess.run",
+            return_value=_staged("packages/core/src/index.ts\npackages/core/CHANGELOG.md\n"),
+        ),
+    ):
+        result = await docs_check_changelog()
+
+    assert assert_success(result)["needs_update"] is False
+
+
+async def test_docs_check_changelog_suggests_changesets_in_an_npm_repository(tmp_path) -> None:
+    """changeset_create refuses an npm project, so it is not what the check suggests there."""
+    (tmp_path / "CHANGELOG.md").write_text("# Changelog\n")
+    (tmp_path / "package.json").write_text("{}\n")
+
+    with (
+        patch("botcore.commands.docs.find_workspace", return_value=tmp_path),
+        patch("botcore.commands.docs.subprocess.run", return_value=_staged("src/index.ts\n")),
+    ):
+        result = await docs_check_changelog()
+
+    assert assert_success(result)["needs_update"] is True
+    assert result.suggestions is not None
+    assert "pnpm changeset" in result.suggestions[0]
+    assert "changeset_create" not in result.suggestions[0]
+
+
+async def test_docs_check_agents_sees_new_packages_skills_workflows_and_commands(tmp_path) -> None:
+    """Structure in any language counts, and editing a package's manifest does not."""
+    (tmp_path / "AGENTS.md").write_text("# Agents\n")
+    staged = (
+        "packages/new/package.json\n"
+        "crates/tool/Cargo.toml\n"
+        "skills/release/SKILL.md\n"
+        ".github/workflows/nightly.yml\n"
+        "packages/server/src/commands/list.ts\n"
+        "packages/server/src/commands/list.test.ts\n"
+        "packages/core/package.json\n"
+    )
+    added = staged.replace("packages/server/src/commands/list.ts\n", "").replace(
+        "packages/core/package.json\n", ""
+    )
+
+    def run(args, **_kwargs):
+        return _staged(added if "--diff-filter=AR" in args else staged)
+
+    with (
+        patch("botcore.commands.docs.find_workspace", return_value=tmp_path),
+        patch("botcore.commands.docs.subprocess.run", side_effect=run),
+    ):
+        result = await docs_check_agents()
+
+    data = assert_success(result)
+    assert data["needs_update"] is True
+    assert data["structural_changes"] == [
+        "New package: packages/new/package.json",
+        "New package: crates/tool/Cargo.toml",
+        "New skill: skills/release/SKILL.md",
+        "New workflow: .github/workflows/nightly.yml",
+        "Changed command: packages/server/src/commands/list.ts",
+    ]
+
