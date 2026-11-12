@@ -135,7 +135,8 @@ Each crate's maintenance history was not read.
 | `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Checked by step B3. With `imap-proto` 0.17 it parses `VANISHED`, `HIGHESTMODSEQ`, `MODSEQ` and the `COPYUID` code, and it has `UID EXPUNGE`. It has no call that opens a mailbox with QRESYNC, and it sets aside on a bounded channel, dropping when full, any response its own calls do not expect. So the engine uses it for the connection, the sign-in and the parser, sends its own commands and reads every response itself. `imap-codec` is not needed |
 | `rustls`, `tokio-rustls`, `rustls-native-certs` | 0.23, 0.26, 0.8 | MIT, Apache-2.0 or ISC | TLS to the provider, with the operating system's certificates | Added by step B3, with `ring` rather than the default `aws-lc-rs`, which needs CMake to build |
 | `lettre` | 0.11 | MIT | SMTP, from phase D | None |
-| `keyring` | 4.2 | MIT or Apache-2.0 | The operating system's keychain | None |
+| `keyring-core`, `apple-native-keyring-store` | 1, 1 | MIT or Apache-2.0 | The operating system's keychain | Step B3 took these in place of `keyring` 4.2, which advises an application that knows its platforms to link them directly. macOS only for now: on another platform adding an account says there is no keychain yet |
+| `getrandom` | 0.3 | MIT or Apache-2.0 | The approval middleware's key, made afresh for each process | Already in the lockfile through `tantivy` |
 | `tokio` | 1 | MIT | Running a command from the command line; the `afd` crate's deadlines use it; the connection to the provider | With `rt`, `time`, `net` and `io-util` until step B5 serves |
 | `async-trait`, `serde_json` | 0.1, 1 | MIT or Apache-2.0 | A command's handler and its input and result | The `afd` crate's own |
 
@@ -161,7 +162,9 @@ mode `0700` and its files with `0600`.
 | `cli.token` | The command line's own token for a running server ([3.2](#32-modes)), in clear |
 | `lock` | Held by the process that owns the store |
 
-Account credentials and refresh tokens are in the keychain, never in this directory. The tokens
+Account credentials and refresh tokens are in the keychain, never in this directory. On macOS
+an account's sign-in is a generic password in the person's login keychain, with the service
+`loam-mail` and the account `<provider>:<address>`. The tokens
 agents present are stored as hashes. `cli.token` is the one secret kept here in clear, because the
 command line has to read it. Whoever can read it can read the mail beside it, and can also act
 as the person toward a running server ([3.5](#35-commands-only-a-person-may-run)).
@@ -242,6 +245,21 @@ this version (M18):
   and writes the result to the keychain itself. `mail-account-add` takes the provider and the
   address, reads the keychain, and checks that the sign-in works. A running server reads the
   same keychain item.
+- **As step B3 built it.** The approval middleware signs tokens with a key made afresh for each
+  process and kept nowhere, so a token is good only within the command line's run, for at most
+  30 minutes. The command line runs the command, shows the summary ("Add the icloud account
+  <address>, and sign in to check that the sign-in works"), and asks "Go ahead?". On "yes" it
+  asks for any secret the command needs (an app-specific password for `mail-account-add`), after
+  checking that the keychain can be used, takes a fresh hold so that the time spent making the
+  password does not expire the approval, keeps the secret in the keychain, and retries with the
+  token. No token is printed. If the command fails, or the person stops it (Ctrl-C, closing the
+  terminal, or a request to end), the
+  keychain is put back as it was, so a mistyped password does not take the place of one that
+  works. A Ctrl-C at the very moment the password is kept, before the sign-in starts, is the one
+  gap. Input the command would refuse is refused without asking: `mail-account-add`'s policy
+  holds only an account it could add. An address's domain is kept in lower case, so a difference
+  of case does not add an account twice. The server's key, which must outlive a call, is step
+  B5's.
 
 **What this proves, and what it does not.**
 
@@ -937,7 +955,7 @@ says otherwise.
 | --- | --- | --- | --- | --- |
 | `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome |
 | `mail-account-list` | B | Read | cli, mcp | |
-| `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so |
+| `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's, with the other person's commands that remove something |
 | `mail-token-create`, `mail-token-list`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)) |
 | `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)) |
 | `mail-thread-list`, `mail-thread-open`, `mail-message-open` | B | Read | cli, mcp | An output budget on each; lists are paged by cursor |
@@ -1112,9 +1130,9 @@ file.
 | B0 | The Gmail API probe ([5.5](#55-gmail)), as a prototype beside the census. Corrects this document |
 | B1 | The plugin folder, the crate's skeleton, the workflow and the Loam exclusion (L8); `loam-mail help` runs |
 | B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet). The second built what a list, a thread and a search need (`envelope`, `part`, `thread`, `thread_key`, `thread_place`), and the command line's running of a command. Left to the step that owns each: unread counts, with the provider interface's flags (B3); the parts of a message fetched in parts, which need its structure from the provider (B3); hidden text, the template, the limits of [6.4](#64-parsing-strangers-bytes) and the index's filters (B4); Gmail's own threads (B6); `sender`, `template` and `story` (phase C) |
-| B3 | In two pull requests, as B2. First: the provider interface, IMAP, the scripted IMAP server, iCloud sync with resume and unreturned messages, unread counts, repairs of damaged files, `mail-sync` and `mail-status`, and the checks on the owner's account ([4.2](#42-what-makes-two-messages-the-same) and the IMAP crate of [section 2](#2-units-placement-and-crates)). Second: `mail-account-add` with the keychain, the command line's approval of a person's command ([3.5](#35-commands-only-a-person-may-run)), and the headers and text of a message over 1 MiB (M20) |
-| B4 | Evidence, threads, labels on results; the read commands and `mail-search`; the fuzz targets |
-| B5 | `serve`, tokens, the layer and the two routes, stdio; the command line forwarding to a running server |
+| B3 | In two pull requests, as B2. First: the provider interface, IMAP, the scripted IMAP server, iCloud sync with resume and unreturned messages, unread counts, repairs of damaged files, `mail-sync` and `mail-status`, and the checks on the owner's account ([4.2](#42-what-makes-two-messages-the-same) and the IMAP crate of [section 2](#2-units-placement-and-crates)). Second: `mail-account-add` and `mail-account-list`, the keychain, and the command line's approval of a person's command ([3.5](#35-commands-only-a-person-may-run)). The headers and text of a message over 1 MiB (M20) moved to B4, which builds the fetching of a part that opening a message or an attachment needs; such a message does not hold a mailbox back from "synced" ([5.7](#57-what-synced-means)) |
+| B4 | Evidence, threads, labels on results; the read commands and `mail-search`; fetching a part of a message, for opening it and for the text of a message over 1 MiB (M20); the fuzz targets |
+| B5 | `serve`, tokens, the layer and the two routes, stdio; the command line forwarding to a running server; `mail-account-remove` |
 | B6 | Gmail sync through the API, with the scripted API |
 | B7 | The acceptance run on the owner's accounts |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)) |

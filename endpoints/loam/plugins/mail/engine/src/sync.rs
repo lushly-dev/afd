@@ -351,7 +351,7 @@ impl Failure {
 impl From<ProviderError> for Failure {
     fn from(error: ProviderError) -> Self {
         match error {
-            ProviderError::SignIn | ProviderError::NoCredential => {
+            ProviderError::SignIn | ProviderError::NoCredential | ProviderError::Keychain => {
                 Self::Stop(SyncError::Provider(error))
             }
             ProviderError::Refused(_) => Self::Mailbox(error),

@@ -1,22 +1,37 @@
 //! `loam-mail`, the engine's program.
 
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use loam_mail::cli::Caller;
+use loam_mail::cli::{Caller, Tty};
 use loam_mail::engine::Engine;
 use loam_mail::home::Home;
-use loam_mail::provider::imap::{Endpoint, ICLOUD_NAMES, ImapConnector};
+use loam_mail::provider::ProviderError;
+use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnector};
+use loam_mail::secrets::{Keychain, Secrets, account_key};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let home = Home::resolve(|name| std::env::var(name).ok()).ok();
-    // The sign-in is read from the keychain, which arrives with
-    // `mail-account-add` in the second half of step B3; until then there is
-    // none, and sync says so.
-    let icloud = ImapConnector::new(Endpoint::icloud(), ICLOUD_NAMES, |_| None);
-    let mut engine = Engine::new(home).with_connector(Arc::new(icloud));
+    let secrets: Arc<dyn Secrets> = Arc::new(Keychain);
+    // An account signs in with what the keychain holds for it; iCloud's user
+    // name is the address.
+    let keychain = Arc::clone(&secrets);
+    let icloud = ImapConnector::new(Endpoint::icloud(), ICLOUD_NAMES, move |account| {
+        let key = account_key(&account.provider, &account.address);
+        match keychain.get(&key) {
+            Ok(Some(password)) => Ok(Credentials {
+                user: account.address.clone(),
+                password,
+            }),
+            Ok(None) => Err(ProviderError::NoCredential),
+            Err(_) => Err(ProviderError::Keychain),
+        }
+    });
+    let mut engine = Engine::new(home)
+        .with_connector(Arc::new(icloud))
+        .with_secrets(Arc::clone(&secrets));
     if std::io::stderr().is_terminal() {
         engine = engine.with_progress(Arc::new(|line| eprintln!("{line}")));
     }
@@ -24,22 +39,34 @@ fn main() -> ExitCode {
         Ok(registry) => registry,
         Err(broken) => {
             eprintln!(
-                "{}: the command registry breaks its rules:\n{broken}",
+                "{}: the command registry could not be built:\n{broken}",
                 loam_mail::PROGRAM
             );
             return ExitCode::FAILURE;
         }
     };
+    let mut tty = Tty;
     let caller = if std::io::stdin().is_terminal() {
-        Caller::Terminal
+        Caller::Terminal(&mut tty)
     } else {
         Caller::Script
     };
     let mut out = std::io::stdout().lock();
     let mut err = std::io::stderr().lock();
-    match loam_mail::cli::run(&args, &registry, caller, &mut out, &mut err) {
+    match loam_mail::cli::run(
+        &args,
+        &registry,
+        caller,
+        secrets.as_ref(),
+        &mut out,
+        &mut err,
+    ) {
         Ok(status) => ExitCode::from(status),
         // A closed pipe (`loam-mail help | head -1`) is not a failure to report.
-        Err(_) => ExitCode::FAILURE,
+        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => ExitCode::FAILURE,
+        Err(error) => {
+            let _ = writeln!(err, "{}: {error}", loam_mail::PROGRAM);
+            ExitCode::FAILURE
+        }
     }
 }

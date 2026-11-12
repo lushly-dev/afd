@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::home::{Home, HomeError};
 use crate::provider::Connector;
+use crate::secrets::{InMemory, Secrets};
 use crate::store::{Store, StoreError};
 use crate::sync::Options;
 
@@ -25,6 +26,8 @@ pub struct Engine {
     /// nothing.
     connector: Option<Arc<dyn Connector>>,
     sync: Options,
+    /// Where accounts' sign-ins are kept.
+    secrets: Arc<dyn Secrets>,
 }
 
 impl fmt::Debug for Engine {
@@ -45,7 +48,25 @@ impl Engine {
             progress: None,
             connector: None,
             sync: Options::default(),
+            // The program gives the keychain; an engine made without one
+            // keeps nothing beyond the process, so a test never reaches the
+            // person's keychain by accident.
+            secrets: Arc::new(InMemory::default()),
         }
+    }
+
+    /// The same engine, keeping sign-ins in `secrets`: the keychain, in the
+    /// program.
+    #[must_use]
+    pub fn with_secrets(mut self, secrets: Arc<dyn Secrets>) -> Self {
+        self.secrets = secrets;
+        self
+    }
+
+    /// Where accounts' sign-ins are kept.
+    #[must_use]
+    pub fn secrets(&self) -> &Arc<dyn Secrets> {
+        &self.secrets
     }
 
     /// The same engine, reaching providers through `connector`.

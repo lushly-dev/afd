@@ -55,7 +55,7 @@ impl Fixture {
         };
         let password = password.to_string();
         let connector = ImapConnector::new(endpoint, ICLOUD_NAMES, move |_| {
-            Some(Credentials {
+            Ok(Credentials {
                 user: USER.to_string(),
                 password: password.clone(),
             })
@@ -765,7 +765,15 @@ fn command(fixture: &Fixture, args: &[&str]) -> (u8, serde_json::Value) {
     let registry = loam_mail::registry(&fixture.engine).unwrap();
     let args: Vec<String> = args.iter().map(ToString::to_string).collect();
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let status = run(&args, &registry, Caller::Script, &mut out, &mut err).unwrap();
+    let status = run(
+        &args,
+        &registry,
+        Caller::Script,
+        fixture.engine.secrets().as_ref(),
+        &mut out,
+        &mut err,
+    )
+    .unwrap();
     (status, serde_json::from_slice(&out).unwrap())
 }
 
