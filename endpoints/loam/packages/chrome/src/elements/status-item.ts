@@ -30,6 +30,9 @@ const styles = css`
 	.label {
 		color: var(--color-text-muted);
 	}
+	.value {
+		min-inline-size: 0;
+	}
 	.label[hidden] {
 		display: none;
 	}
