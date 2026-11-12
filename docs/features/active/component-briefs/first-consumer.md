@@ -194,5 +194,7 @@ The owner's decision ([What step C4 found](./STATUS.md#what-step-c4-found)); the
   `CLAUDE_CODE_*` variables as phase 0's did; arm c with `--mcp-config` naming the launcher and
   `mcp__umbel` allowed, `--strict-mcp-config` for both arms. Five at a time, run by run, task by task,
   arm by arm, on the shared Mac under a load of 12 to 36.
+- **The launcher** gained its binary check before the export, and a lock around the export, after
+  these runs; they used one workspace per slot, so no two exports shared an override.
 - **Cost.** $5.70 for the 30 sessions, plus 30 reviews (not recorded), plus $0.57 for the three Loam
   sessions.
