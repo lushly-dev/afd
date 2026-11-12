@@ -28,8 +28,9 @@ Code paths are relative to `endpoints/umbel/`.
     review of step B2** (2026-11-12) found one blocker and eight improvements; all nine are taken, in the table
     after its amendments (R8 to R16). A kind a manifest declares is now written with its lane rows and found by key and by text when the
     put returns; an undeclared kind behaves as before.
-  - **Step B3, standing, is implemented** (2026-11-12) on the branch `lush/ideas-b3-standing`, amended below
-    ([B3](#amendments-from-step-b3), A24 to A40). It is in its pull request, not merged. **An independent
+  - **Step B3, standing, is implemented** (2026-11-12), amended below
+    ([B3](#amendments-from-step-b3), A24 to A40), and merged: [#1064](https://github.com/lushly-dev/afd/pull/1064),
+    as `a5eefbf0`. **An independent
     security review of step B3** (2026-11-12) found two blockers and six improvements; all eight are taken, in
     the table after its amendments (R17 to R24). A standing record now reads `unverified`, `attested` or
     `affirmed`, computed at each read. It is affirmed only inside a call that carries the person gate's proof,
@@ -37,8 +38,23 @@ Code paths are relative to `endpoints/umbel/`.
     person is the space's and the wording is the one decided on; it is attested only by evidence that cites,
     word for word, a document that is the person's own now, which for an own collection means the host held it
     to its file on disk; and a call for verified content is given at most what the space's `verified_admits`
-    names. The embedded schema is version 3. Steps B4 to B6 are not implemented: nothing is matched, and no
-    vector is written.
+    names. The embedded schema is version 3.
+  - **Step B4, matching by words, is implemented** (2026-11-12) on the branch `lush/ideas-b4-matching`, amended
+    below ([B4](#amendments-from-step-b4), A41 to A54). It is in its pull request. **An independent review of
+    step B4** (2026-11-12) found one blocker, which the coordinator ruled as a design change, and five
+    improvements; all six are taken, in the table after its amendments (R25 to R30). **A focused review of the
+    revision** (2026-11-12) found no blocker and six improvements, all taken (R31 to R36). `record_match` answers,
+    for each of up to 64 texts, the records whose match field is identical and the nearest ones by words, each
+    with the label a read gives it and its score at four places. Every statistic is taken over what the caller
+    may read and the call admits, without what it excludes; a call for verified content is given at most what
+    the space's `verified_admits` names; and **a match is refused only when its kind as a whole holds more than
+    4 000 000 postings**, from a count the store keeps, the same for every call and every reader, so a refusal
+    tells a reader that the kind is past its matching size and nothing of which records hold which words. The
+    per-call work cap the step first had was a word-presence oracle, which the review reproduced
+    ([A52](#amendments-from-step-b4)). A ranked find is refused with a match; a find by id or by recency never
+    is ([A54](#amendments-from-step-b4)). The embedded schema is version 4.
+    The scores are the fixture's, whose figures were computed apart from the Rust. Steps B5 and B6 are not
+    implemented: no model is loaded, no vector is written, and a match says `meaning` is off.
   - **Revised 2026-11-11 after an independent review** by one reviewer, whose verdict was "approve after the
     blockers": four blockers and nine improvements, about sixty citations sampled and found correct. All thirteen
     are taken, two of them in a different way from the one proposed.
@@ -49,7 +65,142 @@ Code paths are relative to `endpoints/umbel/`.
   - It refines D157 in three places, which D161 and D162 record and section [18](#18-for-the-owner) lists.
   - It differs from the plan's outline in several places, each because of something in the code. Section
     [18](#18-for-the-owner) marks them "differs from the plan".
-- **Last verified:** 2026-11-12 for step B3 as revised after its review, on the branch `lush/ideas-b3-standing`
+- **Last verified:** 2026-11-12 for step B4 as revised after its focused review, on the branch
+  `lush/ideas-b4-matching` over `main` at `dc9d4b2d`, on macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from
+  `endpoints/umbel/`.
+  - **The focused review** (2026-11-12, independent, of the revision after the first review): no blocker, six
+    improvements, all taken (R31 to R36); verdict "approve after the first two". It confirmed the oracle gone: 72
+    cases byte-identical, for match and find, across two kinds that differ only in a word an unreadable record
+    holds. It found the count exact through puts, rewrites, undeclared puts, superseded and panicking rebuilds
+    and the migration. It measured an unbounded ranked find (A54) and probed the drift of R32 (a count of 21
+    against 14 real postings after a rebuild). Of the faults this revision put in, it caught all but one, which
+    no case can catch (section 15.1's note).
+  - Run after the last code edit, each passing: `cargo fmt --all --check`;
+    `cargo clippy --locked --workspace --all-targets -- -D warnings`;
+    `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings`;
+    `cargo test --locked --workspace` (278 `test result` lines, from 262 test binaries and 16 doc-test runs, all `ok`: 2547 tests passed, none failed, 1 ignored).
+  - For the focused review's revision, two faults put in by hand and restored are caught: a rebuild that does
+    not set the count (by `lane_schema.rs`), and two new wrapper faults in `lane_suite_detects.rs`, a ranked
+    find never refused and every find refused past the bound (by the `matching` group's bound case).
+- **Verified after the first review:** 2026-11-12 for step B4 as revised after its review, on the branch
+  `lush/ideas-b4-matching` over `main` at `dc9d4b2d`, on macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from
+  `endpoints/umbel/`.
+  - **The review** (2026-11-12, independent, of the step): one blocker, ruled by the coordinator as a design
+    change, and five improvements, all taken (R25 to R30, after the step B4 amendments). The reviewer ran 81
+    differential calls, each identical in every field to the reader's own answer; recomputed all five fixture rows
+    independently with FTS5's tokens; injected 15 faults, of which 11 were caught and the 4 missed are covered
+    now by R27 and R28; reproduced the work cap's oracle by probe (A52); and measured the costs 8.2 now records.
+  - Run after the last code edit, each passing: `cargo fmt --all --check`;
+    `cargo clippy --locked --workspace --all-targets -- -D warnings`;
+    `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings`;
+    `cargo test --locked --workspace` (278 `test result` lines, from 262 test binaries and 16 doc-test runs, all `ok`: 2547 tests passed, none failed, 1 ignored. Two runs before it, with `--no-fail-fast` on the second, found three version assertions still at schema version 3 (`tests/doctor_stores.rs`, `store-embedded/tests/sqlite.rs`, twice), corrected before this run).
+  - For the revision: faults put in by hand and restored, each caught: the follow-on statements without their
+    clauses (four, one at a time) and the pool ordered by unrounded scores, by the new unit tests; the put's count
+    off by its removed rows, by the suite; a rebuild that leaves a refused body's postings counted, by
+    `lane_schema.rs`. The `lane_suite_detects.rs` wrapper gains four faults of the bound (a bound that is the
+    reader's share, a match never refused, a match refused for a word an unreadable record holds, and a find
+    refused past the bound), each caught by the cases named there.
+  - Not run for the revision: the gate's two build commands (the `wasm32-wasip2` release build and `hello-mcp`), the clippy legs beside it,
+    the minimum Rust, Linux and `pnpm check`. The four timings in 8.2 are the reviewer's, not repeated.
+- **Verified before the review:** 2026-11-12 for step B4, on the branch `lush/ideas-b4-matching` over `main` at `dc9d4b2d`, on
+  macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from `endpoints/umbel/`. Every command under "Run" below was
+  run after the last code edit, the gate's tests after its other five commands.
+  - Read for the step, whole unless a part is named: this document's Status, its three sets of amendments with
+    their review tables, the follow-ups table, and sections 5, 6.5, 6.6, 7, 8, 11, 13, 14, 15 and 16;
+    `store/src/lane.rs`, `lane/score.rs` and `lane/query.rs`, in `lane/extract.rs` its head and `extract`, the
+    lane methods of `traits.rs`, `error.rs`, `conformance/mod.rs`, in `conformance/lane.rs` its helpers and its
+    fixture, cut, unreadable, statistics and differential cases, in `conformance/standing.rs` its helpers and
+    its `admit` and `basis` cases, and `fixtures/lane/records.json`; `store-embedded/src/lane/mod.rs`, `find.rs`,
+    `rank.rs` and `standing.rs`, `sql.rs`, and the lane methods of `documents.rs`;
+    `store-embedded/tests/lane_suite_detects.rs` and `lane_conformance.rs`, and the query-plan test of
+    `lane/reindex.rs`; `store/tests/lane_fixture.rs` and the lane methods of `store/tests/support/mod.rs`;
+    `src/plugins/record_services.rs`, the record methods of `grants.rs`, the record codes of `src/store/mod.rs`,
+    in `src/access.rs` the identities, `is_operator` and its tests' configurations, and in
+    `src/workspace/hosted.rs` the equivalents and `check_hosted`; the record reads of `sdk/src/cx.rs` and
+    `store.rs`; in `tests/`, `records_find.rs`, `support/records.rs`, `support/standing.rs`, the stale-kind test
+    of `records_put.rs`, and in `records_standing.rs` its helpers and its tests of an affirmation, of who
+    decides, of the basis, of a call for verified content and of a former person; the root `AGENTS.md` and
+    STATUS.md's "How to keep this file". Not read: `store-embedded/src/lane/write.rs`, `reindex.rs` beyond that
+    test and `status.rs`; `src/person/`; and sections 9, 10 and 12, which are other steps'.
+  - Run, all passing, each command by itself, the commands step B1's entry below names:
+    `cargo fmt --all --check`;
+    `cargo clippy --locked --workspace --all-targets -- -D warnings`;
+    `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings`;
+    `cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component`;
+    `cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp`;
+    `cargo test --locked --workspace` (278 `test result` lines, from 262 test binaries and 16 doc-test runs, all `ok`: 2541 tests passed, none failed, 1 ignored. **That is the third run of that command.** The first, before the last code
+    edit, failed in `store/tests/suite_detects.rs`, which counts the cases the store's in-memory fake skips and
+    did not yet count this step's group; it and `store-embedded/tests/conformance.rs` were corrected, and those
+    two edits are the last. The second, after them, stopped when the `hybrid_surface` test binary died with
+    SIGBUS (signal 10) after nine of its thirteen tests had passed, with no test failed; the binary then passed
+    three times by itself, and passed in the third run, which is the one counted here. The build tree is on an
+    external volume, and this step changes nothing that binary runs).
+  - Run beside the gate, all passing: `cargo build --locked --target wasm32-wasip2 -p umbel-store`; the six
+    clippy legs of `.github/workflows/umbel.yml` that the gate does not name, each with `-D warnings`
+    (`-p umbel --lib --no-default-features`, the same with `--features mounted` and with `--features component`;
+    `-p umbel-sdk -p umbel-plugin-hello --features umbel-sdk/mounted,umbel-plugin-hello/mounted --all-targets`;
+    the four fixture components and `umbel-plugin-hello` with `--features umbel-plugin-hello/component` for
+    `wasm32-wasip2`; `-p umbel-plugin-knowledge --no-default-features --all-targets`);
+    `cargo clippy --locked -p umbel-store-embedded --lib -- -D warnings`, the embedded store without its
+    `testkit` feature; and, on the crates' minimum Rust,
+    `cargo +1.97.0 check --locked -p umbel-store -p umbel-store-embedded -p umbel-sdk --all-targets` and
+    `cargo +1.97.0 check --locked -p umbel --all-targets`, which are the four crates this step changes.
+  - The tests step B4's exit names: `tests/records_match.rs` (7 tests), and **the suite passes on the embedded
+    backend with nothing skipped**: its `matching` group has 14 cases, which
+    `store-embedded/tests/lane_conformance.rs` also runs alone, and the `standing` group's `admit` and `basis`
+    cases now hold a match too. **The suite's expected scores hold to four places**: the fixture's five texts,
+    two of them matched with records excluded, in both orders of put, in the suite and again through the SDK in
+    `records_match.rs`. Beside them: `store-embedded/tests/lane_suite_detects.rs` gains three tests (the
+    `matching` group passes on the unbroken wrapper and fails on each of nine broken backends, and two more
+    break the `standing` group's two cases; 7 tests in the file); `store/src/lane/query.rs` has two unit tests
+    of `RecordMatch::plan`, `store-embedded/src/lane/matching.rs` one of the identical lookup's plan and
+    clauses, and `src/plugins/record_services.rs` one of a person's identities; `tests/records_standing.rs`
+    gains the test of those identities end to end (20 tests in the file); `store/tests/lane_fixture.rs` (4)
+    recomputes the fixture's new rows with their exclusions; and `store/tests/suite_detects.rs` and
+    `store-embedded/tests/conformance.rs` count the group's 14 cases, skipped on the store's in-memory fake,
+    which has no lane, and passed on the embedded store.
+  - **How the expected scores were recomputed, apart from the Rust.** A Python script read
+    `store/fixtures/lane/records.json`, took each text's tokens from the FTS5 of the SQLite 3.53.4 in Python's
+    `sqlite3` (a table with `tokenize='porter unicode61 remove_diacritics 2'`, read back through `fts5vocab`'s
+    `instance` rows in offset order), computed section 8.1's digest with `unicodedata` and `hashlib`, and
+    section 8.2's `N`, `L`, counts, both directed scores and `words` in floating point from this document's
+    formulas, leaving a text's excluded records out of the corpus. It reproduced the two rows the fixture held,
+    figure for figure, and its output is the three rows this step added. The script is not in the repository.
+  - **Forty-five faults were put into the code, one at a time, and each was caught in the end**; the tree was
+    restored after each and compared with a copy, and the gate above ran on the restored tree. Thirty-three in
+    the embedded store (`lane/matching.rs`, `lane/rank.rs`): the incoming text not counted as one more record,
+    its tokens not added, the text not a holder of its own terms, a pooled record's terms not counted once
+    more for the text, each direction kept alone and the higher kept, scores not rounded, one text's corpus
+    carried into the next; no clause on the corpus, on the terms' counts and on the gather, the exclusions out
+    of the corpus and out of the counts, the reader clause out of every statement, a match admitting every
+    standing; the identical lookup under no clause, under the reader alone, without the exclusions, without the
+    key filters and in lane order; the work cap never refusing, counting the reader's own postings, counting a
+    term each time it is needed and refusing at the bound itself; `k` not applied, the pool unbounded, the
+    pool's ties and the nearest's ties not by id, the gather never cut; a stale kind matched, a derivation
+    reader served, and a hit labelled as a reader of every document would be. Six in `umbel-store`'s
+    `RecordMatch::plan`: 65 texts, a text past 16 KiB, `k` past 20, 65 excluded ids and a standing filter on a
+    kind without standing taken, and the identical lookup by another digest than the stored one. Six in the
+    host's `svc_record_match`: the decider shown on every hit, `verified_only` ignored, `standings` ignored, a
+    kind with no match field not refused by its code, the rules not checked before the store is read, and a
+    filter that is not the caller's. **Five did not go as the others did, and tests were added for four.** The identical lookup under no clause, under the reader alone and without the exclusions were
+    caught only by the unit test of the statement: through the trait the answer was still right, because the
+    statement that reads the hits carries the clauses again, but a record its reader may not read, its view
+    does not admit or its call excludes would then have taken one of the eight places an identical list has.
+    The suite's unreadable, exclude and `admit` cases now each write eight or nine such records before the
+    reader's own, and `records_match.rs` does the same through the host. Scores not rounded were caught by the
+    suite and not through the host, whose test compared scores as printed; it now holds each to four places.
+    The fifth, a digest of the lower-cased text, was no fault: the normalisation folds case. It was replaced
+    by a digest of the text without its spaces, which was caught. **Not detectable, and left as they are**:
+    the clauses on the three statements that name only lanes an earlier statement returned.
+  - Run from the repository root, on Node 24.21.0 and not the `.nvmrc`'s 26, all passing:
+    `node --test scripts/plugin-manifest.test.mjs` (47 tests), `biome check endpoints/umbel` (237 files) and the
+    file-size, orphan-files, portability and boundaries checks.
+  - Not run: Linux, which is where the Umbel workflow runs; the minimum Rust over the rest of the workspace
+    (the four crates this step changes were checked, above); the todo example's conformance runs against
+    Umbel; and `pnpm check` and `pnpm verify` as a whole. `RECORD_QUERY_TOO_BROAD` is not reached through the
+    host in any test: the host never lowers the lane's bounds, so the refusal is held by the suite on the
+    store and by the unit test of `host_error`'s mapping. No timing was taken: step B6 measures.
+- **Verified before that:** 2026-11-12 for step B3 as revised after its review, on the branch `lush/ideas-b3-standing`
   over `main` at `5c7c963a`, on macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from `endpoints/umbel/`. Every
   command under "Run" below was run again after the last code edit of the revision, the tests last.
   - **The review** (2026-11-12, independent, of the step's security) attacked the proof through a nested call,
@@ -306,9 +457,10 @@ Code paths are relative to `endpoints/umbel/`.
   `reindex_records` in chunks, without vectors; the host's put path of section 4.2 without steps 6 and 8,
   `record_read` and `record_find`; the loader's `Shared.records` and `GateEntry.lane_writer`;
   `store-records-reindex`; the doctor's `records.declared` and `records.size`; and the suite's `lane` group.
-- **In progress:** step B3, implemented, reviewed independently and verified 2026-11-12 on
-  `lush/ideas-b3-standing`, with its amendments ([B3](#amendments-from-step-b3)) and its review's eight findings
-  taken; in its pull request, not merged. It holds:
+  Step B3, 2026-11-12, reviewed independently for its security, with its amendments
+  ([B3](#amendments-from-step-b3)) and its review's eight findings taken, merged as `a5eefbf0`
+  ([#1064](https://github.com/lushly-dev/afd/pull/1064)); the test it held back for the plugin-isolation rule
+  merged as `dc9d4b2d` ([#1065](https://github.com/lushly-dev/afd/pull/1065)). It holds:
   `gate_proof` and `CallServices.person_gate`; `decide_record`, `mark_document_own`, `unmark_document_own` and
   `document_own`, with `record_decide`, `doc_own_mark`, `doc_own_unmark` and `doc_own`; evidence, section 4.2's
   steps 6 and 7.5 and `record_put_cited`; the label and section 6.3's clause, computed at each read; the
@@ -320,11 +472,19 @@ Code paths are relative to `endpoints/umbel/`.
   review**: embedded schema version 3 and its migration; `put_document_held`, `hold_document` and
   `unheld_documents`; `store-documents-hold`; the doctor's `records.own`; `StandingView.person`; the terminal
   proof's human-present mark; and the label's decider shown to the operator and the person only.
-- **Not done:** steps B4 to B6 of section [16](#16-implementation-plan). Step B3 leaves B4 the standing of a
-  match: `match_records` takes the same clause and the same labels as a find
-  (`store-embedded/src/lane/standing.rs`: `and_admitted`, `label`), the `standing` group's case that
-  `admit` narrows it ([A34](#amendments-from-step-b3)), and in `svc_record_match` the withholding of who affirmed
-  a hit ([A39](#amendments-from-step-b3)). B5 has `store-records-reindex`'s `vectorsOnly` and
+- **In progress:** step B4, implemented and verified 2026-11-12 on `lush/ideas-b4-matching`, with its amendments
+  ([B4](#amendments-from-step-b4)); in its pull request, and not reviewed independently. It holds:
+  `RecordMatch::plan` and `MatchText`; `DocumentStore::match_records`, on the embedded store in
+  `lane/matching.rs` over `rank.rs`' `Scope`, `Counts` and `candidates`, which a ranked find now shares; the
+  host's `svc_record_match` and `record_match`; the suite's `matching` group, words only, with the fixture's
+  three new texts; the `standing` group's match under each `admit` and its hit's `basis`; the withholding of who
+  affirmed a hit; and the test of a person's identities, with section 3's sentence on a legacy `person`. All
+  three follow-ups addressed to it are settled (A48, A49).
+- **Not done:** steps B5 and B6 of section [16](#16-implementation-plan). Step B4 leaves B5: a match that carries
+  vectors is refused until it serves them ([A44](#amendments-from-step-b4)); the three `matching` cases that need
+  vectors ([A50](#amendments-from-step-b4)); the `words` of a record pooled by meaning alone, and whether the
+  missing-vector check is held to a call's exclusions and keys (the [follow-ups](#follow-ups)). B5 also has
+  `store-records-reindex`'s `vectorsOnly` and
   `meaning` ([A18](#amendments-from-step-b2)), the model id and loading a model.
   **Section 16 gives one part
   of section [12.4](#124-workspace-show-and-plugin-show) to no step**: what `workspace-show` says of a space (its
@@ -487,6 +647,58 @@ and each was caught. Two blockers and six improvements, all taken:
 | R23 | Two tests were missing: the real `sources-sync` against an own collection, and the pin for the second blocker | `plugins/sources-filesystem/tests/own_collection.rs` (add, unchanged, update, delete, with a byte order mark and CRLF; held back from step B3's pull request by the plugin-isolation rule and landed in its own, after that step merged) and `tests/records_standing.rs`' pin (A36) |
 | R24 | A25 is sound and reverses section 2 | Put to the owner in section 18, row 26, with the cost of the other way |
 
+### Amendments from step B4
+
+Step B4 (matching by words) found these points this document had left unsettled, had stated two ways, or had
+stated so that the code could not hold them as written, and took the narrowest reading of each. None of A41 to
+A51 changes a decision row; A52, from the step's review, amends D165's refusal. Two of them, A48 and A49, are the follow-ups the table at the end addressed to this step. The
+numbers carry on from step B3's.
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A41 | Section [8](#8-matching-d165) gives a match's rules and does not say where they are checked, nor settle these: a query whose kind is not the declaration's; a text with no token, which section [15.1](#151-the-suite-d170) names as a case and section [7](#7-finding-d164) refuses in a find; what an excluded id is; an id named twice | The rules are one pure function, `RecordMatch::plan` in `store/src/lane/query.rs`, beside a find's ([A16](#amendments-from-step-b2)): the host calls it first, to put `RECORD_QUERY_INVALID` before the rule's text, and every backend calls it again. It answers each text as its digest, its distinct terms in byte order with their frequencies, and its length (`MatchText`), so every backend scores the same terms. A kind that is not the declaration's is refused. **A text with no token breaks no rule**: it is near nothing, and identical to the records that hold its digest, since a match field of punctuation alone has one. A text whose normalised form is empty is identical to nothing too. Either one adds a record of no tokens to its own corpus, as any text adds itself. An excluded id must have a record id's shape, 1 to 512 bytes with no control character, and an id named twice counts once. A text's length is in bytes of UTF-8. A refusal never holds a text or an id |
+| A42 | Section [13](#13-failures) gives `RECORD_KIND_NOT_DECLARED` one message for two cases, and the message says a kind "is not a declared record kind" of the instance. For `record_match` on a kind the manifest declares with no `match`, that is false | The code is the table's. The message for the second case says what is so: `the kind <kind> of <instance> declares no match field`. Section 13's row has both |
+| A43 | Section [8.2](#82-words) takes the corpus as "the records of the kind that the reader may read and the call admits" and does not say whether a record with no value at the match pointer is one | It is: `N` counts every record of the kind that passes the three clauses, and such a record adds no token to `L`. It is identical to nothing and is no candidate. This is what step B2's ranked find already counts, and `store-records-eval`'s `n` in step B5 is over the same records. Section 8.2 says so |
+| A44 | Section [11.1](#111-umbel-store) gives `match_records` its `vectors` from this step, and section [16](#16-implementation-plan) gives this step "`match_records` without vectors" | The embedded store refuses a match that carries vectors, as `Invalid`, "a match with vectors is not served yet": refused, never answered as if it had carried none ([A13](#amendments-from-step-b2)'s rule). The host passes none, loads no model and embeds no text. So `MatchPage.meaning` is `Off`, `meaning` is absent from every hit, and `fused` is `words`, computed from the unrounded score by `score::fused` with a weight of 0. Step B5 replaces the refusal |
+| A45 | [A23](#amendments-from-step-b2) said `rank.rs` holds what "B4's `matching.rs` builds on". What is shared, and which clauses a match's statements carry | `rank.rs`' `Scope` now names the searched fields and the excluded ids, and holds the corpus, the gather and step 4's frequencies; `Counts` is section 8.2's table of stored counts with its running total, which a ranked find fills once and a match fills across its texts; `candidates` is steps 2 and 3. A ranked find runs the same statements with no exclusion. **Every statement of a match carries three clauses through one function, `Scope::and_counted`**: the reader, the standing ([`and_admitted`](#66-verified-content-only)) and the exclusions. The identical lookup and the gather add the key filters. The three statements that name only lanes an earlier statement returned (a candidate's frequencies and length, a pooled record's terms, the hits' records) carry the clauses again, as step B2's review settled for a find (R12). A hit's label is `standing::label`'s, through the same `records` a find's page is read by. Ids are compared in the byte order of their UTF-8, in the pool's ties, in `nearest` and in `identical` |
+| A46 | Section [8.1](#81-identical) has `identical` as "one indexed lookup with the reader, standing and key clauses, ordered by id, limited to 8", and section 8's table has `exclude` leave a record out of both lists | The lookup also carries the exclusions. **Written as `ORDER BY l.id`, the statement was not an indexed lookup**: SQLite's planner read the kind in id order through the unique index on `(ns, kind, id)` to save the sort, which is every lane row of the kind for a text identical to nothing, 64 times a call. It is `ORDER BY +l.id`: the lookup is by `record_lane_by_digest` and the sort is over what it finds. A unit test in `store-embedded/src/lane/matching.rs` holds the plan to that index, and the statement to its four clauses. **The clauses are in the lookup itself, and not only in the statement that reads the hits**, because the limit of 8 is applied there: a record its reader may not read, its view does not admit or its call excludes takes none of the eight places. The suite writes eight or nine such records before the reader's own in its unreadable, exclude and `admit` cases, after this step's fault injection showed that nothing through the trait held it |
+| A47 | **Replaced by [A52](#amendments-from-step-b4) after the step's review**, which found the cap this row defines to be a word-presence oracle. Kept as it was decided. Section [8.2](#82-words) says a reader who may read 1% of a large kind "is refused at the same point as a reader of everything". The total it defines is over "the terms the call has needed", and the terms of step 6 are the terms of pooled records, which are records the reader may read | Both cannot hold, and the definition is what is implemented. **The terms a call needs are a function of its texts and of its reader's own records**; the total is every posting of those terms, whoever may read them. So two readers of one call are refused at the same point when they need the same terms, and readers who pool other records can need other terms and be refused at other points: a reader of nothing needs the texts' terms alone. What a refusal tells a reader is unchanged: that the kind holds very many postings of terms its own texts and its own records name, and nothing of which records hold them. The total only grows, so where a backend compares it with the cap changes no answer; a call is refused when the total passes the cap and answered when it equals it. Section 8.2's bullet says so. The suite's case holds each part: at the cap and one under it, by postings the reader can read and by ones it cannot, a reader of nothing, a text given three times, and a reader of everything who needs one term more |
+| A48 | **The follow-up addressed to this step**: the `standing` group holds `admit` on `read_record` and `find_records`, and section 15.1 also asks it of `match_records`; the host withholds who affirmed a hit | The group's case is now `admit_narrows_reads_finds_matches_totals_and_statistics`: under each of the eight sets a view can admit, a match's `nearest` and its `identical` hold admitted records alone, and its scores are the ones the admitted records give, on records chosen so that counting an unverified one moves a score. The group's `basis` case holds that a hit of a record citing a document its reader may not read shows the basis and nothing else, in both lists. Each hit of the group is held to the label a read gives the same record. `svc_record_match` takes `seen` from every hit's affirmation unless the reader is the operator or the space's person, with the function `record_read` and `record_find` use; `tests/records_match.rs` holds it for an agent, another person, the space's person through the library, and the operator at the CLI |
+| A49 | **The follow-up addressed to this step or to B6**: no test pinned that a person's identities are the configured `person` and the principal `[principal.equivalents]` maps it to, and no other | Two tests. A unit test of `person_identities` (`src/plugins/record_services.rs`): the person and its one target; a person named by the namespaced principal is that principal alone, where a reader's identities (`access::identities`) go the other way; a space with no person has none. And `tests/records_standing.rs`, through all three uses of the list: the write check (the mapped principal and the configured person each affirm, in their own names; a second legacy principal that maps to the same target is refused), the read clause (both decisions read affirmed), and the decider check (who affirmed is shown to those two principals alone). It also pins what the same review noted: with `person` changed to the namespaced target, a decision recorded under the legacy principal reads unverified, and a caller who is the legacy principal decides nothing. It fails closed |
+| A50 | Section [15.1](#151-the-suite-d170) lists the `matching` group's cases, and section 16 gives this step the group "words only" | The group has 14 cases, after `standing`. They are section 15.1's without the three that need vectors (`meaning` and `fused` to four places, `Incomplete`, `Served`), which are step B5's, and with these made explicit: the key filters narrow the candidates and the identical records and never the statistics; `cut` only when the rarest term's postings pass the bound after every clause, the exclusions among them; each rule of section 8 refuses, and a stale kind, a derivation reader and a match that carries vectors are refused; a reader never sees a record it may not read, as an identical record or a nearest one; and a match's statistics count only what its reader may read, shown apart for a hidden record that moves only the corpus and one that moves a term's count. The differential case runs with the cap and the gather bound lowered, so its reads hold a cut gather. **A record that shares no term with a text is no candidate and is not in `nearest`**: the fixture scores it at 0, and the suite checks that every record it leaves out is one the fixture has at 0. The fixture gains three texts, two of them with `exclude`; `lane_fixture.rs` recomputes them with the excluded records left out of the statistics. `store-embedded/tests/lane_conformance.rs` runs the group alone, and `lane_suite_detects.rs` holds that it fails on nine broken backends, and that the two `standing` cases above fail on two more |
+| A51 | Section [6.5](#65-the-label) gives a `LaneRecord` its serialised form. Section 8 gives a `MatchPage`, a `MatchResult` and a `MatchHit` none | None is defined here. A compiled plugin is handed the Rust types and writes its own result, as section 8 leaves every band and threshold to it. The test plugin writes a hit's label under `dev.umbel/standing` and its findings under `dev.umbel/flags`, as a `LaneRecord` has them. That a plugin passes a hit's label through unchanged is the plugin's specification's to hold, as it is for a read (D162) |
+| A52 | **Replaces [A47](#amendments-from-step-b4).** The step's independent review found the work cap a word-presence oracle: it summed every posting of the terms a call named, whoever could read them, and the caller chose the terms. At the default 4 000 000 a reader wrote 1 000 of its own 16 KiB records, then matched one pad term with a word, and was refused for words that sat in one record it could not read and answered for words that did not. Ruled by the coordinator as a design change: **no refusal may depend on per-term counts of records the reader may not read** | The cap goes. **A match is refused with `RECORD_QUERY_TOO_BROAD` when its kind as a whole holds more than `MATCH_POSTINGS = 4 000 000` postings** (rows of `record_terms`, over all its text fields, whoever may read them), checked once a call before anything else is read, from a count the store keeps ([A53](#amendments-from-step-b4)). The bound is the same for every call and every reader, and is `LaneLimits.match_postings`, which replaces `stat_postings` and defaults to the constant, which replaces `STAT_POSTINGS`. `LaneTooBroad`'s message is `the kind holds more than <limit> postings, past what a match reads`. `Counts` takes no total and refuses nothing; its statement counts only records that pass the three clauses. What a reader learns from a refusal is that the kind is past its matching size, and a principal who may write to the kind can push it past the bound and stop matching for every reader: sections 8.2 and 14 and section 18's row 12 say so, with the controls. The suite's `too_broad` case now holds the bound (every reader and every kind of call refused alike past it and answered at it, the count after a put, a rewrite and two rebuilds), and a new case, `a_refusal_says_nothing_of_which_records_hold_a_word`, reproduces the probe on two kinds of one size, one with the word in an unreadable record and one without; `tests/records_match.rs` does it through the host. The group has 15 cases |
+| A53 | Where the count of [A52](#amendments-from-step-b4) lives. `record_kinds` has no column for it, and adding one changes that table's statement, so a migrated store would not have a new store's schema statement for statement, which version 3 kept by adding a table ([A36](#amendments-from-step-b3)) | **Schema version 4**: the table `record_postings (ns, kind, postings)`, hanging from `record_kinds` (5.1). `write_terms`, which every put and every chunk of a rebuild uses to replace a lane's terms, adds the rows it inserted less the rows it deleted, and a rebuild that leaves a body without lane rows takes that lane's terms off, each in its own transaction (`add_postings` in `store-embedded/src/lane/write.rs`). A store at version 2 or 3 has the count taken once, by kind, as it migrates. `store-embedded/tests/fixtures/store-v3.sql` is a version 3 dump, and `lane_schema.rs` holds its migration (rows intact, the count its lane's, a new store's schema) and the count after first puts, rewrites with more, the same and fewer words, a rebuild under the same declaration, one that refuses a body and one that drops a text field |
+| A54 | Section [8.2](#82-words) ran a ranked find through "the once-a-call part", so the cap refused a find as well. **Revised after the step's focused review**, which measured an unbounded ranked find | As first ruled, a find was never refused, since `match_records` alone was. The focused review measured a 1 024-character ranked find on 20 000 records of 400 tokens (5.34 million postings) at 8.5 s for a reader of everything and 2.2 s for a reader of 1%: its counting statement reads every posting of each query term, whoever may read it, so its cost grows with the kind and is not bounded by its terms. **A find under order `rank` now makes the same check as a match, first** (`within_bound`, in `store-embedded/src/lane/rank.rs`), and is refused with `RECORD_QUERY_TOO_BROAD` past `MATCH_POSTINGS`. It is the same for every reader and every text, so no leak returns. A find by id or by recency, with or without a text filter or keys, is never refused for its size. The `lane` group's cut case holds both at a bound of 0; the `matching` group's bound case and `tests/records_match.rs` hold a ranked find refused alike and a find by id answered |
+
+**The independent review of step B4** (2026-11-12) found one blocker, which the coordinator ruled as a design change,
+and five improvements. All six are taken.
+
+| # | Finding | Taken as |
+| --- | --- | --- |
+| R25 | Blocker. The work cap was a word-presence oracle (the probe in [A52](#amendments-from-step-b4)) | The bound on the kind's postings ([A52](#amendments-from-step-b4)), its count in schema version 4 ([A53](#amendments-from-step-b4)), and no refusal for a find ([A54](#amendments-from-step-b4)); sections 8.2, 13 and 14 and section 18's row 12 |
+| R26 | Section 8.2's cost paragraph said the whole call is bounded by one pass over the kind's postings. The gather and the scoring handle up to 20 000 candidates a text, 64 times | Corrected, with the review's measurements for step B6 to repeat (8.2) |
+| R27 | The clauses of the three follow-on statements (a candidate's frequencies and length, a pooled record's terms, the hits' records) were held by no test: a fault that removed them passed | Each statement is a function that answers its SQL, as `identical_sql` is (`Scope::frequencies_sql` and `lengths_sql` in `rank.rs`, `terms_sql` and `hits_sql` in `matching.rs`, and the counts' `counts_sql`), and a unit test holds each to the reader, standing and exclude clauses and has SQLite prepare it |
+| R28 | The pool's order "at four places" was untested: a pool ordered by unrounded scores passed | `keep_pool`, and a unit test of 71 candidates that tie at four places and differ past them, where the unrounded order would keep other records |
+| R29 | `DocumentStore::match_records`' documentation promised `Served` and `Incomplete` with vectors, which the embedded store refuses ([A44](#amendments-from-step-b4)) | The documentation marks both as step B5's and names the refusal until then |
+| R30 | The `hybrid_surface` test binary died once with SIGBUS; the crash report shows the `umbel-usage` recorder thread in `usage::recorder::Writer::run` reading the WAL shared-memory mapping of `usage.sqlite3` ("FS pagein error"), most likely the recorder outliving a test's temporary directory | Not fixed here: a row of the follow-ups table in [STATUS.md](../../STATUS.md) |
+
+**The focused review of the revision** (2026-11-12) found no blocker and six improvements, all taken; verdict
+"approve after the first two".
+
+| # | Finding | Taken as |
+| --- | --- | --- |
+| R31 | A ranked find was unbounded in its kind's size: 8.5 s for a reader of everything and 2.2 s for a reader of 1% on 20 000 records of 400 tokens (5.34 million postings) | A ranked find makes a match's check first and is refused past the bound; finds by id or by recency never are ([A54](#amendments-from-step-b4), sections 8.2, 13, 14 and section 18's row 12) |
+| R32 | The count can drift: a `DELETE FROM records`, as the planned erasure would run, cascades through `record_terms` and leaves `record_postings` (probe: 21 against 14 real postings after a rebuild) | `end_rebuild` sets the count from `COUNT(*)` of the kind's `record_terms` under its generation check; `lane_schema.rs` drifts it by that statement and repairs it; section 5.2 names the count |
+| R33 | "Counts each of its terms once" read as a bound on a find's cost and is not one | 8.2 and A54 state the cost plainly: every posting of each term, readable or not |
+| R34 | Section 14 and 8.2 understated what a writer learns: padding the kind to the bound, a binary search gives its exact total, and then the size and timing of others' writes | Stated in 8.2, section 14 and section 18's row 12: not which words, but the distinct-term counts of unreadable records as they are written |
+| R35 | The counting statement's time grows with a term's unreadable postings, a coarse timing signal | Section 14's new row states the residual, bounded by the kind's postings since R31 |
+| R36 | D165 kept the old sentence about refusing a call that reads more than 4 000 000 postings | Marked superseded by the amendment in `decisions.md` |
+
+The reviewer ran 81 differential calls, each identical to the reader's own answer in every field; recomputed all five
+fixture rows independently with FTS5's tokens; injected 15 faults, of which the suite caught 11, and the 4 it
+missed are covered now by R27 and R28; and probed and measured as R25 and R26 say.
+
 ## What this specification serves
 
 The goal, from the plan: a thought captured through any agent lands at once, lasts, can be found by field and by
@@ -579,7 +791,7 @@ endpoints/umbel/
 | Manifest | 5 (`src/plugins/mod.rs:70`) | 6 | Section [2](#2-declaration-d159) |
 | Workspace configuration | 5 (`src/workspace/config.rs:33`) | 6 | Section [3](#3-configuration) |
 | Store traits | 2 (`store/src/lib.rs:52`) | 3 | Section [11](#11-traits-and-the-sdk) |
-| Embedded store schema | 1 (`store-embedded/src/schema.rs:4`) | 2, and 3 after step B3's review (`doc_held`) | Section [5](#5-the-lane-d163) |
+| Embedded store schema | 1 (`store-embedded/src/schema.rs:4`) | 2, 3 after step B3's review (`doc_held`), and 4 after step B4's review (`record_postings`) | Section [5](#5-the-lane-d163) |
 | Plugin protocol, WIT world, envelope, event, document record | unchanged | unchanged | |
 
 **Phase 6 names two of the same numbers** (D170). Its specification proposes store traits version 3 (D133) and
@@ -723,7 +935,7 @@ default_access = "private"
 
 | Key | Type, default | Rule |
 | --- | --- | --- |
-| `spaces.<id>.person` | principal string, none | `human:<id>`, parsed as every principal string is. The one person whose decisions give standing in the space |
+| `spaces.<id>.person` | principal string, none | `human:<id>`, parsed as every principal string is. The one person whose decisions give standing in the space. **The person decides as this string and as the one principal `[principal.equivalents]` maps it to, and as no other** (section 6; pinned in step B4, [A49](#amendments-from-step-b4)). So a deployer who names the person by a legacy principal keeps that string once decisions exist under it: changed to the namespaced principal it maps to, the person is that principal alone, and what was decided under the legacy string reads unverified until `person` names it again. Nothing is deleted, and it fails closed |
 | `spaces.<id>.verified_admits` | `affirmed` or `affirmed+attested`; default `affirmed` | What "verified content only" means in the space: what a call that asks for it is given (6.6). There is no setting that asks for every read |
 | `spaces.<id>.collections.<cid>.own` | bool, `false` | Needs the space's `person`. See the two rules below |
 | `spaces.<id>.collections.<cid>.speaker` | string, none | 1 to 128 characters, no control character. Only with `own = true`. Which part of each document is the person's, for a plugin's rule to use |
@@ -1075,6 +1287,25 @@ CREATE TABLE doc_held (
 ) STRICT, WITHOUT ROWID;
 ```
 
+**Schema version 4** (after step B4's review, [A53](#amendments-from-step-b4)) adds one table: how many postings
+each declared kind holds, over all its text fields, which a match compares with `MATCH_POSTINGS` before it reads
+anything else (8.2). The put and the rebuild keep it in their own transactions, by the rows of `record_terms` each
+statement adds or removes; a store at version 2 or 3 has it counted once from its lane, in its opening transaction.
+A table and not a column of `record_kinds`, as version 3's is, so a migrated store has a new store's schema statement
+for statement. A kind with no row holds none. `SCHEMA_VERSION` is 4. `store-embedded/tests/fixtures/store-v3.sql` is
+the dump of a version 3 store, and `lane_schema.rs` holds the migration to it and that the count follows every
+write.
+
+```sql
+CREATE TABLE record_postings (
+    ns       TEXT NOT NULL,
+    kind     TEXT NOT NULL,
+    postings INTEGER NOT NULL CHECK (postings >= 0), -- rows of record_terms of the kind
+    PRIMARY KEY (ns, kind),
+    FOREIGN KEY (ns, kind) REFERENCES record_kinds (ns, kind) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+```
+
 `changes.kind` gains the value `standing`, `ChangeKind::Standing`: one row for each affirmation, withdrawal, mark
 and unmark, with the record's target (`record_target`, `store/src/document.rs:465`) or the document's id, a `NULL`
 content hash, and the access set the record or document had then in `change_access`. Every reader of changes outside
@@ -1089,7 +1320,9 @@ values are in `records.body` and `record_keys`. A vector in `record_vectors` and
 derived from the match field. Every lane row hangs from `record_lane`, which hangs from `records`, by `ON DELETE
 CASCADE`, so deleting the `records` row removes all of it in one statement, and `secure_delete` overwrites the
 cells. A later erasure specification (the plan's P16) has that one statement to run, the change log's hashes
-(`forget_record_history`, `store/src/traits.rs:147`) and `record_decisions` to settle, and nothing else.
+(`forget_record_history`, `store/src/traits.rs:147`) and `record_decisions` to settle, and the kind's count in
+`record_postings` (5.1, schema version 4) to lower by the postings the cascade removed: the cascade does not keep
+it. Until then a rebuild sets the count from the kind's rows and repairs it (after step B4's focused review).
 
 `store-backup` copies the database with `VACUUM INTO` (`store-embedded/src/inspect.rs:122`), so a copy holds the
 lane whole and needs no rebuild.
@@ -1512,7 +1745,11 @@ of its 35 probes.
 | `texts` | list of strings | 1 to 64, each 1 byte to 16 KiB |
 | `k` | 1 to 20 | The most nearest records a text gets |
 | `keys`, `standings`, `verified_only` | as `RecordFind` | Only records that pass take part |
-| `exclude` | list of ids | At most 64. Left out of both lists **and out of the statistics**, for matching a stored record's own text against the rest |
+| `exclude` | list of ids | At most 64, each a record id's shape; an id named twice counts once. Left out of both lists **and out of the statistics**, for matching a stored record's own text against the rest |
+
+The rules are one pure function, `RecordMatch::plan` (after step B4, [A41](#amendments-from-step-b4)), which the
+host calls before anything is read and every backend calls again. **A text with no token breaks no rule**, where a
+find's query with none is refused: it is near nothing, and identical to the records that hold its digest.
 
 `MatchPage` holds `results`, one `MatchResult` per text in order; `admitted`; and `meaning`, which is one of
 `served` with the model id, `off` (no model configured, or its gate not passed), `incomplete` (9.4) or `failed`
@@ -1531,7 +1768,9 @@ The **normalisation**, version 1 (`umbel_store::lane::normalise`):
 5. Leading and trailing U+0020 are removed.
 
 The **match digest** is the SHA-256 of the result's UTF-8. It is stored in `record_lane.match_digest` at put, and
-`identical` is one indexed lookup with the reader, standing and key clauses, ordered by id, limited to 8.
+`identical` is one indexed lookup with the reader, standing, key and exclude clauses, ordered by id, limited to 8.
+The embedded statement orders by `+l.id`, so that the planner looks the digest up and sorts what it finds, where
+`ORDER BY l.id` had it read the whole kind in id order (after step B4, [A46](#amendments-from-step-b4)).
 
 Worked example: each of these three texts has the digest
 `c714bd413a290f5b1724d67dd0b26ea3e76a93b1904daaa487f16cea4e1aec8b`:
@@ -1565,7 +1804,8 @@ reader may read and the call admits (5.3, 6.6), **without the records `exclude` 
 `exclude` is how a caller says "this text is that stored record": leaving the stored one out keeps the text from
 being counted twice. `N` is the corpus's size, `L` its total tokens in the match field, `avg = L / N`, and `df(t)`
 how many of its records hold term `t`. Counting only what the reader may read is D125's rule: a record the reader
-cannot read changes no score.
+cannot read changes no score. A record with no value at the match pointer is a record of the corpus with no token
+(after step B4, [A43](#amendments-from-step-b4)).
 
 ```text
 idf(t)       = ln(1 + (N - df(t) + 0.5) / (df(t) + 0.5))
@@ -1583,37 +1823,54 @@ All of it is `f64`, in `umbel_store::lane::score`, so every backend computes the
 
 **Once a call**, before any text:
 
+- **The kind's size, first** (after step B4's review, [A52](#amendments-from-step-b4)). When the kind as a whole
+  holds more than `MATCH_POSTINGS = 4 000 000` postings, rows of `record_terms` over all its text fields whoever may
+  read them, **the call is refused** with `RECORD_QUERY_TOO_BROAD` and returns nothing, before anything else is
+  read. The number is a count the store keeps with the kind (5.1, schema version 4): the put and the rebuild change
+  it in their own transactions, by the rows they add and remove, so the check is one lookup and never a scan. It is
+  the same for every call of the kind and every reader: no text, exclusion, key filter or reader moves it. At the
+  bound itself the call is answered. A find under order `rank` makes the same check first
+  ([A54](#amendments-from-step-b4)).
 - `N0` and `L0`, the stored part of `N` and `L`: one statement over `record_lane`, with the reader, standing and
   exclude clauses. Each text then adds 1 and its own length.
 - An empty table of stored counts, `df0`, kept for the whole call. A term is counted at most once a call, whichever
-  text or pooled record first needs it, for at most 500 terms a statement. The statement reads every posting of
-  those terms in the kind and the field, and answers two numbers a term: `scanned`, all of them, and `df0`, those
-  whose record passes the same three clauses:
+  text or pooled record first needs it, for at most 500 terms a statement, by the records that hold it and pass the
+  same three clauses:
 
   ```sql
-  SELECT t.term, COUNT(*) AS scanned, SUM(<reader, standing and exclude predicates over l>) AS df0
+  SELECT t.term, COUNT(DISTINCT t.lane) AS df0
   FROM record_terms t JOIN record_lane l ON l.lane = t.lane
   WHERE t.ns = ? AND t.kind = ? AND t.field = ? AND t.term IN (?, ...)
+    <reader, standing and exclude clauses over l>
   GROUP BY t.term
   ```
 
-  Each text then adds 1 to `df0` for each term it holds.
-- A running total of `scanned` over the terms the call has needed. **When it passes `STAT_POSTINGS = 4 000 000`
-  the call is refused** with `RECORD_QUERY_TOO_BROAD` and returns nothing. The total is defined over the needed
-  terms' postings and not over how they were fetched: an implementation that reads every count of the kind in one
-  grouped scan still adds only the needed terms' `scanned`, so it refuses at the same point.
+  Each text then adds 1 to `df0` for each term it holds. **No count of records the reader may not read is taken**,
+  and nothing here refuses.
 
-**What the cap bounds, plainly.** It bounds work, which is postings read, whoever may read them. Three things
-follow, and each is intended:
+**What the bound tells a reader, plainly** (after step B4's review, [A52](#amendments-from-step-b4), which
+replaces [A47](#amendments-from-step-b4) and the per-call work cap this section first had):
 
-- A reader who may read 1% of a large kind pays for all of it, and is refused at the same point as a reader of
-  everything. The reader's own share bounds nothing.
-- A call needs each term once, so its total never passes the kind's postings: inside the design bound of 100 000
-  short records, about two million postings, the cap is not reached. Past it the answer is a refusal with a code,
-  not a call that runs for minutes.
-- **This is the one place where records a reader cannot read change that reader's answer**: from an answer to a
-  refusal, never what an answer holds. A refusal tells the reader that the kind is very large, and nothing of what
-  is in it. Section 14 states it, and the differential cases of 15.1 run under the cap.
+- **That the kind as a whole is past its matching size; no word.** A refusal depends on no term, so it
+  says nothing of which records hold which words: a reader is answered, or refused, alike whether or not records it
+  may not read hold a word it names. The cap it replaces summed the postings of the terms a call named, whoever
+  could read them, and the caller chose the terms: step B4's review wrote 1 000 records of its own, then matched
+  one of their words with another, and was refused for words that sat in one record it could not read and answered
+  for words that did not. That was a word-presence oracle, and the rule now is that **no refusal depends on per-term
+  counts of records the reader may not read**.
+- **Its size is everyone's.** Records a reader may not read count toward the bound as its own do, so a principal who
+  may write to the kind can push it past the bound, and matching then stops for every reader of the kind until it
+  is smaller. The controls are who holds `records_write` for the space, a write quota (declared kinds have none
+  yet: a [follow-up](#follow-ups)), and the doctor's `records.size`. A ranked find is refused with a match; a find
+  by id or by recency never is.
+- **A writer learns more than a reader** (after step B4's focused review). A principal who may write to the kind
+  can pad it to just under the bound with records of its own, find the kind's exact total of postings by
+  adding and removing postings until the answer turns into a refusal (a binary search), and then, by watching
+  where the refusal falls, see records it may not read being added, rewritten or deleted, each by its count of
+  distinct terms over the text fields. That is the size of other principals' writes, and when they happen. It is
+  not which words they hold. It is accepted, with the same controls.
+- **It bounds the kind, not the call.** Inside the bound a call's work is not bounded by it: a 64-text call still
+  gathers up to 20 000 candidates a text (below). What a call can cost is in "What it costs", below.
 
 **Then, for each text:**
 
@@ -1636,15 +1893,31 @@ follow, and each is intended:
 For `record_find` with `text` under order `rank`, the once-a-call part and steps 1 to 4 run over the searched
 fields, without counting the query as a record, and step 4's `score(q, d)` orders the candidates. Over several
 fields a record's frequency for a term is its sum over them, its length the sum of their token counts, and a count
-is of the records that hold the term in any of them.
+is of the records that hold the term in any of them. **A ranked find is refused, as a match is, when its kind holds
+more than `MATCH_POSTINGS` postings**, by the same check at its start ([A54](#amendments-from-step-b4), after step
+B4's focused review). Its counting statement reads every posting of each query term, readable or not, to find the
+ones that pass the clauses: a query of 1 024 characters names a few hundred terms, and its cost grows with the
+kind, which the focused review measured at 8.5 s for a reader of everything and 2.2 s for a reader of 1% on 20 000
+records of 400 tokens (5.34 million postings, past the bound). The bound is what bounds it. A find by id or by
+recency, with or without a text filter or keys, reads no counts and is never refused for its size.
 
 **What it costs.** The independent review of this document built section 5.1's tables at 100 000 records and
-measured the counts for the terms of 64 pooled records at about 1.0 second, most of it in the commonest terms.
-Without a table kept across a call's texts, a 64-text match would have paid that 64 times. With it the common
-terms are counted once, and the whole call is bounded by one pass over the kind's postings. These are estimates
-until step B6, which records, at 10 000 and 100 000 records, the time of the once-a-call part, of the counts, of
-the gather and of both directions, for 1 text and for 64, **for a reader of everything and for a reader who may
-read 1% of the kind**.
+measured the counts for the terms of 64 pooled records at about 1.0 second, most of it in the commonest terms. The
+table of counts kept across a call's texts counts each term once a call. **That does not bound the call by one pass
+over the kind's postings**, as this paragraph first said: the gather and step 4 handle up to 20 000 candidates a
+text, and a call has up to 64 texts. Step B4's review measured it (release build, 20 000 records, 237 521
+postings, median of 5 runs):
+
+| Call | Reader of every record | Reader of 1% |
+| --- | --- | --- |
+| One text | 137 ms | 79 ms |
+| 64 texts | 6.5 s | 0.79 s |
+| 64 texts of 1 900 tokens | 19.0 s | 5.0 s |
+| One text of one rare term | 23 ms | 5 ms |
+
+These are one machine's figures, for step B6 to repeat. Step B6 records, at 10 000 and 100 000 records, the time
+of the once-a-call part, of the counts, of the gather and of both directions, for 1 text and for 64, **for a reader
+of everything and for a reader who may read 1% of the kind**, and the four rows above.
 
 **Worked example.** A reader reads five records of kind `note`, whose match fields are:
 
@@ -1669,6 +1942,11 @@ For the text `Prune your roses in late winter before the buds swell.`, `N` is 6 
 For `PRUNE ROSES  in late winter, before the buds swell.`, `n1` is identical and scores 1.0000, and `n2` scores
 0.6714. These numbers were computed on 2026-11-11 from the formulas above with FTS5's tokens, and are the first
 rows of the conformance fixture (15.1).
+
+`n3` shares no term with either text, so it is no candidate: the table scores it, and a match's `nearest` does
+not hold it. Step B4 added three texts to the fixture, two of them matched with records excluded; their figures,
+and these again, were computed on 2026-11-12 by a script that takes its tokens from SQLite 3.53.4's FTS5 and
+nothing from the Rust.
 
 ### 8.3 Meaning and fused
 
@@ -1888,7 +2166,7 @@ pub const MAX_MATCH_K: u32 = 20;
 pub const MAX_MATCH_EXCLUDE: usize = 64;
 pub const MAX_IDENTICAL: usize = 8;
 pub const GATHER_POSTINGS: u64 = 20_000;
-pub const STAT_POSTINGS: u64 = 4_000_000;
+pub const MATCH_POSTINGS: u64 = 4_000_000;     // a kind's postings past which a match is refused (A52)
 pub const MATCH_POOL: usize = 64;
 pub const LANE_DESIGN_RECORDS: u64 = 100_000;
 pub const NORMALISATION_VERSION: u32 = 1;
@@ -2276,7 +2554,7 @@ message, detail or log line holds a record's text or a key's value.
 
 | Code | Variant | When | Message after the code | The plugin should suggest |
 | --- | --- | --- | --- | --- |
-| `RECORD_KIND_NOT_DECLARED` | `Invalid` | A lane service on a kind the instance's manifest does not declare, or `record_match` on one with no `match` | `the kind <kind> is not a declared record kind of <instance>` | Nothing to a caller: a plugin fault |
+| `RECORD_KIND_NOT_DECLARED` | `Invalid` | A lane service on a kind the instance's manifest does not declare, or `record_match` on one with no `match` | `the kind <kind> is not a declared record kind of <instance>`; for a declared kind with no `match`, `the kind <kind> of <instance> declares no match field` (after step B4, [A42](#amendments-from-step-b4)) | Nothing to a caller: a plugin fault |
 | `RECORD_KIND_STANDING` | `Invalid` | `record_get` or `record_list` on a standing kind | `<kind> is a standing kind: read it with record_read or record_find, which label it` | A plugin fault |
 | `RECORD_KIND_NOT_STANDING` | `Invalid` | `record_put_cited` or `record_decide` on a kind without standing | `<kind> is not a standing kind` | A plugin fault |
 | `RECORD_PRINCIPAL_REQUIRED` | `Invalid` | A put with no effective principal | `a declared record needs a caller with an effective principal` | Call as an identified principal |
@@ -2286,7 +2564,7 @@ message, detail or log line holds a record's text or a key's value.
 | `RECORD_EVIDENCE_INVALID` | `Invalid` | The evidence's shape, or its document is absent, unreadable by the writer or has another content hash | `the evidence is not acceptable: <which rule>` | Read the document again and cite its current content |
 | `RECORD_LANE_STALE` | `Invalid` | Section 2, any of four: the declaration changed; records predate it; a record was written while the kind was undeclared; **a rebuild is under way** | `the lane of <kind> is being rebuilt or must be rebuilt` | Retry once after a few seconds: a rebuild in chunks ends by itself. If it is still refused, ask the operator to run `umbel store-records-reindex`. The plugin's failure is retryable |
 | `RECORD_QUERY_INVALID` | `Invalid` | A find or match query that breaks a rule of section 7 or 8 | `<which rule>` | Fix the field named |
-| `RECORD_QUERY_TOO_BROAD` | `Invalid` | A match, or a ranked find, whose counts pass `STAT_POSTINGS` (8.2). Nothing is returned | `the call counts more than <limit> postings` | Match fewer texts in one call; if one text does it, tell the operator the kind is past its design size |
+| `RECORD_QUERY_TOO_BROAD` | `Invalid` | A match, or a find under order `rank`, of a kind that holds more than `MATCH_POSTINGS` postings (8.2, after step B4's reviews): every such call of the kind, whoever asks what. A find by id or by recency is never refused for it. Nothing is returned | `the kind holds more than <limit> postings, past what a match reads` | Find by id or by recency, or tell the operator the kind is past its matching size; a smaller call does not help |
 | `RECORD_DECISION_NOT_GATED` | `NotGranted` | 6.1, check 2 | `a decision on standing is made only inside a call a person decided` | Call the plugin's review command on its own and have the person decide it |
 | `RECORD_DECISION_NOT_THE_PERSON` | `NotGranted` | 6.1, check 3 | `only the space's person decides standing here` | Have the space's person decide, or ask the operator to set the space's `person` |
 | `STORE_OWN_SOURCE_MISMATCH` | `Invalid` | Section 3, rule 2 | `a document of a collection named as the person's own must equal its file on disk` | Run the sync again |
@@ -2335,11 +2613,13 @@ The built-ins answer `CommandError`s, with a suggestion as AFD requires:
 | Record text leaves the machine | Only through the `http` provider, which the deployer configures by name and the doctor warns about every run (9.2). A put's text is sent only after the record was written, and a match's only after its query passed its checks (4.2, 9.4), so a refused call sends nothing |
 | A model file is swapped | Files are pinned by SHA-256 and checked at start; a changed digest is a different model id, whose vectors are not served (9.2) |
 | A lane is turned on by a report that no longer describes it | The host recomputes the rule from the report's counts and binds it to the declaration, the normalisation, the model, the weight and `k`; the doctor warns at four times the records (10) |
-| A large query exhausts the host | 64 texts of 16 KiB, a 20 000-posting gather, 4 000 000 postings read a call, whoever may read them, with a refusal past it, a pool of 64, pages of 200, a stated bound of 100 000 records for the vector scan (11.1) |
+| A large query exhausts the host | 64 texts of 16 KiB, a 20 000-posting gather, a pool of 64, pages of 200, a match or ranked find of a kind that holds more than 4 000 000 postings refused, a stated bound of 100 000 records for the vector scan (11.1). **Inside those bounds a call is not cheap**: step B4's review measured a 64-text call of long texts at 19 s for a reader of every record of a 20 000-record kind (8.2), which step B6 measures again |
 | A rebuild blocks every writer | It runs in chunks of 1 000 records, only its own kind is offline while it runs, and between two chunks it leaves the write lock free for longer than a waiting writer sleeps between tries, so **a waiting writer gets a turn between chunks**. That is the guarantee; how long the wait is, step B6 measures (12.1) |
 | Two rebuilds, or a rebuild and an undeclared put, leave a lane that is not its declaration's | A rebuild writes only while the kind's generation is the one it raised, read inside each chunk's transaction, and clears the stale mark only then (12.1) |
 | An older host keeps writing a store a newer build migrated | Not prevented: the version check runs at open. Stated in 5.1, with what the operator does: stop older hosts before a newer build first opens the workspace, and rebuild if in doubt |
-| The work cap tells a reader of hidden records | Past `STAT_POSTINGS` a call is refused whatever the reader may read, so a refusal says the kind is very large. It is the one place where records a reader cannot read change its answer, it changes an answer into a refusal and nothing else, and it is reached only past the design size (8.2) |
+| A refusal tells a reader of hidden records | **What a reader can learn: that the kind as a whole is past its matching size.** A match is refused only when the kind holds more than `MATCH_POSTINGS` postings, a count the store keeps for the kind, the same for every call and every reader, so no refusal depends on which records hold which words (8.2, after step B4's review, [A52](#amendments-from-step-b4)). The per-call work cap it replaces was a word-presence oracle: a reader chose the terms, and the cap summed their postings whoever could read them. The suite's case and `tests/records_match.rs` reproduce the review's probe and hold that a reader's answer is the same whether or not unreadable records hold the word |
+| A writer stops matching for everyone, and watches others' writes | **Accepted, with its controls.** Records a reader may not read count toward the bound, so a principal who may write to the kind can push it past `MATCH_POSTINGS`, and every match and ranked find of the kind is then refused, for every reader, until the kind is smaller; finds by id or by recency are unaffected. The same writer can pad the kind to just under the bound, find its exact total of postings by a binary search on where the refusal falls, and then watch records it may not read being added, rewritten or deleted, each by its count of distinct terms (8.2). That tells it the size and timing of others' writes, not which words they hold. The controls are who holds `records_write` for the space, a write quota (declared kinds have none yet, a [follow-up](#follow-ups)), and the doctor's `records.size`, which counts records and not postings (also a follow-up) |
+| A reader times the counting statement | **Accepted, bounded.** A term's count reads every posting of the term to find those that pass the clauses, so a call's time grows with the postings of its terms that the reader may not read: a coarse timing signal of how common a word is in records the reader cannot read. With every match and ranked find refused past `MATCH_POSTINGS`, the signal is bounded by the kind's postings, and what remains is the difference in time between a term no record holds and one that unreadable records hold, which noise from everything else the host does blurs. Not measured; step B6 could (8.2) |
 | One space reads another's records | Every table is in the space's own `store.sqlite3`; the services refuse a space outside the call's, as today |
 
 What this does not defend: a compiled plugin that lies (it runs in the host), and a shell on the host's machine.
@@ -2356,10 +2636,19 @@ memory's nine that is 21. Phase 6's specification plans sixteen more; the two se
 | --- | --- | --- |
 | `lane` | `conformance/lane.rs` | A declared put writes its lane rows and an undeclared put writes none; `extract`'s refusals, each naming the pointer; a put is found by the next read on another handle; key filters, any-of within a key and all-of across keys; the three orders and their cursors, page by page to the end; totals under each order; ids ordered by bytes, with non-ASCII and case-differing ids; a text query's order against the fixture; `cut` only when the rarest term's postings pass the bound after every clause, and not when a key filter brings them under it; a kind with a changed declaration refuses every service and `reindex_records` clears it; **an undeclared `put_record` on a kind that has a declaration row makes it stale**; a rebuild stopped after a chunk leaves the kind stale and a second run finishes it; `put_record_vector` stores for the digest embedded and not for another; **differential**: every read repeated after records the reader cannot read are written, changed and reindexed is byte-identical |
 | `standing` | `conformance/standing.rs` | A standing record reads `unverified`; wording is fixed and keys are not; affirm, withdraw, and both repeated; a decision's change row; attested by an own collection, by a mark, by both (`collection`), and by neither; the speaker must agree; a changed document lapses attestation and a second `put_declared_record` with evidence restores it; unmark lapses it; a mark on a document whose collection the view names command-writable does not count; a rebuild after a wording was changed while undeclared clears the affirmation and the evidence; **a document of an own collection attests only once the host held it to its file, and a former person's decisions and marks are set aside** (after step B3's review); `admit` narrows `read_record`, `find_records` and `match_records`, totals and statistics included; evidence naming an absent or unreadable document, or another hash, is refused; **for a reader who cannot read the cited document, the label's source is `basis` and nothing else**; **differential**: every read repeated after documents the reader cannot read, and that no record it reads cites, are written, changed, marked and deleted is byte-identical; and after the same is done to an unreadable document that a readable record cites, the only difference is that record's standing and `basis`, and its place in a filter or total |
-| `matching` | `conformance/matching.rs` | The digest of each fixture text; `identical` under whitespace, case and width changes; the `words` score of every fixture pair to four places, in both orders of put; an empty lane; a text with no token; `exclude` leaves a record out of both lists and out of the statistics, so a stored text matched with itself excluded scores as if it were not stored; counts are the same whether one text or 64 are matched in a call; `LaneTooBroad` past `STAT_POSTINGS`, with the constant lowered for the case, reached by postings the reader cannot read as well as by ones it can, and at the same point however the counts are fetched; the pool and `k`; ties by id; with `MatchVectors`, `meaning` and `fused` to four places and the order by `fused` then id; `Incomplete` when one readable record lacks a vector, and `Served` when only an unreadable one does; **differential**, as for `lane`, on scores |
+| `matching` | `conformance/matching.rs` | The digest of each fixture text; `identical` under whitespace, case and width changes; the `words` score of every fixture pair to four places, in both orders of put; an empty lane; a text with no token; `exclude` leaves a record out of both lists and out of the statistics, so a stored text matched with itself excluded scores as if it were not stored; counts are the same whether one text or 64 are matched in a call; `LaneTooBroad` past `MATCH_POSTINGS`, with the bound lowered for the case: every match and every ranked find of the kind refused alike, whoever asks what, a find by id or by recency answered, at the bound answered, and the count following a put, a rewrite and a rebuild (after step B4's review); a refusal says nothing of which records hold a word; the pool and `k`; ties by id; with `MatchVectors`, `meaning` and `fused` to four places and the order by `fused` then id; `Incomplete` when one readable record lacks a vector, and `Served` when only an unreadable one does; **differential**, as for `lane`, on scores |
 
-Fixtures are `store/fixtures/lane/records.json` (the records, each with its access set, the texts to match, and the
-expected digests and scores, starting with section 8.1's and 8.2's) and `store/fixtures/lane/vectors.json` (a
+**One fault no case can catch**, found by step B4's focused review: a backend that checks the bound after doing the
+work of the call, and not before it, gives the same refusal and the same answers through the trait; only its cost
+differs. It is untestable at the trait level, and held by reading `within_bound`'s place at the head of
+`lane_match` and `ranked`, and by step B6's timings.
+
+After step B4 ([A50](#amendments-from-step-b4)) and its review ([A52](#amendments-from-step-b4)) the `matching` group has 15 cases, words only: the three of its
+row that need vectors are step B5's, and a record that shares no term with a text is no candidate and is not in
+`nearest`.
+
+Fixtures are `store/fixtures/lane/records.json` (the records, each with its access set, the texts to match, some
+of them with the ids they exclude, and the expected digests and scores, starting with section 8.1's and 8.2's) and `store/fixtures/lane/vectors.json` (a
 four-dimension vector for each record and text). Every fixture text is invented and about gardening. The suite
 never loads a model: it passes vectors in. A helper test, `store/tests/lane_fixture.rs`, recomputes every expected
 score from `umbel_store::lane::score` and the tokenizer, so the fixture cannot drift from the formulas.
@@ -2375,7 +2664,7 @@ not edited here, was written before them.
 | --- | --- |
 | `store/tests/lane_normalise.rs` | The five steps of 8.1, each alone and together; the pinned Unicode versions |
 | `store/tests/lane_score.rs` | 8.2's formulas against hand-computed cases; that a text scores 1 against itself; rounding |
-| `store-embedded/tests/lane_schema.rs` | A version 1 store, and a version 2 store with a declared kind's lane, each open as version 3 with their rows intact and no document held; every table and index of 5.1; a build constant for the schema version |
+| `store-embedded/tests/lane_schema.rs` | A version 1 store, a version 2 store with a declared kind's lane and a version 3 store with a document held, each open as version 4 with their rows intact; no document of a version 2 store held; each declared kind's count of postings is its lane's after the migration and after every put and rebuild; every table and index of 5.1; a build constant for the schema version |
 | `store-embedded/tests/lane_delete_bytes.rs` | After a `records` row is deleted and the log checkpointed, neither file holds the record's text, a term of it, a key value or its vector (the seam for erasure, 5.2) |
 | `store-embedded/tests/conformance.rs` | The whole suite, the three groups included |
 | `tests/manifest_v6.rs` | Section 2: every rule and its message; versions 1 to 5 refuse `records`; the schema file accepts and refuses the same manifests |
@@ -2447,7 +2736,7 @@ plan's outline for step A2, because of what the code holds.
 | 9 | **The lane is a term table, not FTS5** (D163). Differs from the plan | FTS5 as memory uses it. The both-directions score would re-tokenise every match and refuse past 50 000, the PostgreSQL backend would need a second design, and phrase search would come free. Phrase search is what is given up |
 | 10 | **The lane's tokenizer is the store's, not phase 0's; its `idf` is phase 0's, not memory's** (8.2). Differs from the plan in each half | Snowball's stemmer, as phase 0 used: a second tokenizer in the store, with no reference to hold it to. FTS5's `idf`: near-zero weights in small stores. Cost of the choice made: phase 0's rates must be measured again, in B6 |
 | 11 | **The host returns scores and never a verdict** (D165) | Thresholds in the host. Phase 0 found none that refuses safely across documents, and each plugin's bands differ |
-| 12 | **A match that would read more than four million postings is refused, whoever may read them** (8.2) | No cap: past the design size a call could run for minutes. Or a cap on the reader's own share: a reader of 1% of a huge kind would never be refused and would still pay for all of it. Or a lower cap: ordinary 64-text calls on a large store would be refused. Cost of the choice made: past the design size, a refusal tells a reader the kind is very large |
+| 12 | **A match, or a ranked find, of a kind that holds more than four million postings is refused, for every call and every reader; a find by id or by recency never is** (8.2, after step B4's reviews, [A52](#amendments-from-step-b4) and [A54](#amendments-from-step-b4)). This replaces a cap on the postings each call's terms have | A cap on the postings of the terms a call names, whoever may read them, as this document first had: a reader chooses the terms, so a refusal told it whether a record it could not read held a word, which step B4's review reproduced. Or a cap on the reader's own share of those postings: no oracle, but the work stays unbounded for a reader of a small share of a large kind, who still pays for every posting of the commonest terms. Or no bound: past the design size a call could run for minutes. Cost of the choice made: a reader learns that the kind as a whole is past its matching size; a principal who may write to the kind can push it past the bound and stop matching and ranked finding for every reader, and by padding it to the bound can watch the size and timing of others' writes (section 14), with the write grant, a write quota (none yet for declared kinds) and the doctor's `records.size` as the controls; and inside the bound a call's work is bounded only by its texts and the gather (8.2's measurements) |
 | 13 | **No model by default; three providers; the HTTP one sends text off the machine** (D166) | Ship one model in the binary: a larger binary, a model licence in the repository, and a default nobody measured on their own records. Or no HTTP provider: a deployer with a model server could not use it |
 | 14 | **An embedding in the request path is within principle 4** (D168) | Words only, always. In phase 0, across documents, words alone found the duplicate within five for 0.886 of 35 probes, and fused for between 0.914 and 0.971 |
 | 15 | **The gate: at least 50 probes with a duplicate, at least max(3, 2%) more of them found within `k`, no leak, and a report bound to the lane it measured** (D167) | A lower bar turns lanes on by noise: phase 0's static model, one probe better of 35, would have passed a bar of rates. A higher one asks more labelling of each instance |
@@ -2510,8 +2799,16 @@ and a date of writing for a source (row 17).
 | 2026-11-12 | Step B3 | Step B3 has had no independent review. It is the step whose purpose is that nothing an agent's call claims or passes gives a record standing | **Done 2026-11-12**: an independent security review, two blockers and six improvements, all taken (the table after the step B3 amendments, R17 to R24) |
 | 2026-11-12 | Step B3 | A document stored before its collection was named `own` was never held to its file, and reads as the person's own by collection ([A35](#amendments-from-step-b3)). A doctor check that compares the stored documents of each own collection with their files would turn the deployer's statement into a check | **Closed after the step's review** ([A36](#amendments-from-step-b3)): the review reproduced it as an attack. A document of an own collection now counts only once the host held it to its file; `store-documents-hold` is the comparison this row asked for, and `records.own` counts what it has not reached |
 | 2026-11-12 | Step B3 | Section [6.5](#65-the-label)'s label names the person who affirmed a record (`affirmed.by`) to every reader of that record, while section [12.4](#124-workspace-show-and-plugin-show) has `workspace-show` say only whether a space has a person, not who, to a caller who is not the operator. Step B3 implements 6.5 as written | **Closed after the step's review** ([A39](#amendments-from-step-b3)): `by` and the assurance beyond its level are shown to the operator and the person only. Section 18, row 28 |
-| 2026-11-12 | Step B3 | The `standing` group holds `admit` on `read_record` and `find_records`, statistics included. Section [15.1](#151-the-suite-d170) also asks it of `match_records` | Step B4, with the method: the same clause (`and_admitted`) and the same labels, and the host withholds who affirmed a hit from its label as it does from a read's ([A39](#amendments-from-step-b3)) |
+| 2026-11-12 | Step B3 | The `standing` group holds `admit` on `read_record` and `find_records`, statistics included. Section [15.1](#151-the-suite-d170) also asks it of `match_records` | **Done in step B4** ([A48](#amendments-from-step-b4)): the same clause (`and_admitted`) and the same labels, the group's case holds a match under each set a view can admit, and the host withholds who affirmed a hit from its label as it does from a read's ([A39](#amendments-from-step-b3)) |
 | 2026-11-12 | Step B3 | **At a terminal, an agent variable does not withhold the proof.** Section 6.1 makes the terminal's proof the plugin gate's own check: the mark the CLI sets once a `require-human` prompt is answered. Memory asks more for its `person` (D86): the CLI's human-present mark as well, which it withholds when an agent variable is set (`CLAUDECODE`, `AI_AGENT`, the workspace's `principal.agent_env`), so `memory-confirm` is refused there (`tests/cli_authority_prompt.rs`). `record_decide` and `doc_own_mark` are not: a process that has a terminal, answers the prompt and carries an agent variable affirms, with the assurance `terminal`. Step B3 implements section 6.1 as written and pins it in `tests/records_standing.rs`. An agent's ordinary call has no terminal and is refused. The assurance `terminal` also names a command and not an input, and is "not an attestation" (`src/authority.rs`) | **Ruled after the step's review** ([A37](#amendments-from-step-b3)): `gate_proof`'s terminal row asks for the human-present mark, and the test pins the refusal. What remains, an agent that unsets the variable and holds a pseudo-terminal, is in section 14; the plugin's specification (step A3) still chooses whether its review command is `person = { cli = "verified" }`. Section 18, row 24 |
-| 2026-11-12 | Step B3's focused review | No test pins that a person's identities are the configured `person` and the principal `[principal.equivalents]` maps it to, and no other. It was checked by reading: the write check, the read clause and the decider check share one list | Step B4 or B6: add the test |
-| 2026-11-12 | Step B3's focused review | A decision recorded under a legacy principal lapses if `person` is later changed to its namespaced target. It fails closed. Section [3](#3-configuration) should tell a deployer to keep `person` as the legacy string once decisions exist under it | The next change to this document |
+| 2026-11-12 | Step B3's focused review | No test pins that a person's identities are the configured `person` and the principal `[principal.equivalents]` maps it to, and no other. It was checked by reading: the write check, the read clause and the decider check share one list | **Done in step B4** ([A49](#amendments-from-step-b4)): a unit test of the list, and `tests/records_standing.rs` through the write check, the read clause and the decider check |
+| 2026-11-12 | Step B3's focused review | A decision recorded under a legacy principal lapses if `person` is later changed to its namespaced target. It fails closed. Section [3](#3-configuration) should tell a deployer to keep `person` as the legacy string once decisions exist under it | **Done in step B4**, the next change to this document: section 3's `person` row says so, and [A49](#amendments-from-step-b4)'s test pins the lapse |
 | 2026-11-12 | Step B3's focused review | In mode `none`, `store-documents-hold` runs with `--yes`, with no terminal and with an agent variable set. It holds only documents equal to their files, so it grants nothing a re-sync would not. Requiring a present human there is optional hardening | The owner |
+| 2026-11-12 | Step B4 | Step B4 has had no independent review. It is the step whose scores a plugin's bands will be set on, and whose statistics must be a reader's own | **Done 2026-11-12**: one blocker, ruled by the coordinator as a design change, and five improvements, all taken (the table after the step B4 amendments, R25 to R30) |
+| 2026-11-12 | Step B4 | Section [8.3](#83-meaning-and-fused) has every pooled record get all three scores, and the pool gain the 64 records nearest by meaning. A record pooled by meaning alone was not gathered by words: it may share only the text's commonest terms, lie past a cut, or share no term. Its `words` needs step 4's frequencies and step 6's terms for a record the gather did not return, and its terms join the call's needed terms (which, since [A52](#amendments-from-step-b4), refuse nothing). Section 8.3 says neither | Step B5, by amendment: `Scope::held` and `terms_of` in `store-embedded/src/lane/` take any lanes that pass the three clauses |
+| 2026-11-12 | Step B4 | Section [9.4](#94-vectors)'s check that a readable record lacks a vector (`Incomplete`) does not say whether it is held to a call's `exclude` and key filters. A match's statistics are held to the exclusions and not to the keys (8.2) | Step B5, by amendment. Until then a match that carries vectors is refused ([A44](#amendments-from-step-b4)) |
+| 2026-11-12 | Step B4 | A `MatchPage` has no serialised form ([A51](#amendments-from-step-b4)). Step B6's exit runs a match over MCP and at the CLI through a fixture plugin's own result, and the plugin's specification (step A3) must say what its commands return of a hit: at least its label, unchanged | Step B6 for the fixture, and the plugin's specification (step A3) |
+| 2026-11-12 | Step B4 | The identical lookup was planned by SQLite as a walk of the whole kind until its order was written `+l.id` ([A46](#amendments-from-step-b4)); a unit test now holds its plan. No other statement of the lane has such a test but a rebuild's chunk, and the plans were read on an empty store. Section [16](#16-implementation-plan) has step B6 time a match's parts apart, and `DocumentStore` gives a caller no way to time the once-a-call part, the counts, the gather and both directions separately | Step B6: read each lane statement's plan at 10 000 and 100 000 records, and say how the parts are timed (a `testkit` hook, as the rebuild has, or statements run by the test) |
+| 2026-11-12 | Step B4 | Section [8.2](#82-words)'s cost paragraph asks step B6 to time "a reader who may read 1% of the kind" beside a reader of everything. The two pool different records and so need different terms: the comparison is of two different amounts of work, and should say so. Since [A52](#amendments-from-step-b4) they are refused at the same point, which is the kind's | Step B6, where the timings are recorded, beside the four figures step B4's review measured (8.2) |
+| 2026-11-12 | Step B4's review | A principal who may write to a declared kind can push it past `MATCH_POSTINGS` and stop matching for every reader of it ([A52](#amendments-from-step-b4)). Declared kinds have no write quota, as memory's writes have (D74's ceilings) | The plugin's specification (step A3) or a host step: a quota on declared puts per principal, in records or postings |
+| 2026-11-12 | Step B4's review | The doctor's `records.size` counts records against 100 000, and the match bound counts postings against 4 000 000: a kind of long records reaches the bound with no warning. `lane_status` does not report the kind's postings | Step B6, with its timings: `records.size` also warns at the bound on postings, from the kept count |

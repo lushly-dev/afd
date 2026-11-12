@@ -168,7 +168,7 @@ async fn a_store_newer_than_this_build_fails_stores_version() {
         .unwrap()
         .to_owned();
     assert!(
-        message.contains("version 99") && message.contains("serves up to version 3"),
+        message.contains("version 99") && message.contains("serves up to version 4"),
         "{message}"
     );
 }

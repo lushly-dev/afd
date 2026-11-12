@@ -1,7 +1,7 @@
-//! The record lane's services (records host specification, sections 4.2, 6, 7, 11.2 and 13;
-//! D159 to D164, D169): writing a record of a kind the instance's manifest declares, with or
-//! without evidence; reading and finding such records, each with its label; a person's decision
-//! on a standing record; and a person's mark on a document. Each read is filtered by the
+//! The record lane's services (records host specification, sections 4.2, 6, 7, 8, 11.2 and 13;
+//! D159 to D165, D169): writing a record of a kind the instance's manifest declares, with or
+//! without evidence; reading, finding and matching such records, each with its label; a person's
+//! decision on a standing record; and a person's mark on a document. Each read is filtered by the
 //! caller's reader filter; a write is given the access set the host owns and its text is
 //! scanned, flagged and never blocked.
 //!
@@ -15,17 +15,19 @@
 //!
 //! No message here holds a record's text or a key's value.
 //!
-//! **Seam.** The vector after a put's write is that specification's step B5:
-//! [`CallServices::put_declared`] says where it joins.
+//! **Seam.** Meaning is that specification's step B5: the vector after a put's write joins in
+//! [`CallServices::put_declared`], and a match's texts are embedded in
+//! [`CallServices::svc_record_match`], after its query passed its checks. Until then a match is
+//! scored by words alone and says `meaning` is off.
 
 use std::sync::Arc;
 
 use serde_json::Value;
 use umbel_sdk::HostError as ServiceError;
 use umbel_store::lane::{
-    Decision, Evidence, FindPage, LaneRecord, LaneWrite, OwnCollection, OwnInfo, OwnMark,
-    RecordDecision, RecordDecl, RecordFind, Standing, StandingLabel, StandingView, extract,
-    is_speaker,
+    Decision, Evidence, FindPage, LaneRecord, LaneWrite, MatchPage, OwnCollection, OwnInfo,
+    OwnMark, RecordDecision, RecordDecl, RecordFind, RecordMatch, Standing, StandingLabel,
+    StandingView, extract, is_speaker,
 };
 use umbel_store::{
     Assurance, ContentHash, Envelope, Expect, MemoryFlag, RecordMeta, Rev, StoreError,
@@ -381,6 +383,51 @@ impl CallServices {
         Ok(page)
     }
 
+    /// `record_match` (section 8): for each text, the readable records whose match field is
+    /// identical and the nearest ones with their scores. The host returns scores only.
+    ///
+    /// The checks, in order: the grant and the space; the kind is a declared kind of this
+    /// instance with a match field; section 8's rules, before anything is read; and what the
+    /// call admits, which its `verified_only` and `standings` narrow and never widen. Every
+    /// statistic is then the caller's own: the store counts only what the reader filter and the
+    /// view admit. Each hit carries the label a read gives it, with who affirmed it withheld
+    /// from a reader who is neither the operator nor the space's person, as `record_read` and
+    /// `record_find` withhold it.
+    ///
+    /// No model is loaded before step B5, so no text is embedded: `meaning` is off, and each
+    /// hit's `fused` is its `words`.
+    pub(super) fn svc_record_match(&self, space: &str, query: &RecordMatch) -> Result<MatchPage> {
+        let (stores, filter) = self.reading("records", space)?;
+        let decl = self.lane_kind(&query.kind)?;
+        if decl.matched.is_none() {
+            return Err(invalid(
+                records::RECORD_KIND_NOT_DECLARED,
+                format!(
+                    "the kind {} of {} declares no match field",
+                    query.kind, self.shared.instance
+                ),
+            ));
+        }
+        // Section 8's rules, before anything is read: the refusal names the rule broken.
+        query.plan(decl).map_err(|error| match error {
+            StoreError::Invalid(why) => invalid(records::RECORD_QUERY_INVALID, why),
+            other => host_error(other),
+        })?;
+        let view = self.standing_view(space, decl, &query.standings, query.verified_only)?;
+        let mut page = stores
+            .documents
+            .match_records(&self.shared.instance, decl, query, None, &view, &filter)
+            .map_err(|error| lane_error(&query.kind, error))?;
+        if !self.sees_decider(space) {
+            for result in &mut page.results {
+                for hit in result.identical.iter_mut().chain(&mut result.nearest) {
+                    withhold_decider(&mut hit.label);
+                }
+            }
+        }
+        Ok(page)
+    }
+
     /// `record_put_cited` (section 4.1): `record_put` on a standing kind, replacing the
     /// record's evidence.
     #[allow(clippy::too_many_arguments)]
@@ -595,6 +642,57 @@ impl CallServices {
 mod tests {
     use super::*;
     use Standing::{Affirmed, Attested, Unverified};
+
+    #[test]
+    fn a_persons_identities_are_the_configured_person_and_its_equivalent_and_no_other() {
+        let config = crate::workspace::ConfigFile::parse(
+            r#"
+config_version = 6
+default_space = "garden"
+[principal.equivalents]
+"human:ada" = "human:corp/ada"
+"human:ada-old" = "human:corp/ada"
+"agent:ada-laptop" = "human:corp/ada"
+[auth]
+mode = "none"
+[auth.namespaces.corp]
+[spaces.garden]
+person = "human:ada"
+"#,
+        )
+        .and_then(|file| file.into_config(std::path::Path::new("/w")))
+        .expect("a valid configuration");
+        // A space with no person has no identity: nobody decides there, and nothing counts.
+        assert!(person_identities(&config, None).is_empty());
+        // The configured person, and the one principal the equivalents map it to.
+        assert_eq!(
+            person_identities(&config, Some("human:ada")),
+            ["human:ada", "human:corp/ada"]
+        );
+        // No other: not a principal that maps to the same target, and, for a person named by
+        // the namespaced principal, none of the legacy principals that map to it. This is one
+        // way and the other way from a reader's identities (`access::identities`), on purpose:
+        // a legacy principal gains nothing from the namespaced one.
+        assert_eq!(
+            person_identities(&config, Some("human:ada-old")),
+            ["human:ada-old", "human:corp/ada"]
+        );
+        assert_eq!(
+            person_identities(&config, Some("human:corp/ada")),
+            ["human:corp/ada"]
+        );
+        assert_eq!(
+            crate::access::identities(&config, Some("human:corp/ada")),
+            [
+                "human:corp/ada",
+                "agent:ada-laptop",
+                "human:ada",
+                "human:ada-old"
+            ]
+        );
+        // A person the equivalents do not name is itself alone.
+        assert_eq!(person_identities(&config, Some("human:bo")), ["human:bo"]);
+    }
 
     #[test]
     fn a_call_narrows_what_the_space_admits_and_never_widens_it() {

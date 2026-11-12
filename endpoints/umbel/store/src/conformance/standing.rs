@@ -16,14 +16,15 @@ use serde_json::{Value, json};
 use super::lane::{
     AT, NO_LANE, NS, ids, lane, no_scan, pointer, ranked_by_the_formulas, text, writer,
 };
+use super::matching::{by_the_formulas, near};
 use super::{
     CaseResult, Ctx, Env, conflict, ensure, ensure_eq, everyone, expect_err, invalid, pass, reader,
     samples, skip,
 };
 use crate::lane::{
-    Decision, Evidence, FindOrder, FindPage, LaneRecord, LaneState, LaneWrite, OwnBasis,
-    OwnCollection, OwnMark, RecordDecision, RecordDecl, RecordFind, Standing, StandingLabel,
-    StandingView,
+    Decision, Evidence, FindOrder, FindPage, LaneRecord, LaneState, LaneWrite, MATCH_POOL,
+    MAX_MATCH_K, MatchResult, OwnBasis, OwnCollection, OwnMark, RecordDecision, RecordDecl,
+    RecordFind, RecordMatch, Standing, StandingLabel, StandingView,
 };
 use crate::{
     Assurance, ByAt, ChangeKind, ContentHash, DocumentStore, Expect, ReaderFilter, StoreError,
@@ -65,7 +66,7 @@ pub(super) const CASES: &[(&str, super::CaseFn)] = &[
         rebuild_clears,
     ),
     (
-        "admit_narrows_reads_finds_totals_and_statistics",
+        "admit_narrows_reads_finds_matches_totals_and_statistics",
         admit_narrows,
     ),
     (
@@ -292,6 +293,53 @@ fn find(
 ) -> Result<FindPage, String> {
     d.find_records(NS, decl, query, view, who)
         .ctx("find_records")
+}
+
+/// One text matched against the kind under `view`, asking for the 20 nearest: its result, each
+/// hit carrying the label a read of the same record gives the same reader.
+fn matched(
+    d: &dyn DocumentStore,
+    decl: &RecordDecl,
+    text: &str,
+    view: &StandingView,
+    who: &ReaderFilter,
+) -> Result<MatchResult, String> {
+    let query = RecordMatch {
+        kind: decl.kind.clone(),
+        texts: vec![text.to_owned()],
+        k: MAX_MATCH_K,
+        keys: Vec::new(),
+        standings: Vec::new(),
+        verified_only: false,
+        exclude: Vec::new(),
+    };
+    let page = d
+        .match_records(NS, decl, &query, None, view, who)
+        .ctx("match_records")?;
+    ensure_eq(
+        page.admitted.clone(),
+        view.admit.clone(),
+        "a match says what was admitted",
+    )?;
+    let result = page
+        .results
+        .into_iter()
+        .next()
+        .ok_or("a match of one text answers one result")?;
+    for hit in result.identical.iter().chain(&result.nearest) {
+        let read = read(d, decl, &hit.id, view, who)?
+            .ok_or("a record a match returns is one a read returns")?;
+        ensure_eq(
+            (&hit.label, hit.rev),
+            (&read.label, read.record.rev),
+            "a hit carries the label a read gives the record",
+        )?;
+    }
+    Ok(result)
+}
+
+fn hit_ids(hits: &[crate::lane::MatchHit]) -> Vec<&str> {
+    hits.iter().map(|hit| hit.id.as_str()).collect()
 }
 
 fn not_found(error: &StoreError) -> bool {
@@ -1611,6 +1659,30 @@ fn admit_narrows(env: &Env<'_>) -> CaseResult {
                 "a read returns a record only when the view admits it",
             )?;
         }
+        // A match: every record says `roses`, and `t` is the text itself.
+        let result = matched(
+            d,
+            &decl,
+            "Prune roses in late winter.",
+            &narrowed,
+            &everyone(),
+        )?;
+        let mut found = hit_ids(&result.nearest);
+        found.sort_unstable();
+        ensure_eq(
+            found,
+            expected.to_vec(),
+            "a match's nearest are admitted records",
+        )?;
+        ensure_eq(
+            hit_ids(&result.identical),
+            if expected.contains(&"t") {
+                vec!["t"]
+            } else {
+                Vec::new()
+            },
+            "an identical record is given only when the view admits it",
+        )?;
     }
     // The same record under a view without the own collection: `t` is unverified there, so
     // what a view admits follows what the configuration says is the person's own.
@@ -1699,6 +1771,38 @@ fn admit_narrows(env: &Env<'_>) -> CaseResult {
         "the order is the one the admitted records give",
     )?;
     ensure_eq(page.total, Some(3), "and the total is theirs")?;
+    // A match's scores are over the admitted records too: its corpus, its tokens and each
+    // term's count.
+    let statements = |records: &[(String, u64, String)]| -> Vec<(String, String)> {
+        records
+            .iter()
+            .map(|(id, _, statement)| (id.clone(), statement.clone()))
+            .collect()
+    };
+    let (affirmed_only, all_five) = (statements(&own), statements(&every));
+    let by = |records: &[(String, String)], corpus: &[(String, String)]| {
+        by_the_formulas(query, records, corpus, MATCH_POOL, MAX_MATCH_K as usize)
+    };
+    ensure(
+        by(&affirmed_only, &affirmed_only) != by(&affirmed_only, &all_five),
+        "the case has teeth: counting the unverified records would change a score",
+    )?;
+    ensure_eq(
+        near(&matched(
+            d,
+            &mulch,
+            query,
+            &view(&[], &[], &[Affirmed]),
+            &everyone(),
+        )?),
+        by(&affirmed_only, &affirmed_only),
+        "a match's scores are the ones the admitted records give",
+    )?;
+    ensure_eq(
+        near(&matched(d, &mulch, query, &plain(), &everyone())?),
+        by(&all_five, &all_five),
+        "a view that admits every record is scored over every record",
+    )?;
     let page = find(d, &mulch, &ranked, &plain(), &everyone())?;
     ensure_eq(
         ids(&page)
@@ -1707,6 +1811,38 @@ fn admit_narrows(env: &Env<'_>) -> CaseResult {
             .collect::<Vec<_>>(),
         ranked_by_the_formulas(query, &every, &every),
         "a view that admits every record is ranked over every record",
+    )?;
+    // Eight unverified records identical to the affirmed `m1`, whose ids come before it: a
+    // record the view does not admit takes none of the eight places an identical list has.
+    for index in 0..8 {
+        put(
+            d,
+            &mulch,
+            &format!("c{index}"),
+            json!({ "statement": "Mulch." }),
+            &["space"],
+            None,
+        )
+        .ctx("put")?;
+    }
+    ensure_eq(
+        hit_ids(
+            &matched(
+                d,
+                &mulch,
+                "Mulch.",
+                &view(&[], &[], &[Affirmed]),
+                &everyone(),
+            )?
+            .identical,
+        ),
+        vec!["m1"],
+        "identical records the view does not admit take no place among the eight",
+    )?;
+    ensure_eq(
+        hit_ids(&matched(d, &mulch, "Mulch.", &plain(), &everyone())?.identical).len(),
+        8,
+        "a view that admits them is given eight",
     )?;
     pass()
 }
@@ -1929,6 +2065,28 @@ fn basis_alone(env: &Env<'_>) -> CaseResult {
                 },
             }),
             "a reader who may not read the cited document sees the basis and nothing else",
+        )?;
+        // A match's hit carries that same label, and nothing more of the document.
+        let statement = hidden.record.body["statement"]
+            .as_str()
+            .ok_or("a statement")?;
+        let result = matched(d, &decl, statement, &journal(), &everyone())?;
+        let hit = result
+            .identical
+            .iter()
+            .find(|hit| hit.id == id)
+            .ok_or("the record is identical to its own statement")?;
+        ensure_eq(
+            hit.label.as_ref(),
+            Some(&shown),
+            "a hit shows the basis alone to a reader who may not read the cited document",
+        )?;
+        ensure(
+            result
+                .nearest
+                .iter()
+                .any(|near| near.id == id && near.label.as_ref() == Some(&shown)),
+            "in the nearest as in the identical",
         )?;
         let text = canonical_json(&hidden.to_json());
         for secret in [

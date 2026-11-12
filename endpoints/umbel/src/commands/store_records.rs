@@ -502,7 +502,7 @@ fn size_check(found: &[Found], bound: u64) -> Check {
                 "declared record kinds past the lane's design size of {bound} records: {}",
                 large.join("; ")
             ),
-            "Past this size a ranked find can be refused (RECORD_QUERY_TOO_BROAD) and a rebuild takes longer; split the kind, or move the records a plugin no longer needs.",
+            "Past this size a match or a ranked find of the kind can be refused for every reader (RECORD_QUERY_TOO_BROAD) and a rebuild takes longer; split the kind, or move the records a plugin no longer needs.",
         )
     }
 }

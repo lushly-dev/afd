@@ -18,8 +18,9 @@ use crate::error::Result;
 use crate::graph::{Direction, Edge, EdgeKey, GraphBatch, Node, Subgraph};
 use crate::index::{ChunkHit, IndexChunk, IndexQuery};
 use crate::lane::{
-    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, OwnInfo, OwnMark,
-    RecordDecision, RecordDecl, RecordFind, ReindexReport, StandingView,
+    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, MatchPage,
+    MatchVectors, OwnInfo, OwnMark, RecordDecision, RecordDecl, RecordFind, RecordMatch,
+    ReindexReport, StandingView,
 };
 use crate::memory::MemoryFlag;
 
@@ -244,8 +245,10 @@ pub trait DocumentStore: Send + Sync {
     ///
     /// # Errors
     /// `LaneStale`; `Invalid` for what [`RecordFind::plan`] refuses and for a derivation
-    /// `reader`; [`StoreError::LaneTooBroad`] for a ranked find that counts more postings than
-    /// one call may (section 8.2); `Busy`, `Corrupt`, `Io`.
+    /// `reader`; [`StoreError::LaneTooBroad`] for a find under order `rank` of a kind that holds
+    /// more postings than the backend's `match_postings`, the same for every call and reader
+    /// (section 8.2); `Busy`, `Corrupt`, `Io`. A find by id or by recency is never refused for
+    /// its kind's size.
     fn find_records(
         &self,
         ns: &str,
@@ -254,6 +257,45 @@ pub trait DocumentStore: Send + Sync {
         view: &StandingView,
         reader: &ReaderFilter,
     ) -> Result<FindPage>;
+
+    /// For each text of `query`, the records of a declared kind whose match field is identical
+    /// to it and the nearest ones by words, with their scores (section 8). Only records that
+    /// `reader` may read, that `view` admits, that pass the key filters and that `exclude` does
+    /// not name take part, and each hit carries the label a read gives it.
+    ///
+    /// **Every statistic is the reader's** (section 8.2): the corpus's size, its tokens and each
+    /// term's count are taken over the records the reader may read and the view admits, without
+    /// the excluded ones and not narrowed by the key filters, plus the text itself as one more
+    /// record. A record the reader may not read changes no score, no order, no list and no
+    /// `cut`. **The one refusal for size is the kind's, not the call's**: when the kind as a
+    /// whole holds more postings than the backend's `match_postings`, over all its text fields
+    /// and whoever may read them, every match of it is refused with
+    /// [`StoreError::LaneTooBroad`], before anything else is read and from a count the backend
+    /// keeps with each write, never from the call's terms. So it tells a reader that the kind
+    /// is past its matching size, and nothing of which records hold which words.
+    ///
+    /// A score is at four decimal places and never negative zero. `nearest` is ordered by
+    /// `fused` descending, then by id in the byte order of its UTF-8.
+    ///
+    /// `vectors` are the incoming texts' unit vectors, which the host computed (section 8.3).
+    /// **From step B5**, the page's `meaning` is `Served` or `Incomplete` when they are given and
+    /// `Off` otherwise, and the host sets `Failed`. Until that step a backend refuses a match
+    /// that carries vectors as `Invalid`, and never answers it as if it had carried none (after
+    /// step B4, A44): `meaning` is `Off` on every page it answers.
+    ///
+    /// # Errors
+    /// `LaneStale`; `Invalid` for what [`RecordMatch::plan`] refuses, for a derivation
+    /// `reader` and, until step B5, for a match that carries `vectors`; `LaneTooBroad`; `Busy`,
+    /// `Corrupt`, `Io`.
+    fn match_records(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        query: &RecordMatch,
+        vectors: Option<&MatchVectors>,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<MatchPage>;
 
     /// A person's decision on a standing record (section 6.1), in one transaction. `Affirm` on
     /// a record that is not affirmed takes the next revision, writes a decision row with the

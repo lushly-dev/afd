@@ -1,13 +1,20 @@
 //! A find under order `rank` (records host specification, sections 7 and 8.2): the once-a-call
 //! statistics, the gather under its bound, and the query direction's score, over the searched
-//! fields, without counting the query as a record.
+//! fields, without counting the query as a record. A match ([`super::matching`]) runs the same
+//! statements over its match field, with its excluded ids left out of each.
 //!
 //! Over several fields a record's frequency for a term is its sum over them, its length the sum
 //! of their token counts, and a count is of the records that hold the term in any of them.
+//!
+//! A ranked find is refused, as a match is, when its kind as a whole holds more postings than
+//! the bound ([`within_bound`], after step B4's focused review): its counts read every posting
+//! of each query term, whoever may read it, so its work grows with the kind. The bound is the
+//! same for every reader and every text, so no refusal depends on which records hold a word.
+//! A find by id, by recency or by keys alone is never refused for its size.
 
 use std::collections::BTreeMap;
 
-use rusqlite::{Connection, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use umbel_store::lane::score::{Corpus, Posting, round4, score};
 use umbel_store::lane::{
     Cursor, FindPage, FindPlan, LaneLimits, RecordDecl, RecordFind, STAT_TERMS, StandingView,
@@ -20,40 +27,67 @@ use super::{LANE_BATCH, RECORD_COLUMNS, and_keys, and_visible, limit_of, positio
 use crate::error::{Fail, to_u64};
 use crate::sql::Sql;
 
-/// What the statements of one ranked find share.
-struct Scope<'a> {
-    conn: &'a Connection,
-    ns: &'a str,
-    decl: &'a RecordDecl,
-    text: &'a TextPlan,
-    view: &'a StandingView,
-    reader: &'a ReaderFilter,
+/// What the statements of one ranked find, or of one match, share.
+pub(super) struct Scope<'a> {
+    pub(super) conn: &'a Connection,
+    pub(super) ns: &'a str,
+    pub(super) decl: &'a RecordDecl,
+    /// The searched text pointers' positions: a find's fields, or a match's one match field.
+    pub(super) fields: &'a [u8],
+    /// The ids a match leaves out of both lists and out of the statistics; none for a find.
+    pub(super) exclude: &'a [String],
+    pub(super) view: &'a StandingView,
+    pub(super) reader: &'a ReaderFilter,
+}
+
+/// One candidate as the query direction needs it.
+pub(super) struct Held {
+    pub(super) lane: i64,
+    pub(super) id: String,
+    /// The revision of the record's first put.
+    pub(super) created: Rev,
+    /// Its tokens in the searched fields.
+    pub(super) length: u32,
+    /// Its frequency for each of the asked terms it holds.
+    pub(super) terms: BTreeMap<String, u32>,
 }
 
 impl Scope<'_> {
     /// `(?, ...)` of the searched fields' positions.
     fn bind_fields(&self, sql: &mut Sql) {
-        sql.bind_list(self.text.fields.iter().map(|field| position(*field)));
+        sql.bind_list(self.fields.iter().map(|field| position(*field)));
     }
 
-    /// `N` and `L` of the reader's admitted records: how many there are, and their tokens in
-    /// the searched fields. One statement over `record_lane`, with the reader and standing
-    /// clauses and no key filter.
-    fn corpus(&self) -> Result<Corpus, Fail> {
-        let lengths = self
-            .text
-            .fields
+    /// `l.n<a> + l.n<b>`: a record's tokens in the searched fields.
+    fn lengths(&self) -> String {
+        self.fields
             .iter()
             .map(|field| format!("l.n{field}"))
             .collect::<Vec<_>>()
-            .join(" + ");
+            .join(" + ")
+    }
+
+    /// ` AND <the reader may read the record> <the view admits it> <the call does not exclude
+    /// it>` over `record_lane l`: the three clauses every statistic, every candidate and every
+    /// hit is held to (sections 5.3, 6.6 and 8.2).
+    pub(super) fn and_counted(&self, sql: &mut Sql) {
+        and_visible(sql, self.decl, self.view, self.reader);
+        if !self.exclude.is_empty() {
+            sql.push(" AND l.id NOT IN ").bind_list(self.exclude.iter());
+        }
+    }
+
+    /// `N` and `L` of the reader's admitted records: how many there are, and their tokens in
+    /// the searched fields. One statement over `record_lane`, with the reader, standing and
+    /// exclude clauses and no key filter.
+    pub(super) fn corpus(&self) -> Result<Corpus, Fail> {
         let mut sql = Sql::new("SELECT COUNT(*), COALESCE(SUM(");
-        sql.push(&lengths)
+        sql.push(&self.lengths())
             .push("), 0) FROM record_lane l WHERE l.ns = ")
             .bind(self.ns)
             .push(" AND l.kind = ")
             .bind(self.decl.kind.as_str());
-        and_visible(&mut sql, self.decl, self.view, self.reader);
+        self.and_counted(&mut sql);
         let (records, tokens): (i64, i64) =
             self.conn
                 .query_row(&sql.text, params_from_iter(&sql.params), |row| {
@@ -65,49 +99,9 @@ impl Scope<'_> {
         })
     }
 
-    /// `df0` of each of the query's terms: how many of the reader's admitted records hold it in
-    /// a searched field. A statement reads every posting of at most [`STAT_TERMS`] terms in the
-    /// kind and the fields and answers two numbers a term: `scanned`, all of them, whoever may
-    /// read them, and `df0`. Past `stat_postings` scanned the call is refused.
-    fn counts(&self, stat_postings: u64) -> Result<BTreeMap<&str, u64>, Fail> {
-        let mut counts = BTreeMap::new();
-        let mut scanned = 0u64;
-        for terms in self.text.terms.chunks(STAT_TERMS) {
-            let mut sql = Sql::new("SELECT t.term, COUNT(*), COUNT(DISTINCT CASE WHEN 1 = 1");
-            and_visible(&mut sql, self.decl, self.view, self.reader);
-            sql.push(
-                " THEN t.lane END) FROM record_terms t JOIN record_lane l ON l.lane = t.lane WHERE t.ns = ",
-            )
-            .bind(self.ns)
-            .push(" AND t.kind = ")
-            .bind(self.decl.kind.as_str())
-            .push(" AND t.field IN ");
-            self.bind_fields(&mut sql);
-            sql.push(" AND t.term IN ")
-                .bind_list(terms.iter())
-                .push(" GROUP BY t.term");
-            let mut statement = self.conn.prepare_cached(&sql.text)?;
-            let mut rows = statement.query(params_from_iter(&sql.params))?;
-            while let Some(row) = rows.next()? {
-                let term: String = row.get(0)?;
-                scanned += to_u64(row.get(1)?)?;
-                let df = to_u64(row.get(2)?)?;
-                if let Some(term) = terms.iter().find(|known| **known == term) {
-                    counts.insert(term.as_str(), df);
-                }
-            }
-            if scanned > stat_postings {
-                return Err(StoreError::LaneTooBroad {
-                    limit: stat_postings,
-                }
-                .into());
-            }
-        }
-        Ok(counts)
-    }
-
     /// The lanes that hold one of `terms` in a searched field and pass every clause (the key
-    /// filters, the reader and the view), in lane order, at most `limit` of them.
+    /// filters, the reader, the view and the exclusions), in lane order, at most `limit` of
+    /// them.
     fn gather(
         &self,
         keys: &[(u8, Vec<String>)],
@@ -124,7 +118,7 @@ impl Scope<'_> {
         self.bind_fields(&mut sql);
         sql.push(" AND t.term IN ").bind_list(terms.iter().copied());
         and_keys(&mut sql, keys);
-        and_visible(&mut sql, self.decl, self.view, self.reader);
+        self.and_counted(&mut sql);
         sql.push(" ORDER BY t.lane");
         if let Some(limit) = limit {
             sql.push(" LIMIT ").bind(limit_of(limit)?);
@@ -136,37 +130,45 @@ impl Scope<'_> {
         Ok(lanes)
     }
 
-    /// Each candidate's id, first revision and score: `score(q, d)` from its frequencies for
-    /// all of the query's terms and its length in the searched fields.
-    fn scored(
-        &self,
-        corpus: &Corpus,
-        counts: &BTreeMap<&str, u64>,
-        candidates: &[i64],
-    ) -> Result<Vec<Scored>, Fail> {
-        let lengths = self
-            .text
-            .fields
-            .iter()
-            .map(|field| format!("l.n{field}"))
-            .collect::<Vec<_>>()
-            .join(" + ");
-        let mut scored = Vec::with_capacity(candidates.len());
+    /// Step 4's frequencies for a batch of candidate lanes: each lane's frequency for each of
+    /// `terms` it holds, summed over the searched fields, under the reader, the view and the
+    /// exclusions again.
+    pub(super) fn frequencies_sql(&self, lanes: &[i64], terms: &[&str]) -> Sql {
+        let mut sql = Sql::new(
+            "SELECT t.lane, t.term, SUM(t.tf) FROM record_terms t JOIN record_lane l ON l.lane = t.lane WHERE t.lane IN ",
+        );
+        sql.bind_list(lanes.iter().copied())
+            .push(" AND t.field IN ");
+        self.bind_fields(&mut sql);
+        sql.push(" AND t.term IN ").bind_list(terms.iter().copied());
+        self.and_counted(&mut sql);
+        sql.push(" GROUP BY t.lane, t.term");
+        sql
+    }
+
+    /// Step 4's lengths for a batch of candidate lanes: each one's id, first revision and
+    /// tokens in the searched fields, under the reader, the view and the exclusions again.
+    pub(super) fn lengths_sql(&self, lanes: &[i64]) -> Sql {
+        let mut sql = Sql::new("SELECT l.lane, l.id, l.created_rev, ");
+        sql.push(&self.lengths())
+            .push(" FROM record_lane l WHERE l.lane IN ")
+            .bind_list(lanes.iter().copied());
+        self.and_counted(&mut sql);
+        sql
+    }
+
+    /// Each candidate with its id, its first revision, its length in the searched fields and
+    /// its frequencies for `terms`: section 8.2's step 4, two statements a batch of lanes
+    /// ([`Self::frequencies_sql`] and [`Self::lengths_sql`]). Both carry the reader, the view
+    /// and the exclusions again, as every statement over the lane does (section 5.3), though
+    /// they name only lanes a statement with them returned.
+    pub(super) fn held(&self, candidates: &[i64], terms: &[&str]) -> Result<Vec<Held>, Fail> {
+        let mut held = Vec::with_capacity(candidates.len());
         for lanes in candidates.chunks(LANE_BATCH) {
-            // Each candidate's frequencies, by lane and then by term. Both statements carry the
-            // reader and the view again, as every statement over the lane does (section 5.3).
+            // Each candidate's frequencies, by lane and then by term.
             let mut frequencies: BTreeMap<i64, BTreeMap<String, u32>> = BTreeMap::new();
             {
-                let mut sql = Sql::new(
-                    "SELECT t.lane, t.term, SUM(t.tf) FROM record_terms t JOIN record_lane l ON l.lane = t.lane WHERE t.lane IN ",
-                );
-                sql.bind_list(lanes.iter().copied())
-                    .push(" AND t.field IN ");
-                self.bind_fields(&mut sql);
-                sql.push(" AND t.term IN ")
-                    .bind_list(self.text.terms.iter());
-                and_visible(&mut sql, self.decl, self.view, self.reader);
-                sql.push(" GROUP BY t.lane, t.term");
+                let sql = self.frequencies_sql(lanes, terms);
                 let mut statement = self.conn.prepare_cached(&sql.text)?;
                 let mut rows = statement.query(params_from_iter(&sql.params))?;
                 while let Some(row) = rows.next()? {
@@ -176,34 +178,97 @@ impl Scope<'_> {
                         .insert(row.get(1)?, row.get(2)?);
                 }
             }
-            let none = BTreeMap::new();
-            let mut sql = Sql::new("SELECT l.lane, l.id, l.created_rev, ");
-            sql.push(&lengths)
-                .push(" FROM record_lane l WHERE l.lane IN ")
-                .bind_list(lanes.iter().copied());
-            and_visible(&mut sql, self.decl, self.view, self.reader);
+            let sql = self.lengths_sql(lanes);
             let mut statement = self.conn.prepare_cached(&sql.text)?;
             let mut rows = statement.query(params_from_iter(&sql.params))?;
             while let Some(row) = rows.next()? {
                 let lane: i64 = row.get(0)?;
-                let length: u32 = row.get(3)?;
-                // The query's terms are in byte order, so every backend adds in one order.
-                let held = frequencies.get(&lane).unwrap_or(&none);
-                let postings = self.text.terms.iter().filter_map(|term| {
-                    let tf = held.get(term.as_str()).copied()?;
-                    let df = counts.get(term.as_str()).copied()?;
-                    Some(Posting { df, tf })
-                });
-                scored.push(Scored {
+                held.push(Held {
                     lane,
                     id: row.get(1)?,
                     created: to_u64(row.get(2)?)?,
-                    score: round4(score(corpus, length, postings)),
+                    length: row.get(3)?,
+                    terms: frequencies.remove(&lane).unwrap_or_default(),
                 });
             }
         }
-        Ok(scored)
+        Ok(held)
     }
+}
+
+/// The stored counts of one call (section 8.2): `df0` of each term the call has needed, how
+/// many of the reader's admitted and not excluded records hold it in a searched field. A term
+/// is counted at most once a call, whichever text or pooled record first needs it.
+///
+/// **Nothing here refuses.** A count is of the records that pass the reader, standing and
+/// exclude clauses, and no number of records the reader may not read is taken: after step B4's
+/// review a refusal never depends on what a term's postings hold. A match and a ranked find are
+/// refused for their kind's size alone, before any count ([`within_bound`]). The statement still
+/// reads every posting of each term to find the ones that pass, so its work grows with the
+/// term's postings, readable or not: the bound on the kind is what bounds it.
+pub(super) struct Counts {
+    df0: BTreeMap<String, u64>,
+}
+
+impl Counts {
+    /// No term counted yet.
+    pub(super) fn new() -> Self {
+        Self {
+            df0: BTreeMap::new(),
+        }
+    }
+
+    /// `df0` of a term this call has counted; 0 for one it has not, or that no record holds.
+    pub(super) fn df0(&self, term: &str) -> u64 {
+        self.df0.get(term).copied().unwrap_or(0)
+    }
+
+    /// Count each of `terms` this call has not counted yet: one statement for at most
+    /// [`STAT_TERMS`] terms, over their postings in the kind and the searched fields whose
+    /// record passes the reader, standing and exclude clauses.
+    pub(super) fn need<'t>(
+        &mut self,
+        scope: &Scope<'_>,
+        terms: impl IntoIterator<Item = &'t str>,
+    ) -> Result<(), Fail> {
+        let mut wanted: Vec<&str> = terms
+            .into_iter()
+            .filter(|term| !self.df0.contains_key(*term))
+            .collect();
+        wanted.sort_unstable();
+        wanted.dedup();
+        for terms in wanted.chunks(STAT_TERMS) {
+            let sql = counts_sql(scope, terms);
+            let mut statement = scope.conn.prepare_cached(&sql.text)?;
+            let mut rows = statement.query(params_from_iter(&sql.params))?;
+            while let Some(row) = rows.next()? {
+                let term: String = row.get(0)?;
+                self.df0.insert(term, to_u64(row.get(1)?)?);
+            }
+            // A term no record holds is counted too: it is not asked for again.
+            for term in terms {
+                self.df0.entry((*term).to_owned()).or_insert(0);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The statement of `df0` for `terms`: how many records that pass the reader, standing and
+/// exclude clauses hold each in a searched field.
+pub(super) fn counts_sql(scope: &Scope<'_>, terms: &[&str]) -> Sql {
+    let mut sql = Sql::new(
+        "SELECT t.term, COUNT(DISTINCT t.lane) FROM record_terms t JOIN record_lane l ON l.lane = t.lane WHERE t.ns = ",
+    );
+    sql.bind(scope.ns)
+        .push(" AND t.kind = ")
+        .bind(scope.decl.kind.as_str())
+        .push(" AND t.field IN ");
+    scope.bind_fields(&mut sql);
+    sql.push(" AND t.term IN ").bind_list(terms.iter().copied());
+    scope.and_counted(&mut sql);
+    sql.push(" GROUP BY t.term");
+    sql
 }
 
 /// One candidate with what the order compares.
@@ -232,7 +297,7 @@ impl Scored {
 /// narrows. When the first term alone passes the bound, its postings are read with every clause
 /// in lane order with `LIMIT bound + 1`: more than the bound sets `cut` and drops the last.
 /// Nothing else sets `cut`.
-fn candidates(
+pub(super) fn candidates(
     scope: &Scope<'_>,
     keys: &[(u8, Vec<String>)],
     counts: &BTreeMap<&str, u64>,
@@ -269,6 +334,30 @@ fn candidates(
     Ok((scope.gather(keys, &taken, None)?, false))
 }
 
+/// Section 8.2's bound, checked once a call before anything else is read, by a match and by a
+/// ranked find: refused when the kind as a whole holds more than `bound` postings. The count is `record_postings`', which the
+/// put and the rebuild keep in their own transactions; nothing here depends on the call's
+/// texts or its reader, so every such call of the kind is answered or refused alike.
+pub(super) fn within_bound(
+    conn: &Connection,
+    ns: &str,
+    kind: &str,
+    bound: u64,
+) -> Result<(), Fail> {
+    let postings: i64 = conn
+        .query_row(
+            "SELECT postings FROM record_postings WHERE ns = ?1 AND kind = ?2",
+            params![ns, kind],
+            |row| row.get(0),
+        )
+        .optional()?
+        .unwrap_or(0);
+    if to_u64(postings)? > bound {
+        return Err(StoreError::LaneTooBroad { limit: bound }.into());
+    }
+    Ok(())
+}
+
 /// A page of a find under order `rank`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn ranked(
@@ -282,18 +371,44 @@ pub(super) fn ranked(
     reader: &ReaderFilter,
     limits: LaneLimits,
 ) -> Result<FindPage, Fail> {
+    // The kind's size first: its counts read every posting of each query term, whoever may
+    // read it, so a ranked find of a kind past the bound is refused as a match is.
+    within_bound(conn, ns, &decl.kind, limits.match_postings)?;
     let scope = Scope {
         conn,
         ns,
         decl,
-        text,
+        fields: &text.fields,
+        exclude: &[],
         view,
         reader,
     };
     let corpus = scope.corpus()?;
-    let counts = scope.counts(limits.stat_postings)?;
+    let mut stored = Counts::new();
+    stored.need(&scope, text.terms.iter().map(String::as_str))?;
+    // The query's terms are in byte order, so every backend adds in one order.
+    let terms: Vec<&str> = text.terms.iter().map(String::as_str).collect();
+    let counts: BTreeMap<&str, u64> = terms.iter().map(|term| (*term, stored.df0(term))).collect();
     let (lanes, cut) = candidates(&scope, &plan.keys, &counts, limits.gather_postings)?;
-    let mut scored = scope.scored(&corpus, &counts, &lanes)?;
+    // Each candidate's score: `score(q, d)` from its frequencies for all of the query's terms
+    // and its length in the searched fields.
+    let mut scored: Vec<Scored> = scope
+        .held(&lanes, &terms)?
+        .into_iter()
+        .map(|held| {
+            let postings = terms.iter().filter_map(|term| {
+                let tf = held.terms.get(*term).copied()?;
+                let df = counts.get(term).copied()?;
+                Some(Posting { df, tf })
+            });
+            Scored {
+                lane: held.lane,
+                score: round4(score(&corpus, held.length, postings)),
+                id: held.id,
+                created: held.created,
+            }
+        })
+        .collect();
     scored.sort_by(|a, b| a.against(b.score, b.created, &b.id));
     let total = query.total.then_some(scored.len() as u64);
     if let Some(Cursor::Rank(score, created, id)) = &plan.after {

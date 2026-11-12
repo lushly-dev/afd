@@ -26,7 +26,7 @@ use crate::memory::MemoryFlag;
 
 pub use extract::{Extracted, extract};
 pub use normalise::{match_digest, normalise};
-pub use query::{Cursor, FindPlan, TextPlan};
+pub use query::{Cursor, FindPlan, MatchPlan, MatchText, TextPlan};
 
 /// The most record kinds one manifest declares.
 pub const MAX_RECORD_KINDS: usize = 16;
@@ -60,8 +60,11 @@ pub const MAX_MATCH_EXCLUDE: usize = 64;
 pub const MAX_IDENTICAL: usize = 8;
 /// The most postings the gather of one text reads (section 8.2, step 3).
 pub const GATHER_POSTINGS: u64 = 20_000;
-/// The most postings one call counts before it is refused (section 8.2).
-pub const STAT_POSTINGS: u64 = 4_000_000;
+/// The most postings a kind may hold, over all its text fields, for a match or a ranked find to
+/// read it: past this every match and every ranked find of the kind is refused, whoever calls
+/// and whatever it asks (section 8.2, after step B4's reviews). It is compared with a count the
+/// store keeps, never with a scan.
+pub const MATCH_POSTINGS: u64 = 4_000_000;
 /// How many candidates a text keeps for the second direction (section 8.2, step 5).
 pub const MATCH_POOL: usize = 64;
 /// The design bound of one kind in one space, in records.
@@ -80,8 +83,8 @@ pub const NORMALISATION_VERSION: u32 = 1;
 pub struct LaneLimits {
     /// [`GATHER_POSTINGS`].
     pub gather_postings: u64,
-    /// [`STAT_POSTINGS`].
-    pub stat_postings: u64,
+    /// [`MATCH_POSTINGS`].
+    pub match_postings: u64,
     /// [`REINDEX_CHUNK`]; at least 1.
     pub reindex_chunk: usize,
 }
@@ -90,7 +93,7 @@ impl Default for LaneLimits {
     fn default() -> Self {
         Self {
             gather_postings: GATHER_POSTINGS,
-            stat_postings: STAT_POSTINGS,
+            match_postings: MATCH_POSTINGS,
             reindex_chunk: REINDEX_CHUNK,
         }
     }

@@ -7,8 +7,9 @@ use rusqlite::{
 use serde::de::DeserializeOwned;
 use serde_json::Value as Json;
 use umbel_store::lane::{
-    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, OwnInfo, OwnMark,
-    RecordDecision, RecordDecl, RecordFind, ReindexReport, StandingView,
+    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, MatchPage,
+    MatchVectors, OwnInfo, OwnMark, RecordDecision, RecordDecl, RecordFind, RecordMatch,
+    ReindexReport, StandingView,
 };
 use umbel_store::{
     Change, ChangeKind, ContentHash, DocMeta, Document, DocumentStore, DocumentWrite, Embedder,
@@ -504,6 +505,18 @@ impl DocumentStore for SqliteStore {
         reader: &ReaderFilter,
     ) -> Result<FindPage, StoreError> {
         self.lane_find(ns, decl, query, view, reader)
+    }
+
+    fn match_records(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        query: &RecordMatch,
+        vectors: Option<&MatchVectors>,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<MatchPage, StoreError> {
+        self.lane_match(ns, decl, query, vectors, view, reader)
     }
 
     fn decide_record(

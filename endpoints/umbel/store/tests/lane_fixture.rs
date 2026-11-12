@@ -171,12 +171,28 @@ fn every_identical_text_has_its_expected_digest() {
 fn every_expected_score_is_what_the_formulas_give() {
     let fixture = fixture();
     let decl = declaration(&fixture);
-    let records = records(&fixture, &decl);
+    let all = records(&fixture, &decl);
     let matches = fixture["matches"].as_array().unwrap();
     assert!(!matches.is_empty());
+    assert!(
+        matches.iter().any(|case| case.get("exclude").is_some()),
+        "the fixture has a text matched with records excluded"
+    );
     for case in matches {
         let text = case["text"].as_str().unwrap();
         let query = Terms::of(text);
+        // The records `exclude` names are left out of both lists and out of the statistics.
+        let excluded: Vec<&str> = case.get("exclude").map(strings).unwrap_or_default();
+        for id in &excluded {
+            assert!(
+                all.iter().any(|(known, _, _)| known == id),
+                "{text}: excludes {id}, which the fixture does not hold"
+            );
+        }
+        let records: Vec<&(String, Extracted, Terms)> = all
+            .iter()
+            .filter(|(id, _, _)| !excluded.contains(&id.as_str()))
+            .collect();
         // Section 8.2's corpus for a reader of every record: the records, plus the text itself.
         let corpus = Corpus {
             records: records.len() as u64 + 1,

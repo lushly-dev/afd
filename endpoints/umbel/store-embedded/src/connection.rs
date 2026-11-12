@@ -8,7 +8,9 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use umbel_store::StoreError;
 
 use crate::error::{Fail, map_sql};
-use crate::schema::{HELD_SCHEMA, LANE_SCHEMA, SCHEMA, SCHEMA_VERSION};
+use crate::schema::{
+    HELD_SCHEMA, LANE_SCHEMA, POSTINGS_BACKFILL, POSTINGS_SCHEMA, SCHEMA, SCHEMA_VERSION,
+};
 
 /// How many idle connections the pool keeps.
 const MAX_IDLE: usize = 8;
@@ -197,6 +199,13 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
             // is the person's own by collection until the host holds it
             // (`store-documents-hold`, or the next put of an own collection's document).
             tx.execute_batch(HELD_SCHEMA)?;
+        }
+        if version < 4 {
+            // Schema version 4: each declared kind's count of postings, which a match compares
+            // with its bound (records host specification, section 8.2). A store at version 2 or
+            // 3 has it counted here, once, from its lane; a new store has no kind to count.
+            tx.execute_batch(POSTINGS_SCHEMA)?;
+            tx.execute_batch(POSTINGS_BACKFILL)?;
         }
         tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         tx.commit()?;

@@ -72,10 +72,11 @@ pub enum StoreError {
     /// A put would change the wording of a standing record (`RECORD_WORDING_FIXED`, section
     /// 4.3); nothing was written.
     WordingFixed,
-    /// A ranked find or a match counts more postings than one call may
-    /// (`RECORD_QUERY_TOO_BROAD`, section 8.2); nothing was returned.
+    /// A match, or a ranked find, of a kind that holds more postings than a match reads
+    /// (`RECORD_QUERY_TOO_BROAD`, section 8.2): the kind as a whole is past its matching size,
+    /// whoever calls and whatever it asks. Nothing was returned.
     LaneTooBroad {
-        /// The most postings one call counts.
+        /// The most postings a kind may hold for a match to read it.
         limit: u64,
     },
     /// A put's evidence is not acceptable (`RECORD_EVIDENCE_INVALID`, sections 4.2 and 13): its
@@ -132,7 +133,10 @@ impl fmt::Display for StoreError {
                 "the wording of a standing record never changes; write a new record"
             ),
             Self::LaneTooBroad { limit } => {
-                write!(f, "the call counts more than {limit} postings")
+                write!(
+                    f,
+                    "the kind holds more than {limit} postings, past what a match reads"
+                )
             }
             Self::EvidenceInvalid(rule) => write!(f, "the evidence is not acceptable: {rule}"),
         }

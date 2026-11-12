@@ -295,7 +295,7 @@ mod tests {
         );
         assert_eq!(
             invalid(StoreError::LaneTooBroad { limit: 4_000_000 }),
-            "RECORD_QUERY_TOO_BROAD: the call counts more than 4000000 postings"
+            "RECORD_QUERY_TOO_BROAD: the kind holds more than 4000000 postings, past what a match reads"
         );
         assert_eq!(
             invalid(StoreError::EvidenceInvalid(

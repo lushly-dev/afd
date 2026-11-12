@@ -1,12 +1,13 @@
 //! A compiled plugin that declares record kinds (records host specification, section 2), for
-//! `records_put.rs` and `records_find.rs`: a garden's notes, with standing, and its beds,
-//! without. One generic `op` per command keeps the manifest small. Every text is invented and
+//! `records_put.rs`, `records_find.rs` and `records_match.rs`: a garden's notes, with standing,
+//! and its beds, without. One generic `op` per command keeps the manifest small. Every text is invented and
 //! about gardening.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
 use serde_json::{Value, json};
 use umbel_sdk::umbel_store::lane::{
-    FindOrder, FindPage, KeyFilter, LaneRecord, Pointer, RecordFind, Standing, TextQuery,
+    FindOrder, FindPage, KeyFilter, LaneRecord, MatchHit, MatchPage, MeaningState, Pointer,
+    RecordFind, RecordMatch, Standing, StandingLabel, TextQuery,
 };
 use umbel_sdk::umbel_store::{Envelope, Expect};
 use umbel_sdk::{Cx, HostError, Outcome, Plugin, failure, success};
@@ -159,12 +160,12 @@ fn standings(args: &Value) -> Vec<Standing> {
         .collect()
 }
 
-/// A find from its JSON: `kind`, `keys` (`[{ key, any }]`), `text` (`{ query, fields }`),
-/// `order`, `after`, `limit`, `total`, `standings` and `verifiedOnly`.
-fn find_of(args: &Value) -> Result<RecordFind, HostError> {
-    let pointer = |text: &str| {
-        Pointer::parse(text).map_err(|error| HostError::Invalid(format!("the fixture: {error}")))
-    };
+fn pointer(text: &str) -> Result<Pointer, HostError> {
+    Pointer::parse(text).map_err(|error| HostError::Invalid(format!("the fixture: {error}")))
+}
+
+/// The key filters of a find or a match, from `keys` (`[{ key, any }]`).
+fn keys_of(args: &Value) -> Result<Vec<KeyFilter>, HostError> {
     let mut keys = Vec::new();
     for filter in args
         .get("keys")
@@ -177,6 +178,68 @@ fn find_of(args: &Value) -> Result<RecordFind, HostError> {
             any: strings(filter, "any"),
         });
     }
+    Ok(keys)
+}
+
+/// A match from its JSON: `kind` (default `note`), `texts`, `k` (default 20), `keys`,
+/// `standings`, `verifiedOnly` and `exclude`.
+pub fn match_of(args: &Value) -> Result<RecordMatch, HostError> {
+    Ok(RecordMatch {
+        kind: match text(args, "kind") {
+            "" => "note".to_owned(),
+            kind => kind.to_owned(),
+        },
+        texts: strings(args, "texts"),
+        k: args
+            .get("k")
+            .and_then(Value::as_u64)
+            .map_or(20, |k| u32::try_from(k).unwrap()),
+        keys: keys_of(args)?,
+        standings: standings(args),
+        verified_only: args.get("verifiedOnly").and_then(Value::as_bool) == Some(true),
+        exclude: strings(args, "exclude"),
+    })
+}
+
+/// A match's answer as JSON: `results` (each `identical`, `nearest`, their `ids`, and `cut`),
+/// `admitted` and `meaning`. A hit is `id`, `rev`, `text`, `dev.umbel/flags`,
+/// `dev.umbel/standing` and its three scores, `null` where it has none.
+pub fn match_page(found: &MatchPage) -> Value {
+    let hit = |hit: &MatchHit| {
+        json!({
+            "id": hit.id,
+            "rev": hit.rev,
+            "text": hit.text,
+            "dev.umbel/flags": hit.flags.iter().map(|flag| flag.as_str()).collect::<Vec<_>>(),
+            "dev.umbel/standing": hit.label.as_ref().map(StandingLabel::to_json),
+            "words": hit.words,
+            "meaning": hit.meaning,
+            "fused": hit.fused,
+        })
+    };
+    let ids = |hits: &[MatchHit]| hits.iter().map(|hit| hit.id.clone()).collect::<Vec<_>>();
+    json!({
+        "results": found.results.iter().map(|result| json!({
+            "identical": result.identical.iter().map(hit).collect::<Vec<_>>(),
+            "identicalIds": ids(&result.identical),
+            "nearest": result.nearest.iter().map(hit).collect::<Vec<_>>(),
+            "nearestIds": ids(&result.nearest),
+            "cut": result.cut,
+        })).collect::<Vec<_>>(),
+        "admitted": found.admitted,
+        "meaning": match &found.meaning {
+            MeaningState::Served(model) => json!({ "served": model.as_str() }),
+            MeaningState::Off => json!("off"),
+            MeaningState::Incomplete => json!("incomplete"),
+            MeaningState::Failed => json!("failed"),
+        },
+    })
+}
+
+/// A find from its JSON: `kind`, `keys` (`[{ key, any }]`), `text` (`{ query, fields }`),
+/// `order`, `after`, `limit`, `total`, `standings` and `verifiedOnly`.
+fn find_of(args: &Value) -> Result<RecordFind, HostError> {
+    let keys = keys_of(args)?;
     let text_query = match args.get("text") {
         Some(query) if query.is_object() => Some(TextQuery {
             query: text(query, "query").to_owned(),
@@ -253,6 +316,9 @@ fn read(cx: &Cx, space: &str, op: &str, args: &Value) -> Result<Value, HostError
         "find" => cx
             .record_find(space, &find_of(args)?)
             .map(|found| page(&found)),
+        "match" => cx
+            .record_match(space, &match_of(args)?)
+            .map(|found| match_page(&found)),
         "get" => cx
             .record_get(space, text(args, "kind"), text(args, "id"))
             .map(|found| json!(found)),
@@ -289,6 +355,9 @@ impl Plugin for Notes {
                     "find" => reader
                         .record_find(&space, &find_of(&args)?)
                         .map(|found| page(&found)),
+                    "match" => reader
+                        .record_match(&space, &match_of(&args)?)
+                        .map(|found| match_page(&found)),
                     _ => Err(HostError::Invalid(format!("unknown op {op}"))),
                 }),
             other => return failure("NOT_FOUND", other, "Call a notes command."),

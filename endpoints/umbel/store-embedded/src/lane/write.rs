@@ -107,7 +107,31 @@ fn first_put(tx: &Transaction<'_>, target: &str) -> Result<Option<(Rev, String)>
     found.map(|(rev, at)| Ok((to_u64(rev)?, at))).transpose()
 }
 
-/// Replace a lane's terms with `found`'s.
+/// Add `delta` to the kind's count of postings (schema version 4), in the caller's
+/// transaction. Every statement that adds or removes rows of `record_terms` is followed by one
+/// of these with the rows it changed, so the count a match compares with its bound (section
+/// 8.2) is the kind's rows, with no scan.
+pub(super) fn add_postings(
+    tx: &Transaction<'_>,
+    ns: &str,
+    kind: &str,
+    delta: i64,
+) -> Result<(), Fail> {
+    if delta != 0 {
+        tx.execute(
+            "INSERT INTO record_postings (ns, kind, postings) VALUES (?1, ?2, 0)
+             ON CONFLICT (ns, kind) DO NOTHING",
+            params![ns, kind],
+        )?;
+        tx.execute(
+            "UPDATE record_postings SET postings = postings + ?3 WHERE ns = ?1 AND kind = ?2",
+            params![ns, kind, delta],
+        )?;
+    }
+    Ok(())
+}
+
+/// Replace a lane's terms with `found`'s, and the kind's count of postings with it.
 pub(super) fn write_terms(
     tx: &Transaction<'_>,
     ns: &str,
@@ -115,14 +139,21 @@ pub(super) fn write_terms(
     lane: i64,
     found: &Extracted,
 ) -> Result<(), Fail> {
+    let removed: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM record_terms WHERE lane = ?1",
+        [lane],
+        |row| row.get(0),
+    )?;
     tx.execute("DELETE FROM record_terms WHERE lane = ?1", [lane])?;
     let mut insert = tx.prepare_cached(
         "INSERT INTO record_terms (ns, kind, field, term, lane, tf) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     )?;
+    let mut added = 0i64;
     for (field, term, frequency) in &found.terms {
         insert.execute(params![ns, kind, position(*field), term, lane, frequency])?;
+        added += 1;
     }
-    Ok(())
+    add_postings(tx, ns, kind, added - removed)
 }
 
 /// Replace a lane's key values with `found`'s, unless they are the ones stored.

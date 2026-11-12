@@ -26,7 +26,8 @@ use umbel_store::{Embedder, Envelope, MemoryFlag, Rev, StoreError, canonical_jso
 
 use super::flags_text;
 use super::write::{
-    LaneValues, clear_standing, insert_lane, lane_row, update_lane, write_keys, write_terms,
+    LaneValues, add_postings, clear_standing, insert_lane, lane_row, update_lane, write_keys,
+    write_terms,
 };
 use crate::SqliteStore;
 use crate::documents::parse_json;
@@ -169,7 +170,14 @@ impl SqliteStore {
                 let Ok(found) = extract(decl, &body) else {
                     // A body the declaration refuses is left without lane rows.
                     if let Some(row) = row {
+                        // Its terms go with it, by cascade, and out of the kind's count.
+                        let held: i64 = tx.query_row(
+                            "SELECT COUNT(*) FROM record_terms WHERE lane = ?1",
+                            [row.lane],
+                            |r| r.get(0),
+                        )?;
                         tx.execute("DELETE FROM record_lane WHERE lane = ?1", [row.lane])?;
+                        add_postings(&tx, ns, kind, -held)?;
                     }
                     chunk_counts.unindexed += 1;
                     continue;
@@ -226,7 +234,8 @@ impl SqliteStore {
     }
 
     /// Step 1.4: one short transaction reads the generation. Only if it is still `generation`
-    /// does it write the declaration to the kind's row and clear the stale mark; whether it did.
+    /// does it write the declaration to the kind's row, clear the stale mark and set the kind's
+    /// count of postings from its rows; whether it did.
     fn end_rebuild(
         &self,
         ns: &str,
@@ -242,6 +251,17 @@ impl SqliteStore {
                  WHERE ns = ?1 AND kind = ?2 AND generation = ?5",
                 params![ns, decl.kind, hash.as_str(), stored, generation],
             )?;
+            if cleared == 1 {
+                // The rebuild that clears the mark also sets the kind's count of postings from
+                // its rows, once, so a count that drifted (a `records` row deleted by a statement
+                // that does not keep it, as an erasure would) is repaired by a rebuild.
+                tx.execute(
+                    "INSERT INTO record_postings (ns, kind, postings)
+                     VALUES (?1, ?2, (SELECT COUNT(*) FROM record_terms WHERE ns = ?1 AND kind = ?2))
+                     ON CONFLICT (ns, kind) DO UPDATE SET postings = excluded.postings",
+                    params![ns, decl.kind],
+                )?;
+            }
             tx.commit()?;
             Ok(cleared == 1)
         })

@@ -62,7 +62,7 @@ pub(super) const CASES: &[(&str, super::CaseFn)] = &[
     ),
     (
         "cut_only_when_the_rarest_terms_postings_pass_the_bound_after_every_clause",
-        cut_and_too_broad,
+        cut_and_never_too_broad,
     ),
     (
         "a_changed_declaration_refuses_every_service_and_a_rebuild_clears_it",
@@ -1008,7 +1008,7 @@ fn fixture_order(env: &Env<'_>) -> CaseResult {
         .as_array()
         .ok_or("the fixture has texts")?;
     ensure(!matches.is_empty(), "the fixture has texts to rank")?;
-    for matched in matches {
+    for (row, matched) in matches.iter().enumerate() {
         let query = matched["text"].as_str().unwrap_or_default();
         let page = find(
             d,
@@ -1034,14 +1034,17 @@ fn fixture_order(env: &Env<'_>) -> CaseResult {
             Some(expected.len() as u64),
             "and counts its candidates",
         )?;
-        ensure(
-            expected.len() >= 2 && expected[0] == "n1" && expected[1] == "n2",
-            "the fixture's two rose records lead, as in the worked example",
-        )?;
-        ensure(
-            !expected.iter().any(|id| id == "n3"),
-            "a record that shares no term is no candidate",
-        )?;
+        // The first two rows are section 8.2's worked examples.
+        if row < 2 {
+            ensure(
+                expected.len() >= 2 && expected[0] == "n1" && expected[1] == "n2",
+                "the fixture's two rose records lead, as in the worked example",
+            )?;
+            ensure(
+                !expected.iter().any(|id| id == "n3"),
+                "a record that shares no term is no candidate",
+            )?;
+        }
         // The fixture's kind has standing; with no standing fact it reads unverified.
         ensure(
             page.items.iter().all(|item| {
@@ -1055,7 +1058,7 @@ fn fixture_order(env: &Env<'_>) -> CaseResult {
     pass()
 }
 
-fn cut_and_too_broad(env: &Env<'_>) -> CaseResult {
+fn cut_and_never_too_broad(env: &Env<'_>) -> CaseResult {
     let Some((s, open)) = lane(env)? else {
         return skip(NO_LANE);
     };
@@ -1164,34 +1167,41 @@ fn cut_and_too_broad(env: &Env<'_>) -> CaseResult {
         vec!["p1".to_owned(), "p2".to_owned()],
         "its own records",
     )?;
-    // The work cap counts postings read, whoever may read them: ten records hold `mulch`.
-    let capped = LaneLimits {
-        stat_postings: 9,
-        ..LaneLimits::default()
+    // Past the bound on the kind's postings a ranked find is refused, alike for every reader and
+    // every text, and a find by id or by recency, with or without a text filter, is answered as
+    // with no bound (after step B4's focused review).
+    let bounded = LaneLimits {
+        match_postings: 0,
+        ..limits
     };
-    let capped = open(s.dir.path(), SPACE, capped).ctx("a store with a cap of 9 postings")?;
+    let bounded = open(s.dir.path(), SPACE, bounded).ctx("a store with a bound of 0 postings")?;
     for who in [everyone(), own] {
-        ensure_eq(
-            capped
-                .find_records(NS, &decl, &ranked("mulch", Vec::new()), &view(), &who)
-                .err(),
-            Some(StoreError::LaneTooBroad { limit: 9 }),
-            "past the cap a ranked find is refused, whatever the reader may read",
-        )?;
+        for query in [ranked("mulch", Vec::new()), ranked("beans", Vec::new())] {
+            ensure_eq(
+                bounded.find_records(NS, &decl, &query, &view(), &who).err(),
+                Some(StoreError::LaneTooBroad { limit: 0 }),
+                "past the bound a ranked find is refused, whoever asks what",
+            )?;
+        }
+        for order in [FindOrder::Id, FindOrder::Recent] {
+            for text_query in [None, text("mulch")] {
+                let query = RecordFind {
+                    order,
+                    text: text_query,
+                    ..all(&decl)
+                };
+                let free = find(d, &decl, &query, &who)?;
+                let page = bounded
+                    .find_records(NS, &decl, &query, &view(), &who)
+                    .ctx("an unranked find past the bound")?;
+                ensure_eq(
+                    (ids(&page), page.total),
+                    (ids(&free), free.total),
+                    "an unranked find past the bound is answered as with none",
+                )?;
+            }
+        }
     }
-    let under = capped
-        .find_records(
-            NS,
-            &decl,
-            &ranked("beans", Vec::new()),
-            &view(),
-            &everyone(),
-        )
-        .ctx("a query under the cap")?;
-    ensure(
-        under.items.is_empty(),
-        "under the cap the reader's answer is its own",
-    )?;
     pass()
 }
 

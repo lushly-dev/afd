@@ -803,6 +803,15 @@ impl HostServices for CallServices {
         self.svc_record_find(space, query)
     }
 
+    #[cfg(feature = "store-embedded")]
+    fn record_match(
+        &self,
+        space: &str,
+        query: &umbel_store::lane::RecordMatch,
+    ) -> Result<umbel_store::lane::MatchPage, ServiceError> {
+        self.svc_record_match(space, query)
+    }
+
     fn index_search(&self, space: &str, query: &IndexQuery) -> Result<Vec<ChunkHit>, ServiceError> {
         self.svc_index_search(space, query)
     }
