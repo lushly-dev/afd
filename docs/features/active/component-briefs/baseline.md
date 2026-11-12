@@ -93,7 +93,7 @@ Fixed here, before any run. The proposal's phase 0 has the reasoning.
 **Runs.** Three tasks, five arms, five runs each: 75 sessions. Every run
 uses Claude Code with Sonnet 5.5 at medium effort (the repository's
 [routing](../../../operations/model-routing.md) for specified everyday
-coding), the same task text, and a fresh worktree at `cfb70942`, with no
+coding when this was fixed; it has since moved), the same task text, and a fresh worktree at `cfb70942`, with no
 Umbel. Every agent can read the repository as it can today.
 
 | Arm | Added to the task |

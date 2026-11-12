@@ -51,6 +51,9 @@ STAGE_REASONS = {
 }
 IMPORT_REASONS = {
     "AGENTS.md": ("Provide current AFD endpoint gates and authority instructions"),
+    "docs/operations/model-routing.md": (
+        "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes"
+    ),
     "CHANGELOG.md": (
         "Record the 0.6.0 host adaptation, compatibility changes and budget modernization"
     ),
