@@ -133,6 +133,22 @@ const template = html<VioletOption>`
     </div>
 `;
 
+/**
+ * Violet reusable option primitive.
+ *
+ * @summary One choice inside a violet-select, violet-combobox or violet-listbox.
+ * @slot - The option's label text.
+ * @slot before - Leading content such as an icon.
+ * @slot description - Secondary text under the label.
+ * @slot after - Trailing content such as a shortcut or count.
+ * @fires request-select - Emitted when the option is chosen, for the list that owns it.
+ * @csspart control - The option row.
+ * @csspart before - Leading slot wrapper.
+ * @csspart content - Wrapper around the label and description.
+ * @csspart label - Label wrapper.
+ * @csspart description - Description wrapper.
+ * @csspart after - Trailing slot wrapper.
+ */
 export class VioletOption extends FASTElement {
     @observable
     declare public active: boolean;

@@ -47,6 +47,15 @@ const template = html<VioletOptionGroup>`
     </div>
 `;
 
+/**
+ * Violet reusable option group primitive.
+ *
+ * @summary A labelled group of options inside a violet-select, violet-combobox or violet-listbox.
+ * @slot - The group's violet-option elements.
+ * @fires group-state-change - Emitted when the group's disabled state changes, for its options.
+ * @csspart label - Group label element.
+ * @csspart options - Wrapper around the slotted options.
+ */
 export class VioletOptionGroup extends FASTElement {
     readonly #internals: ElementInternals;
 

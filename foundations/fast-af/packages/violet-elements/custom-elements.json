@@ -4989,8 +4989,60 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "",
+          "description": "Violet reusable combobox primitive.",
           "name": "VioletCombobox",
+          "cssParts": [
+            {
+              "description": "Decorative open indicator.",
+              "name": "caret"
+            },
+            {
+              "description": "Framed wrapper around the input and the caret.",
+              "name": "control-frame"
+            },
+            {
+              "description": "Wrapper around the input frame and the popup panel.",
+              "name": "control-shell"
+            },
+            {
+              "description": "Shown when no option matches the text.",
+              "name": "empty-state"
+            },
+            {
+              "description": "Error text element.",
+              "name": "error-message"
+            },
+            {
+              "description": "Field wrapper.",
+              "name": "field"
+            },
+            {
+              "description": "Native text input.",
+              "name": "input"
+            },
+            {
+              "description": "Label text element.",
+              "name": "label"
+            },
+            {
+              "description": "The popup list that holds the slotted options.",
+              "name": "listbox"
+            },
+            {
+              "description": "Popup panel.",
+              "name": "panel"
+            },
+            {
+              "description": "Supporting text element.",
+              "name": "supporting-text"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The options: violet-option and violet-option-group elements.",
+              "name": ""
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -5704,10 +5756,21 @@
               "readonly": true
             }
           ],
+          "events": [
+            {
+              "description": "Emitted while the text changes, with the text and the chosen option's value.",
+              "name": "input"
+            },
+            {
+              "description": "Emitted when an option is chosen or the text is committed.",
+              "name": "change"
+            }
+          ],
           "superclass": {
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
+          "summary": "Editable field that filters a popup list of options as the user types; the form receives the chosen option's value.",
           "attributes": [
             {
               "name": "label",
@@ -5791,9 +5854,7 @@
             }
           ],
           "customElement": true,
-          "tagName": "violet-combobox",
-          "cssParts": [],
-          "slots": []
+          "tagName": "violet-combobox"
         }
       ],
       "exports": [
@@ -27570,8 +27631,20 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "",
+          "description": "Violet reusable listbox primitive.",
           "name": "VioletListbox",
+          "cssParts": [
+            {
+              "description": "The focusable list element.",
+              "name": "control"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The options: violet-option and violet-option-group elements.",
+              "name": ""
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -27914,10 +27987,21 @@
               }
             }
           ],
+          "events": [
+            {
+              "description": "Emitted when the selection changes.",
+              "name": "input"
+            },
+            {
+              "description": "Emitted when the selection changes.",
+              "name": "change"
+            }
+          ],
           "superclass": {
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
+          "summary": "Always-visible list of options for choosing one, or several with multiple.",
           "attributes": [
             {
               "name": "label",
@@ -27961,9 +28045,7 @@
             }
           ],
           "customElement": true,
-          "tagName": "violet-listbox",
-          "cssParts": [],
-          "slots": []
+          "tagName": "violet-listbox"
         }
       ],
       "exports": [
@@ -28784,8 +28866,24 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "",
+          "description": "Violet reusable option group primitive.",
           "name": "VioletOptionGroup",
+          "cssParts": [
+            {
+              "description": "Group label element.",
+              "name": "label"
+            },
+            {
+              "description": "Wrapper around the slotted options.",
+              "name": "options"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The group's violet-option elements.",
+              "name": ""
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -28865,10 +28963,17 @@
               "default": "`violet-option-group-label-${violetOptionGroupId}`"
             }
           ],
+          "events": [
+            {
+              "description": "Emitted when the group's disabled state changes, for its options.",
+              "name": "group-state-change"
+            }
+          ],
           "superclass": {
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
+          "summary": "A labelled group of options inside a violet-select, violet-combobox or violet-listbox.",
           "attributes": [
             {
               "name": "label",
@@ -28888,9 +28993,7 @@
             }
           ],
           "customElement": true,
-          "tagName": "violet-option-group",
-          "cssParts": [],
-          "slots": []
+          "tagName": "violet-option-group"
         }
       ],
       "exports": [
@@ -28910,8 +29013,52 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "",
+          "description": "Violet reusable option primitive.",
           "name": "VioletOption",
+          "cssParts": [
+            {
+              "description": "Trailing slot wrapper.",
+              "name": "after"
+            },
+            {
+              "description": "Leading slot wrapper.",
+              "name": "before"
+            },
+            {
+              "description": "Wrapper around the label and description.",
+              "name": "content"
+            },
+            {
+              "description": "The option row.",
+              "name": "control"
+            },
+            {
+              "description": "Description wrapper.",
+              "name": "description"
+            },
+            {
+              "description": "Label wrapper.",
+              "name": "label"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The option's label text.",
+              "name": ""
+            },
+            {
+              "description": "Trailing content such as a shortcut or count.",
+              "name": "after"
+            },
+            {
+              "description": "Leading content such as an icon.",
+              "name": "before"
+            },
+            {
+              "description": "Secondary text under the label.",
+              "name": "description"
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -29108,10 +29255,17 @@
               "reflects": true
             }
           ],
+          "events": [
+            {
+              "description": "Emitted when the option is chosen, for the list that owns it.",
+              "name": "request-select"
+            }
+          ],
           "superclass": {
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
+          "summary": "One choice inside a violet-select, violet-combobox or violet-listbox.",
           "attributes": [
             {
               "name": "value",
@@ -29147,9 +29301,7 @@
             }
           ],
           "customElement": true,
-          "tagName": "violet-option",
-          "cssParts": [],
-          "slots": []
+          "tagName": "violet-option"
         }
       ],
       "exports": [
@@ -29566,8 +29718,22 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "",
+          "description": "Violet reusable persona primitive.",
           "name": "VioletPersona",
+          "cssParts": [
+            {
+              "description": "The initials shown without an image.",
+              "name": "fallback"
+            },
+            {
+              "description": "The rendered image element.",
+              "name": "image"
+            },
+            {
+              "description": "The avatar frame.",
+              "name": "root"
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -29732,6 +29898,7 @@
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
+          "summary": "Avatar for a person: their image, or initials on a colour drawn from their name when there is no image or it fails to load.",
           "attributes": [
             {
               "name": "label",
@@ -29776,7 +29943,6 @@
           ],
           "customElement": true,
           "tagName": "violet-persona",
-          "cssParts": [],
           "slots": []
         }
       ],
@@ -32150,8 +32316,52 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "",
+          "description": "Violet reusable select primitive.",
           "name": "VioletSelect",
+          "cssParts": [
+            {
+              "description": "Decorative open indicator.",
+              "name": "caret"
+            },
+            {
+              "description": "Wrapper around the trigger and the popup panel.",
+              "name": "control-shell"
+            },
+            {
+              "description": "Error text element.",
+              "name": "error-message"
+            },
+            {
+              "description": "Field wrapper.",
+              "name": "field"
+            },
+            {
+              "description": "Label text element.",
+              "name": "label"
+            },
+            {
+              "description": "The popup list that holds the slotted options.",
+              "name": "listbox"
+            },
+            {
+              "description": "Popup panel.",
+              "name": "panel"
+            },
+            {
+              "description": "Supporting text element.",
+              "name": "supporting-text"
+            },
+            {
+              "description": "The button that opens the list and shows the chosen option.",
+              "name": "trigger"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The options: violet-option and violet-option-group elements.",
+              "name": ""
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -32902,10 +33112,21 @@
               "readonly": true
             }
           ],
+          "events": [
+            {
+              "description": "Emitted when the chosen option changes.",
+              "name": "input"
+            },
+            {
+              "description": "Emitted when the chosen option changes.",
+              "name": "change"
+            }
+          ],
           "superclass": {
             "name": "FASTElement",
             "package": "@lushly-dev/fast-element"
           },
+          "summary": "Button-triggered popup list for choosing one option; the form receives the chosen option's value.",
           "attributes": [
             {
               "name": "label",
@@ -32989,9 +33210,7 @@
             }
           ],
           "customElement": true,
-          "tagName": "violet-select",
-          "cssParts": [],
-          "slots": []
+          "tagName": "violet-select"
         }
       ],
       "exports": [
