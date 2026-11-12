@@ -2,18 +2,40 @@
 
 > Agent-First Development — where commands are the application and UI is just one surface.
 
-## Structure
+Start with the [root README](../README.md): it tells the story, walks through a five-minute quickstart and introduces [the rest of the AFD family](../README.md#the-rest-of-the-repository). This folder holds what sits behind it.
 
-| Folder | Purpose |
-|--------|---------|
-| [features/](./features/) | Feature proposals, specs, and assets |
-| [language-parity.md](./language-parity.md) | Capability matrix and known gaps across the TypeScript, Python, Rust and C++ implementations |
-| [reviews/](./reviews/) | Dated repository review reports |
-| [whitepaper/](./whitepaper/) | High-level vision and architecture documents |
+## Where to look
+
+| You want | Go to |
+|----------|-------|
+| The argument for agent-first development | [whitepaper/](./whitepaper/AFD-Whitepaper.md) |
+| How to design and write commands | The skills under [`.claude/skills/`](../.claude/skills): `afd` (philosophy, jobs first, command schema, MCP integration), then `afd-typescript`, `afd-python`, `afd-rust` or `afd-cpp` |
+| The contract every language implements | [`spec/`](../spec): wire format, error codes, command metadata, authorization, and the vectors that test them |
+| What each language implements today | [language-parity.md](./language-parity.md) |
+| What is proposed, in progress or shipped | [features/](./features/README.md) |
+| How releases and hosted checks are run | [operations/](./operations/) |
+| Past repository reviews | [reviews/](./reviews/) |
+| History before per-package changelogs | [changelog-archive.md](./changelog-archive.md); current changelogs are indexed in the [root CHANGELOG](../CHANGELOG.md) |
+
+## The rest of the family
+
+Each project keeps its documentation next to its code. A status file says exactly what is done and what is not, so nobody has to read the code to find out.
+
+| Project | Start here | Status |
+|---------|-----------|--------|
+| Specimen, a component observation bench | [README](../foundations/specimen/README.md) | [Specimens status](./features/active/specimens/STATUS.md) |
+| FAST-AF, a web component runtime and components | [README](../foundations/fast-af/README.md) | In its README |
+| Violet, a design token engine | [README](../foundations/violet/README.md) | [Transition notes](./features/active/platform-monorepo/violet-transition.md) |
+| Umbel, a host for capability plugins | [README](../endpoints/umbel/README.md), [architecture](../endpoints/umbel/docs/architecture.md) | [Umbel status](../endpoints/umbel/docs/STATUS.md) |
+| Loam, an application shell | [README](../endpoints/loam/README.md), [architecture](../endpoints/loam/docs/architecture.md) | [Loam status](../endpoints/loam/docs/STATUS.md) |
+| Botcore, shared agent tooling | [README](../endpoints/botcore/README.md) | [Handoff record](./features/active/platform-monorepo/botcore-handoff.md) |
+| Health, repository audits, and its dashboard | [Health](../endpoints/health/README.md), [dashboard](../endpoints/health-dashboard/README.md) | In each README |
+
+How these came to share one repository, and the rules that keep an imported package from being published by accident, are in the [platform monorepo](./features/active/platform-monorepo/) project and its [status](./features/active/platform-monorepo/STATUS.md).
 
 ## Features
 
-Features progress through three stages:
+A feature is proposed, reviewed, built and shipped. Its folder under [features/](./features/README.md) moves with it:
 
 | Stage | Folder | Description |
 |-------|--------|-------------|
@@ -21,35 +43,23 @@ Features progress through three stages:
 | **Active** | `features/active/` | Approved, in implementation |
 | **Complete** | `features/complete/` | Shipped and archived |
 
-### Recently Completed
+A feature that adds or changes commands starts from the jobs it serves, each written as a scenario file before the commands are specified. Each feature folder contains:
 
-- [Auth Adapter](./features/complete/auth-adapter/) — Authentication adapter pattern for AFD servers
-- [Command Trust Config](./features/complete/command-trust-config/) — Per-command trust levels and exposure control
-- [Command Exposure & Undo](./features/complete/command-exposure-undo/) — Command visibility and undo support
-- [Handoff Pattern](./features/complete/handoff-pattern/) — Real-time protocol handoff for streaming
-- [Command Pipeline](./features/complete/command-pipeline/) — Declarative command chaining
+- `<feature>.proposal.md` — the what and why
+- `scenarios/` — the jobs, one `*.scenario.yaml` each
+- `spec.md` — the how, after approval
+- `STATUS.md` — what is done and not done, kept current once work starts
+- `assets/` — diagrams and screenshots (optional)
 
-### Active Architecture Projects
+The [feature index](./features/README.md) lists every feature and its state.
 
-- [AFD platform monorepo](./features/active/platform-monorepo/) — Active implementation of independent foundations, composable endpoints, and shared release safeguards. [Specification](./features/active/platform-monorepo/spec.md), [inventory](./features/active/platform-monorepo/inventory.md), and [status](./features/active/platform-monorepo/STATUS.md). Lushly remains separate; Creator is excluded. Accepted proposal and review snapshots are preserved with the project.
+## Operations
 
-## Guides
-
-Guides have been migrated to skills under `.claude/skills/`. See:
-- `afd` skill — Philosophy, command schema design, MCP integration, telemetry
-- `afd-directclient` skill — In-process command execution and optimistic UI in app clients
-
-## Workflow
-
-```
-Proposed → Review → Active → Implementation → Complete
-```
-
-1. **Proposed** — Draft in `features/proposed/` with `proposal.md`
-2. **Active** — Approved, add `spec.md`, begin implementation
-3. **Complete** — Shipped, move to `features/complete/`
-
-Each feature folder contains:
-- `proposal.md` — The what/why
-- `spec.md` — The how (after approval)
-- `assets/` — Diagrams, screenshots (optional)
+| Document | What it covers |
+|----------|----------------|
+| [platform-releases.md](./operations/platform-releases.md) | How a package is admitted for release, and the npm release workflow |
+| [native-first-releases.md](./operations/native-first-releases.md) | The first Rust and C++ releases, and the ones that followed |
+| [stabilization-release.md](./operations/stabilization-release.md) | The October 2026 stabilization release and its receipts |
+| [hosted-verification.md](./operations/hosted-verification.md), [hosted-verification-round.md](./operations/hosted-verification-round.md), [hosted-render.md](./operations/hosted-render.md) | Checking auth and durable persistence against hosted providers |
+| [model-routing.md](./operations/model-routing.md) | Which model and effort a development agent uses for which task |
+| [skills-audit-2026-11.md](./operations/skills-audit-2026-11.md) | The November 2026 audit of the repository's skills |

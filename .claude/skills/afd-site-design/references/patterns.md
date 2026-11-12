@@ -96,6 +96,36 @@ Pairs a drawn human UI pattern with its agent equivalent, inside the agent-UX ta
 Available drawings: `ua-menu` (discovery), `ua-toast` (feedback), `ua-dialog`
 (confirmation).
 
+## The family list
+
+The rest of the AFD family (Specimen, FAST-AF, Violet, Umbel, Loam), as a second block inside
+the ink proof band. It isn't a numbered section, so it has no figure label or numeral.
+
+```html
+<div class="evidence family" id="family">
+	<div class="evidence-heading">
+		<h3>The same rule,<br><span>one layer up.</span></h3>
+		<span class="mono">THE AFD FAMILY</span>
+	</div>
+	<p class="family-lead">…</p>
+	<ul class="family-list">
+		<li>
+			<h4>Specimen</h4>
+			<p>One or two sentences.</p>
+			<span class="mono family-status family-status--out">Preview on npm</span>
+			<a href="…">Read more <i class="icon icon--out" aria-hidden="true"></i></a>
+		</li>
+	</ul>
+</div>
+```
+
+- The heading is `--t-title`, not `--t-statement`: "Don't take it on faith" stays the
+  band's one statement.
+- `family-status--out` (paper) marks a project people can install; without it the status
+  is muted. Mint and red keep their meanings, so neither is used for status.
+- Update a status here, in `site/llms.txt`, in the README's family table and in
+  `docs/features/README.md` together.
+
 ## Buttons
 
 ```html

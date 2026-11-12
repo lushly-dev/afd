@@ -1,13 +1,13 @@
 # AFD — Agent-First Development
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](#)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7.0-3178C6.svg?logo=typescript&logoColor=white)](#)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](#)
 [![Rust](https://img.shields.io/badge/Rust-1.85+-DEA584.svg?logo=rust&logoColor=white)](#)
 [![C++](https://img.shields.io/badge/C++-20-00599C.svg?logo=cplusplus&logoColor=white)](#)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.12-339933.svg?logo=node.js&logoColor=white)](#)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-8b5cf6?style=flat-square)](#)
-[![Companion: botcore](https://img.shields.io/badge/Companion-botcore-6d28d9?style=flat-square&logo=github)](https://github.com/lushly-dev/botcore)
+[![Website](https://img.shields.io/badge/Website-afd.dev-f74431?style=flat-square)](https://afd.dev)
 [![Sponsor](https://img.shields.io/badge/Sponsor-db2777?style=flat-square&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Falkicon)
 
 | Implementation | Package | Latest release | Status | Contract |
@@ -20,7 +20,7 @@
 
 > 🟢 **Beta:** stable and in active use across multiple projects. APIs are mostly stable; expect targeted iterative improvements. 🟡 **Preview:** tested, but not yet proven in production; the API may change in a minor release before 1.0. **Contract** is the version of the shared AFD contract in [`spec/`](./spec/CHANGELOG.md) that each implementation implements; each package keeps its own version. Feedback welcome!
 
-> **Reference pair:** AFD defines command-first architecture patterns; botcore provides the shared bot infrastructure and skills used to operate those patterns at scale. See https://github.com/lushly-dev/botcore.
+> **More than the libraries.** This repository also holds the projects that grew up around AFD: a component bench, a web component runtime, a design token engine, a plugin host, an application shell and shared agent tooling. [The rest of the repository](#the-rest-of-the-repository) says what each one is and how far along it is.
 
 **What if we applied UX design thinking to AI agents?**
 
@@ -181,22 +181,24 @@ By designing for agents first, your software automatically becomes API-first (ag
 
 ## What's in the Toolkit
 
-AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four share the wire contract (`spec/wire`) and pass the same todo conformance suite. Their language-specific APIs differ, and so does their scope. TypeScript and Python include MCP servers and clients; Rust and C++ are in-process libraries. See [Language Parity](./docs/language-parity.md) for the capability matrix and known gaps.
+AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four share one contract, written down in [`spec/`](./spec) with golden wire fixtures, and pass the same todo conformance suite. Their language-specific APIs differ, and so does their scope. TypeScript and Python include MCP servers and clients; Rust has an optional MCP server; C++ is an in-process library. See [Language Parity](./docs/language-parity.md) for the capability matrix and known gaps.
 
 | Package | What it does |
 |---------|-------------|
 | **@lushly-dev/afd-core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
-| **@lushly-dev/afd-server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry) |
-| **@lushly-dev/afd-client** | MCP client with SSE/HTTP transports + `DirectClient` for ~0.03ms in-process execution |
+| **@lushly-dev/afd-server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry), plus a browser-safe in-process registry |
+| **@lushly-dev/afd-client** | MCP client over Streamable HTTP (the older SSE transport still works) + `DirectClient` for ~0.03ms in-process execution |
 | **@lushly-dev/afd-testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
 | **@lushly-dev/afd-cli** | CLI for connecting, calling, validating, and exploring commands |
 | **@lushly-dev/afd-auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
+| **@lushly-dev/afd-view-state** | UI view state (panels, selections, tool modes) managed through commands, so agents and tests can see and drive it |
 | **@lushly-dev/afd-adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
+| **@lushly-dev/local-db** | Async data adapter with swappable backends (memory, HTTP) for command storage |
 | **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
-| **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; no MCP server yet |
+| **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; an MCP server behind the optional `server` feature |
 | **afd-cpp** *(C++20, published preview)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
 
-AFD stays framework-agnostic at the command layer. React or browser integrations belong in examples and ecosystem layers, not in the core parity target.
+AFD stays framework-agnostic at the command layer. React or browser integrations belong in examples and in the projects around AFD, not in the core parity target.
 
 Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), [real-time handoff](./docs/features/complete/handoff-pattern/), and [middleware defaults](./docs/features/complete/middleware-defaults/) (zero-config observability) are already shipped.
 
@@ -204,7 +206,9 @@ Features like [command trust config](./docs/features/complete/command-trust-conf
 
 ## Development Workflow
 
-**Per-Command Workflow** (repeat for each feature):
+A feature starts from the jobs it serves. Write each job as a short scenario file first; a job you can't write with the commands you drafted is a gap in the design, found before any code exists ([jobs first](./.claude/skills/afd/references/jobs-first.md)).
+
+**Per-Command Workflow** (repeat for each command):
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -468,7 +472,7 @@ pnpm build
 node packages/cli/dist/bin.js --help
 ```
 
-> `pnpm check` runs all quality gates (lint, typecheck, test, build) manually. See [CONTRIBUTING.md](./CONTRIBUTING.md).
+> `pnpm check` runs the TypeScript quality gate (lint, build, typecheck, tests) over the packages your change affects. The Python, Rust and C++ implementations and the families below have their own suites; [SETUP.md](./SETUP.md) gets a machine ready and [CONTRIBUTING.md](./CONTRIBUTING.md) says which commands go with which area.
 
 ## CLI Reference
 
@@ -482,7 +486,82 @@ node packages/cli/dist/bin.js --help
 | `afd call <tool> [args]` | Call a tool with JSON args |
 | `afd validate` | Validate the tool listing (`--execute` also calls read-only tools) |
 | `afd validate --surface` | Run cross-command surface validation |
+| `afd batch <commands>` | Run several commands in one request |
+| `afd stream <tool> [args]` | Stream a command's results |
+| `afd scenario run <path>` | Run JTBD scenario files against a server |
+| `afd replay <file>` | Replay a command journal in-process and diff the results |
 | `afd shell` | Interactive mode |
+
+The [CLI's README](./packages/cli/README.md) covers every option.
+
+## The Rest of the Repository
+
+AFD started as a method and a set of libraries. Then the method got used, and the same question kept coming back one layer higher. If commands are the product, what does a component library look like when an agent is the one reading it? A design system? A server that gives a model knowledge and memory? A whole application?
+
+Each answer became a project, and those projects now live here, next to the libraries. They share the idea behind AFD: a capability should be reachable as a command, so a person, a test and an agent all get the same software.
+
+The repository is laid out by what a thing is for:
+
+```mermaid
+graph TB
+    subgraph Endpoints["endpoints/ — things you run"]
+        direction LR
+        Loam["Loam<br/><em>application shell</em>"]
+        Umbel["Umbel<br/><em>plugin host</em>"]
+        Tools["CLIs and servers<br/><em>specimen, violet,<br/>Botcore, Health</em>"]
+    end
+
+    subgraph Integrations["integrations/ — a foundation, as AFD commands"]
+        direction LR
+        SA["specimen-afd"]
+        SF["specimen-fast-af"]
+        VA["violet-afd"]
+    end
+
+    subgraph Foundations["foundations/ and packages/ — each stands alone"]
+        direction LR
+        AFD["AFD<br/><em>commands</em>"]
+        Specimen["Specimen<br/><em>component bench</em>"]
+        FastAF["FAST-AF<br/><em>web components</em>"]
+        Violet["Violet<br/><em>design tokens</em>"]
+    end
+
+    Endpoints --> Integrations --> Foundations
+
+    style Endpoints fill:#1a1a2e,stroke:#f59e0b,color:#eee
+    style Integrations fill:#1a1a2e,stroke:#8b5cf6,color:#eee
+    style Foundations fill:#1a1a2e,stroke:#22c55e,color:#eee
+```
+
+- **Foundations** stand on their own. Specimen, FAST-AF and Violet have no dependency on AFD, so you can adopt one without the rest.
+- **Integrations** bind a foundation to AFD: the same operations, exposed as validated commands that return a `CommandResult`.
+- **Endpoints** are what you install and run: a CLI, an MCP server, a host, an app shell. They compose the layers below.
+
+### The families
+
+| Family | What it is | Where it stands |
+|--------|-----------|-----------------|
+| [**Specimen**](./foundations/specimen/README.md) | A component observation bench. It renders a component in Chromium and records what actually happened: geometry, computed styles, native control state, open shadow DOM and ARIA snapshots. Two renders can then be compared on evidence, including changes that identical markup would hide. It runs stories written in Storybook's format, with their plays and accessibility checks, and needs no Storybook installed. | Preview, on npm under the `preview` tag, with its [CLI](./endpoints/specimen-cli/README.md), [AFD commands](./integrations/specimen-afd/README.md) and [FAST-AF plugin](./integrations/specimen-fast-af/README.md) |
+| [**FAST-AF**](./foundations/fast-af/README.md) | A web component runtime (`@lushly-dev/fast-element`) and a component library built on it (`violet-elements`). Every component's stories run on Specimen, and each component carries a record of what an agent writing a page needs to know about it. | The runtime is a preview on npm; the components are in the repository only |
+| [**Violet**](./foundations/violet/README.md) | A design token engine. Tokens live on nodes in a tree; each node inherits from its parent and adds, overrides or removes. It exports CSS, SCSS, TypeScript, Swift, Kotlin, Dart, Tailwind and more, and ships a browser runtime for loading tokens and switching themes, a [`violet` CLI](./endpoints/violet-cli/README.md) and an [MCP server](./endpoints/violet-server/README.md). | In the repository; not published from here yet |
+| [**Umbel**](./endpoints/umbel/README.md) | An empty Rust host for capability plugins, reachable over MCP and as a CLI. It ships with no capability of its own: knowledge, memory, context and tools arrive as plugins, and one deployment can hold several isolated spaces. The model calling it does the reasoning; Umbel keeps it informed and remembered, with every answer traceable to its source. | In development, unpublished. The host, the plugin contract, knowledge, memory and context, and the curator are done; sign-in and hosting are in progress ([status](./endpoints/umbel/docs/STATUS.md)) |
+| [**Loam**](./endpoints/loam/README.md) | An application shell: one chrome into which many apps land as plugins, sharing sign-in, projects, documents, settings and a command palette. The shell's own state is commands, so agents and tests drive it the way people do. Its chrome is FAST-AF components on a Violet theme. | In development, unpublished. The kernel and chrome, the app contract, and projects and documents are done; identity and hosting are in progress ([status](./endpoints/loam/docs/STATUS.md)) |
+| [**Botcore**](./endpoints/botcore/README.md) | Shared agent tooling for the repositories you work in: commands, skills, configuration and plugins from one `pip install`, so every repository's agent has the same tools. | `lushly-botcore` is on PyPI, published from this repository |
+| [**Health**](./endpoints/health/README.md) | Repository health audits you point at explicit targets, with a versioned JSON report and a [static dashboard](./endpoints/health-dashboard/README.md) to read it. The audited repository needs no AFD dependency. | In the repository only |
+| [**Alfred**](./alfred/README.md) | This repository's own quality bot: architecture lint, cross-language parity and command description quality, through CLI and MCP. | In the repository only |
+
+### How they fit together
+
+The projects were built separately, and each one is used by the others:
+
+- **FAST-AF's components are tested on Specimen.** Specimen is their only story runner.
+- **Loam is built from the others.** Its chrome is FAST-AF components, its theme is a Violet token tree, its fixtures run on Specimen, and its kernel is AFD's in-process registry running in the browser.
+- **Umbel and Loam share one plugin manifest.** Its host-neutral core is specified in [`spec/plugin-manifest.md`](./spec/plugin-manifest.md), with a profile for each host, so an Umbel plugin and a Loam app are described the same way. Loam's test suite mounts a stock `umbel` and drives it from the shell.
+- **What they needed went back into AFD.** MCP authorization, output budgets, resources and long-running tasks joined the shared contract in [`spec/`](./spec) because Umbel and Loam needed them, usually with Rust implementing them first.
+
+### What "in the repository" means
+
+Bringing source into this repository does not publish it. [`scripts/release/inventory.json`](./scripts/release/inventory.json) lists every releasable unit, and a unit publishes only once it has been explicitly admitted there; everything else is held back. So a package can be built, tested and used inside the workspace long before you can install it from a registry. The table above says which is which, and [platform releases](./docs/operations/platform-releases.md) describes the process.
 
 ## Documentation
 
@@ -490,66 +569,45 @@ node packages/cli/dist/bin.js --help
 |-------|-------------|
 | [Philosophy](./.claude/skills/afd/references/philosophy.md) | **Why** AFD — UX design for AI collaborators |
 | [Command Schema Guide](./.claude/skills/afd/references/command-schema.md) | How to design commands that enable good agent UX |
+| [Jobs First](./.claude/skills/afd/references/jobs-first.md) | Starting a feature from the jobs it serves, written as scenarios |
 | [Optimistic UI](./.claude/skills/afd-directclient/SKILL.md#optimistic-ui-in-an-app-client) | How to use optimistic updates in interactive AFD clients without moving business logic out of commands |
-| [Trust Through Validation](./docs/whitepaper/AFD-Whitepaper.md#6-trust-through-validation) | How CLI validation builds user trust |
-| [Implementation Roadmap](./docs/whitepaper/AFD-Whitepaper.md#7-implementation-roadmap) | 4-phase roadmap for AFD projects |
-| [Production Considerations](./docs/whitepaper/AFD-Whitepaper.md#11-production-considerations) | Security, mutation safety, and observability guidance |
+| [The AFD contract](./spec) | The shared specification every language implements: wire format, error codes, metadata, authorization and more |
+| [Language Parity](./docs/language-parity.md) | What each language implements, and the known gaps |
+| [Whitepaper](./docs/whitepaper/AFD-Whitepaper.md) | The full argument, including [trust through validation](./docs/whitepaper/AFD-Whitepaper.md#6-trust-through-validation), an [implementation roadmap](./docs/whitepaper/AFD-Whitepaper.md#7-implementation-roadmap) for AFD projects and [production considerations](./docs/whitepaper/AFD-Whitepaper.md#11-production-considerations) |
+| [Docs index](./docs/README.md) | Feature proposals and their status, operations notes and reviews |
 
 ## Examples
 
 | Example | Description |
 |---------|-------------|
 | [Todo App](./packages/examples/todo) | Multi-stack example with 4 backends (TypeScript, Python, Rust, C++) and 2 frontends (Vanilla JS, React). Features shared storage, trust UI, remote change detection, and full MCP integration |
+| [Todo with DirectClient](./packages/examples/todo-directclient) | An AI copilot calling the same commands in-process, with no network hop |
+| [Chat](./packages/examples/chat) | The handoff pattern: a command returns a WebSocket URL and a short-lived token, and the client talks to the socket directly |
+| [Feature Showcase](./packages/examples/showcase) | Runnable demos of auth, default middleware and surface validation |
 
 ## Testing
 
-Testability is built in at every layer. Run the full suite:
+Because commands carry no UI, they can be tested at every layer without a browser:
 
-```bash
-pnpm test
-```
+| Layer | What it proves | How |
+|-------|----------------|-----|
+| **Unit tests** | A command's logic, and that it returns a well-formed `CommandResult` | Vitest, next to the command (see the Todo example's [`commands.test.ts`](./packages/examples/todo/backends/typescript/src/commands/__tests__/commands.test.ts)) |
+| **Performance tests** | Response time against a threshold, with no network or database in the way | The Todo example's [`performance.test.ts`](./packages/examples/todo/backends/typescript/src/commands/__tests__/performance.test.ts) |
+| **Scenarios** | A whole job, step by step, the way a user or agent would do it | `afd scenario run` |
+| **Surface validation** | The command set as an agent meets it: names, descriptions, overlap, injection risks | `afd validate --surface` |
+| **Conformance** | That four languages behave as one | A shared suite run against the TypeScript, Python, Rust and C++ todo backends in [`conformance.yml`](./.github/workflows/conformance.yml) |
 
-### Test Categories
+In this repository, `pnpm test` runs the TypeScript suites.
 
-| Category | Purpose | Location |
-|----------|---------|----------|
-| **Unit Tests** | Command logic correctness | `**/commands/__tests__/commands.test.ts` |
-| **Performance Tests** | Response time baselines | `**/commands/__tests__/performance.test.ts` |
-| **AFD Compliance** | CommandResult structure validation | Included in unit tests |
-| **Surface Validation** | Cross-command semantic quality analysis | `afd validate --surface` |
+## What's in Flight
 
-### Performance Testing
+Work is planned in the open, and every project keeps a status file that says exactly what is done and what is not:
 
-Performance tests catch regressions by comparing against baselines:
-
-```bash
-# Run with performance summary
-pnpm test
-
-# Example output:
-# Performance Summary
-# Command             Duration    Threshold   Status
-# todo.create         0.85ms      10ms        ✓
-# todo.list           8.7ms       20ms        ✓
-```
-
-Commands run in isolation (no network, no database) to measure pure business logic performance. See the Todo example for patterns.
-
-## Roadmap
-
-- [x] Methodology documentation
-- [x] Command schema guide
-- [x] Trust framework documentation
-- [x] Implementation phases guide
-- [x] CLI tool (`@lushly-dev/afd-cli`)
-- [x] MCP client library (`@lushly-dev/afd-client`)
-- [x] MCP server library (`@lushly-dev/afd-server`)
-- [x] Core types (`@lushly-dev/afd-core`)
-- [x] Testing utilities (`@lushly-dev/afd-testing`)
-- [x] Example implementations
-- [x] Performance testing framework
-- [ ] VS Code extension
-- [x] npm publish
+- **AFD itself:** the [feature index](./docs/features/README.md) lists what is proposed, active and shipped, and [Language Parity](./docs/language-parity.md) tracks the gaps between languages.
+- **Umbel:** [status](./endpoints/umbel/docs/STATUS.md) and [architecture](./endpoints/umbel/docs/architecture.md).
+- **Loam:** [status](./endpoints/loam/docs/STATUS.md) and [architecture](./endpoints/loam/docs/architecture.md).
+- **Specimen:** [status](./docs/features/active/specimens/STATUS.md).
+- **Bringing the families into one repository:** [platform monorepo status](./docs/features/active/platform-monorepo/STATUS.md).
 
 ## Community
 
