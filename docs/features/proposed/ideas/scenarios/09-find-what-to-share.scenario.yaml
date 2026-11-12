@@ -25,26 +25,57 @@ steps:
     expect:
       success: true
 
-  - description: I hold both
-    command: ideas-affirm
+  - description: Put both in front of me
+    command: ideas-review-stage
     input:
-      ids: ["${{ steps[0].data.id }}", "${{ steps[1].data.id }}"]
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      digest: "${{ steps[2].data.digest }}"
     expect:
       success: true
       data:
-        affirmed: 2
+        applied:
+          affirm: 2
 
-  - description: The first was posted
+  - description: The first was posted, and the record says so
     command: ideas-output-record
     input:
       title: Garlic by the calendar
       format: thread
       channel: social
+      state: published
+      location: https://example.org/posts/garlic
       ideas: ["${{ steps[0].data.id }}"]
     expect:
       success: true
+      data:
+        state: published
 
-  - description: What I hold and have not used on that channel
+  - description: A draft of the second, never posted, does not count as used
+    command: ideas-output-record
+    input:
+      title: Bare soil
+      format: thread
+      channel: social
+      ideas: ["${{ steps[1].data.id }}"]
+    expect:
+      success: true
+      data:
+        state: draft
+
+  - description: What I hold and have not published on that channel
     command: ideas-find
     input:
       standing: [affirmed]
@@ -55,7 +86,7 @@ steps:
       data:
         total: 1
 
-  - description: What I have used there
+  - description: What I have published there
     command: ideas-find
     input:
       usedIn:

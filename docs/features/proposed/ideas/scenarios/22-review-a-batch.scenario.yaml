@@ -1,0 +1,237 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# Four ideas stand in for a sitting of a hundred or more, which would come in several parts,
+# each small enough for the person page to show. Every step runs as the test actor, so the file
+# cannot show that an agent is refused at ideas-review-apply and a person is allowed; that rule
+# is tested at the host. The preview is the person page's and the operator's: it is not served
+# over MCP, and the step here runs in process. How long a real sitting takes is measured in
+# phase 0.4.
+
+name: Review a batch in one sitting
+description: >-
+  When many ideas wait for me, I want to go through them in conversation, saying yes, no, not
+  now or "in these words" to each, and then confirm the whole set, so that the conversation is
+  not broken up, what I confirm is exactly what I was shown, and a yes given too fast can be
+  taken back.
+job: review-a-batch
+tags: [change, loop]
+
+steps:
+  - description: A good one
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Pinch out the tips of broad beans when the first pods set.
+    expect:
+      success: true
+
+  - description: One I am not sure about
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Harvest courgettes at finger length.
+      saidBy: agent
+    expect:
+      success: true
+
+  - description: One that says nothing
+    command: ideas-capture
+    input:
+      type: position
+      statement: Gardens reward the effort put into them.
+      saidBy: agent
+    expect:
+      success: true
+
+  - description: One that is nearly right
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Beans fix nitrogen, so never feed them.
+    expect:
+      success: true
+
+  - description: Four have not been looked at
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 4
+
+  - description: As I answer in conversation, the agent stages yes, yes and no; nothing changes yet
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+        - decide: decline
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[2].data.version }}"
+          reason: Says nothing.
+    expect:
+      success: true
+      data:
+        staged: 3
+
+  - description: I give the fourth in my own words
+    command: ideas-reframe
+    input:
+      id: "${{ steps[3].data.id }}"
+      statement: Beans need little nitrogen feed once they are established.
+      reason: The person's wording in review.
+      saidBy: person
+    expect:
+      success: true
+      data:
+        version: 2
+
+  - description: That wording is staged, by its version
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[3].data.id }}"
+          version: "${{ steps[6].data.version }}"
+    expect:
+      success: true
+      data:
+        staged: 4
+
+  - description: The whole set, with its digest; small enough to be one part
+    command: ideas-review-show
+    expect:
+      success: true
+      data:
+        total: 4
+        parts: { length: 1 }
+        counts:
+          affirm: 3
+          decline: 1
+        digest: { matches: '^sha256:' }
+
+  - description: I change my mind about the courgettes; not now
+    command: ideas-review-unstage
+    input:
+      targets:
+        - id: "${{ steps[1].data.id }}"
+    expect:
+      success: true
+      data:
+        staged: 3
+
+  - description: Applying the set as it stood before that change is refused
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[8].data.review }}"
+      digest: "${{ steps[8].data.digest }}"
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: ideas-review-show }
+
+  - description: The set as it stands now
+    command: ideas-review-show
+    expect:
+      success: true
+      data:
+        total: 3
+
+  - description: What the person page will show me for it, as text
+    command: ideas-review-preview
+    input:
+      review: "${{ steps[11].data.review }}"
+      digest: "${{ steps[11].data.digest }}"
+    expect:
+      success: true
+      data:
+        preview: { contains: Pinch out the tips of broad beans }
+
+  - description: I confirm it once
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[11].data.review }}"
+      digest: "${{ steps[11].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          affirm: 2
+          decline: 1
+        skipped: { length: 0 }
+
+  - description: One has still not been looked at, the one I put off
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: An ordinary read returns the three that remain, and not the one I declined
+    command: ideas-find
+    expect:
+      success: true
+      data:
+        total: 3
+
+  - description: The reworded idea is held in my words
+    command: ideas-open
+    input:
+      id: "${{ steps[3].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        statement: { contains: little nitrogen feed }
+
+  - description: What I said no to is not offered to me again, in these words or others
+    command: ideas-capture
+    input:
+      type: position
+      statement: Effort put into a garden is always rewarded.
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+
+  - description: I said yes to the broad beans too fast; put the reversal of that one decision in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: undo
+          review: "${{ steps[11].data.review }}"
+          id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        counts:
+          undo: 1
+
+  - description: I take it back
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[18].data.review }}"
+      digest: "${{ steps[18].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: It is what it was before I answered
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: seed

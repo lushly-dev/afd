@@ -6,7 +6,7 @@ description: >-
   When an agent or a new extraction run touches an idea I have affirmed, I want my wording to
   stand until I say otherwise, so that I can trust what the store says I hold.
 job: protect-affirmed
-tags: [anti, trust, slice]
+tags: [anti, trust, loop]
 
 steps:
   - description: An idea
@@ -17,10 +17,21 @@ steps:
     expect:
       success: true
 
-  - description: I hold it
-    command: ideas-affirm
+  - description: Put that wording in front of me
+    command: ideas-review-stage
     input:
-      ids: ["${{ steps[0].data.id }}"]
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[1].data.review }}"
+      digest: "${{ steps[1].data.digest }}"
     expect:
       success: true
 
@@ -33,6 +44,7 @@ steps:
     expect:
       success: true
       data:
+        version: 2
         standing: seed
 
   - description: What I hold is still my wording, with the proposal waiting
@@ -46,36 +58,60 @@ steps:
         statement: { contains: never at dusk }
         pending: { exists: true }
 
-  - description: A bundle of affirmed ideas returns my wording
-    command: ideas-bundle
+  - description: An affirmation that names the idea and no wording is refused
+    command: ideas-review-stage
     input:
-      ids: ["${{ steps[0].data.id }}"]
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+
+  - description: A search for what I hold finds my wording
+    command: ideas-find
+    input:
       standing: [affirmed]
+      text: watering in the morning
     expect:
       success: true
       data:
-        ideas: { length: 1 }
+        total: 1
 
-  - description: A new run
-    command: ideas-run-open
-    input:
-      sources: []
-      extractor: better-fixture-model, prompt 2
-    expect:
-      success: true
-
-  - description: The run finds the idea again and is refused
+  - description: A later extraction finds the idea again, in other words, and is refused
     command: ideas-capture
     input:
       type: principle
       statement: Morning is the time to water; evening watering should be avoided.
-      run: "${{ steps[5].data.run }}"
     expect:
       success: false
       error:
         code: ALREADY_EXISTS
 
-  - description: My wording still stands
+  - description: Put my no to the agent's wording in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: decline
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[3].data.version }}"
+          reason: Dusk watering invites slugs.
+    expect:
+      success: true
+
+  - description: I decline it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[8].data.review }}"
+      digest: "${{ steps[8].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          decline: 1
+
+  - description: My wording stands, nothing waits, and the declined wording stays in the history
     command: ideas-open
     input:
       id: "${{ steps[0].data.id }}"
@@ -83,3 +119,6 @@ steps:
       success: true
       data:
         standing: affirmed
+        statement: { contains: never at dusk }
+        pending: { notExists: true }
+        history: { length: 2 }

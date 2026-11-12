@@ -28,11 +28,14 @@ steps:
     expect:
       success: true
 
-  - description: An article that used it
+  - description: A published article that used it
     command: ideas-output-record
     input:
       title: The first big purchase
       format: article
+      channel: newsletter
+      state: published
+      location: https://example.org/first-big-purchase
       ideas: ["${{ steps[0].data.id }}"]
     expect:
       success: true

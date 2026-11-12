@@ -1,0 +1,230 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# Taking back a merge is shown in 07, and one decision of an applied review in 22.
+
+name: Take back a mistake
+description: >-
+  When I, an agent or a bulk run gets something wrong, I want to take it back, so that a
+  mistake costs minutes and leaves nothing behind that gets in the way.
+job: take-it-back
+tags: [change, loop]
+
+steps:
+  - description: Notes from a conversation about tomatoes
+    command: ideas-source-add
+    input:
+      title: Tomato notes
+      kind: notes
+      content: "Blight comes with wet leaves.\nTake off the lowest leaves once fruit sets."
+    expect:
+      success: true
+
+  - description: A run with a careless extractor
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[0].data.source }}"]
+      extractor: careless-fixture-model, prompt 1
+    expect:
+      success: true
+
+  - description: It captures a truism
+    command: ideas-capture
+    input:
+      type: position
+      statement: Tomatoes are plants that many gardeners grow.
+      run: "${{ steps[1].data.run }}"
+    expect:
+      success: true
+
+  - description: And a garbled claim
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Water tomato leaves in the evening to prevent blight.
+      run: "${{ steps[1].data.run }}"
+    expect:
+      success: true
+
+  - description: And one that is right
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Take off the lowest tomato leaves once fruit sets.
+      run: "${{ steps[1].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          sentences: [2]
+    expect:
+      success: true
+
+  - description: Close the run
+    command: ideas-run-close
+    input:
+      run: "${{ steps[1].data.run }}"
+      done: ["${{ steps[0].data.source }}"]
+    expect:
+      success: true
+
+  - description: Put the one that is right in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[4].data.id }}"
+          version: "${{ steps[4].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[6].data.review }}"
+      digest: "${{ steps[6].data.digest }}"
+    expect:
+      success: true
+
+  - description: The run is taken back; what I decided on is kept, and the rest goes, by any caller
+    command: ideas-run-revert
+    input:
+      run: "${{ steps[1].data.run }}"
+      reason: The extractor invented claims.
+    expect:
+      success: true
+      data:
+        withdrawn: 2
+        kept: { length: 1 }
+
+  - description: Nothing is left that I have not looked at
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 0
+
+  - description: The right idea is captured, and the withdrawn one does not refuse it
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Water tomatoes at the soil in the morning, never on the leaves, to slow blight.
+    expect:
+      success: true
+
+  - description: A link stated by mistake
+    command: ideas-link
+    input:
+      from: "${{ steps[10].data.id }}"
+      kind: challenges
+      to: "${{ steps[4].data.id }}"
+    expect:
+      success: true
+
+  - description: Is withdrawn by whoever notices
+    command: ideas-unlink
+    input:
+      from: "${{ steps[10].data.id }}"
+      kind: challenges
+      to: "${{ steps[4].data.id }}"
+    expect:
+      success: true
+
+  - description: Nothing of it is left
+    command: ideas-open
+    input:
+      id: "${{ steps[4].data.id }}"
+    expect:
+      success: true
+      data:
+        links:
+          in: { length: 0 }
+
+  - description: I retire the wrong idea by mistake
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: retire
+          id: "${{ steps[4].data.id }}"
+          reason: Meant to retire another idea.
+    expect:
+      success: true
+
+  - description: And confirm it without noticing
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[14].data.review }}"
+      digest: "${{ steps[14].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          retire: 1
+
+  - description: It is retired
+    command: ideas-open
+    input:
+      id: "${{ steps[4].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: retired
+
+  - description: Put the reversal in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: undo
+          review: "${{ steps[14].data.review }}"
+          id: "${{ steps[4].data.id }}"
+    expect:
+      success: true
+
+  - description: I take it back
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[17].data.review }}"
+      digest: "${{ steps[17].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: It is what I hold again
+    command: ideas-open
+    input:
+      id: "${{ steps[4].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+
+  - description: The extractor was not so careless after all; put the reversal of the revert in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: undo
+          run: "${{ steps[1].data.run }}"
+    expect:
+      success: true
+
+  - description: I take the revert back
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[20].data.review }}"
+      digest: "${{ steps[20].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: What it withdrew is back, beside the idea captured since
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 3

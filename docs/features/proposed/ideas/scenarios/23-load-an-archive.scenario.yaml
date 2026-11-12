@@ -1,0 +1,199 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# The upload itself is a request a shell or a browser makes to the ticket's address. A scenario
+# cannot make that request, so after the first step the two files are a fixture instead (P14):
+# a workspace whose collection `inbox`, which nobody has configured as the person's own, holds
+#   plan-2019.md:  Plant the orchard on the north boundary.
+#                  Keep hens under the fruit trees.
+#   plan-2021.md:  Plant the orchard on the south slope.
+#                  Keep hens under the fruit trees.
+
+name: Load an archive of files
+description: >-
+  When I bring several hundred files, drafts of the same document among them, I want them
+  loaded without passing through a model, later drafts recognised, a wrong date corrected, and
+  mining able to stop and pick up where it left off, so that the archive goes in once and whole.
+job: load-an-archive
+tags: [collect, slice]
+
+steps:
+  - description: Ask for somewhere to send the files; one address takes them all, and no model handles a byte
+    command: ideas-source-upload
+    input:
+      files: 2
+    expect:
+      success: true
+      data:
+        ticket: { matches: '^up-' }
+        url: { matches: '^https://' }
+        expires: { exists: true }
+
+  - description: Register everything that arrived in one call; a later draft is reported as a likely version
+    command: ideas-source-add
+    input:
+      collection: inbox
+    expect:
+      success: true
+      data:
+        added: 2
+        likelyVersions: 1
+
+  - description: What arrived, in order of name; nobody has yet said it is mine
+    command: ideas-source-list
+    input:
+      collection: inbox
+    expect:
+      success: true
+      data:
+        total: 2
+        sources: { length: 2 }
+
+  - description: The caller judges that the two are one document, earlier and later, and that is recorded
+    command: ideas-settle
+    input:
+      check: source-versions
+      subjects: ["${{ steps[2].data.sources[0].source }}", "${{ steps[2].data.sources[1].source }}"]
+      how: same-document
+      reason: The 2021 file is a later draft of the 2019 one.
+    expect:
+      success: true
+
+  - description: The first file's date is when it was copied, not when it was written; that is corrected
+    command: ideas-source-amend
+    input:
+      source: "${{ steps[2].data.sources[0].source }}"
+      thoughtOn: "2019-03-01"
+    expect:
+      success: true
+      data:
+        thoughtOn: "2019-03-01"
+        dateSupplied: true
+
+  - description: Put both in front of me as my own writing
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: own
+          source: "${{ steps[2].data.sources[0].source }}"
+        - decide: own
+          source: "${{ steps[2].data.sources[1].source }}"
+    expect:
+      success: true
+
+  - description: I confirm both, having been shown their names, dates and opening lines
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[5].data.review }}"
+      digest: "${{ steps[5].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          own: 2
+
+  - description: Two sources wait for this extractor
+    command: ideas-source-list
+    input:
+      notMinedBy: fixture-model, prompt 1
+    expect:
+      success: true
+      data:
+        total: 2
+
+  - description: A run over both
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[2].data.sources[0].source }}", "${{ steps[2].data.sources[1].source }}"]
+      extractor: fixture-model, prompt 1
+    expect:
+      success: true
+
+  - description: A sentence that both drafts share, cited by number
+    command: ideas-capture
+    input:
+      type: principle
+      run: "${{ steps[8].data.run }}"
+      sources:
+        - source: "${{ steps[2].data.sources[0].source }}"
+          sentences: [2]
+    expect:
+      success: true
+      data:
+        standing: attested
+
+  - description: Seen again in the later draft, it counts as one document, not two
+    command: ideas-observe
+    input:
+      id: "${{ steps[9].data.id }}"
+      run: "${{ steps[8].data.run }}"
+      source: "${{ steps[2].data.sources[1].source }}"
+      sentences: [2]
+    expect:
+      success: true
+      data:
+        sightings: 2
+        documents: 1
+
+  - description: A sentence only the first draft has
+    command: ideas-capture
+    input:
+      type: position
+      run: "${{ steps[8].data.run }}"
+      sources:
+        - source: "${{ steps[2].data.sources[0].source }}"
+          sentences: [1]
+    expect:
+      success: true
+
+  - description: The run stops after the first file, and says which one it finished
+    command: ideas-run-close
+    input:
+      run: "${{ steps[8].data.run }}"
+      done: ["${{ steps[2].data.sources[0].source }}"]
+    expect:
+      success: true
+
+  - description: One source is still waiting, so the work can be picked up where it stopped
+    command: ideas-source-list
+    input:
+      notMinedBy: fixture-model, prompt 1
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: A second run, in another session, takes what is left
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[2].data.sources[1].source }}"]
+      extractor: fixture-model, prompt 1
+    expect:
+      success: true
+
+  - description: And finishes it
+    command: ideas-run-close
+    input:
+      run: "${{ steps[14].data.run }}"
+      done: ["${{ steps[2].data.sources[1].source }}"]
+    expect:
+      success: true
+
+  - description: Nothing is left for this extractor
+    command: ideas-source-list
+    input:
+      notMinedBy: fixture-model, prompt 1
+    expect:
+      success: true
+      data:
+        total: 0
+
+  - description: The view I dropped in the later draft is reported, so an abandoned view does not pass as mine
+    command: ideas-check
+    input:
+      checks: [attested-in-earlier-draft]
+    expect:
+      success: true
+      data:
+        counts:
+          attested-in-earlier-draft: 1

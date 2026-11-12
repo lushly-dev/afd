@@ -18,6 +18,15 @@ steps:
     expect:
       success: true
 
+  - description: A framing for market growers
+    command: ideas-framing-create
+    input:
+      id: growers
+      title: Market growers
+      parent: core
+    expect:
+      success: true
+
   - description: The idea as I hold it
     command: ideas-capture
     input:
@@ -26,42 +35,120 @@ steps:
     expect:
       success: true
 
-  - description: I hold it
-    command: ideas-affirm
+  - description: Put that wording in front of me
+    command: ideas-review-stage
     input:
-      ids: ["${{ steps[1].data.id }}"]
+      decisions:
+        - decide: affirm
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[2].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[3].data.review }}"
+      digest: "${{ steps[3].data.digest }}"
     expect:
       success: true
 
   - description: Reword it for beginners
     command: ideas-reframe
     input:
-      id: "${{ steps[1].data.id }}"
+      id: "${{ steps[2].data.id }}"
       framing: beginners
       statement: Pick varieties that ripen before your first autumn frost.
       reason: Plain words for a first-year grower.
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: It waits like any other new wording; put it in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[5].data.version }}"
+    expect:
+      success: true
+
+  - description: I agree to it for that audience
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[6].data.review }}"
+      digest: "${{ steps[6].data.digest }}"
     expect:
       success: true
 
   - description: The beginners framing resolves the plain wording
     command: ideas-open
     input:
-      id: "${{ steps[1].data.id }}"
+      id: "${{ steps[2].data.id }}"
       framing: beginners
     expect:
       success: true
       data:
         statement: { contains: first autumn frost }
 
-  - description: The root still resolves mine
+  - description: The growers framing has said nothing, so it resolves mine
     command: ideas-open
     input:
-      id: "${{ steps[1].data.id }}"
-      framing: core
+      id: "${{ steps[2].data.id }}"
+      framing: growers
     expect:
       success: true
       data:
         statement: { contains: frost-free window }
+
+  - description: I sharpen the idea at the root
+    command: ideas-reframe
+    input:
+      id: "${{ steps[2].data.id }}"
+      statement: Match cultivar maturity days to the frost-free window, less two weeks.
+      reason: Late springs kept catching me out.
+    expect:
+      success: true
+
+  - description: Put the sharper wording in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[10].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[11].data.review }}"
+      digest: "${{ steps[11].data.digest }}"
+    expect:
+      success: true
+
+  - description: The one change reached the framing that had not said otherwise
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+      framing: growers
+    expect:
+      success: true
+      data:
+        statement: { contains: less two weeks }
+
+  - description: The beginners framing keeps its own wording
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+      framing: beginners
+    expect:
+      success: true
+      data:
+        statement: { contains: first autumn frost }
 
   - description: The two framings differ in one idea
     command: ideas-compare
@@ -74,3 +161,59 @@ steps:
       success: true
       data:
         differs: { length: 1 }
+
+  - description: The beginners wording has standing, so dropping it directly is refused, with the way forward
+    command: ideas-restore
+    input:
+      id: "${{ steps[2].data.id }}"
+      framing: beginners
+      reason: The sharper wording is plain enough.
+    expect:
+      success: false
+      error:
+        code: FORBIDDEN
+        suggestion: { contains: ideas-review-stage }
+
+  - description: Put my no to the beginners wording in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: decline
+          id: "${{ steps[2].data.id }}"
+          version: "${{ steps[5].data.version }}"
+          reason: The sharper wording is plain enough.
+    expect:
+      success: true
+
+  - description: I decline it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[17].data.review }}"
+      digest: "${{ steps[17].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          decline: 1
+
+  - description: The beginners framing follows the root again
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+      framing: beginners
+    expect:
+      success: true
+      data:
+        statement: { contains: less two weeks }
+
+  - description: Nothing differs
+    command: ideas-compare
+    input:
+      a:
+        framing: core
+      b:
+        framing: beginners
+    expect:
+      success: true
+      data:
+        differs: { length: 0 }

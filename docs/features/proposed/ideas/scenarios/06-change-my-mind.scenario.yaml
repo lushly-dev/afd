@@ -6,7 +6,7 @@ description: >-
   When my view on something changes, I want to change it once and see everything that rested on
   the old view, so that nothing stale survives.
 job: change-my-mind
-tags: [change, slice]
+tags: [change, loop]
 
 steps:
   - description: The view
@@ -17,14 +17,26 @@ steps:
     expect:
       success: true
 
-  - description: I hold it
-    command: ideas-affirm
+  - description: Put that wording in front of me
+    command: ideas-review-stage
     input:
-      ids: ["${{ steps[0].data.id }}"]
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[1].data.review }}"
+      digest: "${{ steps[1].data.digest }}"
     expect:
       success: true
       data:
-        affirmed: 1
+        applied:
+          affirm: 1
 
   - description: A practice that rests on it
     command: ideas-capture
@@ -37,7 +49,7 @@ steps:
   - description: Say that it rests on it
     command: ideas-link
     input:
-      from: "${{ steps[2].data.id }}"
+      from: "${{ steps[3].data.id }}"
       kind: depends-on
       to: "${{ steps[0].data.id }}"
     expect:
@@ -54,11 +66,14 @@ steps:
     expect:
       success: true
 
-  - description: An article that used it
+  - description: A published article that used it
     command: ideas-output-record
     input:
       title: Growing tomatoes in a short season
       format: article
+      channel: newsletter
+      state: published
+      location: https://example.org/tomatoes-short-season
       ideas: ["${{ steps[0].data.id }}"]
     expect:
       success: true
@@ -75,19 +90,22 @@ steps:
     expect:
       success: true
       data:
+        version: 2
         standing: seed
-        previous: { exists: true }
 
-  - description: The idea keeps its history
+  - description: Until I affirm it, the new wording waits and the old one is still what I hold
     command: ideas-open
     input:
       id: "${{ steps[0].data.id }}"
     expect:
       success: true
       data:
+        standing: affirmed
+        statement: { contains: single stem }
+        pending: { exists: true }
         history: { length: 2 }
 
-  - description: What rested on the old view is reported
+  - description: A wording that only waits disturbs nothing
     command: ideas-check
     input:
       checks: [rests-on-changed, synthesis-out-of-date]
@@ -95,24 +113,35 @@ steps:
       success: true
       data:
         counts:
-          rests-on-changed: 1
-          synthesis-out-of-date: 1
+          rests-on-changed: 0
+          synthesis-out-of-date: 0
 
-  - description: The article no longer matches
-    command: ideas-compare
+  - description: Put the new wording in front of me, by its version
+    command: ideas-review-stage
     input:
-      a:
-        output: "${{ steps[5].data.output }}"
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[7].data.version }}"
+    expect:
+      success: true
+
+  - description: Before I confirm, the review says what rests on the wording I am leaving
+    command: ideas-review-show
     expect:
       success: true
       data:
-        drift:
-          changed: 1
+        total: 1
+        affected:
+          restsOn: 1
+          syntheses: 1
+          outputs: 1
 
-  - description: I affirm the new wording
-    command: ideas-affirm
+  - description: I affirm it
+    command: ideas-review-apply
     input:
-      ids: ["${{ steps[0].data.id }}"]
+      review: "${{ steps[11].data.review }}"
+      digest: "${{ steps[11].data.digest }}"
     expect:
       success: true
 
@@ -125,3 +154,67 @@ steps:
       data:
         standing: affirmed
         statement: { contains: two stems }
+        pending: { notExists: true }
+
+  - description: What rested on the old view is reported
+    command: ideas-check
+    input:
+      checks: [rests-on-changed, synthesis-out-of-date, output-drifted]
+    expect:
+      success: true
+      data:
+        counts:
+          rests-on-changed: 1
+          synthesis-out-of-date: 1
+          output-drifted: 1
+
+  - description: The article no longer matches
+    command: ideas-output-show
+    input:
+      output: "${{ steps[6].data.output }}"
+    expect:
+      success: true
+      data:
+        drift:
+          changed: 1
+
+  - description: The spacing still holds on two stems, and that is recorded
+    command: ideas-settle
+    input:
+      check: rests-on-changed
+      subjects: ["${{ steps[3].data.id }}", "${{ steps[0].data.id }}"]
+      how: still-holds
+      reason: Two stems fit the same spacing.
+    expect:
+      success: true
+
+  - description: The synthesis is rewritten against the new view
+    command: ideas-reframe
+    input:
+      id: "${{ steps[5].data.id }}"
+      statement: Tomato care here is built around two-stem plants where the season allows.
+      reason: Follows the change of view on pruning.
+    expect:
+      success: true
+
+  - description: The article is dated and stays as it was written, and that is recorded
+    command: ideas-settle
+    input:
+      check: output-drifted
+      subjects: ["${{ steps[6].data.output }}"]
+      how: stands
+      reason: A piece about one season; it says what I thought then.
+    expect:
+      success: true
+
+  - description: Nothing stale is left
+    command: ideas-check
+    input:
+      checks: [rests-on-changed, synthesis-out-of-date, output-drifted]
+    expect:
+      success: true
+      data:
+        counts:
+          rests-on-changed: 0
+          synthesis-out-of-date: 0
+          output-drifted: 0

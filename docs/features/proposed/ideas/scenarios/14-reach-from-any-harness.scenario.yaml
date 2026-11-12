@@ -1,13 +1,16 @@
 # Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
 # the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# Run in one go, this shows what a stateless server sees: three calls with no session between
+# them. Exit criterion 11 runs the first two steps from one harness and the third from another
+# against one hosted instance, which a single run cannot do.
 
 name: Reach the same ideas from any harness
 description: >-
   When I switch harness or device, I want the same ideas after signing in, so that I never
-  carry documents between tools. Run this file against the hosted instance from two harnesses;
-  the second run's first step must be refused as a duplicate of the first run's.
+  carry documents between tools.
 job: reach-from-any-harness
-tags: [trust, slice, hosted]
+tags: [trust, loop, hosted]
 
 steps:
   - description: Capture over hosted, stateless MCP
@@ -26,3 +29,13 @@ steps:
       success: true
       data:
         total: 1
+
+  - description: The same idea captured from somewhere else meets the one already there
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Label every row the day it is sown.
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS

@@ -3,28 +3,37 @@
 
 name: Keep private material out of public work
 description: >-
-  When I hold material that must never appear publicly, I want that guaranteed by the store and
-  not left to memory, so that an agent cannot leak it.
+  When I hold material that must never appear publicly, I want it returned only to a call that
+  asks for it by name, and never to one that names a channel, so that an agent which does not
+  know to be careful cannot leak it.
 job: keep-private-out
-tags: [trust, slice]
+tags: [trust, loop]
 
 steps:
-  - description: A public framing under the root
-    command: ideas-framing-create
+  - description: Private notes, marked once
+    command: ideas-source-add
     input:
-      id: public
-      title: Public
-      parent: core
+      title: Notes from next door
+      kind: notes
+      restricted: true
+      content: "The fixture neighbour's plot failed because the well ran dry."
     expect:
       success: true
+      data:
+        restricted: true
 
-  - description: Something private
+  - description: An idea taken from them is restricted without anyone saying so
     command: ideas-capture
     input:
       type: example
       statement: The fixture neighbour's plot failed because the well ran dry.
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          sentences: [1]
     expect:
       success: true
+      data:
+        restricted: true
 
   - description: Something that can be shared
     command: ideas-capture
@@ -33,52 +42,187 @@ steps:
       statement: Check the water supply before breaking ground.
     expect:
       success: true
+      data:
+        restricted: false
 
-  - description: Leave the private one out of the public framing
-    command: ideas-omit
+  - description: Something private said in conversation, marked at capture
+    command: ideas-capture
     input:
-      id: "${{ steps[1].data.id }}"
-      framing: public
-      reason: Names a neighbour.
+      type: position
+      statement: The fixture allotment committee is likely to raise rents next year.
+      restricted: true
+      reason: Told in confidence.
     expect:
       success: true
+      data:
+        restricted: true
 
-  - description: The public framing holds one idea
-    command: ideas-find
+  - description: A synthesis that draws on the private example is restricted too
+    command: ideas-capture
     input:
-      framing: public
+      type: synthesis
+      statement: Water decides whether a plot lasts, as the plot next door showed.
+      links:
+        - kind: summarises
+          to: "${{ steps[1].data.id }}"
+        - kind: summarises
+          to: "${{ steps[2].data.id }}"
+    expect:
+      success: true
+      data:
+        restricted: true
+
+  - description: Something captured without the mark
+    command: ideas-capture
+    input:
+      type: example
+      statement: The fixture committee chair waters the show beds from the mains at night.
+    expect:
+      success: true
+      data:
+        restricted: false
+
+  - description: Any caller may add the mark afterwards; tightening needs no one's permission
+    command: ideas-restrict
+    input:
+      id: "${{ steps[5].data.id }}"
+      reason: Names a person.
+    expect:
+      success: true
+      data:
+        restricted: true
+
+  - description: A read that names nothing gets only what can be shared, and is told what it left out
+    command: ideas-find
     expect:
       success: true
       data:
         total: 1
+        restrictedLeftOut: 4
 
-  - description: A public bundle that names the private idea is refused
+  - description: So does a question from an agent that knows nothing about privacy
+    command: ideas-ask
+    input:
+      question: What decides whether a plot lasts?
+    expect:
+      success: true
+      data:
+        found: 1
+        restrictedLeftOut: { gte: 1 }
+
+  - description: Private material comes back only when the call asks for it by name
+    command: ideas-ask
+    input:
+      question: What decides whether a plot lasts?
+      includeRestricted: true
+    expect:
+      success: true
+      data:
+        found: { gte: 2 }
+
+  - description: A newsletter bundle that names the private idea is refused
     command: ideas-bundle
     input:
-      framing: public
+      channel: newsletter
       ids: ["${{ steps[1].data.id }}"]
     expect:
       success: false
       error:
         code: NOT_FOUND
 
-  - description: A public output cannot be recorded as having used it
+  - description: A call that names a channel cannot ask for private material at all
+    command: ideas-bundle
+    input:
+      channel: newsletter
+      includeRestricted: true
+      ids: ["${{ steps[2].data.id }}"]
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+
+  - description: A published piece that used the private idea anyway is recorded, and flagged
     command: ideas-output-record
     input:
       title: Before you dig
       format: article
-      framing: public
+      channel: newsletter
+      state: published
+      location: https://example.org/before-you-dig
       ideas: ["${{ steps[1].data.id }}", "${{ steps[2].data.id }}"]
     expect:
-      success: false
-      error:
-        code: NOT_FOUND
+      success: true
+      data:
+        pinned: 2
+        attention:
+          restricted: { length: 1 }
 
-  - description: The root still holds both
-    command: ideas-find
+  - description: The report keeps saying so
+    command: ideas-check
     input:
-      framing: core
+      checks: [output-holds-restricted]
+    expect:
+      success: true
+      data:
+        counts:
+          output-holds-restricted: 1
+
+  - description: The piece is taken down, and the record says so
+    command: ideas-output-update
+    input:
+      output: "${{ steps[12].data.output }}"
+      state: withdrawn
+      reason: Named the plot next door.
+    expect:
+      success: true
+      data:
+        state: withdrawn
+
+  - description: The report is clear
+    command: ideas-check
+    input:
+      checks: [output-holds-restricted]
+    expect:
+      success: true
+      data:
+        counts:
+          output-holds-restricted: 0
+
+  - description: Lifting a restriction is my decision; here, the rents
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: release
+          id: "${{ steps[3].data.id }}"
+    expect:
+      success: true
+      data:
+        counts:
+          release: 1
+
+  - description: I release it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[16].data.review }}"
+      digest: "${{ steps[16].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          release: 1
+
+  - description: A read that names nothing now returns two
+    command: ideas-find
     expect:
       success: true
       data:
         total: 2
+
+  - description: Asked for by name, all five are there
+    command: ideas-find
+    input:
+      includeRestricted: true
+    expect:
+      success: true
+      data:
+        total: 5
