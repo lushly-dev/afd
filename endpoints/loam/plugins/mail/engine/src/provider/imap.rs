@@ -664,7 +664,8 @@ impl Reply {
 }
 
 /// Finds the sign-in for an account.
-pub type CredentialsFor = Box<dyn Fn(&AccountRow) -> Option<Credentials> + Send + Sync>;
+pub type CredentialsFor =
+    Box<dyn Fn(&AccountRow) -> Result<Credentials, ProviderError> + Send + Sync>;
 
 /// Opens IMAP connections to accounts, with the credentials a function
 /// supplies.
@@ -688,7 +689,7 @@ impl ImapConnector {
     pub fn new(
         endpoint: Endpoint,
         names: &'static [(&'static str, Role)],
-        credentials: impl Fn(&AccountRow) -> Option<Credentials> + Send + Sync + 'static,
+        credentials: impl Fn(&AccountRow) -> Result<Credentials, ProviderError> + Send + Sync + 'static,
     ) -> Self {
         Self {
             endpoint,
@@ -701,7 +702,7 @@ impl ImapConnector {
 #[async_trait]
 impl Connector for ImapConnector {
     async fn connect(&self, account: &AccountRow) -> Result<Box<dyn Provider>, ProviderError> {
-        let credentials = (self.credentials)(account).ok_or(ProviderError::NoCredential)?;
+        let credentials = (self.credentials)(account)?;
         Ok(Box::new(
             Imap::connect(&self.endpoint, &credentials, self.names).await?,
         ))

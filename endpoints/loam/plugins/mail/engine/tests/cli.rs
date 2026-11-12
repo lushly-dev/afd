@@ -19,8 +19,15 @@ fn run_in(home: Option<Home>, args: &[&str]) -> (u8, String, String) {
         loam_mail::registry(&Arc::new(Engine::new(home))).expect("the engine's registry is sound");
     let args: Vec<String> = args.iter().map(ToString::to_string).collect();
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let status =
-        run(&args, &registry, Caller::Script, &mut out, &mut err).expect("writing to memory");
+    let status = run(
+        &args,
+        &registry,
+        Caller::Script,
+        &loam_mail::secrets::InMemory::default(),
+        &mut out,
+        &mut err,
+    )
+    .expect("writing to memory");
     (
         status,
         String::from_utf8(out).expect("utf-8"),
@@ -80,7 +87,16 @@ fn the_built_program_answers_help() {
 #[test]
 fn help_lists_the_commands_the_command_line_can_run() {
     let (_, out, _) = run_with(&["help"]);
-    assert!(out.contains("Commands:\n  mail-rebuild  "), "{out}");
+    assert!(out.contains("Commands:\n"), "{out}");
+    for command in [
+        "mail-account-add",
+        "mail-account-list",
+        "mail-rebuild",
+        "mail-status",
+        "mail-sync",
+    ] {
+        assert!(out.contains(&format!("  {command}  ")), "{out}");
+    }
 }
 
 #[test]

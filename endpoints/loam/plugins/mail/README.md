@@ -20,10 +20,20 @@ cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo
 
 It is built a step at a time from the specification's section 15. It answers `help` and
 `version` and runs a command the registry exposes to the command line, printing its result as
-JSON: `loam-mail <command> [input]`. Its commands so far are `mail-sync`, `mail-status` and
-`mail-rebuild`. It can sync an iCloud account over IMAP, but nothing can add one yet: the
-account and its sign-in in the keychain arrive with `mail-account-add`, in the second half of
-step B3. So far it has:
+JSON: `loam-mail <command> [input]`. Its commands so far are `mail-account-add`,
+`mail-account-list`, `mail-sync`, `mail-status` and `mail-rebuild`. It syncs an iCloud account
+over IMAP. To add one, at a terminal on macOS, with an
+[app-specific password](https://support.apple.com/en-us/102654):
+
+```sh
+cargo run --release -- mail-account-add '{"provider": "icloud", "address": "<the address>"}'
+cargo run --release -- mail-sync
+cargo run --release -- mail-status
+```
+
+`mail-account-add` is a person's command: it says what it will do and asks, then asks for the
+password without showing it, keeps it in the login keychain (service `loam-mail`), and signs in
+to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
 
 - **The data directory** (`src/home.rs`): where it is, and the lock that lets one process own it.
 - **The log** (`src/log.rs`): each message's bytes as the provider returned them, one compressed
@@ -39,6 +49,7 @@ step B3. So far it has:
   no protocol, and its IMAP implementation, which only reads.
 - **Sync** (`src/sync.rs`): a pass over an account, mailboxes taking turns, resumable after any
   stop; `src/store/sync.rs` is what it reads and records in the store.
+- **The keychain** (`src/secrets.rs`): where an account's sign-in is kept.
 - **The commands** (`src/commands.rs`, over `src/engine.rs`).
 
 Sync is tested against a scripted IMAP server (`tests/support/imap.rs`), the test double the

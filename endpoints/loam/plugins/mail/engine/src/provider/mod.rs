@@ -21,6 +21,9 @@ pub enum ProviderError {
     SignIn,
     /// There is no credential for the account.
     NoCredential,
+    /// The keychain that holds the credential refused: locked, or access
+    /// denied.
+    Keychain,
     /// The provider could not be reached, or the connection dropped
     /// (`PROVIDER_UNAVAILABLE`). Worth trying again.
     Unavailable(&'static str),
@@ -43,6 +46,7 @@ impl fmt::Display for ProviderError {
         match self {
             Self::SignIn => write!(f, "the provider refused the stored sign-in"),
             Self::NoCredential => write!(f, "there is no stored sign-in for the account"),
+            Self::Keychain => write!(f, "the keychain refused to give the account's sign-in"),
             Self::Unavailable(what) => write!(f, "the provider could not be reached: {what}"),
             Self::Refused(what) => write!(f, "the provider refused: {what}"),
             Self::Protocol(what) => write!(f, "the provider's reply could not be read: {what}"),

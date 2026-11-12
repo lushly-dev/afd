@@ -3,14 +3,16 @@
 use std::sync::Arc;
 
 use afd::{
-    CommandContext, CommandDefinition, CommandError, CommandHandler, CommandInterface,
-    CommandParameter, CommandResult, ExposeOptions, JsonSchemaType, failure, success,
+    ApprovalDecision, ApprovalPolicy, CommandContext, CommandDefinition, CommandError,
+    CommandHandler, CommandInterface, CommandParameter, CommandResult, ExposeOptions,
+    JsonSchemaType, failure, success,
 };
 use async_trait::async_trait;
 use serde_json::json;
 
 use crate::engine::Engine;
 use crate::provider::ProviderError;
+use crate::secrets::account_key;
 use crate::store::{AccountRow, MailboxRow, MailboxStatus, StoreError};
 use crate::sync::{AccountReport, SyncError, WHOLE_LIMIT, sync_account};
 
@@ -149,6 +151,10 @@ fn sync_failure(error: &SyncError) -> CommandError {
         SyncError::Provider(ProviderError::SignIn) => {
             CommandError::new("SIGN_IN_REQUIRED", error.to_string())
                 .with_suggestion("Sign in to the account again.")
+        }
+        SyncError::Provider(ProviderError::Keychain) => {
+            CommandError::new("SIGN_IN_REQUIRED", error.to_string())
+                .with_suggestion("Unlock the keychain, then try again.")
         }
         SyncError::Provider(ProviderError::NoCredential) => {
             CommandError::new("SIGN_IN_REQUIRED", error.to_string())
@@ -372,6 +378,227 @@ pub fn status(engine: Arc<Engine>) -> CommandDefinition {
             "The account to show; every account when left out",
         )],
         Status { engine },
+    )
+    .with_expose(ExposeOptions::new().with_cli(true).with_mcp(true))
+}
+
+/// The providers an account can be added for in this build.
+const PROVIDERS: &[&str] = &["icloud"];
+
+/// The longest address an account may have (RFC 5321's path limit).
+const MOST_ADDRESS: usize = 254;
+
+/// A secret the command line asks the person for, without echo, and keeps in
+/// the keychain before it runs a command: never in the command's input
+/// (the specification's section 3.5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CredentialAsk {
+    /// Where the secret is kept.
+    pub key: String,
+    /// What the command line asks.
+    pub prompt: String,
+}
+
+/// The secret the command line must ask for before running `command` with
+/// `input`, if any.
+#[must_use]
+pub fn credential_for(command: &str, input: &serde_json::Value) -> Option<CredentialAsk> {
+    if command != "mail-account-add" {
+        return None;
+    }
+    let (provider, address) = account_fields(input).ok()?;
+    Some(CredentialAsk {
+        key: account_key(provider, &address),
+        prompt: format!("App-specific password for {address} (not shown): "),
+    })
+}
+
+/// What the person is asked to approve for a person's command, in the
+/// engine's words: `None` for the command's own prompt. The account's
+/// address is the person's own, typed at the terminal, not text from mail.
+#[must_use]
+pub fn approval_summary(command: &str, input: &serde_json::Value) -> Option<String> {
+    if command != "mail-account-add" {
+        return None;
+    }
+    let (provider, address) = account_fields(input).ok()?;
+    Some(format!(
+        "Add the {provider} account {address}, and sign in to check that the sign-in works"
+    ))
+}
+
+/// `mail-account-add`'s provider and address, checked, with the address's
+/// domain in lower case, so that one account is not added twice by a
+/// difference of case.
+fn account_fields(input: &serde_json::Value) -> Result<(&str, String), Box<CommandError>> {
+    let provider = input
+        .get("provider")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    if !PROVIDERS.contains(&provider) {
+        return Err(Box::new(
+            CommandError::new("INVALID_INPUT", "`provider` is not one this build can add")
+                .with_suggestion("Use `icloud`. Gmail arrives with a later step."),
+        ));
+    }
+    let address = input
+        .get("address")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let plausible = address.len() <= MOST_ADDRESS
+        && address
+            .split_once('@')
+            .is_some_and(|(local, domain)| !local.is_empty() && domain.contains('.'))
+        && !address.chars().any(|c| c.is_whitespace() || c.is_control());
+    if !plausible {
+        return Err(Box::new(
+            CommandError::new("INVALID_INPUT", "`address` is not an email address")
+                .with_suggestion("Give the address the account signs in with."),
+        ));
+    }
+    let (local, domain) = address.split_once('@').unwrap_or((address, ""));
+    Ok((provider, format!("{local}@{}", domain.to_ascii_lowercase())))
+}
+
+struct AccountAdd {
+    engine: Arc<Engine>,
+}
+
+#[async_trait]
+impl CommandHandler for AccountAdd {
+    async fn execute(
+        &self,
+        input: serde_json::Value,
+        context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        let (provider, address) = match account_fields(&input) {
+            Ok(fields) => fields,
+            Err(error) => return failure(*error),
+        };
+        let address = address.as_str();
+        let engine = &self.engine;
+        // The sign-in is the keychain's: the command line put it there.
+        match engine.secrets().get(&account_key(provider, address)) {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                return failure(
+                    CommandError::new("SIGN_IN_REQUIRED", "there is no stored sign-in for the account")
+                        .with_suggestion(
+                            "Run `loam-mail mail-account-add` at a terminal; it asks for the app-specific password.",
+                        ),
+                );
+            }
+            Err(error) => {
+                return failure(
+                    CommandError::new("SIGN_IN_REQUIRED", error.to_string())
+                        .with_suggestion("Unlock the keychain, then try again."),
+                );
+            }
+        }
+        let Some(connector) = engine.connector().cloned() else {
+            return failure(CommandError::new(
+                "PROVIDER_UNAVAILABLE",
+                "this build of the engine cannot reach a provider",
+            ));
+        };
+        // Signing in proves the sign-in works; nothing is read or changed.
+        let candidate = AccountRow {
+            id: crate::store::AccountId(0),
+            provider: provider.to_string(),
+            address: address.to_string(),
+        };
+        match connector.connect(&candidate).await {
+            Ok(mut session) => session.close().await,
+            Err(error) => return failure(sync_failure(&SyncError::Provider(error))),
+        }
+        let now = context.clock().now();
+        let added = engine.with_store(|store| {
+            let existed = store
+                .accounts()?
+                .iter()
+                .any(|account| account.provider == provider && account.address == address);
+            let account = store.add_account(provider, address, now)?;
+            Ok((account, !existed))
+        });
+        match added {
+            Ok((account, new)) => success(json!({
+                "account": account.0,
+                "provider": provider,
+                "added": new,
+            })),
+            Err(error) => failure(store_failure(&error)),
+        }
+    }
+}
+
+/// `mail-account-add`: adds an account once its sign-in, which the command
+/// line keeps in the keychain, works. A person's command (the
+/// specification's section 3.5).
+#[must_use]
+pub fn account_add(engine: Arc<Engine>) -> CommandDefinition {
+    CommandDefinition::new(
+        "mail-account-add",
+        "Add a mail account, checking that its sign-in works",
+        vec![
+            CommandParameter {
+                name: "provider".to_string(),
+                param_type: JsonSchemaType::String,
+                description: "The account's provider: icloud".to_string(),
+                required: true,
+                default: None,
+                enum_values: Some(PROVIDERS.iter().map(|provider| json!(provider)).collect()),
+                schema: None,
+            },
+            CommandParameter::required_string("address", "The address the account signs in with"),
+        ],
+        AccountAdd { engine },
+    )
+    .as_mutation()
+    .with_confirm_prompt("Add the account and sign in to check that the sign-in works")
+    // Input that cannot be added is refused by the handler without asking
+    // the person about it; anything else waits for the person's approval.
+    .with_approval(ApprovalPolicy::when(|input, _context| {
+        if account_fields(input).is_ok() {
+            ApprovalDecision::Required
+        } else {
+            ApprovalDecision::NotRequired
+        }
+    }))
+    .with_expose(command_line_only())
+}
+
+struct AccountList {
+    engine: Arc<Engine>,
+}
+
+#[async_trait]
+impl CommandHandler for AccountList {
+    async fn execute(
+        &self,
+        _input: serde_json::Value,
+        _context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        match self.engine.with_store(|store| store.accounts()) {
+            Ok(accounts) => success(json!({
+                "accounts": accounts.iter().map(|account| json!({
+                    "account": account.id.0,
+                    "provider": account.provider,
+                    "address": account.address,
+                })).collect::<Vec<_>>(),
+            })),
+            Err(error) => failure(store_failure(&error)),
+        }
+    }
+}
+
+/// `mail-account-list`: the accounts the engine syncs.
+#[must_use]
+pub fn account_list(engine: Arc<Engine>) -> CommandDefinition {
+    CommandDefinition::new(
+        "mail-account-list",
+        "List the mail accounts",
+        vec![],
+        AccountList { engine },
     )
     .with_expose(ExposeOptions::new().with_cli(true).with_mcp(true))
 }

@@ -35,6 +35,8 @@ afd = { path = "../../../../../packages/rust", default-features = false, feature
 # commands and reads every response itself.
 async-imap = { version = "0.12", default-features = false, features = ["runtime-tokio"] }
 async-trait = "0.1"
+# The approval middleware's signing key, made afresh for each process.
+getrandom = "0.3"
 mail-parser = "1.0.1"
 # The store (the specification's section 4). SQLite is bundled, at the version Umbel pins, so the
 # repository carries one.
@@ -43,7 +45,7 @@ serde_json = "1"
 # The log's file names, and a message's identity.
 sha2 = "0.11"
 tantivy = { version = "0.27", default-features = false, features = ["mmap", "stopwords", "stemmer", "lz4-compression"] }
-tokio = { version = "1", default-features = false, features = ["rt", "time", "net", "io-util"] }
+tokio = { version = "1", default-features = false, features = ["rt", "time", "net", "io-util", "signal", "macros"] }
 # TLS to the provider, with the operating system's certificates. `ring` rather than the default
 # `aws-lc-rs`, which needs CMake to build.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
@@ -55,7 +57,13 @@ zstd = { version = "0.14", default-features = false }
 # Making a batch of the log's files durable with one flush: a plain `fsync` per file and one
 # `F_FULLFSYNC` on macOS, `syncfs` on Linux. `std` offers only the full flush per file.
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "1", features = ["fs"] }
+rustix = { version = "1", features = ["fs", "termios"] }
+
+# Account sign-ins in the macOS keychain (the specification's section 3.1). `keyring-core` with
+# the Apple store alone, as the `keyring` crate advises an application that knows its platforms.
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+keyring-core = "1"
 
 [dev-dependencies]
 async-trait = "0.1"
