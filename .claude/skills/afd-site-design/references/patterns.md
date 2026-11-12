@@ -123,7 +123,8 @@ the ink proof band. It isn't a numbered section, so it has no figure label or nu
   band's one statement.
 - `family-status--out` (paper) marks a project people can install; without it the status
   is muted. Mint and red keep their meanings, so neither is used for status.
-- Update a status here, in `site/llms.txt` and in the README's family table together.
+- Update a status here, in `site/llms.txt`, in the README's family table and in
+  `docs/features/README.md` together.
 
 ## Buttons
 

@@ -70,7 +70,7 @@ AFD is a **methodology and toolkit**, not a complete security framework. The fol
 
 | Concern                | AFD Provides                                  | You Must Implement                      |
 | ---------------------- | --------------------------------------------- | --------------------------------------- |
-| **Authentication**     | Error codes (`UNAUTHORIZED`, `TOKEN_EXPIRED`); [`@lushly-dev/afd-auth`](./packages/auth), an adapter over your provider; bearer-token verification for HTTP MCP servers in TypeScript and Rust ([`spec/authorization.md`](./spec/authorization.md)) | An identity provider, its keys and session storage |
+| **Authentication**     | Error codes (`UNAUTHORIZED`, `TOKEN_EXPIRED`); [`@lushly-dev/afd-auth`](./packages/auth), an adapter over your provider; bearer-token verification for HTTP MCP servers in TypeScript and Rust ([`spec/authorization.md`](./spec/authorization.md); per-command scopes are in Rust only so far, see [language parity](./docs/language-parity.md)) | An identity provider, its keys and session storage |
 | **Authorization**      | Middleware pattern                            | Permission checks, RBAC                 |
 | **Encryption**         | —                                             | TLS/HTTPS, data encryption              |
 | **Secrets Management** | —                                             | Vault integration, env var security     |

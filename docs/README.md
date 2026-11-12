@@ -35,11 +35,7 @@ How these came to share one repository, and the rules that keep an imported pack
 
 ## Features
 
-A feature moves through three stages, each a folder under [features/](./features/README.md):
-
-```
-Proposed → Review → Active → Implementation → Complete
-```
+A feature is proposed, reviewed, built and shipped. Its folder under [features/](./features/README.md) moves with it:
 
 | Stage | Folder | Description |
 |-------|--------|-------------|

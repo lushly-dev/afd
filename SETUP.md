@@ -20,7 +20,7 @@ Add these for the area you touch:
 |------|---------|-----------|-------|
 | Python | 3.10+ (3.11+ for Botcore, Alfred and Health) | `python/`, `alfred/`, `endpoints/botcore/`, `endpoints/health/` | `python --version` |
 | uv | Latest | The Python projects above | `uv --version` |
-| Rust | 1.98.0 for Umbel and Loam Mail (`rust-toolchain.toml` pins it and the `wasm32-wasip2` target; `rustup` installs both); the `afd` crate supports 1.85+ | `packages/rust/`, `endpoints/umbel/`, `endpoints/loam/plugins/`, Specimen's native host | `rustc --version` |
+| Rust | 1.98.0 for Umbel, Loam Mail and Specimen's host (each has a `rust-toolchain.toml` that pins it, and Umbel's adds the `wasm32-wasip2` target; `rustup` installs what they name); the `afd` crate supports 1.85+ | `packages/rust/`, `endpoints/umbel/`, `endpoints/loam/plugins/`, Specimen's native host | `rustc --version` |
 | CMake and a C++20 compiler | CMake 3.25+; GCC 12+, Clang 16+, Apple Clang 15+ or MSVC 2022 | `packages/cpp/` | `cmake --version` |
 | Chromium | The build Playwright names; install it with `pnpm -F <package> exec playwright install chromium` | The browser suites of Specimen, FAST-AF, Violet, Loam and the Health dashboard | |
 | OpenSSL | Any recent | Loam's hosted suite and `pnpm test:hosted:local` | `openssl version` |

@@ -187,7 +187,7 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four sha
 |---------|-------------|
 | **@lushly-dev/afd-core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
 | **@lushly-dev/afd-server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry), plus a browser-safe in-process registry |
-| **@lushly-dev/afd-client** | MCP client over Streamable HTTP + `DirectClient` for ~0.03ms in-process execution |
+| **@lushly-dev/afd-client** | MCP client over Streamable HTTP (the older SSE transport still works) + `DirectClient` for ~0.03ms in-process execution |
 | **@lushly-dev/afd-testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
 | **@lushly-dev/afd-cli** | CLI for connecting, calling, validating, and exploring commands |
 | **@lushly-dev/afd-auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
