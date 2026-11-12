@@ -219,7 +219,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * first paint 288,566 and 89,207 gzip (+1,680, +710), the kernel alone 114,351, `apps` 394,885, `late` 70,924.
  * #872's refinement of the input-schema rule, a closed tagged union (a `oneOf` of two or more branches
  * beside only `type: 'object'`) read branch by branch, cost `apps` 88 and raised `appsMinified` by that less
- * what `apps` had left, 79, to 394,973: proposed, awaiting the owner's approval (`apps` 394,973).
+ * what `apps` had left, 79, to 394,973, approved by the owner on 2026-11-12 (`apps` 394,973).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
