@@ -227,7 +227,7 @@ describe('retained stories end the same way in both runners', () => {
 			status: 'warning',
 			policy: 'todo',
 			violations: [{ id: 'image-alt' }],
-			engine: '4.13.0',
+			engine: '4.14.0',
 		});
 		expect(outcome('Accessibility Off')?.outcome.a11y.status).toBe('not-run');
 		// Storybook renders an unknown viewport or theme silently; Specimen labels the mismatch.
