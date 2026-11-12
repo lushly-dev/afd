@@ -718,8 +718,10 @@ merge or a split can be undone ([4.15](#415-taking-back-and-erasing)).
 
   Each is journaled as a digest. `ideas-source-open` reads a stored source back in windows, as
   numbered sentences, so mining again never needs the file a second time.
-- **Whose words.** An uploaded or synced source is the person's own when the deployer has
-  configured its collection as theirs, or when the person confirms it in a review. Either one
+- **Whose words.** A synced source is the person's own when the deployer has configured its
+  collection as theirs. An uploaded source is theirs only when the person confirms it in a
+  review, whatever collection it lands in, since the agent that asked for the upload address
+  holds it (Umbel's D157). Either one
   also fixes what the source is: the person's own prose, or a transcript and the label of the
   speaker who is the person. The deployer's setting says it for a collection. A confirmation
   says it for a source, and the person is shown it with the name, date, size and opening lines
@@ -1133,7 +1135,7 @@ than this plugin. The last column says what happens if it is declined.
 
 | | Change | Why it is general | If declined |
 | --- | --- | --- | --- |
-| P1 | **Standing for durable records.** Amend principles 8 and 9 and decisions D9 and D98: a plugin may hold durable, agent-writable records that carry their standing, are left out for a caller that asks for verified content only, and gain standing only from a person, a declared policy, or a check against a source that is the person's own | Today there are two stores and two write paths, memory that expires and knowledge that changes by proposal. A third pattern, durable but not yet affirmed, is what capture needs, and it keeps the intent of both rules | The plugin cannot offer immediate capture |
+| P1 | **Standing for durable records.** Amend principles 8 and 9 and decision D9, read with D98: a plugin may hold durable, agent-writable records that carry their standing, are left out for a caller that asks for verified content only, and gain standing only from a person, or from the host's check against a source that is the person's own; the deployer's configuration only names which sources are theirs. Decided in step A1 as Umbel's D157 | Today there are two stores and two write paths, memory that expires and knowledge that changes by proposal. A third pattern, durable but not yet affirmed, is what capture needs, and it keeps the intent of both rules | The plugin cannot offer immediate capture |
 | P2 | **Indexed records.** A plugin declares record kinds and fields for the search index, and the host indexes them as it indexes documents and removes them when a record is erased | Records are listable by id only. Any plugin with its own shapes needs to find them by field and text | The plugin loads every record and filters in memory |
 | P3 | **Matching, with two lanes.** A query on the index trait that returns the stored items most like a given text, by words and by meaning. This builds the embedding lane the architecture names, behind its provider trait, and applies decision D65's gate to an instance's own labelled pairs. It answers open decision O4 for spaces of short records | Proposal validation lists a duplicate check and has only exact hashes. Knowledge proposals, curator candidates and memory would all use it, and knowledge search gains the lane it was designed to take | The plugin matches by words only, over its own records, and paraphrased duplicates get through |
 | P4 | **A graph with more than one writer.** Contributions are held per contributor and origin; an origin may be a record; a plugin declares its edge kinds | One writer and eight fixed kinds mean no plugin can add meaning to the graph. With this, an idea links to the document it came from, and an output to the ideas it used, in one graph | Links live in plugin records and are invisible to `knowledge-neighbors` and the rest |
@@ -1359,11 +1361,11 @@ direction, it is listed in [STATUS.md](STATUS.md) for him to confirm, and he can
 
 | Question | Answer | Basis |
 | --- | --- | --- |
-| 7. The first instance | One machine with the embedded store and a persistent disk. Which authorization server, and which directory holds the first archive, had no recommendation and are still open; they are needed at step C1 | Agreed, for the part that had a recommendation |
-| 9. The phase 0 corpus | The question carried no recommendation, so this one was made after his answer: the owner's own archive of source material on one subject, in his private repository, measured where it lies. Only counts, rates and the tools leave it. A model drafts every label and the owner checks a sample of each kind in one sitting | On recommendation |
+| 7. The first instance | One machine with the embedded store and a persistent disk. It signs in through Better Auth, and its first archive is the owner's professional documents (answered 2026-11-11, later the same day). Which machine is still open; it is needed at step C1 | Agreed |
+| 9. The phase 0 corpus | The question carried no recommendation, so this one was made after his answer: the owner's own archive of source material on one subject, in his private repository, measured where it lies. Only counts, rates and the tools leave it. A model drafts every label and the owner checks a sample of each kind in one sitting | Agreed 2026-11-11, after phase 0 had run on it. His check of the samples is put off: the work carries on, and what phase 0 set is tuned when he has done it |
 | 11. The jobs | All twenty-nine are kept, ranked in the order of the [jobs table](#jobs-to-be-done). Job 11 is the first to go if the list must shrink | Agreed |
 | 14. The hierarchy | Decided after phase 0.6 and some weeks of the loop | Agreed |
-| 1. The wording of P1 | As recommended, to be written out in step A1 | On recommendation |
+| 1. The wording of P1 | Written out in step A1 as Umbel's D157, narrower than the recommendation: the deployer's configuration gives no standing, and only names which synced sources are the person's | On recommendation |
 | 2. Records or documents | Records, indexed through P2, unless phase 0.7 finds otherwise | On recommendation |
 | 3. The name for the hierarchy | Framing | On recommendation |
 | 4. The embedding lane | Yes, with a local model by default, chosen in phase 0.2 | On recommendation |
