@@ -22,7 +22,12 @@ const VIOLET = [
 ];
 const filters = (names) => names.map((name) => `-F ${name}`).join(' ');
 
-/** @typedef {{ run: string, cwd?: string, gate?: string }} Step */
+/**
+ * A step's `tools`, when it has them, are what that step needs, narrower than its suite's: verify
+ * checks only the tools of the steps it plans, so a suite whose gated legs are not planned does not
+ * ask for theirs (#781). A step without `tools` needs its suite's.
+ * @typedef {{ run: string, cwd?: string, gate?: string, tools?: string[] }} Step
+ */
 /** @type {{ workflow: string, tools: string[], steps: Step[], remote?: string }[]} */
 export const SUITES = [
 	{
@@ -307,18 +312,38 @@ export const SUITES = [
 		tools: ['uv', 'cargo', 'cmake'],
 		remote: 'the Rust backend clippy and the C++ backend unit tests',
 		steps: [
-			{ gate: 'todo', run: 'pnpm build' },
-			{ gate: 'todo', cwd: 'packages/examples/todo/backends/python', run: 'uv sync --locked' },
+			{ gate: 'todo', tools: [], run: 'pnpm build' },
 			{
 				gate: 'todo',
+				tools: ['uv'],
+				cwd: 'packages/examples/todo/backends/python',
+				run: 'uv sync --locked',
+			},
+			{
+				gate: 'todo',
+				tools: ['uv'],
 				cwd: 'packages/examples/todo/backends/python',
 				run: 'uv run --locked pytest -q',
 			},
-			{ gate: 'rust', cwd: 'packages/examples/todo/backends/rust', run: 'cargo test --locked' },
-			{ gate: 'todo', run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
-			{ gate: 'todo', run: 'pnpm --dir packages/examples/todo test:conformance:py' },
-			{ gate: 'rust', run: 'pnpm --dir packages/examples/todo test:conformance:rs' },
-			{ gate: 'cpp', run: 'pnpm --dir packages/examples/todo test:conformance:cpp' },
+			{
+				gate: 'rust',
+				tools: ['cargo'],
+				cwd: 'packages/examples/todo/backends/rust',
+				run: 'cargo test --locked',
+			},
+			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
+			// The Python backend runs under `uv run`.
+			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:conformance:py' },
+			{
+				gate: 'rust',
+				tools: ['cargo'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:rs',
+			},
+			{
+				gate: 'cpp',
+				tools: ['cmake'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:cpp',
+			},
 		],
 	},
 ];
