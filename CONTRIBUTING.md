@@ -106,19 +106,25 @@ Lefthook runs automatically on commit and push — no manual setup needed.
 - TypeScript type checking
 
 **Pre-push** (before push):
-- Full lint, test suite, typecheck
+- Full lint, plus tests and typecheck for the packages the change affects
 - Portability + file size on all files
 - Orphan file detection (`.ts` files not imported anywhere)
+- Version, package-boundary and skill checks, and the tooling tests
+
+The hooks neither install nor build: run `pnpm install` after pulling `main`, and `pnpm build` after changing a package another one imports. `lefthook.yml` is the full definition.
 
 **Commit messages** are validated by commitlint (Conventional Commits).
 
 ### On-Demand Check
 
-Run the full quality gate manually:
+Run the gates manually:
 
 ```bash
-npx lefthook run check   # Lint + typecheck + test + build + portability + file-size + orphans
+pnpm check    # The TypeScript gate ci.yml runs, over the packages the change affects
+pnpm verify   # pnpm check, then the local suite of every other workflow the change triggers
 ```
+
+`pnpm check` covers TypeScript only. Python, Rust, C++, Alfred and the browser suites have workflows of their own, and `pnpm verify` runs the ones a change triggers (`pnpm verify --list` prints the plan).
 
 ### Alfred Quality Bot
 
@@ -126,7 +132,7 @@ Alfred provides deterministic architecture compliance — agents and humans skip
 
 | Command | What it checks |
 |---------|----------------|
-| `alfred lint` | 6 AFD architecture rules (CommandResult, actionable errors, kebab naming, no-fetch-in-UI, no-business-in-UI, layer imports) |
+| `alfred lint` | AFD architecture rules (CommandResult, actionable errors, kebab naming, no-fetch-in-UI, no-business-in-UI, layer imports and more; [alfred/AGENTS.md](alfred/AGENTS.md) lists them) |
 | `alfred parity` | API surface sync across TypeScript, Python, Rust, and C++ |
 | `alfred quality` | Command description quality (length, imperative voice, duplicates) |
 
@@ -185,16 +191,14 @@ docs(python): update command naming guide
 chore(deps): update dependencies
 ```
 
-**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `examples`, `alfred`, `python`, `rust`, `cpp`, `deps`
+**Allowed types and scopes** are listed in `commitlint.config.js`. Leave the scope out for cross-cutting work.
 
 ## Submitting Changes
 
 1. Fork the repository and create a branch from `main`
 2. Make changes following the principles above
 3. Verify locally:
-   - `pnpm lint` — no lint errors
-   - `pnpm test` — all tests pass
-   - `pnpm build` — builds cleanly
+   - `pnpm verify` — the TypeScript gate and every other suite the change triggers
    - `alfred lint` — no architecture violations (if adding commands)
 4. Push and open a pull request
 
@@ -202,32 +206,18 @@ chore(deps): update dependencies
 
 - Keep PRs focused on a single concern
 - Include tests for new functionality
-- Update documentation if behavior changes — see `AGENTS.md` for the routing table and `skills/` for deep topic guides
+- Update documentation if behavior changes — see `AGENTS.md` for what every session needs, and `.claude/skills/` for deep topic guides
 - All Lefthook hooks must pass
 
 ## Package Structure
 
-```
-packages/
-  core/       # Foundational types (CommandResult, errors, pipeline, handoff)
-  server/     # MCP server factory with Zod validation + middleware
-  client/     # MCP client + DirectClient (zero-overhead in-process)
-  auth/       # Provider-agnostic auth adapter
-  cli/        # Command-line interface
-  testing/    # JTBD scenario runner + surface validation
-  adapters/   # Frontend rendering adapters for CommandResult
-  examples/   # Multi-stack example (TS, Python, Rust, C++) + DirectClient demo
-  rust/       # Rust crate implementation
-  cpp/        # C++ library implementation (afd-cpp)
-python/       # Python package (pip install afd)
-alfred/       # Quality bot (lint, parity, quality)
-```
+AFD's own packages are under `packages/` (TypeScript, Rust, C++) and `python/`; the foundations, integrations and endpoints built around them have directories of their own. The layout section of [AGENTS.md](AGENTS.md#layout) is the maintained map.
 
 ## Further Reading
 
-- [AGENTS.md](AGENTS.md) — Architecture overview and skill routing table
+- [AGENTS.md](AGENTS.md) — Layout, the commands that confirm work, and where each topic's detail lives
 - [alfred/AGENTS.md](alfred/AGENTS.md) — Alfred command reference and lint rules
-- `skills/` — Deep topic skills for AFD patterns, each language, auth, contracts, DirectClient
+- `.claude/skills/` — Deep topic skills for AFD patterns, each language, auth, DirectClient, and the session workflow
 
 ## Questions?
 

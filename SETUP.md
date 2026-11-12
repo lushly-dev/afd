@@ -11,6 +11,8 @@ First-time setup guide for the AFD monorepo. Run these steps once to get a worki
 | Python | 3.10+ (for Python package and Alfred) | `python --version` |
 | Git | Any recent | `git --version` |
 
+`pnpm verify` also needs `uv`, the Rust toolchain, CMake, OpenSSL or Chromium when the change it checks reaches a suite that uses them. `pnpm verify --list` prints the plan first.
+
 ## Install
 
 ### TypeScript packages
@@ -85,20 +87,25 @@ pnpm format        # Format code
 # Type checking
 pnpm typecheck
 
-# Quality gate (all checks)
+# The TypeScript quality gate ci.yml runs, over the packages the change affects
 pnpm check
+
+# pnpm check, then the local suite of every other workflow the change triggers
+pnpm verify
 ```
 
 ## Git Hooks (Lefthook)
 
-Lefthook manages git hooks. Installed automatically via `pnpm install`.
+Lefthook manages git hooks. Installed automatically via `pnpm install`; `lefthook.yml` defines them.
 
 | Hook | Commands | Trigger |
 |------|----------|--------|
-| pre-commit | Biome lint (staged), portability, file-size, typecheck | `git commit` |
+| pre-commit | Biome lint and fix (staged), portability, file-size, typecheck of the staged files' packages | `git commit` |
 | commit-msg | commitlint (conventional commits) | `git commit` |
-| pre-push | Full lint, test, typecheck, portability, file-size, orphan-files, versions | `git push` |
-| check | All pre-push + build | `npx lefthook run check` |
+| pre-push | Full lint, the affected packages' tests and typecheck, portability, file-size, orphan-files, versions, boundaries, skills, tooling tests | `git push` |
+| check | All pre-push, plus the affected build and coverage | `pnpm check` |
+
+The hooks neither install nor build: run `pnpm install` after pulling `main`, and `pnpm build` after changing a package another one imports.
 
 **Check scripts** (`scripts/`):
 
