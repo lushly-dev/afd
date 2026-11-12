@@ -558,7 +558,14 @@ const check = handler.preDispatchCheck({
 
 async function serve(req, res) {
   const body = await readBody(req, check.maxBodyBytes + 1);
-  handler.admit(req, await gatewayCredentials(req));
+  try {
+    handler.admit(req, await gatewayCredentials(req));
+  } catch {
+    // A bearer token beside the gateway's credentials, or credentials that fail the checks.
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('One request has one source of credentials');
+    return;
+  }
   const decided = check.decide(req, body);
   if (!decided.proceed) {
     res.writeHead(decided.status, decided.headers);

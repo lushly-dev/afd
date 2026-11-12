@@ -227,17 +227,21 @@ describe('P3-E9: M6, a host admits the callers it vouches for', () => {
 		await vi.waitFor(() => expect(isVerifiedCredentials(context.credentials)).toBe(false));
 	});
 
-	it('refuses a request that already carries a bearer token, in the header or the query', async () => {
+	it('refuses a request that already carries a bearer token, in the header or the query, encoded or not', async () => {
 		const { base, errors } = await gateway(() => credentials(), { check: false });
 		const header = await post(`${base}/rpc`, rpc('todo-list'), { Authorization: 'Bearer abc' });
 		const query = await post(`${base}/rpc?access_token=abc`, rpc('todo-list'));
+		// The name decoded as the bearer layer decodes it (M2): `%61` is `a`.
+		const encoded = await post(`${base}/rpc?x=1&%61ccess%5Ftoken=abc`, rpc('todo-list'));
 		expect(errors.map((error) => error.message)).toEqual([
+			expect.stringMatching(/carries a bearer token/),
 			expect.stringMatching(/carries a bearer token/),
 			expect.stringMatching(/carries a bearer token/),
 		]);
 		// Not admitted, so the bearer layer answers: a bad token, and a token in the query.
 		expect(header.status).toBe(401);
 		expect(query.status).toBe(401);
+		expect(encoded.status).toBe(401);
 		expect(seen).toEqual([]);
 	});
 

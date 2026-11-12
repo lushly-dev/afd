@@ -28,7 +28,7 @@ import {
 	readBodyBytes,
 	setPrereadBody,
 } from './http-security.js';
-import { extractBearer } from './mcp-auth-bearer.js';
+import { extractBearer, namesAccessToken } from './mcp-auth-bearer.js';
 import {
 	bodyTooLarge,
 	decideBody,
@@ -323,9 +323,6 @@ function scopeList(what: string, scopes: unknown): string[] {
 	return kept;
 }
 
-/** A query string naming `access_token` (RFC 6750 2.3), percent-encoded or not. */
-const BEARER_QUERY = /(?:^|&)access(?:_|%5[Ff])token(?:=|&|$)/;
-
 /**
  * The authorization layer of one HTTP handler.
  *
@@ -481,7 +478,7 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 		const host = vouched.get(req);
 		if (host) {
 			vouched.delete(req);
-			if (authorizationValues(req).length > 0 || BEARER_QUERY.test(url.search.slice(1))) {
+			if (authorizationValues(req).length > 0 || namesAccessToken(url.search.slice(1))) {
 				return unauthorized(res, 'token-location');
 			}
 			return take(req, res, host);
@@ -519,7 +516,7 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 
 	function hostAdmit(req: IncomingMessage, credentials: Credentials): void {
 		const query = new URL(req.url ?? '/', 'http://host').search.slice(1);
-		if (authorizationValues(req).length > 0 || BEARER_QUERY.test(query)) {
+		if (authorizationValues(req).length > 0 || namesAccessToken(query)) {
 			throw new Error(
 				'[AFD] admit refuses a request that carries a bearer token: one request has one source of credentials'
 			);

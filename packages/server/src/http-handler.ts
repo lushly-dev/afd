@@ -362,7 +362,10 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			throw new HttpRequestError(400, 'Invalid stream command name');
 		}
 		// GET is a safe method: link prefetchers and crawlers must not be able to trigger writes.
-		if (req.method === 'GET' && isMutation?.(commandName)) {
+		// A command hidden from this caller is not one here (M6), so it falls through to the
+		// engine's `COMMAND_NOT_FOUND`, the answer a server without it gives.
+		const shown = auth?.viewFor(req)?.known(commandName) ?? true;
+		if (req.method === 'GET' && shown && isMutation?.(commandName)) {
 			res.setHeader('Allow', 'POST');
 			json(
 				res,

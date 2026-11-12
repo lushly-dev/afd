@@ -147,7 +147,12 @@ function commands(options: { hidden?: boolean } = {}) {
 		}),
 		...(options.hidden === false
 			? []
-			: [todo('todo-purge', ['todo:admin'], { confirmPrompt: 'Purge every todo?' })]),
+			: [
+					todo('todo-purge', ['todo:admin'], {
+						confirmPrompt: 'Purge every todo?',
+						mutation: true,
+					}),
+				]),
 		// The archive list by default: only the validated input names it.
 		defineCommand({
 			name: 'todo-archive',
@@ -549,9 +554,12 @@ describe('P3-E9: M6, listing', () => {
 
 describe('P3-E9: M6, hidden commands answer as names that do not exist', () => {
 	/** The same request to a server hiding `todo-purge` and to a twin that does not have it. */
-	async function twins(strategy: McpHandlerOptions['toolStrategy']) {
+	async function twins(
+		strategy: McpHandlerOptions['toolStrategy'],
+		extra: Partial<McpHandlerOptions> = {}
+	) {
 		const auth = { resolver: resolver({ hide: ['todo-purge'] }), filterToolsByScope: true };
-		const options = { toolStrategy: strategy, confirmations: 'enforce' as const };
+		const options = { toolStrategy: strategy, confirmations: 'enforce' as const, ...extra };
 		const hiding = await serve(options, auth);
 		const twin = await serve({ ...options, commands: commands({ hidden: false }) }, auth);
 		const bearer = await token('todo:read todo:admin todo:export');
@@ -567,7 +575,8 @@ describe('P3-E9: M6, hidden commands answer as names that do not exist', () => {
 					body: sent.text
 						.replace(/(executionTimeMs|durationMs|totalMs|averageMs)\\?":[0-9.]+/g, '$1":0')
 						.replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, 'T')
-						.replace(/(batch|pipeline|afd-call|trace)-\d+-[a-z0-9]+/g, '$1-id'),
+						.replace(/(batch|pipeline|afd-call|trace)-\d+-[a-z0-9]+/g, '$1-id')
+						.replace(/(batch|rpc|stream)-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/g, '$1-id'),
 				};
 			};
 			const [hidden, missing] = [await normalize(hiding), await normalize(twin)];
@@ -614,6 +623,84 @@ describe('P3-E9: M6, hidden commands answer as names that do not exist', () => {
 		);
 		expect(list.body).not.toContain('todo-purge');
 		expect(list.body).toContain('todo-export');
+	});
+	it('in the lazy and hybrid strategies, on /batch, and in the bootstrap tools', async () => {
+		const listTools = (base: string, bearer: string) =>
+			post(
+				`${base}/mcp`,
+				{ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: META } },
+				bearer,
+				{ 'MCP-Protocol-Version': '2026-07-28', 'Mcp-Method': 'tools/list' }
+			);
+		const lazy = await twins('lazy', { bootstrap: true });
+		for (const [tool, args] of [
+			['afd-call', { command: 'todo-purge' }],
+			['afd-detail', { command: 'todo-purge' }],
+			['afd-discover', {}],
+			['afd-discover', { search: 'purge' }],
+			['afd-help', {}],
+			['afd-docs', {}],
+			['afd-docs', { command: 'todo-purge' }],
+			['afd-schema', {}],
+			['afd-schema', { command: 'todo-purge' }],
+		] as const) {
+			await lazy.same((base) => call(base, lazy.bearer, tool, args));
+		}
+		const lazyList = await lazy.same((base) => listTools(base, lazy.bearer));
+		expect(lazyList.body).not.toContain('todo-purge');
+		await lazy.same((base) =>
+			post(
+				`${base}/batch`,
+				{ commands: [{ command: 'todo-list', input: {} }, { command: 'todo-purge' }] },
+				lazy.bearer
+			)
+		);
+
+		const hybrid = await twins('hybrid', {
+			bootstrap: true,
+			firstClassTools: ['todo-list', 'todo-export'],
+		});
+		await hybrid.same((base) => call(base, hybrid.bearer, 'todo-purge', {}));
+		await hybrid.same((base) => call(base, hybrid.bearer, 'afd-call', { command: 'todo-purge' }));
+		await hybrid.same((base) => call(base, hybrid.bearer, 'afd-help', {}));
+		const hybridList = await hybrid.same((base) => listTools(base, hybrid.bearer));
+		expect(hybridList.body).not.toContain('todo-purge');
+		expect(ran).not.toContain('todo-purge');
+	});
+});
+
+describe('P3-E9: M6, a hidden mutation on /stream', () => {
+	it('answers GET and POST as a server without it, never with 405', async () => {
+		const auth = { resolver: resolver({ hide: ['todo-purge'] }), filterToolsByScope: true };
+		const options = { toolStrategy: 'individual' as const, confirmations: 'enforce' as const };
+		const hiding = await serve(options, auth);
+		const twin = await serve({ ...options, commands: commands({ hidden: false }) }, auth);
+		const bearer = await token('todo:read todo:admin todo:export');
+		const get = async (url: string) => {
+			const response = await fetch(url, { headers: { Authorization: `Bearer ${bearer}` } });
+			return {
+				status: response.status,
+				allow: response.headers.get('allow'),
+				type: response.headers.get('content-type'),
+				body: (await response.text()).replace(/(executionTimeMs|durationMs)\\?":[0-9.]+/g, '$1":0'),
+			};
+		};
+		const hidden = await get(`${hiding}/stream/todo-purge`);
+		expect(hidden).toEqual(await get(`${twin}/stream/todo-purge`));
+		expect(hidden.status).not.toBe(405);
+		expect(hidden.allow).toBeNull();
+		expect(hidden.body).toContain('COMMAND_NOT_FOUND');
+		// A shown mutation still refuses GET.
+		expect((await get(`${hiding}/stream/todo-create`)).status).toBe(405);
+		const posted = async (base: string) => {
+			const sent = await post(`${base}/stream/todo-purge`, {}, bearer);
+			return {
+				status: sent.status,
+				body: sent.text.replace(/(executionTimeMs|durationMs)\\?":[0-9.]+/g, '$1":0'),
+			};
+		};
+		expect(await posted(hiding)).toEqual(await posted(twin));
+		expect(ran).not.toContain('todo-purge');
 	});
 });
 
