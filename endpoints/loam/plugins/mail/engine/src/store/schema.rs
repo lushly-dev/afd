@@ -196,6 +196,51 @@ pub(super) const MIGRATIONS: &[&str] = &[
     -- and until `mail-rebuild` has run, new mail waits for it too.
     INSERT INTO engine_state (key, value) SELECT 'rebuild', 0 WHERE EXISTS (SELECT 1 FROM message);
     ",
+    // 3: what sync needs (5.2 to 5.7). How many messages a mailbox's last listing named, and
+    // whether the provider still lists the mailbox; the files a read found damaged, for sync to
+    // fetch again; bodies the provider did not return; and how many of a thread's messages in a
+    // mailbox are unread.
+    "
+    -- How many ids the mailbox's last listing named; NULL until it is first listed.
+    ALTER TABLE mailbox ADD COLUMN listed INTEGER CHECK (listed >= 0);
+    -- When the provider stopped listing the mailbox. Its observations are closed then.
+    ALTER TABLE mailbox ADD COLUMN gone_at INTEGER;
+
+    -- A file a read found damaged or missing: sync fetches its bytes again, and storing them
+    -- repairs the file (4.1). The part is 'header' or 'whole'. After three fetches that return
+    -- other bytes, it is left for a person to look at.
+    CREATE TABLE refetch (
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        part TEXT NOT NULL CHECK (part IN ('header', 'whole')),
+        tries INTEGER NOT NULL DEFAULT 0 CHECK (tries >= 0),
+        noted_at INTEGER NOT NULL,
+        PRIMARY KEY (message_id, part)
+    ) STRICT, WITHOUT ROWID;
+
+    -- A message whose body the provider did not return when asked: tried again an hour later,
+    -- given up after three tries until a week has passed (5.4, for bodies).
+    CREATE TABLE body_missing (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        tries INTEGER NOT NULL CHECK (tries > 0),
+        last_tried_at INTEGER NOT NULL
+    ) STRICT;
+
+    -- Derived like the rest of the row: the messages the mailbox shows that no current
+    -- observation in it marks \\Seen.
+    ALTER TABLE thread_place ADD COLUMN unread INTEGER NOT NULL DEFAULT 0 CHECK (unread >= 0);
+    UPDATE thread_place SET unread = (
+        SELECT count(*) FROM envelope
+        WHERE envelope.thread_id = thread_place.thread_id
+          AND EXISTS (SELECT 1 FROM observation
+                      WHERE observation.message_id = envelope.message_id
+                        AND observation.mailbox_id = thread_place.mailbox_id
+                        AND observation.ended_at IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM observation
+                          WHERE observation.message_id = envelope.message_id
+                            AND observation.mailbox_id = thread_place.mailbox_id
+                            AND observation.ended_at IS NULL
+                            AND instr(observation.flags, '\"\\\\Seen\"') > 0));
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

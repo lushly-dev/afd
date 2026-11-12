@@ -4,7 +4,8 @@
 //! (`../docs/engine.spec.md`). So far: the command registry and the rules every
 //! command in it must keep, the command line's entry point, the data
 //! directory, the log, the store's tables, what is derived from the log
-//! (fields, threads, the search index), and the first command,
+//! (fields, threads, the search index), the provider interface and its IMAP
+//! implementation, sync, and the commands `mail-sync`, `mail-status` and
 //! `mail-rebuild`. The other commands arrive with the steps that follow.
 
 pub mod cli;
@@ -14,8 +15,10 @@ pub mod engine;
 pub mod home;
 pub mod index;
 pub mod log;
+pub mod provider;
 pub mod rules;
 pub mod store;
+pub mod sync;
 
 use std::sync::Arc;
 
@@ -40,6 +43,8 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     let registry = CommandRegistry::new();
     // Commands are registered here, a step at a time.
     registry.register(commands::rebuild(Arc::clone(engine)))?;
+    registry.register(commands::sync(Arc::clone(engine)))?;
+    registry.register(commands::status(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if broken.is_empty() {
         Ok(registry)

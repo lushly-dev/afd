@@ -9,8 +9,12 @@
 
 mod derived;
 mod schema;
+mod sync;
 
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
+pub use sync::{
+    AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
+};
 
 use std::fmt;
 
@@ -376,7 +380,8 @@ impl Store {
             "INSERT INTO mailbox (account_id, provider_key, name, role, header_only)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT (account_id, provider_key) DO UPDATE
-             SET name = excluded.name, role = excluded.role, header_only = excluded.header_only",
+             SET name = excluded.name, role = excluded.role, header_only = excluded.header_only,
+                 gone_at = NULL",
             params![
                 account.0,
                 seen.provider_key,
@@ -610,6 +615,12 @@ impl Store {
                             size_of(part.bytes)
                         ],
                     )?;
+                    if part.place == Place::Whole {
+                        transaction.run(
+                            "DELETE FROM body_missing WHERE message_id = ?1",
+                            [part.message.0],
+                        )?;
+                    }
                     if part.place == Place::Whole && !touched.awaits_rebuild(part.message.0) {
                         derived::derive_body(
                             &transaction,
@@ -740,7 +751,15 @@ impl Store {
             .optional()?
             .ok_or(StoreError::NotFound("part"))?;
         let id = BlobId::from_bytes(&blob).ok_or(StoreError::NotFound("part"))?;
-        Ok(self.log.get(id, READ_LIMIT)?)
+        match self.log.get(id, READ_LIMIT) {
+            Ok(bytes) => Ok(bytes),
+            Err(error @ (LogError::Corrupt(_) | LogError::NotHeld(_))) => {
+                // Sync fetches it again, and storing the bytes repairs it.
+                self.note_damaged(message, place, wall_clock())?;
+                Err(error.into())
+            }
+            Err(error) => Err(error.into()),
+        }
     }
 
     /// A mailbox's counts.
@@ -900,11 +919,12 @@ fn record_header(
             )?;
             observe(transaction, mailbox, validity, seen, message, &flags, now)?;
             outcome.changed += 1;
+            // The provider's id may now name another message, and the flags
+            // decide what is unread.
             if shown != message {
-                // The provider's id now names another message.
                 derived::touch_place(transaction, mailbox.0, shown, touched)?;
-                derived::touch_place(transaction, mailbox.0, message, touched)?;
             }
+            derived::touch_place(transaction, mailbox.0, message, touched)?;
         }
         None => {
             observe(transaction, mailbox, validity, seen, message, &flags, now)?;
@@ -993,6 +1013,15 @@ fn json_string(text: &str) -> String {
     }
     quoted.push('"');
     quoted
+}
+
+/// The time now in milliseconds, for a record that is only informative.
+fn wall_clock() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 /// A size as SQLite holds it. No message is 8 EiB long; one that claims to be is clamped.

@@ -1,0 +1,42 @@
+{
+	"run": "Step B3, a pass of sync against the owner's iCloud account, 2026-11-11: headers of every mailbox and 20 batches of bodies, then a second pass. Counts only.",
+	"awaited": 13232,
+	"bodyBatchesServed": 20,
+	"firstPass": {
+		"headersPerSecond": 193.3,
+		"seconds": 1518,
+		"totals": {
+			"added": 293366,
+			"bodies": 738,
+			"changed": 0,
+			"errors": 0,
+			"mailboxes": 36,
+			"notReturned": 13232,
+			"removed": 0,
+			"setAside": 0
+		}
+	},
+	"identity": {
+		"heldAsOneMessage": 0,
+		"heldAsSeveral": 152,
+		"messageIdsInMoreThanOneMailbox": 152,
+		"messagesInMoreThanOneMailbox": 0,
+		"messagesWithoutMessageId": 0,
+		"severalWithOneHeaderBlockAndOtherSizes": 2
+	},
+	"messagesShown": 293369,
+	"secondPass": {
+		"seconds": 174.5,
+		"totals": {
+			"added": 3,
+			"bodies": 0,
+			"changed": 0,
+			"errors": 0,
+			"mailboxes": 36,
+			"notReturned": 0,
+			"removed": 0,
+			"setAside": 0
+		}
+	},
+	"unreturned": 0
+}

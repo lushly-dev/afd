@@ -5,7 +5,9 @@ use std::fmt;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::home::{Home, HomeError};
+use crate::provider::Connector;
 use crate::store::{Store, StoreError};
+use crate::sync::Options;
 
 /// Where a command that runs for a while says how far it has come.
 pub type Progress = Arc<dyn Fn(&str) + Send + Sync>;
@@ -19,6 +21,10 @@ pub struct Engine {
     /// lock and makes no directory.
     store: Mutex<Option<Store>>,
     progress: Option<Progress>,
+    /// How sync reaches accounts' providers; `None` in a build that syncs
+    /// nothing.
+    connector: Option<Arc<dyn Connector>>,
+    sync: Options,
 }
 
 impl fmt::Debug for Engine {
@@ -37,7 +43,35 @@ impl Engine {
             home,
             store: Mutex::new(None),
             progress: None,
+            connector: None,
+            sync: Options::default(),
         }
+    }
+
+    /// The same engine, reaching providers through `connector`.
+    #[must_use]
+    pub fn with_connector(mut self, connector: Arc<dyn Connector>) -> Self {
+        self.connector = Some(connector);
+        self
+    }
+
+    /// The same engine, sizing sync's work by `options`.
+    #[must_use]
+    pub fn with_sync_options(mut self, options: Options) -> Self {
+        self.sync = options;
+        self
+    }
+
+    /// How sync reaches providers.
+    #[must_use]
+    pub fn connector(&self) -> Option<&Arc<dyn Connector>> {
+        self.connector.as_ref()
+    }
+
+    /// How sync sizes its work.
+    #[must_use]
+    pub fn sync_options(&self) -> &Options {
+        &self.sync
     }
 
     /// The same engine, reporting the progress of long commands to
