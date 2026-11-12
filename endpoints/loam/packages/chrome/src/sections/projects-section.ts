@@ -619,13 +619,15 @@ export class LoamProjectsSection extends FASTElement {
 	#heard(event: KernelEventV3): void {
 		// From anyone: a project changed, an app was enabled or disabled, or the actor changed.
 		if (!event.success || !event.mutation) return;
-		// What an action said goes with the actor that made it: a signed-out person sees no restricted name (T3).
-		if (event.command.startsWith('auth-')) {
+		// What an action said goes with the actor that made it: a signed-out person sees no restricted name (T3),
+		// nor does the next person after a change no command made (phase 3 specification, 4.4; #864).
+		if (event.actorChanged || event.command.startsWith('auth-')) {
 			this.status = '';
 			this.#carried = '';
 		}
 		// A home's documents card follows every document's change too (documents specification, 8.3).
 		if (
+			event.actorChanged ||
 			/^(project-|workspace-app-set$|auth-)/.test(event.command) ||
 			(this.view === 'home' && event.command.startsWith('document-'))
 		)

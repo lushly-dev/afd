@@ -11,18 +11,29 @@ import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { createDefaultLayout } from '../layout.js';
+import { SHELL_OWNER } from '../overlay-owner.js';
+import { personKey } from '../scope/access.js';
 import { createRecordCache } from '../scope/cache.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
 import type { PersonalStore } from '../scope/personal.js';
 import type { AgentMemberV1, ScopeV1 } from '../scope/records.js';
+import type { QueuedTicket } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
-import type { AppSummaryV2, KernelEventV3, KernelMcpOptions } from '../types.js';
+import type {
+	AppSummaryV2,
+	AppsLoadV2,
+	KernelEventV3,
+	KernelMcpOptions,
+	KernelOptionsV3,
+	KernelPortsV1,
+} from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
-import { agentActor, createAuthGate } from './auth-gate.js';
+import { agentActor, createAuthGate, sessionChanged } from './auth-gate.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
+import type { EditorDraftsV1 } from './editor-state.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
@@ -33,6 +44,7 @@ import { createPortRefusals } from './port-refusals.js';
 import { createProjectSummaryCommand, type ProjectSummaryDeps } from './project-summary.js';
 import { createLateScope, type LateScopeDeps } from './scope-change.js';
 import { createScopeCommands } from './scope-commands.js';
+import type { SessionSettle } from './session-settle.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
 import { AGENT_MEMBER_TABLE } from './tables.js';
@@ -67,7 +79,17 @@ export type LateCommandDeps = ShellCommandDeps &
 		identity?: IdentityV1;
 		/** A `provider` deployment's view-state store, whose writes this chunk attaches (4.5). */
 		personal?: PersonalStore | undefined;
-	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'>;
+		/** Boot's own: never queued, top-level and journaled, which `session-settle` runs as (4.4). */
+		runBoot(name: string, input: unknown): Promise<{ success: boolean }>;
+		/** The host's ports: the expiry timer's `schedule` and `readMembership` (4.4). */
+		ports?: KernelPortsV1 | undefined;
+		/** `run`'s `auth-*` call queued last on each interface, which this chunk clears as it ends (4.4). */
+		pending: Partial<Record<string, QueuedTicket>>;
+		/** The symbol `run` keeps a queued call's ticket under: the kernel's own, so first paint shares no new one. */
+		queued: symbol;
+	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
+	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
+	Pick<KernelOptionsV3, 'boot' | 'appsLoader' | 'deployment'>;
 
 /**
  * The commands that move a person's active scope, what main shows or the session: a person's or an
@@ -152,6 +174,18 @@ export interface LateParts {
 	/** A reload, for a replay: the session is forgotten, as the Mock's page forgets it (10). */
 	reload(): Promise<void>;
 	/**
+	 * Stage B's first act, after its own journaled work and before any queued call: the first `session-settle` in
+	 * `provider` mode, then the adapter's listener and the expiry timer (phase 3 specification, 4.4).
+	 */
+	begin(): Promise<void>;
+	/**
+	 * What stage B reads of the apps: the host's loader with `boot`, else the options themselves. Here, since
+	 * stage B reads them only once this chunk has loaded (phase 3 specification, 13).
+	 */
+	readApps(): Promise<AppsLoadV2 | undefined> | AppsLoadV2 | undefined;
+	/** `app-instance-refresh` for each mounted instance: the chrome calls it after first paint (13). */
+	startInstances(): Promise<void>;
+	/**
 	 * Stage B's own journaled work, with `run` boot's own (2.2, step 5); never re-run in a replay, whose
 	 * entries are what ran. It keeps whether the store now holds the projection's entries. Then the trash's
 	 * expiry (documents specification, 4.1), and, with `settle` (stage A has hydrated the persisted state),
@@ -188,16 +222,19 @@ export async function createLateParts(
 		deps.scope,
 		(type) => documents.types().types.get(type)?.title
 	);
-	// Both chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
-	// either failing fails the late load whole (documents specification, Status, deviations 9 and 14).
-	const [{ createDocumentCommands, trashBefore }, { createEditorParts }] = await Promise.all([
-		import('./documents.js'),
-		import('./editor-commands.js'),
-	]);
+	// The chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
+	// any failing fails the late load whole (documents specification, Status, deviations 9 and 14). The third is
+	// `late-identity`, the kernel's hearing of the adapter, with `session-settle` (phase 3 specification, 4.4, 13).
+	const [{ createDocumentCommands, trashBefore }, { createEditorParts }, { createSessionSettle }] =
+		await Promise.all([
+			import('./documents.js'),
+			import('./editor-commands.js'),
+			import('./session-settle.js'),
+		]);
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
-	if (deps.personal) personalWrites(deps.personal, deps.store, deps.viewState);
+	const quiet = deps.personal && personalWrites(deps.personal, deps.store, deps.viewState);
 	// The `agent-member` table, which line 4 of the access decision reads (phase 3 specification, 3.3).
 	const agents = createRecordCache<AgentMemberV1>(AGENT_MEMBER_TABLE);
 	await agents.load(deps.store);
@@ -221,8 +258,11 @@ export async function createLateParts(
 			new Set(has ? ['sidebar', 'inspector'] : ['sidebar'])
 		);
 	};
+	/** The kernel's hearing of the adapter (phase 3 specification, 4.4), built below with what it needs. */
+	let sessions: SessionSettle | undefined;
 	const lateScope = createLateScope({
 		...deps,
+		session: () => sessions,
 		documents,
 		async settle(name, call) {
 			await editor?.settle(name, call);
@@ -231,7 +271,37 @@ export async function createLateParts(
 				await declare();
 		},
 	});
-	editor = createEditorParts({ ...deps, lateScope, check: documents }, DOCUMENT_KIT);
+	// The editor area's dirty tabs and selections, made here so a change of person can move them (4.5).
+	const drafts: EditorDraftsV1 = { dirty: new Map(), selections: new Map() };
+	const editorParts = createEditorParts(
+		{ ...deps, lateScope, check: documents, drafts },
+		DOCUMENT_KIT
+	);
+	editor = editorParts;
+	sessions = createSessionSettle({
+		...deps,
+		lateScope,
+		drafts,
+		ensureEditor: (project) => editorParts.ensure(project),
+		kit: {
+			define: DOCUMENT_KIT.define,
+			success: DOCUMENT_KIT.success,
+			z: DOCUMENT_KIT.z,
+			actor: () => sessionActor(deps.auth, deps.clock),
+			personKey,
+			ticket: (call) => (call as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued],
+			sessionChanged,
+			internal: INTERNAL_COMMANDS,
+			shellOwner: SHELL_OWNER,
+		},
+		...(quiet ? { quiet } : {}),
+	});
+	// The kernel's `dispose` destroys the view state last: the listener and the timer stop with it.
+	const destroy = deps.viewState.destroy.bind(deps.viewState);
+	deps.viewState.destroy = () => {
+		sessions?.stop();
+		return destroy();
+	};
 	// The active scope's editor record registers in stage B and is read then (documents specification, 6):
 	// stage A's `hydrate` drops a record with no handler.
 	// Each person's `loam.new.recent~<actor>` registers on their first use, read before anything writes it (7).
@@ -282,6 +352,7 @@ export async function createLateParts(
 			...createLinkCommands({ ...deps, check: documents, index }),
 			...editor.commands,
 			created.command,
+			sessions.command,
 		].map((command) => [command.name, command])
 	);
 	// The New menu's `document-create { recent: true }` keeps its type and template first (documents specification, 7).
@@ -336,7 +407,11 @@ export async function createLateParts(
 		lateScope,
 		agentActor,
 		authGate: (held) =>
-			createAuthGate(deps.auth, held, { identity: deps.identity ?? { mode: 'local' } }),
+			createAuthGate(deps.auth, held, {
+				identity: deps.identity ?? { mode: 'local' },
+				clock: deps.clock,
+				copied: sessions?.copied,
+			}),
 		mcpOptions: ({ commands, middleware }, listeners) => ({
 			// A server holds no active scope and no person's session (3.3), so the commands that move them
 			// are not served: a person's calls make them.
@@ -349,7 +424,7 @@ export async function createLateParts(
 					const trace = context.traceId as string;
 					// Before and after: a call that takes the page's actor out of a scope is heard too.
 					const before = deps.scope.allows(
-						sessionActor(deps.auth),
+						sessionActor(deps.auth, deps.clock),
 						(context as { scope?: ScopeV1 }).scope ?? { workspace: deps.scope.workspace.id }
 					);
 					deps.scope.seen.set(trace, {});
@@ -360,7 +435,9 @@ export async function createLateParts(
 					if (
 						result.success &&
 						deps.isMutation(command) &&
-						(before || !seen?.scope || deps.scope.allows(sessionActor(deps.auth), seen.scope))
+						(before ||
+							!seen?.scope ||
+							deps.scope.allows(sessionActor(deps.auth, deps.clock), seen.scope))
 					) {
 						const event = {
 							command,
@@ -424,11 +501,35 @@ export async function createLateParts(
 			}
 		},
 		async reload() {
-			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.
+			// A reload forgets the overlays and the apps' session state, and signs the Mock out (`host.ts`), so
+			// the boot's `auth-session-get` reads the same.
+			deps.overlays.reset();
+			deps.apps().resetSession();
 			await deps.auth.signOut();
+			// A replay's page starts as the person its first settle names, as the original's stage A did (4.4).
+			deps.internals?.startPage?.();
 			lateScope.forgetActor();
+			sessions?.reload();
 			// Dirty tabs and selections are memory alone, lost as an unsaved change is (5.2).
 			editor?.reset();
+		},
+		begin: () => (sessions as SessionSettle).begin(),
+		readApps() {
+			if (deps.boot) return deps.appsLoader?.();
+			const listed = deps.deployment;
+			if (listed === undefined || listed.apps.length === 0) return undefined;
+			return {
+				deployment: listed,
+				...(deps.ports !== undefined ? { ports: deps.ports } : {}),
+			} as AppsLoadV2;
+		},
+		async startInstances() {
+			await Promise.all(
+				deps
+					.apps()
+					.mountedInstances()
+					.map((instance) => deps.run('palette', 'app-instance-refresh', { instance }, {}, {}))
+			);
 		},
 	};
 	return parts;

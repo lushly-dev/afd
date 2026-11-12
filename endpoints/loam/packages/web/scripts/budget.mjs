@@ -234,6 +234,7 @@ export const CEILINGS = Object.freeze({
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
+	lateIdentityMinified: 16_000,
 	urlMinified: 5_247,
 	appsMinified: 394_973,
 	surfacesMinified: 85_000,
@@ -395,8 +396,9 @@ async function measurePage() {
 	};
 	// In the order a page loads them, so a shared chunk, classic Zod's among them, is charged to the first.
 	// `late-documents` is a chunk of its own, with a row of its own, so `late` leaves it out (2.4, step 9).
-	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07).
-	const late = closure(/^assets\/late-(?!documents-|editor-)/, initial);
+	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07), and phase 3's
+	// `late-identity` (phase 3 specification, 13).
+	const late = closure(/^assets\/late-(?!documents-|editor-|identity-)/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
@@ -411,7 +413,21 @@ async function measurePage() {
 	if (lateEditor.size === 0) {
 		throw new Error('budget: the build has no `late-editor` chunk to measure');
 	}
-	const afterLate = new Set([...initial, ...late, ...lateDocuments, ...lateEditor]);
+	// Awaited beside them, phase 3's (13): charged after `late-editor`, whose state it shares.
+	const lateIdentity = closure(
+		/^assets\/late-identity-/,
+		new Set([...initial, ...late, ...lateDocuments, ...lateEditor])
+	);
+	if (lateIdentity.size === 0) {
+		throw new Error('budget: the build has no `late-identity` chunk to measure');
+	}
+	const afterLate = new Set([
+		...initial,
+		...late,
+		...lateDocuments,
+		...lateEditor,
+		...lateIdentity,
+	]);
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -497,6 +513,7 @@ async function measurePage() {
 		lateMinified: sizeOf(late),
 		lateDocumentsMinified: sizeOf(lateDocuments),
 		lateEditorMinified: sizeOf(lateEditor),
+		lateIdentityMinified: sizeOf(lateIdentity),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -582,6 +599,7 @@ const ROWS = [
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
 	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
+	['lateIdentityMinified', "The kernel's `late-identity` chunk and its imports, minified"],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],

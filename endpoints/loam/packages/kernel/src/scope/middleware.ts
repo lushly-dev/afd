@@ -65,13 +65,14 @@ export const projectNotFound = (): CommandResult<never> =>
 /**
  * The person the adapter reports now, as the auth middleware would stamp them, or undefined signed out. An
  * expired session, a malformed expiry, or a user id starting `agt_`, which no person's may (3.2), is none.
+ * Expiry is on the kernel's clock, which the middleware and the Mock share (phase 3 specification, 4.4).
  */
-export const sessionActor = (auth: AuthAdapter): AccessActorV1 => {
+export const sessionActor = (auth: AuthAdapter, clock: { now(): number } = Date): AccessActorV1 => {
 	const state = auth.getSession();
 	const expiry = state.session?.expiresAt;
 	return state.status === 'authenticated' &&
 		!state.user.id.startsWith(AGENT_MEMBER_PREFIX) &&
-		(expiry === undefined || new Date(expiry).getTime() > Date.now())
+		(expiry === undefined || new Date(expiry).getTime() > clock.now())
 		? { kind: 'human', id: state.user.id }
 		: undefined;
 };

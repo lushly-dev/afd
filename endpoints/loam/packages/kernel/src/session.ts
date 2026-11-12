@@ -65,7 +65,7 @@ export interface TestKernelOptions {
 	appsLoader?: KernelOptionsV3['appsLoader'];
 	/** Default: a new `MemoryAdapter`. Share one to stand for a reload, which keeps the store. */
 	store?: KernelOptionsV3['store'];
-	/** Default: a new `MockAuthAdapter`. */
+	/** Default: a new `MockAuthAdapter` on `clock`, the kernel's (phase 3 specification, 4.4). */
 	auth?: KernelOptionsV3['auth'];
 }
 
@@ -84,7 +84,8 @@ export async function createTestKernel(options: TestKernelOptions = {}): Promise
 		store: options.store ?? new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
-		auth: options.auth ?? new MockAuthAdapter(),
+		auth:
+			options.auth ?? new MockAuthAdapter(options.clock ? { clock: { now: options.clock } } : {}),
 		environment: options.environment ?? createFixedEnvironment(),
 		host: 'test',
 		...(options.commands !== undefined ? { commands: options.commands } : {}),
@@ -129,14 +130,16 @@ export async function recordSession(
 	options: RecordSessionOptions = {}
 ): Promise<RecordedSession> {
 	const journal = new MemoryJournalSink();
+	const clock = createSteppingClock(options.start);
 	const kernelOptions: KernelOptionsV3 = {
 		store: new MemoryAdapter(),
 		storeKind: 'memory',
 		journal,
-		auth: new MockAuthAdapter(),
+		// On the kernel's clock, as the auth middleware is (phase 3 specification, 4.4).
+		auth: new MockAuthAdapter({ clock: { now: clock } }),
 		environment: options.environment ?? createFixedEnvironment(),
 		host: 'test',
-		clock: createSteppingClock(options.start),
+		clock,
 		random: createSeededRandom(options.seed ?? 'loam'),
 		...(options.commands !== undefined ? { commands: options.commands } : {}),
 		...(options.deployment !== undefined ? { deployment: options.deployment } : {}),

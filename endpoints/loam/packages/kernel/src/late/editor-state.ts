@@ -439,12 +439,23 @@ export interface Editors {
 	reset(): void;
 }
 
-export function createEditors(viewState: ViewStateRegistry): Editors {
+/** A person's drafts in memory: by record and tab, the document each unsaved tab shows, and the selections. */
+export interface EditorDraftsV1 {
+	dirty: Map<string, string>;
+	selections: Map<string, unknown>;
+}
+
+/**
+ * The drafts are the maps the dirty tabs (by record and tab, the document each unsaved tab shows) and the
+ * selections live in, which `late` makes, so a change of person can move them out to be held and put the next
+ * person's in (phase 3 specification, 4.4 and 4.5) with nothing added here.
+ */
+export function createEditors(
+	viewState: ViewStateRegistry,
+	{ dirty, selections }: EditorDraftsV1
+): Editors {
 	const records = new Map<string, EditorStateV1>();
 	const reads = new Map<string, Promise<void>>();
-	/** By record and tab, the document each unsaved tab shows. */
-	const dirty = new Map<string, string>();
-	const selections = new Map<string, unknown>();
 	const key = (project: string | undefined, tab: string) => `${editorStateId(project)} ${tab}`;
 
 	const register = (id: string): void => {

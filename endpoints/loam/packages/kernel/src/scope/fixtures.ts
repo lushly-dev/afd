@@ -293,7 +293,9 @@ export async function createScopedWorkspace(
 ): Promise<ScopedWorkspace> {
 	const store = options.store ?? new MemoryAdapter();
 	const journal = options.journal ?? new MemoryJournalSink();
-	const auth = options.auth ?? new MockAuthAdapter();
+	const clock = options.clock ?? createSteppingClock();
+	// On the kernel's clock, as the auth middleware is (phase 3 specification, 4.4).
+	const auth = options.auth ?? new MockAuthAdapter({ clock: { now: clock } });
 	const parts = await createKernelParts(
 		{
 			store,
@@ -302,7 +304,7 @@ export async function createScopedWorkspace(
 			auth,
 			environment: createFixedEnvironment(),
 			host: 'test',
-			clock: options.clock ?? createSteppingClock(),
+			clock,
 			random: createSeededRandom('scoped'),
 			deployment: options.deployment ?? scopedDeployment(),
 			ports: options.ports ?? scopedPorts(),

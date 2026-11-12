@@ -63,6 +63,8 @@ export class RailBands {
 		if (
 			event.scopeChanged ||
 			event.mainChanged ||
+			// The person changed with no command (phase 3 specification, 4.4): every band reads again.
+			event.actorChanged ||
 			(event.success && event.mutation && /^(project-|workspace-app-set$)/.test(event.command))
 		) {
 			void this.refresh(event.scopeChanged);

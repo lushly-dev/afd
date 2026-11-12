@@ -43,12 +43,13 @@ import {
 	needsInput,
 	SHELL_KEYBINDINGS_V0,
 } from './keybindings.js';
+import type { LateParts } from './late/index.js';
 import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
 import { type MembershipV1, personKey } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
 import { personalStore } from './scope/personal.js';
-import { CALL_MARK, createScopeRuntime } from './scope/runtime.js';
+import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
 	AppSummaryV2,
@@ -218,7 +219,19 @@ export interface KernelPartsInternals {
 	replaying?: boolean;
 	/** The journal's actor for a trace ID, undefined for one it does not hold (10). */
 	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+	/** The replay's Mock set to the person a `session-settle` entry records (phase 3 specification, 4.4). */
+	drive?(person: string | null): void;
+	/** At a reload, the replay's Mock set to the person the page's first settle names (4.4). */
+	startPage?(): void;
 }
+
+/**
+ * On a queued call's context, set by `run` when it queues the call: its ticket (phase 3 specification, 4.4),
+ * which `late/` reads, given it by `createLateParts`, to refuse a call that would run as another person than it
+ * was made as. Here, not in `scope/`, so first paint's shared chunk exports nothing new for it (13); exported for
+ * tests.
+ */
+export const QUEUED = Symbol();
 
 /** Build a kernel and expose its registries, for replay. Not part of the kernel interface. */
 export async function createKernelParts(
@@ -237,10 +250,13 @@ export async function createKernelParts(
 		options.membership?.mode === identity.mode
 			? options.membership
 			: { mode: identity.mode, members: new Map(), digest: '' };
+	// The kernel's clock: the registries', the auth middleware's and the Mock's, which the host gives it (4.4).
+	const clock = options.clock ? { now: options.clock } : undefined;
+	const random = options.random ? { next: options.random } : undefined;
+	/** The person the adapter reports now, on the kernel's clock (phase 3 specification, 4.4). */
+	const person = () => personKey(sessionActor(options.auth, clock));
 	// In `provider` mode a person's records are theirs, for whoever is signed in at each read and write (4.5).
-	const personal = provider
-		? personalStore(options.store, () => personKey(sessionActor(options.auth)))
-		: undefined;
+	const personal = provider ? personalStore(options.store, person) : undefined;
 	const viewState = new ViewStateRegistry({ adapter: personal ?? options.store });
 	const state = registerShellState(viewState);
 	const workspace = boot?.workspace ??
@@ -328,8 +344,6 @@ export async function createKernelParts(
 		...kernelJournalOptions(),
 		redact: (record) => apps.redact(redactJournalRecord(record)),
 	});
-	const clock = options.clock ? { now: options.clock } : undefined;
-	const random = options.random ? { next: options.random } : undefined;
 
 	let registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
 	let mutations: Map<string, boolean>;
@@ -345,7 +359,7 @@ export async function createKernelParts(
 	 */
 	const chain = (held: readonly ZodCommandDefinition[]): CommandMiddleware[] => [
 		lateParts?.authGate(held) ??
-			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name) }),
+			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
 		scopeMiddleware,
 	];
@@ -394,27 +408,28 @@ export async function createKernelParts(
 			const { createOverlayStore, createLateParts } = late;
 			addBootActions = late.withBootActions;
 			overlays = createOverlayStore();
+			// The kernel's options, with what it built: `late/` reads the adapter, the store, the host, the ports
+			// and stage B's loader from them.
 			const parts = await createLateParts(bootCommands, {
+				...options,
 				viewState,
 				state,
-				environment,
-				auth: options.auth,
-				host: options.host,
-				storeKind: options.storeKind,
 				overlays,
 				apps: () => apps,
 				paletteRows: () => summarize(registries.palette),
 				commandSet: () => commandSet,
 				scope,
-				store: options.store,
 				generation: () => generation,
 				isMutation: (name) => mutations.get(name) === true,
 				internals,
 				summaries,
 				run,
+				runBoot,
+				queued: QUEUED,
 				clock,
 				identity,
 				personal,
+				pending,
 			});
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
@@ -431,7 +446,7 @@ export async function createKernelParts(
 	}
 
 	/** What `late/` gives the kernel's parts, once it has loaded. */
-	let lateParts: import('./late/index.js').LateParts | undefined;
+	let lateParts: LateParts | undefined;
 	/** The projection stage B keeps in the workspace store, once it is read (4.1). */
 	let applying: import('./late/index.js').AppliedProjection | undefined = options.deployment;
 
@@ -443,6 +458,8 @@ export async function createKernelParts(
 	 * would not: the journal appends after hashing the context with WebCrypto, which finishes in any order.
 	 */
 	let queue: Promise<unknown> | undefined;
+	/** By interface, the `auth-*` call queued last, until `late/` sees it end (phase 3 specification, 4.4). */
+	const pending: Partial<Record<KernelInterfaceV0, QueuedTicket>> = {};
 	/**
 	 * The fields of boot's own journaled work, an object no caller can name (phase 2 specification, 2.2).
 	 * Step 4 runs `workspace-deployment-apply` with them from inside stage B, so they never join the queue,
@@ -458,17 +475,6 @@ export async function createKernelParts(
 	let hydrated = false;
 	/** Why stage B ended early, so `createKernel` can reject on a refused name when it ran inside it. */
 	let stageBError: unknown;
-
-	/** What stage B reads of the apps: the host's loader with `boot`, else the options themselves. */
-	async function readApps(): Promise<AppsLoadV2 | undefined> {
-		if (boot) return options.appsLoader?.();
-		const listed = options.deployment;
-		if (listed === undefined || listed.apps.length === 0) return undefined;
-		return {
-			deployment: listed,
-			...(options.ports !== undefined ? { ports: options.ports } : {}),
-		} as AppsLoadV2;
-	}
 
 	/** The apps, once the late commands are in. One app's failure, or the runtime's, never stops the shell. */
 	async function loadAppsStage(): Promise<void> {
@@ -497,7 +503,8 @@ export async function createKernelParts(
 		}
 		let loaded: AppsLoadV2 | undefined;
 		try {
-			loaded = await readApps();
+			// `late/` has loaded: it reads them (13).
+			loaded = await (lateParts as LateParts).readApps();
 		} catch (cause) {
 			reportKernelError(cause);
 			fallBack(runtimeUnavailable(String((cause as Error)?.message ?? cause)));
@@ -566,6 +573,8 @@ export async function createKernelParts(
 				await lateParts?.apply(applying, runBoot, hydrated);
 			}
 			setAppCommands(apps.commands);
+			// Stage B's first act before any queued call: `late/` hears the adapter from here (phase 3 specification, 4.4).
+			await lateParts?.begin();
 		})()
 			.catch((cause: unknown) => {
 				stageBError = cause;
@@ -591,7 +600,9 @@ export async function createKernelParts(
 	 * too. A nested call (an app's, through `runAs`) runs inside its parent, which may hold the queue, so
 	 * it never joins it, and nor does boot's own work (`BOOT_FIELDS`), which stage B runs from inside
 	 * `startApps`. The trade-off: while the queue drains, one slow call holds every call behind it. Once
-	 * stage B has ended and the queue is empty, calls run concurrently again, as before phase 2.
+	 * stage B has ended and the queue is empty, calls run concurrently again, as before phase 2. A queued
+	 * call carries its ticket, so `late/` refuses it `SESSION_CHANGED` if the person changed while it waited
+	 * (phase 3 specification, 4.4).
 	 */
 	function run<T>(
 		iface: KernelInterfaceV0,
@@ -610,6 +621,10 @@ export async function createKernelParts(
 			!(queue || (!stageBEnded && (iface === 'agent' || !mutations.has(name))))
 		)
 			return go();
+		const ticket: QueuedTicket = { person: person(), behind: pending[iface] };
+		if (name.startsWith('auth-')) pending[iface] = ticket;
+		// `go` reads `fields` when the queue reaches it: the caller's, with the ticket.
+		fields = { ...fields, [QUEUED]: ticket } as KernelCallFields;
 		const mine = (queue ?? startApps()).then(go);
 		const drained = () => {
 			if (queue === tail) queue = undefined;
@@ -711,7 +726,7 @@ export async function createKernelParts(
 	 * a change is journaled in stage B, by `scope-set`.
 	 */
 	function chooseScope(slug?: string | null): void {
-		const actor = sessionActor(options.auth);
+		const actor = sessionActor(options.auth, clock);
 		// `null`: the URL names the workspace itself, so the persisted project is not entered (6.3).
 		const project = (
 			slug === null ? [] : [slug && scope.project(slug)?.id, state.scopeProject()]
@@ -774,11 +789,7 @@ export async function createKernelParts(
 		appPort: (instance) => apps.port(instance),
 		listKeybindings: () => keybindings.list(state.activeApp()),
 		async startInstances() {
-			await Promise.all(
-				apps
-					.mountedInstances()
-					.map((instance) => run('palette', 'app-instance-refresh', { instance }))
-			);
+			await lateParts?.startInstances();
 		},
 		async flush() {
 			if (!disposed) await viewState.flush();
@@ -802,9 +813,8 @@ export async function createKernelParts(
 		setAppCommands,
 		applyCatalog: (instance, catalog) => apps.applyCatalog(instance, catalog),
 		async resetSession() {
-			overlays?.reset();
-			apps.resetSession();
-			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.
+			// A reload forgets the overlays and the apps' session state, and signs the Mock out (`host.ts`), so
+			// the boot's `auth-session-get` reads the same: `late/`'s.
 			await lateParts?.reload();
 			chooseScope();
 		},

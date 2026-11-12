@@ -61,8 +61,11 @@ export interface ShellState {
 	layoutId(): string;
 	/** The layout record `id` holds, if it is one. */
 	layoutOf(id: string): LayoutStateV0 | undefined;
-	/** What `layout-reset` restores for the active owner. */
-	layoutInitial(): LayoutStateV0;
+	/**
+	 * What `layout-reset` restores for the active owner, or for the record `id`: its first shape, which a change
+	 * of person resets a record to before reading the next person's (phase 3 specification, 4.4).
+	 */
+	layoutInitial(id?: string): LayoutStateV0;
 	/** The parts the record `id` may open: all of them with no app. */
 	declaredParts(id: string): ReadonlySet<LayoutPart>;
 	/**
@@ -223,7 +226,7 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 			const held = layouts.get(id);
 			return held ? cloneLayout(held.state) : undefined;
 		},
-		layoutInitial: () => cloneLayout(record(activeId()).initial),
+		layoutInitial: (id = activeId()) => cloneLayout(record(id).initial),
 		declaredParts: (id) => layouts.get(id)?.declared ?? ALL_PARTS,
 		registerAppLayout(instance, initial, declared) {
 			const id = appLayoutId(instance);

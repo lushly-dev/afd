@@ -23,11 +23,23 @@ import {
  */
 export const CALL_MARK = Symbol();
 
+/**
+ * A queued call's ticket: the person signed in when it was queued, and the `auth-*` call queued ahead of it on
+ * its interface that had not ended then, whose `left`, the person it left signed in, `late/` sets when it ends.
+ */
+export interface QueuedTicket {
+	person: string | undefined;
+	behind?: QueuedTicket;
+	left?: string | undefined;
+}
+
 /** What a call's event carries of its scope, kept by trace ID as `seqs` is (11.1). */
 export interface ScopeSeen {
 	scope?: ScopeV1;
 	scopeChanged?: ScopeChangeV2;
 	mainChanged?: 'push' | 'replace';
+	/** The person the kernel decides for changed, by `session-settle` (phase 3 specification, 4.4). */
+	actorChanged?: true;
 	/** A type's instance command that changed this document succeeded (documents specification, 5.7). */
 	document?: string;
 }

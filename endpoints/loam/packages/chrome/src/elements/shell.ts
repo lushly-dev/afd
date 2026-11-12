@@ -651,7 +651,8 @@ export class LoamShell extends FASTElement {
 			void this.#loadApps().then(() => this.apps?.start());
 		} else if (event.command.startsWith('layout-')) void this.readLayout();
 		else if (event.command.startsWith('appearance-')) void this.#readAppearance();
-		else if (event.command.startsWith('auth-')) void this.#readSession();
+		// After a sign-in or sign-out, or a change of person no command made (phase 3 specification, 4.4).
+		else if (event.actorChanged || event.command.startsWith('auth-')) void this.#readSession();
 		else if (event.command === 'view-state-set') {
 			void this.readLayout();
 			void this.#readAppearance();
