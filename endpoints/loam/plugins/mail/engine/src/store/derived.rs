@@ -657,8 +657,8 @@ impl Store {
         // A body that is not held, or is damaged, leaves the subject
         // searchable. A file system that refuses for the moment does not: the
         // note stays, and the document is made when it can be read.
-        let text = match self.read_part(MessageId(message), "whole") {
-            Ok(whole) => derive::body_fields(&whole).text,
+        let text = match self.body_of(MessageId(message)) {
+            Ok(body) => body.map(|body| body.text).unwrap_or_default(),
             Err(error) if unreadable(&error) => String::new(),
             Err(error) => return Err(error),
         };
@@ -818,17 +818,13 @@ impl Store {
     }
 
     /// Reads a message back from the log and parses it: the whole message
-    /// when it is held, else its headers.
+    /// when it is held, or its parts held, else its headers.
     ///
     /// # Errors
     /// [`StoreError::NotFound`] when not even the headers are held.
     pub fn open_message(&self, message: MessageId) -> Result<Opened, StoreError> {
         let header = derive::header_fields(&self.read_part(message, "header")?);
-        let body = match self.read_part(message, "whole") {
-            Ok(whole) => Some(derive::body_fields(&whole)),
-            Err(StoreError::NotFound(_)) => None,
-            Err(other) => return Err(other),
-        };
+        let body = self.body_of(message)?;
         Ok(Opened { header, body })
     }
 
@@ -906,8 +902,9 @@ impl Store {
     }
 
     /// What a message's bytes in the log say: its headers, and its body when
-    /// it is held whole. Bytes that are gone or damaged give fields that say
-    /// so; a file system that refuses for the moment is an error.
+    /// it is held whole or in parts. Bytes that are gone or damaged give
+    /// fields that say so; a file system that refuses for the moment is an
+    /// error.
     fn read_derivation(
         &self,
         message: i64,
@@ -920,9 +917,8 @@ impl Store {
             },
             Err(error) => return Err(error),
         };
-        let body = match self.read_part(MessageId(message), "whole") {
-            Ok(whole) => Some(derive::body_fields(&whole)),
-            Err(StoreError::NotFound(_)) => None,
+        let body = match self.body_of(MessageId(message)) {
+            Ok(body) => body,
             Err(error) if unreadable(&error) => Some(BodyFields {
                 unparsed: Some("the body could not be read from the log"),
                 ..BodyFields::default()

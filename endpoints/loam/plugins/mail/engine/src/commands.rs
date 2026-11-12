@@ -14,7 +14,7 @@ use crate::engine::Engine;
 use crate::provider::ProviderError;
 use crate::secrets::account_key;
 use crate::store::{AccountRow, MailboxRow, MailboxStatus, StoreError};
-use crate::sync::{AccountReport, SyncError, WHOLE_LIMIT, sync_account};
+use crate::sync::{AccountReport, SyncError, sync_account};
 
 /// A store's refusal as a command's failure, in the engine's own words.
 #[must_use]
@@ -364,7 +364,7 @@ impl CommandHandler for Status {
                     if row.gone {
                         continue;
                     }
-                    let status = store.mailbox_status(row.id, WHOLE_LIMIT)?;
+                    let status = store.mailbox_status(row.id)?;
                     let state = mailbox_state(&row, &status);
                     synced &= state == "synced";
                     mailboxes.push(json!({

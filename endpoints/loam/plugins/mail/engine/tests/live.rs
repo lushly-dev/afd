@@ -32,7 +32,8 @@ use loam_mail::engine::Engine;
 use loam_mail::home::Home;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, Imap};
 use loam_mail::provider::{
-    Connector, Fetched, FlagsSeen, Listing, Opened, Provider, ProviderError, RemoteMailbox, Since,
+    Connector, Fetched, FlagsSeen, Listing, Opened, PartFetched, Provider, ProviderError,
+    RemoteMailbox, Since, StructureSeen,
 };
 use loam_mail::store::{AccountRow, HeaderSeen, MessageId};
 use loam_mail::sync::{AccountReport, Options, sync_account};
@@ -71,6 +72,20 @@ impl Provider for Sampled {
     async fn messages(&mut self, ids: &[String]) -> Result<Vec<Fetched>, ProviderError> {
         if self.served.fetch_add(1, Ordering::SeqCst) < self.limit {
             self.inner.messages(ids).await
+        } else {
+            Ok(Vec::new())
+        }
+    }
+    async fn structures(&mut self, ids: &[String]) -> Result<Vec<StructureSeen>, ProviderError> {
+        self.inner.structures(ids).await
+    }
+    async fn parts(
+        &mut self,
+        id: &str,
+        places: &[String],
+    ) -> Result<Vec<PartFetched>, ProviderError> {
+        if self.served.fetch_add(1, Ordering::SeqCst) < self.limit {
+            self.inner.parts(id, places).await
         } else {
             Ok(Vec::new())
         }

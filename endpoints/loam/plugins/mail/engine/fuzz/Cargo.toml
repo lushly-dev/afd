@@ -36,3 +36,10 @@ path = "fuzz_targets/html.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "parts"
+path = "fuzz_targets/parts.rs"
+test = false
+doc = false
+bench = false

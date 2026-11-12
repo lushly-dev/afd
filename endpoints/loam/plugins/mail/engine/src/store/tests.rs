@@ -73,6 +73,38 @@ fn a_new_store_is_at_the_newest_schema_and_opens_again() {
 }
 
 #[test]
+fn a_store_from_before_parts_keeps_its_repairs_and_takes_a_part_s_place() {
+    let (_directory, home) = home();
+    {
+        let store = Store::open_with(&home, &schema::MIGRATIONS[..4]).unwrap();
+        store
+            .connection
+            .execute_batch(
+                "INSERT INTO message (id, header_hash, reported_size, first_seen_at)
+                     VALUES (1, zeroblob(32), 10, 0);
+                 INSERT INTO refetch (message_id, part, tries, noted_at)
+                     VALUES (1, 'whole', 2, 5);",
+            )
+            .unwrap();
+    }
+    let store = Store::open(&home).unwrap();
+    assert_eq!(
+        rows(&store, "SELECT tries FROM refetch WHERE part = 'whole'"),
+        2
+    );
+    let note = |part: &str| {
+        store.connection.execute(
+            "INSERT INTO refetch (message_id, part, noted_at) VALUES (1, ?1, 0)",
+            [part],
+        )
+    };
+    assert!(note("1.2").is_ok());
+    for refused in ["1.x", "body", "", ".1"] {
+        assert!(note(refused).is_err(), "{refused}");
+    }
+}
+
+#[test]
 fn only_one_process_owns_the_store() {
     let (_directory, home) = home();
     let first = Store::open(&home).unwrap();

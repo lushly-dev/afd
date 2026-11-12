@@ -11,6 +11,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 
+use crate::parts::Structure;
 use crate::store::{AccountRow, HeaderSeen, Role};
 
 /// Why a provider refused. The words are the engine's own: never text from
@@ -136,6 +137,25 @@ pub struct Fetched {
     pub bytes: Vec<u8>,
 }
 
+/// A message's MIME structure as the provider described it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureSeen {
+    /// The provider's id for the message.
+    pub provider_id: String,
+    /// Its structure.
+    pub structure: Structure,
+}
+
+/// The bytes of one part of a message, as the provider returned them: its
+/// body, still in its transfer encoding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartFetched {
+    /// The part's place, such as `1.2`.
+    pub place: String,
+    /// The bytes.
+    pub bytes: Vec<u8>,
+}
+
 /// One connection to an account's provider. A mailbox is opened, and the
 /// operations after it act on that mailbox.
 #[async_trait]
@@ -162,6 +182,18 @@ pub trait Provider: Send {
 
     /// The whole of each message `ids` names, with the same rule.
     async fn messages(&mut self, ids: &[String]) -> Result<Vec<Fetched>, ProviderError>;
+
+    /// The MIME structure of each message `ids` names, with the same rule
+    /// (the specification's M20).
+    async fn structures(&mut self, ids: &[String]) -> Result<Vec<StructureSeen>, ProviderError>;
+
+    /// The parts of one message at `places`. A part the provider does not
+    /// return is left out.
+    async fn parts(
+        &mut self,
+        id: &str,
+        places: &[String],
+    ) -> Result<Vec<PartFetched>, ProviderError>;
 
     /// Ends the connection politely. Failing to is not an error.
     async fn close(&mut self);

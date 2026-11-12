@@ -35,9 +35,9 @@ const REFERENCES_LIMIT: usize = 200;
 /// The most text of one message handed to the search index, in bytes.
 const TEXT_LIMIT: usize = 1024 * 1024;
 /// How many parts of one message are read (the specification's 6.4).
-const PARTS_LIMIT: usize = 1000;
+pub(crate) const PARTS_LIMIT: usize = 1000;
 /// How deeply parts may nest (6.4).
-const DEPTH_LIMIT: usize = 20;
+pub(crate) const DEPTH_LIMIT: usize = 20;
 /// The largest header block read (6.4).
 pub const HEADER_LIMIT: usize = 1024 * 1024;
 /// The largest message read (6.4). A message the engine holds whole is at

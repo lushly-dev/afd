@@ -343,10 +343,10 @@ impl Store {
         Ok(changed)
     }
 
-    /// Every message the mailbox shows that is `max_size` bytes or less and
-    /// not held whole, newest first: apart from one whose body the provider
-    /// did not return within the last hour, or, after three tries, within
-    /// the last week.
+    /// Every message the mailbox shows whose body is not held, whole or in
+    /// parts, newest first: apart from one whose body the provider did not
+    /// return within the last hour, or, after three tries, within the last
+    /// week. Sync fetches each whole or in parts by its size.
     ///
     /// # Errors
     /// When the database refuses.
@@ -354,28 +354,28 @@ impl Store {
         &self,
         mailbox: MailboxId,
         validity: &str,
-        max_size: u64,
         now: i64,
     ) -> Result<Vec<BodyWanted>, StoreError> {
         let mut statement = self.connection.prepare_cached(
             "SELECT observation.provider_id, observation.message_id, message.reported_size
              FROM observation JOIN message ON message.id = observation.message_id
              WHERE observation.mailbox_id = ?1 AND observation.validity = ?2
-               AND observation.ended_at IS NULL AND message.reported_size <= ?3
+               AND observation.ended_at IS NULL
                AND NOT EXISTS (SELECT 1 FROM held
                                WHERE held.message_id = observation.message_id
                                  AND held.part = 'whole')
+               AND NOT EXISTS (SELECT 1 FROM structure
+                               WHERE structure.message_id = observation.message_id)
                AND NOT EXISTS (SELECT 1 FROM body_missing
                                WHERE body_missing.message_id = observation.message_id
                                  AND body_missing.last_tried_at >
-                                     ?4 - CASE WHEN body_missing.tries < ?5 THEN ?6 ELSE ?7 END)
+                                     ?3 - CASE WHEN body_missing.tries < ?4 THEN ?5 ELSE ?6 END)
              ORDER BY coalesce(observation.internal_date, message.first_seen_at) DESC,
                       observation.id DESC",
         )?;
         let parameters = params![
             mailbox.0,
             validity,
-            sql_size(max_size),
             now,
             UNRETURNED_AFTER_TRIES,
             BODY_TRY_SPACING_MS,
@@ -421,7 +421,11 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn note_damaged(&self, message: MessageId, part: &str, now: i64) -> Result<(), StoreError> {
-        if part != "header" && part != "whole" {
+        let place = !part.is_empty()
+            && part
+                .split('.')
+                .all(|number| !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()));
+        if part != "header" && part != "whole" && !place {
             return Ok(());
         }
         self.connection.execute(
@@ -507,23 +511,20 @@ impl Store {
     ///
     /// # Errors
     /// When the database refuses.
-    pub fn mailbox_status(
-        &self,
-        mailbox: MailboxId,
-        max_size: u64,
-    ) -> Result<MailboxStatus, StoreError> {
+    pub fn mailbox_status(&self, mailbox: MailboxId) -> Result<MailboxStatus, StoreError> {
         let counts = self.mailbox_counts(mailbox)?;
         let (bodies_wanted, bodies_unreturned): (i64, i64) = self.connection.query_row(
-            "SELECT count(*) FILTER (WHERE coalesce(body_missing.tries, 0) < ?3),
-                    count(*) FILTER (WHERE body_missing.tries >= ?3)
-             FROM observation JOIN message ON message.id = observation.message_id
+            "SELECT count(*) FILTER (WHERE coalesce(body_missing.tries, 0) < ?2),
+                    count(*) FILTER (WHERE body_missing.tries >= ?2)
+             FROM observation
              LEFT JOIN body_missing ON body_missing.message_id = observation.message_id
              WHERE observation.mailbox_id = ?1 AND observation.ended_at IS NULL
-               AND message.reported_size <= ?2
                AND NOT EXISTS (SELECT 1 FROM held
                                WHERE held.message_id = observation.message_id
-                                 AND held.part = 'whole')",
-            params![mailbox.0, sql_size(max_size), UNRETURNED_AFTER_TRIES],
+                                 AND held.part = 'whole')
+               AND NOT EXISTS (SELECT 1 FROM structure
+                               WHERE structure.message_id = observation.message_id)",
+            params![mailbox.0, UNRETURNED_AFTER_TRIES],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
         Ok(MailboxStatus {
