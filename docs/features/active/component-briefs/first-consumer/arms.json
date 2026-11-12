@@ -1,0 +1,7 @@
+{
+	"about": "Step C5's arms for phase 0's tasks (../prototype/tasks.json, whose preamble and task texts are used unchanged). Arm a is phase 0's, unchanged. Arm c is phase 0's arm c with the stand-in script replaced by the real plugin, served over MCP by umbel-first-party; its sentence names the tool where phase 0's named the script.",
+	"arms": {
+		"a": "",
+		"c": "Before you write, call the `components-brief` tool once for the whole page, with the tags you will use, and work from its answer. `components-list`, called through `afd-call`, lists every tag."
+	}
+}

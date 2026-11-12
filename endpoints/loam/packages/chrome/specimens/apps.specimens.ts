@@ -484,6 +484,21 @@ export const [Console, ConsoleCompact] = both(
 	},
 	CONSOLE_BOX
 );
+/** The console's first read, held: a kernel that never answers, so it stays loading. */
+export const [ConsoleLoading, ConsoleLoadingCompact] = both(
+	'loam-console',
+	async (wrapper) => {
+		const registry = await consoleRegistry();
+		const created = document.createElement('loam-mount') as LoamMount;
+		created.configure({
+			registry,
+			element: 'loam-console',
+			context: { instance: 'demo', client: { call: () => new Promise(() => {}) } } as never,
+		});
+		wrapper.append(created);
+	},
+	CONSOLE_BOX
+);
 export const [ConsoleInvalid, ConsoleInvalidCompact] = both(
 	'loam-console',
 	async (wrapper) => {

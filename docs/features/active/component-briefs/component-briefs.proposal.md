@@ -628,6 +628,11 @@ test or record:
    Loam change has been made with it and recorded (step C5).
 10. **It helps.** Phase 0's tasks, rerun against the real plugin, do no worse
     than the prototype did on the thresholds step 0.1 set.
+    (Step C5, 2026-11-12: criterion 9 holds, though agents called the brief
+    only when the task named it; criterion 10 holds against the prototype's
+    arm c and does not reproduce its margin over today's route. The
+    [status](STATUS.md#what-step-c5-found) has the numbers and what is the
+    owner's.)
 
 Criteria 1 to 8 are deterministic tests. Criteria 9 and 10 are records: a
 model's run is not repeatable, so each task runs several times and the

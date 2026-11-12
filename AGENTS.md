@@ -27,6 +27,7 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 | Start or resume a session | `do-init-afd`: base refresh, install, the Node version, task intake. For a new machine, [SETUP.md](SETUP.md) |
 | Work in Loam, Umbel or an active feature | Its `STATUS.md`, in `endpoints/loam/docs/`, `endpoints/umbel/docs/` or `docs/features/active/<feature>/`. It is the source of truth for progress; update it before the session ends |
 | Add or change a command | `afd`: jobs written as scenarios before the commands, `domain-action` names, a `CommandResult` whose errors carry a `suggestion`, parity across the four languages. Then the language's skill |
+| Write or change markup with `violet-*` components | Call `components-brief` once for the page first: the `umbel` server in `.mcp.json` (the [components plugin's README](endpoints/umbel/plugins/components/README.md#use-in-this-repository) says how to build it). In Loam, then `loam-design`, whose rules win where the two differ |
 | Edit FAST-AF, Violet, Specimen, Botcore or Health | [gates.md](.claude/skills/do-prepare-pr/references/gates.md): they were imported and are changed here, never upstream first, and an edit needs a provenance record |
 | Change CI, a hook, `scripts/affected` or a dependency | [gates.md](.claude/skills/do-prepare-pr/references/gates.md): what each gate covers, the scope rules, the dependency age limit |
 | Edit a skill | `manage-skills`. The Botcore-sourced skills are generated: edit the source in `endpoints/botcore/src/botcore/skills/` and run `pnpm skills:sync` |

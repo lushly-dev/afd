@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"umbel": {
+			"command": "node",
+			"args": ["scripts/umbel-components.mjs"]
+		}
+	}
+}

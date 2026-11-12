@@ -148,6 +148,8 @@ const APP_CAPTURES: [string, string][] = [
 	['app-view-frame-loading', 'Opening Hello'],
 	['app-view-frame-failed', 'VIEW_READY_TIMEOUT'],
 	['app-console', 'listbox "Commands"'],
+	// Component Briefs' step C5: the first read, "Loading…" beside a decorative spinner.
+	['app-console-loading', 'Loading…'],
 	['app-console-invalid', 'Error: This field is required.'],
 	['app-console-result', 'PROBE_REFUSED'],
 	['app-console-mounted', 'MOUNT_UNREACHABLE'],

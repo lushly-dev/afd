@@ -15,9 +15,12 @@
   [C4](#amendments-from-step-c4)): all three commands answer, the skill and the first-class suggestion are served,
   and FAST-AF's real pack, built and exported by Specimen, is served as an override. Step C4 found that the
   proposal's criterion 2 does not hold on the real pack; that is the owner's decision ([C4](#amendments-from-step-c4)).
+  Step C5 set the binary up for agents in this repository and measured it ([C5](#amendments-from-step-c5)).
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
+- **Last verified:** 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
+  `047268ab`: the release build of `umbel-first-party` on its own, the launcher against it, and `pnpm verify`
+  (the Umbel gate among its suites). Before that, 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
   Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
   that, 2026-11-11 for step C3, against `main` at `193b7cd1`: `src/commands/plugin_show.rs`,
   `src/plugins/doctor.rs` (`plugins.packs`, `plugins.skills`, `plugins.first_class`), `tests/skills.rs` and
@@ -43,9 +46,9 @@
   - Read in the documents: the Umbel architecture's principles; D18, D24, D46, D48, D57, D64, D67, D75 and D112; the
     phase 5 specification's owner decision 3 (scopes); the Component Briefs proposal and its phase 0 records.
   - No Rust was built or run. No external source was re-checked; see the [trajectory refresh](#trajectory-refresh).
-- **Done:** steps C1 to C4 (section [12](#12-implementation-plan)); C4's criterion 2 is not met and waits for the
-  owner.
-- **Not done:** step C5 of section [12](#12-implementation-plan).
+- **Done:** steps C1 to C5 (section [12](#12-implementation-plan)). C4's criterion 2 is not met, and C5's
+  criterion 10 holds on one reading of two; both wait for the owner (the Component Briefs status).
+- **Not done:** nothing in section [12](#12-implementation-plan).
 - **Follow-ups:** the [table at the end](#follow-ups).
 
 ### Review response
@@ -116,6 +119,13 @@ The step found these points the document had not settled, and took the narrowest
 | A18 | Criterion 2 on the real pack | It does not hold, and the test does not pretend it does. `fast_af.rs` measures each page at the default budget, at 96 000 bytes and with `detail: "api"`, and asserts only what holds: the API alone is at most half of the declarations on every page, and no brief exceeds its budget. The numbers, and the owner's options, are in the Component Briefs status |
 | A19 | The fact fixture's shape | `tests/fast_af/facts.json`: 42 facts over 16 tags and three tags that do not exist. A fact names a section (5.3), `floor` or `ruleText`; a `match` picking one item; a `field`, compared with `basis` and `flags` left out; or `contains` for `rules` and `gaps`. `facts.rs` briefs every tag in one call at the default budget; a fact the brief does not hold must have its section (or `rules`, for rule text) in the budget entry's `open.sections`, and is then read from that `components-open` call. The answers were read from the pack once and are not regenerated |
 | A20 | Section 3.5's format version | Done: the reader reads format 1 only (`pack::FORMAT_VERSION`), the default pack is Specimen's format 1 example, and Specimen's `format-version` case is now a record in format 0 |
+
+### Amendments from step C5
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A21 | `cargo build -p umbel-first-party` on its own | It did not compile: the `umbel` crate's `auth` feature names `http` types (the gateway, the HTTP layers) and did not enable `dep:http`, which every earlier build got from `mounted` or `testkit` through feature unification. `auth` now enables it. No CI leg builds `umbel-first-party` alone; the workspace's members keep unifying it in |
+| A22 | Where the repository's own deployment lives (proposal step C5) | Outside the host and the plugin: `scripts/umbel-components.mjs`, named by the root `.mcp.json`, writes a workspace in `.umbel/components/` with this plugin alone, exports `violet-elements`' pack into space `main`'s override with Specimen's CLI on every start, and execs the binary. It builds nothing and refuses to start when the export fails. Nothing in the host, the plugin, its grants or the trust model changed: the export is a deployer's override, as section 4 and the README describe |
 
 ### Amendments from step C3
 
@@ -977,3 +987,5 @@ lives (D150), reading whole libraries on every call (D152), the shedding order's
 | 2026-11-10 | This specification | Reading every record on every call is measured in C2 (`scale.rs`); a cache keyed by the catalog's digest, re-checking each record's digest, is the answer if it is too slow, and a component build cannot keep one | Measured 2026-11-11 in step C2: a 20-tag brief on a 990-record library (992 files, 3.0 MB) took 0.29 to 0.38 s a call in a debug build on the shared 10-core Mac with the load under 20 (0.9 to 3.3 s under a load of 25 to 33), and `components-list` 0.28 s, so the read and check dominate. Read time grows with the library, so FAST-AF's 77 components should cost about a tenth of that; not measured. No cache yet: C4 measures B4's real pack, and C5 records what a session pays. Measured 2026-11-11 in step C4 (`fast_af.rs`): a twenty-component brief on FAST-AF's 77 records beside the example took 365 to 865 ms, median 613 ms of five, in a debug build under a load of about 17, so load more than size; still no cache |
 | 2026-11-10 | This specification | A new override needs a restart, and a changed one is served unchecked against the pack limits (D46). Stated in the README; the host change is the proposal's step D4 | Proposal step D4 |
 | 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Proposal step D2 |
+| 2026-11-12 | Step C5 | A tag that is not a custom element name (`breadcrumb`) is refused with `COMPONENTS_INVALID` and a generic suggestion; a rerun session recovered with `components-list`. The refusal could name each library's prefix, or answer such a name as `unknown` with `nearest` | Open; a change to section 6.1, the owner's |
+| 2026-11-12 | Step C5 | Claude Code defers MCP tools, so `components-brief` as a first-class suggestion is out of sight until a task names it; two Loam sessions told only by the design record and a skill never called it | The Component Briefs status, the owner's |
