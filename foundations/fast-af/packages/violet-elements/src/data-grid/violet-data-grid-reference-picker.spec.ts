@@ -124,6 +124,23 @@ describe("violet-data-grid-reference-picker", () => {
     });
   });
 
+
+  it("names the trigger by its label, then by what it shows", async () => {
+    const element = await renderReferencePicker({ selectedValues: [] });
+    const root = element.shadowRoot;
+    const trigger = root?.querySelector(".trigger");
+    const text = (id: string) => root?.getElementById(id)?.textContent?.replace(/\s+/gu, " ").trim();
+
+    // Its visible text is part of its name (WCAG 2.5.3), after the label the host gave it.
+    expect(trigger?.getAttribute("aria-labelledby")).toBe("trigger-label trigger-value");
+    expect(root?.getElementById("trigger-label")?.hidden).toBe(true);
+    expect([text("trigger-label"), text("trigger-value")]).toEqual(["Linked records", "Link records"]);
+
+    // With no label of its own, an empty trigger shows its label and is named once.
+    element.removeAttribute("aria-label");
+    expect(element.triggerLabel).toBe("Link records");
+    expect(element.triggerLabelledBy).toBe("trigger-value");
+  });
   it("preserves search through pointer-induced null blur and clears pointer state on cancellation", async () => {
     const element = await renderReferencePicker();
     element.selectedValues = ["record-gh-04"];

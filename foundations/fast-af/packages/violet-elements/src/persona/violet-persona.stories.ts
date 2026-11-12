@@ -65,7 +65,8 @@ export const Overview: Story = {
 
         await expect(root.getAttribute("role")).toBe("img");
         await expect(root.getAttribute("aria-label")).toBe("Lydia Bauer");
-        await expect(root.textContent?.trim()).toBe("LB");
+        // The initials are shown through CSS, from this attribute.
+        await expect(root.querySelector(".fallback")?.getAttribute("data-initials")).toBe("LB");
     },
 };
 

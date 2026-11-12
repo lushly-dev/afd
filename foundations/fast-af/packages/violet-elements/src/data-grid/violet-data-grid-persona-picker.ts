@@ -277,19 +277,20 @@ const styles = css`
 
 const template = html<VioletDataGridPersonaPicker>`
     <div class="root" part="base" @keydown="${(x, c) => (x.handlePanelKeydown(c.event as KeyboardEvent), true)}">
+        <span id="trigger-label" hidden>${(x) => x.triggerLabel}</span>
         <button
             class="trigger"
             type="button"
             part="trigger"
             ?disabled="${(x) => x.disabled}"
-            aria-label="${(x) => x.getAttribute("aria-label") || x.placeholder || "Assign people"}"
+            aria-labelledby="${(x) => x.triggerLabelledBy}"
             aria-haspopup="dialog"
             aria-controls="${(x) => x.panelId}"
             aria-expanded="${(x) => String(x.open)}"
             @click="${(x) => (x.handleTriggerClick(), true)}"
             @keydown="${(x, c) => (x.handleTriggerKeydown(c.event as KeyboardEvent), true)}"
         >
-            <span class="selection" part="selection" data-empty="${(x) => String(x.selectedValues.length === 0)}">
+            <span class="selection" id="trigger-value" part="selection" data-empty="${(x) => String(x.selectedValues.length === 0)}">
                 ${when(
                   (x) => x.selectedValues.length > 0,
                   html<VioletDataGridPersonaPicker>`
@@ -571,6 +572,20 @@ export class VioletDataGridPersonaPicker extends FASTElement {
 
   public set value(nextValue: string) {
     this.syncSelectionFromValue(nextValue);
+  }
+
+  /** What the trigger is for: the host's `aria-label`, else the placeholder. */
+  public get triggerLabel(): string {
+    return this.getAttribute("aria-label") || this.placeholder || "Assign people";
+  }
+
+  /**
+   * The trigger is named by its label and then by what it shows, so its visible text is part
+   * of its name (WCAG 2.5.3). An empty trigger that shows its label is named once.
+   */
+  public get triggerLabelledBy(): string {
+    const showsLabel = this.selectedValues.length === 0 && this.triggerLabel === (this.placeholder || "Assign people");
+    return showsLabel ? "trigger-value" : "trigger-label trigger-value";
   }
 
   public get panelId(): string {

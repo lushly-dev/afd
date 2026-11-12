@@ -176,7 +176,8 @@ describe("violet-date-range-picker", () => {
             expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
             expect(trigger.getAttribute("aria-expanded")).toBe("false");
             expect(trigger.getAttribute("aria-controls")).toBe(picker.panelId);
-            expect(trigger.getAttribute("aria-labelledby")).toBe(picker.labelId);
+            // The label, then the trigger's own dates: its visible text is part of its name.
+            expect(trigger.getAttribute("aria-labelledby")).toBe(`${picker.labelId} ${picker.triggerId}`);
             expect(trigger.getAttribute("aria-describedby")).toBe(picker.supportingId);
             expect(trigger.getAttribute("aria-invalid")).toBe("false");
             expect(picker.shadowRoot?.getElementById(picker.labelId)?.textContent?.trim()).toBe("Harvest window");

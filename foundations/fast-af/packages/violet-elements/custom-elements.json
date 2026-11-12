@@ -4031,6 +4031,16 @@
             },
             {
               "kind": "field",
+              "name": "metaId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "default": "`violet-color-picker-meta-${id}`"
+            },
+            {
+              "kind": "field",
               "name": "name",
               "type": {
                 "text": "string"
@@ -8550,6 +8560,26 @@
             },
             {
               "kind": "field",
+              "name": "triggerLabel",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "What the trigger is for: the host's `aria-label`, else the placeholder.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "triggerLabelledBy",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "The trigger is named by its label and then by what it shows, so its visible text is part\nof its name (WCAG 2.5.3). An empty trigger that shows its label is named once.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "value",
               "type": {
                 "text": "string"
@@ -10751,6 +10781,26 @@
             },
             {
               "kind": "field",
+              "name": "triggerLabel",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "What the trigger is for: the host's `aria-label`, else the placeholder.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "triggerLabelledBy",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "The trigger is named by its label and then by what it shows, so its visible text is part\nof its name (WCAG 2.5.3). An empty trigger that shows its label is named once.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "value",
               "type": {
                 "text": "string"
@@ -11692,6 +11742,26 @@
                   "text": "HTMLButtonElement | null"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "triggerLabel",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "What the trigger is for: the host's `aria-label`, else the placeholder.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "triggerLabelledBy",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "The trigger is named by its label and then by what it shows, so its visible text is part\nof its name (WCAG 2.5.3). An empty trigger that shows its label is named once.",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -14144,6 +14214,26 @@
                   "text": "HTMLButtonElement | null"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "triggerLabel",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "What the trigger is for: the host's `aria-label`, else the placeholder.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "triggerLabelledBy",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "The trigger is named by its label and then by what it shows, so its visible text is part\nof its name (WCAG 2.5.3). An empty trigger that shows its label is named once.",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -20640,6 +20730,16 @@
               "privacy": "public",
               "readonly": true,
               "default": "`violet-date-range-picker-label-${violetDateRangePickerCount}`"
+            },
+            {
+              "kind": "field",
+              "name": "labelledBy",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "description": "The label, then the trigger's own visible dates, so the name contains them (WCAG 2.5.3).",
+              "readonly": true
             },
             {
               "kind": "field",

@@ -64,6 +64,16 @@ describe("violet-color-picker", () => {
         document.body.innerHTML = "";
     });
 
+    it("names the trigger by its label and every text it shows", async () => {
+        const picker = await renderPicker();
+        const trigger = picker.shadowRoot?.querySelector(".trigger");
+        const shown = [picker.valueId, picker.metaId].map(id => picker.shadowRoot?.getElementById(id)?.textContent?.trim());
+
+        // The value and the hint beside it are both visible, so both are part of the name (WCAG 2.5.3).
+        expect(trigger?.getAttribute("aria-labelledby")?.split(" ").slice(-2)).toEqual([picker.valueId, picker.metaId]);
+        expect(shown.every(Boolean)).toBe(true);
+    });
+
     it("submits its selected color through form-associated state", async () => {
         const picker = await renderPicker();
         const form = picker.closest("form") as HTMLFormElement;

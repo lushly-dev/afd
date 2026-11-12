@@ -41,7 +41,7 @@ describe("violet-persona", () => {
 
         expect(root?.getAttribute("role")).toBe("img");
         expect(root?.getAttribute("aria-label")).toBe("Lydia Bauer");
-        expect(element.shadowRoot?.querySelector(".fallback")?.textContent?.trim()).toBe("LB");
+        expect(element.shadowRoot?.querySelector(".fallback")?.getAttribute("data-initials")).toBe("LB");
     });
 
     it("uses explicit initials and decorative mode when requested", async () => {
@@ -53,7 +53,9 @@ describe("violet-persona", () => {
 
         expect(root?.getAttribute("role")).toBe("presentation");
         expect(root?.getAttribute("aria-hidden")).toBe("true");
-        expect(element.shadowRoot?.querySelector(".fallback")?.textContent?.trim()).toBe("AB");
+        // Shown through CSS, so the initials are no text a containing control would have to name.
+        expect(element.shadowRoot?.querySelector(".fallback")?.textContent?.trim()).toBe("");
+        expect(element.shadowRoot?.querySelector(".fallback")?.getAttribute("data-initials")).toBe("AB");
     });
 
     it("falls back to initials when the image fails to load", async () => {
@@ -67,6 +69,6 @@ describe("violet-persona", () => {
         await nextFrame();
 
         expect(element.imageFailed).toBe(true);
-        expect(element.shadowRoot?.querySelector(".fallback")?.textContent?.trim()).toBe("KA");
+        expect(element.shadowRoot?.querySelector(".fallback")?.getAttribute("data-initials")).toBe("KA");
     });
 });
