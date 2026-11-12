@@ -9,4 +9,4 @@ Guide sources, Specimen's fifth plugin point and the first that runs in Node: `"
 
 The FAST-AF plugin's schema source now keeps an attribute once when the manifest lists it apart from its property and the element's definition links the two: it stays on the property, which takes the attribute's type, values, default and description where it has none. Before, such an attribute was listed twice.
 
-A pack's examples write each element's attributes in name order. A page writes them in the order they were set, which differed from run to run where a component reflects an attribute after a story set another, so the same build kept different examples. The example pack's records changed to match: `example-field`'s and `example-option`'s attributes are reordered in their examples.
+A pack's examples write each element's attributes in name order. A page writes them in the order they were set, which differed from run to run where a component reflects an attribute after a story set another, so the same build kept different examples. The example pack's records changed to match: in `example-field`'s and `example-select`'s examples, `invalid` and `selected` now come first.
