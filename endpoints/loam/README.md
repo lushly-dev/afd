@@ -20,13 +20,39 @@ Loam is the soil: the layer everything grows in and nothing is.
 
 ## Status
 
-Proposed, documentation only. No crate, package or release exists yet. The
-name was decided on 2026-10-30 (decision D22 in the
-[decision log](docs/decisions.md)). When code lands, this area holds the
-TypeScript packages, and any Rust WebAssembly unit a measurement admits,
-beside these documents, following Botcore's layout under `endpoints/`, and
-its units start quarantined under the
+In development. The shell runs in a browser today, and three of its phases
+have met their exit criteria on `main`:
+
+- **Phase 0, kernel, chrome and design foundation.** The kernel with its
+  command registries and journal, the chrome as FAST-AF elements, Loam's
+  Violet theme in light, dark and high contrast, and the browser host.
+- **Phase 1, the app contract.** One manifest, an SDK and a test kit for
+  apps; native, view and mounted apps; the `loam` CLI that scaffolds, checks
+  and packs one; and a console that gives every app a first interface from
+  its commands alone.
+- **Phase 2, scope, projects and documents.** Workspaces and projects that
+  scope what an app sees, and documents whose types an app contributes, open
+  side by side in the editor area.
+
+Phase 3, identity, and phase 6, hosts, are being built. Phases 4, 5, 7 and
+8 (settings and experiments, the copilot, the builder, and guides) and the
+collaboration service have not started. [STATUS.md](docs/STATUS.md) says
+exactly what is done and what is not; this summary only orients.
+
+What is here:
+
+| Directory | What it holds |
+| --- | --- |
+| [`packages/`](packages/README.md) | The TypeScript packages: manifest, SDK, test kit, CLI, theme, kernel, console, chrome, the browser host, identity and the hosted server. Its README has the commands that build and test them |
+| `apps/` | Five small apps that prove the contract: `hello` (the reference app, in all three kinds), `tally`, `tasks` (scoped to a project), and `notes` and `checklist` (document types) |
+| [`plugins/mail/`](plugins/mail/README.md) | Loam Mail, a plugin with an engine of its own in Rust, under construction |
+| `docs/` | The design: architecture, decisions, phase specifications and status |
+
+Nothing is released. Every TypeScript package is `private: true`, and every
+release unit, the mail engine included, is quarantined with no route under the
 [platform migration](../../docs/features/active/platform-monorepo/) rules.
+The name was decided on 2026-10-30 (decision D22 in the
+[decision log](docs/decisions.md)).
 
 The first consumer is a Lushly support application: internal tooling used to
 build Lushly, not Lushly's own product interfaces. That application is
@@ -52,4 +78,4 @@ codebase to learn what is current.
 | [Sources](docs/sources.md) | Annotated source ledger with dates and inference limits |
 
 The feature index in [docs/features](../../docs/features/README.md) lists Loam
-under proposed features and points here.
+under active features and points here.
