@@ -9,7 +9,13 @@ import type { SpecimenEntry } from './types.js';
 const ENTRY = '/__specimen_entry__.js';
 /** Every story's identity and loader: sized by the consumer, so never in the entry's chunk. */
 const CATALOG = '\0specimen-catalog';
-const SHELL_BUDGET = 50_000;
+/**
+ * The proposal's shell ceiling was 50,000. The shell is Specimen's own code before a consumer adds
+ * any: 49,504 bytes on the fixtures before the declared-themes tag and notice (#1001), which take it
+ * to 49,793, past what a consumer's shell such as Lushly's (48,800 to 49,800) leaves. 2,000 more
+ * keeps a consumer's build passing and leaves room for the next small page change.
+ */
+const SHELL_BUDGET = 52_000;
 /** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */
 const STYLE_BUDGET = 8_000;
 /**

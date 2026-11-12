@@ -111,8 +111,8 @@ three are Specimen's coverage levels.
 | Basis | Meaning |
 | --- | --- |
 | `verified` | A claim's expectations ran and held, about this fact, in this state. For a statement: the check its claim carries ran and held |
-| `observed` | Specimen saw it in a case that passed: an attribute's state, a role, an axe result, an example's markup |
-| `declared` | The custom elements manifest or a plugin's schema says so; nothing ran it |
+| `observed` | Specimen saw it in a case that passed: an attribute's state, a role, an axe result, an example's markup, the themes its frames follow |
+| `declared` | The custom elements manifest, a plugin's schema or a story's tag says so; nothing ran it |
 | `authored` | A person wrote it; nothing checks it |
 
 `verified` means that the check tied to a fact ran and passed in the run
@@ -127,6 +127,7 @@ Each kind of fact allows only the words that can be true of it:
 | Statement, shared rule | `verified`, `authored` |
 | Role | `observed`, `authored` |
 | axe result, example | `observed` |
+| Themes | `declared`, `observed` |
 
 A summary and a record's long form are descriptions, not facts, and carry no
 basis.
@@ -158,6 +159,14 @@ other (`SCHEMA_INVALID`).
 | `examples` | `from` (the story that rendered it), `html` (the markup that rendered), `basis` |
 | `detail` | Optional: the long form |
 | `gaps` | What is missing: `summary`, `usage`, `a11y-statement`, `role`, `example`, or `unobserved` with the `section` and `name` of a member the manifest declares and no case showed |
+| `themes` | Optional: the themes it renders as intended, `supported` (one or more of `dark`, `high-contrast` and `light`), `basis`, and an optional one-line `reason`, such as "Matches the marketing site." Absent when nothing has declared or observed them |
+
+A component that supports every theme follows the theme, so a record needs
+`themes` only to say that one does not, or to record that Specimen saw it
+follow them all. `declared` comes from the author: a `light-only`,
+`dark-only` or `high-contrast-only` tag on its stories, or a native
+specimen's `themes`. `observed` comes from rendering it in each theme and
+comparing the frames (`specimen themes`).
 
 Values and defaults are strings, integers between −(2⁵³ − 1) and 2⁵³ − 1,
 booleans or `null`. No other number is allowed, so every reader writes
@@ -234,8 +243,8 @@ Each file has exactly one serialization (`canonicalJson`, which is
 Lists of named
 things are in ascending order with no repeats: a record's attributes, slots,
 events, commands and CSS properties by name; its roles by state; its rule
-ids, an attribute's rule ids, a slot's accepted elements and the axe
-exceptions; a rules file's rules by id and each rule's tags and attributes;
+ids, an attribute's rule ids, a slot's accepted elements, the axe
+exceptions and the supported themes; a rules file's rules by id and each rule's tags and attributes;
 a catalog's components by tag, each compared by UTF-16 code unit (byte order
 for these ASCII names). Statements, values, examples and gaps keep the
 order they are written in. Anything else is `NOT_CANONICAL`, and a repeat is
@@ -284,8 +293,10 @@ one file, and are `checkPack`'s.
 - `committed/` and `exported/`: an example library, `example`, in both
   forms. `example-field`, `example-option` and `example-select` are in use,
   and `example-dropdown` is deprecated and names its replacement. Every key a
-  record can hold, every basis, every kind of gap and a record with no
-  summary each appear at least once.
+  record can hold except `themes`, every basis, every kind of gap and a record
+  with no summary each appear at least once. `themes` came after the example,
+  so the tests and two invalid cases, `themes-basis` and `themes-unsorted`,
+  hold it instead of a change to every case's digests.
 - `invalid/`: one case per directory, and `invalid/cases.json` naming each.
   A case is the exported example with its directory's files laid over it and
   the files in its `remove` list deleted; a case that only deletes has no

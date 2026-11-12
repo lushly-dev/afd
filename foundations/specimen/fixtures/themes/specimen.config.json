@@ -1,0 +1,31 @@
+{
+	"specimens": [
+		{
+			"id": "follows",
+			"title": "Themes/Follows",
+			"module": "./themes.specimens.ts",
+			"exportName": "Follows"
+		},
+		{
+			"id": "light-declared",
+			"title": "Themes/LightDeclared",
+			"module": "./themes.specimens.ts",
+			"exportName": "Light",
+			"themes": { "supported": ["light"], "reason": "Matches the marketing site." }
+		},
+		{
+			"id": "light-undeclared",
+			"title": "Themes/LightUndeclared",
+			"module": "./themes.specimens.ts",
+			"exportName": "Light"
+		},
+		{
+			"id": "light-contradicted",
+			"title": "Themes/LightContradicted",
+			"module": "./themes.specimens.ts",
+			"exportName": "Follows",
+			"themes": { "supported": ["light"] }
+		}
+	],
+	"stories": ["./themes.stories.ts"]
+}

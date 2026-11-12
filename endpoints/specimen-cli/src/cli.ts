@@ -53,6 +53,7 @@ const valueOptions = new Set([
 	'note',
 	'gaps',
 	'out',
+	'threshold',
 ]);
 const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry']);
 function parseArguments(args: string[]): ParsedArguments {
@@ -79,7 +80,9 @@ function parseArguments(args: string[]): ParsedArguments {
 	}
 	const action = positionals.shift();
 	if (!action)
-		throw new Error('Choose a command: list, validate, inspect, render, run, diff, or build');
+		throw new Error(
+			'Choose a command: list, validate, inspect, render, run, themes, diff, or build'
+		);
 	return { action, positionals, options, flags };
 }
 function dimensions(value: string): { width: number; height: number } {
@@ -154,6 +157,23 @@ function validateOptions(parsed: ParsedArguments): void {
 			'match',
 			'workers',
 		]),
+		themes: new Set([
+			'root',
+			'config',
+			'output',
+			'checkpoint',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+			'threshold',
+			'file',
+			'tag',
+			'match',
+			'workers',
+		]),
 		matrix: new Set([
 			'root',
 			'config',
@@ -215,7 +235,7 @@ function validateOptions(parsed: ParsedArguments): void {
 			: parsed.action === 'diff'
 				? 2
 				: 1;
-	const selects = ['run', 'a11y', 'profile', 'baseline'].includes(parsed.action);
+	const selects = ['run', 'a11y', 'profile', 'baseline', 'themes'].includes(parsed.action);
 	const suite =
 		(selects && parsed.positionals.length === 0) ||
 		((parsed.action === 'coverage' || parsed.action === 'contract') &&
@@ -337,7 +357,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				const context: Partial<SpecimenContext> = {};
 				const viewport = parsed.options.get('viewport');
 				const container = parsed.options.get('container');
-				// A matrix reads these as lists of axis values, below.
+				// A matrix reads these as lists of axis values, below; `themes` reads --theme as a list.
 				if (viewport && parsed.action !== 'matrix') context.viewport = dimensions(viewport);
 				if (container && parsed.action !== 'matrix') context.container = dimensions(container);
 				// Validate raw values through the AFD schema rather than coercing a typo to a context.
@@ -349,9 +369,24 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					['motion', 'motion'],
 				] as const) {
 					const value = parsed.options.get(option);
-					if (value) raw[field] = value;
+					if (value && !(parsed.action === 'themes' && option === 'theme')) raw[field] = value;
 				}
-				if (parsed.action === 'matrix') {
+				if (parsed.action === 'themes') {
+					// The command's schema refuses a share outside 0 to 1, and a word, which is NaN.
+					const threshold = parsed.options.get('threshold');
+					result = await executeSpecimenCommand(bench, 'specimen-themes', {
+						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
+						context: { ...context, ...raw },
+						...(parsed.options.has('theme')
+							? { themes: (parsed.options.get('theme') ?? '').split(',').filter(Boolean) }
+							: {}),
+						...(threshold === undefined ? {} : { threshold: Number(threshold) }),
+						...(parsed.options.has('checkpoint')
+							? { checkpoint: parsed.options.get('checkpoint') }
+							: {}),
+						...suiteInput(parsed),
+					});
+				} else if (parsed.action === 'matrix') {
 					const list = (option: string) =>
 						(parsed.options.get(option) ?? '').split(',').filter(Boolean);
 					const axes = {
@@ -466,7 +501,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, migrate [--files A,B] [--helpers] [--apply], diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

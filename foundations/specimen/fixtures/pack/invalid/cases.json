@@ -327,6 +327,30 @@
 				}
 			],
 			"regenerated": false
+		},
+		{
+			"description": "A record's supported themes are not in name order.",
+			"name": "themes-unsorted",
+			"problems": [
+				{
+					"at": "/themes/supported/1",
+					"code": "NOT_CANONICAL",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A theme fact claims to be verified, a basis themes cannot have.",
+			"name": "themes-basis",
+			"problems": [
+				{
+					"at": "/themes/basis",
+					"code": "SCHEMA_INVALID",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
 		}
 	],
 	"format": 0,

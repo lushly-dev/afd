@@ -11,6 +11,7 @@ export {
 	storyRunSchema,
 	suggestRunSchema,
 	suiteRunSchema,
+	themesRunSchema,
 } from '@lushly-dev/specimen/schema';
 export {
 	createSpecimenCommands,

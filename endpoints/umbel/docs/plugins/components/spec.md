@@ -386,7 +386,7 @@ Each of Specimen's fixture cases has one defect, and on those the two readers mu
 several defects, the cascade above decides, and a disagreement found later is fixed by adding the file as a Specimen
 fixture case and correcting whichever reader is wrong. Held to the fixtures:
 
-- **Every invalid case agrees.** For each of the 25 cases in `fixtures/pack/invalid/cases.json` (built as the file
+- **Every invalid case agrees.** For each of the 28 cases in `fixtures/pack/invalid/cases.json` (built as the file
   describes: the exported example with the case's directory laid over it and its `remove` list deleted), a
   `components-list` call fails, and its `details.problems` equals the case's `problems` once both are sorted by
   `path`, then `at` (absent first), then `code`. Each case also names the failure code section 9 gives it:
@@ -394,7 +394,7 @@ fixture case and correcting whichever reader is wrong. Held to the fixtures:
   | Cases | Failure |
   | --- | --- |
   | `catalog-summary`, `record-not-listed`, `record-missing`, `record-digest`, `pack-digest` | `PACK_INCONSISTENT` |
-  | The other 20 | `PACK_INVALID` |
+  | The other 23 | `PACK_INVALID` |
 
 - **Both valid forms are read.** The exported example is served. The committed example is refused with
   `PACK_INVALID` and `LAYOUT_INVALID` on `data/example/library.json`, since a deployment serves only the exported
@@ -540,6 +540,9 @@ A component's entry has these sections, in this order. `sections` inputs name th
 | `examples` | `examples` | Each: `from`, `html` |
 | `gaps` | `gaps` | As the record has them; no basis |
 | `detail` | `detail` | The long form; served by `components-open`, and by a brief with `detail: "full"` or `sections` naming it |
+
+A record's `themes` (the themes it supports, `declared` or `observed`; Specimen's #1001) is read and checked as
+Specimen's checker does it, including its order, and is not yet a section: no brief or open answer carries it.
 
 The floor is outside the sections: `tag`, `library`, `summary`, `status`, `replacedBy` and `import`, always present
 when the record has them. An empty section is left out of the entry, not sent as `{ "items": [] }`.
@@ -875,7 +878,7 @@ Each step's tests are listed with it in section 12. The files:
 | File | Proves |
 | --- | --- |
 | `tests/default_pack.rs` | The default pack equals Specimen's exported fixture, byte for byte (section 4) |
-| `tests/fixtures_invalid.rs` | Each of Specimen's 25 invalid cases fails with its problems and the failure code of 3.3; the committed form is refused; the exported form is served |
+| `tests/fixtures_invalid.rs` | Each of Specimen's 28 invalid cases fails with its problems and the failure code of 3.3; the committed form is refused; the exported form is served |
 | `tests/refusal.rs` | Section 9.1 on packs of several libraries: one bad library fails a call with no `library`, with `refused` and `servable` right, and the same call naming a servable library is served; naming the bad one fails with no `servable`; several bad libraries, and the mix of 9.1's retry rule; a pack-level problem and a library id the scan hits; no failure holds pack text; the first call after a repair is served |
 | `tests/patterns.rs` | Each pattern and longest length equals Specimen's JSON Schema files'; samples at each boundary |
 | `tests/canonical.rs` | Escapes, key order, integers, a lone surrogate (3.3) |

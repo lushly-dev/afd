@@ -1,7 +1,7 @@
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { RANDOM_SEED } from './baseline.js';
 import type { SpecimenBench } from './bench.js';
@@ -17,6 +17,7 @@ import { runContract } from './contract.js';
 import { runCoverage } from './coverage-run.js';
 import { diffObservations } from './diff.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
+import { changedShare, decodePng, type Pixels } from './png.js';
 import {
 	BASELINE_RUNNER,
 	compareProfile,
@@ -38,6 +39,13 @@ import {
 	selectEntries,
 	selectStories,
 } from './suite.js';
+import {
+	DEFAULT_THEME_CONTEXT,
+	DEFAULT_THEME_THRESHOLD,
+	type ThemeFrame,
+	themeReport,
+	themesSummary,
+} from './themes.js';
 import { startTrace, traced } from './trace.js';
 import {
 	type A11yReport,
@@ -77,6 +85,8 @@ import {
 	type SuiteCapture,
 	type SuiteRequest,
 	type SuiteRun,
+	type ThemesRequest,
+	type ThemesRun,
 } from './types.js';
 import {
 	parseA11yRequest,
@@ -88,6 +98,8 @@ import {
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
+	parseThemesRequest,
+	THEMES,
 } from './validate.js';
 
 function coverage(
@@ -928,6 +940,74 @@ export async function createInProcessBench(
 				workers,
 				elapsedMs: performance.now() - started,
 			};
+		},
+		async themes(rawRequest: ThemesRequest = {}): Promise<ThemesRun> {
+			ensureOpen();
+			const request = parseThemesRequest(rawRequest);
+			const entries = request.id
+				? config.entries.filter((entry) => entry.id === request.id)
+				: selectEntries(config.entries, request.filter, config.root);
+			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
+			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
+			const themes = request.themes ?? [...THEMES];
+			const threshold = request.threshold ?? DEFAULT_THEME_THRESHOLD;
+			const checkpoint = request.checkpoint ?? 'mount';
+			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
+			const started = performance.now();
+			const runtime = await ensureHost();
+			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const directory = await mkdtemp(join(tmpdir(), 'specimen-themes-'));
+			try {
+				let next = 0;
+				const reports = await pool(entries, workers, async (entry) => {
+					const slot = next++;
+					const frames: ThemeFrame[] = [];
+					const pixels: (Pixels | null)[] = [];
+					// One theme at a time: each frame is a few megabytes once decoded.
+					for (const [index, theme] of themes.entries()) {
+						const file = join(directory, `${slot}-${index}.png`);
+						try {
+							const { observation } = await capture(
+								{
+									id: entry.id,
+									checkpoint,
+									context: { ...DEFAULT_THEME_CONTEXT, ...request.context, theme },
+									screenshot: file,
+									...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
+								},
+								{ reuseBundle: true }
+							);
+							pixels.push(decodePng(await readFile(file)));
+							frames.push({ theme, rendered: observation?.manifest.context.theme ?? null });
+						} catch (error) {
+							pixels.push(null);
+							frames.push({
+								theme,
+								rendered: null,
+								reason: error instanceof Error ? error.message : String(error),
+							});
+						} finally {
+							await rm(file, { force: true });
+						}
+					}
+					return themeReport(
+						entry,
+						frames,
+						(a, b) => changedShare(pixels[a] as Pixels, pixels[b] as Pixels),
+						threshold
+					);
+				});
+				return {
+					themes,
+					checkpoint,
+					threshold,
+					...themesSummary(reports),
+					workers,
+					elapsedMs: performance.now() - started,
+				};
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
 		},
 		async runSuite(rawRequest: SuiteRequest = {}): Promise<SuiteRun> {
 			ensureOpen();

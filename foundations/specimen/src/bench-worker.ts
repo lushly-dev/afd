@@ -48,6 +48,7 @@ async function execute(message: WorkerRequest): Promise<unknown> {
 	if (message.operation === 'run') return bench.run(message.request);
 	if (message.operation === 'runSuite') return bench.runSuite(message.request);
 	if (message.operation === 'a11y') return bench.a11y(message.request);
+	if (message.operation === 'themes') return bench.themes(message.request);
 	if (message.operation === 'coverage') return bench.coverage(message.request);
 	if (message.operation === 'contract') return bench.contract(message.request);
 	if (message.operation === 'suggest') return bench.suggest(message.request);
