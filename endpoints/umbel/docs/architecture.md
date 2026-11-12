@@ -182,7 +182,7 @@ may read; isolation between spaces is enforced here, not by plugins.
 | packs | The plugin's own packs, the call's space's effective copy | Only its own packs; phase 1 |
 | content, content_write | Read, and replace by rename, files under the space's collection roots | Confined to each root; the write side needs an `allow` list; phase 2 ([D54](decisions.md)) |
 | documents, documents_write | Read and write the document store | Writes without the provenance envelope are refused; the write side needs an `allow` list; phase 2 |
-| records, records_write | Read and write the plugin's own records (proposals, sync state) in the document store | Namespaced by plugin instance; phase 2 |
+| records, records_write | Read and write the plugin's own records (proposals, sync state) in the document store. *Decided 2026-11-11 with the [records host specification](plugins/ideas/host-records.spec.md) ([D159](decisions.md) to [D169](decisions.md)), under the owner's direction of that date; he has not yet read it:* for a kind a compiled plugin's manifest declares, also find it by key, standing and text, match texts against it by words and, where an instance's own eval admits a model, by meaning, read each record with its standing label, and, inside a call a person decided, affirm a record or mark as the person's own a document in a collection that no command writes files into | Namespaced by plugin instance; phase 2. *From D159 to D169:* a declared kind is indexed in the same store and transaction as the record; the reader filter is a clause of every statement and statistics count only what the reader may read; the host sets a declared record's access set (private by default) and, for a standing kind, its authority; text is scanned at put, and the host's services write none of it to the journal; a standing record's wording never changes; compiled plugins only |
 | index, index_write | Query and update the search index | Queries are filtered by the caller's principal; the write side needs an `allow` list and may make derivation reads; phase 2 |
 | graph, graph_write | Query and update the graph | Traversal returns only nodes the caller may read; as the index; phase 2 |
 | memory, memory_write | Read memory records, and write, invalidate, confirm, forget and sweep them | Reads are filtered by the caller's reader filter inside the query; the host fills the scope's identity and the authority, scans the text, checks access, ownership and authority from the grant's own policy keys, and passes the quota; the write side needs an `allow` list; compiled plugins only; phase 3 ([D74](decisions.md)) |
@@ -299,6 +299,9 @@ sequenceDiagram
   ([D132](decisions.md)). Manifest version 4 adds a pipeline's `expose` and
   `result` ([D105](decisions.md)) and a command's `confirm_preview`
   ([D97](decisions.md)).
+  *Decided 2026-11-11 ([D159](decisions.md), under the owner's direction;
+  he has not yet read it):* manifest version 6 adds `[[records]]`, a
+  compiled plugin's declared record kinds.
 - **Host WIT world.** The imports a component may use, each gated by a grant,
   including clock and random from the command context, and the exports a
   component provides. Versioned with the manifest. Settled as
@@ -313,6 +316,10 @@ sequenceDiagram
   host-state traits, makes phase 5's exactness an obligation of every
   backend, and certifies a backend by a suite run with no failure and no skip
   ([D133](decisions.md), [D134](decisions.md)).
+  *Decided 2026-11-11 ([D170](decisions.md), under the owner's direction;
+  he has not yet read it):* the document store gains the record lane's eleven
+  methods and the suite three groups, also as version 3; phase 6 names the
+  same number, and whichever lands second takes the next.
 - **Principal.** Projected onto AFD's command context: the `actor`, with the
   agent and the person it acts for as `onBehalfOf`, and the verified
   `credentials` that MCP Authorization proposes. Umbel's additions travel in
@@ -438,7 +445,8 @@ sequenceDiagram
 | Networked storage | *Proposed 2026-11-09 with the [phase 6 specification](phases/6-backends/spec.md):* PostgreSQL 16, 17 and 18 through `tokio-postgres` 0.7 with `tokio-postgres-rustls` 0.14 (`aws-lc-rs`) and `deadpool-postgres` 0.14 ([D135](decisions.md)) | Every store trait and, for several machines, the host's state in one transactional, widely hosted database | TLS with `verify-full` checks and SCRAM with channel binding required; a runtime role without owner, superuser or `BYPASSRLS` rights |
 | Memory sealing | XChaCha20-Poly1305 from RustCrypto's `chacha20poly1305` 0.11 ([D82](decisions.md)) | Per-record keys, so a forget also reaches `store-backup` copies of the database, though not file-level copies, which hold live text in clear; on macOS memory is excluded from Time Machine by default and backed up by `store-backup` ([D87](decisions.md)); pure Rust | MSRV 1.85; one NCC Group audit recorded in its README, predating 0.11 |
 | Graph traversal | petgraph over the stored graph | Rebuildable from content; traversal in memory | |
-| Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait | Hybrid retrieval and cross-encoder rerank without a mandatory model | Rust 1.88; pins a pre-release ONNX runtime exactly; some models run on candle rather than ONNX |
+| Embeddings and rerank, optional | fastembed 7.5 for local models, or an HTTP endpoint, behind a provider trait. *Amended 2026-11-11 ([D166](decisions.md), the [records host specification](plugins/ideas/host-records.spec.md), under the owner's direction of that date; he has not yet read it):* for record lanes the trait is `umbel-store`'s `Embedder`, with three providers in `umbel-embed`, each an optional feature and none a default: `model2vec-rs` 0.4 (a static model, no inference runtime), `fastembed` 7.7 without its download features (ONNX), or an HTTP endpoint through `reqwest` | Hybrid retrieval and cross-encoder rerank without a mandatory model. *From D166:* a meaning lane for short records, served only where the instance's own probes pass the gate ([D167](decisions.md)) | Rust 1.88; pins a pre-release ONNX runtime exactly (`ort` `=2.0.0-rc.15` on 2026-11-11); some models run on candle rather than ONNX. Model files are the deployer's, in the workspace, pinned by SHA-256; the host never downloads. The HTTP provider sends record text off the machine |
+| Record lane | *Decided 2026-11-11 ([D163](decisions.md), [D165](decisions.md), under the owner's direction of that date; he has not yet read it):* ordinary SQLite tables in the space's document store (terms with frequencies, keys, vectors), scored in Rust in `umbel-store`; `unicode-normalization` 0.1.26 and `caseless` 0.2.2, pinned exactly, for the digest that finds identical text | A declared record is findable when its put returns, with statistics over what the reader may read; a second backend computes the same scores | No phrase or prefix search; an exact vector scan with a design bound of 100 000 records of a kind in a space |
 | Plugin sandbox | wasmtime's 48 long-term line with the component model and WASI 0.2 ([D39](decisions.md)); wit-bindgen 0.63 for Rust guests | Language-agnostic plugins with fuel, epoch and memory limits | Rust 1.95 for wasmtime 48; amended 2026-11-01 from "50.0.1 or later with WASI 0.3": WASI 0.3 waits for world 2.0.0, which waits for a wasmtime long-term line that supports the async component model ([D38](decisions.md)) |
 | MCP client for mounted plugins | `rmcp`'s client role with its child-process and Streamable HTTP client transports, and its `reqwest` feature for rustls ([D43](decisions.md)) | The `afd` crate has no Rust MCP client | Brings `reqwest` and `rustls` into Umbel's lock |
 | Code structure | tree-sitter 0.27 with the Rust, Python and TypeScript grammars (JavaScript and JSX through TSX) | Deterministic symbol graph for repositories | Rust 1.90; behind the knowledge crate's `code` feature ([D60](decisions.md)) |
@@ -587,6 +595,30 @@ material, from loosest to strongest:
 
   The declaration in the manifest, the label's values and the indexing are
   specified with indexed records before any plugin takes this path.
+  *Specified 2026-11-11 in the
+  [records host specification](plugins/ideas/host-records.spec.md)
+  ([D159](decisions.md) to [D171](decisions.md)), under the owner's direction;
+  he has not yet read it; revised the same day after an independent
+  review and a focused pass.* Five points of it bear on the rules above,
+  and the first, second and fourth refine them. "The host's own check" is
+  code in the host's process, in two
+  parts: the host core establishes whose the source is and how it arrived,
+  and the compiled plugin's code establishes that the wording is whole units
+  of it, recording what it compared ([D162](decisions.md)). A person's
+  say-so covers any source that did not reach the host as a command's input:
+  today a synced document in a collection nobody named as theirs, where no
+  command writes files, and later an upload; not a document a command's
+  input produced, as far as the configuration now tells the host, which
+  keeps no history of where commands once wrote ([D162](decisions.md)). A
+  standing record's wording never changes, so a new wording is a new record
+  ([D160](decisions.md)). For "verified content only", the deployment sets
+  what verified means, a space's `verified_admits`, and a consumer that
+  wants verified content asks per call; no setting hides unverified records
+  from every read, since a store that did could not be reviewed
+  ([D161](decisions.md)). And the host holds no date on which a source was
+  written, so an attested label carries the dates it does hold, named for
+  what they are: when the host stored that content, and the file's own
+  `generated` date when it has one ([D161](decisions.md)).
 - Proposals, approvals and artifacts are records with idempotency keys and
   content hashes; every mutation appears in the event log.
 - Every hit carries a stable locator: document id, section or line range,
@@ -833,6 +865,16 @@ document needs as an amendment.
 | Grant | A host service a plugin declared and the host allowed |
 | Standing record | *D157.* A plugin's durable record that an agent may write directly and that carries a standing: unverified until a person affirms it, or until the host's deterministic check finds its wording to be whole sentences of the person's own part of a source that is theirs and did not reach the host as a command's input. Labelled on every read, and never knowledge |
 | Standing | *D157.* What a standing record's label says of its wording: unverified; attested, which is whole sentences, word for word, from the person's own source, with its date; or affirmed by a person |
+| Declared record kind | *D159.* A record kind of a compiled plugin's own namespace that its manifest lists under `[[records]]`, with the body fields the host indexes by words, filters on and matches. A standing kind is one declared `standing = true` |
+| Record lane | *D163.* The host's index of a declared kind's records in the space's document store: terms, keys, digests and vectors, written with the record. Not the knowledge index and not memory's lane |
+| Wording | *D160.* The values at a standing kind's text fields, fixed by the first write |
+| Evidence | *D161.* What a write may say of where a wording came from: a document, its content hash, unit numbers, the rule's version, the speaker, and whether the plugin found the wording to be exactly those units |
+| The person, the person's own | *D161, D162.* The one person a space is configured for; and a document that lies in a collection configured `own`, or that this person marked where no command writes files, at the content hash stored now |
+| Command-writable | *D161.* Said of a collection that a `content_write` allow covers, or whose root overlaps one that is covered, in any space, by the configuration as it is now. Such a collection cannot be `own`, and its documents cannot be marked. The host keeps no history of it: what was written there before is the deployer's to answer for |
+| Verified content only | *D157, D161.* A read that returns only affirmed records, or affirmed and attested ones where the space's `verified_admits` says so. Asked for by the call; no setting asks for a whole space, since a store that hid unverified records from every reader could not be reviewed |
+| Standing label | *D161.* What the host computes for a standing record at each read: `unverified`, `attested` or `affirmed`, with the decision or the source that backs it |
+| Words, meaning, fused | *D165.* The three scores of a match: BM25 in both directions scaled to 1, the cosine of two embeddings, and their weighted sum |
+| Meaning lane, probe | *D166, D167.* Matching by embeddings, served for a kind only where the instance's labelled probes (a text and the ids of its true duplicates) pass the gate, by counts of probes found |
 | Proposal | A knowledge-plugin record that proposes a change to the knowledge base and, once decided, is its decision trace |
 | Principal | The caller as the host sees it: AFD actor and credentials plus Umbel's extension fields |
 | Provenance envelope | The fields every stored record carries, listed in section 5 |
