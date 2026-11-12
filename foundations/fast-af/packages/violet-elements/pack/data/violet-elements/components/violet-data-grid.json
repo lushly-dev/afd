@@ -1,0 +1,501 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the grid as busy and shows the loading overlay.",
+				"name": "busy",
+				"property": "busy",
+				"rules": [
+					"taxonomy.busy"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "natural",
+				"description": "Density variant for the grid row spacing.",
+				"name": "density",
+				"property": "density",
+				"rules": [
+					"taxonomy.density"
+				],
+				"type": "VioletDataGridDensity"
+			},
+			{
+				"basis": "observed",
+				"default": "row",
+				"description": "Keyboard navigation mode for the grid surface.",
+				"name": "focus-mode",
+				"property": "focusMode",
+				"rules": [
+					"taxonomy.focus-mode"
+				],
+				"type": "VioletDataGridFocusMode"
+			},
+			{
+				"basis": "declared",
+				"name": "selection-label",
+				"property": "selectionLabel",
+				"rules": [
+					"taxonomy.selection-label"
+				],
+				"type": "string | null"
+			},
+			{
+				"basis": "observed",
+				"default": "none",
+				"description": "Selection behavior for the grid. Uses reflected primitive attribute state for HTML configuration.",
+				"name": "selection-mode",
+				"property": "selectionMode",
+				"rules": [
+					"taxonomy.selection-mode"
+				],
+				"type": "VioletDataGridSelectionMode"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Enables the built-in filter field in the toolbar.",
+				"name": "show-filter",
+				"property": "showFilter",
+				"rules": [
+					"taxonomy.show-filter"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": "local",
+				"description": "Sorting behavior for the grid. Local mode reorders rows in the component, external mode only reflects sort state and emits intent.",
+				"name": "sort-mode",
+				"property": "sortMode",
+				"rules": [
+					"taxonomy.sort-mode"
+				],
+				"type": "VioletDataGridSortMode"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Enables sticky table headers.",
+				"name": "sticky-header",
+				"property": "stickyHeader",
+				"rules": [
+					"taxonomy.sticky-header"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Enables windowed row rendering for large data sets.",
+				"name": "virtualize",
+				"property": "virtualize",
+				"rules": [
+					"taxonomy.virtualize"
+				],
+				"type": "boolean"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-data-grid-active-cell-ring, color-mix(in srgb, var(--_focus-ring) 82%, transparent))",
+				"name": "--_active-cell-ring"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-data-grid-active-cell-ring-width, var(--size-focus-ring-width, 2px))",
+				"name": "--_active-cell-ring-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"name": "--_border-strong"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-border-subtle, rgba(28, 26, 13, 0.10))",
+				"name": "--_border-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-compact)",
+				"name": "--_column-resizer-target-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-background, #ddeadf)",
+				"name": "--_control-selected-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"name": "--_control-selected-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground, #244635)",
+				"name": "--_control-selected-foreground"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-background, #fbe2e2)",
+				"name": "--_error-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"name": "--_error-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-text, #b42318)",
+				"name": "--_error-text"
+			},
+			{
+				"basis": "declared",
+				"default": "min(24rem, 100%)",
+				"name": "--_filter-max-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "2px",
+				"name": "--_focus-outline-offset"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-focus-ring, rgba(24, 24, 27, 0.5))",
+				"name": "--_focus-ring"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--z-index-raised, 1)",
+				"name": "--_layer-raised"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--z-index-sticky, 10)",
+				"name": "--_layer-sticky"
+			},
+			{
+				"basis": "declared",
+				"default": "10rem",
+				"name": "--_loading-min-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "4px",
+				"name": "--_overlay-blur"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--radius-md, 4px)",
+				"name": "--_radius-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-data-grid-row-padding-inline, 0.875rem)",
+				"name": "--_row-padding-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-natural)",
+				"name": "--_row-target-size"
+			},
+			{
+				"basis": "declared",
+				"default": "3.25rem",
+				"name": "--_selection-column-size"
+			},
+			{
+				"basis": "declared",
+				"default": "1rem",
+				"name": "--_selection-control-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--shadow-card, 0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06))",
+				"name": "--_shadow-card"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-inline-md, 8px)",
+				"name": "--_space-inline-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-inline-sm, 4px)",
+				"name": "--_space-inline-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-stack-sm, 8px)",
+				"name": "--_space-stack-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-stack-xs, 4px)",
+				"name": "--_space-stack-xs"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-card, #faf9f5)",
+				"name": "--_surface-card"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-floating, #f0efe6)",
+				"name": "--_surface-floating"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-page, #fffefa)",
+				"name": "--_surface-page"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-selected, #ddeadf)",
+				"name": "--_surface-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-subtle, #f0efe6)",
+				"name": "--_surface-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-comfortable, 44px)",
+				"name": "--_target-size-comfortable"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-compact, 24px)",
+				"name": "--_target-size-compact"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-target-natural, 32px)",
+				"name": "--_target-size-natural"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-muted, #616775)",
+				"name": "--_text-muted"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-primary, #18181b)",
+				"name": "--_text-primary"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-secondary, #414651)",
+				"name": "--_text-secondary"
+			},
+			{
+				"basis": "declared",
+				"default": "20rem",
+				"name": "--_toolbar-primary-column"
+			},
+			{
+				"basis": "declared",
+				"default": "0.9375rem",
+				"name": "--_type-cell-size"
+			},
+			{
+				"basis": "declared",
+				"default": "0.875rem",
+				"name": "--_type-meta-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-data-grid-virtualized-max-block-size, 32rem)",
+				"name": "--_virtualized-max-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "1px",
+				"name": "--_visually-hidden-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_selection-control-size)",
+				"name": "--violet-checkbox-inline-target-size"
+			},
+			{
+				"basis": "declared",
+				"description": "Width used when a column has no explicit width.",
+				"name": "--violet-data-grid-default-column-width"
+			},
+			{
+				"basis": "declared",
+				"description": "Optional maximum virtual viewport height; set to `none` when the grid should fill a definite-height parent.",
+				"name": "--violet-data-grid-virtualized-max-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "0",
+				"name": "--violet-radio-inline-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_selection-control-size)",
+				"name": "--violet-radio-inline-target-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the active cell changes in cell focus mode.",
+				"name": "active-cell-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when a cell edit is committed.",
+				"name": "cell-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when an active cell or current range is copied as tab-separated text (cells containing tabs, newlines or quotes are quoted).",
+				"name": "cell-copy"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when writing to the clipboard fails or the async clipboard API is unavailable; detail includes the copy payload and `error`.",
+				"name": "cell-copy-error"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when an autofill drag, or `fillSelection()`, maps source cells onto a larger target range.",
+				"name": "cell-fill"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when pasted text is mapped onto editable cells.",
+				"name": "cell-paste"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the rectangular cell selection changes.",
+				"name": "cell-selection-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when a column width is resized or autosized.",
+				"name": "column-width-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when a cell edit is cancelled.",
+				"name": "edit-cancel"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when a cell enters edit mode.",
+				"name": "edit-start"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the built-in filter input changes.",
+				"name": "filter-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when row selection changes.",
+				"name": "selection-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the user changes sort intent.",
+				"name": "sort-change"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Optional default slot rendered above the table region.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Content rendered when no rows are available.",
+				"name": "empty"
+			},
+			{
+				"basis": "observed",
+				"description": "Content rendered while the grid is busy.",
+				"name": "loading"
+			},
+			{
+				"accepts": [
+					"violet-button"
+				],
+				"basis": "observed",
+				"description": "Optional toolbar content rendered alongside grid metadata.",
+				"name": "toolbar"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-data-grid-grid--empty-state",
+			"html": "<violet-data-grid density=\"natural\" focus-mode=\"row\" selection-mode=\"none\" sort-mode=\"local\"></violet-data-grid>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "selection-label",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "sort-mode",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.busy",
+		"taxonomy.density",
+		"taxonomy.focus-mode",
+		"taxonomy.selection-label",
+		"taxonomy.selection-mode",
+		"taxonomy.show-filter",
+		"taxonomy.sort-mode",
+		"taxonomy.sticky-header",
+		"taxonomy.virtualize",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-data-grid",
+	"usage": []
+}

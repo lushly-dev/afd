@@ -1,0 +1,123 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "divider.semantics",
+				"text": "Horizontal renders a native hr; vertical renders an element with role=\"separator\" and aria-orientation=\"vertical\". Both live in its shadow root, not on the host."
+			},
+			{
+				"basis": "authored",
+				"id": "divider.decorative",
+				"text": "The decorative attribute hides the rule from assistive technology (aria-hidden, and role=presentation when vertical). Use it where a separator would only add noise."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "subtle",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "VioletDividerAppearance"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "decorative",
+				"property": "decorative",
+				"rules": [
+					"taxonomy.decorative"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "horizontal",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "VioletDividerOrientation"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_border-subtle)",
+				"name": "--_divider-color"
+			},
+			{
+				"basis": "declared",
+				"default": "1.5rem",
+				"name": "--_divider-min-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "1px",
+				"name": "--_divider-thickness"
+			}
+		],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-divider--decorative",
+			"html": "<violet-divider appearance=\"subtle\" decorative orientation=\"horizontal\"></violet-divider>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-divider--overview",
+			"html": "<div style=\"display:grid;gap:12px;max-width:32rem;\">\n            <violet-text as=\"label\" tone=\"default\" variant=\"label\">Upcoming work</violet-text>\n            <violet-divider appearance=\"subtle\" orientation=\"horizontal\"></violet-divider>\n            <violet-text as=\"p\" tone=\"default\" variant=\"body\">Prepare spring seed trays, check propagation media, and confirm irrigation schedules.</violet-text>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-divider--strong",
+			"html": "<violet-divider appearance=\"strong\" orientation=\"horizontal\"></violet-divider>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.decorative",
+		"import.root",
+		"taxonomy.appearance",
+		"taxonomy.decorative",
+		"taxonomy.orientation",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Horizontal or vertical rule between regions; set decorative when the line only adds visual separation.",
+	"tag": "violet-divider",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "divider.vertical",
+			"text": "orientation=\"vertical\" makes the host inline-flex with align-self: stretch, so place it in a flex row: it fills the row's height, at least 1.5rem."
+		},
+		{
+			"basis": "authored",
+			"id": "divider.content",
+			"text": "It draws only a line and has no slot, so it cannot carry a label such as \"or\"; put any text in sibling elements."
+		}
+	]
+}

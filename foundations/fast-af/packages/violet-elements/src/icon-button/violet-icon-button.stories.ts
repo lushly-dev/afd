@@ -35,6 +35,7 @@ function renderIconButton(args: VioletIconButtonStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Icon Button",
+    component: "violet-icon-button",
     tags: ["autodocs"],
     parameters: {
         docs: {

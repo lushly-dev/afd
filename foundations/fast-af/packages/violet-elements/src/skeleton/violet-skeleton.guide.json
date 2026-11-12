@@ -1,0 +1,29 @@
+{
+  "tag": "violet-skeleton",
+  "summary": "Decorative placeholder shape shown while content loads.",
+  "usage": [
+    {
+      "id": "skeleton.lines",
+      "text": "The lines attribute repeats the bar as a text block with a shorter last line. It repeats circles too, so keep lines at 1 for shape=\"circle\". Animation is off unless animated is set.",
+      "members": [
+        "lines",
+        "shape",
+        "animated"
+      ]
+    },
+    {
+      "id": "skeleton.size",
+      "text": "Shapes rect and text draw the same bar: size sets its height (0.75 to 1rem) and the host's width sets its width, so size the host with CSS to match the content it stands in for.",
+      "members": [
+        "shape",
+        "size"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "skeleton.hidden",
+      "text": "It always sets aria-hidden=\"true\" on itself, so convey the loading state elsewhere, for example aria-busy on the region being loaded or a visible status."
+    }
+  ]
+}

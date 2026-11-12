@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { claim } from "@lushly-dev/specimen/evidence";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
 import "./violet-checkbox";
@@ -49,6 +50,7 @@ function renderCheckbox(args: VioletCheckboxStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Checkbox",
+    component: "violet-checkbox",
     tags: ["autodocs"],
     parameters: {
         docs: {
@@ -102,17 +104,24 @@ export const Overview: Story = {
         await expect(input.name).toBe("includeSeedlingInventory");
         await expect(input.value).toBe("yes");
         await expect(checkbox.checkValidity()).toBe(false);
+        const invalidWhileUnchecked = !checkbox.checkValidity();
 
         await userEvent.click(input);
         await expect(checkbox.checked).toBe(true);
         await expect(checkbox.checkValidity()).toBe(true);
+        await claim(checkbox, "guide:checkbox.required", "invalid-unchecked-valid-checked", () =>
+            expect([invalidWhileUnchecked, checkbox.checked, checkbox.checkValidity()]).toEqual([true, true, true]),
+        );
 
+        const { parentNode, nextSibling } = checkbox;
         const form = document.createElement("form");
         form.append(checkbox);
         await waitFor(() => {
             const formData = new FormData(form);
             expect(formData.get("includeSeedlingInventory")).toBe("yes");
         });
+        // Back where it was, so the capture after the play shows it and its claim.
+        parentNode?.insertBefore(checkbox, nextSibling);
     },
 };
 

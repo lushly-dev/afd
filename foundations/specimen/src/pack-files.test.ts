@@ -103,7 +103,7 @@ describe('specimen pack-export', () => {
 			'pack-library/guides/rules.guide.json',
 			'colour alone does not tell anyone',
 			'colour alone tells no one',
-			'rules/example.json: Its rules differ from the guide files.',
+			'rules/example.json: Its rules differ from the guide files and guide sources.',
 		],
 		[
 			'an attribute’s description changed in the manifest',
@@ -124,7 +124,7 @@ describe('specimen pack-export', () => {
 			'pack-library/guides/rules.guide.json',
 			'"attributes": ["invalid"]',
 			'"attributes": ["disabled"]',
-			'rules/example.json: Its rules differ from the guide files.',
+			'rules/example.json: Its rules differ from the guide files and guide sources.',
 		],
 		[
 			'a guide’s authored role changed',
@@ -137,6 +137,35 @@ describe('specimen pack-export', () => {
 		const root = await copy();
 		await edit(join(root, file), from, to);
 		await expect(exportFrom(root, '../out')).rejects.toThrow(named);
+	});
+
+	it('rebuilds a guide source’s rules, with no browser, and refuses one that changed', async () => {
+		const root = await copy();
+		const library = join(root, 'pack-library');
+		const rules = await readFile(join(library, 'guides/rules.guide.json'), 'utf8');
+		// The same rules, from a guide source instead of a file.
+		await writeFile(
+			join(library, 'rules.source.mjs'),
+			`export default { id: 'example', rules: () => (${rules}).rules };\n`
+		);
+		await rm(join(library, 'guides/rules.guide.json'));
+		await edit(
+			join(library, 'specimen.config.json'),
+			'"guides": ["./guides/*.guide.json"],',
+			'"guides": ["./guides/*.guide.json"],\n\t"guideSources": ["./rules.source.mjs"],'
+		);
+		await exportFrom(root, '../out');
+		expect(await readPackFiles(join(root, 'out'))).toEqual(
+			await readPackFiles(join(fixtures, 'pack/exported'))
+		);
+		await edit(
+			join(library, 'rules.source.mjs'),
+			'colour alone does not tell anyone',
+			'colour is not enough'
+		);
+		await expect(exportFrom(root, '../out')).rejects.toThrow(
+			'rules/example.json: Its rules differ from the guide files and guide sources.'
+		);
 	});
 
 	it('refuses a target that is not a pack, and puts back a pack an earlier export left aside', async () => {

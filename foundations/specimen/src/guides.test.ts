@@ -315,6 +315,131 @@ describe('guide files', () => {
 	});
 });
 
+describe('guide sources', () => {
+	const source = (body: string) => `export default ${body};\n`;
+	const rule = (id: string, text: string, appliesTo: unknown) =>
+		JSON.stringify({ id, text, appliesTo });
+	async function withSource(module: string, edit?: (config: Record<string, unknown>) => void) {
+		const root = await project();
+		await writeFile(join(root, 'rules.source.mjs'), module);
+		await writeFile(join(root, 'data.txt'), 'From a data file.');
+		await editConfig(root, (config) => {
+			config.guideSources = ['./rules.source.mjs'];
+			edit?.(config);
+		});
+		return root;
+	}
+
+	it('adds the rules a source returns to those of the guide files, read through its context', async () => {
+		const root = await withSource(
+			source(`{
+				id: 'data',
+				async rules({ read, schemas }) {
+					return [
+						{ id: 'data.read', text: await read('data.txt'), appliesTo: { attributes: ['disabled'] } },
+						{ id: 'data.tags', text: Object.keys(schemas).sort().join(' '), appliesTo: { tags: ['example-link'] } },
+					];
+				},
+			}`)
+		);
+		const { guides } = await loadConfig({ root });
+		expect(guides?.problems).toEqual([]);
+		expect(guides?.sources).toEqual(['./rules.source.mjs']);
+		expect(guides?.rules.map(({ id, text, file }) => [id, text, file])).toEqual([
+			['actions.disabled-state', expect.any(String), './src/shared.guide.json'],
+			['actions.one-primary', expect.any(String), './src/shared.guide.json'],
+			['data.read', 'From a data file.', './rules.source.mjs'],
+			['data.tags', 'example-button example-link', './rules.source.mjs'],
+		]);
+		expect(await validate(root)).toEqual({ valid: true, scope: 'static', checked: 3, issues: [] });
+	});
+
+	it('takes an array of sources, and works with no guides key', async () => {
+		const root = await withSource(
+			source(`[
+				{ id: 'a', rules: () => [${rule('a.one', 'One.', { tags: ['example-button'] })}] },
+				{ id: 'b', rules: () => [${rule('b.two', 'Two.', { tags: ['example-link'] })}] },
+			]`),
+			(config) => {
+				delete config.guides;
+			}
+		);
+		const { guides } = await loadConfig({ root });
+		expect(guides?.files).toEqual([]);
+		expect(guides?.rules.map((item) => item.id)).toEqual(['a.one', 'b.two']);
+	});
+
+	it('needs a manifest, and a module inside the root', async () => {
+		const root = await withSource(source('[]'), (config) => {
+			delete config.manifest;
+			delete config.guides;
+		});
+		await expect(loadConfig({ root })).rejects.toThrow('configuration.guideSources');
+		const outside = await project();
+		await writeFile(join(outside, 'x.mjs'), source('[]'));
+		const escaping = await withSource(source('[]'), (config) => {
+			config.guideSources = [join(outside, 'x.mjs')];
+		});
+		await expect(loadConfig({ root: escaping })).rejects.toThrow('escapes the configured root');
+	});
+
+	const failures: [string, string, string, string?][] = [
+		['a default export that is not a source', source('{ id: 1 }'), 'GUIDE_SOURCE_FAILED'],
+		['a module that does not load', 'export default nope(;', 'GUIDE_SOURCE_FAILED'],
+		[
+			'a source that throws',
+			source(`{ id: 'x', rules() { throw new Error('no taxonomy'); } }`),
+			'GUIDE_SOURCE_FAILED',
+		],
+		[
+			'rules that are not an array',
+			source(`{ id: 'x', rules: () => ({}) }`),
+			'GUIDE_SOURCE_FAILED',
+		],
+		[
+			'a read outside the root',
+			source(
+				`{ id: 'x', rules: async ({ read }) => [{ id: 'a.b', text: await read('${'../'.repeat(12)}etc/hosts'), appliesTo: { tags: ['example-link'] } }] }`
+			),
+			'GUIDE_SOURCE_FAILED',
+		],
+		[
+			'a rule over 240 characters',
+			source(
+				`{ id: 'x', rules: () => [${rule('a.b', 'x'.repeat(241), { tags: ['example-link'] })}] }`
+			),
+			'GUIDE_TEXT_TOO_LONG',
+			'rules[0].text',
+		],
+		[
+			'a rule for a tag the manifest lacks',
+			source(`{ id: 'x', rules: () => [${rule('a.b', 'A rule.', { tags: ['example-nope'] })}] }`),
+			'GUIDE_UNKNOWN_TAG',
+			'rules[0].appliesTo.tags[0]',
+		],
+		[
+			'an id a guide file uses',
+			source(
+				`{ id: 'x', rules: () => [${rule('button.when', 'A rule.', { tags: ['example-link'] })}] }`
+			),
+			'GUIDE_DUPLICATE_ID',
+			'rules[0].id',
+		],
+	];
+	it.each(failures)('reports %s', async (_name, module, code, field) => {
+		const root = await withSource(module);
+		const report = await validate(root);
+		expect(report.valid).toBe(false);
+		const issue = report.issues.find((item) => item.code === code);
+		expect(issue, JSON.stringify(report.issues)).toMatchObject({
+			severity: 'error',
+			importPath: './rules.source.mjs',
+			...(field === undefined ? {} : { field }),
+		});
+		expect(issue?.suggestion).toBeTruthy();
+	});
+});
+
 describe('guide patterns', () => {
 	it.each([
 		['*.guide.json', 'a.guide.json', true],

@@ -1,0 +1,27 @@
+{
+  "tag": "violet-switch",
+  "summary": "On/off form toggle with a slotted label and optional supporting text; use for settings that take effect immediately.",
+  "usage": [
+    {
+      "id": "switch.required",
+      "text": "The required attribute is satisfied only while the switch is on.",
+      "members": [
+        "required",
+        "checked"
+      ]
+    },
+    {
+      "id": "switch.no-mixed",
+      "text": "There is no indeterminate state; use violet-checkbox when a mixed state is needed."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "switch.semantics",
+      "text": "The inner input has role switch and is labelled by the slotted text. Content in the supporting slot is linked as its description.",
+      "members": [
+        "supporting"
+      ]
+    }
+  ]
+}

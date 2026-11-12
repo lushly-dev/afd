@@ -1,0 +1,110 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "observed",
+				"name": "from its text",
+				"role": "tab",
+				"state": "default"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "tab.name",
+				"text": "The violet-tab element itself gets role tab, so its text is its name; give an icon-only tab an aria-label on violet-tab."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"description": "Disables the individual tab.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground, #244635)",
+				"name": "--_selection-text"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_border-subtle) 88%, transparent)",
+				"name": "--_tab-border"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_surface-card) 86%, white)",
+				"name": "--_tab-closed-resting"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_surface-subtle) 42%, white)",
+				"name": "--_tab-hover"
+			},
+			{
+				"basis": "declared",
+				"default": "2px",
+				"name": "--_tab-indicator-thickness"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_tab-indicator-thickness)",
+				"name": "--_tab-selected-accent-thickness"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Tab label content.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-tab--disabled",
+			"html": "<div aria-orientation=\"horizontal\" role=\"tablist\"><violet-tab aria-disabled=\"true\" aria-selected=\"false\" data-appearance=\"mixed\" data-orientation=\"horizontal\" disabled role=\"tab\" tabindex=\"-1\">Automation</violet-tab></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.disabled",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "One tab inside violet-tabs; its text is the tab's label.",
+	"tag": "violet-tab",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "tab.usage",
+			"text": "Use it only as a direct child of violet-tabs. Give it an id when the page sets or reads activeid; violet-tabs sets its slot, role, aria-selected, aria-controls and tabindex."
+		},
+		{
+			"basis": "authored",
+			"id": "tab.disabled",
+			"text": "A disabled tab cannot be activated by click or keyboard, and the arrow keys skip it."
+		}
+	]
+}

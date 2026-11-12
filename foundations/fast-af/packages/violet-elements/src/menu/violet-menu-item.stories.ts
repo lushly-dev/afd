@@ -51,6 +51,7 @@ function renderMenuItem(args: VioletMenuItemStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Menu Item",
+    component: "violet-menu-item",
     tags: ["autodocs"],
     parameters: {
         docs: {

@@ -1,0 +1,65 @@
+{
+  "tag": "violet-combobox",
+  "summary": "Text input that filters a popup list of violet-option children; use when the list is long enough that the user should search it.",
+  "usage": [
+    {
+      "id": "combobox.value",
+      "text": "The value is the input text: after a choice, the option's label. The chosen option's value is the selectedOptionValue property, and the form receives that; raw text is submitted only when nothing is chosen.",
+      "members": [
+        "value",
+        "selectedOptionValue"
+      ]
+    },
+    {
+      "id": "combobox.script",
+      "text": "To choose from script call selectValue(optionValue). Assigning the value property later changes only the text, not selectedOptionValue. An initial value may be an option's value or its label.",
+      "members": [
+        "value",
+        "selectedOptionValue"
+      ]
+    },
+    {
+      "id": "combobox.filter",
+      "text": "Typing filters by label, ignoring case and punctuation; arrow keys skip non-matching options, and \"No matching options\" shows when none match. Unchosen text is discarded on Tab, Escape or an outside press."
+    },
+    {
+      "id": "combobox.events",
+      "text": "Choosing fires only change, with detail { value, selectedValue, label }. Typing fires input and a native commit fires change, each with { value, selectedValue }; selectedValue is empty for unchosen text."
+    },
+    {
+      "id": "combobox.open",
+      "text": "The list opens on focus, typing and arrow keys, and the open attribute reflects it. show() opens it; hide(true) closes it and resets the text to the chosen option's label, or empties it when nothing is chosen.",
+      "members": [
+        "open"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "combobox.name",
+      "text": "Set label: without it the input has no programmatic label and browsers fall back to the placeholder. The popup list is named by the label, else the placeholder, else \"Options\".",
+      "members": [
+        "label",
+        "placeholder"
+      ]
+    },
+    {
+      "id": "combobox.active",
+      "text": "Focus stays in the input; arrow keys move the highlighted option through aria-activedescendant and Enter chooses it."
+    },
+    {
+      "id": "combobox.error",
+      "text": "The rendered error message is linked to the input as its description, after the supporting text.",
+      "members": [
+        "error-text"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "state": "open",
+      "role": "listbox",
+      "name": "from the label attribute, else the placeholder"
+    }
+  ]
+}

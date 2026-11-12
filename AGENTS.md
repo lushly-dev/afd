@@ -28,7 +28,7 @@ from the models an application built with AFD selects.
 | `pnpm test:hosted:local` | Credential-free HTTPS/OAuth, Convex fixture and durable REST/view-state checks (Node 26, OpenSSL and Chromium) |
 | `pnpm test:specimen` | Specimen full Chromium suite and packed-artifact consumers outside the workspace (Node 26, Chromium) |
 | `pnpm test:fast-af` | FAST-AF runtime and component Chromium suites and packed-artifact consumers outside the workspace (Node 26, Chromium) |
-| `pnpm test:stories` | FAST-AF's stories on Specimen: story typecheck, every story, the story contract and the review page's budgets (Node 26, Chromium, Rust) |
+| `pnpm test:stories` | FAST-AF's stories on Specimen: story typecheck, every story, the story contract, the review page's budgets and `violet-elements`' component pack (`specimen pack-check`) (Node 26, Chromium, Rust) |
 | `pnpm test:violet` | Violet full suites with the SQLite store legs and packed-artifact consumers outside the workspace (Node 26, Chromium) |
 | `pnpm changeset` | Create a changeset describing your change and its semver impact |
 | `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |

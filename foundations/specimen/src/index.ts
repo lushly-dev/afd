@@ -6,6 +6,12 @@ export type {
 	CoverageObligation,
 } from './coverage.js';
 export { diffObservations } from './diff.js';
+export {
+	defineGuideSource,
+	type GuideSource,
+	type GuideSourceContext,
+	type GuideSourceRule,
+} from './guide-source.js';
 export { finiteValues, readManifest } from './manifest.js';
 export { normalizeDom } from './normalize.js';
 export {

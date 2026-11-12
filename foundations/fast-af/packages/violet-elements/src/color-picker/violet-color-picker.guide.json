@@ -1,0 +1,57 @@
+{
+  "tag": "violet-color-picker",
+  "summary": "Swatch button that opens a color editor popover with a hex field, HSL sliders and preset swatches; use to choose one color as a hex value.",
+  "usage": [
+    {
+      "id": "color-picker.value",
+      "text": "value is a hex color; 3- or 6-digit input is accepted and every user edit writes lowercase #rrggbb. The form receives value under name. Empty shows \"Choose color\".",
+      "members": [
+        "value",
+        "name"
+      ]
+    },
+    {
+      "id": "color-picker.events",
+      "text": "input fires as the color changes and change on commit (slider release, hex Enter or blur, preset click), both with detail.value. change fires only when the color differs, ignoring case, from the last commit.",
+      "members": [
+        "input",
+        "change"
+      ]
+    },
+    {
+      "id": "color-picker.native-input",
+      "text": "The hex field's and sliders' native input events also reach host listeners, without detail; skip events that have none. Typing previews only full 6-digit hex; an invalid entry reverts on blur."
+    },
+    {
+      "id": "color-picker.open",
+      "text": "There is no open attribute: toggleOpen() opens or closes the popover and close() closes it. Escape or an outside click also closes it, and no open-change event fires."
+    },
+    {
+      "id": "color-picker.reset",
+      "text": "Form reset clears value to empty instead of restoring the initial value. The built-in swatches are fixed; content in the presets slot renders below them but is not wired to pick a color.",
+      "members": [
+        "presets"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "color-picker.trigger-name",
+      "text": "The trigger button is named by the label attribute followed by its visible text, e.g. \"Accent #c84f3b Adjust color\"; without label the name is only that text.",
+      "members": [
+        "label"
+      ]
+    },
+    {
+      "id": "color-picker.focus",
+      "text": "Opening moves focus into the hex field and selects its text. Preset swatches are toggle buttons named \"Use #rrggbb\", pressed when they match the current color."
+    }
+  ],
+  "roles": [
+    {
+      "state": "open",
+      "role": "dialog",
+      "name": "from the label attribute followed by \"color picker\""
+    }
+  ]
+}

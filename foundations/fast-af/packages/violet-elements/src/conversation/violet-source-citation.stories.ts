@@ -14,6 +14,7 @@ type CitationStoryArgs = {
 
 const meta = {
     title: "Conversation/Source Citation",
+    component: "violet-source-citation",
     tags: ["autodocs"],
     parameters: {
         docs: {

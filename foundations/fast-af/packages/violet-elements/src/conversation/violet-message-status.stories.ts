@@ -10,6 +10,7 @@ type StatusStoryArgs = {
 
 const meta = {
     title: "Conversation/Message Status",
+    component: "violet-message-status",
     tags: ["autodocs"],
     parameters: {
         docs: {

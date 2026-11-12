@@ -1,0 +1,167 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "href",
+				"property": "href",
+				"rules": [
+					"taxonomy.href"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "index",
+				"property": "index",
+				"rules": [
+					"taxonomy.index"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "media-type",
+				"property": "mediaType",
+				"rules": [
+					"taxonomy.media-type"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "",
+				"name": "source-id",
+				"property": "sourceId",
+				"rules": [
+					"taxonomy.source-id"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "source-title",
+				"property": "sourceTitle",
+				"rules": [
+					"taxonomy.source-title"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "url",
+				"name": "type",
+				"property": "type",
+				"rules": [
+					"taxonomy.type"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-citation-badge-size, var(--_caption-line, 16px))",
+				"name": "--_citation-badge-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-citation-font-size, var(--_caption-size, 12px))",
+				"name": "--_citation-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-citation-line-height, var(--_caption-line, 16px))",
+				"name": "--_citation-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-citation-max-width, 200px)",
+				"name": "--_citation-max-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-hc-border, 1px solid ButtonText)",
+				"name": "--_hc-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_citation-line-height)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Custom citation content (overrides default rendering).",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-source-citation--citation-list",
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 8px;\"><violet-source-citation href=\"https://example.com/shade-plants\" index=\"1\" media-type source-id source-title=\"Top 10 Shade Plants\" type=\"url\"></violet-source-citation><violet-source-citation href=\"https://example.com/soil-guide\" index=\"2\" media-type source-id source-title=\"Understanding Your Soil\" type=\"url\"></violet-source-citation><violet-source-citation href index=\"3\" media-type source-id source-title=\"Garden Planning Worksheet.pdf\" type=\"document\"></violet-source-citation></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-source-citation--document-source",
+			"html": "<violet-source-citation href index=\"2\" media-type=\"application/pdf\" source-id source-title=\"USDA Plant Hardiness Zone Map\" type=\"document\"></violet-source-citation>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-source-citation--no-badge",
+			"html": "<violet-source-citation href=\"https://example.com/composting-basics\" index media-type source-id source-title=\"Composting Basics for Beginners\" type=\"url\"></violet-source-citation>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "source-id",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.href",
+		"taxonomy.index",
+		"taxonomy.media-type",
+		"taxonomy.source-id",
+		"taxonomy.source-title",
+		"taxonomy.type",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-source-citation",
+	"usage": []
+}

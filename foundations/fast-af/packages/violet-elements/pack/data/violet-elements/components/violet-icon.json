@@ -1,0 +1,105 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "icon.name",
+				"text": "Unless decorative, the glyph has role img named by the label attribute. With no label the registry name itself (e.g. \"system/search\") is announced, so set label or decorative."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the icon decorative when it should be hidden from assistive technology.",
+				"name": "decorative",
+				"property": "decorative",
+				"rules": [
+					"taxonomy.decorative"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "system/search",
+				"description": "Registry name for the icon, using source-prefixed ids such as system/search.",
+				"name": "icon",
+				"property": "icon",
+				"rules": [
+					"taxonomy.icon"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional accessible label when the icon is not decorative.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-icon--decorative",
+			"html": "<violet-icon decorative icon=\"system/settings\" label style=\"--violet-icon-size: 20px;\"></violet-icon>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-icon--overview",
+			"html": "<violet-icon icon=\"system/search\" label=\"Search icon\" style=\"--violet-icon-size: 20px;\"></violet-icon>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.decorative",
+		"import.root",
+		"taxonomy.decorative",
+		"taxonomy.icon",
+		"taxonomy.label",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Renders an SVG glyph from the icon registry by name; use inside buttons, badges and labels.",
+	"tag": "violet-icon",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "icon.registry",
+			"text": "The icon attribute is a registry name such as system/close (default system/search). An unregistered name renders an X-shaped fallback. The registry is read when icon is set, so register first."
+		},
+		{
+			"basis": "authored",
+			"id": "icon.register",
+			"text": "violet-icon registers no icons. Add one with registerVioletIcon({ name, svg, sourceId, originalFile }); the generated registerSystem*Icon() helpers are in dist/icon/generated/index.js, not the root."
+		},
+		{
+			"basis": "authored",
+			"id": "icon.size",
+			"text": "It is a 1em square that inherits currentColor; size it with font-size or the --violet-icon-size custom property."
+		}
+	]
+}

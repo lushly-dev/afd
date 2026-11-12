@@ -1,0 +1,253 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "end",
+				"property": "end",
+				"rules": [
+					"taxonomy.end"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "locale",
+				"property": "locale",
+				"rules": [
+					"taxonomy.locale"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "min",
+				"property": "min",
+				"rules": [
+					"taxonomy.min"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "natural",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletDateRangePickerSize"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "start",
+				"property": "start",
+				"rules": [
+					"taxonomy.start"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_type-body-size-compact)",
+				"name": "--violet-control-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-caption-size-compact)",
+				"name": "--violet-control-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-label-size-compact)",
+				"name": "--violet-control-label-size"
+			},
+			{
+				"basis": "declared",
+				"default": "max(0.9rem, calc(var(--_target-size) * 0.33))",
+				"name": "--violet-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-compact)",
+				"name": "--violet-target-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the partial or complete range changes.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the partial or complete range changes.",
+				"name": "input"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the calendar popup opens or closes.",
+				"name": "open-change"
+			}
+		],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-date-range-picker--comfortable",
+			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker end=\"2026-03-27\" error-text label=\"Harvest window\" locale=\"en-US\" max=\"2026-04-30\" min=\"2026-03-01\" size=\"comfortable\" start=\"2026-03-20\" supporting-text=\"Choose the planned harvest period for this crop plan.\"></violet-date-range-picker>\n            </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-date-range-picker--compact",
+			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker end=\"2026-03-27\" error-text label=\"Harvest window\" locale=\"en-US\" max=\"2026-04-30\" min=\"2026-03-01\" size=\"compact\" start=\"2026-03-20\" supporting-text=\"Choose the planned harvest period for this crop plan.\"></violet-date-range-picker>\n            </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-date-range-picker--disabled",
+			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker disabled end=\"2026-03-27\" error-text label=\"Harvest window\" locale=\"en-US\" max=\"2026-04-30\" min=\"2026-03-01\" size=\"natural\" start=\"2026-03-20\" supporting-text=\"This range is inherited from the parent greenhouse template.\"></violet-date-range-picker>\n            </div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "open",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"field.label",
+		"field.label-required",
+		"field.supporting-text",
+		"import.root",
+		"overlay.open-change",
+		"taxonomy.disabled",
+		"taxonomy.end",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.locale",
+		"taxonomy.max",
+		"taxonomy.min",
+		"taxonomy.open",
+		"taxonomy.required",
+		"taxonomy.size",
+		"taxonomy.start",
+		"taxonomy.supporting-text",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-date-range-picker",
+	"usage": []
+}

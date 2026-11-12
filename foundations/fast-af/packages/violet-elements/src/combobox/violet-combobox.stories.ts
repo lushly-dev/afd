@@ -83,6 +83,7 @@ function renderCombobox(args: VioletComboboxStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Combobox",
+    component: "violet-combobox",
     tags: ["autodocs"],
     parameters: {
         docs: {

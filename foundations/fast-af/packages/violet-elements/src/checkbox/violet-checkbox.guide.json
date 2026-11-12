@@ -1,0 +1,30 @@
+{
+  "tag": "violet-checkbox",
+  "summary": "Form checkbox with a slotted label, optional supporting text and an indeterminate state; use for independent on/off choices.",
+  "usage": [
+    {
+      "id": "checkbox.indeterminate",
+      "text": "The indeterminate attribute is a display and ARIA state only. A user toggle clears it, it does not change what the form receives, and form reset restores it.",
+      "members": [
+        "indeterminate"
+      ]
+    },
+    {
+      "id": "checkbox.required",
+      "text": "The required attribute is satisfied only while checked.",
+      "members": [
+        "required",
+        "checked"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "checkbox.name",
+      "text": "The slotted label text is copied to the input as a plain-text aria-label; an aria-label on the host overrides it. Text in the supporting slot is visible but is not linked as a description.",
+      "members": [
+        "supporting"
+      ]
+    }
+  ]
+}

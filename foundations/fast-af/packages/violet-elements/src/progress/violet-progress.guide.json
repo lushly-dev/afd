@@ -1,0 +1,35 @@
+{
+  "tag": "violet-progress",
+  "summary": "Linear progress bar on the native progress element, determinate or indeterminate.",
+  "usage": [
+    {
+      "id": "progress.indeterminate",
+      "text": "Set value=\"\" for indeterminate, which also hides the percentage. With no value attribute it shows 0, and a value that is not a number is treated as 0.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "progress.value",
+      "text": "The value is clamped to 0 through max, and a max that is not a positive number falls back to 100. While determinate, a rounded percentage is shown beside the label.",
+      "members": [
+        "value",
+        "max"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "progress.name",
+      "text": "The label attribute is shown and names the bar; without it the name is \"Progress\". The value-text attribute sets aria-valuetext.",
+      "members": [
+        "label",
+        "value-text"
+      ]
+    },
+    {
+      "id": "progress.announce",
+      "text": "The bar is not a live region: changes in value are not announced, so announce completion or failure separately."
+    }
+  ]
+}

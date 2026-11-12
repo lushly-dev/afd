@@ -83,6 +83,15 @@ const template = html<VioletListbox>`
     </div>
 `;
 
+/**
+ * Violet reusable listbox primitive.
+ *
+ * @summary Always-visible list of options for choosing one, or several with multiple.
+ * @slot - The options: violet-option and violet-option-group elements.
+ * @fires input - Emitted when the selection changes.
+ * @fires change - Emitted when the selection changes.
+ * @csspart control - The focusable list element.
+ */
 export class VioletListbox extends FASTElement {
     @observable
     declare public activeValue: string;

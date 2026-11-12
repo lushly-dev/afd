@@ -158,6 +158,14 @@ const template = html<VioletPersona>`
     </div>
 `;
 
+/**
+ * Violet reusable persona primitive.
+ *
+ * @summary Avatar for a person: their image, or initials on a colour drawn from their name when there is no image or it fails to load.
+ * @csspart root - The avatar frame.
+ * @csspart image - The rendered image element.
+ * @csspart fallback - The initials shown without an image.
+ */
 export class VioletPersona extends FASTElement {
     @observable
     declare public imageFailed: boolean;

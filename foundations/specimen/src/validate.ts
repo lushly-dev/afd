@@ -572,6 +572,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'profile',
 		'coverage',
 		'guides',
+		'guideSources',
 		'pack',
 	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
@@ -582,6 +583,8 @@ export function parseConfig(value: unknown): BenchConfig {
 		fail('configuration.test', 'test tags apply only to stories');
 	if (fields.guides !== undefined && fields.manifest === undefined)
 		fail('configuration.guides', 'guides are checked against a manifest');
+	if (fields.guideSources !== undefined && fields.manifest === undefined)
+		fail('configuration.guideSources', 'guide sources are checked against a manifest');
 	if (fields.pack !== undefined && fields.manifest === undefined)
 		fail('configuration.pack', 'a pack is built from a manifest');
 	return {
@@ -610,6 +613,15 @@ export function parseConfig(value: unknown): BenchConfig {
 					guides: Array.isArray(fields.guides)
 						? fields.guides.map((item, index) => text(item, `configuration.guides[${index}]`))
 						: fail('configuration.guides', 'expected an array of file patterns'),
+				}),
+		...(fields.guideSources === undefined
+			? {}
+			: {
+					guideSources: Array.isArray(fields.guideSources)
+						? fields.guideSources.map((item, index) =>
+								text(item, `configuration.guideSources[${index}]`)
+							)
+						: fail('configuration.guideSources', 'expected an array of module paths'),
 				}),
 		...(fields.pack === undefined ? {} : { pack: packConfig(fields.pack) }),
 	};

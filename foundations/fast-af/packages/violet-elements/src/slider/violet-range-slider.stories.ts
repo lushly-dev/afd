@@ -50,6 +50,7 @@ function renderSlider(args: VioletRangeSliderStoryArgs): HTMLFormElement {
 
 const meta = {
     title: "Components/Range Slider",
+    component: "violet-range-slider",
     tags: ["autodocs"],
     parameters: {
         docs: {

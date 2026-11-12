@@ -1,0 +1,44 @@
+{
+  "tag": "violet-listbox",
+  "summary": "Always-visible list of violet-option children for choosing one value, or several with multiple; not a form field.",
+  "usage": [
+    {
+      "id": "listbox.not-form",
+      "text": "It is not form-associated and has no name attribute. Read the value property, or selectedValues in multiple mode, and submit it yourself.",
+      "members": [
+        "value",
+        "selectedValues"
+      ]
+    },
+    {
+      "id": "listbox.multiple",
+      "text": "With multiple, the selection is the selectedValues array property (no attribute) and value mirrors its first entry. Options marked selected seed it.",
+      "members": [
+        "multiple",
+        "selectedValues",
+        "value"
+      ]
+    },
+    {
+      "id": "listbox.events",
+      "text": "User selection fires input and change with detail.value, plus detail.selectedValues in multiple mode. selectValue(v) and toggleValue(v) fire them too unless their second argument is false."
+    },
+    {
+      "id": "listbox.keyboard",
+      "text": "One tab stop. Arrows, Home, End and type-ahead move the highlight; Enter or Space selects, or toggles in multiple mode, where Ctrl or Cmd+A toggles all. selection-follows-focus selects while moving, single mode only.",
+      "members": [
+        "selection-follows-focus",
+        "multiple"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "listbox.name",
+      "text": "The label attribute is not rendered: it becomes the list's aria-label, falling back to an aria-label on the host and then to \"Options\". Provide one of them.",
+      "members": [
+        "label"
+      ]
+    }
+  ]
+}

@@ -49,6 +49,7 @@ function renderButton(args: VioletButtonStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Button",
+    component: "violet-button",
     tags: ["autodocs"],
     parameters: {
         docs: {

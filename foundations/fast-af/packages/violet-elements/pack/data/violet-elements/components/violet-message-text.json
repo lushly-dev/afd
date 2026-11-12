@@ -1,0 +1,92 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "done",
+				"name": "state",
+				"property": "state",
+				"rules": [
+					"taxonomy.state"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-cursor-gap, 0.125em)",
+				"name": "--_cursor-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-cursor-height, 1em)",
+				"name": "--_cursor-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-cursor-width, 0.125em)",
+				"name": "--_cursor-width"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Text content (plain text or pre-sanitized HTML).",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-message-text--multiline",
+			"html": "<violet-message-text state=\"done\">Here are the steps to get started:\n\n1. Choose a location for your compost bin\n2. Layer green and brown materials\n3. Keep the pile moist but not soggy\n4. Turn it every 1-2 weeks\n5. Harvest when it looks like dark, crumbly soil</violet-message-text>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message-text--overview",
+			"html": "<violet-message-text state=\"done\">Composting is the natural process of recycling organic matter into a valuable fertilizer that can enrich soil and reduce waste.</violet-message-text>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message-text--short-text",
+			"html": "<violet-message-text state=\"done\">Got it!</violet-message-text>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.state",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-message-text",
+	"usage": []
+}

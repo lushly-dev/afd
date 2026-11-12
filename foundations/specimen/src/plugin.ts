@@ -10,6 +10,8 @@
  *   versioned and validated together.
  * - Command runner: a named runner for explicit command steps. Runner ids are unique across
  *   plugins; a step naming a missing runner fails before it runs.
+ *
+ * The fifth, a guide source, runs in Node instead: see `guide-source.ts`.
  */
 
 /** A value a property or attribute can take, when the source knows a finite set of them. */

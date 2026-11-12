@@ -30,6 +30,7 @@ function renderTab(args: VioletTabStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Tab",
+    component: "violet-tab",
     tags: ["autodocs"],
     parameters: {
         docs: {

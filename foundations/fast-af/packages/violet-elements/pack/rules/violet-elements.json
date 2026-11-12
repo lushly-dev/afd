@@ -1,0 +1,1805 @@
+{
+	"format": 0,
+	"library": "violet-elements",
+	"rules": [
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-badge",
+					"violet-color-swatch",
+					"violet-divider",
+					"violet-icon",
+					"violet-image",
+					"violet-persona",
+					"violet-spinner"
+				]
+			},
+			"basis": "authored",
+			"id": "a11y.decorative",
+			"text": "Set the decorative attribute when adjacent text already conveys the meaning; the element is then hidden from assistive technology. Leave it off when the visual carries meaning alone."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-accordion",
+					"violet-accordion-item",
+					"violet-breadcrumb-item",
+					"violet-combobox",
+					"violet-listbox",
+					"violet-menu",
+					"violet-menu-item",
+					"violet-option",
+					"violet-option-group",
+					"violet-radio",
+					"violet-radio-group",
+					"violet-segment",
+					"violet-segmented-control",
+					"violet-select",
+					"violet-tab",
+					"violet-tab-panel",
+					"violet-tabs",
+					"violet-tree",
+					"violet-tree-item"
+				]
+			},
+			"basis": "authored",
+			"id": "a11y.managed",
+			"text": "The component sets roles, ARIA states, ids, tabindex and keyboard handling on itself and on its child items. Do not add role, ARIA state attributes, tabindex or key handlers for the same purpose."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-color-picker",
+					"violet-combobox",
+					"violet-date-picker",
+					"violet-slider",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-time-picker"
+				]
+			},
+			"basis": "authored",
+			"id": "event.native-input",
+			"text": "A host listener for input also receives the inner control's native input event, which has no detail. Read the host's value property, or skip events without detail."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-listbox",
+					"violet-radio-group",
+					"violet-segmented-control",
+					"violet-slider",
+					"violet-text-field",
+					"violet-tree"
+				]
+			},
+			"basis": "authored",
+			"id": "field.aria-label",
+			"text": "Without a label attribute, an aria-label attribute on the host is used as the control's accessible name."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-color-picker",
+					"violet-date-picker",
+					"violet-slider",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-time-picker"
+				]
+			},
+			"basis": "authored",
+			"id": "field.input-change",
+			"text": "An input event fires on every edit and a change event when the edit is committed. Both are CustomEvents with detail.value (a string)."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-chat-composer",
+					"violet-color-picker",
+					"violet-combobox",
+					"violet-date-picker",
+					"violet-date-range-picker",
+					"violet-radio-group",
+					"violet-segmented-control",
+					"violet-select",
+					"violet-slider",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-time-picker",
+					"violet-tree"
+				]
+			},
+			"basis": "authored",
+			"id": "field.label",
+			"text": "The label attribute renders a visible label inside the component and makes it part of the control's accessible name."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-chat-composer",
+					"violet-color-picker",
+					"violet-combobox",
+					"violet-date-picker",
+					"violet-date-range-picker",
+					"violet-file-upload",
+					"violet-select",
+					"violet-text-area",
+					"violet-time-picker"
+				]
+			},
+			"basis": "authored",
+			"id": "field.label-required",
+			"text": "An aria-label attribute on the host is not read as the control's name. Name the control with the label attribute."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-chat-composer",
+					"violet-combobox",
+					"violet-select",
+					"violet-text-area",
+					"violet-text-field"
+				]
+			},
+			"basis": "authored",
+			"id": "field.placeholder",
+			"text": "The placeholder is entry guidance shown while the control is empty. It is not a label: name the control with the label attribute."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-color-picker",
+					"violet-combobox",
+					"violet-date-picker",
+					"violet-date-range-picker",
+					"violet-radio-group",
+					"violet-range-slider",
+					"violet-segmented-control",
+					"violet-select",
+					"violet-slider",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-time-picker",
+					"violet-tree"
+				]
+			},
+			"basis": "authored",
+			"id": "field.supporting-text",
+			"text": "The supporting-text attribute is plain helper text rendered under the control and already linked to it as its description."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-combobox",
+					"violet-text-area",
+					"violet-text-field"
+				]
+			},
+			"basis": "authored",
+			"id": "field.value-attribute",
+			"text": "The value attribute is the initial value and the form-reset default. Typing and writes to the value property are not reflected back to the attribute; read the property."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-checkbox",
+					"violet-color-picker",
+					"violet-combobox",
+					"violet-date-picker",
+					"violet-file-upload",
+					"violet-radio-group",
+					"violet-range-slider",
+					"violet-select",
+					"violet-slider",
+					"violet-switch",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-time-picker"
+				]
+			},
+			"basis": "authored",
+			"id": "form.invalid",
+			"text": "Unless the control is disabled or readonly, the invalid attribute sets a custom validity error, so checkValidity() fails and native validation blocks form submission until the attribute is removed."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-checkbox",
+					"violet-combobox",
+					"violet-date-picker",
+					"violet-file-upload",
+					"violet-radio-group",
+					"violet-segmented-control",
+					"violet-select",
+					"violet-slider",
+					"violet-switch",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-time-picker"
+				]
+			},
+			"basis": "authored",
+			"id": "form.participation",
+			"text": "Form-associated: submits under its name attribute, submits nothing while disabled or inside <fieldset disabled>, restores its initial state on form reset, and exposes checkValidity(), reportValidity() and validity."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-combobox",
+					"violet-radio-group",
+					"violet-segmented-control",
+					"violet-select"
+				]
+			},
+			"basis": "authored",
+			"id": "form.required-error",
+			"text": "With the required attribute and no value, the error message is rendered from the first render, before any interaction. The error-text attribute replaces the built-in wording."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-accordion",
+					"violet-accordion-item",
+					"violet-alert",
+					"violet-approval-card",
+					"violet-badge",
+					"violet-breadcrumb",
+					"violet-breadcrumb-item",
+					"violet-button",
+					"violet-calendar",
+					"violet-card",
+					"violet-carousel",
+					"violet-chat-composer",
+					"violet-chat-suggestions",
+					"violet-checkbox",
+					"violet-color-picker",
+					"violet-color-swatch",
+					"violet-combobox",
+					"violet-conversation-thread",
+					"violet-data-grid",
+					"violet-data-grid-attachment-cell",
+					"violet-data-grid-multi-picker",
+					"violet-data-grid-persona-picker",
+					"violet-data-grid-pill-select",
+					"violet-data-grid-rating",
+					"violet-data-grid-reference-picker",
+					"violet-date-picker",
+					"violet-date-range-picker",
+					"violet-dialog",
+					"violet-divider",
+					"violet-empty-state",
+					"violet-file-explorer",
+					"violet-file-upload",
+					"violet-gantt",
+					"violet-icon",
+					"violet-icon-button",
+					"violet-image",
+					"violet-listbox",
+					"violet-menu",
+					"violet-menu-item",
+					"violet-message",
+					"violet-message-media",
+					"violet-message-status",
+					"violet-message-text",
+					"violet-option",
+					"violet-option-group",
+					"violet-pagination",
+					"violet-persona",
+					"violet-popover",
+					"violet-progress",
+					"violet-radio",
+					"violet-radio-group",
+					"violet-range-slider",
+					"violet-reasoning-block",
+					"violet-segment",
+					"violet-segmented-control",
+					"violet-select",
+					"violet-skeleton",
+					"violet-slider",
+					"violet-snackbar",
+					"violet-source-citation",
+					"violet-spinner",
+					"violet-switch",
+					"violet-tab",
+					"violet-tab-panel",
+					"violet-tabs",
+					"violet-teaching-tip",
+					"violet-text",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-theme",
+					"violet-time-picker",
+					"violet-toast",
+					"violet-tool-call-card",
+					"violet-tool-result-card",
+					"violet-tooltip",
+					"violet-tree",
+					"violet-tree-item"
+				]
+			},
+			"basis": "authored",
+			"id": "import.root",
+			"text": "Importing \"@lushly-dev/violet-elements\" registers every element. A per-element module registers only itself and what it imports: the tabs module does not register tab or tab-panel, nor the menu module menu-item."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-alert",
+					"violet-snackbar",
+					"violet-toast"
+				]
+			},
+			"basis": "authored",
+			"id": "message.announcement",
+			"text": "The announcement attribute controls the live region: polite gives role status, assertive gives role alert, off gives none. The tone attribute is visual only and does not change it."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-alert",
+					"violet-toast"
+				]
+			},
+			"basis": "authored",
+			"id": "message.tone",
+			"text": "The tone attribute is default, info, success, warning or danger. Success, warning and danger show a built-in leading icon; content in the icon slot replaces it."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-combobox",
+					"violet-listbox",
+					"violet-select"
+				]
+			},
+			"basis": "authored",
+			"id": "options.children",
+			"text": "Choices are violet-option descendants, optionally wrapped in violet-option-group. The parent rewrites the selected attribute of every option; choose through the parent's value, or mark one option selected initially."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-popover",
+					"violet-teaching-tip",
+					"violet-tooltip"
+				]
+			},
+			"basis": "authored",
+			"id": "overlay.anchor",
+			"text": "The anchor attribute is the id of an element outside the component, resolved with document.getElementById when the component connects or the attribute changes. That element must already exist and must not be inside a shadow root."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-date-picker",
+					"violet-date-range-picker",
+					"violet-dialog",
+					"violet-menu",
+					"violet-popover",
+					"violet-snackbar",
+					"violet-teaching-tip",
+					"violet-toast"
+				]
+			},
+			"basis": "authored",
+			"id": "overlay.open-change",
+			"text": "An open-change event fires after each open and each close, with detail.open as a boolean."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-popover",
+					"violet-teaching-tip",
+					"violet-tooltip"
+				]
+			},
+			"basis": "authored",
+			"id": "overlay.positioning",
+			"text": "The positioning attribute is above, below, before or after; before and after are the physical left and right of the anchor. It flips to the opposite side when there is no room."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"accept"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.accept",
+			"text": "Passes through accepted file type hints using the same syntax as the native file input accept attribute. Not for: freeform content type validation unrelated to file selection; display-only file badges."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"active-index"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.active-index",
+			"text": "Indicates the currently active zero-based item in a paged composite that renders one visible item at a time."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"active-index"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.active-index.not-for",
+			"text": "Do not use active-index for: page numbers; selected row ids; listbox option values; generic collection indexes that are not part of a public paging contract."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"activeid"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.activeid",
+			"text": "Identifies the active child item in a composite that coordinates one selected trigger with one visible content region."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"activeid"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.activeid.not-for",
+			"text": "Do not use activeid for: selected row ids in data collections; generic HTML id passthrough; single controls without child item coordination."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"allow-create"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.allow-create",
+			"text": "Enables a host-owned create affordance for unmatched picker queries. Not for: automatic data creation; authorization flags."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"allowed-origins"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.allowed-origins",
+			"text": "Space-separated origins a remote media source may load from. When set, a source that is not relative, same-origin, data: or blob: and whose origin is not listed is not requested and the component renders its generic file row instead."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"allowed-origins"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.allowed-origins.not-for",
+			"text": "Do not use allowed-origins for: CORS configuration; link or navigation allowlists; values that are not URLs."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-image"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.alt.violet-image",
+			"text": "Provides the alternative text for an informative image when the component renders a native image element. Not for: decorative images marked with decorative; captions; adjacent visible headings."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-message-media"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.alt.violet-message-media",
+			"text": "Provides alternative text for image media, used as the alt attribute on rendered images. Not for: tooltips; visible labels."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"anchor"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.anchor",
+			"text": "References the ID of an external trigger element that the overlay positions itself relative to. Not for: internal component wiring; replacing slot-based trigger patterns when the trigger is a direct child."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"animated"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.animated",
+			"text": "Enables or disables a purely visual motion treatment without changing the component's content semantics. Not for: business process state; semantic busy indicators; visibility control."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"announcement"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.announcement",
+			"text": "Controls whether a message surface should behave as a live region and how urgently it should be announced. Not for: general visibility state; replacing visual tone; author role semantics."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"appearance"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.appearance",
+			"text": "Selects a visual emphasis treatment for an action-like control without changing its semantic role. Not for: selection state; validation state; density or size; component-specific mode toggles."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-controls"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-controls",
+			"text": "Identifies the element whose content or presence is controlled by an interactive trigger. Not for: visual grouping without an interactive control relationship; references to unrelated content."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-expanded"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-expanded",
+			"text": "Indicates whether content controlled by an interactive trigger is currently expanded or collapsed. Not for: selection state; visibility that is unrelated to the control."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-haspopup"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-haspopup",
+			"text": "Indicates the availability and type of interactive popup triggered by a control. Not for: noninteractive overlays; content that does not use popup semantics."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-label"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-label",
+			"text": "Provides an explicit ARIA label when visible label content is absent and the component needs a direct accessible name."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-label"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-label.not-for",
+			"text": "Do not use aria-label for: components that already render a visible label and can reference it internally; duplicating adjacent visible text without need."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-pressed"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-pressed",
+			"text": "Indicates the pressed state of a toggle button: \"true\", \"false\" or \"mixed\". Not for: selection state of options or rows; disclosure state (use aria-expanded)."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"as"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.as",
+			"text": "Selects the underlying semantic HTML element the component should render while keeping the Violet styling contract. Not for: pure styling variants; ARIA roles; component family selection."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"autocomplete"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.autocomplete",
+			"text": "Passes through the native autocomplete hint to the wrapped text control. Not for: custom suggestion lists; typeahead results."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"boundary-count"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.boundary-count",
+			"text": "Controls how many always-visible page numbers are shown at the beginning and end of a paginated range. Not for: border widths; spacing values; data counts."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"busy"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.busy",
+			"text": "Indicates the component is currently performing work and should present a loading or in-progress state. Not for: disabled controls unless they are actually loading; one-off hover or pressed state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"checked"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.checked",
+			"text": "Represents the on/off or selected/unselected state of a binary native-style control. Not for: multi-value arrays; non-binary UI state; selected rows in rich data components."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"color"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.color",
+			"text": "Selects a semantic color family for a compact status or category indicator without changing the underlying content. Not for: arbitrary CSS colors; theme switching; state that should use disabled, invalid, or checked semantics."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"content"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.content",
+			"text": "Provides plain-text content for a lightweight overlay as an alternative to slotting elements. Not for: rich formatted content; body content of dialogs or cards; replacing slot-based content models."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"control-label"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.control-label",
+			"text": "Names the field edited by the data-grid pill selector; its trigger combines this name with the current selected value. Not for: selected option text; new general controls that use label."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"current"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.current",
+			"text": "Indicates that an item within a navigation sequence represents the current location. Not for: selection widgets that should use selected or checked; transient focus state; hover styling."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"current-folder-id"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.current-folder-id",
+			"text": "Identifies the folder whose contents a file browser is currently showing; an empty value means the root. Not for: selected item ids; breadcrumb current state (use current); tree selection value."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"current-step"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.current-step",
+			"text": "Indicates the current step index in a multi-step sequence displayed by an overlay. Not for: carousel slides; pagination; form wizard steps managed by a parent container."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"decorative"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.decorative",
+			"text": "Marks a visual-only element as decorative so assistive technology can ignore it. Not for: interactive state; hidden business logic; content that carries unique meaning."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"delay"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.delay",
+			"text": "Specifies the show delay in milliseconds before a hover-triggered overlay becomes visible. Not for: animation duration; debounce intervals; timeout values for network requests."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"density"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.density",
+			"text": "Selects a spacing and sizing rhythm variant for components that support multiple presentation densities. Not for: size scales like sm/md/lg; visual emphasis; selection mode."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"disabled"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.disabled",
+			"text": "Marks a control as unavailable for interaction and participation in normal form workflows. Not for: temporary loading visuals unless the control is truly unavailable; read-only content."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"dismissible"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.dismissible",
+			"text": "Adds a built-in dismiss control so the user can explicitly remove a message surface. Not for: disabling light-dismiss on overlays; hiding content conditionally without user control."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"empty"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.empty",
+			"text": "Indicates the component has no content and should display an empty state. Not for: validation state; loading state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"end"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.end",
+			"text": "Carries the ending boundary of a range-like selection in canonical string form. Not for: single-value controls; layout offsets."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"error-announcement"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.error-announcement",
+			"text": "Selects whether a control announces its own validation text or delegates live announcement to an integrating surface."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"error-announcement"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.error-announcement.not-for",
+			"text": "Do not use error-announcement for: hiding validation text; removing the focused control's error-message association; selecting polite versus assertive urgency."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"error-text"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.error-text",
+			"text": "Provides explicit validation copy that a component renders when it is invalid or required validation fails. Not for: helper copy; browser-generated validation text passthrough without component-owned UI; non-validation warnings."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"expand-mode"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.expand-mode",
+			"text": "Controls whether a grouped disclosure container allows one expanded item at a time or multiple expanded items simultaneously. Not for: orientation; selection modes unrelated to disclosure."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"expandable"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.expandable",
+			"text": "Advertises that a branch can be expanded even though its children are not rendered yet, so lazily loaded branches still expose aria-expanded and an expansion toggle."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"expandable"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.expandable.not-for",
+			"text": "Do not use expandable for: current open state (use expanded); branches whose children are already rendered; menu or dialog visibility."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"expanded"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.expanded",
+			"text": "Indicates whether a collapsible section is currently expanded and its content visible. Not for: menu open state; dialog visibility."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"filename"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.filename",
+			"text": "Specifies the display filename for a media attachment or file reference. Not for: file paths; internal identifiers."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"fit"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.fit",
+			"text": "Controls how media should scale inside the component's rendered bounds. Not for: alignment unrelated to media sizing; overall component density."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"focus-mode"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.focus-mode",
+			"text": "Defines whether keyboard navigation is oriented around whole rows or individual data cells. Not for: selection state; edit mode; general focus styling."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"heading"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.heading",
+			"text": "Provides the primary title text for a component that owns an internal heading treatment. Not for: slotted arbitrary heading markup when the consumer should control semantics directly; button labels."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"heading-level"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.heading-level",
+			"text": "Sets the semantic heading level announced for a slotted accordion or disclosure header. Not for: visual size changes; CSS heading styles."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"href"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.href",
+			"text": "Specifies the URL target for a rendered link. Not for: API endpoints; non-link identifiers."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"icon"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.icon",
+			"text": "Selects an icon asset from a component-owned icon registry or packaged icon source. Not for: form field names; visual labels; arbitrary image URLs."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"indeterminate"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.indeterminate",
+			"text": "Represents a mixed aggregate selection state for checkbox-like controls. Not for: regular binary checked state; radio buttons; visual loading states."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"index"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.index",
+			"text": "Numeric badge label displayed alongside a citation for footnote-style referencing. Not for: array indices; sort order."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"initials"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.initials",
+			"text": "Provides explicit initials or short fallback text when a persona-like component is not rendering an image. Not for: full visible names; accessible labels that should use label instead; arbitrary long text."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"inline"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.inline",
+			"text": "Presents a compact inline-friendly layout that can collapse to control-only rendering when no label content is provided. Not for: display:inline styling in general; visual emphasis variants; selection state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"inputmode"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.inputmode",
+			"text": "Passes through the native inputmode hint so touch devices show a matching virtual keyboard for the wrapped text control. Not for: validation (use type, pattern, min and max); restricting which characters may be typed."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"interactive"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.interactive",
+			"text": "Makes a surface component focusable and responsive to pointer and keyboard interaction without changing its semantic role. Not for: replacing a button or link; disabled state; selection state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"invalid"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.invalid",
+			"text": "Indicates that the control or field should present invalid styling and invalid accessibility semantics. Not for: warning-only states; application errors unrelated to the control's value."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"label"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.label",
+			"text": "Provides the primary text label or internal accessible name for a control when the component owns its label rendering or accessible naming internally. Not for: button body content that should come from a slot; decorative headings."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"label-end"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.label-end",
+			"text": "Accessible label for the upper thumb of a dual-thumb range control. Not for: primary field labels; single-value controls."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"label-start"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.label-start",
+			"text": "Accessible label for the lower thumb of a dual-thumb range control. Not for: primary field labels; single-value controls."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"lines"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.lines",
+			"text": "Controls how many repeated placeholder lines a loading primitive should render. Not for: rich text content; pagination counts; data values that should stay numeric properties."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"load-error"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.load-error",
+			"text": "Host-supplied message describing why the current content failed to load; when set, the component shows an error state with a retry action instead of its content. Not for: form validation copy (use error-text); transient notifications."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"loading"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.loading",
+			"text": "Passes through the native media loading hint when the component wraps a resource that can be lazily loaded. Not for: general busy state; placeholder visibility."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"locale"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.locale",
+			"text": "Supplies a BCP 47 locale tag that influences locale-sensitive formatting and labels. Not for: timezone identifiers; theme names; arbitrary display text."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"loop"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.loop",
+			"text": "Allows a paged or sequential component to wrap from the last item back to the first and vice versa during navigation. Not for: generic repeated data rendering; animations; pagination where wrapping would be surprising."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"max"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.max",
+			"text": "Passes through the maximum allowed scalar value for a native-like range or numeric control. Not for: layout maximums; string length validation; collection sizes."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"max-file-size"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.max-file-size",
+			"text": "Limits the allowed size of each selected file, expressed in bytes. Not for: total payload budgeting; visual sizing; generic numeric ranges unrelated to files."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"max-files"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.max-files",
+			"text": "Limits how many files a file-upload control may keep selected at one time. Not for: generic collection pagination; layout counts; string length validation."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"maxlength"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.maxlength",
+			"text": "Passes through the maximum allowed text length to the native text control. Not for: numeric maximums; collection sizes; layout maximums; display truncation."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"media-type"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.media-type",
+			"text": "Specifies the IANA media type (MIME type) of the content, used to determine rendering strategy. Not for: file extensions; display labels."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"message"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.message",
+			"text": "Provides the main descriptive copy for a compact message surface that owns its text layout internally. Not for: rich multi-slot body content; ARIA live-region text that should stay separate from visible copy."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"message-role"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.message-role",
+			"text": "Identifies the author role of a message for visual styling and semantic labeling. Not for: ARIA roles; user permissions; access control."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"min"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.min",
+			"text": "Passes through the minimum allowed scalar value for a native-like range or numeric control. Not for: layout minimums; string length validation; collection sizes."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"minlength"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.minlength",
+			"text": "Passes through the minimum allowed text length to the native single-line text control. Not for: numeric minimums; collection sizes; layout minimums."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"multiple"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.multiple",
+			"text": "Allows a composite selection surface to keep more than one option selected at the same time. Not for: binary checked controls; layout density; freeform repeated data entry."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"name"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.name",
+			"text": "Supplies the native form field name used when a component participates in form submission. Not for: visual labels; analytics identifiers; component registry names."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"no-backdrop"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.no-backdrop",
+			"text": "Removes the semi-transparent backdrop overlay behind a modal surface, allowing the background to remain fully visible. Not for: disabling light dismiss; hiding the dialog itself."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"no-close-button"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.no-close-button",
+			"text": "Hides the default close button in an overlay surface header, requiring the consumer to provide explicit dismiss controls. Not for: disabling close entirely; hiding all header content."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"open"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.open",
+			"text": "Controls whether an overlay or expandable surface is currently visible. Not for: checked state; selection state; visibility toggling via CSS classes."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"orientation"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.orientation",
+			"text": "Defines whether a grouped set of options is laid out horizontally or vertically. Not for: text direction; alignment; single control icon placement."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"padding"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.padding",
+			"text": "Selects a uniform internal spacing preset applied to all content sections of a surface component. Not for: margin or external spacing; gap between sibling components; text indentation."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"page"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.page",
+			"text": "Indicates the current page number in a paginated navigation control. Not for: array indexes; generic numeric values unrelated to navigation."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"page-count"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.page-count",
+			"text": "Indicates the total number of available pages in a paginated navigation control. Not for: collection sizes without paging semantics; step counts in guided flows."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"pattern"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.pattern",
+			"text": "Passes through a regular expression the value must match to the native single-line text control. Not for: search filtering; routing; sanitization."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"placeholder"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.placeholder",
+			"text": "Provides transient entry guidance when a text input or compact value picker is empty. Not for: accessible labels; persistent helper text; non-entry content."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"positioning"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.positioning",
+			"text": "Selects the preferred placement direction for a positioned overlay relative to its anchor. Not for: orientation of grouped controls; text direction; layout flow."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"preset"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.preset",
+			"text": "Selects a named runtime theme preset for a scoped theme host. Not for: component appearance variants; selection state; density; brand-specific one-off modes."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"ratio"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.ratio",
+			"text": "Constrains the aspect ratio of a media primitive without changing the underlying source. Not for: arbitrary CSS sizing strings; business-specific crop presets."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"readonly"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.readonly",
+			"text": "Prevents user edits while retaining a readable value; grid renderers may expose a non-interactive display instead of an editor. Not for: disabled-like behavior; controls without a defined read-only value presentation."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"required"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.required",
+			"text": "Marks a form-associated control as requiring a user-provided value or selection before validation succeeds. Not for: visual emphasis; business rules that should not map to native form validity."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"root-label"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.root-label",
+			"text": "Names the implicit top-level location of a hierarchical browser, shown as the first breadcrumb and tree root. Not for: accessible names for the whole component (use label)."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"rows"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.rows",
+			"text": "Passes through the visible row count for a multiline text control. Not for: data-grid row collections; layout density; virtualization settings."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"selected"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.selected",
+			"text": "Indicates that an item within a composite selection surface is currently selected. Not for: overlay visibility; focus-only active state; checked native inputs unless they truly map to checked semantics."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"selection-follows-focus"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.selection-follows-focus",
+			"text": "Determines whether moving the active option with the keyboard also commits selection immediately. Not for: pointer hover behavior; general focus styling; single control pressed state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"selection-label"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.selection-label",
+			"text": "Names what selecting a row does, so a single-selection radio is announced with that action (\"Open First bed\") instead of the generic \"Select row\". Not for: multiple selection checkboxes; visible column or row labels."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"selection-mode"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.selection-mode",
+			"text": "Defines whether and how a collection component exposes row or item selection behavior. Not for: binary checked state; appearance variants."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"shape"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.shape",
+			"text": "Selects a bounded silhouette treatment for a visual primitive without changing its content semantics. Not for: freeform border radii; layout orientation; selection state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"show-fill"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.show-fill",
+			"text": "Enables a visible fill track from the minimum value to the current value on a range-like control. Not for: general visibility toggles; selection state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"show-filter"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.show-filter",
+			"text": "Enables a component-owned filter control when the component intentionally offers built-in filtering chrome. Not for: the filter query value itself; generic visibility toggles unrelated to a built-in filter UI."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"show-ticks"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.show-ticks",
+			"text": "Renders tick marks at each step position along the track to indicate discrete stops. Not for: continuous ranges with many steps; general decoration."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"sibling-count"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.sibling-count",
+			"text": "Controls how many adjacent page numbers remain visible on each side of the current page. Not for: spacing values; collection limits; data counts."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"size"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.size",
+			"text": "Selects a component-owned size variant from a constrained set of supported visual sizes. Not for: arbitrary CSS sizing; data values; semantic state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"slides-per-view"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.slides-per-view",
+			"text": "Controls how many carousel items should be visible in the viewport at the same time. Not for: generic grid column counts; arbitrary CSS layout knobs; pagination item counts."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"sort-mode"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.sort-mode",
+			"text": "Defines whether a component applies sorting internally or only reflects externally managed sort state. Not for: the current sort descriptor itself; visual style variants; general mode toggles unrelated to sorting."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"source-id"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.source-id",
+			"text": "Unique identifier for a source reference, used for deduplication across citation lists. Not for: DOM element IDs; data record IDs."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"source-title"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.source-title",
+			"text": "Provides the display title for a source citation. Not for: page headings; component titles."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-image"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.src.violet-image",
+			"text": "Supplies the media source URL for a component that renders a native image resource. Not for: icon registry names; fallback labels; component identifiers."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-message-media",
+					"violet-persona"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.src.violet-message-media",
+			"text": "Specifies the URL or data URL of the media source to render. Not for: navigation links; API endpoints."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"start"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.start",
+			"text": "Carries the starting boundary of a range-like selection in canonical string form. Not for: single-value controls; layout offsets."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"state"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.state",
+			"text": "Indicates the lifecycle state of a message part or tool invocation. Not for: visual tone or appearance; validation state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"status"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.status",
+			"text": "Indicates the current chat stream status for inline display between messages or composer state. Not for: HTTP status codes; validation status."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"step"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.step",
+			"text": "Passes through the increment interval for native-like range or numeric controls. Not for: animation timing; layout spacing; business workflow stages."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"sticky-header"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.sticky-header",
+			"text": "Enables a header that remains pinned while the component's scrollable content moves beneath it. Not for: global page chrome; floating overlays; general stickiness unrelated to a component header."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"streaming"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.streaming",
+			"text": "Indicates the component is actively receiving streamed content. Not for: general loading state; busy state."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"supporting-text"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.supporting-text",
+			"text": "Provides secondary helper or contextual guidance associated with a control. Not for: error state as a separate semantic concept; tooltips; button labels."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"timeout"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.timeout",
+			"text": "Specifies the auto-dismiss duration in milliseconds for a transient messaging surface. Not for: animation durations; network timeouts; tooltip delays."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"tone"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.tone",
+			"text": "Applies a semantic visual tone to a message surface without changing its structure. Not for: replacing role-based styling; validation indicators on form fields."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"tool-call-id"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.tool-call-id",
+			"text": "Unique identifier for a tool invocation, used to correlate calls with results and approval responses. Not for: DOM element IDs; display text."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"tool-name"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.tool-name",
+			"text": "Identifies the tool being invoked, displayed in the card header. Not for: general labels; component names."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"total-steps"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.total-steps",
+			"text": "Indicates the total number of steps in a multi-step sequence, enabling a step indicator display. Not for: dynamic collections with unknown length; pagination total counts."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"truncate"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.truncate",
+			"text": "Constrains a single line of content to ellipsis truncation when it overflows its available inline space. Not for: multi-line clamping; hiding content for accessibility; general visibility control."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"type"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.type",
+			"text": "Passes through the native HTML control type when the component wraps a native form control with standard type semantics. Not for: visual variants; business modes; custom component family names."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"value"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.value",
+			"text": "Carries the current scalar value of a form control wrapper. Not for: row collections; complex objects; display-only labels."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"value-end"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.value-end",
+			"text": "Carries the upper bound value of a dual-thumb range control. Not for: single-value controls."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"value-start"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.value-start",
+			"text": "Carries the lower bound value of a dual-thumb range control. Not for: single-value controls."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"value-text"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.value-text",
+			"text": "Provides user-meaningful spoken text for the current scalar value when the raw numeric value is not sufficient. Not for: visible helper copy; static labels; general formatting unrelated to the current value."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"variant"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.variant",
+			"text": "Selects a bounded internal presentation variant while keeping the component's underlying semantic role intact. Not for: business state; native control type; open-ended per-product styling."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"virtualize"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.virtualize",
+			"text": "Enables windowed rendering for large row sets while preserving the grid's semantic table contract. Not for: small tables; column virtualization; variable-height content that needs a different measurement strategy."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-accordion",
+					"violet-accordion-item",
+					"violet-approval-card",
+					"violet-breadcrumb",
+					"violet-breadcrumb-item",
+					"violet-button",
+					"violet-calendar",
+					"violet-card",
+					"violet-carousel",
+					"violet-chat-composer",
+					"violet-chat-suggestions",
+					"violet-checkbox",
+					"violet-color-picker",
+					"violet-color-swatch",
+					"violet-combobox",
+					"violet-conversation-thread",
+					"violet-data-grid",
+					"violet-data-grid-attachment-cell",
+					"violet-data-grid-multi-picker",
+					"violet-data-grid-persona-picker",
+					"violet-data-grid-pill-select",
+					"violet-data-grid-rating",
+					"violet-data-grid-reference-picker",
+					"violet-date-picker",
+					"violet-date-range-picker",
+					"violet-dialog",
+					"violet-divider",
+					"violet-empty-state",
+					"violet-file-explorer",
+					"violet-file-upload",
+					"violet-gantt",
+					"violet-icon",
+					"violet-icon-button",
+					"violet-image",
+					"violet-listbox",
+					"violet-menu",
+					"violet-menu-item",
+					"violet-message",
+					"violet-message-media",
+					"violet-message-status",
+					"violet-message-text",
+					"violet-option",
+					"violet-option-group",
+					"violet-pagination",
+					"violet-persona",
+					"violet-popover",
+					"violet-radio",
+					"violet-radio-group",
+					"violet-range-slider",
+					"violet-reasoning-block",
+					"violet-segment",
+					"violet-segmented-control",
+					"violet-select",
+					"violet-skeleton",
+					"violet-slider",
+					"violet-source-citation",
+					"violet-spinner",
+					"violet-switch",
+					"violet-tab",
+					"violet-tab-panel",
+					"violet-tabs",
+					"violet-teaching-tip",
+					"violet-text-area",
+					"violet-text-field",
+					"violet-time-picker",
+					"violet-tool-call-card",
+					"violet-tool-result-card",
+					"violet-tooltip",
+					"violet-tree",
+					"violet-tree-item"
+				]
+			},
+			"basis": "authored",
+			"id": "theme.install",
+			"text": "Components render the light theme with no setup. For dark or high-contrast, call installVioletTheme() once and then applyVioletThemePreset(document, preset); both are exported from the package root."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-checkbox",
+					"violet-switch"
+				]
+			},
+			"basis": "authored",
+			"id": "toggle.form-value",
+			"text": "The checked attribute reflects the live state. The form receives the value attribute (default \"on\") under name only while checked. The change event fires on user toggles only, with detail.checked."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-checkbox",
+					"violet-radio",
+					"violet-switch"
+				]
+			},
+			"basis": "authored",
+			"id": "toggle.label",
+			"text": "The default slot is the visible label and the accessible name. When there is no slot text, as with the inline attribute in a table cell, set aria-label on the host."
+		}
+	]
+}

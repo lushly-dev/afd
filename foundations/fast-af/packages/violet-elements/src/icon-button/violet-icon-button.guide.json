@@ -1,0 +1,33 @@
+{
+  "tag": "violet-icon-button",
+  "summary": "Icon-only button for toolbar and utility actions; the default slot takes the icon and the label attribute names it.",
+  "usage": [
+    {
+      "id": "icon-button.no-aria",
+      "text": "Unlike violet-button it forwards no aria-expanded, aria-pressed, aria-haspopup or aria-controls. For a toggle or popup trigger use violet-button with its ariaLabel property."
+    },
+    {
+      "id": "icon-button.no-form",
+      "text": "Not form-associated: type=\"submit\" or \"reset\" does not submit or reset an enclosing form. Call form.requestSubmit() from a click listener.",
+      "members": [
+        "type"
+      ]
+    },
+    {
+      "id": "icon-button.content",
+      "text": "Slot one violet-icon, svg or img; it is sized to fill the button's icon area. The default appearance is secondary.",
+      "members": [
+        "appearance"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "icon-button.name",
+      "text": "Set the label attribute: it is the inner button's only accessible name and also its hover tooltip. Mark the slotted violet-icon decorative.",
+      "members": [
+        "label"
+      ]
+    }
+  ]
+}

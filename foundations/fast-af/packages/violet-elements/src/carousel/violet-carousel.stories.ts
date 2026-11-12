@@ -69,6 +69,7 @@ function renderCarousel(args: VioletCarouselStoryArgs): string {
 
 const meta = {
     title: "Components/Carousel",
+    component: "violet-carousel",
     tags: ["autodocs"],
     parameters: {
         docs: {
@@ -102,6 +103,26 @@ export default meta;
 
 type Story = StoryObj<VioletCarouselStoryArgs>;
 
+/**
+ * Resolves when the viewport's smooth scroll ends. The carousel recomputes its active slide from
+ * the scroll position while it moves, so a play that ends mid-scroll leaves a state that depends on
+ * timing.
+ */
+function scrollEnd(carousel: VioletCarousel): Promise<void> {
+    const viewport = carousel.shadowRoot?.querySelector("[part='viewport']");
+    return new Promise((resolve) => {
+        const timer = setTimeout(resolve, 5000);
+        viewport?.addEventListener(
+            "scrollend",
+            () => {
+                clearTimeout(timer);
+                resolve();
+            },
+            { once: true },
+        );
+    });
+}
+
 export const Overview: Story = {
     args: {
         label: "Field operations carousel",
@@ -118,7 +139,9 @@ export const Overview: Story = {
             throw new Error("Expected violet-carousel to render navigation controls.");
         }
 
+        const settled = scrollEnd(carousel);
         nextButton.click();
+        await settled;
 
         await waitFor(() => {
             expect(carousel.activeIndex).toBe(1);
@@ -142,7 +165,9 @@ export const Looping: Story = {
             throw new Error("Expected looping violet-carousel to render.");
         }
 
+        const settled = scrollEnd(carousel);
         nextButton.click();
+        await settled;
 
         await waitFor(() => {
             expect(carousel.activeIndex).toBe(0);
@@ -166,8 +191,10 @@ export const KeyboardNavigation: Story = {
             throw new Error("Expected violet-carousel viewport to render.");
         }
 
+        const settled = scrollEnd(carousel);
         viewport.focus();
         await userEvent.keyboard("{ArrowRight}");
+        await settled;
 
         await waitFor(() => {
             expect(carousel.activeIndex).toBe(1);
@@ -191,7 +218,9 @@ export const PaginationDots: Story = {
             throw new Error("Expected violet-carousel pager dots to render.");
         }
 
+        const settled = scrollEnd(carousel);
         dots[2]?.click();
+        await settled;
 
         await waitFor(() => {
             expect(carousel.activeIndex).toBe(2);

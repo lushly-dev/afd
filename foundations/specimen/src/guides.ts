@@ -2,6 +2,7 @@ import type { Dirent } from 'node:fs';
 import { readdir, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { GuideComponent, GuideRules } from './guide-schema.js';
+import { runGuideSource } from './guide-source.js';
 import type { ComponentSchema } from './plugin.js';
 import { sameFile } from './stories.js';
 import type { ValidationIssue, ValidationReport, ValidationTarget } from './types.js';
@@ -22,14 +23,15 @@ export type GuideProblemCode =
 	| 'GUIDE_UNKNOWN_TAG'
 	| 'GUIDE_UNKNOWN_MEMBER'
 	| 'GUIDE_DUPLICATE_TAG'
-	| 'GUIDE_DUPLICATE_ID';
+	| 'GUIDE_DUPLICATE_ID'
+	| 'GUIDE_SOURCE_FAILED';
 
 export interface GuideProblem {
 	/** `deferred`: a plugin's schema source, which runs in the page, could settle it. */
 	severity: 'error' | 'warning' | 'deferred';
 	code: GuideProblemCode;
 	message: string;
-	/** The guide file, as `./path` from the root. */
+	/** The guide file or guide source module, as `./path` from the root. */
 	file?: string;
 	/** Where in the file, such as `usage[1].id`. */
 	field?: string;
@@ -39,6 +41,8 @@ export type LoadedGuideRule = GuideRules['rules'][number] & { file: string; inde
 export interface LoadedGuides {
 	/** Every guide file found, as `./path` from the root, sorted. */
 	files: string[];
+	/** The guide source modules, as `./path` from the root, in configuration order. */
+	sources?: string[];
 	/** The guides with no problem in their own file, in file order. */
 	components: LoadedComponentGuide[];
 	rules: LoadedGuideRule[];
@@ -62,6 +66,8 @@ const SUGGESTIONS: Record<GuideProblemCode, string> = {
 		'Name a member the component has, or regenerate the manifest if the component gained it.',
 	GUIDE_DUPLICATE_TAG: 'Keep one guide file per component.',
 	GUIDE_DUPLICATE_ID: 'Give each statement and rule an id of its own; a claim names it by that id.',
+	GUIDE_SOURCE_FAILED:
+		'Fix the guide source module: its default export is a guide source (an id and rules()) or an array of them, and rules() returns an array of rules.',
 };
 
 const UNSUPPORTED = /[[\]()!]/;
@@ -300,13 +306,17 @@ function fieldOf(path: readonly PropertyKey[]): string {
 	);
 }
 
-/** Find, read and check the configured guide files. */
+/**
+ * Find, read and check the configured guide files, and run the guide source modules (absolute
+ * paths inside the root), whose rules are checked as a file of rules is.
+ */
 export async function loadGuides(
 	root: string,
 	base: string,
 	patterns: readonly string[],
 	schemas: Record<string, ComponentSchema>,
-	pluginsMayAdd: boolean
+	pluginsMayAdd: boolean,
+	sources: readonly string[] = []
 ): Promise<LoadedGuides> {
 	// Dynamic: a project with no guides never loads Zod.
 	const { guideComponentSchema, guideRulesSchema, guideMarkers } = await import(
@@ -347,6 +357,36 @@ export async function loadGuides(
 			);
 		else guides.components.push({ ...(result.data as GuideComponent), file });
 	}
+	if (sources.length) guides.sources = [];
+	for (const module of sources) {
+		const file = `./${relative(root, module).split(sep).join('/')}`;
+		guides.sources?.push(file);
+		let rules: unknown[];
+		try {
+			rules = await runGuideSource(root, base, module, schemas);
+		} catch (error) {
+			problems.push({
+				severity: 'error',
+				code: 'GUIDE_SOURCE_FAILED',
+				message: `${file}: ${(error as Error).message}`,
+				file,
+			});
+			continue;
+		}
+		const result = guideRulesSchema.safeParse({ rules });
+		if (!result.success) {
+			for (const issue of result.error.issues)
+				problems.push({
+					severity: 'error',
+					code: problemCode(issue, guideMarkers),
+					message: `${file}: ${issue.message}`,
+					file,
+					field: fieldOf(issue.path),
+				});
+			continue;
+		}
+		guides.rules.push(...result.data.rules.map((rule, index) => ({ ...rule, file, index })));
+	}
 	checkGuides(guides, schemas, pluginsMayAdd);
 	return guides;
 }
@@ -375,7 +415,7 @@ export function withGuides(
 	return {
 		...report,
 		valid: !all.some((issue) => issue.severity === 'error'),
-		checked: report.checked + guides.files.filter(inScope).length,
+		checked: report.checked + [...guides.files, ...(guides.sources ?? [])].filter(inScope).length,
 		issues: all,
 	};
 }

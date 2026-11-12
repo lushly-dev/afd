@@ -26,6 +26,7 @@ function renderPagination(args: VioletPaginationStoryArgs): VioletPagination {
 
 const meta = {
     title: "Components/Pagination",
+    component: "violet-pagination",
     tags: ["autodocs"],
     parameters: {
         docs: {

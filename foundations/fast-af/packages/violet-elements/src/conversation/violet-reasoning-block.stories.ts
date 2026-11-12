@@ -13,6 +13,7 @@ type ReasoningStoryArgs = {
 
 const meta = {
     title: "Conversation/Reasoning Block",
+    component: "violet-reasoning-block",
     tags: ["autodocs"],
     parameters: {
         docs: {

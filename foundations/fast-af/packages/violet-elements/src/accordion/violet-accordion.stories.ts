@@ -52,6 +52,7 @@ function renderAccordion(args: VioletAccordionStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Accordion",
+    component: "violet-accordion",
     tags: ["autodocs"],
     parameters: {
         docs: {

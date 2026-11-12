@@ -54,13 +54,24 @@ function lightDom(raw: string): string {
 	}
 }
 
+const START_TAG = /<([a-z][^\s/>]*)(\s[^>]*)?>/g;
+const ATTRIBUTE = /([^\s=/>]+)(?:="([^"]*)")?/g;
+
 /**
- * An example's markup: the light DOM a case mounted, with an empty attribute written as its name
- * alone, as a person writes a boolean attribute.
+ * An example's markup: the light DOM a case mounted, each element's attributes in name order (by
+ * code unit), and an empty attribute written as its name alone, as a person writes a boolean
+ * attribute. The browser writes attributes in the order they were set, which a component that
+ * reflects one later than a story sets another makes differ from run to run.
  */
 export function exampleMarkup(raw: string): string {
 	return lightDom(raw)
-		.replace(/(<[a-z][^\s/>]*(?:\s[^>]*)?>)/g, (tag) => tag.replace(/\s([^\s=/>]+)=""/g, ' $1'))
+		.replace(START_TAG, (_, name: string, rest: string | undefined) => {
+			const attributes = [...(rest ?? '').matchAll(ATTRIBUTE)]
+				.map(([, attribute, value]) => [attribute as string, value ?? ''] as const)
+				.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+				.map(([attribute, value]) => (value ? ` ${attribute}="${value}"` : ` ${attribute}`));
+			return `<${name}${attributes.join('')}>`;
+		})
 		.trim();
 }
 

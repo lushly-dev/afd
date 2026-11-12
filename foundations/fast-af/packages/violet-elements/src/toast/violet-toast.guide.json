@@ -1,0 +1,49 @@
+{
+  "tag": "violet-toast",
+  "summary": "Transient notification fixed to a corner of the viewport, shown while its open attribute is set.",
+  "usage": [
+    {
+      "id": "toast.open",
+      "text": "It is hidden until open is set and has no show method. Every toast is position: fixed at the same block-end, inline-end corner, so open toasts overlap unless the page offsets them (--violet-toast-inset-block-end).",
+      "members": [
+        "open"
+      ]
+    },
+    {
+      "id": "toast.timeout",
+      "text": "It closes itself after timeout (ms) only while dismissible is false and the actions slot is empty. dismissible defaults to true even without the attribute, so set the property to false in script.",
+      "members": [
+        "timeout",
+        "dismissible",
+        "actions"
+      ]
+    },
+    {
+      "id": "toast.dismiss",
+      "text": "Closing by timeout, the close button or dismiss(reason) clears open, fires open-change, then dismiss with detail.reason (timeout or dismiss-button). Clearing open from script fires only open-change.",
+      "members": [
+        "dismiss",
+        "open-change",
+        "open"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "toast.announcement",
+      "text": "announcement defaults to polite: the title and body get role=status; assertive gives role=alert. The actions slot is outside the live region.",
+      "members": [
+        "announcement",
+        "actions"
+      ]
+    },
+    {
+      "id": "toast.focus",
+      "text": "Opening does not move focus, and its tab position follows its place in the DOM, not the corner it appears in. A toast with actions never times out. The close button is named \"Dismiss notification\".",
+      "members": [
+        "actions",
+        "dismissible"
+      ]
+    }
+  ]
+}

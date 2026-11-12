@@ -14,6 +14,7 @@ type ComposerStoryArgs = {
 
 const meta = {
     title: "Conversation/Composer",
+    component: "violet-chat-composer",
     tags: ["autodocs"],
     parameters: {
         docs: {

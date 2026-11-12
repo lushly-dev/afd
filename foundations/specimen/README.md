@@ -394,9 +394,11 @@ The helpers are the libraries `storybook/test` bundles, at the versions it bundl
 
 Plugins install before any specimen or story module loads. A plugin, runner or theme registered twice is an error, and a step naming a missing runner fails before it runs.
 
+A fifth point, the **guide source**, runs in Node, not in the page: `"guideSources": ["./specimen.guides.mjs"]` names modules whose default export is a guide source, or an array of them, declared with `defineGuideSource`. Its `rules(context)` returns shared rules, `{ id, text, appliesTo }` as a guide file states them, from data the library already keeps; `context.read(path)` reads a file relative to the configuration and refuses one outside the root, and `context.schemas` is what the manifest says. Its rules join the guide files' before any check, so `specimen-validate` reports their problems against the module, `guides@1` counts them, a pack's rules file holds them, and `specimen-pack-export` rebuilds them with no browser. It runs in Node because a rule is text, not something a render shows: in the page, export could not recheck it and a static check would need a browser. `guideSources` needs `manifest`.
+
 `inspect()` (`specimen-inspect`, `specimen inspect ID`) resolves an entry without capturing it. It reports the args, the context, a retained story's composed annotations, the plugins installed, and the component's schema from the manifest and the plugins. A component no source describes is reported as a limitation.
 
-`@lushly-dev/specimen-fast-af` is FAST-AF's plugin.
+`@lushly-dev/specimen-fast-af` is FAST-AF's plugin, and its `/guides` entry FAST-AF's guide source, which states an attribute taxonomy's definitions as shared rules.
 
 ## Build a review page
 
