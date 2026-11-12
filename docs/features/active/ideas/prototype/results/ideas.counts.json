@@ -1,0 +1,198 @@
+{
+	"tool": "ideas.py",
+	"types": ["position", "principle", "model", "evidence", "example", "question", "synthesis"],
+	"extractors": {
+		"a": {
+			"sources": 49,
+			"source_words": 115214,
+			"ideas": 3233,
+			"ideas_per_1000_source_words": 28.06,
+			"ideas_per_source": {
+				"median": 65,
+				"p90": 135,
+				"p99": 205,
+				"max": 205
+			},
+			"by_type": {
+				"position": 1071,
+				"principle": 1051,
+				"model": 464,
+				"evidence": 321,
+				"question": 155,
+				"example": 131,
+				"synthesis": 40
+			},
+			"word_for_word": 1535,
+			"restated": 1698,
+			"statement_words": {
+				"median": 23,
+				"p90": 43,
+				"p99": 61,
+				"max": 96
+			},
+			"statement_words_word_for_word": {
+				"median": 18,
+				"p90": 33,
+				"p99": 54,
+				"max": 96
+			},
+			"statement_words_restated": {
+				"median": 28,
+				"p90": 46,
+				"p99": 69,
+				"max": 96
+			},
+			"share_over_word_limit": {
+				"40": 0.1222,
+				"60": 0.0108,
+				"80": 0.0022,
+				"120": 0.0
+			},
+			"units_cited_per_idea": {
+				"median": 1,
+				"p90": 4,
+				"p99": 8,
+				"max": 16
+			},
+			"ideas_citing_kind": {
+				"prose": 1950,
+				"list": 1005,
+				"table": 504,
+				"heading": 273,
+				"quote": 27
+			},
+			"tags_per_idea": {
+				"median": 3,
+				"p90": 4,
+				"p99": 4,
+				"max": 4
+			},
+			"distinct_tags": 1656,
+			"tags_used_once": 729,
+			"by_source_kind": {
+				"other": {
+					"sources": 2,
+					"source_words": 1745,
+					"ideas": 62,
+					"ideas_per_1000_source_words": 35.53,
+					"word_for_word": 23,
+					"share_word_for_word": 0.371,
+					"word_for_word_from_prose_or_list_only": 23
+				},
+				"own": {
+					"sources": 42,
+					"source_words": 93735,
+					"ideas": 2799,
+					"ideas_per_1000_source_words": 29.86,
+					"word_for_word": 1416,
+					"share_word_for_word": 0.5059,
+					"word_for_word_from_prose_or_list_only": 1352
+				},
+				"research": {
+					"sources": 5,
+					"source_words": 19734,
+					"ideas": 372,
+					"ideas_per_1000_source_words": 18.85,
+					"word_for_word": 96,
+					"share_word_for_word": 0.2581,
+					"word_for_word_from_prose_or_list_only": 96
+				}
+			}
+		},
+		"b": {
+			"sources": 12,
+			"source_words": 16745,
+			"ideas": 468,
+			"ideas_per_1000_source_words": 27.95,
+			"ideas_per_source": {
+				"median": 32,
+				"p90": 67,
+				"p99": 72,
+				"max": 72
+			},
+			"by_type": {
+				"principle": 190,
+				"position": 124,
+				"model": 83,
+				"example": 25,
+				"question": 24,
+				"evidence": 20,
+				"synthesis": 2
+			},
+			"word_for_word": 436,
+			"restated": 32,
+			"statement_words": {
+				"median": 22,
+				"p90": 45,
+				"p99": 65,
+				"max": 109
+			},
+			"statement_words_word_for_word": {
+				"median": 21,
+				"p90": 44,
+				"p99": 64,
+				"max": 109
+			},
+			"statement_words_restated": {
+				"median": 34,
+				"p90": 55,
+				"p99": 68,
+				"max": 68
+			},
+			"share_over_word_limit": {
+				"40": 0.1346,
+				"60": 0.0192,
+				"80": 0.0021,
+				"120": 0.0
+			},
+			"units_cited_per_idea": {
+				"median": 1,
+				"p90": 4,
+				"p99": 8,
+				"max": 11
+			},
+			"ideas_citing_kind": {
+				"prose": 254,
+				"list": 179,
+				"table": 50,
+				"quote": 6,
+				"heading": 1
+			},
+			"tags_per_idea": {
+				"median": 3,
+				"p90": 3,
+				"p99": 4,
+				"max": 4
+			},
+			"distinct_tags": 617,
+			"tags_used_once": 393,
+			"by_source_kind": {
+				"own": {
+					"sources": 12,
+					"source_words": 16745,
+					"ideas": 468,
+					"ideas_per_1000_source_words": 27.95,
+					"word_for_word": 436,
+					"share_word_for_word": 0.9316,
+					"word_for_word_from_prose_or_list_only": 385
+				}
+			}
+		}
+	},
+	"on_shared_sources": {
+		"a+b": {
+			"sources": 12,
+			"source_words": 16745,
+			"a": {
+				"ideas": 609,
+				"word_for_word": 371,
+				"share_word_for_word": 0.6092
+			},
+			"b": {
+				"ideas": 468,
+				"word_for_word": 436,
+				"share_word_for_word": 0.9316
+			}
+		}
+	}
+}

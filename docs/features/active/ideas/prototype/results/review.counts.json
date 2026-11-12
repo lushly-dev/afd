@@ -1,0 +1,53 @@
+{
+	"a/restated": {
+		"n": 60,
+		"size_too_big": 6,
+		"in_context_yes": 58,
+		"type_ok": 54,
+		"faithful": 57,
+		"size_right": 54,
+		"in_context_no_other": 1,
+		"unfaithful": 3,
+		"in_context_no_dependent": 1
+	},
+	"a/word_for_word": {
+		"n": 60,
+		"size_too_big": 3,
+		"in_context_yes": 55,
+		"type_ok": 60,
+		"size_right": 54,
+		"size_too_small": 3,
+		"in_context_no_dependent": 5
+	},
+	"all": {
+		"n": 212,
+		"size_too_big": 27,
+		"in_context_yes": 189,
+		"type_ok": 197,
+		"size_right": 175,
+		"in_context_no_dependent": 22,
+		"in_context_no_other": 1,
+		"size_too_small": 9,
+		"size_not_an_idea": 1
+	},
+	"b/restated": {
+		"n": 32,
+		"size_too_big": 9,
+		"in_context_yes": 29,
+		"type_ok": 28,
+		"faithful": 30,
+		"size_right": 23,
+		"in_context_no_dependent": 3,
+		"unfaithful": 2
+	},
+	"b/word_for_word": {
+		"n": 60,
+		"size_right": 44,
+		"in_context_yes": 47,
+		"type_ok": 55,
+		"size_too_big": 9,
+		"size_too_small": 6,
+		"in_context_no_dependent": 13,
+		"size_not_an_idea": 1
+	}
+}

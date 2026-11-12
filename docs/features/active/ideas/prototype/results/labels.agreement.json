@@ -1,0 +1,16 @@
+{
+	"pairs": 200,
+	"agreement": 0.845,
+	"kappa": 0.7247,
+	"same_vs_not_agreement": 0.97,
+	"same_vs_not_kappa": 0.7965,
+	"confusion_first_by_second": {
+		"distinct->distinct": 64,
+		"distinct->related": 23,
+		"related->distinct": 2,
+		"related->related": 92,
+		"related->same": 5,
+		"same->related": 1,
+		"same->same": 13
+	}
+}
