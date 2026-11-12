@@ -1,0 +1,1905 @@
+# Host specification: standing records, indexed and matched
+
+| Field | Value |
+| --- | --- |
+| Serves | The host changes the [Ideas plan](../../../../../docs/features/active/ideas/ideas.proposal.md) calls P2 (indexed records) and P3 (matching), and what [D157](../../decisions.md) left to "be specified with indexed records": the manifest declaration, the label's values and the indexing. Step A2 of that plan, first part. Its phase B implements this document |
+| Owner | Repository owner approves; the Ideas plan's owning agent writes and implements |
+| Read first | [STATUS.md](../../STATUS.md), the [architecture](../../architecture.md) (principles 4 and 7 to 10, sections 4, 5 and 7), the [decision log](../../decisions.md) (D9, D42, D53, D55, D56, D63, D65, D68, D70 to D72, D74, D115, D125, D150, D157, open decision O4, and D158 to D171, made here), the Ideas plan's sections 4.3, 4.4, 4.9, 6, 7 and 9, and [phase 0's results](../../../../../docs/features/active/ideas/prototype/README.md) (0.2) with `prototype/match.py` (class `Lexical`) |
+| Elevation | Exact names, shapes, codes, tables, files, tests and pull requests. An implementing agent needs no further design decision; where it finds one, it stops and amends this document by pull request |
+
+Code paths are relative to `endpoints/umbel/`.
+
+## Status
+
+- **State:** written 2026-11-11 for step A2 of the Ideas plan. **Decided under the owner's direction of 2026-11-11**
+  that the plan carry on through its phases on its recommendations, with questions queued. **The owner has not yet
+  read this specification.** Every decision here stays open to him (the
+  [Ideas status](../../../../../docs/features/active/ideas/STATUS.md), Q2), and section
+  [18](#18-for-the-owner) lists what he could reasonably want otherwise. Nothing is implemented.
+  - **Revised 2026-11-11 after an independent review** by one reviewer, whose verdict was "approve after the
+    blockers": four blockers and nine improvements, about sixty citations sampled and found correct. All thirteen
+    are taken, two of them in a different way from the one proposed.
+  - **Revised again the same day after a focused pass** on that revision, which verified the thirteen fixes and
+    their new citations and found, in what the fixes had introduced, one blocker and six improvements. All seven
+    are taken. Both are in the [Review response](#review-response).
+  - It decides [D158 to D171](../../decisions.md). It answers open decision O4 for record lanes only.
+  - It refines D157 in three places, which D161 and D162 record and section [18](#18-for-the-owner) lists.
+  - It differs from the plan's outline in several places, each because of something in the code. Section
+    [18](#18-for-the-owner) marks them "differs from the plan".
+- **Last verified:** 2026-11-11, against the branch `lush/ideas-a2-records` at `083d3505`.
+  - Read whole in the code: `store/src/traits.rs`, `document.rs`, `index.rs`, `access.rs`, `error.rs`, `lib.rs`,
+    `memory/query.rs`; `store-embedded/src/schema.rs`, `documents.rs`, `connection.rs`, `lib.rs`, `sql.rs`,
+    `memory/schema.rs`, `memory/rank.rs`; `sdk/src/store.rs` (to line 460); `src/person/mod.rs` (to line 400);
+    `src/plugins/manifest/v5.rs` (to line 125), `src/plugins/mod.rs` (lines 55 to 175), `grants.rs` (to line 380),
+    `store_services.rs` (to line 520), `src/store/mod.rs` (to line 140), `src/authority.rs` (to line 260);
+    `docs/features/active/ideas/prototype/match.py`.
+  - Read in part, by the lines cited here: `store/src/envelope.rs`, `memory.rs` (recall's types and limits),
+    `memory/tokenizer.rs` (its header and `tokens`), `conformance/mod.rs` and `conformance/memory/mod.rs` (the group
+    lists); `store-embedded/src/memory/read.rs` (recall and its statistics), `inspect.rs` (`backup_to`);
+    `sdk/src/cx.rs`, `memory.rs`, `lib.rs`; `src/plugins/manifest.rs` (the key lists, `parse`, the versioned-key
+    check, the memory rules), `manifest/v4.rs`, `memory_services.rs`, `loader.rs` (the gate entry, the command
+    policy, grant decisions), `content.rs`; `src/workspace/config.rs`, `plugins_config.rs` and `hosted.rs` (the
+    versioned key lists); `src/middleware.rs` (the plugin gate, `person_gate`, the sealed fields), `src/access.rs`,
+    `src/provenance.rs` (`effective_principal`), `src/cli/mod.rs` (the confirmed mark), `src/commands/` (names,
+    `operator_only`, `workspace-show`'s versions); `plugins/sources-filesystem/src/document.rs` and `state.rs`,
+    `plugins/knowledge/src/index.rs` and `proposal/apply.rs` (which dates a document carries, and who writes
+    documents); `Cargo.toml`, `store/Cargo.toml`, `store-embedded/Cargo.toml` and `Cargo.lock`. For the revision:
+    `src/person/service.rs` (its header, `run_fields` and the ledger's `admit`, for section 6.1's proof) and
+    `src/workspace/config.rs` (`roots_overlap`, `resolve_root`, `check_collection_roots`, and where each runs).
+    Not read: `store/src/conformance/`'s case files, `src/workspace/hosted.rs` beyond its key lists,
+    `src/person/page.rs`, `relay.rs` and `oidc.rs`, and the rest of `service.rs`.
+  - Read in the documents: the architecture's principles and sections 4 to 7 and 12; the decision rows D9, D24,
+    D42, D45, D53, D55, D56, D63, D65, D68, D70 to D72, D74, D82, D98, D115, D125, D133, D134, D150, D151 and D157,
+    and the open decisions; the phase 2 specification's sections 5.1 and 5.2 and its row reserving the trait names
+    (section 13); the phase 3 specification's lines on FTS5's `secure-delete` and its limits, by search; the phase 6
+    specification's section 2's table and sections 3.1 to 3.3; the components specification (for this shape); the
+    Ideas plan's sections 4.3, 4.4, 4.9, 6, 9 and 11 and its status; and phase 0's results (0.2 and what it means
+    for the plan).
+  - Run: `cargo search` and `cargo info` for five crates, and their published sources read (the
+    [trajectory refresh](#trajectory-refresh)). Section 5.1's tables and 6.3's clause, on SQLite 3.54.0, with five
+    records across the three standings. A Python script that computed the worked scores of section
+    [8.2](#82-words) and the digest of [8.1](#81-identical) from this document's formulas, taking its tokens from
+    that SQLite's FTS5 `porter unicode61 remove_diacritics 2`.
+  - **No Rust was built or run.**
+  - The review's two measurements, on section 5.1's tables at 100 000 records, are the reviewer's and were not
+    repeated here: about 1.0 second for the counts of 64 pooled records, and about 8 seconds for a rebuild in one
+    transaction. Step B6 measures both.
+- **Done:** this document, its decision rows, and the amendments to the architecture and STATUS.md that it needs.
+- **Not done:** every step of section [16](#16-implementation-plan).
+- **Follow-ups:** the [table at the end](#follow-ups).
+
+### Review response
+
+An independent review of 2026-11-11 (verdict: approve after the blockers) raised four blockers and nine
+improvements, each checked against the code; all held. Changes:
+
+| # | Finding | Change made |
+| --- | --- | --- |
+| B1 | A command's input could become an `own` document across spaces: rule 1 looked at `content_write` on the collection itself, and roots may overlap between spaces (`src/workspace/config.rs:1046`, `:1341`) | A collection is *command-writable* when any `content_write` allow covers it or any collection of any space whose root overlaps it, as written or resolved. `own` is refused on one (section 3) |
+| B2 | `doc_own_mark` widened D157: any readable document could be marked, an applied proposal included | A mark is refused on a document of a command-writable collection, and counts only while that stays so. **Beyond the ruling**, it is also refused unless the document equals its file on disk, which is what makes "a synced document" something the host checked (6.2). Recorded as a refinement of D157 in D162 and section 18 |
+| B3 | The label showed a document's dates, units and speaker to a reader who cannot open it, and 6.3's clause let an unreadable document move 6.6's filter and totals | For such a reader the source is `basis` alone (6.5, 11.1). The one remaining bit is stated in section 14 and put to the owner (18, row 8). A differential case for unreadable documents joins the `standing` group (15.1) |
+| B4 | D157's "verified content only" had no host setting | `spaces.<id>.verified_admits` and a `verified_only` flag on every reading service. **Differently in one respect**: the space's own asking is `spaces.<id>.verified_only`, which replaces `min_standing`; the two together would have said the same thing twice (section 3, 6.6). The focused pass then dropped that space-level flag (F1 below) |
+| I5 | The cost of statistics was unbounded, and a 64-text match would take tens of seconds at 100 000 records | `N` and `L` once a call; one table of counts for the whole call; `STAT_POSTINGS` with `RECORD_QUERY_TOO_BROAD`; the measured costs stated as estimates that B6 records, part by part (8.2, 16) |
+| I6 | Dropping a declaration, editing a wording and declaring again bypassed D160 | An undeclared `put_record` on a kind with a declaration row marks it stale, and the rebuild takes the affirmation and the evidence from every record whose wording changed (section 2, 12.1) |
+| I7 | The gate could pass on noise and go stale | Counts, not rates: at least max(3, ceil(0.02 n)) more probes found within `k`, `n` at least 50, no leak. The report is bound to the declaration hash, the normalisation version, the model id, `k` and the weight; the host recomputes the rule from the counts; it is read at host start and by a rebuild; the doctor warns at four times the records. Phase 0's static model is said not to pass (10) |
+| I8 | Seven places left to the implementer | Each decided: `cut` (only the rarest term's read passing the bound after every clause; the bound itself compared before key filters, 7, 8.2); the HTTP `url` (`https`, or `http` to a literal loopback address, 9.2); a decision and a mark are noted for `dev.umbel/changes` and the event (6.1); `basis` is `collection` when both hold (6.2); `RECORD_MODEL_UNAVAILABLE` is a failure for the eval and for `vectorsOnly`, and a warning on a full rebuild (12.1, 13); the ONNX provider learns its dimensions by one embed at load (9.2); ties for the best 64 by `meaning` break by id (8.3) |
+| I9 | A rebuild held the write lock for a whole kind, and looked up `created_rev` in `changes` a record at a time | Chunks of 1 000 records, the kind offline while it runs and the rest of the store not; one grouped scan of `changes` (12.1) |
+| I10 | `exclude` and a probe's `self` counted a text twice | Excluded records are left out of the statistics (8, 8.2, 10) |
+| I11 | Text went to the HTTP provider before a refusal | A put's text is embedded after its write commits, through a new `put_record_vector`, and a match's after its query passes its checks (4.2, 9.4). The store's new methods are now eleven |
+| I12 | Three overstatements | "Text never enters the journal" is now what is true: the host's services write none, and a command's own input and result follow its declared mode (14, D169). "Nothing here changes what D157 decided" is now a list of what is refined (18). Phase 0's gain is stated as 0.886 against 0.914 to 0.971 of 35 probes (10, 18) |
+| I13 | The status and the nit | This block; `src/person/service.rs` read and cited in 6.1; the delegation chain is `memory_services.rs:413` (4.2) |
+
+The same revision added row 17 of section 18 on the dates an attested label carries, as the coordinator asked.
+
+A focused pass of 2026-11-11 on that revision verified the thirteen fixes and their citations, and found one
+blocker and six improvements in what the fixes had introduced. Changes:
+
+| # | Finding | Change made |
+| --- | --- | --- |
+| F1 | Blocker. A space with `verified_only = true` could never affirm anything: reads returned only verified records, so no review could list an unverified one, and whether `record_decide` reached one was contradictory | The space-level flag is gone. `spaces.<id>.verified_admits` says what verified means; a call's `verified_only` asks; `record_decide` and the marks check readability only and ignore what a call admits. Recorded as a refinement of D157's "by a deployment's setting or by a call" in D161 and section 18, row 7 (section 3, 6.1, 6.6, 13) |
+| F2 | The chunked rebuild cleared the stale mark unconditionally, so an undeclared put or a second rebuild during the chunks was forgotten | `record_kinds.generation`, which `put_record` and each rebuild's start raise; the rebuild clears the mark only if the generation is the one it wrote, and reports `superseded` otherwise (section 2, 5.1, 12.1) |
+| F3 | `RECORD_LANE_STALE` misled during a rebuild | Its When names all four cases, its message says "is being rebuilt or must be rebuilt", and the suggestion is to retry once and then ask. One code, on purpose: the store cannot tell a running rebuild from a stopped one (13) |
+| F4 | `STAT_POSTINGS` bounded the reader's counts, not the work, and tripped at a different point by how counts were fetched | The total is `scanned`, every posting of the needed terms, whoever may read them, however fetched. Stated plainly: a reader of 1% pays for all; a refusal is the one place unreadable records change a reader's answer. B6 times a reader of 1% of a kind (8.2, 14, 16, 18 row 12) |
+| F5 | "Command-writable" is judged now, with no history | Stated as the deployer's limit beside the shell caveat (section 3); the absolute claims in 6.2, section 14, section 18 and the architecture are softened to "as far as the configuration now tells the host" |
+| F6 | A failed vector write after the commit was unspecified | No failure in step 8 fails the put: the host logs it and returns the `RecordMeta`, and the record waits for a rebuild (4.2) |
+| F7 | Two leftovers in section 2 | An undeclared put on a once-declared kind is said to touch `record_kinds`; and a changed `text` pointer is said to change every wording hash, so the rebuild removes every affirmation and evidence row of the kind, which the doctor counts and says first (section 2, 12.3) |
+
+## What this specification serves
+
+The goal, from the plan: a thought captured through any agent lands at once, lasts, can be found by field and by
+text, is matched against what is already held, and is never read as more than it is.
+
+| Principle | How this serves it |
+| --- | --- |
+| 1. Empty host | The host gains services about records in general: declare, index, find, match, label. It learns nothing about ideas. The plugin holds every domain rule |
+| 2. Plugins are the unit | A plugin declares its record kinds in its manifest and reaches them through the `records` and `records_write` grants it already declares. No new grant |
+| 4. No model in the request path | Finding and the words score are deterministic. An embedding of the incoming text may run in the request when the deployer configures a model; it writes no text and makes no judgment (D168) |
+| 6. Deterministic core | The same records, reader, query and model give the same bytes: scores at four places, ties by id |
+| 7. Provenance on everything | A declared record keeps the envelope. For a standing kind the host fills its authority (D169) |
+| 8. Durable knowledge changes by proposal, or carries its standing | Standing is computed at each read from facts only the host writes, and labelled on every read (D161) |
+| 9. Stored content is untrusted input | Nothing a call passes decides standing. Text is scanned at put and flagged. The host's services put no text in the journal, an event or an error, and a plugin that declares a kind must state a journal mode on every command (D169, D72) |
+| 10. Permission-aware | The reader filter is a clause of every statement, and statistics count only what the reader may read (D163, D125) |
+| 11. Stateless and horizontal | No cache and no session: a put is findable when it returns, in the same database |
+| 12. Small surfaces, measured | A meaning lane is turned on only by an instance's own measurement (D167) |
+| 13. Same interface at every scale | Scoring lives in `umbel-store`, in Rust, so a second backend computes the same numbers |
+| 16. Spaces do not mix | Every table is in the space's own store; a model's vectors are per space |
+
+Decisions served: D9, D42, D53, D55, D63, D65, D68, D70, D71, D72, D74, D115, D125, D150 and D157. New: D158 to
+D171. Open decision O4 gains an answer for record lanes and stays open for knowledge search.
+
+## Trajectory refresh
+
+What the design leans on outside this repository, what was checked on 2026-11-11 and how, and what was not.
+
+| Fact | Checked, and how | Not checked; do it at implementation |
+| --- | --- | --- |
+| SQLite: `STRICT`, `WITHOUT ROWID`, partial indexes, `secure_delete`, the JSON functions | Each is already used by the embedded store (`store-embedded/src/schema.rs`, `connection.rs:120`), on rusqlite 0.41 with `bundled` (`store-embedded/Cargo.toml:15`), which the architecture's libraries table gives as SQLite 3.54.1. `json_extract`, the tables and 6.3's clause were run on SQLite 3.54.0 | Size and time of the term table at 100 000 records. Step B6 measures it |
+| FTS5 | **Not used by this lane** (D163), so no FTS5 option is leaned on. Its tokenizer's rules are, through the Rust port in `store/src/memory/tokenizer.rs`, which `store/tests/memory_tokenizer.rs` holds to FTS5's own tokens | Nothing |
+| `fastembed` (the ONNX provider) | `cargo info`: 7.7.0, Apache-2.0, Rust 1.88. Its source: `TextEmbedding::try_new_from_user_defined(UserDefinedEmbeddingModel, InitOptionsUserDefined)` takes the model and tokenizer files as bytes; every network path is behind the `hf-hub` feature; `ort` is pinned at `=2.0.0-rc.15`; `embed` takes `&mut self`. The architecture's table said 7.5 | That it builds on the workspace's toolchain with `default-features = false`; which TLS stack `ort/tls-rustls` brings; the size it adds; the licence of the ONNX Runtime binary the build fetches; each model's own licence, which is the deployer's to check |
+| `model2vec-rs` (the static provider) | `cargo info` and its source: 0.4.0, Rust 1.88, an MIT `LICENSE` file (crates.io shows no SPDX expression). `StaticModel::from_bytes(tokenizer, model, config, normalize)`, `encode`, `dim`; the feature `local-only` compiles out its downloads. It depends on `tokenizers` 0.21 and `safetensors` 0.5 | That its vectors equal the Python library's for `potion-base-8M`, which is what phase 0 measured: compare with `match.py embed` on a fixed list. That `tokenizers` builds without `onig`. The model's licence |
+| `unicode-normalization`, `caseless` (the identical digest) | `cargo info` and source: 0.1.26, `(MIT OR Apache-2.0) AND Unicode-3.0`, tables for Unicode 18.0.0; and 0.2.2, MIT, case folding for Unicode 16.0.0. Neither is in `Cargo.lock` today | That both build for `wasm32-wasip2`, which `umbel-store` must (`store/src/lib.rs:8`); that the repository's licence policy admits `Unicode-3.0` |
+| `reqwest` (the HTTP provider) | 0.13.5 is in `Cargo.lock` for the `auth` and `mounted` features, and its manifest has a `blocking` feature | That `blocking` composes with the host's runtime when called from a blocking thread |
+| Phase 0's figures | Read from its [results](../../../../../docs/features/active/ideas/prototype/README.md): across documents, 35 probes with a duplicate; within five candidates, words alone 0.886, fused 0.914 to 0.971; model labels, pooled pairs | They are indicative only (D167). The owner's check of the labels is queued (Ideas status, Q5) |
+| The phase 0 tokenizer | `match.py` tokenises with `[A-Za-z0-9]+`, drops tokens over 40 characters and stems with Snowball's English stemmer | **How much the lane's tokenizer changes the phase 0 rates.** The lane uses the memory tokenizer, which is Porter's first stemmer over `unicode61` tokens (section [8.2](#82-words)). Step B6 reruns phase 0's pairs |
+
+No row of the [trajectory watch](../../trajectory.md) is touched: no MCP surface, no client behaviour and no
+standard is leaned on here.
+
+## Terms
+
+| Term | Meaning |
+| --- | --- |
+| Declared kind | A record kind of a plugin's own namespace that its manifest lists under `[[records]]` (D159) |
+| Standing kind | A declared kind with `standing = true`: its records are D157's standing records |
+| Lane | The host's index of a declared kind's records in the space's document store: their terms, keys, digests and vectors (D163). Not the knowledge index and not memory's lane |
+| Text pointer, key pointer | A path into a record's body that the declaration names: a text pointer's string is indexed by words; a key pointer's values are filtered on exactly |
+| Match field | The one text pointer a declaration names as `match`: the field `record_match` compares |
+| Wording | The values at a standing kind's text pointers. Fixed by the first put (D160) |
+| Evidence | What a put may say about where a wording came from: a document, its content hash, unit numbers, the rule's version, the speaker, and whether the plugin found the wording to be exactly those units (D161) |
+| Unit | A numbered piece of a document under the plugin's own rule, such as a sentence. The host stores the numbers and does not interpret them |
+| The person | The one person a space is configured for, `[spaces.<id>] person` (D161) |
+| Own | A document is the person's own now when it lies in a collection configured `own`, or the person marked it and no command writes files where it lies (section [6.2](#62-the-persons-own)) |
+| Command-writable | Said of a collection that some `content_write` allow covers, or whose root overlaps one that is covered, in any space (section 3) |
+| Verified content only | A read that returns only what the space's `verified_admits` names: affirmed records, or affirmed and attested ones. Asked for by the call, never set for a whole space (6.6) |
+| Label | The `StandingLabel` the host computes for a record at each read: `unverified`, `attested` or `affirmed`, with what backs it |
+| Words, meaning, fused | The three scores of a match (section [8](#8-matching-d165)) |
+| Model id | A configured embedding model's name with a digest of everything that could change its vectors (section [9.2](#92-models-in-the-configuration)) |
+| Probe | A text with the ids of its true duplicates, which the gate scores (section [10](#10-the-gate-for-a-meaning-lane-d167)) |
+
+## 1. Crate layout and versions
+
+```text
+endpoints/umbel/
+├── store/src/
+│   ├── lane.rs               # new: RecordDecl, Pointer, Evidence, Standing, StandingLabel, LaneRecord,
+│   │                         #      RecordFind, RecordMatch, MatchResult, OwnInfo, the limits
+│   ├── lane/extract.rs       # new: a body's text values, key values, wording hash, match digest, terms
+│   ├── lane/normalise.rs     # new: the identical digest's normalisation
+│   ├── lane/score.rs         # new: BM25, the directed and the symmetric words score, cosine, fusing
+│   ├── embed.rs              # new: Embedder, ModelId, EmbedError
+│   ├── traits.rs             # DocumentStore gains eleven methods (section 11)
+│   └── conformance/          # new groups: lane.rs, standing.rs, matching.rs; fixtures in store/fixtures/lane/
+├── store-embedded/src/
+│   ├── schema.rs             # schema version 2: the tables of section 5
+│   └── lane/                 # new: write.rs, read.rs, find.rs, matching.rs, standing.rs, reindex.rs
+├── embed/                    # new crate `umbel-embed`: the providers, each behind a feature
+├── sdk/src/records.rs        # new: the Cx methods of section 11.2
+├── src/plugins/manifest/v6.rs        # new: [[records]]
+├── src/plugins/record_services.rs    # new: the host side of every service here
+├── src/commands/store_records.rs     # new: store-records-reindex, store-records-eval
+└── schemas/                  # plugin-manifest.v6.json, workspace-config.v6.json, record-probes.v1.json,
+                              # record-eval-report.v1.json
+```
+
+| Version | Now | Becomes | Where |
+| --- | --- | --- | --- |
+| Manifest | 5 (`src/plugins/mod.rs:70`) | 6 | Section [2](#2-declaration-d159) |
+| Workspace configuration | 5 (`src/workspace/config.rs:33`) | 6 | Section [3](#3-configuration) |
+| Store traits | 2 (`store/src/lib.rs:52`) | 3 | Section [11](#11-traits-and-the-sdk) |
+| Embedded store schema | 1 (`store-embedded/src/schema.rs:4`) | 2 | Section [5](#5-the-lane-d163) |
+| Plugin protocol, WIT world, envelope, event, document record | unchanged | unchanged | |
+
+**Phase 6 names two of the same numbers** (D170). Its specification proposes store traits version 3 (D133) and
+workspace configuration version 6 (D142), with `workspace-config.v6.json`. Neither is implemented. Whichever of the
+two specifications lands a number second takes the next one, renames its schema file and its constants, and records
+the change as an amendment in its own document. This document's additions do not depend on phase 6's, nor phase 6's
+on these. The phase 6 specification is not edited here.
+
+New dependencies, all optional except the first two:
+
+| Crate | In | Feature | Why |
+| --- | --- | --- | --- |
+| `unicode-normalization` `=0.1.26`, `caseless` `=0.2.2` | `umbel-store` | always | The identical digest (8.1). Pinned exactly: a table change would change stored digests |
+| `model2vec-rs` 0.4, `default-features = false`, features `local-only` and one of `onig` or `fancy-regex` | `umbel-embed` | `static` | The static provider |
+| `fastembed` 7.7, `default-features = false`, feature `ort-download-binaries-rustls-tls` | `umbel-embed` | `onnx` | The ONNX provider. If the build may not fetch, `ort-load-dynamic` and a deployer-supplied ONNX Runtime |
+| `reqwest` 0.13, features `rustls` and `blocking` | `umbel-embed` | `http` | The HTTP provider |
+
+The `umbel` crate gains the features `embed-static`, `embed-onnx` and `embed-http`, each `["dep:umbel-embed",
+"umbel-embed/<name>"]`. None is in `default`. `umbel-first-party` enables none; the instance's operator builds with
+the one its eval chose.
+
+## 2. Declaration (D159)
+
+Manifest version 6 adds one top-level key, an array of tables:
+
+```toml
+manifest_version = 6
+
+[[records]]
+kind = "note"
+standing = true
+text = ["/statement"]
+keys = ["/bed", "/tags", "/source"]
+match = "/statement"
+```
+
+| Key | Type | Rule |
+| --- | --- | --- |
+| `kind` | string | `^[a-z][a-z0-9-]{0,62}$` (`is_slug`, `store/src/document.rs:309`). Unique in the manifest. At most 16 entries |
+| `standing` | bool | Default `false`. `true` needs at least one `text` pointer |
+| `text` | array of pointers | 0 to 4, distinct |
+| `keys` | array of pointers | 0 to 16, distinct, none also in `text` |
+| `match` | pointer | Optional. One of `text` |
+
+A **pointer** is `/` followed by one to four member names joined by `/`, each `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, at
+most 128 bytes in all. It names object members only: no array index and no `~` escape. This is a subset of RFC 6901
+that needs no unescaping.
+
+Rules the parser applies, each a `PLUGIN_MANIFEST_INVALID` naming the key:
+
+| Rule | Key named | Problem text |
+| --- | --- | --- |
+| `records` in manifest versions 1 to 5 | `records` | `is reserved (a declared record kind needs manifest_version = 6); manifest version <n> does not define it` |
+| `plugin.kind` is not `compiled` | `records` | `is for compiled plugins only in protocol 1: a declared kind's standing rests on the plugin's code running in the host's process (D162)` |
+| `records` or `records_write` is not in `[[grants]]` | `records` | `needs the grants records and records_write declared in [[grants]]` |
+| An entry with no `text`, no `keys` and `standing = false` | `records[i]` | `declares nothing: give text, keys or standing` |
+| A command or pipeline without `journal` | `commands[i].journal`, `pipelines[i].journal` | `is required: a plugin that declares a record kind declares journal = { mode = "digest" } or { mode = "plain" } on every command and pipeline` |
+
+The first follows `check_versioned_keys` (`src/plugins/manifest.rs:996`): `Manifest::parse` checks the top keys with
+it, passing `(6, v6::TOP_KEYS_V6)`, where today it calls `check_keys` (`manifest.rs:719`). The second is refused at
+parse, not at load: memory's grants are refused for a component at load, as an unavailable grant
+(`src/plugins/loader.rs:1144`), and a declaration is not a grant. The last is memory's rule (`manifest.rs:851`, D72)
+for the same reason: a record's text must not reach the journal.
+
+`src/plugins/manifest/v6.rs` parses the entries into `umbel_store::lane::RecordDecl` (section 11.1) and
+`Manifest` gains `records: Vec<RecordDecl>`. `MANIFEST_VERSION` becomes 6 and `MANIFEST_VERSIONS` `[1, 2, 3, 4, 5, 6]`.
+`schemas/plugin-manifest.v6.json` is version 5's with `records`. The loader copies the declarations into
+`Shared.records: BTreeMap<String, RecordDecl>` (`src/plugins/grants.rs:66`) and sets `GateEntry.lane_writer`
+(`src/plugins/loader.rs:146`) for a plugin with any entry.
+
+**An undeclared kind behaves as today**: `record_put`, `record_get` and `record_list` do what they do now. One
+thing is new, and only for a kind that was once declared: an undeclared put marks its `record_kinds` row stale
+(below). A kind that was never declared has no such row, and for it no table of section 5 is touched.
+
+**A declaration that changes.** The store keeps each kind's declaration hash, a stale mark and a generation
+counter (5.1). A kind is *stale* when its stored hash differs from the manifest's, when it holds records written
+before it was declared, when a record of it was written while it was not declared, or while a rebuild of it is
+under way. For the third, `put_record`, the path an undeclared kind takes, sets the stale mark of any kind that has
+a `record_kinds` row **and adds one to its generation**, in the same transaction as its write. So a plugin version
+that drops a declaration, edits a wording and declares the kind again finds it stale, and the rebuild takes the
+standing from every record whose wording changed (12.1). Every lane service on a stale kind answers
+`RECORD_LANE_STALE` until `store-records-reindex` rebuilds it. A put on a stale kind is refused too, so a lane is
+never half one declaration and half another.
+
+**Changing `text` or `standing` costs every standing the kind holds.** The wording hash is taken over the values at
+the text pointers in declaration order (4.3), so adding, removing, reordering or renaming a text pointer changes
+the wording hash of every record, and the rebuild then removes every affirmation and every evidence row of the
+kind. That is right, since what the person affirmed was the old wording, and it is not recoverable. So before a
+deployer runs the rebuild, the doctor's `records.declared` says, for a stale standing kind whose stored `text` or
+`standing` differs from the manifest's: how many affirmations and how many evidence rows the rebuild will remove (12.3).
+Changing `keys` or `match` costs none.
+
+## 3. Configuration
+
+Workspace configuration version 6 adds these keys. Each is refused in versions 1 to 5 with `needs config_version =
+6`, as version 5's keys are (`src/workspace/config.rs:584`).
+
+```toml
+config_version = 6
+
+[spaces.garden]
+person = "human:local"
+verified_admits = "affirmed"
+
+[spaces.garden.collections.journal]
+root = "content/journal"
+own = true
+
+[spaces.garden.collections.talks]
+root = "content/talks"
+own = true
+speaker = "Gardener"
+
+[spaces.garden.meaning]
+model = "potion"
+weight = 0.5
+k = 5
+
+[models.potion]
+provider = "static"
+name = "potion-base-8m"
+dir = "models/potion-base-8m"
+
+[models.potion.files]
+"model.safetensors" = "sha256:<64 hex>"
+"tokenizer.json" = "sha256:<64 hex>"
+"config.json" = "sha256:<64 hex>"
+
+[plugins.notes.grants.records_write]
+allow = ["garden"]
+default_access = "private"
+```
+
+| Key | Type, default | Rule |
+| --- | --- | --- |
+| `spaces.<id>.person` | principal string, none | `human:<id>`, parsed as every principal string is. The one person whose decisions give standing in the space |
+| `spaces.<id>.verified_admits` | `affirmed` or `affirmed+attested`; default `affirmed` | What "verified content only" means in the space: what a call that asks for it is given (6.6). There is no setting that asks for every read |
+| `spaces.<id>.collections.<cid>.own` | bool, `false` | Needs the space's `person`. See the two rules below |
+| `spaces.<id>.collections.<cid>.speaker` | string, none | 1 to 128 characters, no control character. Only with `own = true`. Which part of each document is the person's, for a plugin's rule to use |
+| `spaces.<id>.meaning.model` | a `[models]` id | Required in the table |
+| `spaces.<id>.meaning.weight` | number 0 to 1, default 0.5 | `w` of the fused score (8.3) |
+| `spaces.<id>.meaning.k` | integer 1 to 20, default 5 | The `k` within which the gate counts a probe's duplicate as found (10) |
+| `models.<mid>` | table | `<mid>` matches `^[a-z][a-z0-9-]{0,31}$`. Section [9.2](#92-models-in-the-configuration) |
+| `plugins.<iid>.grants.records_write.default_access` | `private` or `space`; default `private` | The access set the host gives a declared kind's record (4.2) |
+
+Two rules make "own" mean something the host can stand behind. Both are new, and both follow from who writes
+documents today: `sources-sync` reads files from disk, and the knowledge plugin's proposal apply writes a command's
+input as a file and a document (`plugins/knowledge/src/proposal/apply.rs:761`).
+
+A collection is **command-writable** when some enabled instance's `grants.content_write.allow` covers it, or covers
+any collection of any space whose root overlaps its root. An allow entry covers `<space>/<cid>` when it is that
+string or `<space>/*` (`allows`, `src/plugins/store_services.rs:32`). Two roots overlap when they are equal or one
+contains the other, as written (`roots_overlap`, `src/workspace/config.rs:1250`) or once resolved (`resolve_root`,
+`config.rs:1318`). The check runs across spaces: today's overlap check is within one space only (`config.rs:1046`,
+`:1341`), so two spaces may share a directory, and a file written through one is a file of the other.
+
+1. **No command writes files into an own collection.** A collection with `own = true` that is command-writable is
+   `WORKSPACE_CONFIG_INVALID` at `spaces.<id>.collections.<cid>.own`: "a collection named as the person's own may
+   not be written through content_write (plugins.<iid>.grants.content_write covers `<space>/<cid>`, whose root
+   overlaps it): a command's input would become a file there". The lexical form is checked when the configuration
+   is read, and the resolved form where `check_collection_roots` runs (`config.rs:1341`); a root that does not exist
+   yet is checked when it does, at the next start. So an own collection takes no knowledge proposal and no
+   verification write, and neither does any collection that shares its directory.
+2. **A document put into an own collection equals its file.** `svc_doc_put` (`store_services.rs:367`), for a document
+   whose collection is `own`, reads `<root>/<path>` through the confined reader `svc_content_read` uses
+   (`src/plugins/content.rs:134`) and refuses the put unless the SHA-256 of those bytes is the document's
+   `contentHash`: `HostError::Invalid`, code `STORE_OWN_SOURCE_MISMATCH`. A file that changed between a sync's read
+   and its put is refused once and stored by the next sync.
+
+A person's mark (6.2) is held to the same two things, for the same reason.
+
+What these do not establish, in two parts, both the deployer's:
+
+- **Who typed the file.** A shell on the machine can put any file in the collection's root (D157 says so, as D74
+  does of memory's files).
+- **What was written before.** Command-writable is judged on the configuration as it is now. The host keeps no
+  history of it. A file written through `content_write` while a collection was covered stays on disk after the
+  allow is removed, and then `own`, or a mark, passes both rules. A deployer who names a collection `own`, or takes
+  a `content_write` allow away, is saying the files there now are the person's.
+
+Keeping an own collection free of text the person did not write is the deployer's.
+
+In code: `CONFIG_VERSION` 6 and `CONFIG_VERSIONS` `[1, …, 6]`; `SPACE_KEYS_V6`, `COLLECTION_KEYS_V6` and `TOP_KEYS_V6`
+beside the version 3 and 5 lists (`config.rs:52` to `57`, `hosted.rs:33`); `RECORDS_WRITE_GRANT_KEYS_V6` beside
+`MEMORY_WRITE_GRANT_KEYS_V5` (`src/workspace/plugins_config.rs:70`); `CollectionConfig` gains `own: bool` and
+`speaker: Option<String>`, `SpaceConfig` gains `person`, `verified_admits` and `meaning`; `umbel
+init` writes version 6. `Config` gains `command_writable(space, collection) -> bool`, which both rules and 6.2 use.
+`schemas/workspace-config.v6.json` is version 5's with these keys.
+
+## 4. Writing a declared record
+
+### 4.1 The services
+
+`record_put` keeps its signature (`sdk/src/store.rs:428`). For a declared kind the host does the steps of 4.2.
+One new service carries evidence:
+
+| Service | Grant | Does |
+| --- | --- | --- |
+| `record_put(space, kind, id, body, envelope, expect)` | `records_write`, allowed for the space | Writes the record and its lane rows. Leaves any stored evidence as it is |
+| `record_put_cited(space, kind, id, body, envelope, expect, evidence)` | the same | The same, and replaces the record's evidence. Standing kinds only |
+
+### 4.2 What the host does, in order
+
+`svc_record_put` (`store_services.rs:435`), when `Shared.records` holds the kind:
+
+1. **Grant and space**, as today (`writing("records_write", space, None)`).
+2. **A principal.** No effective principal (`effective_principal_of`, `src/access.rs:36`) is
+   `RECORD_PRINCIPAL_REQUIRED`, as memory refuses (`src/plugins/memory_services.rs:135`).
+3. **The envelope.** `seal` as today (`store_services.rs:178`), then:
+   - For a new record, `access` becomes `["principal:<effective principal>"]`, or `["space"]` when the
+     instance's `default_access` is `space`, whatever the plugin sent. Private by default, as memory's are (D68).
+     For a record that exists the store keeps the stored access set (step 7.6): a later put never changes who
+     reads a declared record, so a change of `default_access` touches only records written after it.
+   - For a standing kind, `version` becomes 3 and the delegation chain is filled, as memory's are
+     (`src/plugins/memory_services.rs:412` and `:413`), and `authority` is filled by this table, whatever the
+     plugin sent (D71):
+
+     | The call | `authority` |
+     | --- | --- |
+     | Carries the person gate's proof (6.1) | `person` |
+     | A human through the library (`embedder_human`, `src/authority.rs:78`) | `person` |
+     | Any other human actor | `tool` |
+     | Any other actor | `agent` |
+
+   `origin` stays the writer's claim; `unspecified` is refused as it is today.
+4. **Extract** (`umbel_store::lane::extract`, 11.1). A value at a text pointer must be a string of at most 16 KiB of
+   UTF-8, or absent or `null`. A value at a key pointer must be a string, or an array of at most 64 strings, each 1
+   to 256 bytes with no control character, or absent or `null`. Anything else is `RECORD_FIELD_INVALID`, naming the
+   pointer and never the value.
+5. **Scan.** Each text value goes through `umbel_scan::scan_content`, as memory's text does
+   (`src/plugins/memory_services.rs:62`). The findings (`instruction-like`, `hidden-text`, as
+   `umbel_store::MemoryFlag`) are stored with the lane row and returned with the record. Flagged, never blocked
+   (D67).
+6. **Evidence** (`record_put_cited` only): its shape is checked (11.1). The document is checked inside the store's
+   transaction (step 7).
+7. **One transaction** (`BEGIN IMMEDIATE`, as `put_record` uses, `store-embedded/src/documents.rs:348`), through
+   `DocumentStore::put_declared_record` (11.1):
+   1. The kind's declaration row (5.1): absent with no record of the kind stored, it is inserted; a different hash,
+      a stale mark, or absent with records stored, is `StoreError::LaneStale`.
+   2. An existing record that the writer's reader filter does not admit is `Conflict { current: None }`: to this
+      writer the id is taken, and nothing more is said, its content hash included.
+   3. `expect` against the stored content hash, as today.
+   4. **Wording (D160).** For a standing kind with a stored record, the new wording hash must equal the stored one,
+      else `StoreError::WordingFixed`. Keys, other fields, evidence and the envelope may change.
+   5. Evidence: `SELECT content_hash FROM documents d WHERE d.doc = ?` with the writer's reader filter as a clause
+      (`and_doc_readable`, `store-embedded/src/sql.rs:111`). No row, or a hash other than the evidence's, is
+      `StoreError::EvidenceInvalid`.
+   6. The next revision; the `records` row as today; the `record_access` rows as today for a new record, and left
+      as they are for one that exists, whose stored envelope then carries the stored access set; the `record_lane`
+      row (kept, with its `lane` and `created_rev`, when it exists); `record_terms` and `record_keys` rewritten
+      when the text or the key values changed; `record_evidence` upserted when given; the record's vectors deleted
+      when its match value changed; one `changes` row of kind `record`, as today.
+
+   It answers the `RecordMeta` and whether the record now needs a vector for the space's model: it has a match
+   value and no vector for that model id.
+8. **A vector, after the write.** Only when step 7 committed and says one is needed, and the space's model loaded,
+   the host embeds the match value (9.4) and writes it with `DocumentStore::put_record_vector`, which stores it only
+   if the record's match digest is still the one embedded. So no text is sent to a provider for a put that was
+   refused, and none for a put that changed only keys. **No failure in this step fails the put**, since the record
+   is already written: a failure to embed, a failure of `put_record_vector` itself (a busy store, an I/O error),
+   and a vector it declined because the digest moved all leave the record with no vector. The host logs a warning
+   that names the kind and the step and no text, and returns the `RecordMeta` step 7 gave. The record waits for
+   `store-records-reindex`, and 9.4 says what a missing vector costs. `record_put` returns after this step.
+
+A record is findable and matchable by words the moment its put returns: the lane rows commit with it, and every
+read of section 7 and 8 is a read of the same database. Two captures in a row match each other.
+
+### 4.3 Wording never changes (D160)
+
+For a kind with `standing = true`, the values at the text pointers are fixed by the first put, absent ones
+included. The **wording hash** is `sha256:` of the canonical JSON (`canonical_json`, `store/src/canonical.rs:75`) of
+the array of those values in declaration order, `null` for an absent one. A put that would change it is refused with
+`RECORD_WORDING_FIXED`. A new wording is a new record.
+
+This is how D157's "a change to wording that has standing is a new version, which is unverified and waits" is kept.
+Which record a plugin treats as held and which as pending is the plugin's own pointer, in a record of its own. The
+host guarantees one thing: standing attaches to wording that cannot move, so an affirmation can never come to cover
+words the person did not see.
+
+For a declared kind without `standing`, text may change, and the lane follows it. A put that changes it clears any
+affirmation and evidence the record still holds from a time when the kind was a standing kind.
+
+## 5. The lane (D163)
+
+Declared kinds are indexed in the space's document store, `store.sqlite3`, in the same transaction as their
+`records` row. The lane is ordinary tables: a term table with frequencies, a key table, and one row per record. It
+is not tantivy and not an FTS5 table.
+
+**Why not tantivy.** D157 keeps these records out of the index that knowledge search reads, so that an agent's
+write cannot move knowledge ranking (D70's reason), and the index writer is a separate, exclusive commit
+(`store/src/traits.rs:167`): a record would not be findable when its put returns.
+
+**Why not FTS5, which the plan named.** Three things in the design need what FTS5 does not give through SQL:
+
+- The words score runs in both directions (8.2), so the host needs each candidate's own terms with their
+  frequencies, and how many readable records hold each of those terms. FTS5 answers the second only through one
+  `MATCH` a term, and the first only by tokenising each candidate's text again, which is what memory's recall does,
+  under a ceiling of 50 000 matches (`store-embedded/src/memory/read.rs:228`). A sentence matches most of a store
+  through its common words, so the ceiling would refuse ordinary captures.
+- The reader filter must be a clause of every statement (D169). A term table joins to `record_access` as every other
+  table does (`sql.rs:83`).
+- A second backend cannot run FTS5. A term table is what phase 6's PostgreSQL design already assumes for memory:
+  tokens from `umbel-store`'s tokenizer, found by value.
+
+What the plan wanted from FTS5 is kept: the same database, the same transaction, the tokens FTS5's
+`porter unicode61 remove_diacritics 2` gives (through `umbel_store::memory::tokenizer::tokens`,
+`store/src/memory/tokenizer.rs:41`), and deletion that overwrites, because every connection of the store sets
+`secure_delete = ON` (`store-embedded/src/connection.rs:120`). What is given up: phrase and prefix queries, and
+snippets. Neither finding nor matching uses them.
+
+### 5.1 Tables, embedded schema version 2
+
+`SCHEMA_VERSION` becomes 2. `initialise` (`connection.rs:131`) gains one step: a store at version 1 runs the
+statements below in its opening transaction, sets `user_version` to 2 and `meta.store_traits_version` to 3. A build
+of today opening a version 2 store answers `VersionUnsupported`, as it does for any newer schema
+(`connection.rs:147`). These statements, and 6.3's clause over them, ran on SQLite 3.54.0 on 2026-11-11.
+
+```sql
+CREATE TABLE record_kinds (
+    ns        TEXT NOT NULL,
+    kind      TEXT NOT NULL,
+    decl_hash TEXT NOT NULL,              -- sha256: of the declaration's canonical JSON
+    decl      TEXT NOT NULL,              -- that JSON, for store-records-reindex and the doctor
+    stale     INTEGER NOT NULL DEFAULT 0, -- 1: written while undeclared, or a rebuild is under way (section 2, 12.1)
+    generation INTEGER NOT NULL DEFAULT 0, -- raised by each undeclared put and each rebuild's start (12.1)
+    PRIMARY KEY (ns, kind)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE record_lane (
+    lane         INTEGER PRIMARY KEY,     -- stable for the record's life
+    ns           TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    id           TEXT NOT NULL,
+    created_rev  INTEGER NOT NULL,        -- the revision of the first put
+    created_at   TEXT NOT NULL,           -- its envelope's observedAt
+    wording_hash TEXT,                    -- NULL for a kind with no text pointer
+    match_digest BLOB,                    -- 32 bytes (8.1); NULL with no match value
+    n0           INTEGER NOT NULL,        -- tokens of the value at text pointer 0; 0 when absent
+    n1           INTEGER NOT NULL,
+    n2           INTEGER NOT NULL,
+    n3           INTEGER NOT NULL,
+    flags        TEXT NOT NULL,           -- JSON array of scan findings
+    affirmed_seq INTEGER,                 -- the record_decisions row that affirms it now, else NULL
+    UNIQUE (ns, kind, id),
+    FOREIGN KEY (ns, kind, id) REFERENCES records (ns, kind, id) ON DELETE CASCADE
+) STRICT;
+CREATE INDEX record_lane_by_recency ON record_lane (ns, kind, created_rev, id);
+CREATE INDEX record_lane_by_digest ON record_lane (ns, kind, match_digest) WHERE match_digest IS NOT NULL;
+
+CREATE TABLE record_terms (
+    ns    TEXT NOT NULL,
+    kind  TEXT NOT NULL,
+    field INTEGER NOT NULL,               -- the text pointer's position in the declaration, 0 to 3
+    term  TEXT NOT NULL,                  -- one token, as the tokenizer gives it
+    lane  INTEGER NOT NULL REFERENCES record_lane (lane) ON DELETE CASCADE,
+    tf    INTEGER NOT NULL,               -- how often the field holds the term
+    PRIMARY KEY (ns, kind, field, term, lane)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX record_terms_by_lane ON record_terms (lane, field);
+
+CREATE TABLE record_keys (
+    ns    TEXT NOT NULL,
+    kind  TEXT NOT NULL,
+    key   INTEGER NOT NULL,               -- the key pointer's position in the declaration, 0 to 15
+    value TEXT NOT NULL,
+    lane  INTEGER NOT NULL REFERENCES record_lane (lane) ON DELETE CASCADE,
+    PRIMARY KEY (ns, kind, key, value, lane)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX record_keys_by_lane ON record_keys (lane, key);
+
+CREATE TABLE record_vectors (
+    lane   INTEGER NOT NULL REFERENCES record_lane (lane) ON DELETE CASCADE,
+    model  TEXT NOT NULL,                 -- the model id (9.2)
+    vector BLOB NOT NULL,                 -- dimensions x f32, little-endian, of length 1
+    PRIMARY KEY (lane, model)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE record_evidence (
+    lane     INTEGER PRIMARY KEY REFERENCES record_lane (lane) ON DELETE CASCADE,
+    doc      TEXT NOT NULL,
+    doc_hash TEXT NOT NULL,
+    units    TEXT NOT NULL,               -- JSON array of unit numbers
+    rule     TEXT NOT NULL,
+    speaker  TEXT,
+    verbatim INTEGER NOT NULL             -- 1: the plugin found the wording to be exactly those units
+) STRICT;
+CREATE INDEX record_evidence_by_doc ON record_evidence (doc, doc_hash);
+
+CREATE TABLE record_decisions (
+    seq          INTEGER PRIMARY KEY,     -- the revision the decision took
+    ns           TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    id           TEXT NOT NULL,
+    decision     TEXT NOT NULL CHECK (decision IN ('affirm', 'withdraw')),
+    wording_hash TEXT NOT NULL,           -- the wording decided on
+    by           TEXT NOT NULL,           -- the person's effective principal
+    at           TEXT NOT NULL,
+    assurance    TEXT NOT NULL,           -- JSON, umbel_store::Assurance
+    trace_id     TEXT
+) STRICT;
+CREATE INDEX record_decisions_by_record ON record_decisions (ns, kind, id, seq);
+
+CREATE TABLE doc_own (
+    doc       TEXT PRIMARY KEY REFERENCES documents (doc) ON DELETE CASCADE,
+    doc_hash  TEXT NOT NULL,              -- the content the person marked
+    speaker   TEXT,
+    rev       INTEGER NOT NULL,           -- the revision the mark took
+    by        TEXT NOT NULL,
+    at        TEXT NOT NULL,
+    assurance TEXT NOT NULL,
+    trace_id  TEXT
+) STRICT, WITHOUT ROWID;
+```
+
+`changes.kind` gains the value `standing`, `ChangeKind::Standing`: one row for each affirmation, withdrawal, mark
+and unmark, with the record's target (`record_target`, `store/src/document.rs:465`) or the document's id, a `NULL`
+content hash, and the access set the record or document had then in `change_access`. Every reader of changes outside
+the store already ignores kinds it does not name (`matches!(change.kind, ChangeKind::Put | ChangeKind::Delete)`
+throughout `plugins/knowledge` and `plugins/context`), and `last_readable_document` counts `put` and `delete` only
+(`store-embedded/src/documents.rs:323`), so a decision moves no sealed position.
+
+### 5.2 Where a record's text lives
+
+A declared record's text is in two places: `records.body`, and, as terms without order, `record_terms`. Its key
+values are in `records.body` and `record_keys`. A vector in `record_vectors` and the digest in `record_lane` are
+derived from the match field. Every lane row hangs from `record_lane`, which hangs from `records`, by `ON DELETE
+CASCADE`, so deleting the `records` row removes all of it in one statement, and `secure_delete` overwrites the
+cells. A later erasure specification (the plan's P16) has that one statement to run, the change log's hashes
+(`forget_record_history`, `store/src/traits.rs:147`) and `record_decisions` to settle, and nothing else.
+
+`store-backup` copies the database with `VACUUM INTO` (`store-embedded/src/inspect.rs:122`), so a copy holds the
+lane whole and needs no rebuild.
+
+### 5.3 The reader clause
+
+Every statement over the lane names `record_lane l` and adds, through `Sql::and_readable` (`sql.rs:83`):
+
+```sql
+AND EXISTS (SELECT 1 FROM record_access ax
+            WHERE ax.ns = l.ns AND ax.kind = l.kind AND ax.id = l.id AND ax.token IN (?, ...))
+```
+
+A reader with no token reads nothing (`AND 0`). A derivation read is refused by every service here with
+`StoreError::Invalid`, as memory refuses it (`refuse_derivation`, `store/src/memory.rs:1262`): the lane is never
+read without a reader, except by `store-records-reindex` and the doctor, which return counts and no record.
+
+## 6. Standing (D161, D162)
+
+A standing record's label is computed at each read from four facts, each written only by the host: whether a
+decision row affirms it, its evidence row, the cited document's row, and whether that document is the person's own
+now. Nothing a plugin stores in a body, and nothing a call passes, is read as standing.
+
+| Standing | Holds when |
+| --- | --- |
+| `affirmed` | `record_lane.affirmed_seq` is not `NULL` |
+| `attested` | Not affirmed, and 6.3's condition holds |
+| `unverified` | Otherwise |
+
+### 6.1 Affirmed: `record_decide`
+
+```text
+record_decide(space, kind, id, decision) -> StandingLabel        decision: Affirm | Withdraw
+```
+
+Grant `records_write`, allowed for the space. The checks, in order:
+
+1. The kind is a standing kind of the calling instance, else `RECORD_KIND_NOT_STANDING`.
+2. **The call passed the person gate.** `CallServices` gains `person_gate: Option<umbel_store::Assurance>`, set once
+   in `Services::build` (`src/plugins/grants.rs:154`), where the command name, the validated input and the context
+   are all at hand. It is `Some` only when the command is one of this instance's commands declared
+   `confirm = "require-human"`, and the context carries the proof that the plugin gate's `person_gate`
+   (`src/middleware.rs:437`) accepted for that surface:
+
+   | `context.interface` | The command's `person` | Proof | Recorded as |
+   | --- | --- | --- | --- |
+   | `Cli` | `cli = "verified"` | `crate::person::attested(config, command, input, context)` is `Some` (`src/person/mod.rs:254`) | `Assurance::verified(namespace, auth_time, acr)` |
+   | `Cli` | `cli = "terminal"` | `context.extra["dev.umbel/human-confirmed"]` equals the command (`confirmed_by_a_person`, `middleware.rs:481`) | `Assurance::terminal()` |
+   | `Mcp` | `mcp = "verified"` | `attested(...)` is `Some` | `Assurance::verified(...)` |
+   | anything else | | none | `None` |
+
+   This is a new function, `crate::person::gate_proof(config, command, person, input, context)`, with exactly
+   `person_gate`'s arms and `attested` in place of `admit`: the same checks without spending the decision again,
+   which the gate did before the handler ran. `attested` binds the proof to this command, this surface and the
+   digest of this input. What it does not repeat is the ledger's part of `admit`
+   (`src/person/service.rs:920`): reading the decision back as approved, live and for this caller, and spending
+   `person-run:<id>` once. The gate did both for this call before the handler ran, and only the host writes the
+   mark `attested` reads (`service.rs:639`). `CommandPolicy` (`grants.rs:59`) gains `require_human: bool` and
+   `person: PersonDecl`, filled where it is built (`src/plugins/loader.rs:913`). `Services::call`, which names no
+   command, and `read_only_view` (`grants.rs:285`) have `None`. A step of a pipeline has `None` under its own name,
+   so a review is one command. `None` is `RECORD_DECISION_NOT_GATED`.
+3. **The caller is the space's person.** The space has a `person`, and `identities(config, effective principal)`
+   (`src/access.rs:73`) holds it, else `RECORD_DECISION_NOT_THE_PERSON`.
+4. The record is readable by the caller, else `NotFound`. Readable is all: **no standing filter applies to a
+   decision**, so an unverified record can always be affirmed and an affirmed one withdrawn. `decide_record` takes
+   the view only to compute the label it returns, and ignores its `admit`.
+
+Then, in one transaction: `Affirm` on a record not affirmed takes the next revision, inserts a `record_decisions`
+row with the record's wording hash, the person's principal, the clock's time and the assurance, sets
+`affirmed_seq`, and writes a `standing` change. `Withdraw` on an affirmed record does the same with `withdraw` and
+sets `affirmed_seq` to `NULL`. `Affirm` on an affirmed record, and `Withdraw` on one that is not, write nothing and
+return the label as it is.
+
+A decision that took a revision is noted for the call as every store write is (`note_write`,
+`store_services.rs:111`), so the command's result carries it in `dev.umbel/changes` and the command's event covers
+it. One that wrote nothing notes nothing. The same holds for a mark and an unmark (6.2).
+
+**What the host guarantees, and what it does not.** A decision row exists only because a person decided this very
+call, with this input, at the assurance the command declares (D115). Which records the handler affirms inside that
+call is the compiled plugin's code (D162): the plugin's specification must hold its review command to affirming the
+records its preview showed and its input named. A record's wording cannot change after the person saw it (D160), so
+naming the record is naming the wording.
+
+### 6.2 The person's own
+
+A document is **the person's own now** when one of these holds for the document as stored now:
+
+- **By collection.** Its collection is configured `own = true` in the space. Section 3's two rules are what that
+  rests on.
+- **By mark.** A `doc_own` row names it with `doc_hash` equal to its current content hash, and its collection is
+  not command-writable now (section 3).
+
+When both hold, the basis is `collection`: the deployer's configuration is read first.
+
+```text
+doc_own_mark(space, doc, content_hash, speaker) -> Rev
+doc_own_unmark(space, doc) -> Rev
+doc_own(space, doc) -> Option<OwnInfo>
+```
+
+`doc_own_mark` and `doc_own_unmark` need `records_write` allowed for the space and the `documents` grant, and make
+6.1's checks 2 and 3. No new grant: a mark is a standing fact, written as an affirmation is, about a document the
+caller reads. A mark is refused unless all of these hold:
+
+1. The document is readable by the caller, else `NotFound`.
+2. Its current content hash equals `content_hash`, else `Conflict { current }`, so a person marks the bytes they
+   were shown.
+3. **Its collection is not command-writable**, else `STORE_OWN_MARK_REFUSED`.
+4. **It equals its file on disk**: the SHA-256 of `<root>/<path>`, read as section 3's rule 2 reads it, is its
+   content hash, else `STORE_OWN_MARK_REFUSED`.
+
+A mark takes a revision and writes a `standing` change on the document's id. A mark that changes nothing returns
+the stored `rev`. Unmarking deletes the row and writes a `standing` change; with no row it is `NotFound`.
+
+**This refines D157**, which lets a person say an uploaded source is theirs and is silent on any other. Here the
+person's say-so covers any source that did not reach the host as a command's input. Today that is a synced document
+in a collection nobody named as the person's, which checks 3 and 4 establish as far as the host can: no command
+writes files where it lies, and it is the file on disk. Later it is an upload, which the uploads specification
+admits by its own check in place of 4. It is not meant to cover a document a command's input produced, such as an
+applied knowledge proposal: a person approving a proposal has approved a change to the knowledge base, not said the
+words are theirs. The host refuses that as far as the configuration now tells it, and no further: section 3 states
+the limit, a file written while its collection was command-writable and left there after.
+
+`doc_own` needs `documents`. It returns `None` unless the document is readable by the caller and the person's own
+now, and otherwise how: `collection` or `marked`, the speaker, the content hash and the two dates of 6.5. A plugin
+reads the speaker from it, so the deployer's configuration and the person's mark reach the plugin's rule through
+the host and not through a call's input.
+
+A document replaced by new content keeps its mark row, which no longer matches, so it stops being the person's own
+until marked again. A deleted document loses its row. A collection that becomes command-writable by a later change
+of configuration stops its marks from counting, without deleting them.
+
+**Uploads.** No document arrives by upload today. The uploads specification (the plan's P17) must do one of two
+things, and this is its seam: store uploads outside own collections, or carry how a document arrived on a column of
+its own that 6.3's condition then reads. Under rule 2 of section 3, a document with no file on disk cannot be put
+into an own collection at all, so **an uploaded document never inherits a collection's `own`**, whatever that
+specification chooses. It becomes the person's own only by a mark, and that specification replaces check 4 for a
+document it stored itself.
+
+### 6.3 Attested
+
+A record is attested when it is not affirmed and this holds, as one clause of the reading statement. `?c` and `?s`
+repeat for each own collection of the space, with its speaker or `NULL`, and `?w` lists the space's
+command-writable collections:
+
+```sql
+EXISTS (SELECT 1 FROM record_evidence e
+        JOIN documents d ON d.doc = e.doc AND d.content_hash = e.doc_hash
+        WHERE e.lane = l.lane AND e.verbatim = 1
+          AND ((d.collection = ?c AND e.speaker IS ?s)
+               OR (d.collection NOT IN (?w, ...)
+                   AND EXISTS (SELECT 1 FROM doc_own o
+                               WHERE o.doc = d.doc AND o.doc_hash = d.content_hash
+                                 AND o.speaker IS e.speaker))))
+```
+
+In words: the record's evidence says the plugin found its wording to be exactly the cited units; the cited document
+is stored now with the cited content hash; that document is the person's own now; and the speaker the plugin's
+check used is the speaker the collection or the mark names.
+
+The clause does not ask whether the reader may read the cited document. Standing is a fact about the record, and
+the same for every reader of it. What a reader who cannot read the document is shown of it is in 6.5, and what that
+reader can still infer is stated in section 14.
+
+Attested is never stored. Consequences, each intended:
+
+- A person marks a document as theirs and every record that cites it word for word reads as attested at once, with
+  nothing written to those records. They unmark it and those records read as unverified again.
+- **A document that changes lapses the attestation of the records that cite it**, because their evidence names the
+  old hash. The plugin cites again, with `record_put_cited`, when the units still stand in the new content. Evidence
+  is not wording, so it may change.
+- A deployer who removes `own` from a collection, changes its `speaker`, or makes a marked document's collection
+  command-writable lapses what rested on it.
+
+### 6.4 The split between the host core and the plugin (D162)
+
+D157 says attested is found by "the host's own deterministic check". This decision says what that means: **code in
+the host's process, never the caller**, in two parts. It refines D157 in that: the comparison of words, which D157
+gives to the host, is the compiled plugin's, and the host core keeps everything about the source.
+
+| Part | Establishes | How |
+| --- | --- | --- |
+| The host core | That the cited document exists and the writer may read it; that its content is the content cited; whose it is; that no command writes files where it lies and that it is the file on disk; that a person decided | The put's check (4.2, step 7.5), 6.2, section 3's rules, 6.1 |
+| The compiled plugin's code | That the wording is whole units, word for word, of the person's own part of that document | Its own rule, deterministic and versioned. It records what it compared in the evidence: the units, the rule's version and the speaker, so the check can be replayed against the stored document |
+
+Compiled plugins are the deployer's own code in the host's process, trusted and not sandboxed (D42). A component,
+whose code is a third party's, cannot declare a record kind at all (D159), so no sandboxed code decides
+`verbatim`. An agent's call decides nothing: it passes unit numbers, and the plugin's code compares bytes it read
+from the store through the host.
+
+The host core does not re-run the comparison. It holds no rule for dividing a document into units, and holding one
+would put a domain rule in the host (principle 1). The cost of that choice is in section 18.
+
+### 6.5 The label
+
+Every record a lane service returns is a `LaneRecord` (11.1), and for a standing kind it carries a
+`StandingLabel`. The SDK serialises a `LaneRecord` as the record's own members plus three: when the record was
+first put, the scan's findings, and the label:
+
+```json
+{
+  "ns": "notes", "kind": "note", "id": "n-0007", "rev": 41, "contentHash": "sha256:…",
+  "body": { "statement": "Prune roses in late winter, before the buds swell.", "bed": "north" },
+  "envelope": { "…": "…" },
+  "dev.umbel/createdAt": "2026-11-02T09:20:11.004Z",
+  "dev.umbel/flags": [],
+  "dev.umbel/standing": {
+    "standing": "attested",
+    "affirmed": null,
+    "source": {
+      "doc": "journal/roses", "contentHash": "sha256:…", "basis": "collection", "speaker": null,
+      "units": [4], "rule": "sentences/1",
+      "storedAt": "2026-11-02T09:14:07.120Z", "generatedAt": null
+    }
+  }
+}
+```
+
+| Member | Holds |
+| --- | --- |
+| `standing` | `unverified`, `attested` or `affirmed`. Never `machine`, `human` or `owner`, the tiers of verified knowledge (D63), so no label reads as verified knowledge |
+| `affirmed` | For an affirmed record: `{ "by", "at", "assurance" }` from its decision row. Else `null` |
+| `source` | When 6.3's condition holds, affirmed or not. Else `null`. **When the reader may not read the cited document, it holds `basis` and nothing else**: every other member is `null`, the units, rule, speaker and dates included |
+| `source.basis` | `collection` or `marked`; `collection` when both hold |
+| `source.storedAt` | The document version's envelope `observedAt`: when the host stored that content |
+| `source.generatedAt` | The document's own `generated.at`, when its frontmatter states one (OKF's key, D56). Else `null` |
+
+`LabelSource` in Rust holds `basis` and an optional `seen` with the rest (11.1); the SDK writes them as the one
+flat object above, with `null` for each member of an absent `seen`.
+
+**Which date.** D157 has an attested label carry the source's date, "the person wrote it then". The host holds no
+such date. A document record carries the envelope's `observedAt`, which the host fills with its clock at the put
+(`store_services.rs:191`), and `generated`, which the file states about itself
+(`plugins/sources-filesystem/src/document.rs:46`); the file's modification time stays in the source plugin's sync
+state and is not on the document (`plugins/sources-filesystem/src/state.rs:30`). So the label says when the host
+stored the content, which is the latest the person can have written it, and what the file claims. A plugin that
+knows a better date, such as one the person supplied, states it beside the label, as its own.
+
+The member names carry the host's prefix because the host computed them. Inside a result's data nothing enforces
+that: the plugin gate strips host keys from result metadata only (`src/middleware.rs:346`). Passing the label
+through unchanged is the compiled plugin's (D162), and the plugin's specification must hold every read command to
+it.
+
+`record_get` and `record_list` return a bare `Record`, with no label. On a standing kind they are therefore
+refused with `RECORD_KIND_STANDING`, and the plugin reads through `record_read` and `record_find`. On every other
+kind they are unchanged.
+
+### 6.6 Verified content only
+
+D157: where verified content only is asked for, by a deployment's setting or by a call, only affirmed records are
+returned; a deployment's setting may also admit attested ones; a call never widens what the deployment set.
+
+**This refines D157's "by a deployment's setting or by a call".** The deployment sets what verified means, and a
+consumer that wants verified content asks for it, call by call:
+
+- `spaces.<id>.verified_admits` says what "verified" is in the space: `affirmed` (the default), or
+  `affirmed+attested`.
+- Every reading service of a standing kind takes `verified_only`, the call asking, and `standings`, a set that
+  narrows further.
+- **No setting asks for every read.** A store that hid unverified records from every reader could not be
+  reviewed: no command could list what waits for the person, and nothing could ever be affirmed. A deployment that
+  wants a consumer to see verified content only configures that consumer's plugin to ask, as the context plugin's
+  `verified_only` is configured today (`plugins/context/src/settings.rs:24`).
+
+The host computes the set it applies, and returns it as `admitted`:
+
+```text
+base     = verified_admits' set               when the call's verified_only is true
+         = {unverified, attested, affirmed}   otherwise
+admitted = base                               when the call's standings is empty
+         = base intersected with standings    otherwise
+```
+
+A call that sets `verified_only` cannot widen it past `verified_admits`: asking for a standing outside `base` is
+not an error and returns less. The plugin maps its own inputs to the flag: the plugin's specification says which of
+its commands pass a caller's request for verified content through, and which always set it.
+
+`record_decide`, `doc_own_mark` and `doc_own_unmark` are not reading services: they check readability only (6.1,
+6.2).
+
+The filter is a clause of the statement, so totals, statistics and candidates count only admitted records:
+
+```sql
+-- admitted = {affirmed}:              AND l.affirmed_seq IS NOT NULL
+-- admitted = {attested, affirmed}:    AND (l.affirmed_seq IS NOT NULL OR <6.3>)
+-- admitted = {unverified}:            AND l.affirmed_seq IS NULL AND NOT <6.3>
+```
+
+## 7. Finding (D164)
+
+```text
+record_read(space, kind, id, standings, verified_only) -> Option<LaneRecord>
+record_find(space, query) -> FindPage
+```
+
+Grant `records`. `record_read` returns `None` for a record that is absent, not readable or not admitted, without
+saying which.
+
+| `RecordFind` | Type | Rule |
+| --- | --- | --- |
+| `kind` | string | A declared kind of the instance, else `RECORD_KIND_NOT_DECLARED` |
+| `keys` | list of `{ key: pointer, any: [string] }` | At most 8 filters; each `any` holds 1 to 64 values. A record passes a filter when one of its values at that key pointer is in `any`, and passes when it passes every filter. A pointer the declaration does not list under `keys` is `RECORD_QUERY_INVALID` |
+| `standings`, `verified_only` | list, bool | 6.6. Empty and `false` for a kind without standing, else `RECORD_QUERY_INVALID` |
+| `text` | `{ query: string, fields: [pointer] }`, optional | `query` is plain text of 1 to 1024 characters, no syntax. `fields` are text pointers of the declaration; empty means all of them |
+| `order` | `id`, `recent` or `rank` | `rank` needs `text`; `text` with another order filters and does not rank |
+| `after` | string, optional | The `next` of the page before, for the same query |
+| `limit` | 1 to 200 | |
+| `total` | bool | Whether to count |
+
+`FindPage` holds `items` (each a `LaneRecord`), `next`, `total` when asked, `admitted`, and `cut` (below).
+
+**Order `id`:** by `l.id` ascending, in the byte order of its UTF-8. **Order `recent`:** by `created_rev`
+descending, then id. Both are one statement, with the key filters as `EXISTS` clauses over `record_keys`, 5.3's
+reader clause, 6.6's clause, the cursor, and `LIMIT limit + 1`:
+
+```sql
+SELECT r.ns, r.kind, r.id, r.rev, r.content_hash, r.body, r.envelope,
+       l.lane, l.created_rev, l.created_at, l.flags, l.affirmed_seq, <6.3> AS attested
+FROM record_lane l JOIN records r ON r.ns = l.ns AND r.kind = l.kind AND r.id = l.id
+WHERE l.ns = ? AND l.kind = ?
+  AND EXISTS (SELECT 1 FROM record_keys k WHERE k.lane = l.lane AND k.key = ? AND k.value IN (?, ...))
+  <reader clause> <standing clause>
+  AND l.id > ?                                -- order id; order recent compares (created_rev, id)
+ORDER BY l.id LIMIT ?
+```
+
+The labels' sources for one page are read by a second statement over `record_evidence` and `documents` for the
+page's lanes, taking `json_extract(d.record, '$.envelope.observedAt')` and `'$.envelope.generated.at'`, with
+`doc_access` deciding whether `doc` is shown.
+
+**With `text`.** The query is tokenised by the lane's tokenizer. A query with no token is `RECORD_QUERY_INVALID`.
+
+- Under order `id` or `recent`, the text is one more filter, exact and in the statement: the record holds at least
+  one of the query's terms in a searched field
+  (`EXISTS (SELECT 1 FROM record_terms t WHERE t.lane = l.lane AND t.field IN (...) AND t.term IN (...))`).
+- Under order `rank`, the records are the *candidates* that section 8.2's steps 1 to 3 gather, among those that
+  pass the filters, and they are ordered by step 4's `score(q, d)`, with the statistics of the reader's admitted
+  records as they are (the query is not counted as a record). The order is that score at four places descending,
+  then `created_rev` descending, then id. In a store large enough for the gather's bound to bite, a record that
+  shares only the query's commonest terms is not ranked. The page carries no score, as memory's recall carries
+  none (D70): the order is the answer.
+
+**Cursors.** `next` is opaque to the caller: the base64 of the canonical JSON `{ "o": order, "k": [...] }`, where
+`k` is the last item's id, or its `created_rev` and id, or its rounded score, `created_rev` and id. A cursor for
+another order is `RECORD_QUERY_INVALID`. A ranked page is recomputed for each call, and a record that arrives
+between pages can shift later pages, as in any stateless listing.
+
+**Totals** count the records that pass the filters, the reader clause and the standing clause: with `text` under
+order `id` or `recent`, those that hold a query term; under order `rank`, the candidates. Never a record the reader
+may not read.
+
+**`cut`** is `true` only under order `rank`, and only when 8.2's step 3 read the postings of the query's rarest
+term and found more than the bound after every clause, so some records that hold that term were not ranked. Leaving
+commoner terms out of the gather does not set it.
+
+## 8. Matching (D165)
+
+```text
+record_match(space, query) -> MatchPage
+```
+
+Grant `records`. It takes up to 64 texts and returns, for each, the records whose match field is identical and the
+nearest records with their scores. **The host returns scores only.** Bands, thresholds and what to refuse are the
+calling plugin's, as values in its pack. Phase 0 is the reason: across documents no lane could refuse safely (half
+the duplicates missed at 2% wrong refusals), while words alone put the duplicate among the nearest five for 0.886
+of its 35 probes.
+
+| `RecordMatch` | Type | Rule |
+| --- | --- | --- |
+| `kind` | string | A declared kind with a `match` pointer, else `RECORD_KIND_NOT_DECLARED` |
+| `texts` | list of strings | 1 to 64, each 1 byte to 16 KiB |
+| `k` | 1 to 20 | The most nearest records a text gets |
+| `keys`, `standings`, `verified_only` | as `RecordFind` | Only records that pass take part |
+| `exclude` | list of ids | At most 64. Left out of both lists **and out of the statistics**, for matching a stored record's own text against the rest |
+
+`MatchPage` holds `results`, one `MatchResult` per text in order; `admitted`; and `meaning`, which is one of
+`served` with the model id, `off` (no model configured, or its gate not passed), `incomplete` (9.4) or `failed`
+(the incoming texts could not be embedded). A `MatchResult` holds `identical` (at most 8, by id), `nearest` (at most
+`k`) and `cut`. Each entry is a `MatchHit`: the record's `id`, `rev`, the value of its match field, its label and
+flags, and in `nearest` its `words`, `meaning` and `fused`. A record can be in both lists.
+
+### 8.1 Identical
+
+The **normalisation**, version 1 (`umbel_store::lane::normalise`):
+
+1. NFKC (`unicode_normalization::UnicodeNormalization::nfkc`).
+2. Unicode default case folding (`caseless::default_case_fold_str`).
+3. NFKC again, since folding can denormalise.
+4. Each run of characters for which `char::is_whitespace` holds becomes one U+0020.
+5. Leading and trailing U+0020 are removed.
+
+The **match digest** is the SHA-256 of the result's UTF-8. It is stored in `record_lane.match_digest` at put, and
+`identical` is one indexed lookup with the reader, standing and key clauses, ordered by id, limited to 8.
+
+Worked example: each of these three texts has the digest
+`c714bd413a290f5b1724d67dd0b26ea3e76a93b1904daaa487f16cea4e1aec8b`:
+
+```text
+"Prune roses in late winter, before the buds swell."
+"  PRUNE roses in late<TAB>winter,<U+00A0>before the buds swell. "
+"<U+FF30>rune roses in late winter, before the buds swell."
+```
+
+A value whose normalised form is empty has no digest and is identical to nothing.
+
+Both crates are pinned exactly (section 1), and the constant `NORMALISATION_VERSION = 1` is written to `meta` as
+`lane_normalisation`. A change of either crate's tables is a new version and a run of `store-records-reindex`.
+The digest is not keyed: while a record lives, its text is beside it. A digest kept after erasure, under a key only
+the host holds, is the erasure specification's (P16).
+
+### 8.2 Words
+
+`words` is phase 0's score (`match.py`, class `Lexical`): BM25 over stemmed tokens, scaled so that a text scores 1
+against itself, taken in both directions, the lower kept. A short text inside a long one therefore scores low.
+
+**Tokens.** `umbel_store::memory::tokenizer::tokens`, over the match field. This differs from phase 0, which split
+on ASCII letters and digits and used Snowball's English stemmer: the lane takes the tokenizer the store already has
+and holds to a reference, and that also reads other scripts. Step B6 measures what the difference does to phase 0's
+rates.
+
+**Statistics**, for one text `q` and the calling reader: let the *corpus* be the records of the kind that the
+reader may read and the call admits (5.3, 6.6), **without the records `exclude` names**, not narrowed by `keys`,
+**plus `q` itself as one more record**, as phase 0's probes were members of the corpus they were scored against.
+`exclude` is how a caller says "this text is that stored record": leaving the stored one out keeps the text from
+being counted twice. `N` is the corpus's size, `L` its total tokens in the match field, `avg = L / N`, and `df(t)`
+how many of its records hold term `t`. Counting only what the reader may read is D125's rule: a record the reader
+cannot read changes no score.
+
+```text
+idf(t)       = ln(1 + (N - df(t) + 0.5) / (df(t) + 0.5))
+score(Q, D)  = sum over each distinct term t of Q that D holds:
+                 idf(t) * tf(D, t) * (k1 + 1) / (tf(D, t) + k1 * (1 - b + b * |D| / avg))
+               with k1 = 1.2, b = 0.75, |D| the tokens of D
+directed(Q, D) = score(Q, D) / score(Q, Q), or 0 when score(Q, Q) is 0
+words(q, d)  = min(directed(q, d), directed(d, q))
+```
+
+`k1` and `b` are the memory lane's (`store-embedded/src/memory/rank.rs:15`). The `idf` is tantivy's form, which
+phase 0 measured, and not FTS5's floored form, which memory uses (`rank.rs:98`): in a small store FTS5's form gives
+the floor weight to every term that more than half the records hold, and a store of short records starts small.
+All of it is `f64`, in `umbel_store::lane::score`, so every backend computes the same numbers.
+
+**Once a call**, before any text:
+
+- `N0` and `L0`, the stored part of `N` and `L`: one statement over `record_lane`, with the reader, standing and
+  exclude clauses. Each text then adds 1 and its own length.
+- An empty table of stored counts, `df0`, kept for the whole call. A term is counted at most once a call, whichever
+  text or pooled record first needs it, for at most 500 terms a statement. The statement reads every posting of
+  those terms in the kind and the field, and answers two numbers a term: `scanned`, all of them, and `df0`, those
+  whose record passes the same three clauses:
+
+  ```sql
+  SELECT t.term, COUNT(*) AS scanned, SUM(<reader, standing and exclude predicates over l>) AS df0
+  FROM record_terms t JOIN record_lane l ON l.lane = t.lane
+  WHERE t.ns = ? AND t.kind = ? AND t.field = ? AND t.term IN (?, ...)
+  GROUP BY t.term
+  ```
+
+  Each text then adds 1 to `df0` for each term it holds.
+- A running total of `scanned` over the terms the call has needed. **When it passes `STAT_POSTINGS = 4 000 000`
+  the call is refused** with `RECORD_QUERY_TOO_BROAD` and returns nothing. The total is defined over the needed
+  terms' postings and not over how they were fetched: an implementation that reads every count of the kind in one
+  grouped scan still adds only the needed terms' `scanned`, so it refuses at the same point.
+
+**What the cap bounds, plainly.** It bounds work, which is postings read, whoever may read them. Three things
+follow, and each is intended:
+
+- A reader who may read 1% of a large kind pays for all of it, and is refused at the same point as a reader of
+  everything. The reader's own share bounds nothing.
+- A call needs each term once, so its total never passes the kind's postings: inside the design bound of 100 000
+  short records, about two million postings, the cap is not reached. Past it the answer is a refusal with a code,
+  not a call that runs for minutes.
+- **This is the one place where records a reader cannot read change that reader's answer**: from an answer to a
+  refusal, never what an answer holds. A refusal tells the reader that the kind is very large, and nothing of what
+  is in it. Section 14 states it, and the differential cases of 15.1 run under the cap.
+
+**Then, for each text:**
+
+1. **Counts** for the text's distinct terms, from `df0`.
+2. **Gather order.** The text's terms that some stored record holds, by `df0` ascending, then by the term's bytes.
+3. **Gather.** Terms are taken in that order while the sum of their `df0` stays at or under
+   `GATHER_POSTINGS = 20 000`, and at least one is taken. The bound is compared with `df0`, which no key filter
+   narrows. The taken terms' postings are then read with every clause, reader, standing, key and exclude, and give
+   the *candidates*. When the first term's `df0` alone exceeds the bound, its postings are read with every clause
+   in `lane` order with `LIMIT 20 001`: more than 20 000 rows sets the result's `cut` and drops the last. Nothing
+   else sets `cut`. A record that shares only the text's commonest terms is therefore not a candidate: that is the
+   bound's purpose, and it is the same effect a stop list has.
+4. **Query direction.** For every candidate, `directed(q, d)`, using its frequencies for all of the text's terms
+   (one statement over `record_terms` for the candidates' lanes) and its length (`record_lane`'s `n` column of the
+   match field).
+5. **Pool.** The 64 candidates with the highest `directed(q, d)` at four places, ties by id ascending.
+6. **Both directions.** For each pooled record: its full term list (one statement), counts for those terms from
+   `df0`, `directed(d, q)`, and `words`.
+
+For `record_find` with `text` under order `rank`, the once-a-call part and steps 1 to 4 run over the searched
+fields, without counting the query as a record, and step 4's `score(q, d)` orders the candidates. Over several
+fields a record's frequency for a term is its sum over them, its length the sum of their token counts, and a count
+is of the records that hold the term in any of them.
+
+**What it costs.** The independent review of this document built section 5.1's tables at 100 000 records and
+measured the counts for the terms of 64 pooled records at about 1.0 second, most of it in the commonest terms.
+Without a table kept across a call's texts, a 64-text match would have paid that 64 times. With it the common
+terms are counted once, and the whole call is bounded by one pass over the kind's postings. These are estimates
+until step B6, which records, at 10 000 and 100 000 records, the time of the once-a-call part, of the counts, of
+the gather and of both directions, for 1 text and for 64, **for a reader of everything and for a reader who may
+read 1% of the kind**.
+
+**Worked example.** A reader reads five records of kind `note`, whose match fields are:
+
+```text
+n1  Prune roses in late winter, before the buds swell.
+n2  Roses are pruned in late winter before their buds swell.
+n3  Tomatoes need six hours of sun and steady watering.
+n4  Mulch keeps the soil cool and holds water through summer.
+n5  Water tomatoes at the base, never on the leaves.
+```
+
+For the text `Prune your roses in late winter before the buds swell.`, `N` is 6 and `L` is 57, and:
+
+| Record | `directed(q, d)` | `directed(d, q)` | `words` |
+| --- | --- | --- | --- |
+| `n1` | 0.8304 | 0.9578 | 0.8304 |
+| `n2` | 0.7367 | 0.6428 | 0.6428 |
+| `n5` | 0.0837 | 0.0422 | 0.0422 |
+| `n4` | 0.0587 | 0.0341 | 0.0341 |
+| `n3` | 0.0000 | 0.0000 | 0.0000 |
+
+For `PRUNE ROSES  in late winter, before the buds swell.`, `n1` is identical and scores 1.0000, and `n2` scores
+0.6714. These numbers were computed on 2026-11-11 from the formulas above with FTS5's tokens, and are the first
+rows of the conformance fixture (15.1).
+
+### 8.3 Meaning and fused
+
+When `meaning` is `served`, each text is embedded (9.4), and:
+
+```text
+meaning(q, d) = the dot product of the two unit vectors
+fused(q, d)   = w * meaning(q, d) + (1 - w) * words(q, d)       w = spaces.<id>.meaning.weight
+```
+
+The pool is then the union of step 5's 64 and the 64 records with the highest `meaning` at four places, ties by id
+ascending, found by an exact scan of the reader's vectors for the model (9.4). Every pooled record gets all three
+scores. `nearest` is the pool by `fused` descending, then id ascending, cut to `k`.
+
+When `meaning` is not `served`, `meaning` is absent from every hit, `fused` equals `words`, and the pool is step
+5's.
+
+Every score is returned rounded to four decimal places, and ordering uses the rounded values, so a difference in
+the last bits of a float never changes an order. `fused` is computed from the unrounded scores.
+
+The sum is weighted, not the reciprocal-rank fusion the phase 2 specification reserves for knowledge lanes: phase 0
+measured the weighted sum, and a rank fusion would discard the scores a plugin's bands are set on.
+
+## 9. Meaning (D166, D168)
+
+### 9.1 The trait
+
+`Embedder` is one of two trait names phase 2 reserved in `umbel-store` and left undefined (phase 2 specification,
+section 13). It is defined here. `VectorIndex` stays reserved for knowledge search.
+
+```rust
+// store/src/embed.rs
+/// `<models id>@<16 hex>`: the configured id and a digest of everything that can change its vectors.
+pub struct ModelId(String);
+
+pub enum EmbedError {
+    /// The provider could not be reached or timed out. Retryable.
+    Unavailable(String),
+    /// The provider answered something that is not `dimensions` finite numbers per text.
+    Invalid(String),
+}
+
+pub trait Embedder: Send + Sync {
+    fn model(&self) -> &ModelId;
+    fn dimensions(&self) -> usize;
+    /// One vector per text, in order. The caller scales each to length 1; a zero vector is no vector.
+    fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>, EmbedError>;
+}
+```
+
+No error message holds a text. The trait is synchronous, as the store traits are, and called from a blocking
+thread.
+
+### 9.2 Models in the configuration
+
+**None by default.** A workspace with no `[models]` table and no `[spaces.<id>.meaning]` loads no model, and
+`meaning` is `off` everywhere. This answers open decision O4 for record lanes: none by default, chosen per instance
+by its own eval. O4 stays open for knowledge search.
+
+| `models.<mid>` key | Providers | Rule |
+| --- | --- | --- |
+| `provider` | all | `static`, `onnx` or `http` |
+| `name` | all | 1 to 128 characters; the model's public name, for people and for the HTTP request |
+| `dir` | `static`, `onnx` | Relative to the workspace, resolving inside it, not under `state/` |
+| `files` | `static`, `onnx` | A table of file name to `sha256:<64 hex>`. `static`: exactly `model.safetensors`, `tokenizer.json`, `config.json`. `onnx`: exactly `model.onnx`, `tokenizer.json`, `config.json`, `special_tokens_map.json`, `tokenizer_config.json` |
+| `pooling` | `onnx` | `mean` (default) or `cls` |
+| `max_length` | `onnx` | 16 to 8192 tokens, default 512 |
+| `url` | `http` | An `https` URL. Or an `http` URL whose host is a literal loopback address, `127.0.0.0/8` or `[::1]`, never a name: a model server on the same machine. Anything else is refused when the configuration is read |
+| `dimensions` | `http` | 16 to 4096. The static provider reads its own (`StaticModel::dim`). The ONNX provider embeds the one text `dimensions` when it loads and takes the length of the answer, 16 to 4096, else the model stays unloaded |
+| `version` | `http` | Required: 1 to 64 characters. The deployer's word for which model the endpoint serves |
+| `bearer_env` | `http` | The name of an environment variable holding a bearer token; optional |
+| `timeout_ms` | `http` | 100 to 60 000, default 5 000 |
+
+The **model id** is `<mid>@` and the first 16 hexadecimal digits of the SHA-256 of the canonical JSON of the
+table, without `bearer_env` and `timeout_ms`. So a changed file digest, pooling, length, endpoint or version is a
+different model, whose vectors are not the old one's.
+
+**Model files live in the workspace and are pinned.** At start the host reads each file of each configured model,
+checks its SHA-256 against the configuration, and loads the model from those bytes. A mismatch, a missing file or a
+provider this build was not compiled with leaves the model unloaded: `meaning` is `off` for its spaces and the
+doctor's `records.meaning` fails. **The host never downloads**, at start or in a request: the static and ONNX
+providers are built without their crates' download features (section 1).
+
+| Provider | Feature | What runs |
+| --- | --- | --- |
+| `static` | `embed-static` | A token lookup table, averaged: `model2vec_rs::StaticModel::from_bytes`. No inference runtime. Phase 0 measured 17 700 statements a second for `potion-base-8M` |
+| `onnx` | `embed-onnx` | A transformer through ONNX Runtime: `fastembed::TextEmbedding::try_new_from_user_defined`, behind a `Mutex`, since its `embed` takes `&mut self`. Phase 0 measured 9 to 78 statements a second on one machine's CPU |
+| `http` | `embed-http` | `POST <url>` with `{ "model": <name>, "input": [<text>, ...] }`, and `Authorization: Bearer` when `bearer_env` is set. The answer is `{ "data": [ { "index", "embedding" }, ... ] }`. The scheme is what `url` allows; no redirect is followed; the answer is capped at 16 MiB; at most 64 texts a request |
+
+**The HTTP provider sends record text off the machine.** It is the deployer's explicit choice, the doctor warns
+about it by name every run, and it is the only path here by which a record's text leaves the host other than as an
+answer to a reader.
+
+### 9.3 Principle 4 (D168)
+
+Principle 4 says the host never calls a language model to answer a request. An embedding of the incoming text is
+within it: it produces numbers, writes no text and makes no judgment, the judgment stays with the calling model and
+the person, and the architecture already names optional local embeddings behind a provider trait
+([section 6](../../architecture.md#libraries-and-infrastructure)). This is taken on the Ideas plan's recommendation
+(its section 11, question 4), which the owner was not asked by itself. It is recorded as such, and is the owner's
+to overturn. What it costs is latency inside a request (9.2's figures) and, with the HTTP provider, a network call.
+
+### 9.4 Vectors
+
+A vector is computed after a put's write commits (4.2, step 8), scaled to length 1, and stored in
+`record_vectors` under the model id. A match embeds its texts in batches of 64, and only after its query has passed
+every check the host can make without the store's answer: the limits of 11.1, the kind, and `lane_status` saying
+the kind is not stale. So no text goes to a provider for a call that is then refused for its shape.
+
+**Search is an exact scan**: one statement reads the reader's admitted vectors of the kind for the model, with the
+key and exclude clauses, and the host takes dot products. The **design bound is 100 000 records of a kind in a
+space**. Past it nothing is refused; the doctor's `records.size` warns, and step B6 records the time at 10 000 and
+at 100 000. An index over vectors is a follow-up, to be taken only on those figures.
+
+**Missing vectors.** A record has no vector when it was written with no model loaded, under another model id, or
+when its embedding failed. For a call, `meaning` is `incomplete`, and every hit is scored by words alone, when any
+admitted record the reader may read, of the kind, with a match value, has no vector for the current model. The
+check uses the reader's records only, so a record the reader cannot read changes nothing in the answer.
+`store-records-reindex` computes what is missing and deletes the vectors of every other model; the doctor reports
+the count.
+
+## 10. The gate for a meaning lane (D167)
+
+D65's pattern, for record lanes: a lane is served only where the instance's own measurement supports it.
+
+**`store-records-eval`** (12.2) scores an instance's labelled probes by words alone and fused. A probes file is the
+deployer's, in the workspace, `schemas/record-probes.v1.json`:
+
+```json
+{ "version": 1, "space": "garden", "plugin": "notes", "kind": "note",
+  "probes": [ { "id": "p-01", "text": "Cut the roses back before spring growth starts.",
+                "duplicates": ["n1"], "self": null, "reader": null } ] }
+```
+
+`duplicates` are the ids of the stored records that are the same statement; a probe may have none. `self` is the
+record the text was taken from: it is passed as `exclude`, so it is left out of the answer and of the statistics
+(8.2). `reader` is a principal string, by default the space's `person`. At most 5 000 probes.
+
+For each probe the command runs the store's match as that reader with `k = 20`, once by words alone and once
+fused, whether or not the lane is served yet. A probe with a duplicate is a *hit* at `j` when one of its duplicates
+is among the first `j` of `nearest`. The command then checks each returned id against `record_access` by a
+separate statement: an id the reader may not read is a *leak*.
+
+It writes `evals/records/<space>/<plugin>.<kind>.json`, beside the configuration
+(`schemas/record-eval-report.v1.json`). The report holds no text:
+
+| Member | Holds |
+| --- | --- |
+| `version`, `space`, `plugin`, `kind` | 1, and what was scored |
+| `declHash`, `normalisation` | The kind's declaration hash and `NORMALISATION_VERSION` at the eval |
+| `model`, `weight`, `k` | The model id and the space's two settings at the eval |
+| `probes`, `n` | How many probes, and how many have a duplicate |
+| `hits` | `{ "words": { "1", "3", "5", "10", "20", "k" }, "fused": { the same } }`: counts of probes, never rates |
+| `leaks` | The count |
+| `records` | How many records the kind held |
+| `probesDigest`, `hostVersion`, `at` | The SHA-256 of the probes file, the host's version, the time |
+| `passed` | The command's own answer, for a person reading the file. The host does not trust it |
+
+**The rule.** With `n` the probes that have a duplicate, a report passes when all three hold:
+
+```text
+n >= 50
+hits.fused.k - hits.words.k >= max(3, ceil(0.02 * n))
+leaks == 0
+```
+
+Counts are compared, not rates, so the rule cannot pass on a rounding. At `n = 50` fused must find the duplicate
+within `k` for three more probes than words alone; at `n = 200`, four more; at `n = 500`, ten more.
+
+**Serving.** For a space, plugin instance and kind, `meaning` is `served` only when the model loaded and a report
+exists that the host itself finds to pass: it recomputes the rule from the report's counts, and requires the
+report's `declHash`, `normalisation`, `model`, `weight` and `k` to equal the kind's declaration hash, the build's
+normalisation version and the space's configuration. A report bound to anything else is not this lane's. Otherwise
+`meaning` is `off`, matching is by words, and the doctor's `records.meaning` says why. Vectors are written whenever
+a model is loaded, gate or no gate, so that the eval has something to score.
+
+**When the report is read.** When a host process starts, for every space, instance and kind; and again by
+`store-records-reindex` for the kinds it rebuilt, since a rebuild after a changed declaration unbinds the report.
+Every `umbel` command is its own process, so it reads the report as it stands. A server already running serves by
+what it read at its start, and is restarted after an eval.
+
+**Going stale.** A report does not expire by date. The doctor's `records.meaning` warns when a kind holds more than
+four times the `records` its report names: a duplicate falls further down the list as a store grows, so recall
+measured on a small store says little about a large one.
+
+The order of work for a deployer is therefore: configure the model, run `store-records-reindex`, run
+`store-records-eval`, read the report, restart the server.
+
+**Phase 0's figures are indicative only.** Across documents, on 35 probes with a duplicate, words alone found the
+duplicate within five for 0.886 of them (31), and words fused with a model for between 0.914 (32) and 0.971 (34),
+with labels made by models and weights chosen on the same labels. **None of that would pass this gate**: 35 is
+under 50, and the static model, `potion-base-8M`, found one more probe than words alone, where the rule asks for
+three. Whether a static model is worth its lane is exactly what an instance's own 50 probes are for.
+
+## 11. Traits and the SDK
+
+### 11.1 `umbel-store`
+
+`store/src/lane.rs` holds the shared types, so the host, the SDK and every backend name the same ones. `extract`,
+`normalise` and `score` are pure functions there, so every backend refuses alike and scores alike, as
+`check_record` does today (`store/src/document.rs:439`). The crate still builds for `wasm32-wasip2`.
+
+```rust
+pub const MAX_RECORD_KINDS: usize = 16;
+pub const MAX_TEXT_POINTERS: usize = 4;
+pub const MAX_KEY_POINTERS: usize = 16;
+pub const MAX_POINTER_BYTES: usize = 128;
+pub const MAX_LANE_TEXT_BYTES: usize = 16 * 1024;
+pub const MAX_KEY_VALUES: usize = 64;
+pub const MAX_KEY_VALUE_BYTES: usize = 256;
+pub const MAX_EVIDENCE_UNITS: usize = 256;
+pub const MAX_FIND_LIMIT: u32 = 200;
+pub const MAX_FIND_QUERY_CHARS: usize = 1024;
+pub const MAX_KEY_FILTERS: usize = 8;
+pub const MAX_MATCH_TEXTS: usize = 64;
+pub const MAX_MATCH_K: u32 = 20;
+pub const MAX_MATCH_EXCLUDE: usize = 64;
+pub const MAX_IDENTICAL: usize = 8;
+pub const GATHER_POSTINGS: u64 = 20_000;
+pub const STAT_POSTINGS: u64 = 4_000_000;
+pub const MATCH_POOL: usize = 64;
+pub const LANE_DESIGN_RECORDS: u64 = 100_000;
+pub const NORMALISATION_VERSION: u32 = 1;
+
+pub struct Pointer(String);                       // parse, as_str, get(&Value) -> Option<&Value>
+pub struct RecordDecl {
+    pub kind: String,
+    pub standing: bool,
+    pub text: Vec<Pointer>,
+    pub keys: Vec<Pointer>,
+    pub matched: Option<usize>,                   // an index into `text`
+}
+impl RecordDecl {
+    pub fn check(&self) -> Result<()>;            // section 2's rules
+    pub fn hash(&self) -> ContentHash;            // of {"keys","kind","match","standing","text"}, canonical
+}
+
+pub struct Extracted {
+    pub texts: [Option<String>; 4],
+    pub keys: Vec<(u8, String)>,                  // (key position, value), sorted, distinct
+    pub wording_hash: Option<ContentHash>,
+    pub match_digest: Option<[u8; 32]>,
+    pub terms: Vec<(u8, String, u32)>,            // (field position, term, frequency)
+    pub lengths: [u32; 4],
+}
+pub fn extract(decl: &RecordDecl, body: &Value) -> Result<Extracted>;   // Invalid names the pointer
+
+pub enum Standing { Unverified, Attested, Affirmed }                    // serialised in lower case
+pub struct Evidence {
+    pub doc: DocId,
+    pub doc_hash: ContentHash,
+    pub units: Vec<u32>,                          // 1 to 256, each at least 1, ascending, distinct
+    pub rule: String,                             // ^[a-z][a-z0-9-]{0,62}/[0-9]{1,6}$, such as sentences/1
+    pub speaker: Option<String>,                  // 1 to 128 characters, no control character
+    pub verbatim: bool,
+}
+pub struct LaneWrite {
+    pub evidence: Option<Evidence>,               // None leaves the stored evidence
+    pub flags: Vec<MemoryFlag>,
+    pub model: Option<ModelId>,                   // the space's loaded model, if any
+}
+pub struct DeclaredPut {
+    pub meta: RecordMeta,
+    pub embed: Option<[u8; 32]>,                  // the match digest to embed for, when `model` has no vector
+}
+
+pub struct OwnCollection { pub id: String, pub speaker: Option<String> }
+/// What the host derives from the configuration for one call. Only the host builds one.
+pub struct StandingView {
+    pub own: Vec<OwnCollection>,
+    pub command_writable: Vec<String>,            // the space's collections a command can write files into
+    pub admit: Vec<Standing>,                     // 6.6's `admitted`
+}
+
+pub enum OwnBasis { Collection, Marked }
+pub struct Affirmation { pub by: String, pub at: String, pub assurance: Assurance }
+pub struct LabelSource {
+    pub basis: OwnBasis,
+    pub seen: Option<SourceSeen>,                 // None when the reader may not read the document
+}
+pub struct SourceSeen {
+    pub doc: DocId,
+    pub content_hash: ContentHash,
+    pub speaker: Option<String>,
+    pub units: Vec<u32>,
+    pub rule: String,
+    pub stored_at: String,
+    pub generated_at: Option<String>,
+}
+pub struct StandingLabel {
+    pub standing: Standing,
+    pub affirmed: Option<Affirmation>,
+    pub source: Option<LabelSource>,
+}
+pub struct LaneRecord {
+    pub record: Record,
+    pub created_at: String,
+    pub flags: Vec<MemoryFlag>,
+    pub label: Option<StandingLabel>,             // None for a kind without standing
+}
+impl LaneRecord { pub fn to_json(&self) -> Value; }                     // section 6.5's shape
+
+pub struct KeyFilter { pub key: Pointer, pub any: Vec<String> }
+pub enum FindOrder { Id, Recent, Rank }
+pub struct TextQuery { pub query: String, pub fields: Vec<Pointer> }
+pub struct RecordFind {
+    pub kind: String,
+    pub keys: Vec<KeyFilter>,
+    pub standings: Vec<Standing>,
+    pub verified_only: bool,
+    pub text: Option<TextQuery>,
+    pub order: FindOrder,
+    pub after: Option<String>,
+    pub limit: u32,
+    pub total: bool,
+}
+pub struct FindPage {
+    pub items: Vec<LaneRecord>,
+    pub next: Option<String>,
+    pub total: Option<u64>,
+    pub admitted: Vec<Standing>,
+    pub cut: bool,
+}
+
+pub struct RecordMatch {
+    pub kind: String,
+    pub texts: Vec<String>,
+    pub k: u32,
+    pub keys: Vec<KeyFilter>,
+    pub standings: Vec<Standing>,
+    pub verified_only: bool,
+    pub exclude: Vec<String>,
+}
+/// The incoming texts' unit vectors, one per text, which the host computed.
+pub struct MatchVectors { pub model: ModelId, pub weight: f64, pub vectors: Vec<Vec<f32>> }
+pub struct MatchHit {
+    pub id: String,
+    pub rev: Rev,
+    pub text: String,                             // the match field's value
+    pub flags: Vec<MemoryFlag>,
+    pub label: Option<StandingLabel>,
+    pub words: Option<f64>,                       // None in `identical`
+    pub meaning: Option<f64>,
+    pub fused: Option<f64>,
+}
+pub struct MatchResult { pub identical: Vec<MatchHit>, pub nearest: Vec<MatchHit>, pub cut: bool }
+pub enum MeaningState { Served(ModelId), Off, Incomplete, Failed }
+pub struct MatchPage {
+    pub results: Vec<MatchResult>,
+    pub admitted: Vec<Standing>,
+    pub meaning: MeaningState,
+}
+
+pub enum Decision { Affirm, Withdraw }
+pub struct RecordDecision {
+    pub decision: Decision,
+    pub by: String,
+    pub at: String,
+    pub assurance: Assurance,
+    pub trace_id: Option<String>,
+}
+pub struct OwnMark {
+    pub doc: DocId,
+    pub doc_hash: ContentHash,
+    pub speaker: Option<String>,
+    pub by: String,
+    pub at: String,
+    pub assurance: Assurance,
+    pub trace_id: Option<String>,
+}
+pub struct OwnInfo {
+    pub basis: OwnBasis,
+    pub speaker: Option<String>,
+    pub content_hash: ContentHash,
+    pub stored_at: String,
+    pub generated_at: Option<String>,
+}
+
+pub enum LaneState { Ready, Stale }
+pub struct LaneStatus {
+    pub state: LaneState,
+    pub stored: Option<String>,                   // the stored declaration's canonical JSON, if any
+    pub affirmed: u64,                            // records affirmed now
+    pub evidence: u64,                            // evidence rows
+    pub records: u64,                             // records of the kind
+    pub unindexed: u64,                           // of those, without a lane row
+    pub with_match: u64,
+    pub vectors: BTreeMap<String, u64>,           // by model id
+}
+pub struct ReindexReport {
+    pub records: u64,
+    pub unindexed: u64,
+    pub wordings_changed: u64,                    // records that lost their affirmation and evidence
+    pub superseded: bool,                         // the generation moved: the kind is still stale (12.1)
+    pub vectors_written: u64,
+    pub vectors_removed: u64,
+}
+```
+
+`DocumentStore` (`store/src/traits.rs:20`) gains eleven methods. They are required, not defaulted: a backend
+implements the lane or does not pass the suite. `put_record`, which exists, gains one duty: it sets the stale mark
+of a kind that has a `record_kinds` row (section 2).
+
+```rust
+fn put_declared_record(&self, ns: &str, decl: &RecordDecl, id: &str, body: Value, envelope: Envelope,
+    expect: Expect, lane: LaneWrite, writer: &ReaderFilter) -> Result<DeclaredPut>;
+/// Store `vector` for the record if its match digest is still `digest`; whether it was stored.
+fn put_record_vector(&self, ns: &str, decl: &RecordDecl, id: &str, digest: &[u8; 32], model: &ModelId,
+    vector: Vec<f32>) -> Result<bool>;
+fn read_record(&self, ns: &str, decl: &RecordDecl, id: &str, view: &StandingView,
+    reader: &ReaderFilter) -> Result<Option<LaneRecord>>;
+fn find_records(&self, ns: &str, decl: &RecordDecl, query: &RecordFind, view: &StandingView,
+    reader: &ReaderFilter) -> Result<FindPage>;
+/// `Served` or `Incomplete` when `vectors` is given, `Off` otherwise; the host sets `Failed`.
+fn match_records(&self, ns: &str, decl: &RecordDecl, query: &RecordMatch, vectors: Option<&MatchVectors>,
+    view: &StandingView, reader: &ReaderFilter) -> Result<MatchPage>;
+fn decide_record(&self, ns: &str, decl: &RecordDecl, id: &str, decision: RecordDecision,
+    view: &StandingView, reader: &ReaderFilter) -> Result<StandingLabel>;
+fn mark_document_own(&self, mark: OwnMark, reader: &ReaderFilter) -> Result<Rev>;
+fn unmark_document_own(&self, doc: &str, at: &str, trace_id: Option<&str>,
+    reader: &ReaderFilter) -> Result<Rev>;
+fn document_own(&self, doc: &str, view: &StandingView, reader: &ReaderFilter) -> Result<Option<OwnInfo>>;
+/// Rebuild one kind's lane from its `records` rows (12.1). `scan` is the host's write scan.
+fn reindex_records(&self, ns: &str, decl: &RecordDecl, scan: &dyn Fn(&str) -> Vec<MemoryFlag>,
+    embedder: Option<&dyn Embedder>, vectors_only: bool) -> Result<ReindexReport>;
+fn lane_status(&self, ns: &str, decl: &RecordDecl) -> Result<LaneStatus>;
+```
+
+`StoreError` (`store/src/error.rs:8`) gains `LaneStale`, `WordingFixed`, `EvidenceInvalid(String)` and
+`LaneTooBroad { limit: u64 }`.
+`ChangeKind` gains `Standing`. `STORE_TRAITS_VERSION` becomes 3.
+
+### 11.2 The SDK
+
+`sdk/src/records.rs` adds to `Cx`, and to `SpaceCx` with the space bound. The three read methods are also on
+`Reader`, through the `reads!` macro (`sdk/src/store.rs:118`). `HostServices` (`sdk/src/cx.rs`) gains the same
+eight, each defaulting to `not_granted`, as its record methods do today (`cx.rs:483`).
+
+```rust
+pub fn record_put_cited(&self, space: &str, kind: &str, id: &str, body: Value, envelope: Envelope,
+    expect: Expect, evidence: Evidence) -> Result<RecordMeta, HostError>;
+pub fn record_read(&self, space: &str, kind: &str, id: &str, standings: &[Standing],
+    verified_only: bool) -> Result<Option<LaneRecord>, HostError>;
+pub fn record_find(&self, space: &str, query: &RecordFind) -> Result<FindPage, HostError>;
+pub fn record_match(&self, space: &str, query: &RecordMatch) -> Result<MatchPage, HostError>;
+pub fn record_decide(&self, space: &str, kind: &str, id: &str,
+    decision: Decision) -> Result<StandingLabel, HostError>;
+pub fn doc_own_mark(&self, space: &str, doc: &str, content_hash: &ContentHash,
+    speaker: Option<&str>) -> Result<Rev, HostError>;
+pub fn doc_own_unmark(&self, space: &str, doc: &str) -> Result<Rev, HostError>;
+pub fn doc_own(&self, space: &str, doc: &str) -> Result<Option<OwnInfo>, HostError>;
+```
+
+The host's side is `src/plugins/record_services.rs`. For each call it builds the reader filter as every store read
+does (`CallServices::filter`, `store_services.rs:118`) and the `StandingView` from the space's configuration
+(its own collections, its command-writable ones, and 6.6's `admitted`). It embeds a put's text after the store has
+written it, and a match's texts after the query has passed its checks (9.4). A component and a mounted server
+reach none of this: WIT world 1.0.0 has no such function, and they cannot declare a kind.
+
+## 12. Built-ins, the doctor and `workspace-show`
+
+Both commands are host built-ins in the `store` domain, exposed to the CLI only, for the operator only
+(`operator_only`, `src/commands/mod.rs:117`), and journaled as a digest that keeps their inputs, none of which is
+content. Both join `UNPROJECTED_MUTATIONS` (`src/middleware.rs:81`): they change no record and make no event.
+
+### 12.1 `store-records-reindex`
+
+Input `{ space, plugin?, kind?, vectorsOnly?: false }`. For each loaded instance and declared kind it names, in
+the space, it calls `reindex_records`:
+
+1. Unless `vectorsOnly`, the rebuild, **in chunks, so the write lock is never held for a whole kind**:
+   1. One short transaction sets the kind's stale mark and adds one to its generation, inserting its
+      `record_kinds` row if there is none, and the rebuild remembers the generation it wrote. From here every lane
+      service on the kind answers `RECORD_LANE_STALE` until step 1.4, whether or not it was stale before: a kind
+      being rebuilt is offline, and everything else in the store is not.
+   2. One read, outside any write transaction: for the records of the kind that have no lane row, their first
+      revision and its time, by **one grouped scan** of `changes`
+      (`SELECT target, MIN(rev), at FROM changes WHERE kind = 'record' GROUP BY target`, kept for the kind's
+      targets). `changes` has no index on `target`, so this is one pass over the log and never a lookup a record.
+   3. The kind's `records` rows, by id, 1 000 to a `BEGIN IMMEDIATE` transaction. For each: `extract` it; write
+      its lane row, replacing its terms and keys. A row with no lane row yet takes `created_rev` and `created_at`
+      from step 1.2, else from its own revision and envelope. A body that `extract` refuses under the declaration
+      is left without lane rows and counted as `unindexed`. **For a standing kind, a record whose wording hash is
+      not the one its lane row held loses its standing**: `affirmed_seq` is cleared, its evidence row is deleted,
+      its vectors are deleted, and it is counted in `wordings_changed`. Access sets are not touched: a record
+      written before the kind was declared keeps the access the plugin gave it.
+   4. One short transaction reads the generation. **Only if it is still the one step 1.1 wrote** does it write the
+      declaration to the `record_kinds` row and clear the stale mark. If it moved, an undeclared put from another
+      process or another rebuild ran during the chunks: the kind stays stale, the report says `superseded`, and the
+      command's result carries the warning `RECORD_LANE_STALE` with "run it again". So a write the rebuild did not
+      see is never forgotten.
+
+   A rebuild that stops part-way leaves the kind stale, and running it again finishes it: each chunk is whole, and
+   rewriting a record's lane rows twice gives the same rows. Two rebuilds at once are safe for the same reason, and
+   the one that started first reports `superseded`.
+2. Vectors, outside any long transaction: for each record with a match value and no vector for the space's model,
+   embed in batches of 64 and write each batch in its own transaction. Delete the vectors of every other model.
+3. Read the kind's gate report again (10) and say in the output whether the lane is served.
+
+Output: per kind, the `ReindexReport` and `meaning`. Failures: `RECORD_KIND_NOT_DECLARED`, `STORE_BUSY`. When the
+space configures a model that did not load, step 2 is skipped: with `vectorsOnly` that is the failure
+`RECORD_MODEL_UNAVAILABLE`, since nothing was done; without it the rebuild succeeded, and the same code is a
+warning on the result.
+
+**What it costs.** The independent review measured the rebuild of one kind at 100 000 records at about 8 seconds
+in one transaction. In chunks of 1 000 no writer waits longer than one chunk, about a tenth of a second on that
+figure. Step B6 records the real times.
+
+### 12.2 `store-records-eval`
+
+Input `{ space, plugin, kind, probes }`, where `probes` is a path relative to the workspace, inside it and not
+under `state/`, of at most 16 MiB. It does what section 10 says and returns the report it wrote. Failures:
+`RECORD_KIND_NOT_DECLARED`, `RECORD_PROBES_INVALID` (naming the first rule broken and the probe's id, never its
+text), `RECORD_MODEL_UNAVAILABLE` (no model configured for the space, or it did not load: always a failure here,
+since there is nothing to score), `RECORD_LANE_STALE`.
+
+### 12.3 Doctor checks
+
+| Check | Passes when | Otherwise |
+| --- | --- | --- |
+| `records.declared` | Every declared kind of every loaded instance is `Ready` in each of its spaces, with no unindexed record | `fail` for a stale kind, naming it and `umbel store-records-reindex`. **For a standing kind whose stored `text` or `standing` differs from the manifest's, it adds that the rebuild will remove its affirmations and evidence rows, with both counts** (section 2); `warn` for unindexed records, with the count |
+| `records.standing` | Every space where a standing kind is enabled has a `person` | `warn`: no record there can be affirmed or attested. It also lists each space's own collections, its command-writable ones and `verified_admits` |
+| `records.meaning` | No space configures a model; or each configured model loaded, has no missing vector, and has a passing report for each kind with a match field | `fail` for a file whose digest differs, a missing file, or a provider not compiled in; `warn` for a missing report, one that does not pass or is bound to another declaration, normalisation, model, weight or `k`, saying which; for a kind that holds more than four times the records its report names; and for missing vectors, with the count. **Always `warn` for an `http` model, naming the host record text is sent to** |
+| `records.size` | No kind holds more than 100 000 records in a space | `warn`, naming the kind and the count |
+
+### 12.4 `workspace-show` and `plugin-show`
+
+`workspace-show`'s `versions` (`src/commands/workspace_show.rs:125`) gain `manifest: [1, …, 6]`,
+`config: [1, …, 6]` and `store: 3`. Each space it lists gains `person` (whether one is set, not who, for a caller
+who is not the operator), `verifiedAdmits`, the ids of its own collections, and `meaning`: the
+model id and, per
+`<plugin>.<kind>`, whether it is served. `plugin-show` lists an instance's declared kinds with their pointers.
+
+## 13. Failures
+
+A host service answers `HostError` (`sdk/src/cx.rs:158`), which has a variant and a message and no suggestion.
+The message begins with the code, as `STORE_WRITE_NOT_ALLOWED` does today (`store_services.rs:27`). The last
+column is what the calling plugin's own failure should suggest; the plugin's specification fixes its wording. No
+message, detail or log line holds a record's text or a key's value.
+
+| Code | Variant | When | Message after the code | The plugin should suggest |
+| --- | --- | --- | --- | --- |
+| `RECORD_KIND_NOT_DECLARED` | `Invalid` | A lane service on a kind the instance's manifest does not declare, or `record_match` on one with no `match` | `the kind <kind> is not a declared record kind of <instance>` | Nothing to a caller: a plugin fault |
+| `RECORD_KIND_STANDING` | `Invalid` | `record_get` or `record_list` on a standing kind | `<kind> is a standing kind: read it with record_read or record_find, which label it` | A plugin fault |
+| `RECORD_KIND_NOT_STANDING` | `Invalid` | `record_put_cited` or `record_decide` on a kind without standing | `<kind> is not a standing kind` | A plugin fault |
+| `RECORD_PRINCIPAL_REQUIRED` | `Invalid` | A put with no effective principal | `a declared record needs a caller with an effective principal` | Call as an identified principal |
+| `RECORD_FIELD_INVALID` | `Invalid` | 4.2, step 4 | `the value at <pointer> must be <rule>` | Fix the field named |
+| `RECORD_WORDING_FIXED` | `Invalid` | 4.3 | `the wording of a standing record never changes; write a new record` | Capture the new wording as a new record |
+| (none) | `Conflict { current: None }` | A put on an existing record the writer may not read (4.2, step 7.2) | | Use another id |
+| `RECORD_EVIDENCE_INVALID` | `Invalid` | The evidence's shape, or its document is absent, unreadable by the writer or has another content hash | `the evidence is not acceptable: <which rule>` | Read the document again and cite its current content |
+| `RECORD_LANE_STALE` | `Invalid` | Section 2, any of four: the declaration changed; records predate it; a record was written while the kind was undeclared; **a rebuild is under way** | `the lane of <kind> is being rebuilt or must be rebuilt` | Retry once after a few seconds: a rebuild in chunks ends by itself. If it is still refused, ask the operator to run `umbel store-records-reindex`. The plugin's failure is retryable |
+| `RECORD_QUERY_INVALID` | `Invalid` | A find or match query that breaks a rule of section 7 or 8 | `<which rule>` | Fix the field named |
+| `RECORD_QUERY_TOO_BROAD` | `Invalid` | A match, or a ranked find, whose counts pass `STAT_POSTINGS` (8.2). Nothing is returned | `the call counts more than <limit> postings` | Match fewer texts in one call; if one text does it, tell the operator the kind is past its design size |
+| `RECORD_DECISION_NOT_GATED` | `NotGranted` | 6.1, check 2 | `a decision on standing is made only inside a call a person decided` | Call the plugin's review command on its own and have the person decide it |
+| `RECORD_DECISION_NOT_THE_PERSON` | `NotGranted` | 6.1, check 3 | `only the space's person decides standing here` | Have the space's person decide, or ask the operator to set the space's `person` |
+| `STORE_OWN_SOURCE_MISMATCH` | `Invalid` | Section 3, rule 2 | `a document of a collection named as the person's own must equal its file on disk` | Run the sync again |
+| `STORE_OWN_MARK_REFUSED` | `NotGranted` | 6.2, checks 3 and 4 | `a document can be marked as the person's own only where no command writes files`, or `only when it equals its file on disk` | Tell the person this document cannot be marked: it lies where commands write, or is not the synced file. Sync again if the file changed |
+
+A record that is absent, unreadable or not admitted is `None` from `record_read`, without saying which. A record
+or document that is absent or unreadable is `NotFound` from `record_decide`, `doc_own_mark` and `doc_own_unmark`,
+without saying which; what a call admits plays no part there. `StoreError::LaneStale`, `WordingFixed`,
+`EvidenceInvalid` and `LaneTooBroad` map to the codes above in `host_error` (`src/store/mod.rs:116`); every other
+store error maps as today.
+
+One code covers a kind that waits for a rebuild and one in the middle of one, on purpose. The store cannot tell a
+rebuild that is running from one that stopped: the stale mark is all either leaves. A second code would tell
+callers to wait for a rebuild that had died. So the one code says both, and the suggestion is to retry once and
+then ask.
+
+The two built-ins answer `CommandError`s, with a suggestion as AFD requires:
+
+| Code | When | Retryable | Suggestion |
+| --- | --- | --- | --- |
+| `RECORD_KIND_NOT_DECLARED` | The plugin instance is not loaded for the space, or declares no such kind | No | List the instance's declared kinds with `umbel plugin-show <plugin>` |
+| `RECORD_PROBES_INVALID` | The probes file is missing, too large, not valid against `record-probes.v1.json`, or names another space, plugin or kind | No | Fix the file at the place the message names and run the command again |
+| `RECORD_MODEL_UNAVAILABLE` | `store-records-eval`, and `store-records-reindex` with `vectorsOnly`: no model is configured for the space, or it did not load. On a full `store-records-reindex` the same code is a warning on a successful result | No | Run `umbel workspace-doctor` and fix what `records.meaning` reports |
+| `RECORD_LANE_STALE` | The kind is stale | No | Run `umbel store-records-reindex` first |
+
+## 14. Security
+
+| Threat | Handling |
+| --- | --- |
+| An agent claims standing for its own write | No input of any service is read as standing. A decision row needs the person gate's proof for this call and this input (6.1); attested needs a document the host stores, at the cited hash, that is the person's own now (6.3). A body's fields are the plugin's |
+| An agent rewrites words a person affirmed | The wording of a standing record never changes (D160). A plugin version that drops the declaration to edit a wording leaves the kind stale, and the rebuild takes the standing from every record whose wording changed (section 2, 12.1) |
+| A compiled plugin sets `verbatim` wrongly | Possible: it is trusted code (D42, D162). The evidence records what it compared, so a replay finds it. Components cannot declare a kind |
+| A command's input becomes "the person's own" file | A collection cannot be `own` while it is command-writable, **in any space that shares its directory**, and a document put there must equal its file (section 3). Outside this, and stated: a shell on the machine, and files written there before the collection stopped being command-writable |
+| A command's input becomes the person's own by a mark | A mark is refused on a document whose collection is command-writable, and on one that is not its file on disk; a mark stops counting when its collection becomes command-writable (6.2). So an applied proposal cannot be marked while its collection is one. **Judged on the configuration now**: a file written while a collection was command-writable, and left after the allow was removed, passes; that is the deployer's (section 3) |
+| A person's mark is replayed onto other content | A mark names the content hash the person was shown and stops matching when the document changes (6.2) |
+| A reader learns of records it may not read | The reader clause is in every statement; statistics, totals, candidates and the missing-vector check count only the reader's records (5.3, 8.2, 9.4). The suite's differential cases hold it (15.1) |
+| A reader learns of a document it may not read, through a label | When the reader may not read the cited document, the label's source is `basis` alone: no id, hash, date, speaker, unit or rule (6.5). **One bit remains, and is accepted**: whether a record the reader can read is attested by a document it cannot. That bit moves when the unseen document is changed, deleted, marked or unmarked, and moves the record in and out of 6.6's filter and its totals. It says that some own document backs this wording now, and nothing of which. The alternative, reading such a record as unverified for that reader, would make standing differ by reader |
+| Record text reaches the journal or the event log | The host's services write no text to the journal, to an event or into an error. Text-derived envelope fields are removed from the event of a lane writer, as for a memory writer (`middleware.rs:590`, with `GateEntry.lane_writer`). **A command's own input and result are journaled as its manifest declares** (D72): under `digest` no text, under `plain` as they are. The host makes a plugin that declares a kind state a mode on every command (section 2); choosing `digest` for each command that carries record text is the plugin's, and its specification must hold it to that |
+| Stored text carries instructions | Scanned at put and flagged on every read (4.2, step 5). A net, not a guarantee (D75) |
+| Record text leaves the machine | Only through the `http` provider, which the deployer configures by name and the doctor warns about every run (9.2). A put's text is sent only after the record was written, and a match's only after its query passed its checks (4.2, 9.4), so a refused call sends nothing |
+| A model file is swapped | Files are pinned by SHA-256 and checked at start; a changed digest is a different model id, whose vectors are not served (9.2) |
+| A lane is turned on by a report that no longer describes it | The host recomputes the rule from the report's counts and binds it to the declaration, the normalisation, the model, the weight and `k`; the doctor warns at four times the records (10) |
+| A large query exhausts the host | 64 texts of 16 KiB, a 20 000-posting gather, 4 000 000 postings read a call, whoever may read them, with a refusal past it, a pool of 64, pages of 200, a stated bound of 100 000 records for the vector scan (11.1) |
+| A rebuild blocks every writer | It runs in chunks of 1 000 records, and only its own kind is offline while it runs (12.1) |
+| The work cap tells a reader of hidden records | Past `STAT_POSTINGS` a call is refused whatever the reader may read, so a refusal says the kind is very large. It is the one place where records a reader cannot read change its answer, it changes an answer into a refusal and nothing else, and it is reached only past the design size (8.2) |
+| One space reads another's records | Every table is in the space's own `store.sqlite3`; the services refuse a space outside the call's, as today |
+
+What this does not defend: a compiled plugin that lies (it runs in the host), and a shell on the host's machine.
+Both are D42's and D74's stated limits.
+
+## 15. Conformance and tests
+
+### 15.1 The suite (D170)
+
+Three groups join `GROUPS` (`store/src/conformance/mod.rs:297`), after `records`. With phase 2's nine and
+memory's nine that is 21. Phase 6's specification plans sixteen more; the two sets do not overlap.
+
+| Group | File | Cases |
+| --- | --- | --- |
+| `lane` | `conformance/lane.rs` | A declared put writes its lane rows and an undeclared put writes none; `extract`'s refusals, each naming the pointer; a put is found by the next read on another handle; key filters, any-of within a key and all-of across keys; the three orders and their cursors, page by page to the end; totals under each order; ids ordered by bytes, with non-ASCII and case-differing ids; a text query's order against the fixture; `cut` only when the rarest term's postings pass the bound after every clause, and not when a key filter brings them under it; a kind with a changed declaration refuses every service and `reindex_records` clears it; **an undeclared `put_record` on a kind that has a declaration row makes it stale**; a rebuild stopped after a chunk leaves the kind stale and a second run finishes it; `put_record_vector` stores for the digest embedded and not for another; **differential**: every read repeated after records the reader cannot read are written, changed and reindexed is byte-identical |
+| `standing` | `conformance/standing.rs` | A standing record reads `unverified`; wording is fixed and keys are not; affirm, withdraw, and both repeated; a decision's change row; attested by an own collection, by a mark, by both (`collection`), and by neither; the speaker must agree; a changed document lapses attestation and a second `put_declared_record` with evidence restores it; unmark lapses it; a mark on a document whose collection the view names command-writable does not count; a rebuild after a wording was changed while undeclared clears the affirmation and the evidence; `admit` narrows `read_record`, `find_records` and `match_records`, totals and statistics included; evidence naming an absent or unreadable document, or another hash, is refused; **for a reader who cannot read the cited document, the label's source is `basis` and nothing else**; **differential**: every read repeated after documents the reader cannot read, and that no record it reads cites, are written, changed, marked and deleted is byte-identical; and after the same is done to an unreadable document that a readable record cites, the only difference is that record's standing and `basis`, and its place in a filter or total |
+| `matching` | `conformance/matching.rs` | The digest of each fixture text; `identical` under whitespace, case and width changes; the `words` score of every fixture pair to four places, in both orders of put; an empty lane; a text with no token; `exclude` leaves a record out of both lists and out of the statistics, so a stored text matched with itself excluded scores as if it were not stored; counts are the same whether one text or 64 are matched in a call; `LaneTooBroad` past `STAT_POSTINGS`, with the constant lowered for the case, reached by postings the reader cannot read as well as by ones it can, and at the same point however the counts are fetched; the pool and `k`; ties by id; with `MatchVectors`, `meaning` and `fused` to four places and the order by `fused` then id; `Incomplete` when one readable record lacks a vector, and `Served` when only an unreadable one does; **differential**, as for `lane`, on scores |
+
+Fixtures are `store/fixtures/lane/records.json` (the records, each with its access set, the texts to match, and the
+expected digests and scores, starting with section 8.1's and 8.2's) and `store/fixtures/lane/vectors.json` (a
+four-dimension vector for each record and text). Every fixture text is invented and about gardening. The suite
+never loads a model: it passes vectors in. A helper test, `store/tests/lane_fixture.rs`, recomputes every expected
+score from `umbel_store::lane::score` and the tokenizer, so the fixture cannot drift from the formulas.
+
+**Versions.** The store traits and the suite become version 3, and the workspace configuration version 6. Phase 6
+names the same two numbers (section 1): the second to land renumbers. The PostgreSQL backend must implement the
+eleven methods and pass the three groups; that is a [follow-up](#follow-ups), because phase 6's specification, which is
+not edited here, was written before them.
+
+### 15.2 Other tests
+
+| File | Proves |
+| --- | --- |
+| `store/tests/lane_normalise.rs` | The five steps of 8.1, each alone and together; the pinned Unicode versions |
+| `store/tests/lane_score.rs` | 8.2's formulas against hand-computed cases; that a text scores 1 against itself; rounding |
+| `store-embedded/tests/lane_schema.rs` | A version 1 store opens as version 2 with its records intact; every table and index of 5.1; a build constant for the schema version |
+| `store-embedded/tests/lane_delete_bytes.rs` | After a `records` row is deleted and the log checkpointed, neither file holds the record's text, a term of it, a key value or its vector (the seam for erasure, 5.2) |
+| `store-embedded/tests/conformance.rs` | The whole suite, the three groups included |
+| `tests/manifest_v6.rs` | Section 2: every rule and its message; versions 1 to 5 refuse `records`; the schema file accepts and refuses the same manifests |
+| `tests/config_v6.rs` | Section 3: every key, its default and its refusal; `own` refused on a command-writable collection: covered itself, covered through `<space>/*`, and **covered only through a collection of another space whose root is the same directory, contains it or lies inside it, as written and through a symbolic link**; versions 1 to 5 refuse the keys |
+| `tests/records_put.rs` | 4.2, step by step: the access set and authority the host fills whatever the plugin sends; the scan's flags; the event of a writing command holds no text, and the journal entry of one declared `digest` holds none; a stub provider is called for a put that committed and has a match value, and is not called for a put refused for its wording, its evidence or its `expect`, nor for one that changed only keys |
+| `tests/records_standing.rs` | 6.1's four checks: at a terminal with and without the confirmed mark, as `tests/require_human.rs` does it; another command's mark; a `Services::call` with no command; a caller who is not the space's person. 6.2's marks, each of its four checks: a document of a command-writable collection, and one written by `doc_put` with no file, are refused. A decision and a mark appear in `dev.umbel/changes`; a repeated one does not. A call's `verified_only` with each `verified_admits`, and a call that asks for a standing outside it gets less; a decision reaches an unverified record whatever a read would admit; no space key asks for every read. `record_get` on a standing kind is refused |
+| `tests/records_person_page.rs` | With `umbel-testkit-idp`: a decision on the person page for a `mcp = "verified"` command affirms; the same mark with another input does not |
+| `tests/records_own_source.rs` | Section 3, rule 2: a put that equals the file is stored; one that differs is refused; a collection that is not own is unchanged |
+| `tests/records_find.rs`, `tests/records_match.rs` | Sections 7 and 8 through the SDK, on a fixture plugin |
+| `embed/tests/providers.rs` | Each provider behind its feature: the static provider on a small model built in the test; the HTTP provider against a local server, with its refusals; the ONNX provider only where a model file is given by an environment variable, skipped otherwise |
+| `tests/records_meaning.rs` | 9.2's digest check and model id; an `http` URL to a name is refused and to `127.0.0.1` is not; a put writes a vector; a failed embed does not fail the put; a match with a bad query calls no provider; `store-records-reindex`, its chunks and its warning and failure for an unloaded model; 10's serving rule in each state, with a stub `Embedder`: a report bound to another declaration hash, normalisation, model, weight or `k`, and one whose `passed` is true and whose counts do not pass |
+| `tests/records_eval.rs` | `store-records-eval` on a fixture: the report's counts, a leak counted, the rule on each side of each threshold (49 and 50 probes; two and three more hits at 50; three and four at 200), `self` left out of the statistics, a probes file that breaks each rule; the doctor's warning at four times the records |
+| `tests/records_exit.rs`, `tests/records_scale.rs` | Step B6 |
+
+## 16. Implementation plan
+
+This is the Ideas plan's phase B (D171). Each step is one pull request with its tests. "The Umbel gate" is the
+command list in `AGENTS.md` for a change under `endpoints/umbel/`.
+
+| Step | Deliverable | Exit |
+| --- | --- | --- |
+| B1. Shapes | Manifest version 6 and its schema (section 2); configuration version 6 and its schema (section 3, parsing and validation only); `store/src/lane.rs` with `extract`, `normalise` and `score`, and `store/src/embed.rs` (11.1); the two new dependencies of `umbel-store`, with the `wasm32-wasip2` build checked; the SDK's types and method signatures answering `not_granted` (11.2); the version constants; `workspace-show`'s versions | The Umbel gate; `manifest_v6.rs`, `config_v6.rs`, `lane_normalise.rs`, `lane_score.rs`, `lane_fixture.rs` |
+| B2. The lane and finding | Schema version 2 (5.1); `put_declared_record` without evidence; `put_record`'s stale mark; `read_record`, `find_records`; `lane_status`, `reindex_records` in chunks, without vectors; the host's put path (4.2 except steps 6 and 8), `record_read` and `record_find`; `store-records-reindex`; the doctor's `records.declared` and `records.size`; the suite's `lane` group | The Umbel gate; `lane_schema.rs`, `lane_delete_bytes.rs`, `records_put.rs`, `records_find.rs`; the suite passes |
+| B3. Standing | The space's `person` and `verified_admits`, and the call's `verified_only`; `gate_proof` and `CallServices.person_gate`; `decide_record`; command-writable collections across spaces, the own-collection rules and the mark's four checks; `mark_document_own`, `unmark_document_own`, `document_own`; evidence and `record_put_cited`; the label; the authority the host fills; `record_get` and `record_list` refused on a standing kind; the doctor's `records.standing`; the suite's `standing` group | The Umbel gate; `records_standing.rs`, `records_person_page.rs`, `records_own_source.rs` |
+| B4. Matching by words | `match_records` without vectors; `record_match`; the suite's `matching` group, words only | The Umbel gate; `records_match.rs`; the suite's expected scores hold to four places |
+| B5. Meaning and its gate | The `umbel-embed` crate and its three providers; the host features; `[models]` and `[spaces.<id>.meaning]` acted on; `put_record_vector` and vectors after a put's write; the exact scan and `fused`; `store-records-reindex`'s vectors; `store-records-eval` and its two schemas; the serving rule; the doctor's `records.meaning`; the rest of `matching` | The Umbel gate, and once with each `embed-*` feature; `providers.rs`, `records_meaning.rs`, `records_eval.rs`. The [trajectory refresh](#trajectory-refresh)'s unchecked rows for the three crates are checked, and recorded as amendments here |
+| B6. Exit | A fixture plugin, compiled, declared in `tests/records_exit.rs`: a standing kind `note` with a statement, two keys and a match field. One run through all of it over MCP and at the CLI: put, find by key and by text, match two captures in a row, cite a document of an own collection and read attested, change the document and read unverified, affirm at a terminal, read with a call's `verified_only` under each `verified_admits`, reindex after a declaration change and after an undeclared edit, and the stub model's gate both ways. `tests/records_scale.rs`, ignored by default and run in release, at 10 000 and at 100 000 records, words alone and with 256-dimension vectors: a put; a find by key and by text; a match of 1 text and of 64, with the once-a-call part, the counts, the gather and both directions timed apart, for a reader of everything and for a reader who may read 1% of the kind (8.2); the vector scan; and a rebuild, with its longest chunk. The times are printed with no threshold and recorded in STATUS.md, on macOS and in CI, beside the review's estimates of 1.0 s and 8 s. Outside the repository, on the phase 0 corpus: `store-records-eval` over phase 0's labelled pairs as probes, with the counts recorded in the Ideas status, to show what the lane's tokenizer did to phase 0's rates | The Umbel gate; the exit test passes; the timings and the phase 0 counts are recorded; this document's Status block, STATUS.md and the Ideas status say so |
+
+B2 needs B1. B3 and B4 each need B2 and can run side by side. B5 needs B4. B6 needs all.
+
+The Ideas plan says phase B is done "when the suite passes and the labelled pairs of phase 0.2 meet measure 1".
+Phase 0 changed measure 1 from refusing to offering, and its rates are not fixed until the owner has checked the
+labels (Ideas status, Q5). So B6 records the rates and does not gate on a number.
+
+## 17. Out of scope, with seams (D171)
+
+| Not here | Where | The seam this leaves |
+| --- | --- | --- |
+| Erasing a record | The plan's P16 | One `DELETE` on `records` removes every lane row by cascade, overwritten under `secure_delete` (5.2); `lane_delete_bytes.rs` proves it. P16 adds the delete itself, the keyed digest and what becomes of `record_decisions` |
+| Uploads | P17 | 6.2: an upload never inherits `own`; it becomes the person's by a mark, which exists here. That specification replaces the mark's fourth check, "equals its file on disk", for a document it stored itself, and keeps the third |
+| A review on the person page, in pages | P15 | `record_decide` and `doc_own_mark` take whatever proof the person gate accepted. A longer or paged decision changes the gate and the relay, not these services |
+| Guidance from a plugin | P18 | Nothing |
+| The graph | P4 | D157 leaves the graph to that change. The lane writes no node or edge |
+| Sharing a standing record | Later | `default_access` gives `space`. Narrower sharing, and whose decision counts where several people share a space, wait for D157's open point |
+| The PostgreSQL backend | Phase 6, after this | The eleven methods and three groups are a follow-up there. Scoring, normalisation and extraction are in `umbel-store` so that it computes the same numbers; terms would be found by lookup value, as phase 6 plans for memory |
+| Components | WIT world 1.1.0 | A component cannot declare a kind (D159). Whether one ever may is that world's question, and D162's reason stands against it |
+| Knowledge search by meaning | O4, still open | `VectorIndex` stays reserved. `umbel-embed`'s providers are reusable as they are |
+| A vector index | When B6's timings ask for one | `record_vectors` is keyed by model; an index would sit beside it |
+
+## 18. For the owner
+
+**The owner has not read this specification.** It was written under his direction of 2026-11-11 that the Ideas plan
+carry on through its phases on its recommendations. Each choice below is one he could reasonably want otherwise,
+with what the other way would cost. Those marked "differs from the plan" are where this document did not follow the
+plan's outline for step A2, because of what the code holds.
+
+| # | Chosen here | The alternative, and its cost |
+| --- | --- | --- |
+| 1 | **The host core does not itself check "word for word".** The compiled plugin's code does, and records what it compared (D162). Refines D157, which gives that check to the host | The host divides documents into sentences and compares. That puts a text rule in the host, against principle 1, and fixes one rule for every plugin. Cost of the choice made: attested is as right as the plugin's rule, and a plugin's fault is found by replay, not prevented |
+| 2 | **A new wording is a new record** (D160) | Versions inside one record, with the host tracking which is held. More host state, and a way for an affirmation to drift onto words the person did not see |
+| 3 | **Attested lapses when the cited document changes**, until the plugin cites the new content (6.3) | Keep attested for content the host once stored. The host would have to keep every earlier version's hash, and a sentence the person later deleted would stay attested |
+| 4 | **An own collection, and any collection sharing its directory in any space, takes no knowledge proposal and no verification write**, and a document put there must equal its file (section 3). Differs from the plan | Trust the configuration alone. Then a proposal an agent drafted and a person approved into that directory would read as the person's own words |
+| 5 | **A person can mark as theirs only a document that did not reach the host as a command's input**: one in a collection no command writes files into, that is the file on disk (6.2). Refines D157, which speaks of uploads only. Differs from the plan, which let any document be marked | Any readable document. Then a person could, in one decision, turn an agent-drafted, applied proposal into "their own words", and every record citing it word for word would read as attested. Cost of the choice made: a person who did write a page that went in by proposal cannot mark it; they affirm the records instead |
+| 6 | **A space has one configured `person`**, and only that person's decisions give standing (section 3, 6.1). Differs from the plan, which had no key for D157's "the one person a space is configured for" | Any person who passes the gate and can read the record. In a space with two readers, either could affirm the other's record |
+| 7 | **The deployment sets what verified means; a consumer that wants verified content asks, call by call. No setting hides unverified records from every read** (`verified_admits`, a call's `verified_only`, 6.6). Refines D157's "by a deployment's setting or by a call" | A space-wide switch, as D157's words allow. Then no review could list what waits for the person and nothing in that space could ever be affirmed; the revision before this one had one, and the focused pass found exactly that. Cost of the choice made: a deployer who wants one consumer held to verified content configures that consumer, not the space. And `verified_admits` defaults to affirmed alone: attested rests on the plugin's rule (row 1), so admitting it as verified is the deployer's to choose |
+| 8 | **A reader who cannot read a cited document still sees that the record is attested**, and nothing of the document (6.5, section 14) | Read such a record as unverified for that reader. No bit about the unseen document would remain, and one record would have two standings |
+| 9 | **The lane is a term table, not FTS5** (D163). Differs from the plan | FTS5 as memory uses it. The both-directions score would re-tokenise every match and refuse past 50 000, the PostgreSQL backend would need a second design, and phrase search would come free. Phrase search is what is given up |
+| 10 | **The lane's tokenizer is the store's, not phase 0's; its `idf` is phase 0's, not memory's** (8.2). Differs from the plan in each half | Snowball's stemmer, as phase 0 used: a second tokenizer in the store, with no reference to hold it to. FTS5's `idf`: near-zero weights in small stores. Cost of the choice made: phase 0's rates must be measured again, in B6 |
+| 11 | **The host returns scores and never a verdict** (D165) | Thresholds in the host. Phase 0 found none that refuses safely across documents, and each plugin's bands differ |
+| 12 | **A match that would read more than four million postings is refused, whoever may read them** (8.2) | No cap: past the design size a call could run for minutes. Or a cap on the reader's own share: a reader of 1% of a huge kind would never be refused and would still pay for all of it. Or a lower cap: ordinary 64-text calls on a large store would be refused. Cost of the choice made: past the design size, a refusal tells a reader the kind is very large |
+| 13 | **No model by default; three providers; the HTTP one sends text off the machine** (D166) | Ship one model in the binary: a larger binary, a model licence in the repository, and a default nobody measured on their own records. Or no HTTP provider: a deployer with a model server could not use it |
+| 14 | **An embedding in the request path is within principle 4** (D168) | Words only, always. In phase 0, across documents, words alone found the duplicate within five for 0.886 of 35 probes, and fused for between 0.914 and 0.971 |
+| 15 | **The gate: at least 50 probes with a duplicate, at least max(3, 2%) more of them found within `k`, no leak, and a report bound to the lane it measured** (D167) | A lower bar turns lanes on by noise: phase 0's static model, one probe better of 35, would have passed a bar of rates. A higher one asks more labelling of each instance |
+| 16 | **A failed embedding never fails a capture**; the record waits for `store-records-reindex`, and matching falls back to words for that reader (4.2, 9.4). Differs from the plan, which had vectors always present after a put | Fail the put. A model server that is down would then stop capture |
+| 17 | **The host holds no date of writing for a document, so the attested label carries the two dates it does hold, each named for what it is**: `storedAt`, when the host stored that content, and `generatedAt`, what the file says of itself. A plugin that knows a better date shows its own beside them (6.5). Differs from the plan and from D157's wording, "the person wrote it then" | Call the stored date the date of writing: for an archive synced in one day, every idea would be dated that day. Or keep the file's modification time on the document: it needs a document record version 2, and a clone or a copy resets it anyway |
+| 18 | **Records are private to the writer's principal, by the host, with `space` as the only other choice** (4.2) | The plugin chooses the access set, as for undeclared kinds today. Then "private by default" would be the plugin's promise |
+| 19 | **`record_get` and `record_list` are refused on a standing kind** (6.5). Differs from the plan | Change what they return. That breaks every plugin that calls them today. Or leave them: an unlabelled read of a standing record would exist |
+| 20 | **Vectors are searched by exact scan, with a bound of 100 000 a kind** (9.4) | An approximate index now: a dependency and a recall loss nobody has measured, for a size the first instance is a thirtieth of |
+| 21 | **A kind being rebuilt is offline until the rebuild ends**, and the rest of the store is not (12.1) | One transaction for the whole kind: the kind stays readable, and every writer to the space waits about eight seconds at 100 000 records |
+| 22 | **A plugin's host specifications sit beside its own** (D158) | Under `phases/`. These changes belong to no phase |
+| 23 | **Two version numbers are shared with phase 6's proposal**, and the second to land renumbers (D170). The plan named only the traits version | Take 4 and 7 now. Phase 6 is approved and not started, so either order is possible |
+
+**What this refines in D157.** D157's rules stand, and three of them are made narrower or more exact here, each
+recorded in D161 or D162:
+
+- *The host's own check.* D157 has the host find that a wording is whole sentences of the source. Here the host
+  core establishes everything about the source, and the compiled plugin's code compares the words (row 1, D162).
+- *The person's say-so.* D157 lets a person say an uploaded source is theirs. Here a person may say so of any
+  source that did not reach the host as a command's input: today a synced document in a collection nobody named as
+  theirs, later an upload; not a document a command's input produced, as far as the configuration now tells the
+  host (row 5, D162).
+- *Verified content only.* D157 names a deployment's setting and a call. Here the deployment sets what verified
+  means, `verified_admits`, and a consumer asks per call, `verified_only`; there is no space-wide switch, because a
+  store that hid unverified records from every reader could not be reviewed (row 7, D161).
+
+And two places where D157's wording met something the host does not have: a configured person for a space (row 6),
+and a date of writing for a source (row 17).
+
+## Follow-ups
+
+| Date | Raised by | Follow-up | Where it goes |
+| --- | --- | --- | --- |
+| 2026-11-11 | This specification | The PostgreSQL backend implements `DocumentStore`'s eleven new methods and passes the `lane`, `standing` and `matching` groups, with terms and key values found by lookup value and text sealed, as phase 6 plans for memory. Phase 6's specification predates them and is not edited here | The phase 6 owning agent, as an amendment to its specification before its step that certifies PostgreSQL |
+| 2026-11-11 | This specification | Store traits version 3 and workspace configuration version 6 are named by this document and by phase 6's. The second to land renumbers | Whichever of step B1 and phase 6's step 1 merges second |
+| 2026-11-11 | This specification | The lane's tokenizer is not phase 0's. Phase 0's labelled pairs are scored again through `store-records-eval` | Step B6; the counts go in the Ideas status |
+| 2026-11-11 | This specification | The trajectory refresh's unchecked rows: the three provider crates' builds, sizes and licences, `model2vec-rs` against the Python library's vectors, the two Unicode crates on `wasm32-wasip2` | Steps B1 and B5, each recorded as an amendment here |
+| 2026-11-11 | This specification | A plugin must pass the label through unchanged and affirm only what its preview showed (6.1, 6.5). Nothing in the host enforces either | The plugin's specification (the plan's step A3) and its review |
+| 2026-11-11 | This specification | The plugin's rule for "whole units, word for word" has no replay command. One that re-runs each record's evidence against the stored document and reports disagreements would make D162's "can be replayed" a check | The plugin's specification (step A3) |
+| 2026-11-11 | This specification | A gate report does not expire. A lane measured at 3 000 records is still served at 60 000 | Taken in the revision after the independent review: the report is bound to the lane it measured, and the doctor warns when the kind holds more than four times the records it held at the eval (10) |
+| 2026-11-11 | This specification | The vector scan reads every admitted vector for each call. A cache keyed by the store's head revision, or an index, if B6's timings ask | After B6 |
+| 2026-11-11 | This specification | This document has had no independent review | Done 2026-11-11: one reviewer, verdict "approve after the blockers", four blockers and nine improvements, all taken; then a focused pass on that revision, one blocker and six improvements, all taken ([Review response](#review-response)) |
+| 2026-11-11 | Independent review | The costs it measured on section 5.1's tables at 100 000 records (about 1.0 s for the counts of 64 pooled records, about 8 s for a rebuild in one transaction) are estimates on another machine and another build | Step B6 records the real times of each part (8.2, 12.1) |
+| 2026-11-11 | Independent review | One bit about a document a reader cannot read remains in a record's standing (section 14). It is accepted here | The owner, section 18, row 8 |
