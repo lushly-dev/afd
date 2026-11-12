@@ -156,7 +156,10 @@ IMPORT_REASONS = {
         "Assert the browser-automation skill names every exported cdp command"
     ),
     "tests/test_frontmatter.py": ("Expect the nine bundled skills that remain"),
-    "README.md": ("List the bundled skills that remain; record ownership under metadata"),
+    "README.md": (
+        "List the bundled skills that remain; record ownership under metadata; "
+        "point the release badge and the repository note at AFD"
+    ),
     "src/botcore/config.py": (
         "Accept the legacy version stamp, reject unknowns, add listing_budget"
     ),

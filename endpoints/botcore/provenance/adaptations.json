@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "0ff30cdfaadd8f55794d7b5f7e4efaf606247bf3d968d962794bce287a505551",
+      "current_import_sha256": "0c8a45c0019de235fa6b3835ee3b735162a881aca92002f4edee1739f66da615",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD"
     },
     {
       "path": "SETUP.md",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "3447ed24bf9ff775945045a1b09acbc1a0a157580be758af7056b8fe40627d52",
+      "current_import_sha256": "1068c19d79fc67142aa6e679bb4f76e60f6a8927fa443cecaf04eb5a78c3b3e2",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
