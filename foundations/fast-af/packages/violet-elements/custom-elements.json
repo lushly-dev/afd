@@ -37820,6 +37820,22 @@
               "default": "false"
             },
             {
+              "kind": "method",
+              "name": "#writeControl",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "force",
+                  "default": "false"
+                }
+              ]
+            },
+            {
               "kind": "field",
               "name": "autocomplete",
               "type": {

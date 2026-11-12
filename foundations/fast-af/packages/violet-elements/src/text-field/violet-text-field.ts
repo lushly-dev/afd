@@ -395,10 +395,8 @@ export class VioletTextField extends FASTElement {
         this.#scheduleSync();
     }
 
-    /**
-     * Writes `value` to the native input only when it differs. A number input reads `""` while it holds a
-     * partial entry such as `-`, so writing that `""` back, as a binding would, erased the `-` (#712).
-     */
+    // Writes `value` to the native input only when it differs. A number input reads `""` while it holds a
+    // partial entry such as `-`, so writing that `""` back, as a binding would, erased the `-` (#712).
     #writeControl(force = false): void {
         const control = this.shadowRoot?.querySelector<HTMLInputElement>("input.control");
         if (control && (force || control.value !== this.value)) {
