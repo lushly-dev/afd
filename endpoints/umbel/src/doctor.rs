@@ -189,6 +189,10 @@ pub const MEMORY_CHECKS: [&str; 7] = [
     "stores.capture",
 ];
 
+/// The doctor's record lane checks (the records host specification, section 12.3), which only a
+/// sealed host runs: it reads the lane of each declared kind of each loaded plugin instance.
+pub const RECORD_CHECKS: [&str; 2] = ["records.declared", "records.size"];
+
 /// The hosted profile's checks (phase 5 specification, section 6.1, with `auth.ca_files` from
 /// step 2c, `auth.trusted_proxies` from step 3 and `auth.person_listener` from step 5b), in the
 /// order the report holds them. They apply whenever `auth.mode` is not `none`;
@@ -316,6 +320,10 @@ pub(crate) fn inspect_with(
     checks.push(Check::skip_sealed("stores.lag"));
     // Phase 3's memory checks (section 5.3) read the memory stores, which a sealed host opens.
     for id in MEMORY_CHECKS {
+        checks.push(Check::skip_sealed(id));
+    }
+    // The record lane's checks read the lanes of the loaded plugins' declared kinds.
+    for id in RECORD_CHECKS {
         checks.push(Check::skip_sealed(id));
     }
     let space_ids: Vec<SpaceId> = match &spaces {

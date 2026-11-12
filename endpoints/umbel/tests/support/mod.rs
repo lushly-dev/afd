@@ -9,6 +9,7 @@ pub mod oauth;
 pub mod person;
 pub mod plugins;
 pub mod process;
+pub mod records;
 pub mod store;
 
 use afd::{

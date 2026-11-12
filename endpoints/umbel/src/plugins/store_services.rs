@@ -108,7 +108,7 @@ impl CallServices {
             .note_use(self.context.trace_id.as_deref().unwrap_or_default());
     }
 
-    fn note_write(&self, rev: Rev) {
+    pub(super) fn note_write(&self, rev: Rev) {
         self.shared
             .ledger
             .note_write(self.context.trace_id.as_deref().unwrap_or_default(), rev);
@@ -133,7 +133,11 @@ impl CallServices {
     }
 
     /// Read access to `space` under `grant`: the stores and the caller's filter.
-    fn reading(&self, grant: &str, space: &str) -> Result<(Arc<SpaceStores>, ReaderFilter)> {
+    pub(super) fn reading(
+        &self,
+        grant: &str,
+        space: &str,
+    ) -> Result<(Arc<SpaceStores>, ReaderFilter)> {
         self.scoped(grant, space)?;
         let filter = self.filter(space)?;
         self.note_use();
@@ -175,7 +179,7 @@ impl CallServices {
     /// overwriting what the plugin sent (rule 4): the space, plugin, agent, principal, trace id,
     /// time and, in version 3, the delegation chain (phase 5 step 6); then checked: a known
     /// version, an origin that is not `unspecified`, a valid access set and a sensitivity.
-    fn seal(&self, space: &str, mut envelope: Envelope) -> Result<Envelope> {
+    pub(super) fn seal(&self, space: &str, mut envelope: Envelope) -> Result<Envelope> {
         envelope.space = space.to_owned();
         envelope.plugin = Some(self.shared.instance.clone());
         envelope.agent = self.agent_actor();
@@ -442,6 +446,12 @@ impl CallServices {
         expect: Expect,
     ) -> Result<RecordMeta> {
         let stores = self.writing("records_write", space, None)?;
+        // A kind the instance's manifest declares is written with its lane rows (records host
+        // specification, section 4.2); an undeclared kind behaves as it always has.
+        #[cfg(feature = "store-embedded")]
+        if let Some(decl) = self.declared_kind(kind) {
+            return self.put_declared(space, &stores, decl, id, body, envelope, expect);
+        }
         let envelope = self.seal(space, envelope)?;
         let meta = stores
             .documents

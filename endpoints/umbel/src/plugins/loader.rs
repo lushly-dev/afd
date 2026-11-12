@@ -173,6 +173,10 @@ pub(crate) struct GateEntry {
     /// is marked `dev.umbel/no-change` and makes no event (phase 3 section 6.4), and its event's
     /// text-derived envelope fields are nulled (section 6.2, rule 6).
     pub memory_writer: bool,
+    /// Whether the instance's manifest declares a record kind (the records host specification,
+    /// sections 2 and 14): its event's text-derived envelope fields are removed, as a memory
+    /// writer's are.
+    pub lane_writer: bool,
     /// `journal.mode = "digest"`: the input keys the journal keeps (phase 3 section 7.1). A
     /// pipeline with a digest step inherits digest with no kept key.
     pub digest: Option<Vec<String>>,
@@ -489,6 +493,7 @@ fn gate_entry(
         shown: Vec::new(),
         pipeline,
         memory_writer: false,
+        lane_writer: false,
         digest: None,
         authority_prompt: None,
         steps: Vec::new(),
@@ -940,6 +945,7 @@ fn prepare(
 
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
     let memory_writer = granted.contains("memory_write");
+    let lane_writer = !manifest.records.is_empty();
     let services = Services::new(Shared {
         instance: instance.id.clone(),
         granted,
@@ -969,6 +975,12 @@ fn prepare(
         attestations: Arc::clone(inputs.attestations),
         memory_policy: instance.memory_write.clone(),
         prompts: Arc::clone(inputs.prompts),
+        records: manifest
+            .records
+            .iter()
+            .map(|decl| (decl.kind.clone(), decl.clone()))
+            .collect(),
+        records_default_access: instance.records_default_access,
     });
     let pack_checks: Vec<PackCheck> = match &resolved.compiled {
         Some(plugin) => pack_states
@@ -1044,6 +1056,7 @@ fn prepare(
                     command.require_human,
                 );
                 entry.memory_writer = memory_writer;
+                entry.lane_writer = lane_writer;
                 entry.person = command.person;
                 entry.preview = command.confirm_preview.clone();
                 entry.shown = command

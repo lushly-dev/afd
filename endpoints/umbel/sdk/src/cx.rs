@@ -507,8 +507,19 @@ pub trait HostServices: Send + Sync {
     }
     /// Grant `records_write`: write a record of the instance's own namespace.
     ///
+    /// For a kind the instance's manifest declares under `[[records]]`, the host writes the
+    /// record's lane rows in the same transaction (records host specification, section 4.2), so
+    /// it is found by key and by text when the put returns. The host then owns the access set: a
+    /// new record is private to the caller's principal, or readable by the space when the
+    /// instance's `default_access` says so, and a record that exists keeps the set it has. Its
+    /// text values are scanned and flagged, never blocked, and a standing kind's wording is
+    /// fixed by its first put. An undeclared kind is written as the plugin sent it.
+    ///
     /// # Errors
-    /// As [`HostServices::doc_put`].
+    /// As [`HostServices::doc_put`]; for a declared kind also [`HostError::Invalid`] with a
+    /// message starting `RECORD_PRINCIPAL_REQUIRED`, `RECORD_FIELD_INVALID`,
+    /// `RECORD_WORDING_FIXED` or `RECORD_LANE_STALE`, and [`HostError::Conflict`] with no
+    /// current hash for an id that a record the caller may not read holds.
     fn record_put(
         &self,
         _space: &str,

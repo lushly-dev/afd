@@ -64,6 +64,20 @@ pub enum StoreError {
         /// The most readable matches a recall ranks.
         limit: u64,
     },
+    /// A declared kind's lane is not the declaration's (`RECORD_LANE_STALE`, records host
+    /// specification sections 2 and 13): the declaration changed, records predate it, a record
+    /// was written while the kind was undeclared, or a rebuild is under way. Nothing was read or
+    /// written.
+    LaneStale,
+    /// A put would change the wording of a standing record (`RECORD_WORDING_FIXED`, section
+    /// 4.3); nothing was written.
+    WordingFixed,
+    /// A ranked find or a match counts more postings than one call may
+    /// (`RECORD_QUERY_TOO_BROAD`, section 8.2); nothing was returned.
+    LaneTooBroad {
+        /// The most postings one call counts.
+        limit: u64,
+    },
 }
 
 impl StoreError {
@@ -107,6 +121,14 @@ impl fmt::Display for StoreError {
                 f,
                 "the query matches more than {limit} readable records; narrow it"
             ),
+            Self::LaneStale => write!(f, "the lane is being rebuilt or must be rebuilt"),
+            Self::WordingFixed => write!(
+                f,
+                "the wording of a standing record never changes; write a new record"
+            ),
+            Self::LaneTooBroad { limit } => {
+                write!(f, "the call counts more than {limit} postings")
+            }
         }
     }
 }

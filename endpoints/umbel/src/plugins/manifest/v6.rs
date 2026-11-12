@@ -4,8 +4,8 @@
 //! This module parses, validates and stores them as [`RecordDecl`]s, with the rules a declaration
 //! brings: a compiled plugin only, the `records` and `records_write` grants declared, and a
 //! `journal` mode on every command and pipeline, so that a record's text reaches the journal only
-//! where the plugin said so (D72). What acts on a declaration is that specification's later
-//! steps: until then a declared kind is written and read as an undeclared one.
+//! where the plugin said so (D72). The loader hands the declarations to the instance's
+//! services, and a put of a declared kind writes its lane rows (that specification's step B2).
 
 use umbel_store::lane::{
     MAX_KEY_POINTERS, MAX_RECORD_KINDS, MAX_TEXT_POINTERS, Pointer, RecordDecl,

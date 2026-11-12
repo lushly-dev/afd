@@ -485,6 +485,7 @@ impl<'a> Plan<'a> {
                         shown: Vec::new(),
                         pipeline: false,
                         memory_writer: false,
+                        lane_writer: false,
                         digest: None,
                         authority_prompt: None,
                         steps: Vec::new(),

@@ -8,6 +8,7 @@
 
 mod extract;
 mod normalise;
+mod query;
 pub mod score;
 
 use std::collections::BTreeMap;
@@ -25,6 +26,7 @@ use crate::memory::MemoryFlag;
 
 pub use extract::{Extracted, extract};
 pub use normalise::{match_digest, normalise};
+pub use query::{Cursor, FindPlan, TextPlan};
 
 /// The most record kinds one manifest declares.
 pub const MAX_RECORD_KINDS: usize = 16;
@@ -64,8 +66,35 @@ pub const STAT_POSTINGS: u64 = 4_000_000;
 pub const MATCH_POOL: usize = 64;
 /// The design bound of one kind in one space, in records.
 pub const LANE_DESIGN_RECORDS: u64 = 100_000;
+/// How many records one transaction of a rebuild writes (section 12.1, step 1.3).
+pub const REINDEX_CHUNK: usize = 1_000;
+/// The most terms one statement counts (section 8.2).
+pub const STAT_TERMS: usize = 500;
 /// The version of the identical digest's normalisation (section 8.1).
 pub const NORMALISATION_VERSION: u32 = 1;
+
+/// The bounds a backend's lane works under. [`LaneLimits::default`] is this specification's
+/// constants, which every served store uses; the conformance suite lowers them for the cases that
+/// must pass a bound with a handful of records (section 15.1, amended in step B2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LaneLimits {
+    /// [`GATHER_POSTINGS`].
+    pub gather_postings: u64,
+    /// [`STAT_POSTINGS`].
+    pub stat_postings: u64,
+    /// [`REINDEX_CHUNK`]; at least 1.
+    pub reindex_chunk: usize,
+}
+
+impl Default for LaneLimits {
+    fn default() -> Self {
+        Self {
+            gather_postings: GATHER_POSTINGS,
+            stat_postings: STAT_POSTINGS,
+            reindex_chunk: REINDEX_CHUNK,
+        }
+    }
+}
 
 /// The most member names a pointer holds.
 const MAX_POINTER_MEMBERS: usize = 4;
@@ -465,6 +494,14 @@ fn flag_names(flags: &[MemoryFlag]) -> Vec<&'static str> {
     flags.iter().map(|flag| flag.as_str()).collect()
 }
 
+impl StandingView {
+    /// Whether the view admits `standing`.
+    #[must_use]
+    pub fn admits(&self, standing: Standing) -> bool {
+        self.admit.contains(&standing)
+    }
+}
+
 /// One key filter: a record passes when one of its values at `key` is in `any`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyFilter {
@@ -736,7 +773,8 @@ pub struct ReindexReport {
     pub records: u64,
     /// Of those, left without a lane row.
     pub unindexed: u64,
-    /// Records that lost their affirmation and evidence.
+    /// Records whose wording was not the one their lane row held: each lost its affirmation,
+    /// its evidence and its vectors, if it had any.
     pub wordings_changed: u64,
     /// The generation moved while the rebuild ran: the kind is still stale.
     pub superseded: bool,

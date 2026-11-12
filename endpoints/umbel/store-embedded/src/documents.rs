@@ -1,14 +1,19 @@
-//! `DocumentStore` over SQLite: documents, plugin records and the change log.
+//! `DocumentStore` over SQLite: documents, plugin records and the change log. The record lane's
+//! methods are in [`crate::lane`].
 
 use rusqlite::{
     OptionalExtension, Row, Transaction, TransactionBehavior, params, params_from_iter,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value as Json;
+use umbel_store::lane::{
+    DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, RecordDecl, RecordFind,
+    ReindexReport, StandingView,
+};
 use umbel_store::{
-    Change, ChangeKind, ContentHash, DocMeta, Document, DocumentStore, DocumentWrite, Envelope,
-    Expect, ListQuery, MAX_CHANGES_LIMIT, MAX_LIST_LIMIT, Page, ReaderFilter, Record, RecordMeta,
-    Rev, StoreError, check_identifier, check_record, record_target,
+    Change, ChangeKind, ContentHash, DocMeta, Document, DocumentStore, DocumentWrite, Embedder,
+    Envelope, Expect, ListQuery, MAX_CHANGES_LIMIT, MAX_LIST_LIMIT, MemoryFlag, Page, ReaderFilter,
+    Record, RecordMeta, Rev, StoreError, check_identifier, check_record, record_target,
 };
 
 use crate::SqliteStore;
@@ -16,7 +21,7 @@ use crate::error::{Fail, to_i64, to_u64};
 use crate::sql::Sql;
 
 /// Compare a write's condition with what is stored.
-fn check_expect(expect: &Expect, current: Option<&str>) -> Result<(), Fail> {
+pub(crate) fn check_expect(expect: &Expect, current: Option<&str>) -> Result<(), Fail> {
     let holds = match expect {
         Expect::Any => true,
         Expect::Absent => current.is_none(),
@@ -33,14 +38,14 @@ fn check_expect(expect: &Expect, current: Option<&str>) -> Result<(), Fail> {
 }
 
 /// The next revision. Called inside a `BEGIN IMMEDIATE`, so no other writer can take it.
-fn next_rev(tx: &Transaction<'_>) -> Result<Rev, Fail> {
+pub(crate) fn next_rev(tx: &Transaction<'_>) -> Result<Rev, Fail> {
     let head: i64 = tx.query_row("SELECT COALESCE(MAX(rev), 0) FROM changes", [], |r| {
         r.get(0)
     })?;
     Ok(to_u64(head)? + 1)
 }
 
-fn insert_change(
+pub(crate) fn insert_change(
     tx: &Transaction<'_>,
     rev: Rev,
     kind: &str,
@@ -75,7 +80,7 @@ fn parse_enum<T: DeserializeOwned>(text: &str) -> Result<T, Fail> {
         .map_err(|e| StoreError::Corrupt(format!("a stored value `{text}` is unknown: {e}")).into())
 }
 
-fn parse_json<T: DeserializeOwned>(text: &str) -> Result<T, Fail> {
+pub(crate) fn parse_json<T: DeserializeOwned>(text: &str) -> Result<T, Fail> {
     serde_json::from_str(text)
         .map_err(|e| StoreError::Corrupt(format!("a stored JSON value is unreadable: {e}")).into())
 }
@@ -372,9 +377,68 @@ impl DocumentStore for SqliteStore {
                 )?;
             }
             insert_change(&tx, rev, "record", &record_target(ns, kind, id), hash.as_str(), &envelope, access.tokens())?;
+            // Records host specification, section 2: this is the path an undeclared kind takes,
+            // so a kind that has a declaration row was written behind its lane. It is stale from
+            // here, and a rebuild that is running sees its generation move. A kind that was never
+            // declared has no row, and nothing of the lane is touched.
+            tx.execute(
+                "UPDATE record_kinds SET stale = 1, generation = generation + 1 WHERE ns = ?1 AND kind = ?2",
+                params![ns, kind],
+            )?;
             tx.commit()?;
             Ok(RecordMeta { ns: ns.to_owned(), kind: kind.to_owned(), id: id.to_owned(), rev, content_hash: hash })
         })
+    }
+
+    fn put_declared_record(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        body: Json,
+        envelope: Envelope,
+        expect: Expect,
+        lane: LaneWrite,
+        writer: &ReaderFilter,
+    ) -> Result<DeclaredPut, StoreError> {
+        self.lane_put(ns, decl, id, body, envelope, expect, lane, writer)
+    }
+
+    fn read_record(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<Option<LaneRecord>, StoreError> {
+        self.lane_read(ns, decl, id, view, reader)
+    }
+
+    fn find_records(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        query: &RecordFind,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<FindPage, StoreError> {
+        self.lane_find(ns, decl, query, view, reader)
+    }
+
+    fn reindex_records(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        scan: &dyn Fn(&str) -> Vec<MemoryFlag>,
+        embedder: Option<&dyn Embedder>,
+        vectors_only: bool,
+    ) -> Result<ReindexReport, StoreError> {
+        self.lane_reindex(ns, decl, scan, embedder, vectors_only)
+    }
+
+    fn lane_status(&self, ns: &str, decl: &RecordDecl) -> Result<LaneStatus, StoreError> {
+        self.lane_state_of(ns, decl)
     }
 
     fn get_record(
@@ -477,7 +541,7 @@ impl DocumentStore for SqliteStore {
     }
 }
 
-fn record_from_row(row: &Row<'_>) -> Result<Record, Fail> {
+pub(crate) fn record_from_row(row: &Row<'_>) -> Result<Record, Fail> {
     Ok(Record {
         ns: row.get(0)?,
         kind: row.get(1)?,
