@@ -747,11 +747,11 @@
       "path": "docs/operations/model-routing.md",
       "upstream_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
       "staged_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
-      "current_import_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
+      "current_import_sha256": "d6e36703601c4438078b3fb3b387e1dc277aace67cae45b38152d03ee53587f2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes"
     },
     {
       "path": "packages/botcore-agents/LICENSE",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "f9bfdc362bcb3e7c71e41e3e2766337b908fbf6190fa827834bcc577c61d6add",
+      "current_import_sha256": "3447ed24bf9ff775945045a1b09acbc1a0a157580be758af7056b8fe40627d52",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
