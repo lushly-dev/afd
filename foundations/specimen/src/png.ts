@@ -31,7 +31,7 @@ export function decodePng(bytes: Uint8Array): Pixels {
 		const kind = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
 		const body = bytes.subarray(offset + 8, offset + 8 + length);
 		if (kind === 'IHDR') {
-			if (length < 13) throw new Error('PNG image header is truncated');
+			if (body.length < 13) throw new Error('PNG image header is truncated');
 			width = view.getUint32(offset + 8);
 			height = view.getUint32(offset + 12);
 			const depth = body[8];
