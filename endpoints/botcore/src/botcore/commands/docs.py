@@ -363,7 +363,7 @@ async def docs_check_changelog() -> CommandResult[dict]:
         )
 
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+        ["git", "-c", "core.quotePath=false", "diff", "--cached", "--name-only"],
         cwd=ws,
         capture_output=True,
         text=True,
@@ -432,6 +432,12 @@ async def docs_check_changelog() -> CommandResult[dict]:
 
 
 _PACKAGE_MANIFESTS = frozenset({"package.json", "pyproject.toml", "Cargo.toml"})
+_TEST_NAME = re.compile(r"^test_|_test\.|\.(test|spec)\.")
+
+
+def _is_test(path: str) -> bool:
+    parts = Path(path).parts
+    return bool(_TEST_NAME.search(parts[-1])) or bool({"tests", "__tests__"} & set(parts[:-1]))
 
 
 def _structural_change(path: str, added: bool) -> str | None:
@@ -442,9 +448,13 @@ def _structural_change(path: str, added: bool) -> str | None:
     """
     parts = Path(path).parts
     name = parts[-1]
-    if "commands" in parts[:-1] and Path(path).suffix in _SOURCE_SUFFIXES:
-        if "test" not in name and "tests" not in parts:
-            return f"{'New' if added else 'Changed'} command: {path}"
+    if (
+        "commands" in parts[:-1]
+        and Path(path).suffix in _SOURCE_SUFFIXES
+        and name != "__init__.py"
+        and not _is_test(path)
+    ):
+        return f"{'New' if added else 'Changed'} command: {path}"
     if not added:
         return None
     if name in _PACKAGE_MANIFESTS or (name == "__init__.py" and "src" in parts[:-1]):
@@ -474,7 +484,7 @@ async def docs_check_agents() -> CommandResult[dict]:
         )
 
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+        ["git", "-c", "core.quotePath=false", "diff", "--cached", "--name-only"],
         cwd=ws,
         capture_output=True,
         text=True,
@@ -483,7 +493,10 @@ async def docs_check_agents() -> CommandResult[dict]:
     staged_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
 
     added_result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=AR"],
+        [
+            "git", "-c", "core.quotePath=false",
+            "diff", "--cached", "--name-only", "--diff-filter=AR",
+        ],
         cwd=ws,
         capture_output=True,
         text=True,

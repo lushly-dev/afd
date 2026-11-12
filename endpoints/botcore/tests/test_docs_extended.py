@@ -406,10 +406,15 @@ async def test_docs_check_agents_sees_new_packages_skills_workflows_and_commands
         ".github/workflows/nightly.yml\n"
         "packages/server/src/commands/list.ts\n"
         "packages/server/src/commands/list.test.ts\n"
+        "src/tool/commands/test_latest.py\n"
+        "src/tool/commands/__init__.py\n"
+        "src/tool/commands/latest.py\n"
         "packages/core/package.json\n"
     )
-    added = staged.replace("packages/server/src/commands/list.ts\n", "").replace(
-        "packages/core/package.json\n", ""
+    added = (
+        staged.replace("packages/server/src/commands/list.ts\n", "")
+        .replace("src/tool/commands/__init__.py\n", "")
+        .replace("packages/core/package.json\n", "")
     )
 
     def run(args, **_kwargs):
@@ -429,5 +434,7 @@ async def test_docs_check_agents_sees_new_packages_skills_workflows_and_commands
         "New skill: skills/release/SKILL.md",
         "New workflow: .github/workflows/nightly.yml",
         "Changed command: packages/server/src/commands/list.ts",
+        # A test is not a command, though a command may have "test" in its name.
+        "New command: src/tool/commands/latest.py",
     ]
 
