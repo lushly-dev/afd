@@ -1,12 +1,16 @@
 # Security Policy
 
-> **Status**: AFD is in alpha. Security patterns are being established. Please report any concerns.
+> **Status**: AFD's TypeScript and Python packages are in beta, and its Rust and C++ packages are previews. Please report any concerns.
+
+## Scope
+
+This policy covers everything in this repository: the AFD packages in all four languages, and the rest of the family (Specimen, FAST-AF, Violet, Umbel, Loam, Botcore and Health). The guidance below on modes, scope and best practices is about AFD servers.
+
+Umbel and Loam are unreleased and still changing. Umbel's README says what its access filtering does and does not guarantee today ([access is not a security boundary yet](./endpoints/umbel/README.md#access-is-not-a-security-boundary-yet)); read it before putting an instance in front of other people.
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.x.x   | :white_check_mark: |
+Fixes land on `main` and ship in the next release of the affected package; there are no maintenance branches. The latest release of each package is the supported one.
 
 ## Development vs Production Mode
 
@@ -66,7 +70,7 @@ AFD is a **methodology and toolkit**, not a complete security framework. The fol
 
 | Concern                | AFD Provides                                  | You Must Implement                      |
 | ---------------------- | --------------------------------------------- | --------------------------------------- |
-| **Authentication**     | Error codes (`UNAUTHORIZED`, `TOKEN_EXPIRED`) | Token validation, session management    |
+| **Authentication**     | Error codes (`UNAUTHORIZED`, `TOKEN_EXPIRED`); [`@lushly-dev/afd-auth`](./packages/auth), an adapter over your provider; bearer-token verification for HTTP MCP servers in TypeScript and Rust ([`spec/authorization.md`](./spec/authorization.md)) | An identity provider, its keys and session storage |
 | **Authorization**      | Middleware pattern                            | Permission checks, RBAC                 |
 | **Encryption**         | —                                             | TLS/HTTPS, data encryption              |
 | **Secrets Management** | —                                             | Vault integration, env var security     |
@@ -117,6 +121,8 @@ When building with AFD:
 AFD uses minimal dependencies to reduce attack surface:
 
 - **zod** - Input validation (actively maintained, security-focused)
-- **zod-to-json-schema** - Schema conversion
+- **The official MCP SDK** (`@modelcontextprotocol/*`) - Protocol transport
+- **jose** - Token signature checks for MCP authorization
+- **yaml** - Reading YAML frontmatter
 
 Run `npm audit` in the root and all packages to check for known vulnerabilities.

@@ -3069,6 +3069,105 @@ main h2 > span:not(.lit-word),
 	padding-bottom: clamp(32px, 4vw, 64px);
 }
 
+/* The family: the projects around AFD, as a second block in the proof band.
+   A sub-headline, not a second statement, so the proof stays the loud line. */
+.evidence-band .family {
+	margin-top: var(--space-9);
+	padding-top: var(--space-8);
+	border-top: 1px solid var(--line);
+}
+
+.evidence-band .family .evidence-heading {
+	padding-bottom: var(--space-5);
+}
+
+.evidence-band .family .evidence-heading h3 {
+	font-size: var(--t-title);
+	line-height: var(--leading-snug);
+}
+
+.family-lead {
+	max-width: 62ch;
+	margin: 0 0 var(--space-7);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: var(--leading-body);
+	color: var(--muted);
+}
+
+.family-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.family-list li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr) minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: var(--space-6);
+	padding-block: var(--space-5);
+	border-top: 1px solid var(--line);
+}
+
+.family-list li:last-child {
+	border-bottom: 1px solid var(--line);
+}
+
+.family-list h4 {
+	margin: 0;
+	font-family: var(--display);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-regular);
+	letter-spacing: var(--tracking-display);
+}
+
+.family-list p {
+	margin: 0;
+	font-size: var(--t-small);
+	line-height: 1.7;
+	color: var(--muted);
+}
+
+/* Muted while a project is only in the repository; paper once it can be installed. */
+.family-status {
+	font-size: var(--t-label);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+	color: var(--muted);
+}
+
+.family-status--out {
+	color: var(--paper);
+}
+
+.family-list a {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	font-size: var(--t-code);
+	white-space: nowrap;
+}
+
+.family-more {
+	display: inline-flex;
+	margin-top: var(--space-6);
+}
+
+@media (max-width: 850px) {
+	.evidence-band .family {
+		margin-top: var(--space-8);
+		padding-top: var(--space-7);
+	}
+	.family-list li {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: var(--space-2) var(--space-5);
+	}
+	.family-list p {
+		grid-column: 1 / -1;
+	}
+}
+
 /* ── Statements that light up as you reach them (used sparingly) ── */
 
 .lit.is-armed .lit-word,
