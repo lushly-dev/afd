@@ -176,6 +176,19 @@ fn line(section: &str, item: &Value) -> String {
             }
             described(text, item)
         }
+        "themes" => {
+            // One theme reads as a limit (`light only`); several as the list.
+            let supported = ids(item.get("supported"));
+            let mut text = match supported.as_slice() {
+                [one] => format!("{one} only"),
+                all => all.join(", "),
+            };
+            if let Some(reason) = item.get("reason").and_then(Value::as_str) {
+                text.push_str(": ");
+                text.push_str(reason);
+            }
+            text
+        }
         "form" => format!("associated: {}", plain(&item["associated"])),
         "roles" => {
             let mut text = format!("{}: {}", str_of(item, "state"), str_of(item, "role"));

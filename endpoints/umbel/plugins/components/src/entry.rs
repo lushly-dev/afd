@@ -11,12 +11,13 @@ use crate::pack::schema::{Attribute, Record, Rule, Statement};
 use crate::scan;
 
 /// A section's name and its data, in the order of section 5.3.
-pub(crate) const SECTIONS: [&str; 14] = [
+pub(crate) const SECTIONS: [&str; 15] = [
     "attributes",
     "slots",
     "events",
     "commands",
     "cssProperties",
+    "themes",
     "form",
     "roles",
     "axe",
@@ -302,6 +303,11 @@ pub(crate) fn build(library: &Library, record: &Record, settings: &Settings) -> 
         })
         .collect();
     push_items(&mut sections, "cssProperties", css);
+    if let Some(themes) = record.themes.as_ref().filter(|t| build.keep(&t.basis)) {
+        let mut map = map_of(json!({ "supported": themes.supported, "basis": themes.basis }));
+        put(&mut map, "reason", themes.reason.as_ref());
+        sections.push(("themes", Section::One(item(map))));
+    }
     if let Some(form) = record.api.form.as_ref().filter(|f| build.keep(&f.basis)) {
         sections.push((
             "form",

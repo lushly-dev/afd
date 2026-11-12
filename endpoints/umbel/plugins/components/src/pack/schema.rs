@@ -778,9 +778,7 @@ pub(crate) struct Record {
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct Themes {
     pub(crate) supported: Vec<String>,
-    #[allow(dead_code)]
     pub(crate) basis: String,
-    #[allow(dead_code)]
     pub(crate) reason: Option<String>,
 }
 
