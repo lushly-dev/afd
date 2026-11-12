@@ -313,9 +313,9 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			return () => clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
 		});
 
-	/** The host's membership read, failed if it has not answered within {@link MEMBERSHIP_READ_TIMEOUT_MS}. */
 	/** Each read's timeout while it waits, so `stop()` clears them with the kernel. */
 	const timeouts = new Set<() => void>();
+	/** The host's membership read, failed if it has not answered within {@link MEMBERSHIP_READ_TIMEOUT_MS}. */
 	const readMembership = (
 		read: NonNullable<KernelPortsV1['readMembership']>
 	): ReturnType<typeof read> =>
