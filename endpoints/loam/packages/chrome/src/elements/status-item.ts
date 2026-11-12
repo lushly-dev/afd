@@ -11,6 +11,8 @@ const template = html<LoamStatusItem>`
 	<span class="value"><slot></slot></span>
 `;
 
+// `.value` ends in an ellipsis, so it clips at its own box: a slotted control's focus ring must sit
+// inside it (the project's button draws its ring at -2px). A comment in the CSS would ship with it.
 const styles = css`
 	:host {
 		display: inline-flex;
@@ -32,6 +34,8 @@ const styles = css`
 	}
 	.value {
 		min-inline-size: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.label[hidden] {
 		display: none;

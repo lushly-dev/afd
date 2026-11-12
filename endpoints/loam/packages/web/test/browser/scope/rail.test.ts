@@ -701,6 +701,59 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
+	it('a long workspace name and account end in an ellipsis too, the labels and the journal whole (#1014)', async () => {
+		const opened = await openShell(browser, site.root, { viewport: { width: 640, height: 480 } });
+		const { page } = opened;
+		const workspace = 'Northern Region Operations and Planning Workspace for Partners';
+		const account = 'quarterly.planning.coordinator@northern-region.example.org';
+		// Set on the shell directly, once boot's session read is done so none resets them: what is
+		// measured is the bar's layout, not how the names arrive.
+		await settle(page);
+		await page.locator('loam-shell').evaluate((shell, names) => Object.assign(shell, names), {
+			workspaceName: workspace,
+			account,
+		});
+		const bar = page.locator('loam-statusbar');
+		await expect.poll(() => bar.locator('.actor-status').textContent()).toContain(account);
+		const shown = await bar.evaluate((element) => {
+			// overflow: hidden, nowrap and a block box are what make Chromium paint the ellipsis.
+			const box = (selector: string) => element.querySelector(selector)?.getBoundingClientRect();
+			const item = (selector: string) => {
+				const host = element.querySelector(selector) as Element;
+				const root = host.shadowRoot as ShadowRoot;
+				const value = root.querySelector('.value') as HTMLElement;
+				const label = root.querySelector('.label') as HTMLElement;
+				return {
+					truncated: value.scrollWidth > value.clientWidth,
+					textOverflow: getComputedStyle(value).textOverflow,
+					labelWhole: label.hidden || label.scrollWidth <= label.clientWidth + 0.5,
+					end: host.getBoundingClientRect().right,
+				};
+			};
+			return {
+				workspace: item('.workspace-status'),
+				actor: item('.actor-status'),
+				barEnd: element.getBoundingClientRect().right,
+				journalStart: box('.journal-status')?.left ?? 0,
+				journalEnd: box('.journal-status')?.right ?? 0,
+			};
+		});
+		for (const [which, item] of Object.entries({
+			workspace: shown.workspace,
+			actor: shown.actor,
+		})) {
+			expect(item.truncated, which).toBe(true);
+			expect(item.textOverflow, which).toBe('ellipsis');
+			expect(item.labelWhole, which).toBe(true);
+			expect(item.end, which).toBeLessThanOrEqual(shown.journalStart + 0.5);
+		}
+		expect(shown.journalEnd).toBeLessThanOrEqual(shown.barEnd + 0.5);
+		// The whole text stays in the item, for assistive technology.
+		expect(await bar.locator('.workspace-status').textContent()).toContain(workspace);
+		expect(await bar.locator('.actor-status').textContent()).toContain(account);
+		await opened.context.close();
+	});
+
 	it('P2-E11: loads hello and tally as version 1 and tasks as version 2, side by side', async () => {
 		const opened = await openShell(browser, site.root);
 		const versions = await opened.page.evaluate(async () => {
