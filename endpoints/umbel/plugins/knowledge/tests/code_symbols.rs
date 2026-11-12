@@ -423,6 +423,13 @@ fn deep_nesting_is_a_clean_outcome_on_a_small_stack() {
 
 #[test]
 fn very_long_lines_and_many_definitions_on_one_line_are_bounded() {
+    // Generous time bounds: these cases are about the shape, not the clock, so a loaded machine
+    // must not reach a timeout first (#1043). The timeouts have tests of their own.
+    let patient = Budget {
+        parse: Duration::from_secs(120),
+        query: Duration::from_secs(120),
+        ..Budget::default()
+    };
     // One line, a megabyte of statements.
     let line = "x = 1; ".repeat(140_000);
     let analysis = analyse("a.py", &line);
@@ -430,17 +437,11 @@ fn very_long_lines_and_many_definitions_on_one_line_are_bounded() {
     // A hundred thousand definitions on one line, just under the size bound: over the symbol
     // limit, so plain text, and the line cut into units that share its number.
     let many = "fn a(){} ".repeat(100_000);
-    let analysis = analyse("a.rs", &many);
+    let analysis = code::analyse("a.rs", &many, &patient);
     assert_eq!(analysis.mode, Mode::PlainText(Reason::SymbolLimit));
     invariants(&many, &analysis);
     // A few hundred definitions on a line a megabyte wide are found and chunked by line.
     let sparse = format!("{}{}", "fn a(){}".repeat(100), " ".repeat(900_000));
-    // (Generous time bounds: this case is about the shape, not the clock, on a loaded machine.)
-    let patient = Budget {
-        parse: Duration::from_secs(120),
-        query: Duration::from_secs(120),
-        ..Budget::default()
-    };
     let analysis = code::analyse("a.rs", &sparse, &patient);
     assert_eq!(analysis.mode, Mode::Symbols);
     invariants(&sparse, &analysis);
