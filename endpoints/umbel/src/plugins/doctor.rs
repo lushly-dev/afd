@@ -2,8 +2,8 @@
 //!
 //! `plugins.config`, `plugins.sources`, `plugins.grants`, `plugins.packs` and `plugins.skills`
 //! read `umbel.toml` and the plugin directories; they compile nothing, spawn nothing and need
-//! no sealed host. `plugins.loaded`, `plugins.first_class` and `plugins.pipelines` need the
-//! loader, so they are `skip` until a sealed host fills them in.
+//! no sealed host. `plugins.loaded`, `plugins.first_class`, `plugins.pipelines` and
+//! `plugins.pack_checks` need the loader, so they are `skip` until a sealed host fills them in.
 //!
 //! A `compiled:<id>` source resolves only against the binary's catalog. A doctor run with no
 //! catalog reports such an instance as `skip`, never as `fail`.
@@ -214,7 +214,117 @@ pub(crate) fn pipelines_check(loaded: &LoadedPlugins) -> Check {
     )
 }
 
-/// The eight plugin checks, in order.
+/// How many of a failure's problems `plugins.pack_checks` shows.
+const SHOWN_PROBLEMS: usize = 3;
+
+/// `plugins.pack_checks` on a sealed host (D172): every space override of a compiled instance's
+/// pack, handed to the plugin's own check, the same reader its commands use, so the codes match a
+/// call's exactly. A failure is `fail` for a required instance, `warn` for an optional one or a
+/// retryable failure. An override whose plugin offers no check is counted, and checked for its
+/// layout only (`plugins.packs`).
+pub(crate) fn pack_checks_check(loaded: &LoadedPlugins) -> Check {
+    let mut issues = Vec::new();
+    let mut checked = 0;
+    let mut unchecked = 0;
+    for target in &loaded.pack_checks {
+        let Some(result) = target.run() else {
+            unchecked += 1;
+            continue;
+        };
+        checked += 1;
+        if result.get("success").and_then(serde_json::Value::as_bool) == Some(true) {
+            continue;
+        }
+        let error = result.get("error").cloned().unwrap_or_default();
+        let text = |key: &str| {
+            error
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_owned()
+        };
+        let retryable = error
+            .get("retryable")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let mut message = format!(
+            "{}: the override of pack `{}` in space `{}` fails the plugin's check: {}: {}",
+            target.instance,
+            target.pack,
+            target.space,
+            if text("code").is_empty() {
+                "PLUGIN_RESULT_INVALID".to_owned()
+            } else {
+                text("code")
+            },
+            text("message"),
+        );
+        let problems = shown_problems(&error);
+        if !problems.is_empty() {
+            message.push_str(&format!(" ({problems})"));
+        }
+        let suggestion = match text("suggestion") {
+            empty if empty.is_empty() => {
+                "Run a command of the plugin in that space for its own suggestion.".to_owned()
+            }
+            given => given,
+        };
+        issues.push(Issue {
+            fatal: target.required && !retryable,
+            message,
+            suggestion,
+        });
+    }
+    let mut pass = format!("{checked} override(s) pass their plugin's own check");
+    if unchecked > 0 {
+        pass.push_str(&format!(
+            "; {unchecked} override(s) of plugins that offer no check are checked for layout only"
+        ));
+    }
+    verdict("plugins.pack_checks", pass, &issues, &[])
+}
+
+/// The first problems of a failure's `details.problems`, each `CODE path#at`, and how many more.
+fn shown_problems(error: &serde_json::Value) -> String {
+    let Some(problems) = error
+        .get("details")
+        .and_then(|details| details.get("problems"))
+        .and_then(serde_json::Value::as_array)
+    else {
+        return String::new();
+    };
+    let field = |problem: &serde_json::Value, key: &str| {
+        problem
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+    let mut shown: Vec<String> = problems
+        .iter()
+        .take(SHOWN_PROBLEMS)
+        .map(|problem| {
+            let code = field(problem, "code").unwrap_or_default();
+            match (field(problem, "path"), field(problem, "at")) {
+                (Some(path), Some(at)) => format!("{code} {path}#{at}"),
+                (Some(path), None) => format!("{code} {path}"),
+                (None, _) => code,
+            }
+        })
+        .collect();
+    let count = error
+        .get("details")
+        .and_then(|details| details.get("count"))
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|count| usize::try_from(count).ok())
+        .unwrap_or(problems.len())
+        .max(problems.len());
+    if count > shown.len() {
+        shown.push(format!("and {} more", count - shown.len()));
+    }
+    shown.join(", ")
+}
+
+/// The nine plugin checks, in order.
 pub(crate) fn checks(
     file: Option<&ConfigFile>,
     root: &Path,
@@ -225,6 +335,7 @@ pub(crate) fn checks(
             Check::skip_sealed("plugins.loaded"),
             Check::skip_sealed("plugins.first_class"),
             Check::skip_sealed("plugins.pipelines"),
+            Check::skip_sealed("plugins.pack_checks"),
         ]
     };
     let dependent = |message: &str| {

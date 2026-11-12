@@ -78,4 +78,23 @@ pub trait Plugin: Send + Sync + 'static {
     /// The command's handler, by registered name. Called once per call; must not keep state
     /// between calls if the plugin is built as a component.
     fn handle(&self, name: &str, input: serde_json::Value, cx: &mut Cx) -> Outcome;
+
+    /// The plugin's own check of its pack `pack`, which the host's doctor runs against each space
+    /// override of that pack before any command is called (D172, `plugins.pack_checks`). `cx`
+    /// holds the plugin's own grants, with the override's space as the call's space, so
+    /// [`Cx::pack_list`] and [`Cx::pack_read`] read the override exactly as a command would.
+    ///
+    /// Answer `None`, the default, to offer no check for `pack`: the doctor then checks that
+    /// override's layout only. Otherwise answer a success when the override would be served,
+    /// and the failure a command would answer when it would be refused: the doctor shows its
+    /// code, message and suggestion, and the first entries of `details.problems` when the
+    /// failure holds them (each `{ "code", "path", "at" }`, `at` a JSON pointer, optional). A
+    /// retryable failure is a warning there, not a failure.
+    ///
+    /// A compiled plugin only: a component and a mounted server offer no check (WIT world
+    /// 1.0.0 has no export for it).
+    fn check_pack(&self, pack: &str, cx: &mut Cx) -> Option<Outcome> {
+        let _ = (pack, cx);
+        None
+    }
 }

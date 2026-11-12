@@ -15,7 +15,9 @@
   [C4](#amendments-from-step-c4)): all three commands answer, the skill and the first-class suggestion are served,
   and FAST-AF's real pack, built and exported by Specimen, is served as an override. Step C4 found that the
   proposal's criterion 2 does not hold on the real pack; that is the owner's decision ([C4](#amendments-from-step-c4)).
-  Step C5 set the binary up for agents in this repository and measured it ([C5](#amendments-from-step-c5)).
+  Step C5 set the binary up for agents in this repository and measured it ([C5](#amendments-from-step-c5)). Amended after C3 by
+  [A23](#amendments-after-step-c3) (D172, the owner's decision of 2026-11-11): the doctor runs this plugin's own
+  check on each space override, so an override a call would refuse fails the doctor first.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
 - **Last verified:** 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
@@ -135,7 +137,15 @@ The step found these points the document had not settled, and took the narrowest
 | --- | --- | --- |
 | A14 | Where "five, under the cap of eight" is proved | Only `umbel-first-party` links every first-party plugin (D3, D80), and the plugin's own tests may not depend on another plugin crate (`tests/no_plugin_dependency.rs`). So `tests/surfaces.rs` proves the plugin's one suggestion on its own host, on every lane, and `first-party/tests/first_class.rs` proves the set with all six plugins enabled: `workspace-show`, `event-list`, `knowledge-search`, `knowledge-open`, `memory-remember`, `context-bundle` and `components-brief`, in `plugins.enabled` and manifest order, the doctor's `plugins.first_class` passing, in every lane's `tools/list` and in the shipped binary's. The same test lists the six skills in enabled order. `first-party/tests/support`'s `with_plugins` gains `components`, as the binary has had since C1 |
 | A15 | The skill's "three delivery paths" (12.1, the proposal's C3 exit) | The phase 1 specification's section 8.3: the Skills extension (`skills/list`, `skills/get`) and resources (`resources/list`, `resources/read`), each in both eras on both transports and checked byte for byte against the file, and the commands `skill-list` and `skill-export` (CLI only), called in process, as `tests/skills.rs` proves them for hello. `tests/surfaces.rs` proves each for `components-guide`, and that the skill stays under 60 lines and names no command the manifest does not declare |
-| A16 | What "as `plugin-show` and doctor show them today" pins (11) | The answers as the host gives them, asserted whole where they are stable: the instance, grants, commands, the pack per space (`default` at the pack's own version `0.1.0` with 7 files, or `override` at the deployer's), the skill, and the doctor's plugin checks. Two facts of today's host are recorded, not changed (D151): `plugins.packs` counts directories, so the embedded default pack of a compiled plugin is not one of them; and it checks an override's layout only, so an override this plugin refuses (`PACK_INVALID`) still shows and passes the doctor. The refusal is the plugin's, on the call (9.1) |
+| A16 | What "as `plugin-show` and doctor show them today" pins (11) | The answers as the host gives them, asserted whole where they are stable: the instance, grants, commands, the pack per space (`default` at the pack's own version `0.1.0` with 7 files, or `override` at the deployer's), the skill, and the doctor's plugin checks. Two facts of today's host are recorded, not changed (D151): `plugins.packs` counts directories, so the embedded default pack of a compiled plugin is not one of them; and ~~it checks an override's layout only, so an override this plugin refuses (`PACK_INVALID`) still shows and passes the doctor~~ (superseded 2026-11-11 by A23: the doctor's `plugins.pack_checks` now runs this plugin's check, and such an override fails it). The refusal is the plugin's, on the call (9.1) |
+
+### Amendments after step C3
+
+The owner decided on 2026-11-11 to close the gap A16 recorded (D172):
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A23 | An override this plugin refuses passes the doctor (A16) | The host gains a generic hook, not code for this plugin: a compiled plugin may answer `umbel_sdk::Plugin::check_pack`, and on a sealed host the doctor's new `plugins.pack_checks` runs it on every space override of the plugin's packs, through the instance's own grants with the override's space as the call's (D172). This plugin answers for `library` with its reader over every library in the pack (`pack::read` with no `library`, as `components-list` reads it), so a refused override fails the check with the call's code (`PACK_INVALID`, `PACK_INCONSISTENT` as a warning since it is retryable, `PACK_EMPTY`, `PACK_TOO_LARGE`), its message, its first three problems as `CODE path#pointer`, the count of the rest, and its suggestion. `plugin-show` still shows the override, `plugins.packs` still checks its layout only, and the call is still refused (9.1). The default pack is not checked: `tests/default_pack.rs` holds it equal to Specimen's valid fixture. `tests/surfaces.rs` proves both a passing and a refused override; the host's `tests/doctor_pack_checks.rs` proves the hook with a test plugin |
 
 ## What this plugin serves
 
@@ -145,7 +155,7 @@ know named as unknown, and for every statement how it is known.
 
 | Principle | How the plugin serves it |
 | --- | --- |
-| 1. Empty host | A plugin crate, compiled into `umbel-first-party` only; the stock `umbel` compiles in nothing (D48). The host gains no code: no grant, no store, nothing in `plugin-show` or doctor (D151) |
+| 1. Empty host | A plugin crate, compiled into `umbel-first-party` only; the stock `umbel` compiles in nothing (D48). The host gains no code for this plugin: no grant, no store, nothing in `plugin-show` (D151). The doctor's `plugins.pack_checks` is a generic hook any compiled plugin may answer (D172, A23) |
 | 3. Everything is a command | Three commands, the same over MCP and the CLI |
 | 4. No model in the request path | Selection, fitting and rendering are deterministic code; the source is read for names, not interpreted |
 | 5. Content lives in the workspace | A library's pack is the deployer's: a space override, written by Specimen's export. The plugin ships only a four-component example (D152) |
@@ -862,6 +872,9 @@ gracefully. A refusal therefore is:
 - **Free of partial answers.** It holds no record, rule or other pack text, and no `content` part. An agent cannot
   mistake it for a short brief.
 - **Exact about what is wrong.** The problems are the same ones `checkPack` reports (3.3).
+- **Found before a call.** The doctor's `plugins.pack_checks` runs the same reader on every space override, so an
+  override a call would refuse fails the doctor with the call's code, its first problems and its suggestion,
+  before any command is called (D172, A23).
 - **Exact about the way forward.** The details say what can still be served:
 
   | Detail | Holds |
@@ -920,7 +933,7 @@ Each step's tests are listed with it in section 12. The files:
 | `tests/twenty_tags.rs` | A 20-tag request from a synthetic library of FAST-AF-like size is answered in one call inside the default budget |
 | `tests/scale.rs` | A synthetic 990-component library is served by a 20-tag brief; the wall time is printed in the test's output (a debug build, as Umbel's tests run) with no threshold, and step C2's pull request records the number on macOS and in CI for the cache follow-up to judge |
 | `tests/open.rs`, `tests/list.rs` | Section-by-section open with `skip`; list pages with `next`; `contains` and `prefix` |
-| `tests/surfaces.rs` | The plugin and an override as `plugin-show` and doctor show them today, unchanged by this plugin; the one first-class suggestion on every lane; the skill on the three delivery paths (step C3, A15, A16) |
+| `tests/surfaces.rs` | The plugin and an override as `plugin-show` and doctor show them; an override the plugin refuses failing the doctor's `plugins.pack_checks` with the call's code, problems and suggestion; the one first-class suggestion on every lane; the skill on the three delivery paths (step C3, A15, A16, A23) |
 | `first-party/tests/first_class.rs` | With all six first-party plugins enabled, five suggestions and two built-ins in the first-class set, in every lane's `tools/list` and the binary's, and every skill listed (step C3, A14) |
 | `tests/no_plugin_dependency.rs` | No dependency on another plugin crate (D3), as context's test checks |
 | `tests/fast_af.rs` | Step C4's end-to-end test (A17): FAST-AF's export, beside the example, served as space `main`'s override; criterion 1 on the twenty-component page; criterion 2 measured on step 0.1's four pages (A18); criterion 7 with the real library |
@@ -989,3 +1002,4 @@ lives (D150), reading whole libraries on every call (D152), the shedding order's
 | 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Proposal step D2 |
 | 2026-11-12 | Step C5 | A tag that is not a custom element name (`breadcrumb`) is refused with `COMPONENTS_INVALID` and a generic suggestion; a rerun session recovered with `components-list`. The refusal could name each library's prefix, or answer such a name as `unknown` with `nearest` | Open; a change to section 6.1, the owner's |
 | 2026-11-12 | Step C5 | Claude Code defers MCP tools, so `components-brief` as a first-class suggestion is out of sight until a task names it; two Loam sessions told only by the design record and a skill never called it | The Component Briefs status, the owner's |
+| 2026-11-11 | A23 | The doctor's `plugins.pack_checks` reaches compiled plugins only: a component (WIT world 1.0.0) and a mounted server offer no check, so once this plugin is built as a component (step D2) its overrides are checked for layout only unless the world gains an export for it | Proposal step D2 |

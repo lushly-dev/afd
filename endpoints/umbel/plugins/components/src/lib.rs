@@ -28,7 +28,7 @@ mod scan;
 mod select;
 
 use serde_json::Value;
-use umbel_sdk::{Asset, Cx, Outcome, Plugin, failure};
+use umbel_sdk::{Asset, Cx, Outcome, Plugin, failure, success};
 
 /// The manifest of the compiled build.
 pub const MANIFEST: &str = include_str!("../umbel-plugin.toml");
@@ -62,6 +62,21 @@ impl Plugin for Components {
                 "Call components-brief, components-list or components-open.",
             ),
         }
+    }
+
+    /// The doctor's check of a space override (D172): the commands' own reader over every
+    /// library in the pack, so a refused override fails `plugins.pack_checks` with the code and
+    /// problems a call would get (section 9.1).
+    fn check_pack(&self, pack: &str, cx: &mut Cx) -> Option<Outcome> {
+        if pack != pack::PACK {
+            return None;
+        }
+        Some(match pack::read(cx, None) {
+            Ok(libraries) => success(serde_json::json!({
+                "libraries": libraries.iter().map(|library| library.id.as_str()).collect::<Vec<_>>(),
+            })),
+            Err(refusal) => refusal,
+        })
     }
 }
 
