@@ -982,16 +982,27 @@ describe("P3-E4: the re-review of step 2's fixes", () => {
 			auth._setUser(user(BEA), { expiresAt: new Date(T0 + 600_000) });
 			throwNext = true;
 		};
-		time.set(T0 + 60_000);
-		timers.run(T0 + 60_000);
-		await vi.waitFor(() =>
-			expect(timers.pending().map((timer) => timer.at)).toEqual([T0 + 600_000])
-		);
+		const reportError = vi.fn();
+		vi.stubGlobal('reportError', reportError);
+		try {
+			time.set(T0 + 60_000);
+			timers.run(T0 + 60_000);
+			await vi.waitFor(() =>
+				expect(timers.pending().map((timer) => timer.at)).toEqual([T0 + 600_000])
+			);
+			expect(reportError).toHaveBeenCalledWith(
+				expect.objectContaining({ message: 'The adapter could not read its session' })
+			);
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 
 	it('P3-E4: a membership read that never answers fails after its timeout, so stage B ends and the settle decides with what is held', async () => {
-		const time = settableClock(T0);
-		const auth = new MockAuthAdapter({ clock: { now: time.now } });
+		// A clock that stands still, so the read's timeout is at exactly its bound.
+		let at = T0;
+		const time = { now: () => at };
+		const auth = new MockAuthAdapter({ clock: time });
 		auth._setUser(user(BEA));
 		const timers = fakeSchedule();
 		let release: () => void = () => {};
@@ -1025,22 +1036,210 @@ describe("P3-E4: the re-review of step 2's fixes", () => {
 		// Another tab signs Olu in during stage B: the settle reads Olu's membership, which never answers.
 		auth._setUser(user(OLU));
 		release();
-		const timeout = async () => {
-			await vi.waitFor(() =>
-				expect(
-					timers.pending().some((timer) => timer.at - time.now() > MEMBERSHIP_READ_TIMEOUT_MS - 100)
-				).toBe(true)
-			);
-			return timers.pending().reduce((first, timer) => (timer.at < first.at ? timer : first));
-		};
-		const due = await timeout();
+		const due = T0 + MEMBERSHIP_READ_TIMEOUT_MS;
+		// One timer at the read's bound, and none sooner: Olu's expiry timer is an hour away.
+		await vi.waitFor(() =>
+			expect(timers.pending().filter((timer) => timer.at === due)).toHaveLength(1)
+		);
+		expect(timers.pending().filter((timer) => timer.at <= due)).toHaveLength(1);
 		expect(ended).toBe(false);
-		time.set(due.at);
-		timers.run(due.at);
+		at = due;
+		timers.run(due);
 		await vi.waitFor(() => expect(ended).toBe(true));
 		expect((await settles({ journal })).map((entry) => entry.input)).toEqual([
 			{ person: BEA, role: 'member', membershipDigest: 'd1', reason: 'provider' },
 			{ person: OLU, role: 'owner', membershipDigest: 'd1', reason: 'tab' },
 		]);
+	});
+});
+
+describe("P3-E4: the re-check of step 2's fixes", () => {
+	it("P3-E4: a change to someone else and back during the settle's read drops that read, and the person is settled on a read of their own", async () => {
+		let reads = 0;
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () => {
+					reads++;
+					if (reads === 1) {
+						// Caro, then Olu again, while the provider answers: its answer may be Caro's.
+						made.auth._setUser(user(CARO));
+						made.auth._setUser(user(OLU));
+						return { role: 'member' as const, digest: 'caro-answer' };
+					}
+					return { role: 'owner' as const, digest: 'd1' };
+				},
+			},
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		made.auth._setUser(user(OLU));
+		await vi.waitFor(async () =>
+			expect((await settles(made)).at(-1)?.input).toMatchObject({ person: OLU })
+		);
+		const inputs = (await settles(made)).map((entry) => entry.input as SessionSettleInputV1);
+		expect(inputs.some((input) => input.membershipDigest === 'caro-answer')).toBe(false);
+		expect(inputs.at(-1)).toEqual({
+			person: OLU,
+			role: 'owner',
+			membershipDigest: 'd1',
+			reason: 'tab',
+		} satisfies SessionSettleInputV1);
+	});
+
+	it("P3-E4: a change to someone else and back during the re-read refuses the owner's command", async () => {
+		let flip = false;
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () => {
+					if (flip) {
+						made.auth._setUser(user(BEA));
+						made.auth._setUser(user(OLU));
+					}
+					return { role: 'member' as const, digest: 'd-bea' };
+				},
+			},
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		flip = true;
+		const refused = await made.kernel.call('project-create', { name: 'Ledger' });
+		expect(refused.error).toMatchObject({ code: 'SESSION_CHANGED', retryable: true });
+		expect(
+			(await settles(made)).some(
+				(entry) => (entry.input as SessionSettleInputV1).membershipDigest === 'd-bea'
+			)
+		).toBe(false);
+	});
+
+	it("P3-E4: the re-read's own timeout refuses the owner's command, ignores a late answer and clears itself", async () => {
+		let at = T0;
+		const time = { now: () => at };
+		const timers = fakeSchedule();
+		let reads = 0;
+		let answer: (found: { role: 'admin'; digest: string }) => void = () => {};
+		const made = await providerWorkspace({
+			clock: time.now,
+			auth: new MockAuthAdapter({ clock: time }),
+			ports: {
+				...scopedPorts(),
+				schedule: timers.schedule,
+				readMembership: () => {
+					reads++;
+					if (reads === 1) {
+						return new Promise((resolve) => {
+							answer = resolve as never;
+						});
+					}
+					return Promise.resolve({ role: 'owner' as const, digest: 'd1' });
+				},
+			} as unknown as ReturnType<typeof scopedPorts>,
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		const before = (await settles(made)).length;
+		const pending = made.kernel.call('project-create', { name: 'Ledger' });
+		const due = T0 + MEMBERSHIP_READ_TIMEOUT_MS;
+		await vi.waitFor(() =>
+			expect(timers.pending().filter((timer) => timer.at === due)).toHaveLength(1)
+		);
+		at = due;
+		timers.run(due);
+		expect((await pending).error).toMatchObject({
+			code: 'MEMBERSHIP_UNAVAILABLE',
+			retryable: true,
+		});
+		// The provider answers after all: nothing comes of it.
+		answer({ role: 'admin', digest: 'late' });
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(await settles(made)).toHaveLength(before);
+		const created = await made.kernel.call('project-create', { name: 'Ledger' });
+		expect(created.success, JSON.stringify(created.error)).toBe(true);
+		// The read that answered cleared its timeout: only Olu's expiry timer is left.
+		expect(timers.pending().filter((timer) => timer.at < T0 + 3_600_000)).toEqual([]);
+	});
+
+	it("P3-E4: a read's timeout goes with the kernel when it is disposed", async () => {
+		const timers = fakeSchedule();
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				schedule: timers.schedule,
+				readMembership: () => new Promise(() => {}),
+			} as unknown as ReturnType<typeof scopedPorts>,
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		void made.kernel.call('project-create', { name: 'Ledger' });
+		await vi.waitFor(() => expect(timers.pending().length).toBeGreaterThanOrEqual(2));
+		await made.kernel.dispose();
+		expect(timers.pending()).toEqual([]);
+	});
+
+	it('P3-E4: a timer fire that fails after its settle is reported, never left unhandled', async () => {
+		const time = settableClock(T0);
+		const auth = new MockAuthAdapter({ clock: { now: time.now } });
+		const timers = fakeSchedule();
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: time.now,
+			ports: { schedule: timers.schedule } as unknown as KernelPortsV1,
+		});
+		kernels.push(kernel);
+		auth._setUser(user(BEA), { expiresAt: new Date(T0 + 60_000) });
+		// After the refresh, every read of the session throws: the settle's, then the re-arm's.
+		const getSession = auth.getSession.bind(auth);
+		let failing = false;
+		let failures = 0;
+		auth.getSession = () => {
+			if (failing) throw new Error(`The adapter could not read its session (${++failures})`);
+			return getSession();
+		};
+		auth.refresh = async () => {
+			failing = true;
+		};
+		const reportError = vi.fn();
+		vi.stubGlobal('reportError', reportError);
+		try {
+			time.set(T0 + 60_000);
+			timers.run(T0 + 60_000);
+			// The settle's failure, caught in the fire, and the re-arm's, which ends the fire.
+			await vi.waitFor(() => expect(reportError).toHaveBeenCalledTimes(2));
+			for (const [error] of reportError.mock.calls) {
+				expect((error as Error).message).toMatch(/^The adapter could not read its session/);
+			}
+		} finally {
+			failing = false;
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("P3-E4: a change whose settle failed is settled again, before the next person's call, as another tab's", async () => {
+		let reads = 0;
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () =>
+					(++reads === 1 ? { role: 'billing', digest: 'd2' } : { role: 'owner', digest: 'd1' }) as {
+						role: 'owner';
+						digest: string;
+					},
+			},
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		reads = 0;
+		// Another tab signs Olu in; the provider's first answer is one the settle refuses.
+		made.auth._setUser(user(OLU));
+		await vi.waitFor(() => expect(reads).toBe(1));
+		const read = await made.kernel.call('section-get');
+		expect(read.success, JSON.stringify(read.error)).toBe(true);
+		expect((await settles(made)).at(-1)?.input).toEqual({
+			person: OLU,
+			role: 'owner',
+			membershipDigest: 'd1',
+			reason: 'tab',
+		} satisfies SessionSettleInputV1);
 	});
 });

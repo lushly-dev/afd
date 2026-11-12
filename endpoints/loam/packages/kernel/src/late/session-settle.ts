@@ -314,16 +314,25 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		});
 
 	/** The host's membership read, failed if it has not answered within {@link MEMBERSHIP_READ_TIMEOUT_MS}. */
+	/** Each read's timeout while it waits, so `stop()` clears them with the kernel. */
+	const timeouts = new Set<() => void>();
 	const readMembership = (
 		read: NonNullable<KernelPortsV1['readMembership']>
 	): ReturnType<typeof read> =>
 		new Promise((resolve, reject) => {
-			const stop = schedule(now() + MEMBERSHIP_READ_TIMEOUT_MS, () =>
+			const clear = schedule(now() + MEMBERSHIP_READ_TIMEOUT_MS, () => {
+				timeouts.delete(clear);
 				reject(
 					new Error(`The membership read did not answer within ${MEMBERSHIP_READ_TIMEOUT_MS} ms`)
-				)
-			);
-			read().then(resolve, reject).finally(stop);
+				);
+			});
+			timeouts.add(clear);
+			read()
+				.then(resolve, reject)
+				.finally(() => {
+					timeouts.delete(clear);
+					clear();
+				});
 		});
 
 	/** The role and digest the kernel holds for `person`: what stage A was given, or the last settle journaled. */
@@ -705,6 +714,9 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			stopped = true;
 			cancel?.();
 			cancel = undefined;
+			// A read still waiting: its timeout goes with the kernel, which no longer settles.
+			for (const clear of timeouts) clear();
+			timeouts.clear();
 			subscription?.unsubscribe();
 			subscription = undefined;
 		},
