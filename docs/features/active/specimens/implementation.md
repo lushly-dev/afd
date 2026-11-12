@@ -39,7 +39,7 @@ The worker is an execution choice for the same lifecycle, not a second observati
 | `specimen-list` / `list` | Explicit metadata index without executing unrelated modules | Discovery/filter/coverage capability metadata and retained-CSF identity/policy inventory |
 | `specimen-render` / `render` | Native args/custom renderers; bounded ready/dispose; click/focus/hover/fill and named capture prefixes; context and screenshots | Retained plays/loaders/hooks/mocks, command/expectation steps, schema/slot validation, complete provenance and cross-driver parity |
 | `specimen-diff` / `diff` | Compatible observation comparison with scoped differences and insufficient-evidence results | Isolated git-ref builds, cache identity management and optional pixel comparison |
-| `specimen-build` / `build` | Metadata index, separate lazy cases, preview controls and 50,000-byte shell ceiling | Complete helper/axe/total budgets, loaded/compressed bytes and qualified human-review parity |
+| `specimen-build` / `build` | Metadata index, separate lazy cases, preview controls and a shell ceiling (50,000 bytes; 52,000 since #1001) | Complete helper/axe/total budgets, loaded/compressed bytes and qualified human-review parity |
 | Other proposed commands | None exported | migrate, validate, inspect, run, a11y, matrix, impact, profile, coverage and suggest; experiments do not substitute for these commands |
 
 ## Verified progress

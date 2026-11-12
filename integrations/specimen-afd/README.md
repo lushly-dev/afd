@@ -2,7 +2,7 @@
 
 **Preview,** like [Specimen](../../foundations/specimen/README.md): the commands can still change. Install it with Specimen and its AFD peers: `npm install @lushly-dev/specimen@preview @lushly-dev/specimen-afd@preview @lushly-dev/afd-core @lushly-dev/afd-server`.
 
-`@lushly-dev/specimen-afd` adapts native Specimen operations to validated AFD definitions and CommandResult envelopes: `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-migrate`, `specimen-diff`, `specimen-build`, `specimen-pack`, `specimen-pack-check` and `specimen-pack-export`. It supports Specimen `^2.2.0-preview`, its preview and the stable releases after it, and AFD core and AFD server `^2.2.0`; incompatible or missing peers must be resolved before using this integration.
+`@lushly-dev/specimen-afd` adapts native Specimen operations to validated AFD definitions and CommandResult envelopes: `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-themes`, `specimen-migrate`, `specimen-diff`, `specimen-build`, `specimen-pack`, `specimen-pack-check` and `specimen-pack-export`. It supports Specimen `^2.2.0-preview`, its preview and the stable releases after it, and AFD core and AFD server `^2.2.0`; incompatible or missing peers must be resolved before using this integration.
 
 ```ts
 import { createSpecimenBench } from '@lushly-dev/specimen';
@@ -12,4 +12,4 @@ const commands = createSpecimenCommands(bench);
 // Pass commands to an AFD MCP host. Its owner must await bench.close().
 ```
 
-Exports: `createSpecimenCommands`, `executeSpecimenCommand`, `executeSpecimenDiff`, `SpecimenCommandBench`, and native `buildOutputSchema`, `contextSchema`, `observationSchema`, `storyRunSchema`, `inspectResultSchema`. Importing the native foundation alone never imports this adapter. See [the unreleased transition](../../docs/features/active/platform-monorepo/specimen-transition.md).
+Exports: `createSpecimenCommands`, `executeSpecimenCommand`, `executeSpecimenDiff`, `SpecimenCommandBench`, and native `buildOutputSchema`, `contextSchema`, `observationSchema`, `storyRunSchema`, `inspectResultSchema`, `themesRunSchema`. `specimen-themes` returns `data.valid: false` when an entry's frame stays the same in every theme and nothing declares it; gate on that. Importing the native foundation alone never imports this adapter. See [the unreleased transition](../../docs/features/active/platform-monorepo/specimen-transition.md).

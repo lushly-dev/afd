@@ -115,6 +115,7 @@ const apiBasis = z.enum(['verified', 'observed', 'declared']);
 const statementBasis = z.enum(['verified', 'authored']);
 const roleBasis = z.enum(['observed', 'authored']);
 const observed = z.literal('observed');
+const themesBasis = z.enum(['declared', 'observed']);
 
 // Numbers are safe integers (Zod's `int`), which JavaScript and Rust both hold and write alike.
 const scalar = z.union([
@@ -250,6 +251,17 @@ export const packComponentSchema = z
 			.max(16),
 		detail: packText(PACK_TEXT_LIMITS.detail, 'multi').optional(),
 		gaps: z.array(gap).max(64),
+		/** The themes it renders as intended; absent when nothing has said or seen. */
+		themes: z
+			.strictObject({
+				supported: z
+					.array(z.enum(['dark', 'high-contrast', 'light']))
+					.min(1)
+					.max(3),
+				basis: themesBasis,
+				reason: packText(PACK_TEXT_LIMITS.statement).optional(),
+			})
+			.optional(),
 	})
 	.refine(
 		(value) => value.replacedBy === undefined || value.status === 'deprecated',

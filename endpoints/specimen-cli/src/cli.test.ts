@@ -128,6 +128,24 @@ function harness() {
 			counts: { total: 0, captured: 0, unavailable: 0, changed: 0, unchanged: 0, insufficient: 0 },
 			elapsedMs: 1,
 		})),
+		themes: vi.fn(async () => ({
+			themes: ['light' as const, 'dark' as const, 'high-contrast' as const],
+			checkpoint: 'mount',
+			threshold: 0.02,
+			valid: true,
+			reports: [],
+			counts: {
+				total: 0,
+				follows: 0,
+				declared: 0,
+				pinned: 0,
+				undeclared: 0,
+				contradicted: 0,
+				unavailable: 0,
+			},
+			workers: 2,
+			elapsedMs: 1,
+		})),
 		a11y: vi.fn(async () => ({
 			reports: [],
 			counts: { total: 0, passed: 0, warning: 0, failed: 0, notRun: 0 },
@@ -309,6 +327,60 @@ describe('specimen CLI', () => {
 		}));
 		expect(await runCli(['--root', root, 'a11y'], h.io)).toBe(1);
 		expect(await runCli(['--root', root, 'a11y', 'button', '--workers', '2'], h.io)).toBe(1);
+	});
+	it('dispatches themes, reading --theme as a list, and exits nonzero when one is undeclared', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'themes',
+					'--match',
+					'auth',
+					'--theme',
+					'light,dark',
+					'--threshold',
+					'0.01',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.themes).toHaveBeenCalledWith({
+			context: {},
+			filter: { match: 'auth' },
+			themes: ['light', 'dark'],
+			threshold: 0.01,
+		});
+		expect(
+			await runCli(['--root', root, 'themes', 'button', '--reduced-motion', 'reduce'], h.io)
+		).toBe(0);
+		expect(h.bench.themes).toHaveBeenLastCalledWith({
+			id: 'button',
+			context: { reducedMotion: 'reduce' },
+		});
+		expect(await runCli(['--root', root, 'themes', '--threshold', 'some'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'themes', 'button', '--tag', 'x'], h.io)).toBe(1);
+		h.bench.themes = vi.fn(async () => ({
+			themes: ['light' as const, 'dark' as const],
+			checkpoint: 'mount',
+			threshold: 0.02,
+			valid: false,
+			reports: [],
+			counts: {
+				total: 1,
+				follows: 0,
+				declared: 0,
+				pinned: 0,
+				undeclared: 1,
+				contradicted: 0,
+				unavailable: 0,
+			},
+			workers: 2,
+			elapsedMs: 1,
+		}));
+		expect(await runCli(['--root', root, 'themes'], h.io)).toBe(1);
 	});
 	it('dispatches profile and baseline, and exits nonzero on a failed budget or a broken run', async () => {
 		const h = harness();

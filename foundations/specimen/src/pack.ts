@@ -248,6 +248,7 @@ function checkComponent(checker: Checker, { path, value }: Parsed<PackComponent>
 	);
 	checker.ascending(path, '/a11y/axe/exceptions', value.a11y.axe?.exceptions ?? []);
 	checker.ascending(path, '/rules', value.rules);
+	checker.ascending(path, '/themes/supported', value.themes?.supported ?? []);
 }
 
 function checkLibrary(

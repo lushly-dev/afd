@@ -17,7 +17,13 @@ import {
 	type PackRules,
 } from './pack-schema.js';
 import type { ComponentSchema, SchemaValue } from './plugin.js';
-import type { ElementObservation, GuideCoverage, Observation, PackConfig } from './types.js';
+import type {
+	ElementObservation,
+	GuideCoverage,
+	Observation,
+	PackConfig,
+	ThemeSupport,
+} from './types.js';
 
 /**
  * A pack's committed form, built from what a run showed: the schemas say what a component
@@ -31,6 +37,8 @@ export interface PackCase {
 	id: string;
 	/** The tag the entry names as its component, when it names one. */
 	component?: string;
+	/** The themes the entry declares, when it declares a limit. */
+	themes?: ThemeSupport;
 	observation: Observation;
 }
 
@@ -69,6 +77,7 @@ export interface PackBuild {
 }
 
 type ApiBasis = 'verified' | 'observed' | 'declared';
+type PackThemes = NonNullable<PackComponent['themes']>;
 const RANK: Record<ApiBasis, number> = { declared: 0, observed: 1, verified: 2 };
 const best = (bases: ApiBasis[]): ApiBasis =>
 	bases.reduce<ApiBasis>((top, basis) => (RANK[basis] > RANK[top] ? basis : top), 'declared');
@@ -334,6 +343,8 @@ function componentRecord(
 	const usage = (guide?.usage ?? []).map(statement);
 	const a11yStatements = (guide?.a11y ?? []).map(statement);
 	const specifier = importOf(input.config, schema);
+	const themes = declaredThemesOf(tag, input.cases);
+	const themeReason = texts.line(themes?.reason, 'themes.reason');
 
 	const api = {
 		attributes: byName(attributes),
@@ -392,8 +403,39 @@ function componentRecord(
 		examples,
 		...(guide?.detail ? { detail: guide.detail } : {}),
 		gaps,
+		...(themes
+			? {
+					themes: {
+						supported: themes.supported,
+						basis: 'declared' as const,
+						...(themeReason ? { reason: themeReason } : {}),
+					},
+				}
+			: {}),
 	};
 	return { record, omitted: texts.omitted };
+}
+
+/**
+ * A component's declared themes: when every case about it declares the same ones. A case that
+ * follows the theme, or a pair that pins one theme each, says the component itself follows it.
+ * The reason comes only when the cases give one and the same.
+ */
+export function declaredThemesOf(
+	tag: string,
+	cases: readonly PackCase[]
+): { supported: PackThemes['supported']; reason?: string } | undefined {
+	const about = cases.filter((item) => item.component === tag);
+	const first = about[0]?.themes;
+	if (!first) return undefined;
+	const key = first.supported.join();
+	if (!about.every((item) => item.themes?.supported.join() === key)) return undefined;
+	const reasons = new Set(about.map((item) => item.themes?.reason));
+	const [reason] = reasons;
+	return {
+		supported: [...first.supported].sort(),
+		...(reasons.size === 1 && reason ? { reason } : {}),
+	};
 }
 
 /** The specifier that registers a component, from the configured template and its module. */

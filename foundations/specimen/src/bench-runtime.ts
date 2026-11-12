@@ -41,6 +41,7 @@ import {
 	selectEntries,
 	selectStories,
 } from './suite.js';
+import { runThemes } from './themes-run.js';
 import { startTrace, traced } from './trace.js';
 import {
 	type A11yReport,
@@ -82,6 +83,8 @@ import {
 	type SuiteCapture,
 	type SuiteRequest,
 	type SuiteRun,
+	type ThemesRequest,
+	type ThemesRun,
 } from './types.js';
 import {
 	parseA11yRequest,
@@ -94,6 +97,7 @@ import {
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
+	parseThemesRequest,
 } from './validate.js';
 
 function coverage(
@@ -970,6 +974,31 @@ export async function createInProcessBench(
 				workers,
 				elapsedMs: performance.now() - started,
 			};
+		},
+		async themes(rawRequest: ThemesRequest = {}): Promise<ThemesRun> {
+			ensureOpen();
+			const runtime = await ensureHost();
+			return runThemes(
+				{
+					entries: config.entries,
+					root: config.root,
+					workers: config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
+					prepare: async () => void (await runtime.request('prepare', {}, BUNDLE_GRACE)),
+					render: async (id, checkpoint, context, screenshot, timeoutMs) => {
+						const request = {
+							id,
+							checkpoint,
+							context,
+							screenshot,
+							...(timeoutMs ? { timeoutMs } : {}),
+						};
+						const { observation } = await capture(request, { reuseBundle: true });
+						if (!observation) throw new Error('The render captured no frame.');
+						return observation.manifest.context.theme;
+					},
+				},
+				parseThemesRequest(rawRequest)
+			);
 		},
 		async runSuite(rawRequest: SuiteRequest = {}): Promise<SuiteRun> {
 			ensureOpen();

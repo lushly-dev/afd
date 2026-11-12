@@ -25,7 +25,10 @@ export {
 	DEFAULT_STORY_FILES,
 	type Discovery,
 	type DiscoveryProblem,
+	declaredThemes,
 	normalizeSpecifier,
+	THEME_TAGS,
 	UNSUPPORTED_ANNOTATIONS,
 } from './stories.js';
+export { DEFAULT_THEME_THRESHOLD } from './themes.js';
 export * from './types.js';

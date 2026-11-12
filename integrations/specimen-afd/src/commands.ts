@@ -37,6 +37,9 @@ import {
 	suggestRunSchema,
 	suiteRequestSchema,
 	suiteRunSchema,
+	themeSupportSchema,
+	themesRequestSchema,
+	themesRunSchema,
 } from '@lushly-dev/specimen/schema';
 import { z } from 'zod';
 
@@ -78,6 +81,8 @@ import type {
 	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
+	ThemesRequest,
+	ThemesRun,
 	ValidationReport,
 	ValidationTarget,
 } from '@lushly-dev/specimen/types';
@@ -101,6 +106,7 @@ const entrySchema = z
 		exportName: z.string(),
 		component: z.string().optional(),
 		story: storySchema.optional(),
+		themes: themeSupportSchema.optional(),
 	})
 	.strict();
 const validateInput = z
@@ -162,6 +168,7 @@ export interface SpecimenCommandBench {
 	run(request: RunRequest): Promise<StoryRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
+	themes(request?: ThemesRequest): Promise<ThemesRun>;
 	profile(request?: ProfileRequest): Promise<ProfileRun>;
 	contract(request: ContractRequest): Promise<ContractRun>;
 	suggest(request: SuggestRequest): Promise<SuggestRun>;
@@ -316,6 +323,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				a11yRunSchema,
 				'SPECIMEN_A11Y_FAILED',
 				'Use specimen-list to check the id or filter, specimen-inspect to check the checkpoint, then check the browser installation.'
+			),
+	});
+	const themes = defineCommand({
+		...common,
+		name: 'specimen-themes',
+		description:
+			'Render one entry by id, or those a filter selects, in each theme and compare the frames, to find what does not follow the theme. Each report is follows, declared (the frame stays the same and a light-only, dark-only or high-contrast-only tag says so), pinned (the story sets its own theme global), undeclared (it stays the same and nothing says so), contradicted (it declares a limit but changes) or unavailable. data.valid is false when any entry is undeclared: gate on it.',
+		mutation: false,
+		input: themesRequestSchema,
+		output: themesRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.themes(input),
+				themesRunSchema,
+				'SPECIMEN_THEMES_FAILED',
+				'Use specimen-list to check the id or filter, then check the browser installation.'
 			),
 	});
 	const profile = defineCommand({
@@ -529,6 +552,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		pack,
 		packCheck,
 		packExport,
+		themes,
 	] as const;
 }
 
@@ -571,6 +595,7 @@ export async function executeSpecimenCommand(
 		pack,
 		packCheck,
 		packExport,
+		themes,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -609,11 +634,14 @@ export async function executeSpecimenCommand(
 			return execute(packCheck, input);
 		case 'specimen-pack-export':
 			return execute(packExport, input);
+		case 'specimen-themes':
+			return execute(themes, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
-				suggestion: 'Use specimen list, validate, inspect, render, run, migrate, diff, or build.',
+				suggestion:
+					'Use specimen list, validate, inspect, render, run, themes, migrate, diff, or build.',
 			});
 	}
 }

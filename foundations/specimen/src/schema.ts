@@ -687,6 +687,71 @@ export const matrixRunSchema = z.strictObject({
 	elapsedMs: z.number().nonnegative(),
 });
 
+const themeEnum = contextSchema.shape.theme;
+/** What an entry declares of its themes: `SpecimenEntry.themes`. */
+export const themeSupportSchema = z.strictObject({
+	supported: z.array(themeEnum).min(1),
+	basis: z.literal('declared'),
+	reason: z.string().min(1).optional(),
+});
+export const themesRequestSchema = z.strictObject({
+	id: z.string().min(1).optional(),
+	filter: suiteRequestSchema.shape.filter,
+	themes: z
+		.array(themeEnum)
+		.min(2)
+		.refine((themes) => new Set(themes).size === themes.length, 'Name each theme once.')
+		.optional(),
+	checkpoint: z.string().min(1).optional(),
+	context: captureRequestSchema.shape.context,
+	threshold: z.number().min(0).max(1).optional(),
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+});
+const themeStatus = z.enum([
+	'follows',
+	'declared',
+	'pinned',
+	'undeclared',
+	'contradicted',
+	'unavailable',
+]);
+export const themesRunSchema = z.strictObject({
+	themes: z.array(themeEnum),
+	checkpoint: z.string(),
+	threshold: z.number().min(0).max(1),
+	valid: z.boolean(),
+	reports: z.array(
+		z.strictObject({
+			id: z.string(),
+			title: z.string(),
+			component: z.string().optional(),
+			status: themeStatus,
+			declared: themeSupportSchema.nullable(),
+			frames: z.array(
+				z.strictObject({
+					theme: themeEnum,
+					rendered: themeEnum.nullable(),
+					changed: z.number().min(0).max(1).nullable(),
+					reason: z.string().optional(),
+				})
+			),
+			reason: z.string().optional(),
+		})
+	),
+	counts: z.strictObject({
+		total: z.number().int().nonnegative(),
+		follows: z.number().int().nonnegative(),
+		declared: z.number().int().nonnegative(),
+		pinned: z.number().int().nonnegative(),
+		undeclared: z.number().int().nonnegative(),
+		contradicted: z.number().int().nonnegative(),
+		unavailable: z.number().int().nonnegative(),
+	}),
+	workers: z.number().int().positive(),
+	elapsedMs: z.number().nonnegative(),
+});
+
 /** A component's schema from the manifest, enriched by plugins' schema sources. */
 export const componentSchemaSchema = z.strictObject({
 	tag: z.string(),

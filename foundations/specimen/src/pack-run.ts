@@ -265,6 +265,7 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 	const coverage = computeCoverage(schemas, cases);
 	const guideCoverage = computeGuideCoverage(config.guides, schemas, [...cases, ...guideCases]);
 	const componentOf = new Map(config.entries.map((entry) => [entry.id, entry.component]));
+	const themesOf = new Map(config.entries.map((entry) => [entry.id, entry.themes]));
 
 	// Examples: what a case about a component mounted, the same in both passes, and the same
 	// again when that markup alone is mounted.
@@ -321,6 +322,7 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 	const packCases: PackCase[] = cases.map(({ id, observation }) => ({
 		id,
 		...(componentOf.get(id) ? { component: componentOf.get(id) } : {}),
+		...(themesOf.get(id) ? { themes: themesOf.get(id) } : {}),
 		observation,
 	}));
 	const built = buildPack({

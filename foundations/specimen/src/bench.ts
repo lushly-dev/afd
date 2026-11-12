@@ -44,6 +44,8 @@ import type {
 	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
+	ThemesRequest,
+	ThemesRun,
 	ValidationReport,
 	ValidationTarget,
 } from './types.js';
@@ -59,6 +61,7 @@ import {
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
+	parseThemesRequest,
 } from './validate.js';
 
 /** Discovery found stories it cannot index; `validate()` reports each problem. */
@@ -96,6 +99,12 @@ export interface SpecimenBench {
 	 * what axe could not decide, and the exceptions that applied. A story keeps its effective policy.
 	 */
 	a11y(request?: A11yRequest): Promise<A11yRun>;
+	/**
+	 * Render each entry, or those a filter selects, in every theme and compare the frames: which
+	 * follow the theme, which stay the same and declare it, and which stay the same with nothing
+	 * declaring it (`undeclared`, which makes the run invalid). Not part of a run; ask for it.
+	 */
+	themes(request?: ThemesRequest): Promise<ThemesRun>;
 	/**
 	 * Run the cases a filter selects and report each component's required partitions at the level
 	 * those runs earn: represented, asserted, verified, missing or unknown. A schema alone proves
@@ -231,6 +240,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'run'
 		| 'runSuite'
 		| 'a11y'
+		| 'themes'
 		| 'coverage'
 		| 'contract'
 		| 'suggest'
@@ -360,6 +370,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			ensureDiscovered();
 			const request = parseA11yRequest(rawRequest);
 			return enqueue((client) => client.a11y(request));
+		},
+		async themes(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseThemesRequest(rawRequest);
+			return enqueue((client) => client.themes(request));
 		},
 		async runSuite(rawRequest = {}) {
 			ensureDiscovered();

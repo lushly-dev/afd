@@ -105,7 +105,7 @@ describe('component pack format', () => {
 	});
 
 	it('names every invalid case, each with its own overlay', () => {
-		expect(manifest.cases.length).toBe(26);
+		expect(manifest.cases.length).toBe(28);
 		expect(new Set(manifest.cases.map((entry) => entry.name)).size).toBe(manifest.cases.length);
 		expect(
 			manifest.cases.flatMap((entry) => entry.problems.map((problem) => problem.code))
@@ -262,6 +262,29 @@ describe('values and text', () => {
 		).toEqual(['SCHEMA_INVALID']);
 	});
 
+	it('takes the themes a component supports, declared or observed, in name order', () => {
+		const themes = (value: unknown) => check((record) => Object.assign(record, { themes: value }));
+		expect(
+			themes({ supported: ['light'], basis: 'declared', reason: 'Matches the marketing site.' })
+		).toEqual([]);
+		expect(themes({ supported: ['dark', 'high-contrast', 'light'], basis: 'observed' })).toEqual(
+			[]
+		);
+		expect(themes({ supported: ['light', 'light'], basis: 'declared' })).toEqual(['DUPLICATE_ID']);
+		expect(themes({ supported: ['light', 'dark'], basis: 'declared' })).toEqual(['NOT_CANONICAL']);
+		for (const value of [
+			{ supported: [], basis: 'declared' },
+			{ supported: ['sepia'], basis: 'declared' },
+			{ supported: ['light'], basis: 'authored' },
+			{ supported: ['light'] },
+			{ supported: ['light'], basis: 'declared', extra: 1 },
+		])
+			expect(themes(value), JSON.stringify(value)).toEqual(['SCHEMA_INVALID']);
+		expect(themes({ supported: ['light'], basis: 'declared', reason: 'x\ny' })).toEqual([
+			'TEXT_INVALID',
+		]);
+	});
+
 	it('refuses C1 controls, bidirectional overrides and lone surrogates in text', () => {
 		for (const bad of ['\u009b2J', '\u202eevil', '\ud800'])
 			expect(
@@ -309,7 +332,7 @@ describe('JSON Schema', () => {
 				entry.name !== 'text-lone-surrogate' &&
 				entry.problems.every((problem) => shape.has(problem.code))
 		);
-		expect(cases.length).toBe(9);
+		expect(cases.length).toBe(10);
 		for (const entry of cases) {
 			const files = await overlaid(entry);
 			const path = entry.problems[0]?.path as string;

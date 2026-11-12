@@ -67,9 +67,11 @@ In CSF compatibility mode a configuration names the consumer's existing Storyboo
 ```json
 {
   "stories": ["src/**/*.stories.ts"],
-  "preview": ".storybook/preview.ts"
+  "preview": "specimens/preview.ts"
 }
 ```
+
+Any path relative to the configuration works. A project moving from Storybook can point at its existing `.storybook/preview.ts`; a new one needs no `.storybook` directory.
 
 Each `stories` entry is a glob, directory, file or `{ "directory", "files", "titlePrefix" }`, read as Storybook's `stories` entries are, relative to the configuration file. Extended globs such as `@(a|b)` are rejected; use braces.
 
@@ -154,6 +156,42 @@ const run = await bench.matrix({
 ```
 
 Each cell after the first captured one reports a `diff` against it: its status, the channels that changed, and any limitations. A cell that could not be captured stays in the report as `unavailable` with its reason, and is not an error. `observations: true` keeps each capture. The default checkpoint is a native scenario's end, or a retained story's `mount`.
+
+## Declare and check themes
+
+An entry follows the theme unless it says otherwise. A story that is meant for some themes only, such as a sign-in page that stays light to match a marketing site, declares it with a tag on the story or its meta:
+
+```ts
+export default { title: 'Auth/Sign in', tags: ['light-only'] };
+```
+
+`light-only`, `dark-only` and `high-contrast-only` each add their theme, so `light-only` with `high-contrast-only` supports both. A story that pins its own theme, as a Light and Dark pair set through args does, declares it the same way: `light-only` on one, `dark-only` on the other. A native specimen declares it in the configuration, with an optional one-line reason:
+
+```json
+{ "id": "sign-in", "title": "Auth/Sign in", "module": "./sign-in.specimens.ts", "exportName": "Page",
+  "themes": { "supported": ["light"], "reason": "Matches the marketing site." } }
+```
+
+Discovery puts the declaration on the entry as `themes` (`{ supported, basis: 'declared', reason? }`), which `list()` returns and the review page shows.
+
+`themes()` (`specimen-themes`, `specimen themes [ID]`) renders one entry by `id`, or those a `filter` selects, in each theme and compares the screenshots pixel by pixel. It is not part of `run`; ask for it when you want the audit:
+
+```sh
+specimen themes --match auth --theme light,dark --threshold 0.02
+```
+
+The defaults are all three themes, the `mount` checkpoint, reduced motion and a threshold of 0.02: two frames count as the same when at most 2% of their pixels differ. That figure is from an audit of 916 stories, where the pages meant to stay light changed 0% and stories that follow the theme changed 10% or more. Each report has a `status`:
+
+| Status | Meaning |
+| --- | --- |
+| `follows` | The frame changes with the theme |
+| `declared` | It declares its themes, and its frame under a theme it does not support looks as it does under one it does; or it declares every compared theme and its frame stays the same |
+| `pinned` | The frame stays the same because the story sets its own theme global |
+| `undeclared` | The frame stays the same and nothing declares it |
+| `contradicted` | It declares a limit, but its frame changes under a theme it does not support |
+| `unavailable` | A theme did not render; `reason` says why |
+
+Each report also lists, per theme, the theme it rendered in and the share of pixels that differ from the first theme's frame. `valid` is false, and the CLI exits 1, when any entry is `undeclared`, so a consumer can gate on it.
 
 ## Check accessibility
 
@@ -369,9 +407,9 @@ python3 -m http.server 4173 --directory /tmp/specimen-static
 
 The output directory must be empty. Open `/index.html` for the index, or `/specimen.html?id=baseline&viewport=375x812&theme=dark` for a preview.
 
-The index groups specimens by component, a story's title or a native specimen's title without its last segment, under a heading for each shared prefix such as `Components`. A story with a play is tagged `play`. The filter matches every word against a specimen's name, group, id and tags, and keeps its text in `q`, so a reloaded or shared link opens filtered. Every count follows the filter. A preview names the specimen, its id and its group, each segment of the group a link to the index filtered to it, and shows the frame on a stage captioned with its size and theme. The viewport is a device preset (Phone, Large phone, Tablet, Laptop, Desktop or Wide) or a custom width and height, A theme or a preset applies as soon as you pick it; a custom size applies when you press Apply. Drag the frame's corner to resize it: the story sees its window resize, as on a device, and the caption, the viewport controls and the URL's `viewport` follow, so a reload or a shared link opens at that size.
+The index groups specimens by component, a story's title or a native specimen's title without its last segment, under a heading for each shared prefix such as `Components`. A story with a play is tagged `play`, and one that declares its themes is tagged with them, such as `light only`, with its reason as the tag's title. The filter matches every word against a specimen's name, group, id and tags, and keeps its text in `q`, so a reloaded or shared link opens filtered. Every count follows the filter. A preview names the specimen, its id and its group, each segment of the group a link to the index filtered to it, and shows the frame on a stage captioned with its size and theme. When the selected theme is one the specimen does not support, the preview says so above the frame, with the declared reason, so a light frame under Dark reads as intended. The viewport is a device preset (Phone, Large phone, Tablet, Laptop, Desktop or Wide) or a custom width and height, A theme or a preset applies as soon as you pick it; a custom size applies when you press Apply. Drag the frame's corner to resize it: the story sees its window resize, as on a device, and the caption, the viewport controls and the URL's `viewport` follow, so a reload or a shared link opens at that size.
 
-The pages have one small stylesheet of their own, linked only on the index and the preview. A story's frame and an automated render never load it, so it cannot change an observation. Restyle the pages by setting its custom properties, such as `--specimen-surface`, `--specimen-text` and `--specimen-accent`. Its colors use `light-dark()`, and follow the theme the page selects. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **50,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
+The pages have one small stylesheet of their own, linked only on the index and the preview. A story's frame and an automated render never load it, so it cannot change an observation. Restyle the pages by setting its custom properties, such as `--specimen-surface`, `--specimen-text` and `--specimen-accent`. Its colors use `light-dark()`, and follow the theme the page selects. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **52,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies; the proposal's 50,000 left no room once the shell's own code reached 49,800 bytes. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
 
 Each bench page, this one included, starts `Math.random` from a fixed seed, so a framework's random marker comes out the same each time and a link reopens to the same DOM. A capture's manifest records this in `checkpoint.baseline`. The clock stays real, so a story showing today's date will still differ tomorrow.
 

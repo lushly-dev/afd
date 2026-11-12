@@ -27,6 +27,8 @@ import type {
 	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
+	ThemesRequest,
+	ThemesRun,
 } from './types.js';
 
 type WorkerOperation =
@@ -35,6 +37,7 @@ type WorkerOperation =
 	| { operation: 'run'; request: RunRequest }
 	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'a11y'; request: A11yRequest }
+	| { operation: 'themes'; request: ThemesRequest }
 	| { operation: 'coverage'; request: CoverageRequest }
 	| { operation: 'packBuild'; request: PackBuildRequest }
 	| { operation: 'contract'; request: ContractRequest }
@@ -272,6 +275,11 @@ export class BenchWorkerClient {
 		await this.ready;
 		// As a suite: each entry has its own deadline in the worker.
 		return (await this.request({ operation: 'a11y', request }, 3_600_000)) as A11yRun;
+	}
+	async themes(request: ThemesRequest): Promise<ThemesRun> {
+		await this.ready;
+		// As a suite: each render has its own deadline in the worker.
+		return (await this.request({ operation: 'themes', request }, 3_600_000)) as ThemesRun;
 	}
 	async runSuite(request: SuiteRequest): Promise<SuiteRun> {
 		await this.ready;

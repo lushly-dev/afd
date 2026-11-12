@@ -81,6 +81,17 @@ function bench(): SpecimenCommandBench {
 	return {
 		list: vi.fn(() => [
 			{ id: 'button', title: 'Button', module: './button.ts', exportName: 'Primary' },
+			{
+				id: 'sign-in',
+				title: 'Auth/Sign in',
+				module: './sign-in.ts',
+				exportName: 'Page',
+				themes: {
+					supported: ['light' as const],
+					basis: 'declared' as const,
+					reason: 'matches the marketing site',
+				},
+			},
 		]),
 		validate: vi.fn((target) => ({
 			valid: target?.id !== 'broken',
@@ -216,6 +227,35 @@ function bench(): SpecimenCommandBench {
 			workers: 2,
 			elapsedMs: 1,
 		})),
+		themes: vi.fn(async () => ({
+			themes: ['light' as const, 'dark' as const],
+			checkpoint: 'mount',
+			threshold: 0.02,
+			valid: false,
+			reports: [
+				{
+					id: 'sign-in',
+					title: 'Auth/Sign in',
+					status: 'undeclared' as const,
+					declared: null,
+					frames: [
+						{ theme: 'light' as const, rendered: 'light' as const, changed: 0 },
+						{ theme: 'dark' as const, rendered: 'dark' as const, changed: 0 },
+					],
+				},
+			],
+			counts: {
+				total: 1,
+				follows: 0,
+				declared: 0,
+				pinned: 0,
+				undeclared: 1,
+				contradicted: 0,
+				unavailable: 0,
+			},
+			workers: 2,
+			elapsedMs: 1,
+		})),
 		runSuite: vi.fn(async () => ({
 			outcome: 'passed' as const,
 			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
@@ -303,6 +343,7 @@ describe('specimen commands', () => {
 			'specimen-pack',
 			'specimen-pack-check',
 			'specimen-pack-export',
+			'specimen-themes',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -378,6 +419,29 @@ describe('specimen commands', () => {
 		});
 		const invalid = await executeSpecimenCommand(instance, 'specimen-a11y', { other: true });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('reports what does not follow the theme as data a gate can read', async () => {
+		const instance = bench();
+		const result = await executeSpecimenCommand(instance, 'specimen-themes', {
+			filter: { match: 'auth' },
+			themes: ['light', 'dark'],
+		});
+		expect(result.success).toBe(true);
+		expect(instance.themes).toHaveBeenCalledWith({
+			filter: { match: 'auth' },
+			themes: ['light', 'dark'],
+		});
+		expect(result.data).toMatchObject({
+			valid: false,
+			counts: { undeclared: 1 },
+			reports: [{ id: 'sign-in', status: 'undeclared' }],
+		});
+		for (const input of [{ themes: ['light'] }, { themes: ['light', 'light'] }, { threshold: 2 }])
+			expect((await executeSpecimenCommand(instance, 'specimen-themes', input)).error?.code).toBe(
+				'VALIDATION_ERROR'
+			);
+		const commands = createSpecimenCommands(instance);
+		expect(commands.find((command) => command.name === 'specimen-themes')?.mutation).toBe(false);
 	});
 	it('builds, checks and exports a pack, the check as the one command that changes nothing', async () => {
 		const instance = bench();
