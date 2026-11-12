@@ -939,7 +939,12 @@ describe('P2-D5: the editor area, native half', () => {
 				kernel: { call(name: string, ...rest: unknown[]): Promise<unknown> };
 			};
 			const call = shell.kernel.call.bind(shell.kernel);
-			const gate = window as unknown as { openGate: () => void; armGate: () => void };
+			const gate = window as unknown as {
+				openGate: () => void;
+				armGate: () => void;
+				heldStarted: boolean;
+			};
+			gate.heldStarted = false;
 			const held = new Promise<void>((resolve) => {
 				gate.openGate = resolve;
 			});
@@ -948,8 +953,15 @@ describe('P2-D5: the editor area, native half', () => {
 				armed = true;
 			};
 			shell.kernel.call = async (name: string, ...rest: unknown[]) => {
-				const hold = name === 'editor-get' && armed;
-				if (hold) armed = false;
+				// The area's sync reads the active scope; its marks name theirs, and are not this read.
+				const scoped = rest.some(
+					(part) => typeof part === 'object' && part !== null && 'scope' in part
+				);
+				const hold = name === 'editor-get' && armed && !scoped;
+				if (hold) {
+					armed = false;
+					gate.heldStarted = true;
+				}
 				const answer = await call(name, ...rest);
 				if (hold) await held;
 				return answer;
@@ -960,6 +972,8 @@ describe('P2-D5: the editor area, native half', () => {
 		// from a read of the workspace, after the person has switched to Atlas.
 		await page.evaluate(() => (window as unknown as { armGate: () => void }).armGate());
 		await kernelCall(page, 'editor-dirty-set', { tab: 't1', dirty: false });
+		// The held read has started, so it read the workspace, before the person switches.
+		await page.waitForFunction(() => (window as unknown as { heldStarted: boolean }).heldStarted);
 		await kernelCall(page, 'scope-set', { project: 'atlas' });
 		await page.evaluate(() => (window as unknown as { openGate: () => void }).openGate());
 		await editorIdle(page);
