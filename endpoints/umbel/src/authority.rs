@@ -128,6 +128,24 @@ fn answered_authority_prompt(
         && prompts.covers(marked, command)
 }
 
+/// The authority the host fills into a put of a standing record (the records host
+/// specification, section 4.2, step 3), whatever the plugin sent: `person` for a human through
+/// the library, `tool` for any other human actor and `agent` for any other actor. The table's
+/// first row, a call that carries the person gate's proof, joins with that specification's step
+/// B3, which is where the proof is made.
+pub(crate) fn record_authority(context: &CommandContext) -> Authority {
+    if embedder_human(context) {
+        return Authority::Person;
+    }
+    let human = Principal::from_context(context)
+        .is_some_and(|principal| principal.actor.kind == ActorKind::Human);
+    if human {
+        Authority::Tool
+    } else {
+        Authority::Agent
+    }
+}
+
 /// The authority the host fills into a memory write on `path` (section 3.3's table), whatever
 /// the plugin sent.
 pub(crate) fn write_authority(

@@ -1,8 +1,8 @@
 //! The plugin manifest, version 6 (records host specification, section 2; D159): the top-level
 //! `[[records]]`, each key's rule, the five rules a declaration brings and their messages,
 //! versions 1 to 5 refusing the key, a version 6 plugin loading, and the schema file accepting
-//! and refusing the same manifests. What acts on a declaration is that specification's later
-//! steps: until then a declared kind is written and read as an undeclared one.
+//! and refusing the same manifests. What a declaration does to a put and a read is in
+//! `records_put.rs` and `records_find.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;

@@ -382,6 +382,11 @@ impl HostBuilder {
                 Arc::clone(&workspace),
                 Arc::clone(&stores),
             ));
+            builtins.push(commands::store_records_reindex(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+                Arc::clone(&loaded_cell),
+            ));
             builtins
         };
         let builtin_names: HashSet<String> = builtins
@@ -855,13 +860,26 @@ fn terminal_prompts(loaded: &LoadedPlugins) -> crate::authority::Prompts {
     prompts
 }
 
-/// The digest commands and their kept keys, fixed at seal (phase 3 section 7.1).
+/// The digest commands and their kept keys, fixed at seal (phase 3 section 7.1): the plugin
+/// commands declared `journal.mode = "digest"`, and the one built-in journaled so, the rebuild of
+/// a record lane (the records host specification, section 12), whose inputs are all kept since
+/// none is content.
 fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
-    loaded
+    #[cfg_attr(not(feature = "store-embedded"), allow(unused_mut))]
+    let mut commands: digest::DigestCommands = loaded
         .gate
         .iter()
         .filter_map(|(name, entry)| entry.digest.clone().map(|keep| (name.clone(), keep)))
-        .collect()
+        .collect();
+    #[cfg(feature = "store-embedded")]
+    commands.insert(
+        commands::STORE_RECORDS_REINDEX.to_owned(),
+        commands::STORE_RECORDS_REINDEX_KEPT
+            .iter()
+            .map(|key| (*key).to_owned())
+            .collect(),
+    );
+    commands
 }
 
 /// The journal recorder: the outermost layer, so the stamps are in the journaled result and the

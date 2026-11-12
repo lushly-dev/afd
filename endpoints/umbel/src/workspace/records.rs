@@ -6,7 +6,7 @@
 //! This module parses, validates and stores them, with every rule section 3 checks when the
 //! configuration is read, each a `WORKSPACE_CONFIG_INVALID` naming the key. Nothing acts on them
 //! yet: standing, the own-source check, matching by meaning and the models themselves arrive in
-//! that specification's steps B2 to B5.
+//! that specification's steps B3 to B5.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;

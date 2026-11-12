@@ -112,6 +112,33 @@ pub mod codes {
     pub const MEMORY_KEYS_NOT_BACKED_UP: &str = "MEMORY_KEYS_NOT_BACKED_UP";
 }
 
+/// The record lane's codes and their messages (the records host specification, section 13). No
+/// message holds a record's text or a key's value. Only a build with a store backend serves the
+/// lane, so only that build uses them all.
+#[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+pub(crate) mod records {
+    /// A lane service on a kind the instance's manifest does not declare.
+    pub(crate) const RECORD_KIND_NOT_DECLARED: &str = "RECORD_KIND_NOT_DECLARED";
+    /// A put of a declared record with no effective principal.
+    pub(crate) const RECORD_PRINCIPAL_REQUIRED: &str = "RECORD_PRINCIPAL_REQUIRED";
+    /// A value at a text pointer or a key pointer that the declaration does not admit.
+    pub(crate) const RECORD_FIELD_INVALID: &str = "RECORD_FIELD_INVALID";
+    /// A put that would change the wording of a standing record.
+    pub(crate) const RECORD_WORDING_FIXED: &str = "RECORD_WORDING_FIXED";
+    /// The kind's lane is being rebuilt or must be rebuilt.
+    pub(crate) const RECORD_LANE_STALE: &str = "RECORD_LANE_STALE";
+    /// A find that breaks a rule of section 7.
+    pub(crate) const RECORD_QUERY_INVALID: &str = "RECORD_QUERY_INVALID";
+    /// A ranked find whose counts pass the most postings one call counts.
+    pub(crate) const RECORD_QUERY_TOO_BROAD: &str = "RECORD_QUERY_TOO_BROAD";
+
+    /// `RECORD_LANE_STALE`'s message for `kind`.
+    #[must_use]
+    pub(crate) fn stale_message(kind: &str) -> String {
+        format!("the lane of {kind} is being rebuilt or must be rebuilt")
+    }
+}
+
 /// The SDK's `HostError` for a store failure (specification section 3.3).
 pub(crate) fn host_error(error: StoreError) -> umbel_sdk::HostError {
     use umbel_sdk::HostError;
@@ -141,6 +168,17 @@ pub(crate) fn host_error(error: StoreError) -> umbel_sdk::HostError {
         StoreError::KeyAbsent { id } => HostError::KeyAbsent { id },
         StoreError::SealInvalid { id } => HostError::SealInvalid { id },
         StoreError::QueryTooBroad { limit } => HostError::QueryTooBroad { limit },
+        // The record lane's refusals (the records host specification, section 13): the message
+        // begins with the code. A lane service names the kind of a stale lane itself.
+        other @ StoreError::LaneStale => {
+            HostError::Invalid(format!("{}: {other}", records::RECORD_LANE_STALE))
+        }
+        other @ StoreError::WordingFixed => {
+            HostError::Invalid(format!("{}: {other}", records::RECORD_WORDING_FIXED))
+        }
+        other @ StoreError::LaneTooBroad { .. } => {
+            HostError::Invalid(format!("{}: {other}", records::RECORD_QUERY_TOO_BROAD))
+        }
         other => HostError::Io(other.to_string()),
     }
 }
@@ -186,6 +224,11 @@ pub(crate) fn command_error(error: &StoreError) -> CommandError {
             "Narrow the query: add a required term with +, a field, or a filter.",
             false,
         ),
+        StoreError::LaneStale => (
+            records::RECORD_LANE_STALE,
+            "Run umbel store-records-reindex first.",
+            false,
+        ),
         StoreError::Invalid(_) | StoreError::TooLarge(_) | StoreError::NotFound => (
             afd::error_codes::VALIDATION_ERROR,
             "Fix the input and try again.",
@@ -211,3 +254,48 @@ pub(crate) const KEYS_MISMATCH_SUGGESTION: &str = "Put back the memory.keys that
 
 /// What the services and commands share: the stores of a workspace's spaces.
 pub(crate) type Hub = Arc<Stores>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use umbel_sdk::HostError;
+
+    #[test]
+    fn the_record_lanes_refusals_begin_with_their_codes() {
+        // The records host specification, section 13: each is `Invalid`, code first.
+        let invalid = |error: StoreError| match host_error(error) {
+            HostError::Invalid(message) => message,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(
+            invalid(StoreError::LaneStale),
+            "RECORD_LANE_STALE: the lane is being rebuilt or must be rebuilt"
+        );
+        assert_eq!(
+            invalid(StoreError::WordingFixed),
+            "RECORD_WORDING_FIXED: the wording of a standing record never changes; write a new record"
+        );
+        assert_eq!(
+            invalid(StoreError::LaneTooBroad { limit: 4_000_000 }),
+            "RECORD_QUERY_TOO_BROAD: the call counts more than 4000000 postings"
+        );
+        assert_eq!(
+            records::stale_message("note"),
+            "the lane of note is being rebuilt or must be rebuilt"
+        );
+    }
+
+    #[cfg(feature = "store-embedded")]
+    #[test]
+    fn a_stale_lane_is_a_command_error_that_names_the_rebuild() {
+        let error = command_error(&StoreError::LaneStale);
+        assert_eq!(error.code, "RECORD_LANE_STALE");
+        assert_eq!(error.retryable, Some(false));
+        assert!(
+            error
+                .suggestion
+                .as_deref()
+                .is_some_and(|suggestion| suggestion.contains("umbel store-records-reindex"))
+        );
+    }
+}

@@ -63,7 +63,8 @@ pub(crate) const RECORD_KEY: &str = "dev.umbel/record";
 /// which is outer, then leaves the result unstamped, so a no-op makes no event.
 pub(crate) const NO_CHANGE_KEY: &str = "dev.umbel/no-change";
 /// The envelope fields the host nulls in a memory writer's event (phase 3 sections 6.2 and 7.3):
-/// they stay sealed on the stored record.
+/// they stay sealed on the stored record. A lane writer's event loses the same fields (the
+/// records host specification, section 14): a declared record's text reaches no event.
 const MEMORY_SEALED_FIELDS: &[&str] = &[
     "sources",
     "contentHash",
@@ -77,13 +78,14 @@ const HOST_PREFIX: &str = "dev.umbel/";
 /// Commands whose successful result is never projected into an event: the cursor the caller
 /// stores, the rebuild of the streams themselves, the export of skills to a directory and the
 /// scaffold of a plugin directory, and the copy of a space's stores (a workspace write that
-/// changes no knowledge).
+/// changes no knowledge), and the rebuild of a record lane, which changes no record.
 pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &[
     "event-ack",
     "event-rebuild",
     "skill-export",
     "plugin-new",
     "store-backup",
+    "store-records-reindex",
 ];
 
 /// Resolves a call's space (`Workspace::resolve_space`).
@@ -587,7 +589,7 @@ fn sanitize(
             .extra
             .insert(NO_CHANGE_KEY.to_owned(), Value::Bool(true));
     }
-    if entry.memory_writer
+    if (entry.memory_writer || entry.lane_writer)
         && let Some(Value::Object(provenance)) = metadata.extra.get_mut(PROVENANCE_KEY)
     {
         for field in MEMORY_SEALED_FIELDS {

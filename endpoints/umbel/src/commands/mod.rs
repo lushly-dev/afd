@@ -25,6 +25,8 @@ mod store_doctor;
 #[cfg(feature = "store-embedded")]
 mod store_memory;
 #[cfg(feature = "store-embedded")]
+mod store_records;
+#[cfg(feature = "store-embedded")]
 mod store_show;
 #[cfg(feature = "auth")]
 mod usage_list;
@@ -52,6 +54,11 @@ pub(crate) use store_check::store_check;
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_doctor::{
     checks as store_doctor_checks, memory_checks as store_memory_checks,
+};
+#[cfg(feature = "store-embedded")]
+pub(crate) use store_records::{
+    REINDEX as STORE_RECORDS_REINDEX, REINDEX_KEPT as STORE_RECORDS_REINDEX_KEPT,
+    checks as store_record_checks, store_records_reindex,
 };
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_show::store_show;

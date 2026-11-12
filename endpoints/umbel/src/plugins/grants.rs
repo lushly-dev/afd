@@ -90,6 +90,15 @@ pub(crate) struct Shared {
     /// (phase 3 section 3.3).
     #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
     pub(crate) prompts: Arc<std::sync::OnceLock<crate::authority::Prompts>>,
+    /// The record kinds the instance's manifest declares, by kind (the records host
+    /// specification, section 2): a put of one writes its lane rows, and only these are read
+    /// through the lane's services.
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) records: BTreeMap<String, umbel_store::lane::RecordDecl>,
+    /// `[plugins.<id>.grants.records_write] default_access`: the access set the host gives a
+    /// new record of a declared kind (section 4.2).
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) records_default_access: crate::workspace::DefaultAccess,
 }
 
 /// The host services granted to one plugin instance. Cheap to clone.
@@ -689,6 +698,27 @@ impl HostServices for CallServices {
         expect: Expect,
     ) -> Result<RecordMeta, ServiceError> {
         self.svc_record_put(space, kind, id, body, envelope, expect)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_read(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+        standings: &[umbel_store::lane::Standing],
+        verified_only: bool,
+    ) -> Result<Option<umbel_store::lane::LaneRecord>, ServiceError> {
+        self.svc_record_read(space, kind, id, standings, verified_only)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_find(
+        &self,
+        space: &str,
+        query: &umbel_store::lane::RecordFind,
+    ) -> Result<umbel_store::lane::FindPage, ServiceError> {
+        self.svc_record_find(space, query)
     }
 
     fn index_search(&self, space: &str, query: &IndexQuery) -> Result<Vec<ChunkHit>, ServiceError> {

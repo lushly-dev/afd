@@ -19,8 +19,15 @@ Code paths are relative to `endpoints/umbel/`.
   [16](#16-implementation-plan), the shapes, is implemented** (2026-11-11), amended below
   ([B1](#amendments-from-step-b1)): manifest version 6, configuration version 6, the lane's types and pure
   functions, the `Embedder` trait, the SDK's eight methods answering `not_granted`, and the version constants.
-  Nothing acts on any of it yet: steps B2 to B6 are not implemented. **An independent review of step B1**
-  (2026-11-12) found one blocker and six improvements; all seven are taken, in the table after the amendments.
+  **An independent review of step B1** (2026-11-12) found one blocker and six improvements; all seven are taken,
+  in the table after the amendments. Step B1 is merged: [#1048](https://github.com/lushly-dev/afd/pull/1048), as
+  `dd72d6b6`.
+  - **Step B2, the lane and finding, is implemented** (2026-11-12) on the branch `lush/ideas-b2-lane`, amended
+    below ([B2](#amendments-from-step-b2), A12 to A23). It is in its pull request, not merged. **An independent
+    review of step B2** (2026-11-12) found one blocker and eight improvements; all nine are taken, in the table
+    after its amendments (R8 to R16). A kind a manifest declares is now written with its lane rows and found by key and by text when the
+    put returns; an undeclared kind behaves as before. Steps B3 to B6 are not implemented: no record can be
+    affirmed or attested, nothing is matched, and no vector is written.
   - **Revised 2026-11-11 after an independent review** by one reviewer, whose verdict was "approve after the
     blockers": four blockers and nine improvements, about sixty citations sampled and found correct. All thirteen
     are taken, two of them in a different way from the one proposed.
@@ -31,9 +38,82 @@ Code paths are relative to `endpoints/umbel/`.
   - It refines D157 in three places, which D161 and D162 record and section [18](#18-for-the-owner) lists.
   - It differs from the plan's outline in several places, each because of something in the code. Section
     [18](#18-for-the-owner) marks them "differs from the plan".
-- **Last verified:** 2026-11-12 for step B1 as revised after its review, on the branch `lush/ideas-b1-shapes` over
-  `main` at `e5de4194`: everything under "Run" below was run again on the revised code. The step was first
-  verified 2026-11-11, with the same commands.
+- **Last verified:** 2026-11-12 for step B2 as revised after its review, on the branch `lush/ideas-b2-lane` over
+  `main` at `dd72d6b6`, on macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from `endpoints/umbel/`. Every
+  command under "Run" below was run again after the last code edit of the revision, the tests last.
+  - **The review** (2026-11-12, independent) reran formatting, the workspace's clippy and the whole workspace's
+    tests, all passing, and ran eight probes on a copy of the two store crates. For the revision, read again:
+    `store-embedded/src/lane/reindex.rs`, `rank.rs` and `find.rs`, `store/src/lane/query.rs`, the faults and
+    the two tests of `store-embedded/tests/index_suite_detects.rs`. That SQLite's busy handler sleeps up to
+    100 ms between tries is the review's figure and was not read from SQLite's source here: what holds the
+    pause is the test, which fails with none.
+  - Read for the step, whole unless a part is named: this document's Status, its step B1 amendments and sections
+    1 to 8 and 11 to 18 (not 9 and 10, which are B5's); `store/src/traits.rs`, `error.rs`, `lib.rs`, `lane.rs`,
+    `lane/extract.rs` (its code, not its tests), `lane/normalise.rs` and `lane/score.rs`, `canonical.rs` (the
+    JSON and base64), `access.rs` (the reader filter), `document.rs` (`check_record`, `record_target`),
+    `conformance/mod.rs`, `fixture.rs`, `records.rs` and `samples.rs`' envelope;
+    `store-embedded/src/schema.rs`, `connection.rs`, `documents.rs`, `sql.rs`, `error.rs`, `lib.rs`, and how
+    `memory/pool.rs` creates its schema; `store-embedded/tests/sqlite.rs`, `secure_delete.rs` (its head),
+    `conformance.rs` and `support/mod.rs`; `store/tests/support/mod.rs` and `suite_detects.rs` (their heads);
+    `src/plugins/store_services.rs`, `grants.rs`, `src/store/mod.rs` and `embedded.rs`; in
+    `memory_services.rs` the principal check, the scan and the envelope a write is given; `loader.rs`' gate
+    entry and where `Shared` is built; `src/middleware.rs`' unprojected mutations and `sanitize`;
+    `src/authority.rs` (to `write_authority`); `src/host/mod.rs`' built-ins and digest commands, and
+    `host/digest.rs`; `src/commands/mod.rs`, `store_common.rs`, `store_backup.rs`, `store_doctor.rs` (the
+    three store checks and the head of the memory checks), `workspace_doctor.rs` (its handler) and
+    `plugin_show.rs` (its head); `src/doctor.rs` (to `inspect_with`); `sdk/src/records.rs` (its methods) and the
+    record methods of `sdk/src/cx.rs` and `store.rs`; in `tests/`, `support/store.rs` (its manifest, its
+    envelope, its handler's head and its configuration), the names of `support/plugins.rs`' helpers,
+    `support/mod.rs`' CLI and call helpers, `store_grants.rs` (its head), `doctor.rs` and `doctor_stores.rs`'
+    lists, and `manifest_v6.rs`' manifests.
+  - Run, all passing, each command by itself. **`AGENTS.md` no longer holds the gate's list**
+    ([A22](#amendments-from-step-b2)); these are the commands step B1's entry below names:
+    `cargo fmt --all --check`;
+    `cargo clippy --locked --workspace --all-targets -- -D warnings`;
+    `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings`;
+    `cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component`;
+    `cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp`;
+    `cargo test --locked --workspace` (269 `test result` lines, from 253 test binaries and 16 doc-test runs, all `ok`: 2480 tests passed, none failed, 1 ignored). Before the review the same command gave 267 lines and 2474
+    tests; the difference is the revision's own tests.
+  - Run beside the gate, all passing: `cargo build --locked --target wasm32-wasip2 -p umbel-store`; and the six
+    clippy legs of `.github/workflows/umbel.yml` that the gate does not name, each with `-D warnings`
+    (`-p umbel --lib --no-default-features`, the same with `--features mounted` and with `--features component`;
+    `-p umbel-sdk -p umbel-plugin-hello --features umbel-sdk/mounted,umbel-plugin-hello/mounted --all-targets`;
+    the four fixture components and `umbel-plugin-hello` with `--features umbel-plugin-hello/component` for
+    `wasm32-wasip2`; `-p umbel-plugin-knowledge --no-default-features --all-targets`); and, since the
+    workspace's own run builds the embedded store with its `testkit` feature,
+    `cargo clippy --locked -p umbel-store-embedded --lib -- -D warnings`, which builds it without.
+  - The tests step B2's exit names: `store-embedded/tests/lane_schema.rs` (7 tests: a version 1 store, built
+    from the dump of one the code before this step wrote, opens as version 2 with its records, its schema a new
+    store's statement for statement; every table and index of 5.1; the traits version set and not inserted; four
+    handles migrating one store once; a kind declared after its records exist is stale until the rebuild),
+    `lane_delete_bytes.rs` (1), `tests/records_put.rs` (11) and `tests/records_find.rs` (6). **The suite passes
+    on the embedded backend with nothing skipped**: its `lane` group has 16 cases, which
+    `store-embedded/tests/lane_conformance.rs` also runs alone. **From the review**:
+    `store-embedded/tests/lane_rebuild.rs` (3 tests: two rebuilds under two declarations, a waiting writer's
+    turn between chunks, and a wording edited while undeclared) and `lane_suite_detects.rs` (2: the group fails
+    on each of eight broken backends and passes on the unbroken wrapper), and a unit test that holds a chunk's
+    query plan to one range over the primary key. Beside them: `tests/doctor_stores.rs` gains two
+    tests of `records.declared` and `records.size`; `src/commands/store_records.rs` has five unit tests,
+    `store/src/lane/query.rs` four and `src/store/mod.rs` two.
+  - **Five faults were put into the code, one at a time, and each was caught by the `lane` group**: the reader
+    clause taken out of the corpus's size, out of the terms' counts and out of the gather; the reader and text
+    filters taken out of a total; and `put_record`'s stale mark made a no-op. A sixth, the lane writer's rule in
+    the plugin gate, was caught by `records_put.rs`. One was not caught at first: with the reader clause out of
+    the corpus's size, `records_find.rs` still passed, because a ranked page carries no score and its three
+    records kept their order. The suite's case `a_ranking_counts_only_what_its_reader_may_read` was written for
+    that, on records chosen so that the order moves. **For the revision, three more, each caught by the test
+    written for it**: the generation check taken out of a chunk, the pause between chunks set to nothing, and
+    the rebuild's clearing put back under "for a standing kind".
+  - Run from the repository root, on Node 24.21.0 and not the `.nvmrc`'s 26, all passing:
+    `node --test scripts/plugin-manifest.test.mjs` (47 tests), `biome check endpoints/umbel` (234 files) and the
+    file-size, orphan-files, portability and boundaries checks.
+  - Not run: Linux, which is where the Umbel workflow runs; the minimum Rust (`cargo +1.97.0 check`); the todo
+    example's conformance runs against Umbel; and `pnpm check` and `pnpm verify` as a whole. No timing was
+    taken: step B6 measures.
+- **Verified before that:** 2026-11-12 for step B1 as revised after its review, on the branch
+  `lush/ideas-b1-shapes` over `main` at `e5de4194`: everything under "Run" below was run again on the revised
+  code. The step was first verified 2026-11-11, with the same commands.
   - Read for the step, whole unless a part is named: `src/plugins/manifest.rs` (to line 1560, and where it tests
     the manifest version after that), `manifest/v5.rs`, and `v4.rs`'s head; `src/workspace/config.rs`,
     `plugins_config.rs` and `access.rs`, and `hosted.rs`'s key lists, key scan and `is_v5_key`;
@@ -116,10 +196,21 @@ Code paths are relative to `endpoints/umbel/`.
     transaction. Step B6 measures both.
 - **Done:** this document, its decision rows, and the amendments to the architecture and STATUS.md that it needs.
   Step B1 of section [16](#16-implementation-plan), 2026-11-11, with its amendments
-  ([B1](#amendments-from-step-b1)).
-- **Not done:** steps B2 to B6 of section [16](#16-implementation-plan). Of what sections 2 and 3 describe, step B1
-  left to them everything that acts: the loader's `Shared.records` and `GateEntry.lane_writer` (B2), the second
-  own-collection rule and the mark (B3), and the model id and loading a model (B5). **Section 16 gives one part
+  ([B1](#amendments-from-step-b1)), merged as `dd72d6b6`.
+- **In progress:** step B2, implemented, reviewed independently and verified 2026-11-12 on `lush/ideas-b2-lane`,
+  with its amendments ([B2](#amendments-from-step-b2)) and its review's nine findings taken; in its pull
+  request, not merged. It holds: embedded schema version 2 and its migration;
+  `put_declared_record` without evidence, `put_record`'s stale mark, `read_record`, `find_records`,
+  `lane_status` and `reindex_records` in chunks, without vectors; the host's put path of section 4.2 without
+  steps 6 and 8, `record_read` and `record_find`; the loader's `Shared.records` and `GateEntry.lane_writer`;
+  `store-records-reindex`; the doctor's `records.declared` and `records.size`; and the suite's `lane` group.
+- **Not done:** steps B3 to B6 of section [16](#16-implementation-plan). Step B2 left B3 two seams
+  ([A13](#amendments-from-step-b2)): the label and the standing clause in `store-embedded/src/lane/standing.rs`,
+  and `CallServices::standing_view`, which refuses a call that asks for a standing until B3 can answer it. It
+  left B3 the first row of section 4.2's authority table ([A12](#amendments-from-step-b2)), and B5
+  `store-records-reindex`'s `vectorsOnly` and `meaning` ([A18](#amendments-from-step-b2)). Of what sections 2 and
+  3 describe, B3 has the second own-collection rule and the mark, and B5 the model id and loading a model.
+  **Section 16 gives one part
   of section [12.4](#124-workspace-show-and-plugin-show) to no step**: what `workspace-show` says of a space (its
   person, `verifiedAdmits`, own collections and meaning) and the declared kinds `plugin-show` lists. B1 did the
   three version numbers, which is all its row names; the rest needs a step before B6's exit reads it.
@@ -195,6 +286,44 @@ are taken:
 | R5 | `cosine`'s 0.0 for vectors of two lengths, and the control characters refused in a model's `name` and `version`, were in the code and in no document | A8 and A7, with the note for B5 that a dimension mismatch is refused at load |
 | R6 | `lane_score.rs` asserted `directed(own, own)` is 1, which is one value divided by itself | The text is scored against a copy of its terms tokenised apart from another spelling, in both directions, and against the corpus's other records, which score below 1 |
 | R7 | The Status block said 262 results where the review's run printed 265 result lines, and STATUS.md ended "No Rust built or run" after describing a Rust run | The Status block says what the rerun printed here, 262 lines from 246 test binaries and 16 doc-test runs, and names the review's 265; STATUS.md's sentence is scoped to the specification's writing |
+
+### Amendments from step B2
+
+Step B2 (the lane and finding) found these points this document had given to two steps, had left no way to do, or
+had not settled, and took the narrowest reading of each. None changes a decision row. The numbers carry on from
+step B1's.
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A12 | Section [16](#16-implementation-plan) gives B2 "the host's put path (4.2 except steps 6 and 8)", and [15.2](#152-other-tests) puts "the access set and authority the host fills" in `tests/records_put.rs`, which is B2's exit. It also gives "the authority the host fills" to B3. The table's first row, a call that carries the person gate's proof, cannot be filled before B3 makes that proof | B2 fills the authority of a standing kind's put by the table's other three rows (`authority::record_authority`: a human through the library is `person`, any other human `tool`, any other actor `agent`), with version 3 and the delegation chain. B3 adds the first row with `gate_proof`. The host sets the access set, the version and the authority before `seal` runs its check, where section [4.2](#42-what-the-host-does-in-order) writes "seal, then": the stored envelope is the same, and the check then runs over the envelope that is stored, so an access set the plugin sent is never a reason to refuse |
+| A13 | Section 16 gives B2 `read_record`, `find_records`, `record_read` and `record_find`, whose signatures carry a `StandingView`, `standings` and `verified_only`, and gives B3 the label, `verified_admits` and the call's `verified_only` | **The store's seam is `store-embedded/src/lane/standing.rs`**, two functions B3 replaces. Until B3 nothing writes a decision or an evidence row, so no standing fact exists: a record of a standing kind is labelled `unverified` with no affirmation and no source, and a view that does not admit `unverified` adds `AND 0` to the statement. **The host's seam is `CallServices::standing_view`**: it admits all three standings and names no own or command-writable collection, and a call that passes `standings` or `verified_only = true` on a standing kind is refused with `RECORD_QUERY_INVALID`, "standings and verified_only are not served yet for a standing kind". It is refused, never answered as if it had not asked. `FindPage.admitted` is the view's `admit`, for a kind without standing too. What B2 does implement of standing, because it is part of a method B2 owns: step 7.4's `WordingFixed`, which `records_put.rs` holds until the `standing` group does; section [4.3](#43-wording-never-changes-d160)'s and [12.1](#121-store-records-reindex)'s clearing of `affirmed_seq` and the evidence row, which are statements over a column and a table nothing fills yet; and `lane_status`'s two counts. A put that carries evidence is `Invalid` in the store until B3. `record_get` and `record_list` are unchanged on a standing kind until B3 |
+| A14 | Section [15.1](#151-the-suite-d170) has cases that must pass a bound ("`cut` only when the rarest term's postings pass the bound", "a rebuild stopped after a chunk", and for B4 "`LaneTooBroad` past `STAT_POSTINGS`, with the constant lowered for the case") and names no way to lower one. A put on the embedded store is one synchronised transaction, about 8 ms here: 20 001 postings are minutes, and the suite reaches a backend through its traits alone | `umbel_store::lane::LaneLimits` holds the gather bound, the work cap and the rebuild's chunk, defaulting to this document's constants (`REINDEX_CHUNK = 1 000` and `STAT_TERMS = 500` are named beside the others). A backend holds one: `SqliteStore::with_lane_limits`, which the host never calls. The suite's `Stores` gains `lane: Option<LaneOpen>`, a function the backend supplies that opens the document store of a directory with limits lowered, as `memory_restore` is supplied. **`None` says the backend has no record lane, and the `lane` group is then skipped**, as the index and memory groups are for a backend without them. The store's own in-memory fake (`store/tests/support`) has none: its five lane methods answer `Invalid`. So section [11.1](#111-umbel-store)'s "required, not defaulted" holds for the trait, and "or does not pass the suite" is held by the embedded backend's test, which fails on any skipped case |
+| A15 | The suite's "a rebuild stopped after a chunk" needs a rebuild to stop, and the trait has no way to stop one | The case's `scan` unwinds in the second chunk (`resume_unwind`, which prints nothing) and the case catches it. A backend must leave the kind stale when `scan` unwinds, which any rebuild of one transaction a chunk does; **that is a contract on every backend, and `reindex_records`' documentation on the trait states it**, with the other two a rebuild must hold (section [12.1](#121-store-records-reindex)). The `lane` group has 16 cases: section 15.1's, without `put_record_vector`, whose method arrives in B5, and with four more that hold what the list implies: a later put keeps the access set and an unreadable id is taken; records written before a declaration wait for a rebuild, which is section 2's second way to be stale; a reader never sees a record it may not read, by id, by key, by text, ranked, in a total or in a cursor, a record a page; and a ranking counts only what its reader may read, on five records chosen so that counting the two unreadable ones in any statistic changes the order. The last exists because a ranked page carries no score: only its order can show what was counted. `store-embedded/tests/lane_conformance.rs` runs the group alone, in about a second; `conformance.rs` runs it with the rest |
+| A16 | Section [7](#7-finding-d164) gives a find's rules and does not say where they are checked, nor settle these: a query whose kind is not the declaration's; a text query on a kind with no text pointer; two filters on one key; the cursor's member order; what `cut`'s limit counts over several fields | The rules are one pure function, `RecordFind::plan` in `store/src/lane/query.rs`, with `Cursor`: the host calls it first, to put `RECORD_QUERY_INVALID` before the rule's text, and every backend calls it again. A kind that is not the declaration's and a text query with nothing to search are refused. Two filters on one key must both pass. `next` is the base64 of the canonical JSON, whose keys are sorted: `{"k":[...],"o":"<order>"}`. Under order `rank` its `k` holds the score at four places as a number. Over several fields the gather's rows are records, as `df0` is: `LIMIT bound + 1` is over distinct lanes |
+| A17 | Section [13](#13-failures) has `RECORD_LANE_STALE`'s message name the kind and has `host_error` map `LaneStale`. `host_error` is given a store error and no kind | The record services map `LaneStale` themselves, with the kind. `host_error` keeps a fallback without one, "the lane is being rebuilt or must be rebuilt", and maps `WordingFixed` and `LaneTooBroad`. `command_error` gives the built-in its `RECORD_LANE_STALE`. `EvidenceInvalid` and `ChangeKind::Standing` arrive with B3, by [A3](#amendments-from-step-b1)'s rule |
+| A18 | Section [12.1](#121-store-records-reindex) describes the whole command. Section 16 gives B2 the rebuild "without vectors" and B5 "`store-records-reindex`'s vectors". The host's digest table held plugin commands only | In B2 the input is `{ space, plugin?, kind? }` and the output, per kind, is `plugin`, `kind` and the report's six counts. `vectorsOnly`, `meaning` in the output and `RECORD_MODEL_UNAVAILABLE` are B5's. A name that selects nothing is `RECORD_KIND_NOT_DECLARED`; no name where nothing is declared is a success with no kind. A `superseded` rebuild is a success with the warning `RECORD_LANE_STALE`. `digest_commands` gains the built-in, keeping `space`, `plugin` and `kind`. `reindex_records` has the trait's whole signature from B2: until B5 `embedder` is not called and `vectors_only` skips the rebuild and answers the counts. **For B5**: the rebuild also deletes a record's vectors when its match digest is not the one its lane row held, where 12.1 names only a standing kind's changed wording. A vector is of the match value it was embedded for, and a rebuild after an undeclared edit would otherwise leave one for other words |
+| A19 | Section 4.2's step 7.6 keeps a lane row "when it exists" and says nothing of a record that is stored and has none, which is what a rebuild leaves of a body `extract` refuses | A put on such a record inserts its lane row with the revision and time of the record's first put, read from the change log in that transaction: one pass, in this case alone, as the rebuild's step 1.2 reads them. So a record indexed late is still as old as it is. **For a standing kind that put is also the one that fixes the record's wording**, since no lane row held one before it; section 4.2's step 7.6 now says both |
+| A20 | Section [5.1](#51-tables-embedded-schema-version-2) has the migration set `user_version` and `meta.store_traits_version`. Section [8.1](#81-identical) has `lane_normalisation` written to `meta` and names no moment. Section 15.2 asks for "a version 1 store", and the embedded store had no migration and so no test of one to follow | The opening transaction of a new store and of a version 1 store runs section 5.1's statements and sets both `meta` rows by upsert, so a store that recorded traits version 2 or 3 ends with one row saying 3. `SCHEMA_VERSION` is public. The fixture is `store-embedded/tests/fixtures/store-v1.sql`: the dump of a store written by the code before this step (commit `dd72d6b6`), with a document, three records of one kind under three access sets and one of another. `lane_schema.rs` holds a migrated store's schema to a new store's, statement for statement. `lane_delete_bytes.rs` runs `DELETE FROM records` on a connection with the store's two pragmas, since no service deletes a record before P16, and writes the vector by hand, since vectors are B5's |
+| A21 | Section [12.3](#123-doctor-checks) does not say which spaces the two checks read, nor which declaration "a standing kind" means | They read each space that already has a store, as the `stores.*` checks do: the doctor gives no space an empty one. "A standing kind" is the manifest's. The two are skipped without a sealed host, as every store check is |
+| A22 | Section 16 calls the Umbel gate "the command list in `AGENTS.md`". The repository's `AGENTS.md` was shortened after this document was written and holds no such list | The gate is the list step B1's Status records, which is the Umbel workflow's main legs, and the workflow's six other clippy legs beside it. The Status block names each command |
+| A23 | Section [1](#1-crate-layout-and-versions)'s layout names `store-embedded/src/lane/`'s files as `write.rs`, `read.rs`, `find.rs`, `matching.rs`, `standing.rs` and `reindex.rs` | B2's are `mod.rs` (the kind's state and the clauses every statement shares), `write.rs`, `find.rs` (the read and orders `id` and `recent`), `rank.rs` (order `rank`: section [8.2](#82-words)'s once-a-call part, the gather and the query direction, which B4's `matching.rs` builds on), `standing.rs` (A13's seam), `status.rs` and `reindex.rs`. `src/commands/store_records.rs` holds the command and the doctor's two checks; `src/plugins/record_services.rs` the host's side, compiled with the `store-embedded` feature as the memory services are |
+
+**An independent review of step B2** (2026-11-12) read the step and reran formatting, the workspace's clippy and
+the whole workspace's tests, all passing, and ran eight probes on a copy of the two store crates. It found the
+migration, interrupted rebuilds, access (but for one statement), section 5.1's SQL, the bound parameters and the
+fault-detection claim above sound, and one blocker and eight improvements. All nine are taken:
+
+| # | Finding | Change made |
+| --- | --- | --- |
+| R8 | Blocker, data safety. Two rebuilds at once under two declarations left the kind ready with the other declaration's lane rows: the later rebuild cleared the stale mark, and the earlier kept writing chunks and only reported `superseded`. In the probe, 10 lane rows of 12 were the wrong declaration's | Each chunk's transaction reads the generation first, and the rebuild stops when it is not its own. `store-embedded/tests/lane_rebuild.rs` reproduces it through a rebuild hook of the `testkit` feature, which runs the second rebuild between the first one's chunks, with no sleep in shipped code; it fails without the check. The same test holds an undeclared put overtaking a rebuild. Section 12.1's "two rebuilds at once are safe" is replaced by what is true and why; section 14 gains the row |
+| R9 | Chunks did not bound a writer's wait: the rebuild retook the lock microseconds after each commit while a waiting writer slept up to 100 ms in SQLite's busy handler. Measured on a debug build at 30 000 records: unrelated puts waited up to 5.4 s and 3 of 10 failed as busy | The rebuild pauses 120 ms between chunks, longer than the handler's longest sleep. `lane_rebuild.rs` holds that a writer which starts waiting during one chunk has committed before the next begins; it fails with no pause. Sections 12.1 and 14 state the guarantee, a turn between chunks, and leave every figure to B6 |
+| R10 | The rebuild cleared standing only under a standing declaration. A wording edited while undeclared, rebuilt under a declaration without standing and then declared standing again kept `affirmed_seq` on the new wording; a put already cleared it. Not reachable before B3 | The rebuild clears the affirmation, the evidence and the vectors of any record whose wording hash is not the one its lane row held, whatever the declaration, and counts it. `lane_rebuild.rs` holds it on rows written by hand. Section 12.1's step 1.3 and the trait say so. The follow-up for B3 is narrowed to what is still open: a kind whose `standing` changes and whose wording does not |
+| R11 | Nothing said that an older host which already holds a store open keeps writing through the old `put_record` after a newer build migrates it, so a declared kind's lane misses those writes with no stale mark; nor that the migration is one-way and runs on any open, `workspace-doctor`'s included | Section 5.1 states both, and what an operator does: stop every older host before a newer build first opens the workspace, and rebuild if in doubt. Section 14 gains the row |
+| R12 | Two statements of a ranked find, over its candidates' frequencies and lengths, carried no reader clause. Safe as they stood, since they named only lanes a statement with the clause returned; section 5.3 says every statement | Both carry the reader and the view. Section 5.3 says exactly which statements "every" covers: every one of a read, and not a put's look at the lane row of the record it writes |
+| R13 | A forged `recent` cursor holding a revision past 2^63 - 1 passed `RecordFind::plan` and was refused by the store as `Invalid` with no `RECORD_QUERY_INVALID` before it | `Cursor::decode` refuses a revision no store holds, for orders `recent` and `rank`, with the cases in `query.rs`' tests |
+| R14 | A chunk's `(?3 IS NULL OR id > ?3)` was likely to read the kind from its start each chunk; a ranked find cloned a string a term a candidate | The chunk is `id > COALESCE(?3, '')`, and a unit test holds its query plan to one range over the primary key with no sort. The frequencies are kept by lane and then by term, and looked up without a clone |
+| R15 | The `lane` group had no test that it fails on a broken backend, as the index has | `store-embedded/tests/lane_suite_detects.rs`: the embedded store behind a wrapper that breaks one rule at a time. Eight faults, each failing the case that should catch it, and the unbroken wrapper passing the group |
+| R16 | A15 put a contract on every backend without saying so where a backend's author reads, and A19 is also the moment a standing kind's wording becomes fixed | `reindex_records`' documentation on the trait states the three things a rebuild must hold; section 4.2's step 7.6 states A19, and that for a standing kind that put fixes the wording |
 
 ## What this specification serves
 
@@ -556,7 +685,11 @@ One new service carries evidence:
       `StoreError::EvidenceInvalid`.
    6. The next revision; the `records` row as today; the `record_access` rows as today for a new record, and left
       as they are for one that exists, whose stored envelope then carries the stored access set; the `record_lane`
-      row (kept, with its `lane` and `created_rev`, when it exists); `record_terms` and `record_keys` rewritten
+      row (kept, with its `lane` and `created_rev`, when it exists; **a record that is stored and has none**,
+      which is what a rebuild leaves of a body it could not index, gets one here, at the revision and time of its
+      first put, read from the change log ([A19](#amendments-from-step-b2)), **and for a standing kind this put is
+      then the one that fixes its wording**: step 7.4 had no stored wording to hold it to); `record_terms` and
+      `record_keys` rewritten
       when the text or the key values changed; `record_evidence` upserted when given; the record's vectors deleted
       when its match value changed; one `changes` row of kind `record`, as today.
 
@@ -623,6 +756,25 @@ snippets. Neither finding nor matching uses them.
 statements below in its opening transaction, sets `user_version` to 2 and `meta.store_traits_version` to 3. A build
 of today opening a version 2 store answers `VersionUnsupported`, as it does for any newer schema
 (`connection.rs:147`). These statements, and 6.3's clause over them, ran on SQLite 3.54.0 on 2026-11-11.
+
+**What the migration asks of an operator** (stated after step B2's review). Two things about it are not
+protected by the version check, and both are the operator's:
+
+- **It is one-way, and any open runs it.** The first build with this schema that opens a space's store migrates
+  it, whatever opened it: a call, a host's start, `store-show`, or `workspace-doctor`, whose record checks open
+  the store of every space that has one. No build reads a version 2 store back as version 1. A copy made with
+  `store-backup` before the upgrade is the way back.
+- **A host that already holds the store open is not stopped.** The version check runs when a store is opened.
+  An older host that opened the store before the migration keeps its connections, and keeps writing through the
+  `put_record` it has, which knows nothing of `record_kinds`. So a record it writes to a declared kind is in
+  `records` and not in the lane, **with no stale mark**: no lane service refuses, and no find returns that
+  record or its change, until the kind is rebuilt.
+
+So: **stop every older host of a workspace before a newer build first opens it.** Where that was not done, or it
+is not known whether it was, run `umbel store-records-reindex` for each space once the older hosts are stopped: a
+rebuild reads every record of every declared kind and is the whole repair. The doctor's `records.declared` counts a
+record such a host created, since it has no lane row, and cannot see one such a host changed, whose lane row is
+merely old.
 
 ```sql
 CREATE TABLE record_kinds (
@@ -752,6 +904,12 @@ AND EXISTS (SELECT 1 FROM record_access ax
 A reader with no token reads nothing (`AND 0`). A derivation read is refused by every service here with
 `StoreError::Invalid`, as memory refuses it (`refuse_derivation`, `store/src/memory.rs:1262`): the lane is never
 read without a reader, except by `store-records-reindex` and the doctor, which return counts and no record.
+
+"Every statement" is every statement of a read: `read_record`'s one, and each of `find_records`', the two a
+ranked find runs over its candidates' frequencies and lengths included, which name only lanes a statement with
+the clause returned and carry it again all the same (after step B2's review). A put reads the lane row of the
+record it writes without the clause, after step 7.2 of section [4.2](#42-what-the-host-does-in-order) found that
+the writer may read that record.
 
 ## 6. Standing (D161, D162)
 
@@ -1750,10 +1908,18 @@ the space, it calls `reindex_records`:
    3. The kind's `records` rows, by id, 1 000 to a `BEGIN IMMEDIATE` transaction. For each: `extract` it; write
       its lane row, replacing its terms and keys. A row with no lane row yet takes `created_rev` and `created_at`
       from step 1.2, else from its own revision and envelope. A body that `extract` refuses under the declaration
-      is left without lane rows and counted as `unindexed`. **For a standing kind, a record whose wording hash is
-      not the one its lane row held loses its standing**: `affirmed_seq` is cleared, its evidence row is deleted,
-      its vectors are deleted, and it is counted in `wordings_changed`. Access sets are not touched: a record
-      written before the kind was declared keeps the access the plugin gave it.
+      is left without lane rows and counted as `unindexed`. **A record whose wording hash is not the one
+      its lane row held loses its standing, whatever the kind is declared as now**: `affirmed_seq` is cleared,
+      its evidence row is deleted, its vectors are deleted, and it is counted in `wordings_changed`. (Amended
+      after step B2's review, which had this "for a standing kind": a wording edited while the kind was
+      undeclared, rebuilt under a declaration without standing and then declared standing again, would have kept
+      its affirmation on words the person never saw. A put already cleared it, by section
+      [4.3](#43-wording-never-changes-d160).) Access sets are not touched: a record written before the kind was
+      declared keeps the access the plugin gave it. **Each chunk's transaction reads the generation first, and
+      writes nothing unless it is the one step 1.1 wrote**: when it has moved, the rebuild stops there and
+      reports `superseded`. **Between two chunks the rebuild leaves the write lock free for a pause**, 120 ms in
+      the embedded store, longer than the longest sleep of SQLite's busy handler, so a writer that was waiting
+      for the lock takes it before the next chunk does.
    4. One short transaction reads the generation. **Only if it is still the one step 1.1 wrote** does it write the
       declaration to the `record_kinds` row and clear the stale mark. If it moved, an undeclared put from another
       process or another rebuild ran during the chunks: the kind stays stale, the report says `superseded`, and the
@@ -1761,8 +1927,19 @@ the space, it calls `reindex_records`:
       see is never forgotten.
 
    A rebuild that stops part-way leaves the kind stale, and running it again finishes it: each chunk is whole, and
-   rewriting a record's lane rows twice gives the same rows. Two rebuilds at once are safe for the same reason, and
-   the one that started first reports `superseded`.
+   rewriting a record's lane rows twice gives the same rows. That holds when what stops it is the host's `scan`
+   unwinding, which is a contract on every backend and stated on the trait ([A15](#amendments-from-step-b2)).
+
+   **Two rebuilds at once** (corrected after step B2's review). The sentence that stood here, "two rebuilds at
+   once are safe for the same reason, and the one that started first reports `superseded`", was true only of two
+   rebuilds under one declaration. Under two, the later one cleared the stale mark with its declaration while the
+   earlier kept writing chunks under its own, and the kind was left ready with rows of a declaration that was
+   not the stored one: in the review's probe, 10 lane rows of 12. What holds now, and why: a rebuild writes only
+   while the generation is its own, and reads it inside each chunk's transaction. Chunks and step 1.1 are write
+   transactions, so they are in one order. A chunk of the earlier rebuild that comes before the later one's
+   step 1.1 is overwritten, since the later rebuild then writes every row of the kind. One that comes after
+   finds the generation moved and writes nothing. So of two rebuilds at once, under one declaration or two, the
+   later writes every row and clears the mark, and the earlier reports `superseded` and clears nothing.
 2. Vectors, outside any long transaction: for each record with a match value and no vector for the space's model,
    embed in batches of 64 and write each batch in its own transaction. Delete the vectors of every other model.
 3. Read the kind's gate report again (10) and say in the output whether the lane is served.
@@ -1772,9 +1949,16 @@ space configures a model that did not load, step 2 is skipped: with `vectorsOnly
 `RECORD_MODEL_UNAVAILABLE`, since nothing was done; without it the rebuild succeeded, and the same code is a
 warning on the result.
 
-**What it costs.** The independent review measured the rebuild of one kind at 100 000 records at about 8 seconds
-in one transaction. In chunks of 1 000 no writer waits longer than one chunk, about a tenth of a second on that
-figure. Step B6 records the real times.
+**What it costs, and what is guaranteed** (corrected after step B2's review). The independent review of this
+document measured the rebuild of one kind at 100 000 records at about 8 seconds in one transaction. This section
+then said that in chunks of 1 000 "no writer waits longer than one chunk, about a tenth of a second". Chunks
+alone did not give that: the rebuild took the lock again microseconds after each commit, while a waiting writer
+slept in SQLite's busy handler for up to 100 ms between tries, so the writer could lose every race. The review of
+step B2 measured it on a debug build at 30 000 records: unrelated `put_record` calls waited up to 5.4 seconds,
+and 3 of 10 failed as busy. **What is guaranteed is this, and no figure: a writer that is waiting for the lock
+gets a turn between two chunks**, because the rebuild pauses there for longer than the handler's longest sleep.
+How long a writer waits, and what the pauses add to a rebuild (about a hundred of them at 100 000 records), are step B6's to
+measure.
 
 ### 12.2 `store-records-eval`
 
@@ -1864,7 +2048,9 @@ The two built-ins answer `CommandError`s, with a suggestion as AFD requires:
 | A model file is swapped | Files are pinned by SHA-256 and checked at start; a changed digest is a different model id, whose vectors are not served (9.2) |
 | A lane is turned on by a report that no longer describes it | The host recomputes the rule from the report's counts and binds it to the declaration, the normalisation, the model, the weight and `k`; the doctor warns at four times the records (10) |
 | A large query exhausts the host | 64 texts of 16 KiB, a 20 000-posting gather, 4 000 000 postings read a call, whoever may read them, with a refusal past it, a pool of 64, pages of 200, a stated bound of 100 000 records for the vector scan (11.1) |
-| A rebuild blocks every writer | It runs in chunks of 1 000 records, and only its own kind is offline while it runs (12.1) |
+| A rebuild blocks every writer | It runs in chunks of 1 000 records, only its own kind is offline while it runs, and between two chunks it leaves the write lock free for longer than a waiting writer sleeps between tries, so **a waiting writer gets a turn between chunks**. That is the guarantee; how long the wait is, step B6 measures (12.1) |
+| Two rebuilds, or a rebuild and an undeclared put, leave a lane that is not its declaration's | A rebuild writes only while the kind's generation is the one it raised, read inside each chunk's transaction, and clears the stale mark only then (12.1) |
+| An older host keeps writing a store a newer build migrated | Not prevented: the version check runs at open. Stated in 5.1, with what the operator does: stop older hosts before a newer build first opens the workspace, and rebuild if in doubt |
 | The work cap tells a reader of hidden records | Past `STAT_POSTINGS` a call is refused whatever the reader may read, so a refusal says the kind is very large. It is the one place where records a reader cannot read change its answer, it changes an answer into a refusal and nothing else, and it is reached only past the design size (8.2) |
 | One space reads another's records | Every table is in the space's own `store.sqlite3`; the services refuse a space outside the call's, as today |
 
@@ -2015,3 +2201,8 @@ and a date of writing for a source (row 17).
 | 2026-11-11 | This specification | This document has had no independent review | Done 2026-11-11: one reviewer, verdict "approve after the blockers", four blockers and nine improvements, all taken; then a focused pass on that revision, one blocker and six improvements, all taken ([Review response](#review-response)) |
 | 2026-11-11 | Independent review | The costs it measured on section 5.1's tables at 100 000 records (about 1.0 s for the counts of 64 pooled records, about 8 s for a rebuild in one transaction) are estimates on another machine and another build | Step B6 records the real times of each part (8.2, 12.1) |
 | 2026-11-11 | Independent review | One bit about a document a reader cannot read remains in a record's standing (section 14). It is accepted here | The owner, section 18, row 8 |
+| 2026-11-12 | Step B2, narrowed after its review | Section [2](#2-declaration-d159) says that changing a declared kind's `standing` costs every standing the kind holds, and section [12.3](#123-doctor-checks) has the doctor say the rebuild will remove it. Section [12.1](#121-store-records-reindex)'s rebuild clears a record only when its wording hash is not the one its lane row held. **Closed by the review of step B2 (R10)**: a wording that changed, by a put or by an edit while the kind was undeclared, loses its standing whatever the kind is declared as when the rebuild runs. **Still open**: a kind whose `standing` changes and whose wording does not. Declared with standing, then without, then with it again over the same text pointers, a record keeps its affirmation and its evidence through both rebuilds, and reads as affirmed again; section 2 and the doctor's message say it would not. Either the rebuild also clears every standing of a kind whose stored `standing` differs from the declaration's, or section 2 and 12.3 say that only a changed wording costs standing | Step B3, which writes the first standing fact: decide between the two by amendment, before `decide_record` lands. Until then no record holds standing |
+| 2026-11-12 | Step B2 | The suite lowers the lane's bounds through a function the backend supplies (`Stores.lane`, [A14](#amendments-from-step-b2)), and skips the `lane` group for a backend that supplies none. The store's in-memory fake supplies none, so the suite's lane cases are held to one implementation | The phase 6 owning agent, with the follow-up above on the eleven methods: the PostgreSQL backend supplies one. Whether the fake should gain a lane, as a second implementation the cases are checked against, is open |
+| 2026-11-12 | Step B2's focused review | The doctor warns that a rebuild will remove affirmations only for a manifest that declares standing (`src/commands/store_records.rs`, section [12.3](#123-doctor-checks)). Since the review's third finding the rebuild also removes them under a declaration without standing whose `text` changed, and says nothing first | Step B3, which writes the first affirmation: warn whatever the declaration |
+| 2026-11-12 | Step B2's focused review | The rebuild deletes a record's vectors on any change of wording, even when the value at `match` did not move, so adding a `text` pointer to a kind would drop and re-embed every vector | Step B5: delete on a moved match digest only |
+| 2026-11-12 | Step B2's focused review | The pause between chunks adds 120 ms for each 1 000 records, about 12 s offline for a kind of 100 000 | Step B6 records it with the other timings |

@@ -26,6 +26,8 @@ mod memory_services;
 mod mounted;
 mod packs;
 mod pipelines;
+#[cfg(feature = "store-embedded")]
+mod record_services;
 mod skills;
 mod source;
 mod store_services;
@@ -61,6 +63,8 @@ pub use manifest::{
 pub use mounted::{InjectionHit, mount_command_name, scan_description, scan_schema_descriptions};
 pub use packs::{MAX_PACK_BYTES, MAX_PACK_FILES, PackManifest, PackReport, check_pack};
 pub(crate) use pipelines::PipelineState;
+#[cfg(feature = "store-embedded")]
+pub(crate) use record_services::scan_text as scan_record_text;
 pub(crate) use skills::{LoadedSkill, ORIGIN_FILE, origin_file};
 pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};

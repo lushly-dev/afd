@@ -147,9 +147,13 @@ impl CommandHandler for Handler {
             let stores = Arc::clone(&self.stores);
             let workspace = Arc::clone(&self.workspace);
             let now = context.clock().now();
+            let loaded = self.loaded.get().cloned();
             let found = tokio::task::spawn_blocking(move || {
                 let mut found: Vec<Check> = super::store_doctor_checks(&workspace, &stores).into();
                 found.extend(super::store_memory_checks(&workspace, &stores, now));
+                if let Some(loaded) = &loaded {
+                    found.extend(super::store_record_checks(&workspace, &stores, loaded));
+                }
                 found
             })
             .await;
