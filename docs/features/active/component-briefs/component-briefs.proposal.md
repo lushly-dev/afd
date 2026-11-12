@@ -600,6 +600,9 @@ test or record:
    components' public API alone (about a quarter of the declarations),
    since it adds the rules the public API lacks. What it replaces in
    practice is reading source and stories, and criterion 10 measures that.
+   (Step C4, 2026-11-11: this does not hold on FAST-AF's real pack; the
+   [status](STATUS.md#what-step-c4-found) has the numbers and the owner's
+   options.)
 3. **It still answers.** A committed fact fixture, about 40 questions with
    the JSON value that answers each (for example: the allowed values of
    `violet-button`'s `appearance`; the role `violet-combobox` exposes), plus

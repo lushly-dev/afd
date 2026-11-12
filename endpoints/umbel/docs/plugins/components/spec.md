@@ -10,12 +10,16 @@
 ## Status
 
 - **State:** approved by the owner 2026-11-10, by merging #964 (step A2 of the Component Briefs plan,
-  [D24](../../decisions.md), [D150](../../decisions.md)). Steps C1 to C3 are implemented, amended below
-  ([C1](#amendments-from-step-c1), [C2](#amendments-from-step-c2), [C3](#amendments-from-step-c3)): all three
-  commands answer, and the skill and the first-class suggestion are served.
+  [D24](../../decisions.md), [D150](../../decisions.md)). Steps C1 to C4 are implemented, amended below
+  ([C1](#amendments-from-step-c1), [C2](#amendments-from-step-c2), [C3](#amendments-from-step-c3),
+  [C4](#amendments-from-step-c4)): all three commands answer, the skill and the first-class suggestion are served,
+  and FAST-AF's real pack, built and exported by Specimen, is served as an override. Step C4 found that the
+  proposal's criterion 2 does not hold on the real pack; that is the owner's decision ([C4](#amendments-from-step-c4)).
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-11 for step C3, against `main` at `193b7cd1`: `src/commands/plugin_show.rs`,
+- **Last verified:** 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
+  Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
+  that, 2026-11-11 for step C3, against `main` at `193b7cd1`: `src/commands/plugin_show.rs`,
   `src/plugins/doctor.rs` (`plugins.packs`, `plugins.skills`, `plugins.first_class`), `tests/skills.rs` and
   `tests/first_class_plugins.rs` (how hello's skill and suggestion are proved), the testkit's `Client::lanes`, and
   every first-party manifest's `first_class` and `[[skills]]` read; the Umbel gate run (section 12). Before that,
@@ -39,8 +43,9 @@
   - Read in the documents: the Umbel architecture's principles; D18, D24, D46, D48, D57, D64, D67, D75 and D112; the
     phase 5 specification's owner decision 3 (scopes); the Component Briefs proposal and its phase 0 records.
   - No Rust was built or run. No external source was re-checked; see the [trajectory refresh](#trajectory-refresh).
-- **Done:** steps C1 to C3 (section [12](#12-implementation-plan)).
-- **Not done:** steps C4 and C5 of section [12](#12-implementation-plan); both need Specimen's B4.
+- **Done:** steps C1 to C4 (section [12](#12-implementation-plan)); C4's criterion 2 is not met and waits for the
+  owner.
+- **Not done:** step C5 of section [12](#12-implementation-plan).
 - **Follow-ups:** the [table at the end](#follow-ups).
 
 ### Review response
@@ -100,6 +105,17 @@ The step found these points the document had not settled, and took the narrowest
 | A11 | No output budget on the call | The target is `maxBytes` alone, or none. AFD gives every call through the host a budget, so this is for direct use only |
 | A12 | The text block's lines (6.6), fixed by `tests/golden/example-full.txt` and `example-shed.txt` | A component's header is `[component <tag> <status>]`, with `replaced-by <tag>` for a replacement and `from <library>` when the answer holds more than one library. Its summary, then `import: <specifier>`, are quoted. Each section is `[<section> <basis>]` then one quoted line a fact: an attribute `name: type = default — description; rules: a, b`, with `values` as `a \| b` in place of the type; a slot `name accepts a, b — description` (`(default)` for the default slot); an event `name: detail — description`; a command `name — description`; a CSS property `name = default — description`; themes `<theme> only: reason` for one, else the supported themes joined by `, ` (`dark, light`), with `: reason` when it has one; `associated: true`; a role `state: role; name …`; axe `violations: n; exceptions: …`; a statement `id: text`; a gap its JSON. `rules` is one header of ids; an example is `[example <story> <basis when it differs>]` over its quoted markup; `detail` is `[detail]` over the quoted long form. Rules follow as `[rule <id> <basis>]` over the quoted text. Then one header per `unknown` tag (`[unknown <tag> not-found nearest …]`, `[unknown <tag> ambiguous in …]`) and per `omitted` entry (`[left out below the minimum basis: n facts]`, `[left out to fit: <sections and pieces>; components-open returns them]`), so a harness that injects only the text loses neither |
 | A13 | Where `scale.rs` prints (11) | To stderr directly, past the test harness's capture, so a passing CI run shows the line |
+
+### Amendments from step C4
+
+The step found these points the document had not settled, and took the narrowest reading of each:
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A17 | How the tests get "a pack Specimen built and exported" without Specimen and Umbel depending on each other (D3, the proposal's decision 5) | The format's two forms differ only by the catalog, so the export of `violet-elements` is its committed records and rules, which `tests/support` reads from `foundations/fast-af/packages/violet-elements/pack/`, plus the catalog `specimen pack-export` wrote, committed as `tests/fast_af/library.json`. The reader checks every digest in that catalog, so the override the tests serve is byte for byte what export writes; a record rebuilt without exporting again fails `fast_af.rs` with the command that writes the catalog again. Rejected: a test step that runs export, which would put Node, a Specimen build and FAST-AF's guide sources in the Umbel job and in its local gate; and a committed copy of all 79 files (600 KB), which adds nothing the digests do not already bind. The catalog names the package version, which the tests do not compare, so a version bump alone changes nothing here. `umbel.yml`'s `paths` and its `Affected units` gate gain `foundations/fast-af/packages/violet-elements/pack/`, so a record change runs these tests. The cost: a FAST-AF change that rebuilds a record also exports again, and two branches that do conflict in that one catalog |
+| A18 | Criterion 2 on the real pack | It does not hold, and the test does not pretend it does. `fast_af.rs` measures each page at the default budget, at 96 000 bytes and with `detail: "api"`, and asserts only what holds: the API alone is at most half of the declarations on every page, and no brief exceeds its budget. The numbers, and the owner's options, are in the Component Briefs status |
+| A19 | The fact fixture's shape | `tests/fast_af/facts.json`: 42 facts over 16 tags and three tags that do not exist. A fact names a section (5.3), `floor` or `ruleText`; a `match` picking one item; a `field`, compared with `basis` and `flags` left out; or `contains` for `rules` and `gaps`. `facts.rs` briefs every tag in one call at the default budget; a fact the brief does not hold must have its section (or `rules`, for rule text) in the budget entry's `open.sections`, and is then read from that `components-open` call. The answers were read from the pack once and are not regenerated |
+| A20 | Section 3.5's format version | Done: the reader reads format 1 only (`pack::FORMAT_VERSION`), the default pack is Specimen's format 1 example, and Specimen's `format-version` case is now a record in format 0 |
 
 ### Amendments from step C3
 
@@ -448,8 +464,9 @@ its own, as the format says of the file count.
 
 ### 3.5 Format versions
 
-The plugin reads format 0 only, and any other `format` is `FORMAT_UNSUPPORTED`. At step C4 the format becomes 1, and
-the plugin reads 1 only: nothing has deployed version 0, so no reader keeps it.
+The plugin reads format 1 only, and any other `format` is `FORMAT_UNSUPPORTED`. Format 0 was the trial version
+through steps C1 to C3; at step C4 the format became 1 (A20), and nothing had deployed version 0, so no reader keeps
+it.
 
 ## 4. The default pack (D152)
 
@@ -896,6 +913,8 @@ Each step's tests are listed with it in section 12. The files:
 | `tests/surfaces.rs` | The plugin and an override as `plugin-show` and doctor show them today, unchanged by this plugin; the one first-class suggestion on every lane; the skill on the three delivery paths (step C3, A15, A16) |
 | `first-party/tests/first_class.rs` | With all six first-party plugins enabled, five suggestions and two built-ins in the first-class set, in every lane's `tools/list` and the binary's, and every skill listed (step C3, A14) |
 | `tests/no_plugin_dependency.rs` | No dependency on another plugin crate (D3), as context's test checks |
+| `tests/fast_af.rs` | Step C4's end-to-end test (A17): FAST-AF's export, beside the example, served as space `main`'s override; criterion 1 on the twenty-component page; criterion 2 measured on step 0.1's four pages (A18); criterion 7 with the real library |
+| `tests/facts.rs` | Proposal criterion 3: every fact in `tests/fast_af/facts.json` is in one brief or in the `components-open` call its `omitted` names, and every tag that does not exist is in `unknown` (A19) |
 
 The crate also builds for `wasm32-wasip2`: `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components
 -- -D warnings`, a step of its own beside the components' clippy step. The proposal's C1 named the components' clippy
@@ -955,6 +974,6 @@ lives (D150), reading whole libraries on every call (D152), the shedding order's
 | --- | --- | --- | --- |
 | 2026-11-10 | This specification | Specimen's fixtures have no lone-surrogate case; both readers should be held to `TEXT_INVALID` on it | Step C1, with Specimen's T12 |
 | 2026-11-10 | This specification | Specimen's `specimen-pack-export` swaps the pack directory; it must carry the deployer's `pack.toml` across, or the host loses the override | Specimen's T12, step B3 |
-| 2026-11-10 | This specification | Reading every record on every call is measured in C2 (`scale.rs`); a cache keyed by the catalog's digest, re-checking each record's digest, is the answer if it is too slow, and a component build cannot keep one | Measured 2026-11-11 in step C2: a 20-tag brief on a 990-record library (992 files, 3.0 MB) took 0.29 to 0.38 s a call in a debug build on the shared 10-core Mac with the load under 20 (0.9 to 3.3 s under a load of 25 to 33), and `components-list` 0.28 s, so the read and check dominate. Read time grows with the library, so FAST-AF's 77 components should cost about a tenth of that; not measured. No cache yet: C4 measures B4's real pack, and C5 records what a session pays |
+| 2026-11-10 | This specification | Reading every record on every call is measured in C2 (`scale.rs`); a cache keyed by the catalog's digest, re-checking each record's digest, is the answer if it is too slow, and a component build cannot keep one | Measured 2026-11-11 in step C2: a 20-tag brief on a 990-record library (992 files, 3.0 MB) took 0.29 to 0.38 s a call in a debug build on the shared 10-core Mac with the load under 20 (0.9 to 3.3 s under a load of 25 to 33), and `components-list` 0.28 s, so the read and check dominate. Read time grows with the library, so FAST-AF's 77 components should cost about a tenth of that; not measured. No cache yet: C4 measures B4's real pack, and C5 records what a session pays. Measured 2026-11-11 in step C4 (`fast_af.rs`): a twenty-component brief on FAST-AF's 77 records beside the example took 365 to 865 ms, median 613 ms of five, in a debug build under a load of about 17, so load more than size; still no cache |
 | 2026-11-10 | This specification | A new override needs a restart, and a changed one is served unchecked against the pack limits (D46). Stated in the README; the host change is the proposal's step D4 | Proposal step D4 |
 | 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Proposal step D2 |
