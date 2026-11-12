@@ -83,7 +83,7 @@ cd alfred && uv run alfred --workspace .. lint
 | Botcore | `endpoints/botcore/` | Its own [SETUP.md](endpoints/botcore/SETUP.md) |
 | Health | `endpoints/health/`, `endpoints/health-dashboard/` | `cd endpoints/health && uv sync --frozen --extra dev && uv run --frozen pytest -q`; `pnpm -F @lushly-dev/health-dashboard test:browser` (Chromium) |
 
-[AGENTS.md](AGENTS.md) has the full command for each area and what each CI workflow runs.
+`pnpm verify --list` prints the full commands your change would run. The workflows in `.github/workflows/` are the definition of what CI runs, and [gates.md](.claude/skills/do-prepare-pr/references/gates.md) explains what each gate covers.
 
 Rust builds across this repository's worktrees share one target directory, which grows quickly; `pnpm rust:sweep` evicts builds nothing has read for three days.
 

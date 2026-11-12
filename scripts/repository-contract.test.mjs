@@ -54,13 +54,18 @@ function runConsumer(consumerRoot, source) {
 test('release documentation and workflow agree with root scripts', () => {
 	const manifest = JSON.parse(read('package.json'));
 	const agents = read('AGENTS.md');
+	// AGENTS.md routes shipping to do-prepare-pr, which carries the changeset rule.
+	const ship = read('.claude/skills/do-prepare-pr/SKILL.md');
 	const release = read('.github/workflows/release.yml');
 
 	assert.equal(typeof manifest.scripts.changeset, 'string');
 	assert.equal(typeof manifest.scripts['version-packages'], 'string');
 	assert.equal(manifest.scripts['test:coverage'], 'pnpm -r --no-bail test --coverage');
-	assert.doesNotMatch(agents, /pnpm release patch|scripts\/release\.mjs|push origin main --tags/);
-	assert.match(agents, /pnpm changeset/);
+	for (const text of [agents, ship]) {
+		assert.doesNotMatch(text, /pnpm release patch|scripts\/release\.mjs|push origin main --tags/);
+	}
+	assert.match(agents, /`do-prepare-pr`/);
+	assert.match(ship, /fragment in `\.changeset\/` by hand \(`pnpm changeset` prompts\)/);
 
 	const qualityGate = release.indexOf('run: pnpm check');
 	const publishAction = release.search(/uses: changesets\/action@[0-9a-f]{40} # v2\./);
@@ -260,6 +265,48 @@ test('workflow actions are pinned to full commit SHAs', () => {
 				`${entry}: pin "${match[1]}" to a commit SHA with a "# vX.Y.Z" comment`
 			);
 		}
+	}
+});
+
+test('agent instruction files fit what every harness loads', () => {
+	// The root AGENTS.md loads in every session of every harness, so it carries only what every
+	// session needs; detail goes to the skill or document that owns it. 12 KiB is about 200 lines of
+	// ordinary length, the size Claude Code's documentation gives as the target for such a file.
+	const rootBudget = 12 * 1024;
+	// Codex concatenates the AGENTS.md files from the repository root down to its working directory
+	// and stops adding files once they reach project_doc_max_bytes, 32 KiB by default, so a nested
+	// file has to fit under that together with the files above it.
+	const chainLimit = 32 * 1024;
+
+	// A hook exports GIT_DIR and its relatives, which would point this at another repository.
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))
+	);
+	const files = execFileSync(
+		'git',
+		['ls-files', '--cached', '--others', '--exclude-standard', '--', ':(glob)**/AGENTS.md'],
+		{ cwd: repoRoot, env, encoding: 'utf8' }
+	)
+		.split('\n')
+		.filter((file) => file && existsSync(join(repoRoot, file)));
+	const size = (file) => Buffer.byteLength(read(file));
+
+	assert.ok(files.includes('AGENTS.md'), 'the root AGENTS.md must exist');
+	assert.ok(
+		size('AGENTS.md') <= rootBudget,
+		`AGENTS.md is ${size('AGENTS.md')} bytes, over its ${rootBudget}-byte budget: move detail into the skill or document that owns it and leave a pointer`
+	);
+	for (const file of files) {
+		const directories = file.split('/').slice(0, -1);
+		const above = directories
+			.map((_, depth) => `${directories.slice(0, depth + 1).join('/')}/AGENTS.md`)
+			.filter((path) => path !== file && files.includes(path));
+		const chain = file === 'AGENTS.md' ? [file] : ['AGENTS.md', ...above, file];
+		const bytes = chain.reduce((total, path) => total + size(path), 0);
+		assert.ok(
+			bytes <= chainLimit,
+			`${chain.join(' + ')} is ${bytes} bytes, over the ${chainLimit} bytes Codex loads: a session started in ${directories.join('/')} would lose instructions`
+		);
 	}
 });
 

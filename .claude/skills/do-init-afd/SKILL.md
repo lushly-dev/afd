@@ -97,7 +97,10 @@ Adopt the task the invocation or conversation carries instead of asking what to 
 
 - **Issue:** `gh issue view <n> --json title,body,labels,comments`.
 - **Feature plan:** read its `docs/features/` folder; plan updates ship in the same
-  PR as the work.
+  PR as the work. Where the area keeps a `STATUS.md` (an active feature's folder,
+  `endpoints/loam/docs/`, `endpoints/umbel/docs/`), read that first: it is the source
+  of truth for progress, so don't scan the code for it, and update it before the
+  session ends.
 - **No issue number:** search first, by symbol rather than summary (`CommandResult`,
   `UNKNOWN_TOOL`, the command name):
   `gh issue list --state open --search "<symbol> in:title,body"`. An existing issue
@@ -111,7 +114,7 @@ Adopt the task the invocation or conversation carries instead of asking what to 
   the other ports need it now or as a tracked follow-up (`docs/language-parity.md`).
 - **Gate plan:** before choosing what to touch, run
   `pnpm verify --list --files <paths>`. A docs-only edit can widen it: a README
-  under `packages/rust/` pulls in five workflows, Umbel among them. `pnpm verify`
+  under `packages/rust/` pulls in Umbel and Loam among others. `pnpm verify`
   aborts before running anything if a planned step needs a missing `uv`, `cargo`,
   `cmake` or `openssl`, so check the ones the plan needs now (`command -v uv cargo cmake openssl`). It
   does not check Chromium, which a Loam, Specimen or FAST-AF suite needs. Before an

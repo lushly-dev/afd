@@ -1,170 +1,40 @@
 # AGENTS.md
 
-This file provides guidance to AI coding agents working with code in this repository.
+AFD (Agent-First Development) treats AI agents as first-class users: every capability is a command, reachable from the CLI and over MCP, before any UI exists. This repository holds the four language implementations of that contract, the units built on them and the tooling that keeps them in step.
 
-> **Documentation Policy**: Skills are the source of truth for detailed knowledge.
-> This file is a routing table. See [afd skill](.claude/skills/afd/) for core AFD patterns.
-> **First time?** See [SETUP.md](SETUP.md) for installation, tooling, and environment setup.
+This is the only project instruction file (never add a `CLAUDE.md`). It carries what every session needs and says where the rest lives. Skills are in `.claude/skills/` (`.codex/skills` is a symlink to it), and a skill's body loads only when it is used.
 
-For development-agent model and effort choices, see
-[model routing](docs/operations/model-routing.md). Keep that routing separate
-from the models an application built with AFD selects.
+## Layout
 
-## Commands
+`packages/`, `python/` and `spec/` are AFD itself: the TypeScript, Rust, C++ and Python implementations and the contract they share. `foundations/` holds libraries that depend on nothing in AFD (Specimen, FAST-AF, Violet), `integrations/` binds them to AFD and to each other, and `endpoints/` holds what people and agents run: CLIs and servers, Botcore, Health, Umbel and Loam. `pnpm check:boundaries` enforces that direction from `architecture.json`. `alfred/` (the quality bot) and `endpoints/botcore/` have their own `AGENTS.md`.
+
+## Confirming work
 
 | Command | Purpose |
 |---------|---------|
-| `pnpm build` | Build all packages |
-| `pnpm test` | Run all tests |
-| `pnpm -F @lushly-dev/afd-core test` | Test a specific package |
-| `pnpm lint` | Biome lint check |
-| `pnpm lint:fix` | Auto-fix lint issues |
-| `pnpm typecheck` | TypeScript type checking |
-| `pnpm check` | TypeScript quality gate (lint + build + typecheck + test:coverage) over the packages your change affects — mirrors `ci.yml` exactly |
-| `pnpm check:all` | The same gate over the whole workspace (release, scheduled CI) |
-| `pnpm affected` | Show which workspace packages the change since `origin/main` affects, and why |
-| `pnpm verify` | `pnpm check`, then locally every path-filtered workflow the change would trigger (`--list` shows the plan, `--keep-going` runs past failures) |
-| `pnpm rust:sweep` | Evict Rust builds no build has read for 3 days from the target directories (`$CARGO_TARGET_DIR` and each Cargo workspace's `target/`), and wipe one still over 60 GB; never while cargo runs (`--dry-run`, `--days`, `--max-gb`) |
-| `pnpm test:hosted:local` | Credential-free HTTPS/OAuth, Convex fixture and durable REST/view-state checks (Node 26, OpenSSL and Chromium) |
-| `pnpm test:specimen` | Specimen full Chromium suite and packed-artifact consumers outside the workspace (Node 26, Chromium) |
-| `pnpm test:fast-af` | FAST-AF runtime and component Chromium suites and packed-artifact consumers outside the workspace (Node 26, Chromium) |
-| `pnpm test:stories` | FAST-AF's stories on Specimen: story typecheck, every story, the story contract, the review page's budgets and `violet-elements`' component pack (`specimen pack-check`) (Node 26, Chromium, Rust) |
-| `pnpm test:violet` | Violet full suites with the SQLite store legs and packed-artifact consumers outside the workspace (Node 26, Chromium) |
-| `pnpm changeset` | Create a changeset describing your change and its semver impact |
-| `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
-| `pnpm release:select` | Inspect eligible pending npm release units |
-| `pnpm release:plan --plan <path>` | Pack artifacts from committed release intent; no upload |
-| `pnpm publish:npm --plan <path>` | Publish only the approved, bound npm artifact plan |
-| `cd packages/server && pnpm vitest run src/server.test.ts` | Run single test file |
+| `pnpm -F @lushly-dev/afd-core test` | Test one package |
+| `cd packages/server && pnpm vitest run src/server.test.ts` | Run one test file |
+| `pnpm lint:fix` | Apply Biome's style and list what it cannot fix |
+| `pnpm check` | The TypeScript gate `ci.yml` runs, over the packages the change affects |
+| `pnpm verify` | `pnpm check`, then the local suite of every other workflow the change triggers |
 
-## Architecture
+Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confirms a green result instead of finding failures one push at a time. `pnpm verify --list --files <paths>` prints the plan and runs nothing; read it before choosing what to touch, because a documentation edit inside a unit can trigger its heaviest suites. Report a gate that did not run as not run.
 
-AFD (Agent-First Development) — AI agents are first-class users. All functionality exposed as commands before any UI.
+## Read first
 
-```
-packages/
-├── core/       # @lushly-dev/afd-core — Foundational types (CommandResult, CommandError, CommandDefinition)
-├── server/     # @lushly-dev/afd-server — MCP server factory (defineCommand, createMcpServer, createMcpHandler)
-├── client/     # @lushly-dev/afd-client — MCP client + DirectClient
-├── auth/       # @lushly-dev/afd-auth — Provider-agnostic auth adapter
-├── cli/        # @lushly-dev/afd-cli — Command-line tool
-├── testing/    # @lushly-dev/afd-testing — JTBD scenario runner + surface validation
-├── view-state/ # @lushly-dev/afd-view-state — UI view state management via commands
-├── adapters/   # @lushly-dev/afd-adapters — Frontend adapters for rendering CommandResult
-├── local-db/   # @lushly-dev/local-db — Async data adapter with swappable backends (Memory, HTTP)
-├── rust/       # afd crate — Rust core types and utilities
-├── cpp/        # afd-cpp — C++20 implementation (CMake; see packages/cpp/README.md)
-└── examples/
-    ├── todo/                # Multi-stack example (TS, Python, Rust, C++ backends)
-    └── todo-directclient/   # DirectClient + AI integration example
+| Before you | Read |
+|------------|------|
+| Start or resume a session | `do-init-afd`: base refresh, install, the Node version, task intake. For a new machine, [SETUP.md](SETUP.md) |
+| Work in Loam, Umbel or an active feature | Its `STATUS.md`, in `endpoints/loam/docs/`, `endpoints/umbel/docs/` or `docs/features/active/<feature>/`. It is the source of truth for progress; update it before the session ends |
+| Add or change a command | `afd`: jobs written as scenarios before the commands, `domain-action` names, a `CommandResult` whose errors carry a `suggestion`, parity across the four languages. Then the language's skill |
+| Edit FAST-AF, Violet, Specimen, Botcore or Health | [gates.md](.claude/skills/do-prepare-pr/references/gates.md): they were imported and are changed here, never upstream first, and an edit needs a provenance record |
+| Change CI, a hook, `scripts/affected` or a dependency | [gates.md](.claude/skills/do-prepare-pr/references/gates.md): what each gate covers, the scope rules, the dependency age limit |
+| Edit a skill | `manage-skills`. The Botcore-sourced skills are generated: edit the source in `endpoints/botcore/src/botcore/skills/` and run `pnpm skills:sync` |
+| Delegate work or choose a model | [Model routing](docs/operations/model-routing.md), which is separate from the models an application built with AFD selects |
+| Push, open a pull request or merge | `do-prepare-pr`: review, changeset, gates, the pull request, and lockfile changes merged one at a time |
+| End a session | `do-end-session`: what landed, what to file, what to record |
+| Cut a release | `do-release` |
 
-python/  # Python AFD package (pip install afd) — CommandResult, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff
-alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
-endpoints/botcore/  # Reusable Python tooling and managed host; lushly-botcore publishes from AFD (publish-botcore.yml), its other five units remain quarantined
-foundations/specimen/       # @lushly-dev/specimen — native component observation bench (no AFD dependency), with its four prebuilt hosts; admitted for the npm `preview` prerelease
-integrations/specimen-afd/  # @lushly-dev/specimen-afd — AFD command bindings for Specimen; admitted for the npm `preview` prerelease
-integrations/specimen-fast-af/  # @lushly-dev/specimen-fast-af — FAST-AF plugin for Specimen (Definition Schema, @command runner, theme presets); admitted for the npm `preview` prerelease
-endpoints/specimen-cli/     # @lushly-dev/specimen-cli — the `specimen` JSON CLI; admitted for the npm `preview` prerelease
-foundations/fast-af/        # FAST-AF, upstream layout and provenance; no AFD/Specimen/Violet dependency; fast-element is admitted for the npm `preview` prerelease, violet-elements is quarantined
-├── packages/element/packages/fast-element/  # @lushly-dev/fast-element — web component runtime (38 exports)
-└── packages/violet-elements/                # @lushly-dev/violet-elements — FAST-AF components (private upstream)
-foundations/violet/         # Violet, upstream configs and provenance; quarantined, no AFD dependency
-├── packages/core/          # @lushly-dev/violet-core — native token engine: storage, resolution, export
-└── packages/runtime/       # @lushly-dev/violet-runtime — browser SDK for loading and applying tokens
-integrations/violet-afd/    # @lushly-dev/violet-afd — Violet commands, registry and CommandResult (afd-core ^0.1.1); quarantined
-endpoints/violet-cli/       # @lushly-dev/violet-cli — the `violet` CLI; quarantined
-endpoints/violet-server/    # @lushly-dev/violet-server — `violet-mcp`, MCP server and local REST API; quarantined
-endpoints/health/           # lushly-health (tentative) — explicit-target repository audits, versioned report schema, opt-in Botcore plugin; stdlib-only core; quarantined
-endpoints/health-dashboard/ # @lushly-dev/health-dashboard — static FAST-AF page for Health report-1.2 files; local-only, private, quarantined, no route
-endpoints/umbel/            # AFD Umbel — Rust host for capability plugins over MCP and CLI; host skeleton; quarantined; read docs/STATUS.md first
-endpoints/loam/             # AFD Loam — application shell; private, quarantined packages in packages/ (manifest, sdk, testing, cli, theme, kernel, console, chrome, web, identity, host) and apps in apps/ (hello, tally, tasks, notes, checklist); read docs/STATUS.md first
-```
+The harness lists every skill with its description. The others cover each language, auth, DirectClient, design, review, documentation and skills, Botcore and MCP servers.
 
-## Key Conventions
-
-- **Jobs first**: a feature that adds or changes commands starts from the jobs it serves, each written as a `*.scenario.yaml` before the commands are specified; see [jobs first](.claude/skills/afd/references/jobs-first.md)
-- **Command naming**: `domain-action` kebab-case — `todo-create`, `user-get`, `order-list`
-- **CommandResult**: Always return `success(data, { reasoning, confidence })` or `failure({ code, message, suggestion })`
-- **Errors**: Always include `suggestion` for recovery guidance
-- **Testing**: Vitest with explicit imports, tests in `src/**/*.test.ts`
-- **Imports**: Use `import type` for type-only, `node:` prefix for Node.js builtins
-- **Lint**: Biome — tab indent, single quotes, no `any`, no unused imports
-- **Command Prerequisites**: Declare with `requires: ['command-name']` on `defineCommand()` — metadata only, not enforced at runtime. Exposed via MCP `_meta.requires` (and `afd-help` when the server sets `bootstrap: true`)
-
-## Quality Gates & CI
-
-**Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
-
-**Verify locally, not on remote CI.** A local run is the faster loop (every workflow uses standard GitHub-hosted runners, which are free for this public repository, so speed is the reason, not billing), so the dev loop runs on this machine: `pnpm verify` runs `pnpm check` and then, for each path-filtered workflow the change triggers (read from its `pull_request.paths` and `Affected units` gates), the same suites locally (`scripts/affected/suites.mjs`; it needs Chromium, `uv`, `cargo` or `cmake` as the plan requires). Pass it before pushing, so remote CI confirms a green result instead of finding failures one push at a time. It prints what stays remote-only: other operating systems, Node and Python versions, Firefox and WebKit, sanitizers. Each pull-request workflow cancels its run when a newer push supersedes it, and `ci.yml` tests only the `.nvmrc` Node version on pull requests and pushes; its daily and manual runs add Node 22 and 24.
-
-**Only affected packages are built and tested.** `scripts/affected.mjs` diffs against the merge base with `origin/main` (`AFD_BASE` in CI) and selects the packages owning changed files, their dependents, and, for `pnpm-lock.yaml`, the importers whose resolved dependencies changed; builds add the scope's dependencies. A package's own test file (`a.test.ts`, `a.spec.ts`) selects that package without its dependents, and a family's provenance records (`foundations/*/provenance/`) select no package, since the tooling tests read them on every change. Root manifests and configs (`package.json`, `tsconfig.json`, `pnpm-workspace.yaml`, `.nvmrc`, `lefthook.yml`, `ci.yml`), lockfile settings or root-importer changes, and the scope scripts (not the local suite list, `suites.mjs`) select the whole workspace. A Violet-only change builds and tests only Violet. Lint and the repository-wide checks always run whole. A package test that reads a file outside its package, another package's test files included, must be declared in `EXTRA_INPUTS` (`scripts/affected/scope.mjs`), and a workflow's `Affected units` gate must name every package whose suites its jobs run.
-
-Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`), alfred, Health (`endpoints/health/`), Umbel (`endpoints/umbel/`), Specimen's Chromium suite (`pnpm check` runs only its browser-free subset), FAST-AF's browser suites (`pnpm check` builds both packages and runs only fast-element's browser-free test), the Health dashboard's Chromium suite (`pnpm check` builds it and runs its browser-free units), Loam's Chromium suite, hosted suite (`test:hosted`, against `loam-host dev`), theme check and token-only lint (`pnpm check` builds the packages and runs their browser-free units), Loam's mounted suite (`test:mounted`, which also needs the Rust toolchain and Umbel) or Violet's store suites, upstream lint and consumers (`pnpm check` builds the five Violet packages and runs their store-free suites). Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
-
-| Layer | When | What |
-|-------|------|------|
-| **Pre-commit** (lefthook) | `git commit` | Biome lint+fix, portability, file-size, typecheck of the staged files' packages and dependents |
-| **Pre-push** (lefthook) | `git push` | Full lint; affected test and typecheck; portability, file-size, orphan-files, versions, boundaries, skills, tooling-tests |
-| **Quality gate** (`pnpm check`) | On-demand | lint → affected build → typecheck → test:coverage + portability, file-size, orphan-files, versions, boundaries, skills, tooling-tests (release-tooling suites only when `scripts/`, workflows, `.changeset/`, `.release/`, the root manifest or lockfile change) |
-| **CI** (`ci.yml`) | Push to main / PR on the `.nvmrc` Node; daily and manual runs check the whole workspace on Node 22, 24 and 26 | Same as quality gate — safety net for skipped hooks |
-| **Python** (`python.yml`) | Push to main / PR touching `python/**`, `spec/wire`, `spec/vectors` or `spec/VERSION` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
-| **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**`, `spec/wire`, `spec/vectors` or `spec/VERSION` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
-| **C++** (`cpp.yml`) | Push to main / PR touching `packages/cpp/**`, `spec/wire`, `spec/vectors`, the todo spec or the C++ todo backend; daily and manual runs add the slow legs | clang-format (pinned); GCC; Clang with ASan+UBSan; no-exceptions/no-RTTI unity build with the macro-hygiene check; daily: Clang with TSan, macOS, MSVC, clang-cl, packaging, benchmarks, Emscripten with tests under Node, 60 s libFuzzer run per fuzz target |
-| **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `packages/rust`, `packages/cpp`, `python/` or the lockfile | An `Affected units` job runs each backend's job only when its inputs change. Todo example: Python backend pytest, Rust backend fmt/clippy/test, C++ backend build/test, then the 34-case conformance suite against the TypeScript, Python, Rust and C++ backends |
-| **Alfred** (`alfred.yml`) | Push to main / PR touching Alfred, Botcore, its controller inputs or AFD language surfaces | ruff, pytest (including parity budgets and managed-host/controller fixtures), isolated wheel smoke |
-| **Botcore** (`botcore.yml`) | Push to main / PR touching `endpoints/botcore/**` or `python/**` | Python 3.11/3.12 core tests, Ruff, frozen lock, six-distribution asset/provenance/wheel checks; optional stateful integrations remain quarantined |
-| **Health** (`health.yml`) | Push to main / PR touching `endpoints/health/**`, `endpoints/botcore/**`, `python/**` or `LICENSE` | Python 3.11/3.12: frozen lock, Ruff, tests (report schema, provenance, privacy scan, Botcore admission), wheel/sdist contents and privacy scan, isolated headless consumer (wheel only, no Botcore or AFD) auditing plain TypeScript/Python fixtures that stay byte-identical, and a Botcore-extra consumer |
-| **Health dashboard** (`health-dashboard.yml`) | Push to main / PR touching `endpoints/health-dashboard/**`, `endpoints/health/**`, `foundations/fast-af/**`, the lockfile or workspace | Node 26, Python 3.12, Chromium; build, typecheck, unit suites with coverage, committed fixtures equal to the Health CLI's output, headless Health wheel free of frontend dependencies, Chromium suite (all six statuses, invalid files, `?report=`, keyboard, CSP, axe WCAG 2.2 AA in light and dark), tracked files unchanged |
-| **Loam** (`loam.yml`) | Push to main / PR touching `endpoints/loam/**` (not its `docs/` or `plugins/`), `endpoints/umbel/**` (not its `docs/`), `packages/rust/**`, the FAST-AF, Violet and Specimen foundations, `packages/{core,server,view-state,auth,local-db,client,adapters,testing}`, `spec/plugin-manifest*`, `spec/VERSION`, the lockfile or workspace | Node 26, Chromium, Rust (Specimen's native host); build of the web host, the hosted server (`loam-host`) and their dependencies, typecheck and unit suites with coverage for the packages, verbose so each test's title shows, the `AFD's lean path` step (afd-server's `entry-points.test.ts` and `scripts/plugin-manifest.test.mjs`, E2's and E11's AFD side, whose titles `ci.yml`'s log cannot show), the `AFD's identity path` step (afd-server's authorization suite and afd-auth's suite, phase 3's E9), `theme:check` (the token contract against Loam's Violet tree), the token-only lint over `theme`, `chrome`, `console` and the apps, the Chromium suite against the `vite build` output (phase 0's exit tests E1 to E10 under the CSP: layout journaling, Specimen captures and replay, axe in every theme and density and under forced colors, Mock sign-in, the Violet runtime, IndexedDB conformance and the second-tab notice, and A1 to A3), the bundle `budget`, tracked files unchanged; an `Editor walk` job, the same gate and build, runs the editor area's seeded walk (`test:walk`) beside it; a `mounted` job, gated also on `endpoints/umbel/**` (not its `docs/`) and `packages/rust/**`, runs `test:mounted`: hello mounted and a stock `umbel` in the console through a test-only relay (E3, E4 and E9's mounted part), and phase 2's E6, the scope on the wire to it and to a fixture AFD server, not a hosted server; a `Hosted development profile` job, the same gate, builds the web host and `loam-host` and runs `test:hosted`, phase 6's P6-H1 and P6-H2 in Chromium against `loam-host dev` on `https://localhost` with a generated certificate (`openssl`), its server a child process per file; `contents: read` only, no publish route. Phase 2's exit reads a manual run of this and `ci.yml` with `node scripts/loam-exit-check.mjs <loam run id> <ci run id>`: every job `success`, and each exit row's `P2-` title passing in the job and step it names |
-| **Loam plugins** (`loam-plugins.yml`) | Push to main / PR touching `endpoints/loam/plugins/**` (not a plugin's `docs/`), `packages/rust/**` or the workflow; one gate and one job per plugin | Mail's engine, Rust 1.98.0 on Linux: `cargo fmt --check`, clippy `-D warnings`, `cargo test --locked` (the registry's rules and a licence allowlist over the lockfile) |
-| **FAST-AF** (`fast-af.yml`) | Push to main / PR touching `foundations/fast-af`, `tests/consumers/fast-af`, the lockfile or workspace; daily and manual runs add Firefox and WebKit | Node 26; fast-element build-cleanliness, migration rules and upstream `test:ci` (its Playwright suites on Chromium; on Chromium, Firefox and WebKit daily); violet-elements regenerated theme/icons/CEM, lint, Chromium suite with coverage thresholds; packed-artifact consumers (every runtime export, components, missing peer, Chromium render) |
-| **Violet** (`violet.yml`) | Push to main / PR touching the five Violet units, `tests/consumers/violet`, `packages/core`, the lockfile or workspace | Node 26, Chromium; build-cleanliness, Violet Biome 2 lint, full core/integration suites with SQLite legs (`test:db`; no Postgres/Neon), runtime/CLI/server suites, packed-artifact consumers (Violet only with no AFD or driver, plain HTML and runtime in Chromium, integration present/absent/incompatible/unavailable, AFD 2.x beside it, `violet`/`violet-mcp`) |
-| **Specimen** (`specimen.yml`) | Push to main / PR touching the four Specimen units (with the FAST-AF plugin, and fast-element it depends on), `violet-elements`, `tests/consumers/specimen`, `packages/core`, `packages/server` or the lockfile | Node 26, Chromium; full native suite (`test:browser`), integration/CLI suites, the FAST-AF plugin's bench suite, packed-artifact consumers (native-only, integration present/absent/unavailable, missing/incompatible peers); FAST-AF's stories on Specimen, which are their only runner here (`test:stories`) |
-| **Umbel** (`umbel.yml`) | Push to main / PR touching `endpoints/umbel/**` (not its `docs/`), `packages/rust/**`, the todo example, `packages/cli`, Specimen's pack fixtures and format description, or the workflow; daily and manual runs add macOS and MSRV | Rust 1.98.0 on Linux, macOS daily (45-minute limit; wasmtime is heavy, so the test profile optimizes it): `cargo fmt --all --check`, clippy `-D warnings` on the workspace (all targets, the library with no default features and with each loader, the mounted SDK and `hello-mcp`, and the components for `wasm32-wasip2`), the hello and fixture components built for `wasm32-wasip2` (no `.wasm` file is committed) and `hello-mcp` built, then `cargo test --locked --workspace`; an `Affected units` job runs these host checks only for changes to Umbel, the afd crate or the workflow; a daily MSRV 1.97 `cargo check --locked --workspace --all-targets` (30 minutes; it compiles wasmtime too); `contents: read` only, no publish route; the unit is quarantined and `publish = false` |
-| **Local hosted-test fixtures** (`hosted-fixtures.yml`) | Path-filtered auth/persistence/runtime/tooling changes; manual dispatch | Node 26, Chromium, `pnpm test:hosted:local`; no external services or credentials; not hosted-provider evidence |
-| **Release** (GitHub Actions) | Push to main | Changesets opens a version PR, or `pnpm check:all` runs before an approved npm publication |
-
-**Key rules:**
-- Always run `pnpm verify` (at least `pnpm check`) before pushing — it catches locally what `ci.yml` and the path-filtered workflows would catch for the same change
-- A new pull-request workflow needs a local entry in `scripts/affected/suites.mjs`; the tooling tests fail until it has one
-- The FAST-AF, Violet, Specimen, Health dashboard, Loam, Umbel and Conformance workflows open with an `Affected units` job (`node scripts/affected.mjs gate`), so a lockfile, AFD core or shared-input change runs their jobs only when it reaches them; FAST-AF, Umbel and Conformance gate their jobs separately
-- The slowest legs run only in the daily scheduled runs: C++ TSan, macOS, Windows, packaging, benchmarks, fuzz and Emscripten; Umbel on macOS and MSRV; fast-element on Firefox and WebKit; CI on Node 22 and 24. Check those results daily: GitHub can start a scheduled run hours late, so a run missing that morning has not necessarily been skipped. `pnpm verify` covers macOS locally
-- `pnpm-workspace.yaml` sets a 3-day `minimumReleaseAge`, matching Dependabot's: a lockfile holding a younger version fails every Dependabot npm update. A newly published dependency cannot be added until it is 3 days old unless you list it in `minimumReleaseAgeExclude`
-- Merge pull requests that change `pnpm-lock.yaml` one at a time: rebase each onto the new `main` first (`@dependabot rebase` on Dependabot's) and merge it only after its checks pass on that base. Two lockfile changes that each pass can merge without a conflict and still leave a lockfile `pnpm install --frozen-lockfile` rejects, which fails every workflow on `main` (#937)
-- The pre-push `test` step does not install or build, and packages import each other's `dist`: after pulling `main` run `pnpm install`, and after changing a package another one imports run `pnpm build` (or `pnpm check`), before `git push`, or the hook fails on stale output
-- Changed FAST-AF? `pnpm check` builds it and runs only fast-element's browser-free test; also run `pnpm test:fast-af` (Chromium required), and `pnpm test:stories` if you changed a component or a story (Chromium and the Rust toolchain required). Edits to imported files, including API reports the build rewrites, must update `foundations/fast-af/provenance/adaptations.json`, or the tooling tests fail. A `package.json` change to dependency ranges alone, as Dependabot makes, is not an adaptation: the provenance tests compare each imported manifest's `manifest_shape_sha256` (ranges blanked) too, in all three families. Do not run upstream `check:v3` scopes or sync upstream.
-- Changed a Violet unit? `pnpm check` runs only the store-free suites; also run `pnpm test:violet` (Chromium required) and each package's `lint` (Violet's own Biome 2 configuration in `foundations/violet/biome.json`; the root Biome config skips these directories). Edits to imported Violet files must update `foundations/violet/provenance/adaptations.json`, or the tooling tests fail.
-- Changed a Specimen unit? `pnpm check` runs only its browser-free tests; also run `pnpm test:specimen` (Chromium required). Edits to imported Specimen files must update `foundations/specimen/provenance/adaptations.json`, or the tooling tests fail.
-- Changed Umbel (`endpoints/umbel/`)? `pnpm check` does not build it. Run `cd endpoints/umbel && cargo fmt --all --check && cargo clippy --locked --workspace --all-targets -- -D warnings && cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings`, build the components (`cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component`) and `hello-mcp` (`cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp`; the mounted-loader tests find it in the target directory), then `cargo test --locked --workspace` (`rustup` installs the `wasm32-wasip2` target from `rust-toolchain.toml`). It depends on `packages/rust` by path, so a change there can break it too. Its `Cargo.lock` is committed (the `.gitignore` negates it); update it when its dependencies change. Read `endpoints/umbel/docs/STATUS.md` first.
-- Changed Health (`endpoints/health/`)? `pnpm check` does not test it. Run `cd endpoints/health && uv lock --check && uv sync --frozen --extra dev && uv run --frozen ruff check src tests scripts && uv run --frozen pytest -q && uv run --frozen python scripts/package_smoke.py`. A changed `checks.py` or any added file fails the provenance test until `provenance/provenance.json` and its pinned digest are updated; never import private Health inventories, reports, history or configuration.
-- Changed the Health dashboard, or Health's schema or CLI? `pnpm check` runs only the dashboard's build and browser-free units; also run `pnpm -F @lushly-dev/health-dashboard test:browser` (Chromium required) and `pnpm -F @lushly-dev/health-dashboard fixtures:check` (uv required). A schema change that breaks a committed fixture fails both.
-- Changed Loam (`endpoints/loam/packages/` or `endpoints/loam/apps/`)? `pnpm check` builds the packages and runs their browser-free units; also run `pnpm -F "@lushly-dev/loam-web..." build && pnpm -F @lushly-dev/loam-theme theme:check && pnpm -F @lushly-dev/loam-theme -F @lushly-dev/loam-chrome -F @lushly-dev/loam-console -F @lushly-dev/loam-app-hello -F @lushly-dev/loam-app-tally -F @lushly-dev/loam-app-tasks -F @lushly-dev/loam-app-notes -F @lushly-dev/loam-app-checklist lint:tokens && pnpm -F @lushly-dev/loam-web test:browser && pnpm -F @lushly-dev/loam-web test:walk && pnpm -F @lushly-dev/loam-web budget && pnpm -F @lushly-dev/loam-web test:hosted` (Chromium, `openssl` and the Rust toolchain required: `test:browser` builds Specimen's native host first, and `test:hosted` serves the built shell through `loam-host dev`, so build `loam-host` too). Changed the mounted kind, or Umbel or `packages/rust` in a way it could see? Also run `pnpm -F @lushly-dev/loam-web test:mounted`, which builds the stock `umbel` (wasmtime makes it heavy; `LOAM_UMBEL_TARGET_DIR` gives it a target of its own without moving Specimen's host) and proves it through a test-only relay, never a hosted server. A change to the kernel's `SESSION_50` needs `pnpm -F @lushly-dev/loam-chrome session:record` to regenerate the chrome's committed journal fixture. An added, removed or retyped theme id needs `pnpm -F @lushly-dev/loam-theme theme:check --write` to regenerate the committed `contract/tokens.json`. `loam-identity`'s units start a real Better Auth host in a child process on `node:sqlite`, through a test-only auth host that proves no hosted lane; `loam.yml`'s `AFD's identity path` step runs afd-server's authorization suite and afd-auth's, which `pnpm verify` runs too. Read `endpoints/loam/docs/STATUS.md` and the current phase specification first.
-- Changed `python/`, `packages/rust/` or `packages/cpp/`? `pnpm check` does not test them. Run the commands from `python.yml`, `rust.yml` or `cpp.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`; `cd packages/cpp && cmake --preset dev && cmake --build --preset dev && ctest --preset dev`)
-- Rust builds share one `CARGO_TARGET_DIR` across worktrees (third-party crates build once), with `CARGO_BUILD_JOBS=4`. The repository's `.cargo/config.toml` turns off incremental compilation and dependency debug info, and `pnpm verify` runs `pnpm rust:sweep` before its Rust suites, because every worktree path adds its own copy of the workspace crates and test binaries and Cargo never removes one (a shared directory reached 162 GB in a week). Run `pnpm rust:sweep` by hand when `df -h ~` runs low
-- Workflow actions are pinned to full commit SHAs with a `# vX.Y.Z` comment; Dependabot updates them
-- Changesets manages versioning — run `pnpm changeset` to describe publishable package changes
-- The nine existing AFD npm packages form the explicit `afd-npm` fixed group. Other families retain independent versions; registry scope does not define release membership.
-- `scripts/release/inventory.json` owns publication admission, routes, identities, and release protocols. Unknown/imported units default to quarantine; source import does not authorize publication.
-- npm version PRs record `.release/npm-intent.json`; guarded artifact planning/publication validates that intent. Never run raw `changeset publish` on the complete workspace.
-- Shared skills are authored in Botcore's bundled source; `skills/exports.json` declares AFD projections and local overrides. Run `pnpm check:skills` or `pnpm skills:sync`; do not hand-edit generated projections. `.codex/skills` remains the mirror symlink.
-- Bootstrap Alfred with `cd alfred && uv sync --frozen --all-extras --dev`; local uv sources select AFD/Botcore without publishing them. From the repository root, use `uv run --project alfred alfred --workspace . catalog` and select a target/profile explicitly for operations.
-- Release flow: merge a PR with changesets → the Release workflow opens a release PR → merge it → the workflow runs `pnpm check:all` and publishes
-- Agent release flow: `pnpm changeset` → commit the changeset file → merge through the normal PR workflow
-
-## Skill Index
-
-| Skill | When to Use |
-|-------|-------------|
-| [afd](.claude/skills/afd/) | Core AFD rules, philosophy, jobs before commands, command design, meta-tools, CLI |
-| [afd-site-design](.claude/skills/afd-site-design/) | afd.dev design system: tokens, colour fields, type ramp, section patterns, motion rules |
-| [loam-design](.claude/skills/loam-design/) | Loam's chrome and kit design: token contract, type ramp, contrast floors, density, parts, motion, focus and state, layout classes, component checklist |
-| [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic and the MCP SDK |
-| [afd-typescript](.claude/skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
-| [afd-rust](.claude/skills/afd-rust/) | Rust implementation patterns |
-| [afd-cpp](.claude/skills/afd-cpp/) | C++ implementation patterns (afd-cpp), embedding constraints, host integrations |
-| [afd-auth](.claude/skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
-| [afd-directclient](.claude/skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variables, optimistic UI |
-| [do-release](.claude/skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
-| [do-init-afd](.claude/skills/do-init-afd/) | Session start: preflight, refresh base, adopt task, report state |
-| [do-prepare-pr](.claude/skills/do-prepare-pr/) | Ship: base sync, independent review, docs/changeset, gates, PR, authorized merge |
-| [do-end-session](.claude/skills/do-end-session/) | Session close: verify landing, file findings, capture knowledge, archive report |
+**Publishing is the maintainer's.** Do not push a tag, create a release, merge the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.

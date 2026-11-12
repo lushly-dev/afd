@@ -254,7 +254,7 @@ Three things to know about the projects that were brought in from other reposito
 
 - [README.md](README.md) — What AFD is, a quickstart, and the rest of the family
 - [SETUP.md](SETUP.md) — Tools and versions, by area
-- [AGENTS.md](AGENTS.md) — Commands, CI workflows and the skill routing table, written for coding agents and just as useful to people
+- [AGENTS.md](AGENTS.md) — The layout, the commands that confirm work and a table routing each task to the skill or document that owns it, written for coding agents and just as useful to people
 - [alfred/AGENTS.md](alfred/AGENTS.md) — Alfred command reference and lint rules
 - [`.claude/skills/`](.claude/skills) — Deep topic skills for AFD patterns, each language, auth, DirectClient, releases and design
 - [docs/](docs/README.md) — Feature proposals and their status, and operations notes

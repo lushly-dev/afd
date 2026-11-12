@@ -82,7 +82,7 @@ naming the PR, who validates it and what they check.
   (`docs/features/active/parity-closure/`).
 - **Durable knowledge** goes to its owner: repository conventions to the owning
   skill under `.claude/skills/` (`.codex/skills` mirrors it; a Botcore projection is
-  edited at its canonical source, per AGENTS.md), cross-session facts to memory.
+  edited at its canonical source, per `manage-skills`), cross-session facts to memory.
   Capture only what a future session cannot cheaply re-derive.
 - **Close the task.** Verify that the PR itself updated the `docs/features/` plan or
   moved it to `complete/`; don't assume it. Close or comment on the claimed issue if
