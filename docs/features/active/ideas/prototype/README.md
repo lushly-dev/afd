@@ -226,13 +226,13 @@ it.
 | Tree, distance 0.30 | 656 | 84% | 3 | 135 | 37 | 75% |
 | Tree, distance 0.35 | 469 | 95% | 3 | 358 | 50 | 83% |
 
-- **Themes are only partly stable.** Two methods, or one method on two models, agree well above
-  chance and far from fully: an adjusted Rand index of 0.06 to 0.49 between methods and 0.26 to
-  0.30 between models, where chance is 0 and identical groupings 1. Normalised mutual information
-  looks high (0.78 to 0.96) but groupings of the same shapes shuffled at random score 0.54 to
-  0.91 on it, so it says little here. The model comparison also applied one similarity floor to
-  two models whose similarities run on different scales. A theme is a view of the ideas at a
-  moment, not something with an identity of its own.
+- **Themes are only partly stable.** Two methods, or one method on two models, agree above chance
+  and far from fully: an adjusted Rand index of 0.06 to 0.49 between methods (most pairs 0.13 to
+  0.49) and 0.26 to 0.30 between models, where chance is 0 and identical groupings 1. Normalised
+  mutual information looks high (0.78 to 0.96) but groupings of the same shapes shuffled at random
+  score 0.54 to 0.91 on it, so it says little here. The model comparison also applied one similarity
+  floor to two models whose similarities run on different scales. A theme is a view of the ideas at
+  a moment, not something with an identity of its own.
 - **The graph avoids one giant theme; the tree does not.** Cut loosely, the tree chains: at 0.35
   one theme holds 11% of all ideas. The graph's largest theme stays under 1.5%.
 - **Themes cut across documents.** Seven to eight in ten join ideas from more than one document,
