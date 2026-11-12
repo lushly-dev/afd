@@ -585,15 +585,18 @@ fn a_message_held_in_part_and_later_whole_keeps_its_row() {
     ));
 
     store
-        .record_parts(&[
-            part(message, Place::Text("1"), b"the text"),
-            part(message, Place::Attachment("2.1"), &[0, 159, 146, 150]),
-        ])
+        .record_parts(
+            &[
+                part(message, Place::Text("1"), b"the text"),
+                part(message, Place::Attachment("2.1"), &[0, 159, 146, 150]),
+            ],
+            5,
+        )
         .unwrap();
     assert_eq!(store.mailbox_counts(inbox).unwrap().bodies_held, 0);
     let whole = [seen.header_block.as_slice(), b"the text"].concat();
     store
-        .record_parts(&[part(message, Place::Whole, &whole)])
+        .record_parts(&[part(message, Place::Whole, &whole)], 5)
         .unwrap();
     assert_eq!(store.read_part(message, "whole").unwrap(), whole);
     assert_eq!(store.read_part(message, "1").unwrap(), b"the text");
@@ -624,10 +627,13 @@ fn parts_are_recorded_all_or_none_and_never_overwritten() {
     let held = |store: &Store| rows(store, "SELECT count(*) FROM held");
 
     // The second part's message does not exist: the first is not recorded either.
-    let refused = store.record_parts(&[
-        part(message, Place::Text("1"), b"text"),
-        part(MessageId(999), Place::Whole, b"x"),
-    ]);
+    let refused = store.record_parts(
+        &[
+            part(message, Place::Text("1"), b"text"),
+            part(MessageId(999), Place::Whole, b"x"),
+        ],
+        5,
+    );
     assert!(
         matches!(refused, Err(StoreError::NotFound("message"))),
         "{refused:?}"
@@ -637,7 +643,7 @@ fn parts_are_recorded_all_or_none_and_never_overwritten() {
     // A place cannot stand in for the header block or the whole message.
     for place in ["header", "whole", "", "1.", ".1", "1..2", "1a", "-1"] {
         for bad in [Place::Text(place), Place::Attachment(place)] {
-            let refused = store.record_parts(&[part(message, bad, b"other")]);
+            let refused = store.record_parts(&[part(message, bad, b"other")], 5);
             assert!(
                 matches!(refused, Err(StoreError::BadPlace)),
                 "{place}: {refused:?}"
@@ -651,13 +657,13 @@ fn parts_are_recorded_all_or_none_and_never_overwritten() {
 
     // The same bytes again change nothing; other bytes for a held part are refused.
     store
-        .record_parts(&[part(message, Place::Whole, b"first")])
+        .record_parts(&[part(message, Place::Whole, b"first")], 5)
         .unwrap();
     store
-        .record_parts(&[part(message, Place::Whole, b"first")])
+        .record_parts(&[part(message, Place::Whole, b"first")], 5)
         .unwrap();
     assert!(matches!(
-        store.record_parts(&[part(message, Place::Whole, b"second")]),
+        store.record_parts(&[part(message, Place::Whole, b"second")], 5),
         Err(StoreError::Conflict)
     ));
     assert_eq!(store.read_part(message, "whole").unwrap(), b"first");

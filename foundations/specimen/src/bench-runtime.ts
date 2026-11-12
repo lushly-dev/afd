@@ -1,10 +1,12 @@
-import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+// afd-override: max-lines=1100
+// One closure over the host process and its bundle: coverage, contracts and packs share its capture.
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { RANDOM_SEED } from './baseline.js';
-import type { SpecimenBench } from './bench.js';
+import type { BenchRuntime } from './bench.js';
 import {
 	bundled,
 	defaultContext,
@@ -17,7 +19,7 @@ import { runContract } from './contract.js';
 import { runCoverage } from './coverage-run.js';
 import { diffObservations } from './diff.js';
 import { browserRuntimePath, chromiumExecutable, HostProcess } from './host.js';
-import { changedShare, decodePng, type Pixels } from './png.js';
+import { type PackHost, runPack } from './pack-run.js';
 import {
 	BASELINE_RUNNER,
 	compareProfile,
@@ -39,13 +41,7 @@ import {
 	selectEntries,
 	selectStories,
 } from './suite.js';
-import {
-	DEFAULT_THEME_CONTEXT,
-	DEFAULT_THEME_THRESHOLD,
-	type ThemeFrame,
-	themeReport,
-	themesSummary,
-} from './themes.js';
+import { runThemes } from './themes-run.js';
 import { startTrace, traced } from './trace.js';
 import {
 	type A11yReport,
@@ -69,6 +65,8 @@ import {
 	type MatrixRun,
 	NORMALIZATION_VERSION,
 	type Observation,
+	type PackBuildRequest,
+	type PackBuildRun,
 	type ProfileBaseline,
 	type ProfileBaselines,
 	type ProfileReport,
@@ -95,11 +93,11 @@ import {
 	parseContractRequest,
 	parseCoverageRequest,
 	parseMatrixRequest,
+	parsePackRequest,
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
 	parseThemesRequest,
-	THEMES,
 } from './validate.js';
 
 function coverage(
@@ -159,7 +157,7 @@ interface HostRender {
 export async function createInProcessBench(
 	options: BenchOptions,
 	validatedConfig?: LoadedConfig
-): Promise<Omit<SpecimenBench, 'validate' | 'migrate'>> {
+): Promise<BenchRuntime> {
 	const createTrace = startTrace('bench-create');
 	const config =
 		validatedConfig ?? (await traced(createTrace, 'load-config', () => loadConfig(options)));
@@ -207,6 +205,8 @@ export async function createInProcessBench(
 			accessibility?: boolean;
 			profile?: boolean;
 			observe?: SpecimenEntry['observe'];
+			/** Mount this markup, after loading the entry's module, in place of the entry. */
+			remount?: string;
 		} = {}
 	): Promise<{
 		observation: Observation | null;
@@ -219,8 +219,13 @@ export async function createInProcessBench(
 			checkpoint: parsed.checkpoint ?? 'mount',
 			timeoutMs: parsed.timeoutMs ?? 10_000,
 		};
-		const entry = config.entries.find((item) => item.id === request.id);
-		if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+		const found = config.entries.find((item) => item.id === request.id);
+		if (!found) throw new Error(`Specimen not found: ${request.id}`);
+		// Markup mounted again is no longer the story: the page loads its module and mounts the markup.
+		const entry: SpecimenEntry =
+			options.remount === undefined
+				? found
+				: (({ story: _, ...rest }) => ({ ...rest, remount: options.remount }))(found);
 		// A retained story settles its own context in the page, starting from the request.
 		const provisional: SpecimenContext = entry.story
 			? resolveContext({ ...request.context, themeMedia: 'browser-default' })
@@ -614,7 +619,49 @@ export async function createInProcessBench(
 		}
 	}
 
-	const api: Omit<SpecimenBench, 'migrate' | 'validate'> = {
+	/** What coverage and a pack need: each case run or rendered on the shared bundle. */
+	const caseHost = (accessibility = false): PackHost => {
+		const render = async (
+			id: string,
+			checkpoint: string,
+			timeoutMs: number | undefined,
+			observe: SpecimenEntry['observe'],
+			remount?: string
+		) =>
+			(
+				await capture(
+					parseCaptureRequest({ id, checkpoint, ...(timeoutMs ? { timeoutMs } : {}) }),
+					{
+						reuseBundle: true,
+						observe,
+						accessibility,
+						...(remount === undefined ? {} : { remount }),
+					}
+				)
+			).observation;
+		let bundle: string | null = null;
+		return {
+			config,
+			prepare: async () => {
+				const runtime = await ensureHost();
+				const prepared = (await runtime.request('prepare', {}, BUNDLE_GRACE)) as {
+					bundle?: string;
+				} | null;
+				bundle = prepared?.bundle ?? null;
+			},
+			bundle: () => bundle,
+			inspect: async (id) => (await api.inspect({ id })).schema,
+			runStory: (id, timeoutMs, observe) =>
+				runStory(
+					{ id, ...(timeoutMs ? { timeoutMs } : {}) },
+					{ capture: 'all', reuseBundle: true, observe }
+				),
+			render: (id, checkpoint, timeoutMs, observe) => render(id, checkpoint, timeoutMs, observe),
+			capture: (id, { timeoutMs, observe, remount }) =>
+				render(id, 'after-run', timeoutMs, observe, remount),
+		};
+	};
+	const api: BenchRuntime = {
 		list() {
 			ensureOpen();
 			return config.entries.map((entry) => ({ ...entry }));
@@ -889,29 +936,16 @@ export async function createInProcessBench(
 		},
 		async coverage(rawRequest: CoverageRequest = {}): Promise<CoverageRun> {
 			ensureOpen();
-			return runCoverage(
-				{
-					config,
-					prepare: async () => {
-						const runtime = await ensureHost();
-						await runtime.request('prepare', {}, BUNDLE_GRACE);
-					},
-					inspect: async (id) => (await api.inspect({ id })).schema,
-					runStory: (id, timeoutMs, observe) =>
-						runStory(
-							{ id, ...(timeoutMs ? { timeoutMs } : {}) },
-							{ capture: 'all', reuseBundle: true, observe }
-						),
-					render: async (id, checkpoint, timeoutMs, observe) =>
-						(
-							await capture(
-								parseCaptureRequest({ id, checkpoint, ...(timeoutMs ? { timeoutMs } : {}) }),
-								{ reuseBundle: true, observe }
-							)
-						).observation,
-				},
-				parseCoverageRequest(rawRequest)
-			);
+			return runCoverage(caseHost(), parseCoverageRequest(rawRequest));
+		},
+		async packBuild(rawRequest: PackBuildRequest = {}): Promise<PackBuildRun> {
+			ensureOpen();
+			const { allowFailed: _, ...request } = parsePackRequest(rawRequest);
+			// A pack records the accessibility check of the component a case is about.
+			return runPack(caseHost(true), {
+				...request,
+				...(rawRequest.index ? { index: rawRequest.index } : {}),
+			});
 		},
 		async a11y(rawRequest: A11yRequest = {}): Promise<A11yRun> {
 			ensureOpen();
@@ -943,71 +977,27 @@ export async function createInProcessBench(
 		},
 		async themes(rawRequest: ThemesRequest = {}): Promise<ThemesRun> {
 			ensureOpen();
-			const request = parseThemesRequest(rawRequest);
-			const entries = request.id
-				? config.entries.filter((entry) => entry.id === request.id)
-				: selectEntries(config.entries, request.filter, config.root);
-			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
-			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
-			const themes = request.themes ?? [...THEMES];
-			const threshold = request.threshold ?? DEFAULT_THEME_THRESHOLD;
-			const checkpoint = request.checkpoint ?? 'mount';
-			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
-			const started = performance.now();
 			const runtime = await ensureHost();
-			await runtime.request('prepare', {}, BUNDLE_GRACE);
-			const directory = await mkdtemp(join(tmpdir(), 'specimen-themes-'));
-			try {
-				let next = 0;
-				const reports = await pool(entries, workers, async (entry) => {
-					const slot = next++;
-					const frames: ThemeFrame[] = [];
-					const pixels: (Pixels | null)[] = [];
-					// One theme at a time: each frame is a few megabytes once decoded.
-					for (const [index, theme] of themes.entries()) {
-						const file = join(directory, `${slot}-${index}.png`);
-						try {
-							const { observation } = await capture(
-								{
-									id: entry.id,
-									checkpoint,
-									context: { ...DEFAULT_THEME_CONTEXT, ...request.context, theme },
-									screenshot: file,
-									...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
-								},
-								{ reuseBundle: true }
-							);
-							pixels.push(decodePng(await readFile(file)));
-							frames.push({ theme, rendered: observation?.manifest.context.theme ?? null });
-						} catch (error) {
-							pixels.push(null);
-							frames.push({
-								theme,
-								rendered: null,
-								reason: error instanceof Error ? error.message : String(error),
-							});
-						} finally {
-							await rm(file, { force: true });
-						}
-					}
-					return themeReport(
-						entry,
-						frames,
-						(a, b) => changedShare(pixels[a] as Pixels, pixels[b] as Pixels),
-						threshold
-					);
-				});
-				return {
-					themes,
-					checkpoint,
-					threshold,
-					...themesSummary(reports),
-					workers,
-					elapsedMs: performance.now() - started,
-				};
-			} finally {
-				await rm(directory, { recursive: true, force: true });
-			}
+			return runThemes(
+				{
+					entries: config.entries,
+					root: config.root,
+					workers: config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
+					prepare: async () => void (await runtime.request('prepare', {}, BUNDLE_GRACE)),
+					render: async (id, checkpoint, context, screenshot, timeoutMs) => {
+						const request = {
+							id,
+							checkpoint,
+							context,
+							screenshot,
+							...(timeoutMs ? { timeoutMs } : {}),
+						};
+						const { observation } = await capture(request, { reuseBundle: true });
+						return observation?.manifest.context.theme ?? null;
+					},
+				},
+				parseThemesRequest(rawRequest)
+			);
 		},
 		async runSuite(rawRequest: SuiteRequest = {}): Promise<SuiteRun> {
 			ensureOpen();

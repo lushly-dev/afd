@@ -1,4 +1,4 @@
-import type { SpecimenBench } from './bench.js';
+import type { BenchRuntime } from './bench.js';
 import {
 	serializeWorkerError,
 	WORKER_SHUTDOWN_TIMEOUT,
@@ -7,7 +7,7 @@ import {
 } from './bench-worker-client.js';
 
 // This entrypoint has no public command surface. Only the owning bench has its IPC channel.
-let bench: Omit<SpecimenBench, 'validate' | 'migrate'> | undefined;
+let bench: BenchRuntime | undefined;
 let queue: Promise<void> = Promise.resolve();
 let closing = false;
 let shutdown: Promise<void> | undefined;
@@ -50,6 +50,7 @@ async function execute(message: WorkerRequest): Promise<unknown> {
 	if (message.operation === 'a11y') return bench.a11y(message.request);
 	if (message.operation === 'themes') return bench.themes(message.request);
 	if (message.operation === 'coverage') return bench.coverage(message.request);
+	if (message.operation === 'packBuild') return bench.packBuild(message.request);
 	if (message.operation === 'contract') return bench.contract(message.request);
 	if (message.operation === 'suggest') return bench.suggest(message.request);
 	if (message.operation === 'profile') return bench.profile(message.request);

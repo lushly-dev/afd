@@ -208,7 +208,11 @@ async fn main() -> Result<()> {
                     // Prepare rebuilds a stale bundle; stale only reports whether it is.
                     let reply = if prepare {
                         match current.generation().await {
-                            Ok(_) => json!({ "id": id, "ok": true, "result": {} }),
+                            Ok(generation) => json!({
+                                "id": id,
+                                "ok": true,
+                                "result": { "bundle": generation.digest() }
+                            }),
                             Err(error) => failure(&id, error.into()),
                         }
                     } else {

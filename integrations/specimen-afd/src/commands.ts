@@ -24,6 +24,11 @@ import {
 	migrateRequestSchema,
 	migrationReportSchema,
 	observationSchema,
+	packCheckRunSchema,
+	packExportRequestSchema,
+	packExportRunSchema,
+	packRequestSchema,
+	packRunSchema,
 	profileRequestSchema,
 	profileRunSchema,
 	runRequestSchema,
@@ -62,6 +67,11 @@ import type {
 	MigrateRequest,
 	MigrationReport,
 	Observation,
+	PackCheckRun,
+	PackExportRequest,
+	PackExportRun,
+	PackRequest,
+	PackRun,
 	ProfileRequest,
 	ProfileRun,
 	RunRequest,
@@ -168,6 +178,9 @@ export interface SpecimenCommandBench {
 	inspect(request: InspectRequest): Promise<InspectResult>;
 	migrate(request?: MigrateRequest): Promise<MigrationReport>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
+	pack(request?: PackRequest): Promise<PackRun>;
+	packCheck(request?: PackRequest): Promise<PackCheckRun>;
+	packExport(request: PackExportRequest): Promise<PackExportRun>;
 }
 
 /** One story by id, or a suite by filter; the handler tells them apart. */
@@ -472,6 +485,54 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Choose an empty output directory and inspect the build or budget failure before retrying.'
 			),
 	});
+	const pack = defineCommand({
+		...common,
+		name: 'specimen-pack',
+		description:
+			"Build the configured library's component pack from two passes over every case and write its committed form: one record per component and the library's rules. A case that fails after one retry, or shows something different in each pass, contributes nothing, and nothing is written from a run with a failed case unless allowFailed names it. With component, rebuild that record alone from the cases the last full build indexed.",
+		mutation: true,
+		input: packRequestSchema,
+		output: packRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.pack(input),
+				packRunSchema,
+				'SPECIMEN_PACK_FAILED',
+				'Add a pack key to the configuration, fix or name the failed cases in allowFailed, and run specimen-validate on the guide files.'
+			),
+	});
+	const packCheck = defineCommand({
+		...common,
+		name: 'specimen-pack-check',
+		description:
+			'Build the pack as specimen-pack does, write nothing, and report the committed records that differ: changed, added and removed. valid is true only when none does and no case failed; this is the drift check CI runs.',
+		mutation: false,
+		input: packRequestSchema,
+		output: packCheckRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.packCheck(input),
+				packCheckRunSchema,
+				'SPECIMEN_PACK_CHECK_FAILED',
+				'Add a pack key to the configuration; when records differ, run specimen-pack and commit what it writes.'
+			),
+	});
+	const packExport = defineCommand({
+		...common,
+		name: 'specimen-pack-export',
+		description:
+			"Write the pack's exported form into directory from the committed records, with no browser: the records, the rules and a catalog stamped with the package and an optional Git revision. Refuses, naming the record, when the manifest or a guide file says something the committed records do not. Other libraries in directory and its pack.toml are kept.",
+		mutation: true,
+		input: packExportRequestSchema,
+		output: packExportRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.packExport(input),
+				packExportRunSchema,
+				'SPECIMEN_PACK_EXPORT_FAILED',
+				'Run specimen-pack to rebuild the records it names, and export into a directory holding only data/, rules/ and pack.toml.'
+			),
+	});
 	return [
 		list,
 		render,
@@ -488,6 +549,9 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		matrix,
 		inspect,
 		migrate,
+		pack,
+		packCheck,
+		packExport,
 		themes,
 	] as const;
 }
@@ -528,6 +592,9 @@ export async function executeSpecimenCommand(
 		matrix,
 		inspect,
 		migrate,
+		pack,
+		packCheck,
+		packExport,
 		themes,
 	] = createSpecimenCommands(bench);
 	switch (name) {
@@ -561,6 +628,12 @@ export async function executeSpecimenCommand(
 			return execute(inspect, input);
 		case 'specimen-migrate':
 			return execute(migrate, input);
+		case 'specimen-pack':
+			return execute(pack, input);
+		case 'specimen-pack-check':
+			return execute(packCheck, input);
+		case 'specimen-pack-export':
+			return execute(packExport, input);
 		case 'specimen-themes':
 			return execute(themes, input);
 		default:

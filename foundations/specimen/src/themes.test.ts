@@ -1,5 +1,6 @@
 import { deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { declaredThemesOf, type PackCase } from './pack-build.js';
 import { changedShare, decodePng } from './png.js';
 import { declaredThemes } from './stories.js';
 import { type ThemeFrame, themeReport, themesSummary } from './themes.js';
@@ -301,5 +302,45 @@ describe('theme declarations and requests', () => {
 			{ other: 1 },
 		])
 			expect(() => parseThemesRequest(value), JSON.stringify(value)).toThrow('themes request');
+	});
+});
+
+describe('declared themes in a built pack record', () => {
+	const about = (themes?: SpecimenEntry['themes'], component = 'x-sign-in') =>
+		({ id: 'case', component, themes, observation: {} }) as unknown as PackCase;
+	const light = (reason?: string) => ({
+		supported: ['light' as const, 'high-contrast' as const],
+		basis: 'declared' as const,
+		...(reason ? { reason } : {}),
+	});
+
+	it('declares a component’s themes when every case about it declares the same, in name order', () => {
+		expect(declaredThemesOf('x-sign-in', [about(light('Brand.')), about(light('Brand.'))])).toEqual(
+			{
+				supported: ['high-contrast', 'light'],
+				reason: 'Brand.',
+			}
+		);
+		// Two reasons, or one case without one: no reason, the themes still declared.
+		expect(declaredThemesOf('x-sign-in', [about(light('A.')), about(light('B.'))])).toEqual({
+			supported: ['high-contrast', 'light'],
+		});
+		expect(declaredThemesOf('x-sign-in', [about(light('A.')), about(light())])).toEqual({
+			supported: ['high-contrast', 'light'],
+		});
+		// Cases about another component do not count.
+		expect(declaredThemesOf('x-sign-in', [about(light()), about(undefined, 'x-other')])).toEqual({
+			supported: ['high-contrast', 'light'],
+		});
+	});
+
+	it('declares nothing when a case follows the theme or the cases disagree', () => {
+		expect(declaredThemesOf('x-sign-in', [])).toBeUndefined();
+		expect(declaredThemesOf('x-sign-in', [about(light()), about()])).toBeUndefined();
+		expect(declaredThemesOf('x-sign-in', [about(), about(light())])).toBeUndefined();
+		// A Light and Dark pair, each pinning its preset: the component follows the theme.
+		const dark = { supported: ['dark' as const], basis: 'declared' as const };
+		const only = { supported: ['light' as const], basis: 'declared' as const };
+		expect(declaredThemesOf('x-sign-in', [about(only), about(dark)])).toBeUndefined();
 	});
 });

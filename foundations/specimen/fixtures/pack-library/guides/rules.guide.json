@@ -1,0 +1,25 @@
+{
+	"rules": [
+		{
+			"id": "field.invalid-message",
+			"text": "When invalid is set, say what is wrong in the hint slot; colour alone does not tell anyone.",
+			"appliesTo": {
+				"attributes": ["invalid"]
+			}
+		},
+		{
+			"id": "field.labelling",
+			"text": "Give every field a label attribute; a nearby heading or a placeholder does not name it.",
+			"appliesTo": {
+				"tags": ["example-field", "example-select"]
+			}
+		},
+		{
+			"id": "popup.focus-return",
+			"text": "Closing the popup returns focus to the control that opened it.",
+			"appliesTo": {
+				"tags": ["example-select"]
+			}
+		}
+	]
+}

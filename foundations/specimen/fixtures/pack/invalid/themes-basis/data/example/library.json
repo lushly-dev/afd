@@ -6,13 +6,13 @@
 			"tag": "example-dropdown"
 		},
 		{
-			"digest": "sha256:d6433b1d73917b335e63e6548f42b18916b6bcd59fa83b20dd1451f737241270",
+			"digest": "sha256:6feff87a3bddf5c4a7ccc12289d184abecddc6934be461f0eafc3f123ad92092",
 			"status": "stable",
 			"summary": "One line of text that takes part in a form, with a visible label and optional hint.",
 			"tag": "example-field"
 		},
 		{
-			"digest": "sha256:42a7a255dee5b5dc6c66bcb9b75fa47884bcd908dd75bcabe10325ce6923b30f",
+			"digest": "sha256:bd721f5fab5a873ae4560278d8388a6e9f054650c277152efd8a97e8536f8a75",
 			"status": "stable",
 			"summary": "One choice in an example-select list.",
 			"tag": "example-option"
@@ -24,7 +24,7 @@
 			"tag": "example-select"
 		}
 	],
-	"digest": "sha256:42e601036909d8ffd4aeae340232ee4f323fc0d1e6b81479c2d39decf523c648",
+	"digest": "sha256:3191d24b88a2667d6ec6278c4903e18f727808a9cf3ffe72b9e822bae8d6ef8b",
 	"format": 0,
 	"library": "example",
 	"package": {

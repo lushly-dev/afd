@@ -857,3 +857,92 @@ export const migrationReportSchema = z.strictObject({
 		applied: z.number().int().nonnegative(),
 	}),
 });
+
+/** Build the configured library's pack and write it, or check it against the committed one. */
+export const packRequestSchema = z.strictObject({
+	component: z.string().min(1).optional(),
+	timeoutMs: suiteRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+	allowFailed: z.array(z.string().min(1)).optional(),
+});
+const invalidClaimSchema = z.strictObject({
+	specimen: z.string(),
+	target: z.string(),
+	obligation: z.string(),
+	reason: z.string(),
+});
+const packReportShape = {
+	library: z.string().min(1),
+	directory: z.string().min(1),
+	problems: z.array(
+		z.strictObject({
+			code: z.string(),
+			path: z.string(),
+			at: z.string().optional(),
+			message: z.string(),
+		})
+	),
+	components: z.array(
+		z.strictObject({
+			tag: z.string().min(1),
+			gaps: z.array(
+				z.strictObject({
+					kind: z.string(),
+					section: z.string().optional(),
+					name: z.string().optional(),
+				})
+			),
+		})
+	),
+	omitted: z.array(z.strictObject({ tag: z.string(), field: z.string(), reason: z.string() })),
+	guides: z.strictObject({
+		verified: z.number().int().nonnegative(),
+		authored: z.number().int().nonnegative(),
+		invalidClaims: z.array(invalidClaimSchema),
+		claimed: z.number().int().nonnegative(),
+	}),
+	examples: z.strictObject({
+		kept: z.number().int().nonnegative(),
+		leftOut: z.array(z.strictObject({ tag: z.string(), from: z.string(), reason: z.string() })),
+	}),
+	selection: z.strictObject({
+		component: z.string().nullable(),
+		complete: z.boolean(),
+		reason: z.string(),
+	}),
+	cases: z.strictObject({
+		total: z.number().int().nonnegative(),
+		passed: z.number().int().nonnegative(),
+		failed: z.array(z.strictObject({ id: z.string(), message: z.string() })),
+		retried: z.array(z.string()),
+		unstable: z.array(z.string()),
+		skipped: z.number().int().nonnegative(),
+	}),
+	elapsedMs: z.number(),
+};
+export const packRunSchema = z.strictObject({
+	...packReportShape,
+	written: z.array(z.string()),
+	removed: z.array(z.string()),
+});
+export const packCheckRunSchema = z.strictObject({
+	...packReportShape,
+	valid: z.boolean(),
+	changed: z.array(z.string()),
+	added: z.array(z.string()),
+	removed: z.array(z.string()),
+});
+export const packExportRequestSchema = z.strictObject({
+	directory: z.string().min(1),
+	revision: z
+		.string()
+		.regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/)
+		.optional(),
+});
+export const packExportRunSchema = z.strictObject({
+	library: z.string().min(1),
+	directory: z.string().min(1),
+	digest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+	files: z.array(z.string()),
+	keptPackToml: z.boolean(),
+});

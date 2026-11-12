@@ -33,17 +33,7 @@
 				"default": false,
 				"name": "disabled",
 				"property": "disabled",
-				"type": "boolean",
-				"values": [
-					{
-						"basis": "verified",
-						"value": true
-					},
-					{
-						"basis": "observed",
-						"value": false
-					}
-				]
+				"type": "boolean"
 			},
 			{
 				"basis": "verified",

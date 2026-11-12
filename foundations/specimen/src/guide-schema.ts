@@ -32,6 +32,21 @@ export const guideComponentSchema = z
 		replacedBy: packIdentifier('tag').optional(),
 		usage: z.array(statement).max(64).optional(),
 		a11y: z.array(statement).max(64).optional(),
+		/**
+		 * Its roles in states a capture does not show, such as an open popup's. A role a capture
+		 * observes in the default state takes the place of the one written here.
+		 */
+		roles: z
+			.array(
+				z.strictObject({
+					state: packIdentifier('state'),
+					role: packIdentifier('role'),
+					/** How it gets its accessible name, such as `from the label attribute`. */
+					name: packText(PACK_TEXT_LIMITS.summary).optional(),
+				})
+			)
+			.max(16)
+			.optional(),
 		detail: packText(PACK_TEXT_LIMITS.detail, 'multi').optional(),
 	})
 	.refine(

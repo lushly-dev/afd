@@ -3,16 +3,25 @@
 //! Built a step at a time from the engine's specification
 //! (`../docs/engine.spec.md`). So far: the command registry and the rules every
 //! command in it must keep, the command line's entry point, the data
-//! directory, the log, and the store's tables that are not derived from the
-//! log. The commands themselves arrive with the steps that follow.
+//! directory, the log, the store's tables, what is derived from the log
+//! (fields, threads, the search index), and the first command,
+//! `mail-rebuild`. The other commands arrive with the steps that follow.
 
 pub mod cli;
+pub mod commands;
+pub mod derive;
+pub mod engine;
 pub mod home;
+pub mod index;
 pub mod log;
 pub mod rules;
 pub mod store;
 
+use std::sync::Arc;
+
 use afd::CommandRegistry;
+
+use crate::engine::Engine;
 
 /// The program's name, as a person types it.
 pub const PROGRAM: &str = "loam-mail";
@@ -20,14 +29,17 @@ pub const PROGRAM: &str = "loam-mail";
 /// The domain every command of the engine is in.
 pub const DOMAIN: &str = "mail";
 
-/// Builds the engine's command registry and checks it against [`rules::check`].
+/// Builds the command registry of `engine` and checks it against
+/// [`rules::check`].
 ///
 /// # Errors
-/// Returns the broken rules, one per line, if a registered command breaks one.
-/// The engine refuses to start with such a registry.
-pub fn registry() -> Result<CommandRegistry, String> {
+/// Returns the broken rules, one per line, if a registered command breaks one
+/// or two commands share a name. The engine refuses to start with such a
+/// registry.
+pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     let registry = CommandRegistry::new();
     // Commands are registered here, a step at a time.
+    registry.register(commands::rebuild(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if broken.is_empty() {
         Ok(registry)

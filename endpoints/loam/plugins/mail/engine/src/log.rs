@@ -88,6 +88,9 @@ const DAMAGED: &str = "damaged";
 /// zstd's level 3: about a third of the size for mail, at hundreds of megabytes a second.
 const COMPRESSION_LEVEL: i32 = 3;
 
+/// How many threads write a batch's files.
+const WRITERS: usize = 8;
+
 /// The log's directory.
 #[derive(Debug)]
 pub struct Log {
@@ -166,6 +169,42 @@ impl Log {
             return Err(LogError::Io(error));
         }
         Ok(id)
+    }
+
+    /// [`Log::put`] for each of `batch`, in order. Writing a small file costs
+    /// the file system a few hundred microseconds whatever its size, so a
+    /// batch is written on a few threads at once.
+    ///
+    /// # Errors
+    /// When a file cannot be written. Files written before the failure stay:
+    /// a file no row names is harmless.
+    pub fn put_all(&self, batch: &[&[u8]]) -> Result<Vec<BlobId>, LogError> {
+        let share = batch.len().div_ceil(WRITERS).max(1);
+        if batch.len() <= share {
+            return batch.iter().map(|bytes| self.put(bytes)).collect();
+        }
+        std::thread::scope(|scope| {
+            let writers: Vec<_> = batch
+                .chunks(share)
+                .map(|chunk| {
+                    scope.spawn(move || {
+                        chunk
+                            .iter()
+                            .map(|bytes| self.put(bytes))
+                            .collect::<Result<Vec<BlobId>, LogError>>()
+                    })
+                })
+                .collect();
+            // Every thread is joined before any failure is returned.
+            let joined: Vec<_> = writers.into_iter().map(|writer| writer.join()).collect();
+            let mut ids = Vec::with_capacity(batch.len());
+            for written in joined {
+                let written = written
+                    .map_err(|_| LogError::Io(io::Error::other("a writing thread failed")))?;
+                ids.extend(written?);
+            }
+            Ok(ids)
+        })
     }
 
     /// A name part no other call in any process shares.

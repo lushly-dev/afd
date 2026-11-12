@@ -45,8 +45,19 @@ fn registry_of(commands: Vec<CommandDefinition>) -> CommandRegistry {
 
 #[test]
 fn the_engine_registry_keeps_its_rules() {
-    let registry = loam_mail::registry().expect("the engine's registry is sound");
+    let engine = std::sync::Arc::new(loam_mail::engine::Engine::new(None));
+    let registry = loam_mail::registry(&engine).expect("the engine's registry is sound");
     assert_eq!(check(&registry), Vec::<String>::new());
+    // The rebuild is the command line's alone (the specification's section 11).
+    let rebuild = registry
+        .list()
+        .into_iter()
+        .find(|command| command.name == "mail-rebuild")
+        .expect("mail-rebuild is registered");
+    assert!(rebuild.expose.cli);
+    assert!(!rebuild.expose.mcp && !rebuild.expose.agent && !rebuild.expose.palette);
+    assert!(rebuild.mutation);
+    assert_ne!(rebuild.destructive, Some(true));
 }
 
 fn send() -> CommandDefinition {

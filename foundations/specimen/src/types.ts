@@ -6,6 +6,9 @@ export const CAPTURE_VERSION = '0.9' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
+export type * from './pack-types.js';
+
+import type { PackConfig } from './pack-types.js';
 
 export interface SpecimenContext {
 	viewport: { width: number; height: number };
@@ -197,6 +200,8 @@ export interface SpecimenEntry {
 	themes?: ThemeSupport;
 	/** Sent with a render, not discovered: properties to read live on each tag, for coverage. */
 	observe?: Record<string, string[]>;
+	/** Sent with a render, not discovered: markup the page mounts after loading the module. */
+	remount?: string;
 }
 /** What Storybook's index gives a retained story, and what discovery could not read. */
 export interface StoryIdentity {
@@ -258,6 +263,8 @@ export interface BenchConfig {
 	 * states one component's guidance or a set of shared rules. Needs `manifest`.
 	 */
 	guides?: string[];
+	/** What `specimen pack` builds: one library's component pack. Needs `manifest`. */
+	pack?: PackConfig;
 }
 export interface ValidationIssue {
 	/** `deferred`: only the module, run, can settle it. */

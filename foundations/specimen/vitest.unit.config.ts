@@ -23,6 +23,7 @@ export const browserSuites = [
 	'src/feasibility.test.ts',
 	'src/lifecycle.test.ts',
 	'src/themes-bench.test.ts',
+	'src/pack-run.test.ts',
 ];
 
 export default defineConfig({
@@ -39,6 +40,7 @@ export default defineConfig({
 				'src/normalize.ts',
 				'src/normalize-ids.ts',
 				'src/pack.ts',
+				'src/pack-files.ts',
 				'src/pack-schema.ts',
 				'src/png.ts',
 				'src/themes.ts',

@@ -53,6 +53,8 @@ const valueOptions = new Set([
 	'note',
 	'gaps',
 	'out',
+	'allow-failed',
+	'revision',
 	'threshold',
 ]);
 const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry']);
@@ -222,6 +224,9 @@ function validateOptions(parsed: ParsedArguments): void {
 		]),
 		diff: new Set(['root', 'output', 'allow-context', 'require-visual']),
 		build: new Set(['root', 'config', 'output']),
+		pack: new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
+		'pack-check': new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
+		'pack-export': new Set(['root', 'config', 'output', 'revision']),
 	};
 	const known = allowed[parsed.action];
 	if (!known) throw new Error(`Unknown command: ${parsed.action}`);
@@ -238,7 +243,7 @@ function validateOptions(parsed: ParsedArguments): void {
 	const selects = ['run', 'a11y', 'profile', 'baseline', 'themes'].includes(parsed.action);
 	const suite =
 		(selects && parsed.positionals.length === 0) ||
-		((parsed.action === 'coverage' || parsed.action === 'contract') &&
+		(['coverage', 'contract', 'pack', 'pack-check'].includes(parsed.action) &&
 			parsed.positionals.length <= 1);
 	const suiteOptions = ['file', 'tag', 'match', 'workers', 'retry', 'flake-cap', 'capture'];
 	// How many runs apply to one entry as to many.
@@ -454,6 +459,27 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
 						...suiteInput(parsed),
 					});
+				} else if (parsed.action === 'pack' || parsed.action === 'pack-check') {
+					result = await executeSpecimenCommand(
+						bench,
+						parsed.action === 'pack' ? 'specimen-pack' : 'specimen-pack-check',
+						{
+							...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
+							...(parsed.options.has('allow-failed')
+								? {
+										allowFailed: (parsed.options.get('allow-failed') ?? '')
+											.split(',')
+											.filter(Boolean),
+									}
+								: {}),
+							...suiteInput(parsed),
+						}
+					);
+				} else if (parsed.action === 'pack-export') {
+					result = await executeSpecimenCommand(bench, 'specimen-pack-export', {
+						directory: resolve(root, parsed.positionals[0] ?? ''),
+						...(parsed.options.has('revision') ? { revision: parsed.options.get('revision') } : {}),
+					});
 				} else if (parsed.action === 'a11y') {
 					result = await executeSpecimenCommand(bench, 'specimen-a11y', {
 						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
@@ -501,7 +527,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT.json RIGHT.json, or build OUTDIR; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT.json RIGHT.json, build OUTDIR, pack [TAG], pack-check [TAG] or pack-export DIR; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

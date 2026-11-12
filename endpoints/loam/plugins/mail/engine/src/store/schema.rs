@@ -103,6 +103,99 @@ pub(super) const MIGRATIONS: &[&str] = &[
         subject INTEGER NOT NULL
     ) STRICT;
     ",
+    // 2: what is derived from the log, and can be rebuilt from it (4.3): what a message's
+    // headers and body say, its parts, its thread, and where each thread shows. Beside them,
+    // what the derivation itself has to remember: which messages the search index still lacks,
+    // and how far a rebuild has come.
+    "
+    -- When the provider received the message, as first reported. Not derived: it is what the
+    -- provider showed, and a message's date falls back to it.
+    ALTER TABLE message ADD COLUMN received_at INTEGER;
+
+    CREATE TABLE envelope (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        -- The version of the derivation that wrote the row (4.3).
+        parser INTEGER NOT NULL,
+        thread_id INTEGER NOT NULL,
+        -- The date the message is listed under, in milliseconds: its Date header when that is
+        -- not in the future, else when the provider received it, else when it was first seen.
+        date INTEGER NOT NULL,
+        sent_at INTEGER,
+        sender_address TEXT NOT NULL,
+        sender_name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        -- From the body, once it is held whole; '' and 0 until then.
+        snippet TEXT NOT NULL DEFAULT '',
+        attachments INTEGER NOT NULL DEFAULT 0,
+        -- Why the headers, or the body, could not be read; the engine's own words.
+        unparsed TEXT
+    ) STRICT;
+    CREATE INDEX envelope_thread ON envelope (thread_id, date, message_id);
+
+    CREATE TABLE part (
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        -- The part's place in the message, as IMAP numbers it ('1.2').
+        place TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        size INTEGER NOT NULL CHECK (size >= 0),
+        attachment INTEGER NOT NULL CHECK (attachment IN (0, 1)),
+        PRIMARY KEY (message_id, place)
+    ) STRICT, WITHOUT ROWID;
+
+    -- A Message-ID a message has, or names in References or In-Reply-To, and the thread it
+    -- belongs to (5.6). The key is the first 16 bytes of the id's SHA-256.
+    CREATE TABLE thread_key (
+        key BLOB PRIMARY KEY CHECK (length(key) = 16),
+        thread_id INTEGER NOT NULL
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX thread_key_thread ON thread_key (thread_id);
+
+    -- A thread, with what a list shows. Its id is the lowest id of its messages.
+    CREATE TABLE thread (
+        id INTEGER PRIMARY KEY,
+        last_date INTEGER NOT NULL,
+        messages INTEGER NOT NULL,
+        attachments INTEGER NOT NULL,
+        last_message INTEGER NOT NULL,
+        subject TEXT NOT NULL,
+        snippet TEXT NOT NULL,
+        last_sender TEXT NOT NULL
+    ) STRICT;
+
+    -- A thread in a mailbox: the messages of the thread the mailbox currently shows. This is
+    -- what a list of a mailbox reads, newest first.
+    CREATE TABLE thread_place (
+        mailbox_id INTEGER NOT NULL REFERENCES mailbox (id),
+        thread_id INTEGER NOT NULL,
+        last_date INTEGER NOT NULL,
+        messages INTEGER NOT NULL,
+        PRIMARY KEY (mailbox_id, thread_id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX thread_place_by_date ON thread_place (mailbox_id, last_date DESC, thread_id DESC);
+    CREATE INDEX thread_place_thread ON thread_place (thread_id);
+
+    -- Which mailboxes currently show a message.
+    CREATE INDEX observation_shown ON observation (message_id, mailbox_id) WHERE ended_at IS NULL;
+
+    -- A message whose document the search index does not yet hold on the disk. The index
+    -- records the highest seq it has committed; rows up to it are removed.
+    CREATE TABLE index_pending (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id INTEGER NOT NULL
+    ) STRICT;
+
+    -- What the engine remembers about its own work: how far a rebuild has come, and the
+    -- highest index_pending.seq the index has committed.
+    CREATE TABLE engine_state (
+        key TEXT PRIMARY KEY,
+        value INTEGER NOT NULL
+    ) STRICT, WITHOUT ROWID;
+
+    -- Messages recorded before these tables existed have no rows in them. A rebuild is due,
+    -- and until `mail-rebuild` has run, new mail waits for it too.
+    INSERT INTO engine_state (key, value) SELECT 'rebuild', 0 WHERE EXISTS (SELECT 1 FROM message);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one
