@@ -215,3 +215,7 @@ Seen while running, and worth their own issues; none is filed.
 
 The tasks and checks are now readable in this folder. Step C5's sessions
 must run in a checkout without it, or they can read what is counted.
+
+Step C5 did, on 2026-11-12: arms a and c, in a repository of one commit
+holding `047268ab`'s tree without this folder. Its record is
+[`first-consumer.md`](./first-consumer.md).
