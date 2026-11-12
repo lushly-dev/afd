@@ -11,6 +11,10 @@ use umbel_store::{
 
 use crate::memory::{LeftOutQuery, MemoryWriteRequest};
 use crate::store::{CollectionInfo, CollectionMeta, ContentEntry, Reader};
+use umbel_store::lane::{
+    Decision, Evidence, FindPage, LaneRecord, MatchPage, OwnInfo, RecordFind, RecordMatch,
+    Standing, StandingLabel,
+};
 use umbel_store::memory::{
     Confirm, ForgetReceipt, Invalidate, KeyFileState, LeftOut, MemoryChange, MemoryCounts,
     MemoryList, MemoryPage, MemoryReceipt, MemoryUsage, MemoryVersionMeta, RecallPage, RecallQuery,
@@ -515,6 +519,113 @@ pub trait HostServices: Send + Sync {
         _expect: Expect,
     ) -> Result<RecordMeta, HostError> {
         not_granted("records_write")
+    }
+    /// Grant `records_write`: write a record of a standing kind the instance's manifest declares,
+    /// and replace its evidence (records host specification, section 4.1). Compiled plugins
+    /// only, as every record lane service is: a component and a mounted server answer
+    /// `NotGranted`.
+    ///
+    /// # Errors
+    /// As [`HostServices::record_put`]; [`HostError::Invalid`] with a message starting
+    /// `RECORD_KIND_NOT_DECLARED`, `RECORD_KIND_NOT_STANDING`, `RECORD_PRINCIPAL_REQUIRED`,
+    /// `RECORD_FIELD_INVALID`, `RECORD_WORDING_FIXED`, `RECORD_EVIDENCE_INVALID` or
+    /// `RECORD_LANE_STALE` (section 13).
+    #[allow(clippy::too_many_arguments)]
+    fn record_put_cited(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+        _body: Value,
+        _envelope: Envelope,
+        _expect: Expect,
+        _evidence: Evidence,
+    ) -> Result<RecordMeta, HostError> {
+        not_granted("records_write")
+    }
+    /// Grant `records`: one record of a declared kind, with its label; `None` for a record that
+    /// is absent, not readable or not admitted, without saying which (section 7).
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`]; [`HostError::Invalid`] with a message starting
+    /// `RECORD_KIND_NOT_DECLARED`, `RECORD_QUERY_INVALID` or `RECORD_LANE_STALE`;
+    /// [`HostError::Busy`], [`HostError::Corrupt`], [`HostError::Io`].
+    fn record_read(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+        _standings: &[Standing],
+        _verified_only: bool,
+    ) -> Result<Option<LaneRecord>, HostError> {
+        not_granted("records")
+    }
+    /// Grant `records`: the readable records of a declared kind by key and by text, in pages
+    /// (section 7).
+    ///
+    /// # Errors
+    /// As [`HostServices::record_read`], and [`HostError::Invalid`] with a message starting
+    /// `RECORD_QUERY_TOO_BROAD`.
+    fn record_find(&self, _space: &str, _query: &RecordFind) -> Result<FindPage, HostError> {
+        not_granted("records")
+    }
+    /// Grant `records`: for each text, the readable records whose match field is identical and
+    /// the nearest ones with their scores (section 8). Scores only: what to do with them is the
+    /// plugin's.
+    ///
+    /// # Errors
+    /// As [`HostServices::record_find`].
+    fn record_match(&self, _space: &str, _query: &RecordMatch) -> Result<MatchPage, HostError> {
+        not_granted("records")
+    }
+    /// Grant `records_write`: affirm a standing record's wording, or withdraw that, inside a
+    /// call the space's person decided (section 6.1). Answers the record's label.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], also with a message starting `RECORD_DECISION_NOT_GATED` or
+    /// `RECORD_DECISION_NOT_THE_PERSON`; [`HostError::NotFound`] for a record that is absent or
+    /// not readable; [`HostError::Invalid`] with a message starting `RECORD_KIND_NOT_STANDING`
+    /// or `RECORD_LANE_STALE`; [`HostError::Busy`].
+    fn record_decide(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+        _decision: Decision,
+    ) -> Result<StandingLabel, HostError> {
+        not_granted("records_write")
+    }
+    /// Grants `records_write` and `documents`: mark a document, at the content hash the person
+    /// was shown, as the person's own (section 6.2). Answers the revision the mark took.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], also with a message starting `RECORD_DECISION_NOT_GATED`,
+    /// `RECORD_DECISION_NOT_THE_PERSON` or `STORE_OWN_MARK_REFUSED`; [`HostError::NotFound`];
+    /// [`HostError::Conflict`] when the document's content is not `content_hash`;
+    /// [`HostError::Busy`].
+    fn doc_own_mark(
+        &self,
+        _space: &str,
+        _doc: &str,
+        _content_hash: &ContentHash,
+        _speaker: Option<&str>,
+    ) -> Result<Rev, HostError> {
+        not_granted("records_write")
+    }
+    /// Grants `records_write` and `documents`: take a mark back (section 6.2).
+    ///
+    /// # Errors
+    /// As [`HostServices::doc_own_mark`]; [`HostError::NotFound`] also with no mark.
+    fn doc_own_unmark(&self, _space: &str, _doc: &str) -> Result<Rev, HostError> {
+        not_granted("records_write")
+    }
+    /// Grant `documents`: how a readable document is the person's own now, by collection or by
+    /// mark, or `None` when it is not (section 6.2).
+    ///
+    /// # Errors
+    /// As [`HostServices::doc_get`].
+    fn doc_own(&self, _space: &str, _doc: &str) -> Result<Option<OwnInfo>, HostError> {
+        not_granted("documents")
     }
     /// Grant `index`: search the space's index under the caller's reader filter.
     ///

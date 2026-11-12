@@ -11,7 +11,8 @@ pub const PROVENANCE_VERSION: u32 = 3;
 pub const EVENT_VERSION: u32 = 3;
 /// A cursor, version 0 (`v0:<space>:<seq>`).
 pub const CURSOR_VERSION: u32 = 0;
-/// The store traits, version 2 (phase 3 section 5.1). `umbel-store` owns the constant.
+/// The store traits, version 3 (the records host specification, section 11). `umbel-store` owns
+/// the constant.
 pub use umbel_store::STORE_TRAITS_VERSION as STORE_VERSION;
 /// The document record, version 1 (`schemas/document.v1.json`).
 pub const DOCUMENT_VERSION: u32 = 1;

@@ -1,7 +1,8 @@
 //! The versioned schema files under `schemas/` (phase 0 specification sections 7 and 10; phase 1
 //! sections 2, 8.2 and 9.1; phase 2 section 2; phase 3 section 2; phase 4 section 2, in
 //! `schemas/phase4.rs`; phase 5 section 2, in `schemas/phase5.rs` and
-//! `schemas/phase5_records.rs`) and the WIT world.
+//! `schemas/phase5_records.rs`; the records host specification sections 2 and 3, whose version 6
+//! schemas are held to the host in `manifest_v6.rs` and `config_v6.rs`) and the WIT world.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 #[path = "schemas/phase4.rs"]
@@ -22,17 +23,19 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 43] = [
+const STEMS: [&str; 45] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
     "workspace-config.v4",
     "workspace-config.v5",
+    "workspace-config.v6",
     "plugin-manifest.v1",
     "plugin-manifest.v2",
     "plugin-manifest.v3",
     "plugin-manifest.v4",
     "plugin-manifest.v5",
+    "plugin-manifest.v6",
     "pack-manifest.v1",
     "principal.v0",
     "provenance-envelope.v0",
@@ -1543,7 +1546,7 @@ fn the_version_4_config_schema_refuses_what_the_host_refuses() {
     }
     let bad = [
         json!({ "config_version": 3, "principal": { "agent_env": ["MY_AGENT"] } }),
-        json!({ "config_version": 6 }),
+        json!({ "config_version": 7 }),
         json!({ "config_version": 4, "principal": { "agent_env": ["not a name"] } }),
         json!({ "config_version": 4, "principal": { "agent_env": "MY_AGENT" } }),
         json!({ "config_version": 4, "store": { "exclude_memory_from_machine_backup": "yes" } }),

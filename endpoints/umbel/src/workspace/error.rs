@@ -11,7 +11,7 @@ pub mod codes {
     pub const WORKSPACE_NOT_FOUND: &str = "WORKSPACE_NOT_FOUND";
     /// `umbel.toml` is invalid, or a command breaks a registration rule.
     pub const WORKSPACE_CONFIG_INVALID: &str = "WORKSPACE_CONFIG_INVALID";
-    /// `config_version` is not 1 to 5.
+    /// `config_version` is not 1 to 6.
     pub const WORKSPACE_CONFIG_UNSUPPORTED: &str = "WORKSPACE_CONFIG_UNSUPPORTED";
     /// `state/` cannot be created or written.
     pub const WORKSPACE_STATE_UNWRITABLE: &str = "WORKSPACE_STATE_UNWRITABLE";
@@ -125,9 +125,9 @@ impl WorkspaceError {
         Self::new(
             codes::WORKSPACE_CONFIG_UNSUPPORTED,
             format!(
-                "umbel.toml has config_version {found}; this umbel reads configuration versions 1 to 5"
+                "umbel.toml has config_version {found}; this umbel reads configuration versions 1 to 6"
             ),
-            "This umbel reads configuration versions 1 to 5; upgrade umbel or migrate umbel.toml."
+            "This umbel reads configuration versions 1 to 6; upgrade umbel or migrate umbel.toml."
                 .to_owned(),
         )
     }

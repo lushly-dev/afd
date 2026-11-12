@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use umbel_store::lane::{FindPage, LaneRecord, MatchPage, RecordFind, RecordMatch, Standing};
 use umbel_store::{
     Change, ChunkHit, ContentHash, Direction, DocMeta, Document, DocumentWrite, Edge, EdgeKey,
     Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession, ListQuery, Node,
@@ -198,6 +199,47 @@ macro_rules! reads {
             ) -> Result<Page<Record>, HostError> {
                 self.guard(space)?;
                 self.services()?.record_list(space, kind, after, limit)
+            }
+            /// Grant `records`: one record of a declared kind, with its label (records host
+            /// specification, section 7).
+            ///
+            /// # Errors
+            /// See [`HostServices::record_read`].
+            pub fn record_read(
+                &self,
+                space: &str,
+                kind: &str,
+                id: &str,
+                standings: &[Standing],
+                verified_only: bool,
+            ) -> Result<Option<LaneRecord>, HostError> {
+                self.guard(space)?;
+                self.services()?
+                    .record_read(space, kind, id, standings, verified_only)
+            }
+            /// Grant `records`: the readable records of a declared kind by key and by text.
+            ///
+            /// # Errors
+            /// See [`HostServices::record_find`].
+            pub fn record_find(
+                &self,
+                space: &str,
+                query: &RecordFind,
+            ) -> Result<FindPage, HostError> {
+                self.guard(space)?;
+                self.services()?.record_find(space, query)
+            }
+            /// Grant `records`: the identical and the nearest readable records of each text.
+            ///
+            /// # Errors
+            /// See [`HostServices::record_match`].
+            pub fn record_match(
+                &self,
+                space: &str,
+                query: &RecordMatch,
+            ) -> Result<MatchPage, HostError> {
+                self.guard(space)?;
+                self.services()?.record_match(space, query)
             }
             /// Grant `index`: search under the reader filter.
             ///
@@ -701,6 +743,7 @@ mod tests {
         not_granted(cx.doc_changes("main", 0, 10, None).map(drop));
         not_granted(cx.record_get("main", "k", "i").map(drop));
         not_granted(cx.record_list("main", "k", None, 10).map(drop));
+        not_granted(cx.record_read("main", "k", "i", &[], false).map(drop));
         not_granted(cx.index_applied("main").map(drop));
         not_granted(cx.index_writer("main").map(drop));
         not_granted(cx.graph_nodes("main", &[]).map(drop));

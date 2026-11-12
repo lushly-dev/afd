@@ -313,12 +313,12 @@ fn the_first_class_tools_are_kept_when_valid() {
 
 #[test]
 fn another_config_version_is_unsupported_and_names_the_supported_one() {
-    for text in ["config_version = 6\n", "config_version = 0\n"] {
+    for text in ["config_version = 7\n", "config_version = 0\n"] {
         let error = open(text).unwrap_err();
         assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
         assert_eq!(
             error.suggestion(),
-            "This umbel reads configuration versions 1 to 5; upgrade umbel or migrate umbel.toml."
+            "This umbel reads configuration versions 1 to 6; upgrade umbel or migrate umbel.toml."
         );
     }
     invalid("name = \"x\"\n", "config_version");
@@ -428,7 +428,7 @@ fn init_creates_the_layout_with_private_keys() {
     assert_eq!(workspace.config().name, "my-team");
     assert_eq!(
         fs::read_to_string(dir.join("umbel.toml")).unwrap(),
-        "config_version = 5\nname = \"my-team\"\n\n[principal]\non_behalf_of = \"local\"\n"
+        "config_version = 6\nname = \"my-team\"\n\n[principal]\non_behalf_of = \"local\"\n"
     );
     assert!(dir.join("spaces/main").is_dir());
     assert!(dir.join("state/keys").is_dir());
@@ -457,7 +457,7 @@ fn init_without_a_name_writes_the_version_and_principal_and_defaults_the_name() 
     let workspace = Workspace::init(&dir, None).unwrap();
     assert_eq!(
         fs::read_to_string(dir.join("umbel.toml")).unwrap(),
-        "config_version = 5\n\n[principal]\non_behalf_of = \"local\"\n"
+        "config_version = 6\n\n[principal]\non_behalf_of = \"local\"\n"
     );
     assert_eq!(workspace.config().name, "team-notes");
 }
@@ -617,8 +617,8 @@ fn version_1_opens_with_no_plugins_and_version_2_with_its_instances() {
     assert!(one.config().plugins.instances.is_empty());
     let two = open(V2).unwrap();
     assert_eq!(two.config().version, 2);
-    // The version this build writes; it reads 1 to 4 as 5 with auth.mode = "none".
-    assert_eq!(umbel::CONFIG_VERSION, 5);
+    // The version this build writes; it reads 1 to 5 as 6 with no person, own collection or model.
+    assert_eq!(umbel::CONFIG_VERSION, 6);
     // Version 1 has no plugins: the phase 0 rule stays for it.
     invalid(
         "config_version = 1\n[plugins]\nenabled = [\"x\"]\n",

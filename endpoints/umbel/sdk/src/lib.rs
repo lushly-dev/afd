@@ -45,6 +45,7 @@ mod memory;
 #[cfg(feature = "mounted")]
 mod mounted;
 mod outcome;
+mod records;
 mod store;
 
 pub mod build;

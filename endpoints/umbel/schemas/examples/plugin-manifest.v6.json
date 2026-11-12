@@ -1,0 +1,118 @@
+{
+	"manifest_version": 6,
+	"protocol": 1,
+	"plugin": {
+		"id": "notes",
+		"title": "Garden notes",
+		"version": "0.1.0",
+		"description": "Short notes about a garden, held as standing records the host indexes.",
+		"kind": "compiled",
+		"domains": ["notes"]
+	},
+	"grants": [
+		{
+			"name": "records",
+			"reason": "Reads the notes."
+		},
+		{
+			"name": "records_write",
+			"reason": "Writes the notes."
+		}
+	],
+	"records": [
+		{
+			"kind": "note",
+			"standing": true,
+			"text": ["/statement"],
+			"keys": ["/bed", "/tags", "/source"],
+			"match": "/statement"
+		},
+		{
+			"kind": "bed",
+			"keys": ["/aspect"]
+		}
+	],
+	"commands": [
+		{
+			"name": "notes-capture",
+			"description": "Keep a note about the garden.",
+			"effects": ["store-write"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					},
+					"statement": {
+						"type": "string",
+						"minLength": 1
+					},
+					"bed": {
+						"type": "string"
+					}
+				},
+				"required": ["statement"],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space", "bed"]
+			}
+		},
+		{
+			"name": "notes-find",
+			"description": "Find notes by their words.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					},
+					"query": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "digest",
+				"keep": ["space"]
+			}
+		}
+	],
+	"pipelines": [
+		{
+			"name": "notes-lookup",
+			"description": "Find notes in one call.",
+			"effects": ["inspect"],
+			"input_schema": {
+				"type": "object",
+				"properties": {
+					"space": {
+						"type": "string"
+					},
+					"query": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			},
+			"journal": {
+				"mode": "digest"
+			},
+			"steps": [
+				{
+					"command": "notes-find",
+					"input": {
+						"query": "$input.query"
+					}
+				}
+			]
+		}
+	]
+}

@@ -23,20 +23,27 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 ## Status block
 
-- **State:** active; phase 0 under way. The owner merged the proposal's third revision
-  ([#1012](https://github.com/lushly-dev/afd/pull/1012)) on 2026-11-12 UTC, answered the questions
-  that stood before phase 0, and directed that the work carry on through its phases, with
-  questions queued (the proposal's [section 11](ideas.proposal.md#11-for-the-owner)). Nothing is
-  implemented.
-- **Last verified:** 2026-11-11 against `main` at `bcc1280f`. The 29 scenario files parse and pass
-  the runner's dry-run validation, and every one of the 51 draft commands and 5 error codes is
-  used by a job (`afd scenario validate`, and the coverage snippet in
-  [`jobs-first.md`](../../../../.claude/skills/afd/references/jobs-first.md)). No code was built
-  or run.
-- **Done:** the [proposal and plan](ideas.proposal.md) and its [scenarios](scenarios/): first
-  version in [#990](https://github.com/lushly-dev/afd/pull/990), and the revision after two walks
-  of its paths in [#1012](https://github.com/lushly-dev/afd/pull/1012). Reviews are in the
-  [session log](#session-log).
+- **State:** active. Phase 0 is recorded as far as it goes without the owner; phase A (specify) is
+  part done; phase B (the host's part) has begun. The owner merged the proposal's third revision
+  ([#1012](https://github.com/lushly-dev/afd/pull/1012)), answered the questions that stood before
+  phase 0, and directed that the work carry on through its phases, with questions queued (the
+  proposal's [section 11](ideas.proposal.md#11-for-the-owner)). He has read none of the Umbel
+  decisions and specifications written since, and each says so. The plugin itself is not started.
+- **Last verified:** 2026-11-12, for step B1 of the host specification, against `main` at
+  `e5de4194`: the Umbel gate of `AGENTS.md` on macOS with Rust 1.98.0, run in full by the
+  implementing agent, and in part (formatting, clippy, the tests) by an independent reviewer (the specification's status block has the commands
+  and counts). Before that, 2026-11-11 against `main` at `bcc1280f`: the 29 scenario files parse
+  and pass the runner's dry-run validation, and every one of the 51 draft commands and 5 error
+  codes is used by a job. The scenarios predate phase 0's findings and the host specification;
+  step A3 revises them.
+- **Done:** the [proposal and plan](ideas.proposal.md) and its [scenarios](scenarios/)
+  ([#990](https://github.com/lushly-dev/afd/pull/990), [#1012](https://github.com/lushly-dev/afd/pull/1012));
+  phase 0's steps 0.1 to 0.7 and a probe of 0.10 on paper
+  ([#1027](https://github.com/lushly-dev/afd/pull/1027), [#1031](https://github.com/lushly-dev/afd/pull/1031),
+  [#1032](https://github.com/lushly-dev/afd/pull/1032), [#1033](https://github.com/lushly-dev/afd/pull/1033));
+  step A1, Umbel's D157 ([#1035](https://github.com/lushly-dev/afd/pull/1035)); the first part of
+  step A2, the host specification for records ([#1040](https://github.com/lushly-dev/afd/pull/1040)).
+  Reviews are in the [session log](#session-log).
 - **Not done:** every step below that is not marked done.
 - **Follow-ups:** the [table at the end](#follow-ups-not-yet-issues).
 
@@ -61,7 +68,7 @@ and [section 9](ideas.proposal.md#9-steps) the rest.
 | A | A2 Host specifications for P2, P3 and P15 to P18 | In part, 2026-11-11, in its pull request: P2 and P3 are specified as [standing records, indexed and matched](../../../../endpoints/umbel/docs/plugins/ideas/host-records.spec.md) (Umbel's D158 to D171), after an independent review and its focused pass; decided under the owner's direction, not yet read by him (Q2). It is what phase B builds, in six steps. Not started: P15 and P18, which the loop can start without, and P16 and P17, which steps D5 and D1 need |
 | A | A3 The plugin's specification, with the scenarios moved beside it | Not started |
 | A | A4 P14 and the relay part of P15 as AFD changes | Not started |
-| B | Matching in the host | Not started. Specified as steps B1 to B6 of the [host specification](../../../../endpoints/umbel/docs/plugins/ideas/host-records.spec.md#16-implementation-plan) |
+| B | Matching in the host | In progress, as steps B1 to B6 of the [host specification](../../../../endpoints/umbel/docs/plugins/ideas/host-records.spec.md#16-implementation-plan). B1, the shapes (manifest and configuration version 6, the normalising and scoring functions, the SDK's types), is in its pull request, 2026-11-12. B2 to B6 not started |
 | C | C1 to C5, the loop, hosted | Not started; C1 needs the first instance (question Q1) |
 | D | D1 to D5, the rest of the slice | Not started |
 | E to G | The hierarchy: specification, engine and host, the plugin whole | Not started; waits for the owner's answer on whether it is wanted |
@@ -110,3 +117,4 @@ answer is recorded in the proposal's section 11 and in the session log.
 | 2026-11-11 | Phase 0, steps 0.1, 0.2 and part of 0.4 | Tools written in [`prototype/`](prototype/README.md), with tests on invented fixtures. Run on the owner's archive of 107 files, which stays in his private repository: a census, the sentence rule, extraction by two models (3 701 ideas), a review of 212 of them, 1 717 pairs labelled for matching, and eight local embedding models scored. Only counts are recorded here. Every judgment was a model's; the owner's checks are queued (Q5). The Fable subagents hit a spend limit part way through labelling; their finished labels were kept and the rest done by Claude Opus 5.5 |
 | 2026-11-11 | The owner's answers, and step A1 | The owner said to carry on without his check of phase 0's samples, which he will do later, so its thresholds are provisional and tunable; confirmed the phase 0 corpus (closing Q4); and named Better Auth for sign-in. Step A1 written: Umbel's D157 and the architecture's amendments for standing records |
 | 2026-11-11 | Step A2, first part | The host specification for P2 and P3 written by a fresh agent from this plan's decisions and the code, at Umbel's elevation: declaration in manifest version 6, standing computed at read from facts only the host writes, a words lane in the store's database, finding, matching by words and meaning with scores only, an embedder behind a trait with none by default, and a gate for a meaning lane. An independent review sampled about sixty citations, all correct, and found four blockers (two ways an agent's text could be counted as the person's, a label that leaked an unreadable document, no host setting for verified content only) and nine improvements; all taken; its focused pass found one more blocker (a space set to verified content only could never be reviewed, so the space-level switch was dropped) and six improvements, all taken; a last check confirmed the blocker resolved |
+| 2026-11-12 | Phase B, step B1 | The first code: manifest version 6 with `[[records]]`, workspace configuration version 6 (parsing and validation), the lane's `extract`, `normalise` and `score` with the specification's worked examples as fixtures, the embedder's types, and the SDK's signatures. Implemented by a fresh agent from the specification, which gained eleven amendments where the code required a choice. An independent review recomputed the fixtures, reran formatting, clippy and the tests, and found one blocker (a collection marked as the person's own could be written by a command when its directory did not yet exist) and six improvements; all taken |
