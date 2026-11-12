@@ -112,6 +112,9 @@ pub struct PartFound {
     pub size: u64,
     /// Whether it is offered as an attachment.
     pub attachment: bool,
+    /// Whether its bytes are read for what they are: a binary part, a named
+    /// one, or an attachment, whatever type it says it is.
+    pub is_file: bool,
     /// Its type as its bytes show it, when they show one: `application/pdf`.
     pub detected: String,
     /// Whether its bytes show another kind of file than its name or type
@@ -1111,6 +1114,7 @@ fn found(part: MessagePart<'_>, place: String) -> PartFound {
         name,
         size: u64::try_from(size).unwrap_or(u64::MAX),
         attachment: part.is_attachment(),
+        is_file,
         detected,
         type_differs,
         hash,

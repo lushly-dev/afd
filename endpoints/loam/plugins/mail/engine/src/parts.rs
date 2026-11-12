@@ -324,6 +324,10 @@ pub fn text_places(structure: &Structure) -> Vec<String> {
         return Vec::new();
     }
     let built = assemble(structure, &BTreeMap::new());
+    // As large as the most a whole message is read up to, and no larger.
+    if built.len() > derive::MESSAGE_LIMIT {
+        return Vec::new();
+    }
     let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let Some(message) = MessageParser::new()
             .max_depth(derive::DEPTH_LIMIT + 1)
@@ -491,7 +495,10 @@ fn write_params(out: &mut Text<'_>, params: &[(String, String)]) {
             && name
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b"-_.!#$&+^`|~*".contains(&b));
-        if !name_ok || name.eq_ignore_ascii_case("boundary") || value.len() > PARAM_VALUE_LIMIT {
+        if !name_ok
+            || name.eq_ignore_ascii_case("boundary")
+            || value.chars().count() > PARAM_VALUE_LIMIT
+        {
             continue;
         }
         if name.ends_with('*') {
@@ -575,23 +582,32 @@ pub fn body_fields(structure: &Structure, texts: &BTreeMap<String, Vec<u8>>) -> 
 }
 
 /// Reads the file at `place`, held and decoded, into `fields`: its size, and
-/// what its bytes say of it, as a whole message's reading would.
+/// what its bytes say of it, as a whole message's reading would. A message
+/// carried in it is read on its own, and its parts, numbered under `place`,
+/// are read as the whole message's reading would read them.
 pub fn with_file(fields: &mut BodyFields, place: &str, decoded: &[u8]) {
     let Some(part) = fields.parts.iter_mut().find(|part| part.place == place) else {
         return;
     };
     part.size = u64::try_from(decoded.len()).unwrap_or(u64::MAX);
-    let is_file = part.attachment
-        || !part.name.is_empty()
-        || !(part.content_type.starts_with("text/")
-            || part.content_type.starts_with("message/")
-            || part.content_type.starts_with("multipart/"));
-    if is_file {
+    if part.is_file {
         let (detected, type_differs, hash) =
             derive::file_facts(decoded, &part.content_type, &part.name);
         part.detected = detected;
         part.type_differs = type_differs;
         part.hash = hash;
+    }
+    if part.content_type.starts_with("message/") {
+        let carried = derive::body_fields(decoded);
+        for inner in carried.parts {
+            let at = format!("{place}.{}", inner.place);
+            if let Some(part) = fields.parts.iter_mut().find(|part| part.place == at) {
+                part.size = inner.size;
+                part.detected = inner.detected;
+                part.type_differs = inner.type_differs;
+                part.hash = inner.hash;
+            }
+        }
     }
 }
 
@@ -928,6 +944,50 @@ data\r\n\
         with_file(&mut fields, "2", b"%PDF-1.4");
         assert_eq!(fields.parts[1].detected, "application/pdf");
         assert!(fields.parts[1].hash.is_some());
+    }
+
+    #[test]
+    fn a_forwarded_message_opened_whole_reads_its_own_parts() {
+        const FORWARD: &[u8] = b"From: a@example.org\r\n\
+Content-Type: multipart/mixed; boundary=\"b\"\r\n\
+\r\n\
+--b\r\n\
+Content-Type: text/plain\r\n\
+\r\n\
+see below\r\n\
+--b\r\n\
+Content-Type: message/rfc822\r\n\
+\r\n\
+From: c@example.org\r\n\
+Content-Type: multipart/mixed; boundary=\"i\"\r\n\
+\r\n\
+--i\r\n\
+Content-Type: text/plain\r\n\
+\r\n\
+inner words\r\n\
+--i\r\n\
+Content-Type: text/plain; name=\"list.txt\"\r\n\
+\r\n\
+%PDF-1.4 a program calling itself text\r\n\
+--i--\r\n\
+--b--\r\n";
+        let structure = structure_of(FORWARD);
+        let raw = raw_parts(FORWARD);
+        let texts = BTreeMap::from([("1".to_string(), raw["1"].clone())]);
+        let mut fields = body_fields(&structure, &texts);
+        with_file(
+            &mut fields,
+            "2",
+            &decoded(&structure, "2", &raw["2"]).unwrap(),
+        );
+        assert_eq!(fields, derive::body_fields(FORWARD));
+        let inner = fields
+            .parts
+            .iter()
+            .find(|part| part.place == "2.2")
+            .unwrap();
+        assert_eq!(inner.detected, "application/pdf");
+        assert!(inner.hash.is_some());
     }
 
     #[test]
