@@ -930,29 +930,50 @@ describe('P2-D5: the editor area, native half', () => {
 		await open(page, await createNote(page, 'Ay'));
 		await typeInto(page, 't1', 'Unsaved');
 		await expect.poll(() => tabName(page)).toBe('Ay, unsaved');
-		// The area's next editor-get answer waits on a gate.
+		// The answer to the first editor-get the area starts once the gate is armed waits on it. A read the
+		// typing or the open started earlier, still in flight, must not take the gate (#970): the area goes
+		// idle first, and a read is held by when it started, not when it answers.
+		await editorIdle(page);
 		await page.evaluate(() => {
 			const shell = document.querySelector('loam-shell') as unknown as {
 				kernel: { call(name: string, ...rest: unknown[]): Promise<unknown> };
 			};
 			const call = shell.kernel.call.bind(shell.kernel);
+			const gate = window as unknown as {
+				openGate: () => void;
+				armGate: () => void;
+				heldStarted: boolean;
+			};
+			gate.heldStarted = false;
 			const held = new Promise<void>((resolve) => {
-				(window as unknown as { openGate: () => void }).openGate = resolve;
+				gate.openGate = resolve;
 			});
-			let once = true;
+			let armed = false;
+			gate.armGate = () => {
+				armed = true;
+			};
 			shell.kernel.call = async (name: string, ...rest: unknown[]) => {
-				const answer = await call(name, ...rest);
-				if (name === 'editor-get' && once) {
-					once = false;
-					await held;
+				// The area's sync reads the active scope; its marks name theirs, and are not this read.
+				const scoped = rest.some(
+					(part) => typeof part === 'object' && part !== null && 'scope' in part
+				);
+				const hold = name === 'editor-get' && armed && !scoped;
+				if (hold) {
+					armed = false;
+					gate.heldStarted = true;
 				}
+				const answer = await call(name, ...rest);
+				if (hold) await held;
 				return answer;
 			};
 		});
 		const from = (await entriesOf(page)).length;
 		// The person's page marks the tab saved while its editor is not: the area will report it unsaved again,
 		// from a read of the workspace, after the person has switched to Atlas.
+		await page.evaluate(() => (window as unknown as { armGate: () => void }).armGate());
 		await kernelCall(page, 'editor-dirty-set', { tab: 't1', dirty: false });
+		// The held read has started, so it read the workspace, before the person switches.
+		await page.waitForFunction(() => (window as unknown as { heldStarted: boolean }).heldStarted);
 		await kernelCall(page, 'scope-set', { project: 'atlas' });
 		await page.evaluate(() => (window as unknown as { openGate: () => void }).openGate());
 		await editorIdle(page);
