@@ -96,7 +96,7 @@ answer is recorded in the proposal's section 11 and in the session log.
 | 2026-11-11 | Phase 0, step 0.3 | Two link kinds the plan lacks: a later view of an earlier idea, which a model may state without retiring anything, and part of. A bundle should carry each idea's date | A lead from one judge on model-drafted questions, whose list of kinds differed from the plan's. To confirm on the owner's twenty questions with the plan's list before section 4.5 changes |
 | 2026-11-11 | Phase 0, step 0.5 | Themes change with the method and the model, so a synthesis names its member ideas and never a theme, and each embedding model needs its own similarity floor | For the plugin's specification (step A3); consistent with the plan's section 4.7 |
 | 2026-11-11 | Phase 0, step 0.3 | A third of a retrieved bundle is off the question. A rerank by the calling model, or a budget by kind of question, is to be tried before the bundle is specified | For the plugin's specification (step A3) |
-| 2026-11-11 | Phase 0, step 0.1 | Extraction prompt version 2 adds tests for one idea and for standing alone | In progress: run on four sources |
+| 2026-11-11 | Phase 0, step 0.1 | Extraction prompt version 2 adds tests for one idea and for standing alone | Done 2026-11-11 ([results](prototype/README.md#01-the-unit-and-the-types)): with Opus 5.5 it gave 39 of 40 ideas the right size against 38 and 22 for the earlier extractors, and 27% word for word against 55% and 89%. Which extractor and prompt the loop uses, and how attested trades against ideas that stand alone, are for the plugin's specification (step A3) |
 
 ## Session log
 

@@ -67,6 +67,22 @@ plan's phase 0 asks for his check of a sample of each.
   pooled 83% stands for neither. 89% of the sample say alone what the author meant in place; 10%
   depend on sentences around them that they do not carry. Of 92 restatements, 87 say only what
   their cited sentences say.
+- **Prompt version 2.** [`prompts/extract.md`](prompts/extract.md) adds a test for one idea and
+  one for standing alone. Claude Opus 5.5 ran it on four of the owner's sources that both earlier
+  extractors had read, and a reviewer judged 40 ideas from each extractor on those sources, mixed
+  and unlabelled ([`results/prompt-v2.counts.json`](results/prompt-v2.counts.json)):
+
+  | Extractor | Ideas | Word for word | Right size | Lean on neighbours |
+  | --- | --- | --- | --- | --- |
+  | Fable 5.2, version 1 | 276 | 55% | 38 of 40 | 2 of 40 |
+  | Sonnet 5.5, version 1 | 199 | 89% | 22 of 40 | 14 of 40 |
+  | Opus 5.5, version 2 | 317 | 27% | 39 of 40 | 1 of 40 |
+
+  Version 2 gives more, shorter ideas that stand alone, and restates far more often, so fewer would
+  attest; 2 of its 40 restatements said more than their sentences. The model changed with the
+  prompt, so the two effects are not separated, and 40 a side is small. What it shows: the
+  extractor decides most of the quality, and keeping to the author's words trades against ideas
+  that stand alone.
 - **Tags.** 1 656 distinct tags on 3 233 ideas, 729 of them used once. Free tags do not converge.
 
 ### 0.2 Can matching be trusted to refuse?
