@@ -181,7 +181,7 @@
 			"html": "<violet-tool-call-card state=\"output-available\" tool-call-id tool-name=\"getWeather\"><span slot=\"summary\">Retrieved weather forecast for Portland, OR.</span><div slot=\"output\">72°F, partly cloudy, 20% chance of rain.</div></violet-tool-call-card>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

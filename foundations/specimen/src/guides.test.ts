@@ -109,6 +109,19 @@ describe('guide files', () => {
 			'GUIDE_SCHEMA_INVALID',
 		],
 		[
+			'two roles for one state',
+			'x.guide.json',
+			{
+				...button,
+				roles: [
+					{ state: 'open', role: 'list' },
+					{ state: 'open', role: 'button' },
+				],
+			},
+			'GUIDE_SCHEMA_INVALID',
+			'roles',
+		],
+		[
 			'a rule that applies to nothing',
 			'x.guide.json',
 			{ rules: [{ id: 'a.b', text: 'A rule.', appliesTo: {} }] },

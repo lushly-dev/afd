@@ -466,9 +466,13 @@ export function packCatalog(files: PackFiles, library: string, stamp: PackStamp)
 	const rules = files.get(rulesPath(library));
 	if (!rules) throw new Error(`${rulesPath(library)} is missing`);
 	const prefix = `data/${library}/components/`;
+	// By tag, as the format orders a catalog: a path's `.json` sorts after `-`, so path order would
+	// put `x-grid-cell` before `x-grid`.
 	const components = [...files.keys()]
 		.filter((path) => path.startsWith(prefix))
+		.map((path) => path.slice(prefix.length, -5))
 		.sort()
+		.map((tag) => `${prefix}${tag}.json`)
 		.map((path) => {
 			const bytes = files.get(path) as Uint8Array;
 			const record = JSON.parse(new TextDecoder().decode(bytes)) as PackComponent;

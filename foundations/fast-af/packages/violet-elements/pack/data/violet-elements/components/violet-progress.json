@@ -105,7 +105,7 @@
 			"html": "<violet-progress label=\"Uploading field imagery\" max=\"100\" value=\"48\" value-text></violet-progress>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

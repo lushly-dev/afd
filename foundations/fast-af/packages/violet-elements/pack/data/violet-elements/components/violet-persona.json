@@ -133,7 +133,7 @@
 			"html": "<violet-persona initials label=\"Lydia Bauer\" size=\"sm\" src></violet-persona>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

@@ -130,7 +130,7 @@
 			"html": "<violet-source-citation href=\"https://example.com/composting-basics\" index media-type source-id source-title=\"Composting Basics for Beginners\" type=\"url\"></violet-source-citation>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

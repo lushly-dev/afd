@@ -141,7 +141,7 @@
 			"html": "<violet-approval-card state=\"denied\"><span slot=\"summary\">Delete all records from the plant inventory.</span><span slot=\"detail\">This would permanently remove 347 plant records.</span></violet-approval-card>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

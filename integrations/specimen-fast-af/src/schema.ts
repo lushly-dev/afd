@@ -75,15 +75,17 @@ export function mergeFastSchema(
 		if (!properties.some((item) => item.name === property.name))
 			properties.push(mergeProperty(undefined, property));
 	// An attribute the manifest lists apart from its property is that property's, once the
-	// definition links them: it is kept once, on the property, which takes what it lacks from it.
+	// definition links them: it is kept once, on the property. What the manifest says of the
+	// attribute wins over what it says of the property, since a pack shows the entry as the
+	// attribute and `specimen-pack-export` rechecks it against the manifest's attribute alone; the
+	// property keeps only what the attribute does not say.
 	const linked = new Set(properties.map((item) => item.attribute).filter(Boolean));
 	const absorbed = (property: PropertySchema): PropertySchema => {
 		const attribute = schema.attributes.find((item) => item.name === property.attribute);
 		if (!attribute) return property;
 		const merged: PropertySchema = { ...property };
 		for (const key of ['type', 'values', 'default', 'description'] as const)
-			if (merged[key] === undefined && attribute[key] !== undefined)
-				Object.assign(merged, { [key]: attribute[key] });
+			if (attribute[key] !== undefined) Object.assign(merged, { [key]: attribute[key] });
 		return merged;
 	};
 	const commands = (fast.commands ?? []).map((command) =>

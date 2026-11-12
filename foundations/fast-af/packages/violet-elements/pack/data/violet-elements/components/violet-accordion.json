@@ -64,7 +64,7 @@
 			"html": "<violet-accordion expand-mode=\"multi\"><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Active section</span>This section is currently expanded.</violet-accordion-item><violet-accordion-item disabled heading-level=\"3\"><span slot=\"heading\">Disabled section</span>This body should remain unavailable.</violet-accordion-item></violet-accordion>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

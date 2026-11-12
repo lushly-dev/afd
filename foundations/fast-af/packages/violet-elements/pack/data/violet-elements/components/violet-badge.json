@@ -151,7 +151,7 @@
 			"html": "<violet-badge appearance=\"filled\" aria-label=\"Saved\" color=\"accent\" icon=\"system/check\" label=\"Saved\" role=\"img\" size=\"md\"></violet-badge>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

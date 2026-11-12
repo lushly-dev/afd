@@ -100,7 +100,7 @@
 			"html": "<div style=\"inline-size: 14rem;\">\n            <violet-text as=\"span\" tone=\"default\" truncate variant=\"body\">\n                Planting plans with extra long descriptive labels should gracefully truncate inside tighter layouts.\n            </violet-text>\n        </div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

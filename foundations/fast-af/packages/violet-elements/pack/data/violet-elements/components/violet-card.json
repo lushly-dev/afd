@@ -134,7 +134,7 @@
 			"html": "<violet-card appearance=\"filled\" interactive orientation=\"vertical\" padding=\"medium\" role=\"group\" style=\"max-inline-size: 360px;\" tabindex=\"0\"><p style=\"margin: 0px;\">Interactive card — hover for lift effect, tab for focus ring.</p></violet-card>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

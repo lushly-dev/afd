@@ -109,6 +109,97 @@ describe('specimen pack', () => {
 		SEVERAL_BUILDS
 	);
 
+	// The Component Briefs proposal's exit criteria 4 and 5, on the example library.
+	it(
+		'drops a fact to its unchecked basis when the claim that verified it fails',
+		async () => {
+			const root = await copy();
+			const cases = join(root, 'pack-library/specimens.js');
+			await writeFile(
+				cases,
+				(await readFile(cases, 'utf8')).replace(
+					"state: { attribute: 'label', equals: 'Name' }",
+					"state: { attribute: 'label', equals: 'Other' }"
+				)
+			);
+			const broken = await createSpecimenBench({ root: join(root, 'pack-library') });
+			const path = 'data/example/components/example-field.json';
+			const statement = (record: string) =>
+				(
+					JSON.parse(record) as { a11y: { statements: { id: string; basis: string }[] } }
+				).a11y.statements.find((item) => item.id === 'field.label-required')?.basis;
+			try {
+				expect(statement(await readFile(join(fixtures, 'pack/committed', path), 'utf8'))).toBe(
+					'verified'
+				);
+				const run = await broken.pack({ workers: 1, allowFailed: ['checks--field-states'] });
+				expect(run.cases.failed.map((item) => item.id)).toEqual(['checks--field-states']);
+				expect(run.written).toContain(path);
+				expect(statement(await readFile(join(root, 'pack/committed', path), 'utf8'))).toBe(
+					'authored'
+				);
+			} finally {
+				await broken.close();
+				await rm(root, { recursive: true, force: true });
+			}
+		},
+		SEVERAL_BUILDS
+	);
+
+	it(
+		'fails the check when a component changes and its record is not rebuilt',
+		async () => {
+			const root = await copy();
+			const manifest = join(root, 'pack-library/custom-elements.json');
+			await writeFile(
+				manifest,
+				(await readFile(manifest, 'utf8'))
+					.split("The field's visible label and accessible name.")
+					.join("The field's label, which names it.")
+			);
+			const changed = await createSpecimenBench({ root: join(root, 'pack-library') });
+			try {
+				const run = await changed.packCheck({ workers: 1 });
+				expect(run.valid).toBe(false);
+				expect(run.changed).toEqual(['data/example/components/example-field.json']);
+			} finally {
+				await changed.close();
+				await rm(root, { recursive: true, force: true });
+			}
+		},
+		SEVERAL_BUILDS
+	);
+
+	it(
+		'changes, after a story edit, only the records of the tags that story renders',
+		async () => {
+			const root = await copy();
+			const cases = join(root, 'pack-library/specimens.js');
+			// The select's own case renders the select and its options, and nothing else.
+			await writeFile(
+				cases,
+				(await readFile(cases, 'utf8')).replace(
+					'<example-select label="Size" value="m">',
+					'<example-select label="Size" value="m" disabled>'
+				)
+			);
+			const edited = await createSpecimenBench({ root: join(root, 'pack-library') });
+			try {
+				const run = await edited.pack({ workers: 1 });
+				expect(run.written.length).toBeGreaterThan(0);
+				for (const path of run.written)
+					expect([
+						'data/example/components/example-option.json',
+						'data/example/components/example-select.json',
+					]).toContain(path);
+			} finally {
+				await edited.close();
+				await rm(root, { recursive: true, force: true });
+			}
+		},
+		SEVERAL_BUILDS
+	);
+
 	it(
 		'rebuilds one component from the cases a full build indexed, equal to its record from that build',
 		async () => {

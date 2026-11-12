@@ -22,7 +22,7 @@
 			{
 				"basis": "declared",
 				"default": "self",
-				"description": "Owns live announcement unless an integrating surface provides the alert.",
+				"description": "Selects whether this component or an integrating surface announces validation errors.",
 				"name": "error-announcement",
 				"property": "errorAnnouncement",
 				"rules": [
@@ -191,7 +191,7 @@
 			"html": "<violet-data-grid-pill-select control-label=\"Planting method\" error-announcement=\"self\" error-text placeholder=\"Choose a method\" value=\"Transplant Cover\"></violet-data-grid-pill-select>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

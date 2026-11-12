@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** The component pack format's version. It stays 0 until the format is fixed as 1. */
-export const PACK_FORMAT_VERSION = 0;
+export const PACK_FORMAT_VERSION = 1;
 
 /**
  * Identifier patterns. A reader may put a value that matches one of these outside the part of an

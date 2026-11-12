@@ -83,7 +83,7 @@
 			"html": "<div aria-orientation=\"horizontal\" role=\"tablist\"><violet-tab aria-disabled=\"true\" aria-selected=\"false\" data-appearance=\"mixed\" data-orientation=\"horizontal\" disabled role=\"tab\" tabindex=\"-1\">Automation</violet-tab></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

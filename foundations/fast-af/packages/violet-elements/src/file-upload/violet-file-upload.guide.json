@@ -66,11 +66,6 @@
     {
       "state": "selected",
       "role": "list"
-    },
-    {
-      "state": "selected",
-      "role": "button",
-      "name": "\"Remove \" followed by the file name"
     }
   ]
 }

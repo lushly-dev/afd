@@ -181,7 +181,7 @@
 			"html": "<div style=\"min-block-size: 16rem; padding-block-end: 9rem; box-sizing: border-box;\"><form><violet-combobox error-text=\"Please choose a seed source.\" label=\"Seed source\" name=\"seed-source\" placeholder=\"Search sources\" supporting-text=\"Filter sources before committing one.\"><violet-option aria-selected=\"false\" id=\"violet-option-1\" label role=\"option\" value=\"regional\">Regional catalog<span slot=\"description\">Fastest to reorder.</span></violet-option><violet-option aria-selected=\"false\" id=\"violet-option-2\" label role=\"option\" value=\"coop\">Local co-op<span slot=\"description\">Strong spring availability.</span></violet-option><violet-option aria-selected=\"false\" id=\"violet-option-3\" label role=\"option\" value=\"reserve\">Greenhouse reserve<span slot=\"description\">Best for backup stock.</span></violet-option><violet-option aria-selected=\"false\" id=\"violet-option-4\" label role=\"option\" value=\"legacy\">Legacy inventory<span slot=\"description\">Older carryover seed lots.</span></violet-option></violet-combobox></form></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "unobserved",

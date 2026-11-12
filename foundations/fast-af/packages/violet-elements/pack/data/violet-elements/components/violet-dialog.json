@@ -185,7 +185,7 @@
 			"html": "<div><violet-button appearance=\"primary\" type=\"button\">Open Form Dialog</violet-button><violet-dialog padding=\"medium\" type=\"modal\"><span slot=\"title\">Rename Item</span><form method=\"dialog\" style=\"display: flex; flex-direction: column; gap: 12px;\"><violet-text-field label=\"New name\" name placeholder supporting-text type=\"text\" value=\"My Document\"></violet-text-field><div style=\"display: flex; gap: 8px; justify-content: flex-end;\"><violet-button appearance=\"secondary\" type=\"button\">Cancel</violet-button><violet-button appearance=\"primary\" type=\"submit\" value=\"save\">Save</violet-button></div></form></violet-dialog><p style=\"margin-block-start: 12px; font-size: 13px; color: rgb(65, 70, 81);\">Return value: (none)</p></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "unobserved",

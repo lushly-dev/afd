@@ -126,7 +126,7 @@
 			"html": "<violet-data-grid-rating aria-label=\"Harvest confidence rating\"></violet-data-grid-rating>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

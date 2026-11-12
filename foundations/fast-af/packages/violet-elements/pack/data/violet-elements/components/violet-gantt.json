@@ -230,7 +230,7 @@
 			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"natural\" dir=\"ltr\" locale></violet-gantt></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

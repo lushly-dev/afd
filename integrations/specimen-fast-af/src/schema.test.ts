@@ -93,4 +93,24 @@ describe('FAST-AF schema enrichment', () => {
 		});
 		expect(merged.attributes).toEqual([{ name: 'size', type: 'string' }]);
 	});
+
+	it('takes what the manifest says of the attribute over what it says of the property', () => {
+		const base: ComponentSchema = {
+			tag: 'x-press',
+			sources: ['manifest'],
+			properties: [{ name: 'label', description: 'Owns the label.', default: '"a"' }],
+			attributes: [{ name: 'label', description: 'The visible label and accessible name.' }],
+			slots: [],
+			events: [],
+			cssProperties: [],
+			commands: [],
+			unknown: [],
+		};
+		const merged = mergeFastSchema('x-press', base, fast);
+		expect(merged.properties.find((item) => item.name === 'label')).toMatchObject({
+			attribute: 'label',
+			description: 'The visible label and accessible name.',
+			default: '"a"',
+		});
+	});
 });

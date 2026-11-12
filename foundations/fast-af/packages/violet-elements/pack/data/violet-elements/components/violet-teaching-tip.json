@@ -178,7 +178,7 @@
 			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip content=\"The sidebar contains all your workspaces and recent projects.\" current-step=\"0\" positioning=\"before\" total-steps=\"0\"><span slot=\"title\">Navigation</span><violet-button appearance=\"primary\" aria-controls=\"violet-teaching-tip-0\" aria-expanded=\"false\" aria-haspopup=\"dialog\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

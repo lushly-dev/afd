@@ -45,7 +45,7 @@
 		]
 	},
 	"examples": [],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "a11y-statement"

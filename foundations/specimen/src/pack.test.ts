@@ -48,9 +48,9 @@ async function overlaid(entry: Case) {
 }
 
 describe('component pack format', () => {
-	it('is version 0', () => {
-		expect(PACK_FORMAT_VERSION).toBe(0);
-		expect(manifest.format).toBe(0);
+	it('is version 1', () => {
+		expect(PACK_FORMAT_VERSION).toBe(1);
+		expect(manifest.format).toBe(1);
 	});
 
 	it('accepts the example in its committed form', () => {
@@ -92,6 +92,29 @@ describe('component pack format', () => {
 		expect(checkPack(noRules, { form: 'committed' }).problems).toEqual([
 			expect.objectContaining({ code: 'LAYOUT_INVALID', path: 'rules/example.json' }),
 		]);
+	});
+
+	it('lists a catalog by tag, where a tag runs on past another with a hyphen', () => {
+		const files = new Map(committed);
+		const dropdown = json(files.get('data/example/components/example-dropdown.json')) as {
+			tag: string;
+		};
+		files.set(
+			'data/example/components/example-dropdown-wide.json',
+			new TextEncoder().encode(canonicalJson({ ...dropdown, tag: 'example-dropdown-wide' }))
+		);
+		const catalog = packCatalog(files, 'example', manifest.stamp);
+		expect(
+			(JSON.parse(catalog) as { components: { tag: string }[] }).components.map((item) => item.tag)
+		).toEqual([
+			'example-dropdown',
+			'example-dropdown-wide',
+			'example-field',
+			'example-option',
+			'example-select',
+		]);
+		files.set(LIBRARY, new TextEncoder().encode(catalog));
+		expect(checkPack(files, { form: 'exported' }).problems).toEqual([]);
 	});
 
 	it('stamps a revision when export is given one, outside the pack digest', () => {

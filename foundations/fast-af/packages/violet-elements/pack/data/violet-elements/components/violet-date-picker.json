@@ -227,7 +227,7 @@
 			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker disabled error-text label=\"Planting date\" locale=\"en-US\" max=\"2026-04-15\" min=\"2026-03-01\" name=\"planting-date\" size=\"natural\" supporting-text=\"Date editing is inherited from the parent plan.\" value=\"2026-03-23\"></violet-date-picker>\n            </form>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "unobserved",

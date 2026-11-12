@@ -108,7 +108,7 @@
 			"html": "<violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Hostas, ferns, and astilbe are excellent choices for partial shade gardens. They require minimal maintenance and provide beautiful foliage throughout the growing season.</violet-message-text></violet-message>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

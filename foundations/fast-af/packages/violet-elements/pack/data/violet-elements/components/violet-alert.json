@@ -197,7 +197,7 @@
 			"html": "<violet-alert announcement=\"off\" dismissible tone=\"warning\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

@@ -190,7 +190,7 @@
 			"html": "<violet-text-area label=\"Planting notes\" name=\"plantingNotes\" placeholder=\"Add observations for this bed...\" required rows=\"4\" supporting-text=\"Keep the most recent field notes with the current plan.\"></violet-text-area>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

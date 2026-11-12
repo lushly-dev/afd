@@ -104,7 +104,7 @@
 			"html": "<violet-spinner label=\"Loading crop plan\" size=\"md\"></violet-spinner>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

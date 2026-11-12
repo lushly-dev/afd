@@ -191,7 +191,7 @@
 			"html": "<violet-snackbar announcement=\"polite\" open timeout=\"6000\" tone=\"default\">Row changes synced.</violet-snackbar>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

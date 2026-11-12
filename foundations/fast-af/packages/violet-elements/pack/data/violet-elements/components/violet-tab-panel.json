@@ -34,7 +34,7 @@
 			"html": "<violet-tab-panel role=\"tabpanel\" tabindex=\"0\">\n        <div style=\"display:grid;gap:12px;\">\n            <h3 style=\"margin:0;font:600 1rem/1.2 Montserrat, 'Segoe UI', sans-serif;\">Crop plan overview</h3>\n            <p style=\"margin:0;\">Capture current crop status, succession timing, and operating notes for the selected bed block.</p>\n        </div>\n    </violet-tab-panel>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

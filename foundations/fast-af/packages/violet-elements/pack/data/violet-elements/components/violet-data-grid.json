@@ -456,7 +456,7 @@
 			"html": "<violet-data-grid density=\"natural\" focus-mode=\"row\" selection-mode=\"none\" sort-mode=\"local\"></violet-data-grid>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

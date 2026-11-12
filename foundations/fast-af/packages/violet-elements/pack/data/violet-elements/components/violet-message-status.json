@@ -80,7 +80,7 @@
 			"html": "<violet-message-status status=\"streaming\">Generating meal plan...</violet-message-status>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"
