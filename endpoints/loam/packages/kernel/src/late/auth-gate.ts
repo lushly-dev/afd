@@ -188,6 +188,13 @@ export interface AuthGateOptions {
 	 * afd-auth's middleware stamps the person signed in on it, so `SESSION_CHANGED` can compare them (4.4).
 	 */
 	copied?: WeakMap<object, Actor>;
+	/**
+	 * After a call, once its entry is journaled: an `auth-*` call's change of person that its command did not make
+	 * is settled then, after it (4.4; the review of step 2's I2).
+	 */
+	after?(name: string): void;
+	/** Before the call is stamped: a change of person not yet settled is settled first (4.4, #854). */
+	before?(name: string, context: CommandContext): Promise<void> | undefined;
 }
 
 /**
@@ -213,6 +220,7 @@ export function createAuthGate(
 	const { clock, copied } = options;
 	const gate = createAuthMiddleware(auth, { exclude, isVerifiedCredentials, clock });
 	return async (name, input, context, next) => {
+		await options.before?.(name, context);
 		// A nested call's or a port's carries its outer call's actor, copied (3.1).
 		if (
 			copied &&
@@ -236,6 +244,10 @@ export function createAuthGate(
 				'Agent members act through delegation or a connection; sign in as a person'
 			);
 		}
-		return gate(name, input, context, next);
+		try {
+			return await gate(name, input, context, next);
+		} finally {
+			options.after?.(name);
+		}
 	};
 }

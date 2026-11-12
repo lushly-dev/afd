@@ -297,6 +297,14 @@ describe('P3-E4: a session ends with no command (#854, #864)', () => {
 		expect((await signedIn).success).toBe(true);
 		expect((await behind).success).toBe(true);
 		const entries = await journal.read();
+		// Stage A was Bea's; the change to Olu during stage B is settled before the queued calls run (B1).
+		const settled = entries.filter((entry) => entry.command === 'session-settle');
+		expect(settled.map((entry) => entry.input)).toEqual([
+			{ person: OLU, role: null, membershipDigest: null, reason: 'tab' },
+		]);
+		expect(entries.indexOf(settled[0] as JournalEntry)).toBeLessThan(
+			entries.findIndex((entry) => entry.command === 'project-list')
+		);
 		const journaled = entries.find((entry) => entry.command === 'project-list');
 		expect(journaled?.result.error?.code).toBe('SESSION_CHANGED');
 		const read = entries.find(
@@ -607,6 +615,290 @@ describe('P3-E4: membership is journaled, first and on every change (4.4, 7.6)',
 			person: BEA,
 			role: null,
 			membershipDigest: null,
+			reason: 'membership',
+		} satisfies SessionSettleInputV1);
+	});
+});
+
+/** A `provider` kernel with a boot, whose stage B waits for `release`, over `store`: stage A then stage B (2.2). */
+async function bootedProvider(auth: MockAuthAdapter, store = new MemoryAdapter()) {
+	let release: () => void = () => {};
+	const loaded = new Promise<undefined>((resolve) => {
+		release = () => resolve(undefined);
+	});
+	const journal = new MemoryJournalSink();
+	const kernel = await createKernel({
+		store,
+		storeKind: 'memory',
+		journal,
+		auth,
+		environment: createFixedEnvironment(),
+		host: 'test',
+		identity: PROVIDER,
+		membership: ACME,
+		boot: readBoot(scopedDeployment()) as NonNullable<Parameters<typeof createKernel>[0]['boot']>,
+		appsLoader: () => loaded as never,
+	});
+	kernels.push(kernel);
+	return { kernel, journal, release };
+}
+
+describe("P3-E4: the review of step 2's blockers (B1 to B4)", () => {
+	it("P3-E4: B1: a change of person during stage B is settled from stage A's person, whose records stage A read", async () => {
+		const store = new MemoryAdapter();
+		const auth = new MockAuthAdapter();
+		auth._setUser(user(BEA));
+		const first = await bootedProvider(auth, store);
+		void first.kernel.startApps();
+		first.release();
+		await first.kernel.appsReady;
+		// Bea leaves the projects section open: her `loam.apps`, under her key.
+		expect((await first.kernel.call('section-open', { section: 'projects' })).success).toBe(true);
+		await first.kernel.flush();
+		await first.kernel.dispose();
+		// A reload: stage A reads Bea's records; during stage B another tab signs Olu in.
+		const second = await bootedProvider(auth, store);
+		expect(
+			(await second.kernel.call<{ section: string | null }>('section-get')).data?.section
+		).toBe('projects');
+		void second.kernel.startApps();
+		auth._setUser(user(OLU));
+		second.release();
+		await second.kernel.appsReady;
+		await vi.waitFor(async () => expect(await settles(second)).toHaveLength(2));
+		expect((await settles(second)).map((entry) => entry.input)).toEqual([
+			{ person: BEA, role: 'member', membershipDigest: 'd1', reason: 'provider' },
+			{ person: OLU, role: 'owner', membershipDigest: 'd1', reason: 'tab' },
+		]);
+		expect((await settles(second)).at(-1)?.result.data).toEqual({ person: OLU, left: BEA });
+		// Olu sees Olu's state, not the section Bea left open.
+		expect(
+			(await second.kernel.call<{ section: string | null }>('section-get')).data?.section
+		).toBe(null);
+		expect(
+			(
+				await replayKernel(await journalOf(second), {
+					deployment: scopedDeployment(),
+					ports: scopedPorts(),
+					identity: PROVIDER,
+					membership: ACME,
+				})
+			).report.diverged
+		).toBe(false);
+	});
+
+	it("P3-E4: B2: a tab's change and a sign-out run one after another, so neither files one person's drafts as another's", async () => {
+		const made = await workspace({ deployment: documentsDeployment(), ports: documentsPorts() });
+		const { kernel } = made;
+		await signIn(kernel, 'bea@example.com');
+		const created = await kernel.call<{ id: string }>('document-create', {
+			type: 'probe',
+			title: 'Draft',
+		});
+		await kernel.call('document-open', { document: created.data?.id });
+		const tab = async () =>
+			(
+				await kernel.call<{ groups: Array<{ tabs: Array<{ id: string; dirty: boolean }> }> }>(
+					'editor-get'
+				)
+			).data?.groups[0]?.tabs[0];
+		const id = (await tab())?.id as string;
+		expect((await kernel.call('editor-dirty-set', { tab: id, dirty: true })).success).toBe(true);
+		// Another tab signs Olu in, and a sign-out here ends while that change is still being settled.
+		made.auth._setUser(user(OLU));
+		const out = kernel.call('auth-sign-out');
+		await out;
+		await vi.waitFor(async () => expect(await settles(made)).toHaveLength(1));
+		// Bea's draft is held for Bea: she signs in again and it is back.
+		await signIn(kernel, 'bea@example.com');
+		expect((await tab())?.dirty).toBe(true);
+	});
+
+	it('P3-E4: B2: a change of person while the membership is read refuses the call, and records no one with another person’s role', async () => {
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () => {
+					// Another tab signs Olu in while the provider answers.
+					made.auth._setUser(user(OLU));
+					return { role: 'owner' as const, digest: 'd2' };
+				},
+			},
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		const refused = await made.kernel.call('project-create', { name: 'Ledger' });
+		expect(refused.error).toMatchObject({ code: 'SESSION_CHANGED', retryable: true });
+		const membership = (await settles(made)).filter(
+			(entry) => (entry.input as SessionSettleInputV1).reason === 'membership'
+		);
+		expect(membership).toEqual([]);
+		expect(
+			(await journalOf(made)).some(
+				(entry) => entry.command === 'project-create' && entry.result.success
+			)
+		).toBe(false);
+	});
+
+	it('P3-E4: B2: a change to someone superseded at once settles with what the kernel holds for them, never the next person’s membership', async () => {
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				// The host answers for whoever is signed in at that moment.
+				readMembership: async () => ({
+					role: 'member' as const,
+					digest: `for-${made.auth.getSession().user?.id}`,
+				}),
+			},
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		made.auth._setUser(user(OLU));
+		made.auth._setUser(user(CARO));
+		await vi.waitFor(async () => expect(await settles(made)).toHaveLength(3));
+		const [, olu, caro] = (await settles(made)).map((entry) => entry.input);
+		expect(olu).toEqual({ person: OLU, role: 'owner', membershipDigest: 'd1', reason: 'tab' });
+		expect(caro).toEqual({
+			person: CARO,
+			role: 'member',
+			membershipDigest: `for-${CARO}`,
+			reason: 'tab',
+		});
+	});
+
+	it('P3-E4: B3: a settle the re-read cannot make, as for a role the kernel does not take, refuses the call', async () => {
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () =>
+					({ role: 'billing', digest: 'd2' }) as unknown as { role: 'owner'; digest: string },
+			},
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		const refused = await made.kernel.call('project-create', { name: 'Ledger' });
+		expect(refused.error).toMatchObject({ code: 'MEMBERSHIP_UNAVAILABLE', retryable: true });
+		expect(
+			(await journalOf(made)).some(
+				(entry) => entry.command === 'project-create' && entry.result.success
+			)
+		).toBe(false);
+	});
+
+	it('P3-E4: B4: a change of person dismisses every overlay, an inactive app’s among them', async () => {
+		const made = await providerWorkspace();
+		const { kernel } = made;
+		await signIn(kernel, 'bea@example.com');
+		// No app is active: dual's toast is its own all the same.
+		expect((await kernel.appPort('dual').call('toast-show', { message: 'For Bea' })).success).toBe(
+			true
+		);
+		expect(
+			(await kernel.call<{ overlays: Array<{ owner: string }> }>('overlay-list')).data?.overlays
+		).toHaveLength(1);
+		made.auth._setUser(user(OLU));
+		await vi.waitFor(async () => expect(await settles(made)).toHaveLength(2));
+		expect((await kernel.call<{ overlays: unknown[] }>('overlay-list')).data?.overlays).toEqual([]);
+	});
+});
+
+describe("P3-E4: the review of step 2's improvements (I1 to I5)", () => {
+	it('P3-E4: I1: while a change of person cannot be settled, the next person’s calls are refused, never run on the leaving person’s state', async () => {
+		let invalid = false;
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () =>
+					(invalid ? { role: 'billing', digest: 'd2' } : { role: 'member', digest: 'd1' }) as {
+						role: 'member';
+						digest: string;
+					},
+			},
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		expect((await made.kernel.call('section-open', { section: 'projects' })).success).toBe(true);
+		// Another tab signs Olu in, and the provider answers with a role the settle refuses.
+		invalid = true;
+		made.auth._setUser(user(OLU));
+		// The settle Olu's change needs is refused at its input, so the shell stays Bea's: Olu's call is refused.
+		const read = await made.kernel.call('section-get');
+		expect(read.error).toMatchObject({ code: 'SESSION_CHANGED', retryable: true });
+	});
+
+	it('P3-E4: I2: a change of person an `auth-*` call did not make is settled after its entry', async () => {
+		const made = await workspace();
+		await signIn(made.kernel, 'bea@example.com');
+		// A passkey sign-in that fails, as the Mock has no passkeys, while another tab signs Olu in.
+		const real = made.auth.signIn.bind(made.auth);
+		made.auth.signIn = async (options) => {
+			made.auth._setUser(user(OLU));
+			return real(options);
+		};
+		const failed = await made.kernel.call('auth-sign-in', { method: 'passkey' });
+		expect(failed.success).toBe(false);
+		await vi.waitFor(async () => expect(await settles(made)).toHaveLength(1));
+		const entries = await journalOf(made);
+		const settle = entries.findIndex((entry) => entry.command === 'session-settle');
+		expect(entries[settle]?.input).toMatchObject({ person: OLU, reason: 'tab' });
+		expect(entries[settle - 1]?.command).toBe('auth-sign-in');
+		expect(
+			(await replayKernel(entries, { deployment: scopedDeployment(), ports: scopedPorts() })).report
+				.diverged
+		).toBe(false);
+	});
+
+	it('P3-E4: I3: an adapter that reports a change during each refresh neither double-arms the timer nor resets its backoff', async () => {
+		const time = settableClock(T0);
+		const auth = new MockAuthAdapter({ clock: { now: time.now } });
+		const timers = fakeSchedule();
+		const kernel = await createKernel({
+			store: new MemoryAdapter(),
+			storeKind: 'memory',
+			journal: new MemoryJournalSink(),
+			auth,
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: time.now,
+			ports: { schedule: timers.schedule } as unknown as KernelPortsV1,
+		});
+		kernels.push(kernel);
+		const expiresAt = new Date(T0 + 60_000);
+		auth._setUser(user(BEA), { expiresAt });
+		// Each refresh reports the session again, its expiry a moment away, then fails.
+		auth.refresh = async () => {
+			auth._setUser(user(BEA), { expiresAt: new Date(time.now() + 1_000) });
+			throw new Error('The provider could not be reached');
+		};
+		let at = T0 + 60_000;
+		time.set(at);
+		timers.run(at);
+		for (const delay of [
+			REFRESH_RETRY_FIRST_MS,
+			REFRESH_RETRY_FIRST_MS * 2,
+			REFRESH_RETRY_FIRST_MS * 4,
+		]) {
+			await vi.waitFor(() => expect(timers.pending()).toHaveLength(1));
+			const next = timers.pending()[0]?.at as number;
+			expect(next - at).toBeGreaterThanOrEqual(delay);
+			expect(next - at).toBeLessThan(delay + 50);
+			at = next;
+			time.set(at);
+			timers.run(at);
+		}
+	});
+
+	it("P3-E4: I5: line 0 decides an owner's command on the membership read before it, not on the one held", async () => {
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () => ({ role: 'owner' as const, digest: 'd2' }),
+			},
+		});
+		// Caro is not in the members stage A was given; the provider has just added her as an owner.
+		await signIn(made.kernel, 'caro@example.com');
+		const created = await made.kernel.call('project-create', { name: 'Ledger' });
+		expect(created.success, JSON.stringify(created.error)).toBe(true);
+		expect((await settles(made)).at(-1)?.input).toEqual({
+			person: CARO,
+			role: 'owner',
+			membershipDigest: 'd2',
 			reason: 'membership',
 		} satisfies SessionSettleInputV1);
 	});

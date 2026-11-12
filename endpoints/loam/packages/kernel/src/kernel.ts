@@ -46,14 +46,13 @@ import {
 import type { LateParts } from './late/index.js';
 import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
-import { type MembershipV1, personKey } from './scope/access.js';
+import { type AccessActorV1, type MembershipV1, personKey } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
 import { personalStore } from './scope/personal.js';
 import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
 	AppSummaryV2,
-	AppsLoadV2,
 	CallOptionsV3,
 	CommandSummaryV1,
 	KernelEventV3,
@@ -426,6 +425,7 @@ export async function createKernelParts(
 				run,
 				runBoot,
 				queued: QUEUED,
+				stageA: chosen,
 				clock,
 				identity,
 				personal,
@@ -458,6 +458,8 @@ export async function createKernelParts(
 	 * would not: the journal appends after hashing the context with WebCrypto, which finishes in any order.
 	 */
 	let queue: Promise<unknown> | undefined;
+	/** The actor stage A chose the scope for, undefined in it signed out; none before it has (4.4). */
+	let chosen: [AccessActorV1] | undefined;
 	/** By interface, the `auth-*` call queued last, until `late/` sees it end (phase 3 specification, 4.4). */
 	const pending: Partial<Record<KernelInterfaceV0, QueuedTicket>> = {};
 	/**
@@ -501,21 +503,14 @@ export async function createKernelParts(
 			fallBack(runtimeUnavailable(lateFailure.message));
 			return;
 		}
-		let loaded: AppsLoadV2 | undefined;
-		try {
-			// `late/` has loaded: it reads them (13).
-			loaded = await (lateParts as LateParts).readApps();
-		} catch (cause) {
-			reportKernelError(cause);
-			fallBack(runtimeUnavailable(String((cause as Error)?.message ?? cause)));
-			return;
-		}
-		if (loaded === undefined) {
-			fallBack(runtimeUnavailable('no apps loader'));
-			return;
-		}
-		if ('refused' in loaded) {
-			fallBack(deploymentRefused(loaded.refused));
+		// `late/` has loaded: it reads them, and says why it could not (13).
+		const loaded = await (lateParts as LateParts).readApps();
+		if (!('deployment' in loaded)) {
+			fallBack(
+				'refused' in loaded
+					? deploymentRefused(loaded.refused)
+					: runtimeUnavailable(loaded.unavailable)
+			);
 			return;
 		}
 		const { deployment } = loaded;
@@ -727,6 +722,8 @@ export async function createKernelParts(
 	 */
 	function chooseScope(slug?: string | null): void {
 		const actor = sessionActor(options.auth, clock);
+		// Stage A's person, whose records it read: `late/` settles from them (phase 3 specification, 4.4).
+		chosen = [actor];
 		// `null`: the URL names the workspace itself, so the persisted project is not entered (6.3).
 		const project = (
 			slug === null ? [] : [slug && scope.project(slug)?.id, state.scopeProject()]

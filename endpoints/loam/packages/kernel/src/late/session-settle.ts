@@ -103,7 +103,7 @@ const SETTLE_INPUT_JSON: JsonSchema = {
  * What this chunk reads of first paint's modules, given by `late/`, which imports them already: imported here, the
  * bundler would part first paint's shared modules into a chunk of their own for this one (13).
  */
-export interface SessionSettleKit extends Pick<DocumentKit, 'define' | 'success' | 'z'> {
+export interface SessionSettleKit extends Pick<DocumentKit, 'define' | 'success' | 'z' | 'marked'> {
 	/** The person the adapter reports now, on the kernel's clock: `sessionActor`. */
 	actor(): AccessActorV1;
 	/** `personKey`. */
@@ -112,10 +112,10 @@ export interface SessionSettleKit extends Pick<DocumentKit, 'define' | 'success'
 	ticket(call: CommandContext): QueuedTicket | undefined;
 	/** `SESSION_CHANGED` (15): retryable, journaled, and decided by the page, so a replay answers it from its entry. */
 	sessionChanged(): CommandResult<never>;
+	/** `MEMBERSHIP_UNAVAILABLE` (15): the membership read before `name` failed, or its settle did. */
+	membershipUnavailable(name: string): CommandResult<never>;
 	/** `INTERNAL_COMMANDS`: the kernel's own, never refused. */
 	internal: readonly string[];
-	/** `SHELL_OWNER`. */
-	shellOwner: string;
 }
 
 export interface SessionSettleDeps {
@@ -131,7 +131,10 @@ export interface SessionSettleDeps {
 	drafts: EditorDraftsV1;
 	/** The editor record of a scope, registered and read: the next person's active scope's (4.5). */
 	ensureEditor(project: string | undefined): Promise<unknown>;
-	/** A `provider` deployment's view-state store, and `quiet`, which drops the writes `fn` queues (4.5). */
+	/**
+	 * A `provider` deployment's view-state store, keyed by {@link SessionSettle.person}, and `quiet`, which drops
+	 * the writes `fn` queues (4.5).
+	 */
 	personal?: PersonalStore | undefined;
 	quiet?(fn: () => void): void;
 	clock?: { now(): number };
@@ -142,37 +145,67 @@ export interface SessionSettleDeps {
 	/** By interface, the `auth-*` call queued last and not yet ended: `run`'s, cleared here as one ends. */
 	pending: Partial<Record<string, QueuedTicket>>;
 	/**
+	 * The actor stage A chose the scope for and read the records of, undefined in it when signed out; none when
+	 * stage A has not chosen yet, as with no boot, where stage B runs first (the review of step 2's B1).
+	 */
+	stageA?: [AccessActorV1] | undefined;
+	/**
 	 * A replay's: `replaying`, and `drive`, which sets its Mock to the person an entry records, so the replay
 	 * decides as the original did with no provider (4.4, 11).
 	 */
-	internals?: { replaying?: boolean; drive?(person: string | null): void };
+	internals?: {
+		replaying?: boolean;
+		drive?(person: string | null): void;
+		actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+	};
 }
 
 /** What the scope middleware, the auth gate and the kernel call of this part. */
 export interface SessionSettle {
 	command: ZodCommandDefinition;
-	/** Stage B's first act: in `provider` mode the first settle, then the listener and the timer (4.4). */
+	/**
+	 * Stage B's first act: in `provider` mode the first settle, for stage A's person, then the listener and the
+	 * timer, and a change since stage A heard at once (4.4).
+	 */
 	begin(): Promise<void>;
 	/**
-	 * Line −1, before line 0: a queued call the person changed under, or a copied actor that is not the person
-	 * signed in, is `SESSION_CHANGED`. The kernel's own internal commands are never refused.
+	 * Line −1, before line 0: a queued call the person changed under, a copied actor that is not the person
+	 * signed in, or a call stamped as a person the shell is not settled for, is `SESSION_CHANGED`. The kernel's
+	 * own internal commands are never refused, nor is an `auth-*` call the last.
 	 */
 	refuse(call: CommandContext, name: string): CommandResult<never> | undefined;
 	/** The auth gate keeps a call's copied actor here, before afd-auth's middleware stamps the session's. */
 	copied: WeakMap<object, Actor>;
 	/**
-	 * Around an `auth-*` call, which settles inside itself (4.4): in `provider` mode, where records are per
-	 * person, a change of person it made does what a settle does, on its own call; in `local` mode it holds the
-	 * leaving person's drafts and takes up the next one's (4.5).
+	 * Before a person's or an agent's call is stamped, in the auth gate: a change of person not yet settled, as an
+	 * expiry the timer has not reached, is settled first, so the call runs on the next person's state (#854) and
+	 * I1 refuses only a change that races it.
+	 */
+	settleFirst(name: string, call: CommandContext): Promise<void> | undefined;
+	/**
+	 * Around an `auth-*` call, which settles inside itself (4.4): a sign-in or sign-out that succeeded made the
+	 * change, and in `provider` mode, where records are per person, it does what a settle does, on its own call;
+	 * in `local` mode it holds the leaving person's drafts and takes up the next one's (4.5). On the settles'
+	 * chain, so no change of person runs beside another.
 	 */
 	authStart(): void;
-	authEnd(call: CommandContext): Promise<void>;
+	authEnd(call: CommandContext, name: string, succeeded: boolean): Promise<void>;
 	/**
-	 * Before a command that reads membership again (7.6): a changed digest is a top-level `session-settle`
-	 * with `reason: 'membership'`, before the call that needed it runs. A replay replays the entry instead.
-	 * Answers `false` when the host's read failed, and the call is then refused (fail closed).
+	 * After an `auth-*` call, journaled: a change its command did not make, as another tab's during
+	 * `auth-session-get`, is settled now, after its entry (the review of step 2's I2).
 	 */
-	reread(name: string, input: unknown): Promise<boolean>;
+	afterAuth(): void;
+	/** Whether line 0 waits for the membership read before `name`, in `run` rather than before it (I5). */
+	rereadsBefore(name: string): boolean;
+	/**
+	 * Before a command that reads membership again (7.6), on the settles' chain: a changed digest is a top-level
+	 * `session-settle` with `reason: 'membership'`, before the call that needed it runs. Answers a refusal:
+	 * `MEMBERSHIP_UNAVAILABLE` when the host's read or the settle fails (fail closed), `SESSION_CHANGED` when the
+	 * person changed while it read. A replay replays the entry instead.
+	 */
+	reread(name: string, input: unknown): Promise<CommandResult<never> | undefined>;
+	/** The person the shell is for, which the personal store keys records by; undefined before stage B. */
+	person(): string | null | undefined;
 	/** A reload, for a replay: each page starts settled to no one (10). */
 	reload(): void;
 	stop(): void;
@@ -184,24 +217,47 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	const replaying = (): boolean => deps.internals?.replaying === true;
 	const { kit } = deps;
 	const current = (): string | null => kit.personKey(kit.actor()) ?? null;
+	const actorOf = (person: string | null): AccessActorV1 =>
+		person === null ? undefined : { kind: 'human', id: person };
 	/** The person the last settle named, on this page: null at each page's start, the original's and the replay's. */
 	let settled: string | null = null;
 	/**
-	 * The person the shell's state is for: stage A's, read at stage B's start, then each settle's and each
-	 * `auth-*` call's. After a replay's reload it is read again when first needed, once the replay has set the
-	 * page's person (10).
+	 * The person the shell's state is for: stage A's, then each settle's and each `auth-*` call's. Undefined with
+	 * no stage A yet, and after a replay's reload, when it is read once needed (10).
 	 */
-	let decided: string | null | undefined;
+	let decided: string | null | undefined = deps.stageA && (kit.personKey(deps.stageA[0]) ?? null);
 	const decidedNow = (): string | null => {
 		if (decided === undefined) decided = current();
 		return decided;
 	};
 	/**
-	 * The person the last settle on its way names, so two changes to them make one call; settles run in order, one
-	 * per change of person, so no change to a different person is merged away (4.4).
+	 * The person the shell is for, their session past its `expiresAt` on the kernel's clock and nothing else
+	 * changed: phase 2's path (3.4) takes it into account at the next call, and the timer settles it (#854). It is
+	 * no other person's state, so neither settled first nor refused.
 	 */
+	const expiredOnly = (): boolean => {
+		const state = deps.auth.getSession();
+		return (
+			decided != null &&
+			current() === null &&
+			state.status === 'authenticated' &&
+			state.user.id === decided
+		);
+	};
+	/** The person the last settle queued names, so two changes to them make one call (4.4). */
 	let target: string | null | undefined;
-	let settling: Promise<void> = Promise.resolve();
+	/**
+	 * Every change of person runs here, one after another: the listener's settles, the membership re-read and an
+	 * `auth-*` call's change (the review of step 2's B2).
+	 */
+	let chain: Promise<unknown> = Promise.resolve();
+	const serial = <T>(job: () => Promise<T>): Promise<T> => {
+		const ran = chain.then(job);
+		chain = ran.catch(report);
+		return ran;
+	};
+	/** Each change the adapter reports, counted, so a read it overlapped is not trusted. */
+	let changes = 0;
 	let authRunning = 0;
 	let firing = false;
 	let stopped = false;
@@ -228,8 +284,9 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		for (const [tab, selection] of back?.selections ?? []) selections.set(tab, selection);
 	};
 
-	const report = (cause: unknown): void =>
+	function report(cause: unknown): void {
 		(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
+	}
 
 	/** The host's `schedule`, or `setTimeout` on the kernel's clock, which never holds a Node process open. */
 	const schedule =
@@ -240,50 +297,54 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			return () => clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
 		});
 
-	/** The role and digest a settle records for `person`: read again when the host can, else the kernel's. */
-	async function membershipFor(
-		person: string | null,
-		read: boolean,
-		strict = false
-	): Promise<Pick<SessionSettleInputV1, 'role' | 'membershipDigest'>> {
-		if (!provider || person === null) return { role: null, membershipDigest: null };
-		if (read && deps.ports?.readMembership) {
-			try {
-				const found = await deps.ports.readMembership();
-				return { role: found?.role ?? null, membershipDigest: found?.digest ?? null };
-			} catch (cause) {
-				// Before an owner's command a failed read refuses the call (`strict`, fail closed). Elsewhere, as a
-				// settle on a change of person, it decides with what the kernel holds: line 0 refuses a person it
-				// does not list.
-				if (strict) throw cause;
-				report(cause);
+	/** The role and digest the kernel holds for `person`: what stage A was given, or the last settle journaled. */
+	const heldFor = (
+		person: string | null
+	): Pick<SessionSettleInputV1, 'role' | 'membershipDigest'> => {
+		const role = (provider && person !== null && deps.scope.membership.members.get(person)) || null;
+		return { role, membershipDigest: role === null ? null : deps.scope.membership.digest };
+	};
+
+	/**
+	 * Settle `person`, on the chain. The host reads the membership of whoever is signed in, so it is read only for
+	 * the person signed in, and only trusted if no change overlapped it: one that did drops this settle, and the
+	 * notice that change made settles instead. Another person, superseded before this ran, settles with what the
+	 * kernel holds, so no change to a different person is merged away (4.4).
+	 */
+	async function settleNow(person: string | null, reason: SessionSettleReasonV1): Promise<void> {
+		if (stopped) return;
+		if (reason !== 'provider' && person === decidedNow()) return;
+		let membership = heldFor(person);
+		if (provider && person !== null && reason !== 'provider' && person === current()) {
+			const read = deps.ports?.readMembership;
+			if (read) {
+				const seen = changes;
+				try {
+					const found = await read();
+					membership = { role: found?.role ?? null, membershipDigest: found?.digest ?? null };
+				} catch (cause) {
+					// A read that fails decides with what the kernel holds: line 0 refuses a person it does not list.
+					report(cause);
+				}
+				if (stopped || changes !== seen || current() !== person) return;
 			}
 		}
-		const role = deps.scope.membership.members.get(person) ?? null;
-		return { role, membershipDigest: role === null ? null : deps.scope.membership.digest };
+		await deps.runBoot('session-settle', { person, ...membership, reason });
 	}
 
-	/** Run `session-settle` for `person`, top-level, after the settles before it, its membership read then. */
-	function settle(person: string | null, reason: SessionSettleReasonV1): Promise<void> {
+	/** A change no `auth-*` command made: settled, on the chain, when the person really changed. */
+	function notice(reason: SessionSettleReasonV1): Promise<void> {
+		if (stopped || replaying()) return Promise.resolve();
+		const person = current();
+		if (person === (target === undefined ? decidedNow() : target)) return chain.then(() => {});
 		target = person;
-		settling = settling.then(async () => {
+		return serial(async () => {
 			try {
-				const membership = await membershipFor(person, reason !== 'provider');
-				await deps.runBoot('session-settle', { person, ...membership, reason });
-			} catch (cause) {
-				report(cause);
+				await settleNow(person, reason);
 			} finally {
 				if (target === person) target = undefined;
 			}
 		});
-		return settling;
-	}
-
-	/** A change no `auth-*` command made: settled when the person really changed. */
-	function notice(reason: SessionSettleReasonV1): Promise<void> {
-		const person = current();
-		if (person === (target === undefined ? decidedNow() : target)) return settling;
-		return settle(person, reason);
 	}
 
 	const expiryOf = (): number | undefined => {
@@ -293,13 +354,15 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		return Number.isFinite(ms) ? ms : undefined;
 	};
 
-	/** Wait for `at`, in steps no longer than `setTimeout` keeps. */
+	/** Wait for `at`, in steps no longer than `setTimeout` keeps; one timer at a time (I3). */
 	const wait = (at: number, fire: () => void): void => {
+		cancel?.();
 		cancel = schedule(Math.min(at, now() + MAX_TIMER_DELAY_MS), fire);
 	};
 
 	/** Ask again after a failure, backing off; a new expiry resets it (4.4). */
 	const retry = (at: number): void => {
+		if (stopped) return;
 		const delay = Math.min(REFRESH_RETRY_FIRST_MS * 2 ** retries, REFRESH_RETRY_MAX_MS);
 		retries++;
 		wait(now() + delay, () => void fire(at));
@@ -307,7 +370,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 
 	/** The timer for the session's `expiresAt`, re-armed only when the adapter reports another one. */
 	function arm(): void {
-		if (stopped || replaying()) return;
+		// While it fires, the adapter's own change during `refresh()` neither re-arms it nor resets its backoff.
+		if (stopped || replaying() || firing) return;
 		const at = current() === null ? undefined : expiryOf();
 		if (at === armedFor && (cancel !== undefined || at === undefined)) return;
 		cancel?.();
@@ -336,28 +400,25 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			return;
 		}
 		firing = false;
+		if (stopped) return;
+		// An expired session is no one's (`sessionActor`), so a refresh that kept it settles to no one here.
 		await notice('expiry');
-		const next = current() === null ? undefined : expiryOf();
-		// The adapter still reports this expiry as live: the provider's clock differs, or it kept the session.
-		if (next !== undefined && next <= now()) {
-			armedFor = next;
-			retry(next);
-			return;
-		}
 		armedFor = undefined;
 		arm();
 	}
 
 	/** Every change the adapter reports: the timer re-arms, and a change no command made is settled. */
 	function heard(): void {
+		changes++;
 		if (stopped || replaying()) return;
 		arm();
 		if (authRunning === 0 && !firing) void notice('tab');
 	}
 
 	/**
-	 * The next person's records, in memory, from the store: `provider` mode's records are per person (4.5). With no
-	 * one signed in they stay at their first shape: `~signed-out` holds defaults only.
+	 * The next person's records, in memory, from the store: `provider` mode's records are per person (4.5), keyed
+	 * by the person the shell is for, which `change` has set. With no one signed in they stay at their first
+	 * shape: `~signed-out` holds defaults only.
 	 */
 	async function hydrate(personal: PersonalStore, to: string | null): Promise<void> {
 		// What is pending is the leaving person's, keyed when it was queued: written as theirs first.
@@ -382,15 +443,19 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	}
 
 	/**
-	 * A change of person (4.4): the active app closes by `app-close`'s rules, its overlays dismissed as an app
-	 * switch, a shell modal cancelled, selections cleared, the leaving person's drafts held; in `provider` mode the
-	 * next person's records read; then the scope they may be in.
+	 * A change of person (4.4), to `to`, never the adapter's live person: every open overlay dismissed as an app
+	 * switch, since each is the leaving person's; the active app closed by `app-close`'s rules; selections
+	 * cleared; the leaving person's drafts held; in `provider` mode the next person's records read; then the scope
+	 * they may be in. `left` is read once and the shell is `to`'s before the first await (B2).
 	 */
 	async function change(to: string | null, context: CommandContext): Promise<void> {
 		const { overlays, state, scope } = deps;
+		const left = decidedNow();
+		decided = to;
 		const before = scope.active();
-		const modal = overlays.modalOpen();
-		if (modal?.owner === kit.shellOwner) overlays.close(modal.overlayId, 'cancel', 'app-switch');
+		for (const owner of new Set(overlays.list().map((overlay) => overlay.owner))) {
+			overlays.closeForSwitch(owner);
+		}
 		// In `provider` mode nothing written while leaving is the next person's: it is dropped (4.5).
 		const leave = () => {
 			if (state.activeApp() !== null && deps.apps().close().success) {
@@ -405,12 +470,11 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		};
 		if (deps.quiet) deps.quiet(leave);
 		else leave();
-		switchDrafts(decidedNow(), to);
+		switchDrafts(left, to);
 		if (deps.personal) await hydrate(deps.personal, to);
-		const actor = kit.actor();
 		const recorded = deps.personal ? state.scopeProject() : before.project;
 		const at: ScopeV1 =
-			recorded && scope.allows(actor, { workspace: before.workspace, project: recorded })
+			recorded && scope.allows(actorOf(to), { workspace: before.workspace, project: recorded })
 				? { workspace: before.workspace, project: recorded }
 				: { workspace: before.workspace };
 		deps.lateScope.applyScopeChange(at, 'actor', context);
@@ -452,11 +516,10 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			else if (input.reason === 'membership') {
 				// The same person: only the membership, and the active project if it is no longer allowed.
 				const active = deps.scope.active();
-				if (!deps.scope.allows(kit.actor(), active)) {
+				if (!deps.scope.allows(actorOf(input.person), active)) {
 					deps.lateScope.applyScopeChange({ workspace: active.workspace }, 'actor', context);
 				}
 			}
-			decided = input.person;
 			if (changed || input.reason === 'membership') {
 				deps.scope.note(context.traceId, { actorChanged: true });
 			}
@@ -468,12 +531,13 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		command,
 		copied,
 		async begin() {
-			decided = current();
 			subscription ??= deps.auth.onAuthStateChange(heard);
 			if (replaying()) return;
-			if (provider) await settle(current(), 'provider');
+			// Stage A's person, whose records stage A read: the first settle names them, a change from null in the
+			// original and the replay alike, and the notice after it hears a change since stage A (B1).
+			const first = decidedNow();
+			if (provider) await serial(() => settleNow(first, 'provider'));
 			arm();
-			// A change between stage A and here, heard now.
 			await notice('tab');
 		},
 		refuse(call, name) {
@@ -490,50 +554,110 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			// afd-auth's middleware would stamp it as whoever is signed in now.
 			const actor = copied.get(call);
 			if (actor && kit.personKey(actor) !== signedIn) return kit.sessionChanged();
+			// A person's or an agent's call in this page, stamped as a person the shell is not settled for: the
+			// change is on its way, and nothing runs as one person on another's state (I1).
+			if (
+				!name.startsWith('auth-') &&
+				kit.marked(call) &&
+				decided !== undefined &&
+				!deps.internals?.actorOf?.(call.traceId) &&
+				(kit.personKey(call.actor) ?? null) !== decided &&
+				!(kit.personKey(call.actor) === undefined && expiredOnly())
+			) {
+				return kit.sessionChanged();
+			}
 			return undefined;
+		},
+		settleFirst(name, call) {
+			if (
+				stopped ||
+				replaying() ||
+				decided === undefined ||
+				kit.internal.includes(name) ||
+				name.startsWith('auth-') ||
+				!kit.marked(call)
+			)
+				return undefined;
+			// Settled already, or only expired, which the timer settles; a change on its way is awaited with its notice.
+			if (target === undefined && (current() === decided || expiredOnly())) return undefined;
+			return notice('expiry');
 		},
 		authStart() {
 			authRunning++;
 		},
-		async authEnd(call) {
+		authEnd(call, name, succeeded) {
 			authRunning--;
 			const ticket = kit.ticket(call);
+			// The person the call left, read as it ends, before the chain runs anything else.
 			const person = current();
 			if (ticket) {
 				ticket.left = person ?? undefined;
 				const iface = call.interface as string;
 				if (deps.pending[iface] === ticket) delete deps.pending[iface];
 			}
-			// It settled inside itself, as phase 2's middleware caller does. `local` mode's records are everyone's,
-			// so there only the drafts move: held for the leaving person, taken up if they sign in again (4.5).
-			settled = person;
-			if (person !== decidedNow()) {
-				if (deps.personal) {
-					await change(person, call);
-					deps.scope.note(call.traceId, { actorChanged: true });
-				} else switchDrafts(decidedNow(), person);
-			}
-			decided = person;
-			arm();
+			return serial(async () => {
+				// A sign-in or sign-out that succeeded settled inside itself, as phase 2's middleware caller does;
+				// any other change is settled after the call (`afterAuth`).
+				if (succeeded && (name === 'auth-sign-in' || name === 'auth-sign-out')) {
+					settled = person;
+					const from = decidedNow();
+					if (person !== from) {
+						if (deps.personal) {
+							await change(person, call);
+							deps.scope.note(call.traceId, { actorChanged: true });
+						} else {
+							// `local` mode's records are everyone's: only the drafts move (4.5).
+							decided = person;
+							switchDrafts(from, person);
+						}
+					}
+				}
+				arm();
+			});
 		},
-		async reread(name, input) {
-			if (!provider || replaying() || !rereads(name, input)) return true;
-			const person = current();
-			if (person === null) return true;
-			let membership: Pick<SessionSettleInputV1, 'role' | 'membershipDigest'>;
-			try {
-				membership = await membershipFor(person, true, true);
-			} catch (cause) {
-				report(cause);
-				return false;
-			}
-			// Unchanged from what the kernel decides with, which the last settle journaled or stage A was given.
-			const held = await membershipFor(person, false);
-			if (membership.role === held.role && membership.membershipDigest === held.membershipDigest)
-				return true;
-			await deps.runBoot('session-settle', { person, ...membership, reason: 'membership' });
-			return true;
+		afterAuth() {
+			if (authRunning === 0) void notice('tab');
 		},
+		rereadsBefore: (name) =>
+			provider &&
+			(name === 'project-create' || name === 'workspace-app-set' || name === 'project-update'),
+		reread(name, input) {
+			if (!provider || replaying() || !rereads(name, input)) return Promise.resolve(undefined);
+			return serial(async () => {
+				const person = current();
+				if (person === null) return undefined;
+				// The person signed in is not the one the shell is settled for: refused, as I1 would.
+				if (person !== decidedNow()) return kit.sessionChanged();
+				const read = deps.ports?.readMembership;
+				if (!read) return undefined;
+				const seen = changes;
+				let found: Awaited<ReturnType<typeof read>>;
+				try {
+					found = await read();
+				} catch (cause) {
+					report(cause);
+					return kit.membershipUnavailable(name);
+				}
+				// Another tab changed who is signed in while it read: the answer may be anyone's (B2).
+				if (changes !== seen || current() !== person) return kit.sessionChanged();
+				const membership = { role: found?.role ?? null, membershipDigest: found?.digest ?? null };
+				// Unchanged from what the kernel decides with, which the last settle journaled or stage A was given.
+				const holding = heldFor(person);
+				if (
+					membership.role === holding.role &&
+					membership.membershipDigest === holding.membershipDigest
+				)
+					return undefined;
+				// A settle that fails, as for a role or digest it does not take, refuses the call (B3).
+				const settledIt = await deps.runBoot('session-settle', {
+					person,
+					...membership,
+					reason: 'membership',
+				});
+				return settledIt.success ? undefined : kit.membershipUnavailable(name);
+			});
+		},
+		person: () => decided,
 		reload() {
 			settled = null;
 			decided = undefined;

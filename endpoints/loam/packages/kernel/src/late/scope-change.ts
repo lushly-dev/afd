@@ -22,7 +22,7 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { lineZero, membershipUnavailable } from './auth-gate.js';
+import { lineZero } from './auth-gate.js';
 import type { DocumentCheck } from './document-types.js';
 import {
 	archivedRefusal,
@@ -244,8 +244,17 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				if (recorded.actor) call.actor = recorded.actor;
 				else delete call.actor;
 			}
-			// A call queued across a change of person, or a copied actor not the person's now (4.4), then line 0.
-			const refused = deps.session?.()?.refuse(call, name) ?? lineZero(scope, call, name);
+			// A call queued across a change of person, a copied actor not the person's now, or one stamped as a person
+			// the shell is not settled for (4.4), then line 0. Before a command that reads membership again, line 0
+			// waits for what was read, in `run` (the review of step 2's I5), unless the call names another workspace,
+			// which line 1 would refuse after it.
+			const session = deps.session?.();
+			const waits =
+				session?.rereadsBefore(name) &&
+				((call.scope as ScopeV1 | undefined)?.workspace ?? scope.workspace.id) ===
+					scope.workspace.id;
+			const refused =
+				session?.refuse(call, name) ?? (waits ? undefined : lineZero(scope, call, name));
 			if (refused) return refused;
 			// A person's or an agent's calls, and a replay's: a server's call has no active scope to move. A
 			// change of person by `session-settle` moves it there.
@@ -283,9 +292,12 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			const session = deps.session?.();
 			if (session) {
 				// Membership read again before an owner's command, settled top-level when it changed, then line 0
-				// on what was read (phase 3 specification, 4.4 and 7.6).
-				if (!(await session.reread(name, input))) return membershipUnavailable(name);
-				const refused = lineZero(scope, call, name);
+				// on what was read (phase 3 specification, 4.4 and 7.6). A read or a settle that fails refuses the
+				// call, and so does a change of person while it read or since the call was stamped (B2, B3, I1).
+				const refused =
+					(await session.reread(name, input)) ??
+					session.refuse(call, name) ??
+					lineZero(scope, call, name);
 				if (refused) return refused;
 			}
 			const requested = call.scope as ScopeV1;
@@ -343,12 +355,12 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			// An `auth-*` call settles inside itself (phase 3 specification, 4.4).
 			const auth = name.startsWith('auth-') ? session : undefined;
 			auth?.authStart();
-			let result: CommandResult;
+			let result: CommandResult | undefined;
 			try {
 				result =
 					documents && chained !== undefined ? await documents.serial(chained, rest) : await rest();
 			} finally {
-				await auth?.authEnd(call);
+				await auth?.authEnd(call, name, result?.success === true);
 			}
 			await deps.settle?.(name, call);
 			if (

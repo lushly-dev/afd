@@ -11,8 +11,7 @@ import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { createDefaultLayout } from '../layout.js';
-import { SHELL_OWNER } from '../overlay-owner.js';
-import { personKey } from '../scope/access.js';
+import { type AccessActorV1, personKey } from '../scope/access.js';
 import { createRecordCache } from '../scope/cache.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
@@ -29,7 +28,7 @@ import type {
 	KernelPortsV1,
 } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
-import { agentActor, createAuthGate, sessionChanged } from './auth-gate.js';
+import { agentActor, createAuthGate, membershipUnavailable, sessionChanged } from './auth-gate.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
@@ -87,6 +86,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		pending: Partial<Record<string, QueuedTicket>>;
 		/** The symbol `run` keeps a queued call's ticket under: the kernel's own, so first paint shares no new one. */
 		queued: symbol;
+		/** The actor stage A chose the scope for, undefined in it signed out; none before it has (4.4, B1). */
+		stageA?: [AccessActorV1] | undefined;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV3, 'boot' | 'appsLoader' | 'deployment'>;
@@ -182,7 +183,7 @@ export interface LateParts {
 	 * What stage B reads of the apps: the host's loader with `boot`, else the options themselves. Here, since
 	 * stage B reads them only once this chunk has loaded (phase 3 specification, 13).
 	 */
-	readApps(): Promise<AppsLoadV2 | undefined> | AppsLoadV2 | undefined;
+	readApps(): Promise<AppsLoadV2 | { unavailable: string }>;
 	/** `app-instance-refresh` for each mounted instance: the chrome calls it after first paint (13). */
 	startInstances(): Promise<void>;
 	/**
@@ -234,7 +235,15 @@ export async function createLateParts(
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
-	const quiet = deps.personal && personalWrites(deps.personal, deps.store, deps.viewState);
+	// Keyed by the person the shell is for, once `session-settle` is built; the adapter's until then (4.4, B2).
+	const quiet =
+		deps.personal &&
+		personalWrites(deps.personal, deps.store, deps.viewState, () => {
+			const settledFor = sessions?.person();
+			return settledFor === undefined
+				? personKey(sessionActor(deps.auth, deps.clock))
+				: (settledFor ?? undefined);
+		});
 	// The `agent-member` table, which line 4 of the access decision reads (phase 3 specification, 3.3).
 	const agents = createRecordCache<AgentMemberV1>(AGENT_MEMBER_TABLE);
 	await agents.load(deps.store);
@@ -291,8 +300,9 @@ export async function createLateParts(
 			personKey,
 			ticket: (call) => (call as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued],
 			sessionChanged,
+			membershipUnavailable,
+			marked: DOCUMENT_KIT.marked,
 			internal: INTERNAL_COMMANDS,
-			shellOwner: SHELL_OWNER,
 		},
 		...(quiet ? { quiet } : {}),
 	});
@@ -411,6 +421,10 @@ export async function createLateParts(
 				identity: deps.identity ?? { mode: 'local' },
 				clock: deps.clock,
 				copied: sessions?.copied,
+				after: (name) => {
+					if (name.startsWith('auth-')) sessions?.afterAuth();
+				},
+				before: (name, context) => sessions?.settleFirst(name, context),
 			}),
 		mcpOptions: ({ commands, middleware }, listeners) => ({
 			// A server holds no active scope and no person's session (3.3), so the commands that move them
@@ -514,14 +528,24 @@ export async function createLateParts(
 			editor?.reset();
 		},
 		begin: () => (sessions as SessionSettle).begin(),
-		readApps() {
-			if (deps.boot) return deps.appsLoader?.();
-			const listed = deps.deployment;
-			if (listed === undefined || listed.apps.length === 0) return undefined;
-			return {
-				deployment: listed,
-				...(deps.ports !== undefined ? { ports: deps.ports } : {}),
-			} as AppsLoadV2;
+		async readApps() {
+			try {
+				const listed = deps.deployment;
+				const loaded = deps.boot
+					? await deps.appsLoader?.()
+					: listed === undefined || listed.apps.length === 0
+						? undefined
+						: ({
+								deployment: listed,
+								...(deps.ports !== undefined ? { ports: deps.ports } : {}),
+							} as AppsLoadV2);
+				// A boot with no loader: every app is listed `failed`, never the shell.
+				return loaded ?? { unavailable: 'no apps loader' };
+			} catch (cause) {
+				// A loader that throws refuses every app with its message, and never the shell (D66).
+				reportLate(cause);
+				return { unavailable: String((cause as Error)?.message ?? cause) };
+			}
 		},
 		async startInstances() {
 			await Promise.all(
