@@ -60,10 +60,12 @@ its own backends, on its own terms?
    ([D157](decisions.md); the owner has not yet read the wording):* a plugin
    may also keep durable records that agents write directly, provided every
    such record carries its standing. It is unverified until a person affirms
-   it, or until the host's own deterministic check finds its wording, word for
-   word, in a source that is the person's own and that did not reach the host
-   as a command's input. It is labelled so on every read, and where verified
-   content only is asked for it is left out unless a person affirmed it.
+   it, or until the host's own deterministic check finds that its wording is
+   whole sentences, word for word, of the person's own part of a source that
+   is theirs and that did not reach the host as a command's input. It is
+   labelled so on every read, and where verified content only is asked for it
+   is left out unless a person affirmed it or the deployment admits records
+   that passed that check.
 9. **Stored content is untrusted input.** Results carry provenance labels,
    writes are scanned against a policy, plugins are sandboxed, raw tokens are
    never forwarded, and agent output is never auto-promoted. *Amended
@@ -540,23 +542,28 @@ material, from loosest to strongest:
   - A record is written `unverified`. Its wording gains standing in two ways
     only. A person *affirms* it, by a decision taken with the person assurance
     an approval needs ([D115](decisions.md)). Or the host's own deterministic
-    check finds that the wording is, word for word, part of a source that is
-    the person's own and that did not reach the host as a command's input:
-    *attested*. A source is the person's own when the deployer's configuration
-    names its collection as theirs, which is all the deployer's configuration
-    can do here, or when the person says so by a decision of the same
-    assurance.
+    check finds that the wording is whole sentences, word for word, of the
+    person's own part of a source that is theirs and that did not reach the
+    host as a command's input: *attested*. A clause lifted out of a sentence
+    does not attest, and in a transcript only the person's own turns do. A
+    source the host syncs from its own disk is the person's own when the
+    deployer's configuration names its collection as theirs, and that
+    configuration may name which part is theirs, such as the speaker in a
+    transcript; it can do nothing else here. A source that arrives by upload
+    is the person's own only when the person says so, by a decision of the
+    same assurance, whatever collection it lands in: the agent that asked for
+    an upload address holds it.
   - Nothing a call claims or passes decides standing: not what it says of a
     record, of a source or of whose a source is. An agent's write can be found
     attested, because the check is the host's and the source was already
     there. The host knows only how a source arrived, not who typed it. A shell
-    on the host's machine, or whoever holds an upload address, can put a file
-    among the person's, as a shell reaches memory's files
-    ([D74](decisions.md)); keeping a collection named as the person's free of
-    such files is the deployer's.
+    on the host's machine can put a file in a synced collection, as a shell
+    reaches memory's files ([D74](decisions.md)); keeping a collection named
+    as the person's free of such files is the deployer's.
   - Every read labels each record as a standing record and with its standing.
-    The label never uses a knowledge tier's value, so an affirmed record
-    cannot read as verified knowledge. An attested record's label carries the
+    The label never uses `machine`, `human` or `owner`, the tiers of verified
+    knowledge ([D63](decisions.md)), so an affirmed record cannot read as
+    verified knowledge. An attested record's label carries the
     source's date: the person wrote it then, which is not that they hold it
     now.
   - Where verified content only is asked for, by a deployment's setting or by
@@ -572,7 +579,8 @@ material, from loosest to strongest:
     are private by default and scanned, as memory's are
     ([D68](decisions.md)). They add nothing to the index or the graph that
     knowledge search reads ([D70](decisions.md)'s reason, kept); whether a
-    later change to the graph admits their edges is that change's to decide.
+    later change to the graph admits their edges is that change's to decide,
+    and it must keep agent writes from moving knowledge ranking.
   - "The person" is the one person a space is configured for. Whose decision
     counts in a space several people share is not settled here, and a plugin
     that takes this path serves spaces of one person until it is.
@@ -823,8 +831,8 @@ document needs as an amendment.
 | Journal | AFD's append-only record of command calls, with replay |
 | Event log | Umbel's projection of mutation entries in the journal, read by cursor |
 | Grant | A host service a plugin declared and the host allowed |
-| Standing record | *D157.* A plugin's durable record that an agent may write directly and that carries a standing: unverified until a person affirms it, or until the host's deterministic check finds its wording in a source that is the person's own and did not reach the host as a command's input. Labelled on every read, and never knowledge |
-| Standing | *D157.* What a standing record's label says of its wording: unverified; attested, which is word for word from the person's own source, with its date; or affirmed by a person |
+| Standing record | *D157.* A plugin's durable record that an agent may write directly and that carries a standing: unverified until a person affirms it, or until the host's deterministic check finds its wording to be whole sentences of the person's own part of a source that is theirs and did not reach the host as a command's input. Labelled on every read, and never knowledge |
+| Standing | *D157.* What a standing record's label says of its wording: unverified; attested, which is whole sentences, word for word, from the person's own source, with its date; or affirmed by a person |
 | Proposal | A knowledge-plugin record that proposes a change to the knowledge base and, once decided, is its decision trace |
 | Principal | The caller as the host sees it: AFD actor and credentials plus Umbel's extension fields |
 | Provenance envelope | The fields every stored record carries, listed in section 5 |

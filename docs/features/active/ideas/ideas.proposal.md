@@ -718,8 +718,10 @@ merge or a split can be undone ([4.15](#415-taking-back-and-erasing)).
 
   Each is journaled as a digest. `ideas-source-open` reads a stored source back in windows, as
   numbered sentences, so mining again never needs the file a second time.
-- **Whose words.** An uploaded or synced source is the person's own when the deployer has
-  configured its collection as theirs, or when the person confirms it in a review. Either one
+- **Whose words.** A synced source is the person's own when the deployer has configured its
+  collection as theirs. An uploaded source is theirs only when the person confirms it in a
+  review, whatever collection it lands in, since the agent that asked for the upload address
+  holds it (Umbel's D157). Either one
   also fixes what the source is: the person's own prose, or a transcript and the label of the
   speaker who is the person. The deployer's setting says it for a collection. A confirmation
   says it for a source, and the person is shown it with the name, date, size and opening lines
@@ -1363,7 +1365,7 @@ direction, it is listed in [STATUS.md](STATUS.md) for him to confirm, and he can
 | 9. The phase 0 corpus | The question carried no recommendation, so this one was made after his answer: the owner's own archive of source material on one subject, in his private repository, measured where it lies. Only counts, rates and the tools leave it. A model drafts every label and the owner checks a sample of each kind in one sitting | Agreed 2026-11-11, after phase 0 had run on it. His check of the samples is put off: the work carries on, and what phase 0 set is tuned when he has done it |
 | 11. The jobs | All twenty-nine are kept, ranked in the order of the [jobs table](#jobs-to-be-done). Job 11 is the first to go if the list must shrink | Agreed |
 | 14. The hierarchy | Decided after phase 0.6 and some weeks of the loop | Agreed |
-| 1. The wording of P1 | As recommended, written out in step A1 as Umbel's D157 | On recommendation |
+| 1. The wording of P1 | Written out in step A1 as Umbel's D157, narrower than the recommendation: the deployer's configuration gives no standing, and only names which synced sources are the person's | On recommendation |
 | 2. Records or documents | Records, indexed through P2, unless phase 0.7 finds otherwise | On recommendation |
 | 3. The name for the hierarchy | Framing | On recommendation |
 | 4. The embedding lane | Yes, with a local model by default, chosen in phase 0.2 | On recommendation |
