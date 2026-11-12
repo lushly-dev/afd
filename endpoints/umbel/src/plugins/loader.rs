@@ -31,7 +31,7 @@ use super::manifest::{
 };
 #[cfg(feature = "mounted")]
 use super::mounted;
-use super::packs::{PackSet, PackState};
+use super::packs::{PackOrigin, PackSet, PackState};
 use super::pipelines::{self, Known, PipelinePlan, PipelineState};
 use super::skills::{LoadedSkill, read_skill};
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
@@ -195,6 +195,48 @@ pub(crate) struct LoadedPlugins {
     pub suggestions: Vec<String>,
     /// Every skill of every loaded instance, in `plugins.enabled` order and manifest order.
     pub skills: Vec<LoadedSkill>,
+    /// Every space override of a loaded compiled instance's pack, which the doctor's
+    /// `plugins.pack_checks` hands to the plugin's own check (D172), in instance order, then pack
+    /// and space order.
+    pub pack_checks: Vec<PackCheck>,
+}
+
+/// One space override of one compiled instance's pack, and what checking it needs (D172).
+#[derive(Clone)]
+pub(crate) struct PackCheck {
+    pub instance: String,
+    pub required: bool,
+    pub pack: String,
+    pub space: String,
+    pub plugin: Arc<dyn CompiledPlugin>,
+    pub services: Services,
+}
+
+impl PackCheck {
+    /// Run the plugin's own check against the override: `None` when the plugin offers none.
+    pub(crate) fn run(&self) -> Option<Value> {
+        let input = serde_json::json!({ "space": self.space });
+        let services = self.services.call(&input, &afd::CommandContext::default());
+        self.plugin.check_pack(&self.pack, services)
+    }
+}
+
+impl std::fmt::Debug for PackCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PackCheck")
+            .field("instance", &self.instance)
+            .field("required", &self.required)
+            .field("pack", &self.pack)
+            .field("space", &self.space)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for PackCheck {
+    fn eq(&self, other: &Self) -> bool {
+        (&self.instance, self.required, &self.pack, &self.space)
+            == (&other.instance, other.required, &other.pack, &other.space)
+    }
 }
 
 impl LoadedPlugins {
@@ -294,6 +336,8 @@ struct Prepared {
     spaces: Vec<String>,
     /// The instance's skills that no earlier instance of the same plugin already ships.
     skills: Vec<LoadedSkill>,
+    /// A compiled instance's space overrides, for the doctor (D172).
+    pack_checks: Vec<PackCheck>,
 }
 
 /// One instance in `plugins.enabled` order: failed, or prepared and waiting for its pipelines.
@@ -419,6 +463,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         loaded.contexts.extend(prepared.contexts);
         loaded.suggestions.extend(prepared.suggestions);
         loaded.skills.extend(prepared.skills);
+        loaded.pack_checks.extend(prepared.pack_checks);
         loaded.instances.push(prepared.report);
     }
     Ok(loaded)
@@ -889,6 +934,7 @@ fn prepare(
             suggestions,
             spaces: enabled,
             skills,
+            pack_checks: Vec::new(),
         });
     }
 
@@ -924,6 +970,25 @@ fn prepare(
         memory_policy: instance.memory_write.clone(),
         prompts: Arc::clone(inputs.prompts),
     });
+    let pack_checks: Vec<PackCheck> = match &resolved.compiled {
+        Some(plugin) => pack_states
+            .iter()
+            .flat_map(|(pack, states)| {
+                states
+                    .iter()
+                    .filter(|state| state.origin == PackOrigin::Override)
+                    .map(|state| PackCheck {
+                        instance: instance.id.clone(),
+                        required,
+                        pack: pack.clone(),
+                        space: state.space.clone(),
+                        plugin: Arc::clone(plugin),
+                        services: services.clone(),
+                    })
+            })
+            .collect(),
+        None => Vec::new(),
+    };
     let implementations = match &resolved.compiled {
         Some(plugin) => plugin.commands(services)?,
         #[cfg(feature = "component")]
@@ -1027,6 +1092,7 @@ fn prepare(
         suggestions,
         spaces: space_names,
         skills,
+        pack_checks,
     })
 }
 

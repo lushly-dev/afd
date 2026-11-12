@@ -1,5 +1,6 @@
-//! Step C3's surfaces: the plugin and a space's override as `plugin-show` and the doctor show them
-//! today, which this plugin does not change (D151: no host code); the first-class suggestion in
+//! Step C3's surfaces: the plugin and a space's override as `plugin-show` and the doctor show them,
+//! the doctor running the plugin's own check on an override (D172, amendment A23, which supersedes
+//! A16's "recorded, not changed"); the first-class suggestion in
 //! `tools/list`; and the `components-guide` skill on the three delivery paths of the phase 1
 //! specification, section 8.3, as `tests/skills.rs` proves them for hello: the Skills extension,
 //! resources, and `skill-list` with `skill-export`.
@@ -38,9 +39,25 @@ fn frontmatter_description() -> String {
 }
 
 async fn doctor(host: &TestHost) -> Vec<Value> {
+    let (healthy, checks) = doctor_report(host).await;
+    assert!(healthy, "{checks:?}");
+    checks
+}
+
+/// Whether the doctor found the workspace healthy, and its checks.
+async fn doctor_report(host: &TestHost) -> (bool, Vec<Value>) {
     let report = value(host.call("workspace-doctor", json!({})).await);
-    assert_eq!(report["data"]["healthy"], true, "{report}");
-    report["data"]["checks"].as_array().unwrap().clone()
+    // An unhealthy workspace fails with WORKSPACE_UNHEALTHY, the report in the error's details.
+    let data = if report["success"] == true {
+        &report["data"]
+    } else {
+        assert_eq!(report["error"]["code"], "WORKSPACE_UNHEALTHY", "{report}");
+        &report["error"]["details"]
+    };
+    (
+        data["healthy"] == true,
+        data["checks"].as_array().unwrap().clone(),
+    )
 }
 
 fn check<'a>(checks: &'a [Value], id: &str) -> &'a Value {
@@ -153,6 +170,10 @@ async fn the_doctor_passes_the_plugin_and_counts_only_the_override_as_a_pack_dir
         check(&checks, "plugins.packs")["message"],
         "0 pack directory(ies) and override(s) validate"
     );
+    assert_eq!(
+        check(&checks, "plugins.pack_checks")["message"],
+        "0 override(s) pass their plugin's own check"
+    );
     let fx = {
         let mut pack = Pack::example();
         pack.add_synthetic("own", 2);
@@ -172,6 +193,10 @@ async fn the_doctor_passes_the_plugin_and_counts_only_the_override_as_a_pack_dir
         (
             "plugins.skills",
             "1 skill(s) validate and no name is shared",
+        ),
+        (
+            "plugins.pack_checks",
+            "1 override(s) pass their plugin's own check",
         ),
         (
             "plugins.loaded",
@@ -195,11 +220,12 @@ async fn the_doctor_passes_the_plugin_and_counts_only_the_override_as_a_pack_dir
     }
 }
 
-/// The host checks an override's layout, never the pack format: an override whose library fails
-/// the plugin's check still shows and passes the doctor, and the plugin refuses the call (D151,
-/// section 9.1).
+/// An override the plugin refuses still shows in `plugin-show`, and passes the host's layout check,
+/// but fails the doctor's `plugins.pack_checks` before any command is called: the plugin's own
+/// reader runs on it, so the code, problems and suggestion are the ones a call gets (D172, A23,
+/// section 9.1). The call is still refused, and the other space is still served.
 #[tokio::test]
-async fn an_override_the_plugin_refuses_still_shows_and_passes_the_doctor() {
+async fn an_override_the_plugin_refuses_fails_the_doctor_with_the_calls_code_and_problems() {
     let mut pack = Pack::example();
     pack.set_raw(&record_path("select"), "{}");
     let fx = pack.host();
@@ -209,10 +235,48 @@ async fn an_override_the_plugin_refuses_still_shows_and_passes_the_doctor() {
             .await,
     );
     assert_eq!(data(&shown)["packs"][0]["spaces"][0]["source"], "override");
-    let checks = doctor(&fx.host).await;
-    assert_eq!(check(&checks, "plugins.packs")["status"], "pass");
     let listed = fx.list(json!({ "space": "main" })).await;
     assert_eq!(code(&listed), "PACK_INVALID");
+
+    let (healthy, checks) = doctor_report(&fx.host).await;
+    assert!(!healthy);
+    assert_eq!(check(&checks, "plugins.packs")["status"], "pass");
+    let found = check(&checks, "plugins.pack_checks");
+    assert_eq!(found["status"], "fail", "{found}");
+    // The message is the call's code and message, then its first three problems as
+    // `CODE path#pointer`, as the call's details give them.
+    let error = &listed["error"];
+    let problems = error["details"]["problems"].as_array().unwrap();
+    let mut shown: Vec<String> = problems
+        .iter()
+        .take(3)
+        .map(|problem| {
+            let code = problem["code"].as_str().unwrap();
+            let path = problem["path"].as_str().unwrap();
+            match problem["at"].as_str() {
+                Some(at) => format!("{code} {path}#{at}"),
+                None => format!("{code} {path}"),
+            }
+        })
+        .collect();
+    let count = usize::try_from(error["details"]["count"].as_u64().unwrap()).unwrap();
+    if count > shown.len() {
+        shown.push(format!("and {} more", count - shown.len()));
+    }
+    assert!(
+        shown[0].contains(&record_path("select")),
+        "the offending record is named: {shown:?}"
+    );
+    assert_eq!(
+        found["message"],
+        format!(
+            "components: the override of pack `library` in space `main` fails the plugin's \
+             check: PACK_INVALID: {} ({})",
+            error["message"].as_str().unwrap(),
+            shown.join(", ")
+        )
+    );
+    assert_eq!(found["suggestion"], error["suggestion"]);
     // The other space keeps the default pack, and is served.
     let other = fx.list(json!({ "space": "beta" })).await;
     assert_eq!(data(&other)["libraries"][0]["library"], "example");

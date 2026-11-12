@@ -10,7 +10,7 @@ use umbel::HostBuilder;
 use umbel::doctor::{self, Check, CheckStatus, Report};
 use umbel::plugins::CompiledCatalog;
 
-const PLUGIN_CHECKS: [&str; 8] = [
+const PLUGIN_CHECKS: [&str; 9] = [
     "plugins.config",
     "plugins.sources",
     "plugins.grants",
@@ -19,6 +19,7 @@ const PLUGIN_CHECKS: [&str; 8] = [
     "plugins.loaded",
     "plugins.first_class",
     "plugins.pipelines",
+    "plugins.pack_checks",
 ];
 
 fn workspace(config: &str) -> (tempfile::TempDir, PathBuf) {

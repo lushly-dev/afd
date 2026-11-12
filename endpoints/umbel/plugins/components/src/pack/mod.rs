@@ -30,7 +30,7 @@ use problem::{
 use schema::{Catalog, Record, Rules, Shape};
 
 /// The plugin's one pack.
-const PACK: &str = "library";
+pub(crate) const PACK: &str = "library";
 /// The one format version the plugin reads, Specimen's `PACK_FORMAT_VERSION` (section 3.5).
 pub(crate) const FORMAT_VERSION: f64 = 1.0;
 /// The host's file, skipped as a check skips it.

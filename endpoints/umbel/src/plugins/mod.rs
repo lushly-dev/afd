@@ -36,7 +36,7 @@ pub(crate) use check::run as check_plugin;
 pub(crate) use check::single_plugin_config;
 pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
 pub(crate) use doctor::{
-    checks as doctor_checks, first_class_check, loaded_check, pipelines_check,
+    checks as doctor_checks, first_class_check, loaded_check, pack_checks_check, pipelines_check,
 };
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
