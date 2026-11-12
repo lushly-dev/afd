@@ -2,12 +2,15 @@
 
 AFD (Agent-First Development) is a methodology where AI agents are first-class users. Everything in this repo follows **Command-First** design: all functionality is exposed as commands with schemas before any UI is built. If you're contributing, you're building for agents — not just humans.
 
+This repository holds more than the AFD libraries. Specimen, FAST-AF, Violet, Umbel, Loam, Botcore and Health live here too ([what each one is](README.md#the-rest-of-the-repository)). The principles below apply to all of them; the tools and test commands differ by area, and [Where things live](#where-things-live) says which go with which.
+
 ## Prerequisites
 
 - **Node.js** >= 22.12.0 (development and CI use Node 26 LTS, pinned in `.nvmrc`)
-- **pnpm** >= 9.0.0
-- **Python** >= 3.10 (for the Python package and Alfred)
+- **pnpm** 10.30.1 (pinned in `package.json`)
 - **Lefthook** (auto-installed via `pnpm install`)
+
+Python, uv, Rust, CMake and Chromium are needed only for the areas that use them. [SETUP.md](SETUP.md) lists versions and what each is for.
 
 ## Getting Started
 
@@ -23,8 +26,8 @@ For the Python package:
 
 ```bash
 cd python
-pip install -e ".[dev]"
-pytest tests/ -v
+uv sync --frozen --all-extras
+uv run pytest -q
 ```
 
 For Alfred (quality bot):
@@ -58,7 +61,11 @@ Every error must include a `suggestion` field so agents can self-recover. Alfred
 
 Commands are kebab-case in `domain-action` format: `todo-create`, `user-get`, `order-list`. Alfred's `afd-kebab-naming` rule enforces this in TypeScript.
 
-### 4. No Business Logic in UI
+### 4. Jobs Before Commands
+
+A feature that adds or changes commands starts from the jobs it serves. Write each job as a `*.scenario.yaml` before specifying the commands; a job you can't write with the commands you drafted is a gap in the design. See [jobs first](.claude/skills/afd/references/jobs-first.md).
+
+### 5. No Business Logic in UI
 
 Data transforms (`.map().filter()`, `.reduce()`, `Math.*`) belong in command handlers, not UI components. Alfred's `afd-no-business-in-ui` rule catches violations.
 
@@ -106,19 +113,23 @@ Lefthook runs automatically on commit and push — no manual setup needed.
 - TypeScript type checking
 
 **Pre-push** (before push):
-- Full lint, test suite, typecheck
+- Full lint, plus tests and typecheck for the packages your change affects
 - Portability + file size on all files
 - Orphan file detection (`.ts` files not imported anywhere)
+- Versions, package boundaries, skills and the tooling tests
 
 **Commit messages** are validated by commitlint (Conventional Commits).
 
 ### On-Demand Check
 
-Run the full quality gate manually:
+Run the quality gate manually:
 
 ```bash
-npx lefthook run check   # Lint + typecheck + test + build + portability + file-size + orphans
+pnpm check    # Lint, build, typecheck and tests with coverage for the packages your change affects
+pnpm verify   # pnpm check, then every area suite your change would trigger in CI
 ```
+
+`pnpm check` is the same gate CI runs for TypeScript. It doesn't run a browser, and it doesn't cover Python, Rust or C++; those areas have suites of their own, which `pnpm verify` runs for you when your change reaches them. Pass `pnpm verify` before you push, so CI confirms a green result instead of finding failures one push at a time.
 
 ### Alfred Quality Bot
 
@@ -185,49 +196,68 @@ docs(python): update command naming guide
 chore(deps): update dependencies
 ```
 
-**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `examples`, `alfred`, `python`, `rust`, `cpp`, `deps`
+**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `view-state`, `examples`, `alfred`, `botcore`, `specimen`, `violet`, `fast-af`, `health`, `python`, `rust`, `cpp`, `site`, `deps`. The scope is optional; leave it out for an area with no scope of its own, such as Umbel or Loam.
 
 ## Submitting Changes
 
 1. Fork the repository and create a branch from `main`
 2. Make changes following the principles above
 3. Verify locally:
-   - `pnpm lint` — no lint errors
-   - `pnpm test` — all tests pass
-   - `pnpm build` — builds cleanly
+   - `pnpm verify` — the quality gate and every area suite your change triggers
    - `alfred lint` — no architecture violations (if adding commands)
-4. Push and open a pull request
+4. If you changed a published package, run `pnpm changeset` and commit the file it creates ([recording a change](CHANGELOG.md#recording-a-change))
+5. Push and open a pull request
 
 ### PR Guidelines
 
 - Keep PRs focused on a single concern
 - Include tests for new functionality
-- Update documentation if behavior changes — see `AGENTS.md` for the routing table and `skills/` for deep topic guides
+- Update documentation if behavior changes — see `AGENTS.md` for the routing table and `.claude/skills/` for deep topic guides
 - All Lefthook hooks must pass
 
-## Package Structure
+## Where Things Live
+
+The repository is laid out by what a thing is for. Foundations stand on their own, integrations bind a foundation to AFD commands, and endpoints are what you install and run.
 
 ```
-packages/
-  core/       # Foundational types (CommandResult, errors, pipeline, handoff)
-  server/     # MCP server factory with Zod validation + middleware
-  client/     # MCP client + DirectClient (zero-overhead in-process)
-  auth/       # Provider-agnostic auth adapter
-  cli/        # Command-line interface
-  testing/    # JTBD scenario runner + surface validation
-  adapters/   # Frontend rendering adapters for CommandResult
-  examples/   # Multi-stack example (TS, Python, Rust, C++) + DirectClient demo
-  rust/       # Rust crate implementation
-  cpp/        # C++ library implementation (afd-cpp)
-python/       # Python package (pip install afd)
-alfred/       # Quality bot (lint, parity, quality)
+packages/       # AFD in TypeScript (core, server, client, auth, cli, testing, view-state,
+                # adapters, local-db), plus rust/ (the afd crate), cpp/ (afd-cpp) and examples/
+python/         # AFD in Python (pip install afd)
+spec/           # The contract every language implements, with its test vectors
+foundations/    # Specimen, FAST-AF and Violet: no AFD dependency
+integrations/   # specimen-afd, specimen-fast-af, violet-afd: a foundation as AFD commands
+endpoints/      # specimen-cli, violet-cli, violet-server, botcore, health, health-dashboard,
+                # umbel (Rust plugin host), loam (application shell)
+alfred/         # Quality bot (lint, parity, quality)
+site/           # afd.dev
+docs/           # Feature proposals and status, operations notes, the whitepaper
 ```
+
+| Area | Read first | Beyond `pnpm check` |
+|------|-----------|---------------------|
+| AFD packages (`packages/`) | This file | Usually nothing; `pnpm verify` adds the conformance suite when a change reaches it |
+| Python, Rust, C++ | Each package's README | Its own test command ([SETUP.md](SETUP.md#working-on-one-area)) |
+| Specimen | [README](foundations/specimen/README.md) | `pnpm test:specimen` |
+| FAST-AF | [README](foundations/fast-af/README.md) | `pnpm test:fast-af`, `pnpm test:stories` |
+| Violet | [README](foundations/violet/README.md) | `pnpm test:violet` and each package's `lint` |
+| Umbel | [STATUS.md](endpoints/umbel/docs/STATUS.md), then its [README](endpoints/umbel/README.md) | Its Cargo checks |
+| Loam | [STATUS.md](endpoints/loam/docs/STATUS.md), then its [packages README](endpoints/loam/packages/README.md) | Its browser, walk and hosted suites |
+| Botcore, Health | Their READMEs | Their `uv` test commands |
+
+Three things to know about the projects that were brought in from other repositories:
+
+- **Imported files are tracked.** FAST-AF, Violet and Specimen each keep a `provenance/` folder that records every file's hash and every change made here, with its reason. If you edit an imported file, add the change to that family's `provenance/adaptations.json`, or the tooling tests fail.
+- **Being here is not being published.** A package publishes only once [`scripts/release/inventory.json`](scripts/release/inventory.json) admits it. Don't add a publish step for one that is held back.
+- **Status files are the source of truth.** Umbel, Loam and each active feature keep a `STATUS.md` that says exactly what is done. Read it before you start, and update it when your change moves it.
 
 ## Further Reading
 
-- [AGENTS.md](AGENTS.md) — Architecture overview and skill routing table
+- [README.md](README.md) — What AFD is, a quickstart, and the rest of the family
+- [SETUP.md](SETUP.md) — Tools and versions, by area
+- [AGENTS.md](AGENTS.md) — Commands, CI workflows and the skill routing table, written for coding agents and just as useful to people
 - [alfred/AGENTS.md](alfred/AGENTS.md) — Alfred command reference and lint rules
-- `skills/` — Deep topic skills for AFD patterns, each language, auth, contracts, DirectClient
+- [`.claude/skills/`](.claude/skills) — Deep topic skills for AFD patterns, each language, auth, DirectClient, releases and design
+- [docs/](docs/README.md) — Feature proposals and their status, and operations notes
 
 ## Questions?
 
