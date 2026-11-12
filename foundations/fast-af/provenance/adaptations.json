@@ -6011,11 +6011,11 @@
       "upstream_sha256": "63b082959ba01e73699f4ca0a36251f1618bc1d57e88f20780453de0851de4fa",
       "staged_path": "packages/violet-elements/src/carousel/violet-carousel.stories.ts",
       "staged_sha256": "63b082959ba01e73699f4ca0a36251f1618bc1d57e88f20780453de0851de4fa",
-      "current_import_sha256": "d58411494fea61674b24a4d9bc95799a0a18a2fb814fb959a622e8bdae24fe4f",
+      "current_import_sha256": "02ab7010619b3f6294e119c7f0a0a134a29b0f996004d69c116e7bbf4451a30c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Component Briefs B4: the carousel's scrolling stories wait for the viewport's scroll to end, so their state no longer depends on timing, and the carousel's record is rebuilt"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/carousel/violet-carousel.ts",
@@ -9827,11 +9827,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "88f7d79e597e269fce16e9c1662d77e2445573a2a0672dfda4027ac86cc39fa2",
+      "current_import_sha256": "e585a6f72ed842a9aeed65c4c84ebec83c5f18ab4e30f095072ad80232770ece",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs B4: the carousel's scrolling stories wait for the viewport's scroll to end, so their state no longer depends on timing, and the carousel's record is rebuilt"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-chat-composer.json",
