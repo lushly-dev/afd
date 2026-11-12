@@ -32,6 +32,8 @@ const styles = css`
 	}
 	.value {
 		min-inline-size: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.label[hidden] {
 		display: none;

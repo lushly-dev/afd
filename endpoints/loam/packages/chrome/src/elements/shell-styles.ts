@@ -98,7 +98,9 @@ export const styles = css`
 		clip-path: inset(50%);
 		white-space: nowrap;
 	}
-	.project-status {
+	.workspace-status,
+	.project-status,
+	.actor-status {
 		min-inline-size: 0;
 	}
 	.project-home {
