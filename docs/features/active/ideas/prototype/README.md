@@ -150,10 +150,13 @@ not the owner's; the plan asks for twenty of his own.
 - **Lookups work from retrieval alone.** Five of six were answered fully.
 - **What was missing was mostly relations.** The judge named how ideas bear on each other 11
   times, a view of the owner's 7, when a view was held 6, evidence 4 and a statement of the whole
-  3. No question about a whole area could be answered fully without one.
+  3. None of the four questions about a whole area was answered fully: three lacked relations
+  and two a statement of the whole.
 - **The links it asked for.** Refines 12 times, supersedes 8, part of 7, contradicts 5, supports
-  4, example of 3. Two are not among the plan's link kinds: *supersedes*, which the plan records
-  only when a person retires an idea, and *part of*.
+  4, example of 3. The judge chose from a list that differed from the plan's: it offered
+  *supersedes* and *part of*, which the plan does not have, called *challenges* contradicts, and
+  left out *depends-on* and *summarises*. So the two kinds it asked for are a lead, not a finding,
+  until a judge chooses from the plan's own list.
 - **The budget.** 25 was enough for 12 questions, too small for 6 and too large for 2. 37% of the
   ideas in a bundle had nothing to do with the question; 38% were used.
 
@@ -163,11 +166,11 @@ not the owner's; the plan asks for twenty of his own.
 ideas, so this step touched no private material.
 
 Violet's engine, as it is on `main`, holds ideas as composite values in a tree of framings. Of
-fifteen checks, eight work as they are: an idea resolves everywhere, an override stays in its
-framing, a change at the root reaches every framing that did not override, an omission hides an
-idea from descendants, an idea of a framing's own, lineage, compare, and copy (which follows its
-source). Load and resolve are fast: 3 000 ideas load in about a quarter of a second, a framing
-resolves in under 10 ms and two framings compare in about 35 ms.
+fifteen checks, seven work as they are: an idea resolves everywhere, an override stays in its
+framing, a change at the root reaches every framing that did not override, an omission hides an idea
+from descendants, an idea of a framing's own, lineage, and compare. Copy works awkwardly: it follows
+its source and cannot be pinned. Load and resolve are fast: 3 000 ideas load in about a quarter of a
+second, a framing resolves in under 10 ms and two framings compare in about 35 ms.
 
 What does not fit:
 
@@ -223,13 +226,17 @@ it.
 | Tree, distance 0.30 | 656 | 84% | 3 | 135 | 37 | 75% |
 | Tree, distance 0.35 | 469 | 95% | 3 | 358 | 50 | 83% |
 
-- **Themes are stable.** The two methods agree with each other at a normalised mutual information
-  of 0.84 to 0.96, and each agrees with itself on the other model at 0.78 to 0.94. They belong to
-  the ideas, not to the method or the model.
+- **Themes are only partly stable.** Two methods, or one method on two models, agree well above
+  chance and far from fully: an adjusted Rand index of 0.06 to 0.49 between methods and 0.26 to
+  0.30 between models, where chance is 0 and identical groupings 1. Normalised mutual information
+  looks high (0.78 to 0.96) but groupings of the same shapes shuffled at random score 0.54 to
+  0.91 on it, so it says little here. The model comparison also applied one similarity floor to
+  two models whose similarities run on different scales. A theme is a view of the ideas at a
+  moment, not something with an identity of its own.
 - **The graph avoids one giant theme; the tree does not.** Cut loosely, the tree chains: at 0.35
   one theme holds 11% of all ideas. The graph's largest theme stays under 1.5%.
 - **Themes cut across documents.** Seven to eight in ten join ideas from more than one document,
-  and against the documents' own sections they agree only loosely (adjusted Rand index at most
+  and they agree only loosely with the documents' own sections (adjusted Rand index at most
   0.09). That is what themes are for: the same thought met in several places.
 - **Not measured.** Whether they match how the owner groups his ideas. That needs his grouping of
   a sample, and is added to his check (Q5).
@@ -270,16 +277,18 @@ Each is proposed for the plugin's specification (step A3) and recorded in [STATU
 6. **Attested needs its context.** Between one in twelve and one in five word-for-word ideas lean on
    their neighbours, by extractor. A read of an attested idea should be able to return the sentences
    around it, and phase 0.4's check of what the owner would disown stays open.
-7. **Themes: the graph, at a floor near 0.75.** It is deterministic, stable across models, puts
-   seven in ten ideas in a theme and never one giant theme. A synthesis is worth asking for above
-   about ten members, which is 47 themes in this archive. Both numbers wait on the owner's
-   grouping.
-8. **A later view is a link a model can state.** In an archive nobody has reviewed, nothing is
+7. **Themes are views; a synthesis attaches to its members.** The graph at a floor near 0.75 puts
+   seven in ten ideas in a theme and never one giant theme, but its themes change with the method
+   and the model. A synthesis should name the ideas it sums up, as the plan's section 4.7 has it,
+   and never a theme by an id. A synthesis is worth asking for above about ten members, 47 themes
+   in this archive. Both numbers wait on the owner's grouping, and each model needs its own floor.
+8. **A later view is a link a model can state** (a lead from one judge and model-drafted
+   questions, to confirm on the owner's twenty). In an archive nobody has reviewed, nothing is
    retired, so a question about a change of mind finds both views and cannot tell which came
    later. A model should be able to link a later view to an earlier one without retiring it,
    leaving retirement to the person, and a bundle should carry each idea's date.
-9. **Part of.** Ideas that are parts of one model or one list want a kind of their own; summarises
-   runs the other way and is for syntheses.
+9. **Part of** (the same lead). Ideas that are parts of one model or one list want a kind of their
+   own; summarises runs the other way and is for syntheses.
 10. **Bundles are relevant, not yet focused.** Retrieval alone gives a lookup what it needs. For
     an area or a tension the bundle needs the theme, the synthesis and the links around what it
     found, which is the plan's design; and a third of a bundle is noise that a model reranking

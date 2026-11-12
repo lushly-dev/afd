@@ -53,8 +53,8 @@ In memory, Node 26.13, one run on a laptop. Load is `token.add` per idea at the 
 
 | Ideas | Load | Per add | Resolve the grandchild | Compare two framings | Impact of one root change |
 | --- | --- | --- | --- | --- | --- |
-| 300 | 8 ms | 0.03 ms | 1 ms | 4 ms | 19 ms |
-| 3000 | 253 ms | 0.08 ms | 6 ms | 30 ms | 212 ms |
+| 300 | 10 ms | 0.03 ms | 1 ms | 4 ms | 23 ms |
+| 3000 | 218 ms | 0.07 ms | 9 ms | 36 ms | 246 ms |
 
 None is a constraint at these sizes. The impact preview grows fastest, about ten times for ten
 times the ideas; it reports on every framing below the changed one (run).

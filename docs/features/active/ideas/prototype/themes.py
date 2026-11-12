@@ -169,6 +169,13 @@ def main(argv: list[str] | None = None) -> int:
         "comparison_groupings": {"source": len(set(by_source)), "source_and_section": len(set(by_section))},
         "runs": {},
     }
+    rng = np.random.default_rng(20261111)
+
+    def agreement(a: list, b: list) -> dict:
+        """NMI and ARI, with the NMI of b's labels shuffled: what groupings of these shapes score by chance."""
+        shuffled = list(rng.permutation(np.array(b, dtype=object)))
+        return {"nmi": round(nmi(a, b), 4), "nmi_shuffled": round(nmi(a, shuffled), 4), "ari": round(ari(a, b), 4)}
+
     results: dict[str, list[int]] = {}
     for floor in [float(x) for x in args.floors.split(",")]:
         results[f"graph@{floor}"] = graph_themes(vectors, args.k, floor)
@@ -176,12 +183,12 @@ def main(argv: list[str] | None = None) -> int:
         results[f"tree@{distance}"] = tree_themes(vectors, distance)
     for name, labels in results.items():
         out["runs"][name] = describe(labels, ideas) | {
-            "against_source": {"nmi": round(nmi(labels, by_source), 4), "ari": round(ari(labels, by_source), 4)},
-            "against_section": {"nmi": round(nmi(labels, by_section), 4), "ari": round(ari(labels, by_section), 4)},
+            "against_source": agreement(labels, by_source),
+            "against_section": agreement(labels, by_section),
         }
     names = list(results)
     out["between_methods"] = {
-        f"{a} vs {b}": round(nmi(results[a], results[b]), 4)
+        f"{a} vs {b}": agreement(results[a], results[b])
         for x, a in enumerate(names)
         for b in names[x + 1 :]
         if a.split("@")[0] != b.split("@")[0]
@@ -192,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         for name in names:
             method, value = name.split("@")
             again = graph_themes(other, args.k, float(value)) if method == "graph" else tree_themes(other, float(value))
-            out["between_models"][name] = round(nmi(results[name], again), 4)
+            out["between_models"][name] = agreement(results[name], again)
     if args.assignments:
         with args.assignments.open("w", encoding="utf-8") as handle:
             for idea, *labels in zip(ideas, *results.values()):

@@ -30,10 +30,12 @@
 			"themes_across_5_or_more_sources": 88,
 			"against_source": {
 				"nmi": 0.5312,
+				"nmi_shuffled": 0.3843,
 				"ari": 0.0531
 			},
 			"against_section": {
 				"nmi": 0.6561,
+				"nmi_shuffled": 0.5534,
 				"ari": 0.0827
 			}
 		},
@@ -59,10 +61,12 @@
 			"themes_across_5_or_more_sources": 54,
 			"against_source": {
 				"nmi": 0.5627,
+				"nmi_shuffled": 0.4556,
 				"ari": 0.0389
 			},
 			"against_section": {
 				"nmi": 0.6915,
+				"nmi_shuffled": 0.6158,
 				"ari": 0.0594
 			}
 		},
@@ -88,10 +92,12 @@
 			"themes_across_5_or_more_sources": 14,
 			"against_source": {
 				"nmi": 0.5977,
+				"nmi_shuffled": 0.5517,
 				"ari": 0.0141
 			},
 			"against_section": {
 				"nmi": 0.7357,
+				"nmi_shuffled": 0.7015,
 				"ari": 0.0278
 			}
 		},
@@ -117,10 +123,12 @@
 			"themes_across_5_or_more_sources": 16,
 			"against_source": {
 				"nmi": 0.5904,
+				"nmi_shuffled": 0.5285,
 				"ari": 0.0167
 			},
 			"against_section": {
 				"nmi": 0.7267,
+				"nmi_shuffled": 0.6816,
 				"ari": 0.0344
 			}
 		},
@@ -146,10 +154,12 @@
 			"themes_across_5_or_more_sources": 34,
 			"against_source": {
 				"nmi": 0.5599,
+				"nmi_shuffled": 0.4468,
 				"ari": 0.0419
 			},
 			"against_section": {
 				"nmi": 0.6917,
+				"nmi_shuffled": 0.6073,
 				"ari": 0.0724
 			}
 		},
@@ -175,32 +185,94 @@
 			"themes_across_5_or_more_sources": 67,
 			"against_source": {
 				"nmi": 0.5178,
+				"nmi_shuffled": 0.3437,
 				"ari": 0.0832
 			},
 			"against_section": {
 				"nmi": 0.6336,
+				"nmi_shuffled": 0.5002,
 				"ari": 0.0857
 			}
 		}
 	},
 	"between_methods": {
-		"graph@0.7 vs tree@0.25": 0.8936,
-		"graph@0.7 vs tree@0.3": 0.8949,
-		"graph@0.7 vs tree@0.35": 0.8375,
-		"graph@0.75 vs tree@0.25": 0.9372,
-		"graph@0.75 vs tree@0.3": 0.9166,
-		"graph@0.75 vs tree@0.35": 0.85,
-		"graph@0.8 vs tree@0.25": 0.9649,
-		"graph@0.8 vs tree@0.3": 0.9203,
-		"graph@0.8 vs tree@0.35": 0.8412
+		"graph@0.7 vs tree@0.25": {
+			"nmi": 0.8936,
+			"nmi_shuffled": 0.7958,
+			"ari": 0.2482
+		},
+		"graph@0.7 vs tree@0.3": {
+			"nmi": 0.8949,
+			"nmi_shuffled": 0.7294,
+			"ari": 0.3139
+		},
+		"graph@0.7 vs tree@0.35": {
+			"nmi": 0.8375,
+			"nmi_shuffled": 0.6262,
+			"ari": 0.1478
+		},
+		"graph@0.75 vs tree@0.25": {
+			"nmi": 0.9372,
+			"nmi_shuffled": 0.8417,
+			"ari": 0.3264
+		},
+		"graph@0.75 vs tree@0.3": {
+			"nmi": 0.9166,
+			"nmi_shuffled": 0.78,
+			"ari": 0.3115
+		},
+		"graph@0.75 vs tree@0.35": {
+			"nmi": 0.85,
+			"nmi_shuffled": 0.6838,
+			"ari": 0.1319
+		},
+		"graph@0.8 vs tree@0.25": {
+			"nmi": 0.9649,
+			"nmi_shuffled": 0.9055,
+			"ari": 0.4945
+		},
+		"graph@0.8 vs tree@0.3": {
+			"nmi": 0.9203,
+			"nmi_shuffled": 0.849,
+			"ari": 0.209
+		},
+		"graph@0.8 vs tree@0.35": {
+			"nmi": 0.8412,
+			"nmi_shuffled": 0.7593,
+			"ari": 0.059
+		}
 	},
 	"between_models": {
 		"compare_model": "nomic-ai/nomic-embed-text-v1.5-Q",
-		"graph@0.7": 0.8302,
-		"graph@0.75": 0.8831,
-		"graph@0.8": 0.9415,
-		"tree@0.25": 0.931,
-		"tree@0.3": 0.872,
-		"tree@0.35": 0.7802
+		"graph@0.7": {
+			"nmi": 0.8302,
+			"nmi_shuffled": 0.6884,
+			"ari": 0.2606
+		},
+		"graph@0.75": {
+			"nmi": 0.8831,
+			"nmi_shuffled": 0.7763,
+			"ari": 0.2763
+		},
+		"graph@0.8": {
+			"nmi": 0.9415,
+			"nmi_shuffled": 0.8951,
+			"ari": 0.2816
+		},
+		"tree@0.25": {
+			"nmi": 0.931,
+			"nmi_shuffled": 0.8668,
+			"ari": 0.2571
+		},
+		"tree@0.3": {
+			"nmi": 0.872,
+			"nmi_shuffled": 0.7362,
+			"ari": 0.2903
+		},
+		"tree@0.35": {
+			"nmi": 0.7802,
+			"nmi_shuffled": 0.5374,
+			"ari": 0.3022
+		}
 	}
 }
