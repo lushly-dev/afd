@@ -546,6 +546,13 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 				'          node --test --test-reporter=spec scripts/plugin-manifest.test.mjs\n'
 		)
 	);
+	// Phase 6's P6-E7 titles, which ci.yml's log cannot show: local-db's SQLite contract, verbose.
+	assert.ok(
+		loam.includes(
+			"- name: AFD's host path\n" +
+				'        run: pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose --reporter=github-actions\n'
+		)
+	);
 	// test:browser chains two runs, so a flag would reach only the last: each config names the reporter.
 	for (const config of ['browser', 'conformance', 'mounted', 'walk', 'hosted'])
 		assert.match(

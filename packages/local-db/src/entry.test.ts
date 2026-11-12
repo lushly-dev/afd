@@ -3,7 +3,8 @@
  *
  * The root, `/indexeddb` and `/testing` entries must not reach any Node.js builtin, so a
  * browser app (and a Vitest browser-mode suite) can import them. The root entry must not load
- * the IndexedDB adapter or the contract suite.
+ * the IndexedDB or SQLite adapters or the contract suite, and no other entry reaches `/sqlite`,
+ * which is for Node.js 22.13 or later.
  */
 
 import { createRequire } from 'node:module';
@@ -72,10 +73,21 @@ describe('entries', () => {
 		}
 	);
 
-	it('keeps the IndexedDB adapter and the contract suite out of the root entry', async () => {
+	it('keeps the IndexedDB and SQLite adapters and the contract suite out of the root entry', async () => {
 		const inputs = await browserInputs('index.ts');
-		expect(inputs.filter((input) => /src\/(indexeddb-adapter|testing)\.ts$/.test(input))).toEqual(
-			[]
-		);
+		expect(
+			inputs.filter((input) => /src\/(indexeddb-adapter|sqlite-adapter|testing)\.ts$/.test(input))
+		).toEqual([]);
+	});
+
+	it('P6-E7: ./sqlite is exported on its own, and no other entry reaches it', async () => {
+		const exports = packageJson.exports as Record<string, { import: string }>;
+		expect(exports['./sqlite']?.import).toBe('./dist/sqlite-adapter.js');
+		expect(await browserInputs('sqlite-adapter.ts')).toContain('src/sqlite-adapter.ts');
+		for (const file of ['index.ts', 'indexeddb-adapter.ts', 'testing.ts'])
+			expect(
+				(await browserInputs(file)).filter((input) => input.endsWith('src/sqlite-adapter.ts')),
+				file
+			).toEqual([]);
 	});
 });

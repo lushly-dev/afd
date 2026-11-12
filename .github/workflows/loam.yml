@@ -126,6 +126,10 @@ jobs:
         run: |
           pnpm -F @lushly-dev/afd-server exec vitest run src/authorization-cases.test.ts src/mcp-auth.test.ts src/mcp-auth-verifier.test.ts src/verified-credentials.test.ts --reporter=verbose --reporter=github-actions
           pnpm -F @lushly-dev/afd-auth exec vitest run --reporter=verbose --reporter=github-actions
+      # Phase 6's P6-E7: local-db's SqliteAdapter, the hosted server's store, against the DataAdapter contract,
+      # and its entry kept out of the root; verbose, since ci.yml's log cannot show its titles.
+      - name: AFD's host path
+        run: pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose --reporter=github-actions
       - name: Theme contract against the tree
         run: pnpm -F @lushly-dev/loam-theme theme:check
       - name: Token-only lint

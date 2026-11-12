@@ -193,7 +193,7 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four sha
 | **@lushly-dev/afd-auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
 | **@lushly-dev/afd-view-state** | UI view state (panels, selections, tool modes) managed through commands, so agents and tests can see and drive it |
 | **@lushly-dev/afd-adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
-| **@lushly-dev/local-db** | Async data adapter with swappable backends (memory, HTTP) for command storage |
+| **@lushly-dev/local-db** | Async data adapter with swappable backends (memory, HTTP, IndexedDB, SQLite) for command storage |
 | **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
 | **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; an MCP server behind the optional `server` feature |
 | **afd-cpp** *(C++20, published preview)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
