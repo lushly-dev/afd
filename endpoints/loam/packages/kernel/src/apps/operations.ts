@@ -433,7 +433,7 @@ export function createRefusalCommands(): ZodCommandDefinition[] {
 		}),
 		defineCommand<typeof refuseInput, never>({
 			name: 'app-modal-refuse',
-			description: 'Refuses a modal from a view a person just closed one of, and journals it',
+			description: "Refuses a view's modal during its cooldown",
 			category: 'app',
 			mutation: false,
 			executionTime: 'instant',
