@@ -324,7 +324,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `held` | Which of a message's bytes the log holds: the header block, the whole, a text part or an attachment, each with its hash | No |
 | `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted: a row is ended, as superseded, removed or closed by a new `UIDVALIDITY`, and a new row is written | No: it is the record of what the provider showed |
 | `unreturned` | A listed message that did not arrive: the mailbox, the provider's id, how many tries, when | No |
-| `structure` | A message held in parts (M20): its MIME structure as the provider described it, as JSON, kept up to the limits of [6.4](#64-parsing-strangers-bytes) with the limit it broke. Step B4 created it (migration 5). A message is held in parts when it has this row; the parts holding its text are recorded in the same transaction | No |
+| `structure` | A message held in parts (M20): its MIME structure as the provider described it, as JSON, each part's parameters kept as the provider gave them, up to the limits of [6.4](#64-parsing-strangers-bytes) with the limit it broke. Step B4 created it (migration 5). A message is held in parts when it has this row; the parts holding its text are recorded in the same transaction | No |
 | `refetch` | A message's file that a read found damaged or missing, for sync to fetch again: its header block, the whole, or a part of a message held in parts; after three fetches that return other bytes, it is left for a person | No |
 | `body_missing` | A message whose body the provider did not return when asked: how many tries, when ([5.3](#53-order-and-fairness)) | No |
 | `part` | A part of a message held whole: its place as IMAP numbers it, its type, its file name, its size once decoded, and whether it is offered as an attachment; for a file, its type as its bytes show it, whether that differs from what it says it is, and the hash of its content. Whether a part fetched alone is held is in `held` | Yes |
@@ -540,9 +540,12 @@ says which role.
 - A message over 1 MiB is fetched in parts (M20), on its own turn: its `BODYSTRUCTURE`, then in
   one request the parts that hold its text, recorded together. Which parts hold its text is read
   from the structure alone: the plain and HTML parts a reader of the whole message would show,
-  not those of a message carried inside it. Its files wait until someone opens one, and are then
-  fetched one at a time. A message whose structure, or one of whose text parts, the provider does
-  not return counts a try, as a body does.
+  not those of a message carried inside it, and none over 16 MiB as sent (the engine reads 4 MiB
+  of HTML; a larger part can still be opened as a file). Its files wait until someone opens one,
+  and are then fetched one at a time, up to the 256 MiB the log reads back. A message whose
+  structure, or one of whose text parts, the provider does not return counts a try, as a body
+  does. One whose structure nests deeper than the engine reads is held as that
+  ([6.4](#64-parsing-strangers-bytes)) and not asked for again.
 - A body that conflicts with bytes already held for its message is set aside, and the rest of its
   batch is recorded.
 - A body the provider does not return when asked follows the rule of
@@ -758,21 +761,31 @@ engine computes it beside the census's figure, and how many stream stories each 
   slow sharply, and use gigabytes, on hostile documents past these.
 - A panic while parsing one message marks that message `unparsed` and does not stop a sync.
 - A message held in parts is read by the code that reads a whole one. The engine writes a message
-  from its structure, with each part held in its place and an empty body for each part not held,
-  and reads that. So its parts, text, links, hidden text, body shape and template key are what
-  the whole message gives, which a test checks; a file not yet fetched has no hash and no type
-  read from its bytes, and its size is estimated from its encoded size. Nothing the structure
-  holds is written into that message except as a MIME token it checks or a percent-encoded name,
-  and each boundary is made from the hash of the bytes held, so a stranger's names and types add
-  no header and no boundary. A structure past the limits above is kept up to them and marks the
-  message `unparsed`.
+  from its structure, with each text part held in its place and an empty body for every other
+  part, and reads that; each file held is decoded and read for what it is on its own, one at a
+  time, so the files someone opens never make the message larger than the engine reads. So its
+  parts, text, links, hidden text, body shape and template key are what the whole message gives,
+  which a test checks for names written as RFC 2047 encoded words and RFC 2231 values and for a
+  forwarded message inside it; a file not yet fetched has no hash and no type read from its
+  bytes, and its size is estimated from its encoded size. A part's parameters are written back as
+  the provider gave them: an RFC 2231 value only when it holds nothing but what such a value
+  may, any other as a quoted string with its quotes and backslashes escaped and no control
+  character; a type, a disposition or a subtype only when it is a MIME token; and each boundary
+  is made from the hash of the text held. So a stranger's names and types add no header and no
+  boundary. A text part's file that is damaged or missing leaves the message read as though that
+  part were not held until sync fetches it again. A structure past the limits above is kept up
+  to them and marks the message `unparsed`.
 - The IMAP parser (`imap-proto`) reads a nested list by recursion, with no limit of its own. It
   measured about 8 KiB of stack a level when optimised and 60 KiB when not, so a message whose
   parts nest a thousand deep gives a `BODYSTRUCTURE` that aborts the process, every pass. The
   connection's reader therefore follows the parentheses of what the server sends, outside its
-  quoted strings and literals, and refuses a reply nested deeper than 32, which a message
-  within the 20 levels above keeps under. The request fails, and sync passes over the message as
-  one it cannot read ([5.2](#52-imap)), so it does not hold its mailbox back.
+  quoted strings and literals (a literal's line break is inside the reply, and keeps its depth),
+  and refuses a reply nested deeper than 32, which a message within the 20 levels above keeps
+  under. The request fails with an error of its own, not as a dropped connection, and the
+  connection is closed: the message is held as a structure that broke the depth limit, marked
+  `unparsed` and shown with its headers alone, and its structure is not asked for again. Any
+  other request refused that way is narrowed and passed over as one the engine cannot read
+  ([5.2](#52-imap)).
 - HTML handed to a caller for display is cleaned with `ammonia`: no script, no form, no frame,
   and every remote reference reported so the caller decides whether to load it. The engine
   loads none. As step B4 built it, a relative address is removed (a message has no page to
@@ -1075,7 +1088,7 @@ says otherwise.
 | `mail-token-create`, `mail-token-list`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)) |
 | `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)) |
 | `mail-thread-list`, `mail-thread-open`, `mail-message-open` | B | Read | cli, mcp | An output budget on each; lists are paged by cursor. Step B4: `mail-thread-list` takes a mailbox's id and gives its threads newest first; `mail-thread-open` a thread's messages oldest first, with each message's evidence; `mail-message-open` fetches a message's body when it is not held, whole when it is 1 MiB or less and in parts when it is larger (M20), trying each mailbox that shows it, and gives its recipients, evidence, links, files and a window of its visible text, with where the next window starts. The window is fitted to the budget as the budget measures the result; when even a small window does not fit, the HTML, then the hidden text, then half the links are left out and named in `leftOut`, and past that the call fails rather than give an empty window. A person at a terminal gets each command's largest budget |
-| `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP. Step B4 opens a file of a message held whole, fetching the message first, and a file of a message held in parts, fetching that part alone when it is not held; its type is then read from its bytes and the message derived again. The file at the command line is named by the engine (the part's place, and an ending for what its bytes show), never by the message; over MCP the bytes are base64 inside the content part, a window at a time from `from`, with where the next starts |
+| `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP. Step B4 opens a file of a message held whole, fetching the message first, and a file of a message held in parts, fetching that part alone when it is not held, up to 256 MiB; its bytes are then decoded on their own (a part of a forwarded message held whole is read from that message), its type read from them and the message derived again. The file at the command line is named by the engine (the part's place, and an ending for what its bytes show), never by the message; over MCP the bytes are base64 inside the content part, a window at a time from `from`, with where the next starts |
 | `mail-search` | B | Read | cli, mcp | Step B4: the best matches first, paged by cursor up to the first 1 000 |
 | `mail-rebuild` | B | Local | cli | Under `serve` it runs in the server and reports through `mail-status` |
 | `mail-sender-list`, `mail-sender-show` | C | Read | cli, mcp | |

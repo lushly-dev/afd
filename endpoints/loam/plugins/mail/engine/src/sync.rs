@@ -359,6 +359,9 @@ impl From<ProviderError> for Failure {
             }
             ProviderError::Refused(_) => Self::Mailbox(error),
             ProviderError::Unavailable(_) | ProviderError::Protocol(_) => Self::Again(error),
+            // Another request would get the same reply: the batch is
+            // narrowed, and a message that keeps failing is passed over.
+            ProviderError::TooDeep => Self::Batch(error),
         }
     }
 }
@@ -919,13 +922,25 @@ async fn in_parts(
         return Ok(());
     };
     let provider = connection.provider().await?;
-    let structure = provider
-        .structures(std::slice::from_ref(&id))
-        .await
-        .map_err(Failure::of_batch)?
-        .into_iter()
-        .find(|seen| seen.provider_id == id)
-        .map(|seen| seen.structure);
+    let structure = match provider.structure(&id).await {
+        Ok(structure) => structure,
+        // Its structure nests deeper than the engine reads: it is held as
+        // that, marked unparsed with the limit, and never asked for again.
+        // The connection that refused the reply is closed.
+        Err(ProviderError::TooDeep) => {
+            connection.drop_connection();
+            let now = clock.now();
+            engine.with_store(|store| {
+                store.record_in_parts(message, &parts::Structure::too_deep(), &[], now)
+            })?;
+            plan.report.bodies += 1;
+            if let Stage::Bodies { queue } = &mut plan.stage {
+                queue.pop_front();
+            }
+            return Ok(());
+        }
+        Err(error) => return Err(Failure::of_batch(error)),
+    };
     let fetched = match &structure {
         Some(structure) => {
             let places = parts::text_places(structure);

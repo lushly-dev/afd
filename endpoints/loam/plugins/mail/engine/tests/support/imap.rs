@@ -639,6 +639,68 @@ pub fn body_structure(bytes: &[u8]) -> String {
     structure_of(message.root_part())
 }
 
+/// A part's header value's parameters as the message wrote them, as a
+/// server gives them: a quoted value unquoted, any other as it is.
+fn raw_params(value: &str) -> Vec<(String, String)> {
+    let mut params = Vec::new();
+    let mut rest = value.split_once(';').map_or("", |(_, rest)| rest);
+    loop {
+        rest = rest.trim_start_matches([' ', '\t', ';']);
+        let Some((name, after)) = rest.split_once('=') else {
+            break;
+        };
+        let after = after.trim_start();
+        let (value, next) = if let Some(quoted) = after.strip_prefix('"') {
+            let mut value = String::new();
+            let mut end = quoted.len();
+            let mut chars = quoted.char_indices();
+            while let Some((at, c)) = chars.next() {
+                match c {
+                    '\\' => {
+                        if let Some((_, escaped)) = chars.next() {
+                            value.push(escaped);
+                        }
+                    }
+                    '"' => {
+                        end = at + 1;
+                        break;
+                    }
+                    c => value.push(c),
+                }
+            }
+            (value, &quoted[end..])
+        } else {
+            let end = after.find(';').unwrap_or(after.len());
+            (after[..end].trim().to_string(), &after[end..])
+        };
+        params.push((name.trim().to_ascii_uppercase(), value));
+        rest = next;
+    }
+    params
+}
+
+/// The raw value of a part's header, unfolded.
+fn raw_header(part: &mail_parser::MessagePart<'_>, name: &str) -> Option<String> {
+    let raw = String::from_utf8_lossy(part.raw_headers())
+        .replace("\r\n ", " ")
+        .replace("\r\n\t", " ");
+    raw.lines().find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        key.trim()
+            .eq_ignore_ascii_case(name)
+            .then(|| value.trim().to_string())
+    })
+}
+
+fn param_list(params: &[(String, String)]) -> String {
+    let refs: Vec<(&str, String)> = params
+        .iter()
+        .filter(|(name, _)| name != "BOUNDARY")
+        .map(|(name, value)| (name.as_str(), value.clone()))
+        .collect();
+    parameters(&refs)
+}
+
 fn structure_of(part: mail_parser::MessagePart<'_>) -> String {
     use mail_parser::PartKind;
     let content_type = part.content_type();
@@ -654,34 +716,31 @@ fn structure_of(part: mail_parser::MessagePart<'_>) -> String {
                         .to_ascii_uppercase(),
                 )
             });
-    let attribute = |name: &str| {
-        content_type
-            .as_ref()
-            .and_then(|content_type| content_type.attribute(name))
-            .unwrap_or_default()
-            .to_string()
-    };
-    let disposition = part
-        .content_disposition()
-        .map_or("NIL".to_string(), |disposition| {
-            format!(
-                "({} {})",
-                quoted(&disposition.ctype().to_ascii_uppercase()),
-                parameters(&[(
-                    "FILENAME",
-                    disposition
-                        .attribute("filename")
-                        .unwrap_or_default()
-                        .to_string()
-                )])
-            )
-        });
+    let type_params = raw_header(&part, "content-type")
+        .map(|value| raw_params(&value))
+        .unwrap_or_default();
+    let disposition = raw_header(&part, "content-disposition").map_or("NIL".to_string(), |value| {
+        let kind = value
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_uppercase();
+        format!("({} {})", quoted(&kind), param_list(&raw_params(&value)))
+    });
     if let PartKind::Multipart = part.kind() {
         let children: String = part.children().map(structure_of).collect();
         return format!(
             "({children} {} {} {disposition} NIL NIL)",
             quoted(&sub),
-            parameters(&[("BOUNDARY", attribute("boundary"))])
+            parameters(&[(
+                "BOUNDARY",
+                content_type
+                    .as_ref()
+                    .and_then(|content_type| content_type.attribute("boundary"))
+                    .unwrap_or_default()
+                    .to_string()
+            )])
         );
     }
     let body = part.raw_body();
@@ -693,10 +752,7 @@ fn structure_of(part: mail_parser::MessagePart<'_>) -> String {
         "{} {} {} NIL NIL {} {}",
         quoted(&main),
         quoted(&sub),
-        parameters(&[
-            ("CHARSET", attribute("charset")),
-            ("NAME", attribute("name"))
-        ]),
+        param_list(&type_params),
         quoted(&encoding),
         body.len()
     );
@@ -905,4 +961,59 @@ fn base64(bytes: &[u8]) -> String {
         }
     }
     out
+}
+
+/// A message over a test's whole limit with a forwarded message inside it,
+/// and file names as mail clients write them: an RFC 2047 encoded word and
+/// an RFC 2231 value.
+pub fn forwarding_message(id: u32, file: usize) -> Vec<u8> {
+    let mut pdf = b"%PDF-1.4\n".to_vec();
+    pdf.resize(file.max(pdf.len()), b'y');
+    let mut encoded = String::new();
+    for chunk in pdf.chunks(57) {
+        encoded.push_str(&base64(chunk));
+        encoded.push_str("\r\n");
+    }
+    format!(
+        "From: Sender {id} <sender{id}@example.org>\r\n\
+         To: person@example.com\r\n\
+         Subject: Forwarded seeds\r\n\
+         Date: Mon, 2 Mar 2026 10:{:02}:00 +0000\r\n\
+         Message-ID: <f{id}@example.org>\r\n\
+         MIME-Version: 1.0\r\n\
+         Content-Type: multipart/mixed; boundary=\"outer\"\r\n\
+         \r\n\
+         --outer\r\n\
+         Content-Type: text/plain; charset=utf-8; format=flowed\r\n\
+         \r\n\
+         see the seed list below\r\n\
+         --outer\r\n\
+         Content-Type: application/pdf; name=\"=?UTF-8?B?w6l0w6kucGRm?=\"\r\n\
+         Content-Disposition: attachment\r\n\
+         Content-Transfer-Encoding: base64\r\n\
+         \r\n\
+         {encoded}\
+         --outer\r\n\
+         Content-Type: message/rfc822\r\n\
+         Content-Disposition: attachment\r\n\
+         \r\n\
+         From: Grower <grower@example.org>\r\n\
+         Subject: The list\r\n\
+         Content-Type: multipart/mixed; boundary=\"inner\"\r\n\
+         \r\n\
+         --inner\r\n\
+         Content-Type: text/plain\r\n\
+         \r\n\
+         tomatoes and beans\r\n\
+         --inner\r\n\
+         Content-Type: application/pdf\r\n\
+         Content-Disposition: attachment; filename*=utf-8''%C3%A9t%C3%A9%20list.pdf\r\n\
+         \r\n\
+         %PDF-1.4 list\r\n\
+         --inner--\r\n\
+         \r\n\
+         --outer--\r\n",
+        id % 60
+    )
+    .into_bytes()
 }

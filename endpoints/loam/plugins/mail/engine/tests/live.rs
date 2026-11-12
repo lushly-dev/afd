@@ -30,10 +30,11 @@ use afd::SystemClock;
 use async_trait::async_trait;
 use loam_mail::engine::Engine;
 use loam_mail::home::Home;
+use loam_mail::parts::Structure;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, Imap};
 use loam_mail::provider::{
     Connector, Fetched, FlagsSeen, Listing, Opened, PartFetched, Provider, ProviderError,
-    RemoteMailbox, Since, StructureSeen,
+    RemoteMailbox, Since,
 };
 use loam_mail::store::{AccountRow, HeaderSeen, MessageId};
 use loam_mail::sync::{AccountReport, Options, sync_account};
@@ -76,8 +77,8 @@ impl Provider for Sampled {
             Ok(Vec::new())
         }
     }
-    async fn structures(&mut self, ids: &[String]) -> Result<Vec<StructureSeen>, ProviderError> {
-        self.inner.structures(ids).await
+    async fn structure(&mut self, id: &str) -> Result<Option<Structure>, ProviderError> {
+        self.inner.structure(id).await
     }
     async fn parts(
         &mut self,

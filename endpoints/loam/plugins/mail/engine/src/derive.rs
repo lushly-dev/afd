@@ -1100,14 +1100,11 @@ fn found(part: MessagePart<'_>, place: String) -> PartFound {
     let is_file = matches!(part.kind(), PartKind::Binary | PartKind::InlineBinary)
         || !name.is_empty()
         || part.is_attachment();
-    let (detected, hash) = if is_file && size <= SNIFF_LIMIT {
-        let bytes = part.decoded();
-        let hash: [u8; 32] = Sha256::digest(&bytes).into();
-        (sniff(&bytes).unwrap_or_default().to_string(), Some(hash))
+    let (detected, type_differs, hash) = if is_file && size <= SNIFF_LIMIT {
+        file_facts(&part.decoded(), &content_type, &name)
     } else {
-        (String::new(), None)
+        (String::new(), false, None)
     };
-    let type_differs = !detected.is_empty() && differs(&detected, &content_type, &name);
     PartFound {
         place,
         content_type: one_line(&content_type, 120),
@@ -1118,6 +1115,24 @@ fn found(part: MessagePart<'_>, place: String) -> PartFound {
         type_differs,
         hash,
     }
+}
+
+/// What a file's decoded bytes say of it: its type as they show it, whether
+/// that differs from what its part says it is, and their hash. Bytes over
+/// the size read for this say nothing (the specification's 6.4).
+#[must_use]
+pub fn file_facts(
+    bytes: &[u8],
+    content_type: &str,
+    name: &str,
+) -> (String, bool, Option<[u8; 32]>) {
+    if bytes.len() > SNIFF_LIMIT {
+        return (String::new(), false, None);
+    }
+    let hash: [u8; 32] = Sha256::digest(bytes).into();
+    let detected = sniff(bytes).unwrap_or_default().to_string();
+    let type_differs = !detected.is_empty() && differs(&detected, content_type, name);
+    (detected, type_differs, Some(hash))
 }
 
 /// File types told by their first bytes: data, so that a type found in mail

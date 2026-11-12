@@ -162,6 +162,10 @@ pub fn provider_failure(error: &ProviderError) -> CommandError {
             .with_suggestion("Unlock the keychain, then try again."),
         ProviderError::NoCredential => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
             .with_suggestion("Store the account's sign-in, then try again."),
+        ProviderError::TooDeep => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
+            .with_suggestion(
+                "The provider's reply cannot be read; trying again gets the same reply.",
+            ),
         _ => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
             .with_suggestion(
                 "Check the network, then try again; `loam-mail mail-sync` carries on where it stopped.",

@@ -27,7 +27,7 @@ use tokio::net::TcpStream;
 
 use super::{
     Changes, Connector, Fetched, FlagsSeen, Gone, Listing, Opened, PartFetched, Provider,
-    ProviderError, RemoteMailbox, Since, StructureSeen,
+    ProviderError, RemoteMailbox, Since,
 };
 use crate::parts::{self, Leaf, Limit, Node, Structure};
 use crate::store::{AccountRow, HeaderSeen, Role};
@@ -95,6 +95,8 @@ const MOST_IDS: usize = 5_000_000;
 /// A connection to an IMAP server, signed in.
 pub struct Imap {
     session: Session<Stream>,
+    /// Set when the connection's reader refused a reply nested too deep.
+    too_deep: Arc<std::sync::atomic::AtomicBool>,
     condstore: bool,
     qresync: bool,
     names: &'static [(&'static str, Role)],
@@ -137,10 +139,14 @@ impl Imap {
         )
         .await
         .map_err(|_| ProviderError::Unavailable("the server could not be reached"))?;
+        let too_deep = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let stream = if endpoint.tls {
-            Stream::new(Inner::Tls(Box::new(tls(&endpoint.host, tcp).await?)))
+            Stream::new(
+                Inner::Tls(Box::new(tls(&endpoint.host, tcp).await?)),
+                Arc::clone(&too_deep),
+            )
         } else {
-            Stream::new(Inner::Plain(tcp))
+            Stream::new(Inner::Plain(tcp), Arc::clone(&too_deep))
         };
         let mut client = Client::new(stream);
         match within(SILENCE, client.read_response()).await {
@@ -171,6 +177,7 @@ impl Imap {
         };
         let mut imap = Self {
             session,
+            too_deep,
             condstore: false,
             qresync: false,
             names,
@@ -216,7 +223,11 @@ impl Imap {
             .await
             .map_err(|_| ProviderError::Unavailable("the connection failed"))?;
         loop {
-            let response = match within(SILENCE, self.session.read_response()).await {
+            let read = within(SILENCE, self.session.read_response()).await;
+            if read.is_err() && self.too_deep.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(ProviderError::TooDeep);
+            }
+            let response = match read {
                 Ok(Some(response)) => response,
                 Ok(None) => {
                     return Err(ProviderError::Unavailable(
@@ -591,11 +602,10 @@ impl Provider for Imap {
         Ok(messages)
     }
 
-    async fn structures(&mut self, ids: &[String]) -> Result<Vec<StructureSeen>, ProviderError> {
-        let mut seen = HashSet::new();
-        let mut structures = Vec::new();
+    async fn structure(&mut self, id: &str) -> Result<Option<Structure>, ProviderError> {
+        let mut found = None;
         self.fetch(
-            ids,
+            &[id.to_string()],
             "(UID BODYSTRUCTURE)",
             "reading a message's structure",
             |wanted, attributes| {
@@ -610,17 +620,14 @@ impl Provider for Imap {
                 }
                 if let (Some(uid), Some(structure)) = (uid, structure)
                     && wanted.contains(&uid)
-                    && seen.insert(uid)
+                    && found.is_none()
                 {
-                    structures.push(StructureSeen {
-                        provider_id: uid.to_string(),
-                        structure,
-                    });
+                    found = Some(structure);
                 }
             },
         )
         .await?;
-        Ok(structures)
+        Ok(found)
     }
 
     async fn parts(
@@ -753,18 +760,23 @@ impl Walk {
     }
 }
 
-/// One part's description, its names kept to 255 characters.
+/// One part's description. Its parameters are kept as the server gives
+/// them, names in lower case, so that the message the engine writes from it
+/// reads as the whole message would: an RFC 2047 name, an RFC 2231 `name*`.
 fn leaf_of(common: &BodyContentCommon<'_>, other: &BodyContentSinglePart<'_>) -> Leaf {
-    let parameter =
-        |params: &Option<Vec<(std::borrow::Cow<'_, str>, std::borrow::Cow<'_, str>)>>,
-         name: &str| {
-            params
-                .iter()
-                .flatten()
-                .find(|(key, _)| key.eq_ignore_ascii_case(name))
-                .map(|(_, value)| limited(value, 255))
-                .unwrap_or_default()
-        };
+    let params = |params: &Option<Vec<(std::borrow::Cow<'_, str>, std::borrow::Cow<'_, str>)>>| {
+        params
+            .iter()
+            .flatten()
+            .take(parts::MOST_PARAMS)
+            .map(|(name, value)| {
+                (
+                    limited(name, parts::PARAM_NAME_LIMIT).to_ascii_lowercase(),
+                    limited(value, parts::PARAM_VALUE_LIMIT),
+                )
+            })
+            .collect()
+    };
     let disposition = common.disposition.as_ref();
     Leaf {
         content_type: format!(
@@ -773,13 +785,12 @@ fn leaf_of(common: &BodyContentCommon<'_>, other: &BodyContentSinglePart<'_>) ->
             limited(&common.ty.subtype, 60)
         )
         .to_ascii_lowercase(),
-        charset: limited(&parameter(&common.ty.params, "charset"), 60),
-        name: parameter(&common.ty.params, "name"),
+        params: params(&common.ty.params),
         disposition: disposition
             .map(|disposition| limited(&disposition.ty, 60).to_ascii_lowercase())
             .unwrap_or_default(),
-        filename: disposition
-            .map(|disposition| parameter(&disposition.params, "filename"))
+        disposition_params: disposition
+            .map(|disposition| params(&disposition.params))
             .unwrap_or_default(),
         encoding: match &other.transfer_encoding {
             ContentEncoding::SevenBit => "7bit".to_string(),
@@ -915,6 +926,9 @@ impl Connector for ImapConnector {
 struct Stream {
     inner: Inner,
     nesting: Nesting,
+    /// Set when a reply is refused for its nesting, so that the request
+    /// fails as one the engine cannot read, not as a dropped connection.
+    too_deep: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -924,10 +938,11 @@ enum Inner {
 }
 
 impl Stream {
-    fn new(inner: Inner) -> Self {
+    fn new(inner: Inner, too_deep: Arc<std::sync::atomic::AtomicBool>) -> Self {
         Self {
             inner,
             nesting: Nesting::default(),
+            too_deep,
         }
     }
 }
@@ -947,6 +962,8 @@ impl AsyncRead for Stream {
         if let Poll::Ready(Ok(())) = read
             && !this.nesting.read(&buffer.filled()[before..])
         {
+            this.too_deep
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             return Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "the server's reply nests deeper than the engine reads",
@@ -1009,14 +1026,14 @@ impl Nesting {
             let byte = bytes[at];
             at += 1;
             self.state = match (self.state, byte) {
-                // A line break outside a literal ends the reply.
+                // The line break that opens a literal is inside the reply,
+                // which carries on after the literal at the same depth. Any
+                // other ends the reply.
+                (Lexing::Opened(0), b'\n') => Lexing::Normal,
+                (Lexing::Opened(length), b'\n') => Lexing::Literal(length),
                 (_, b'\n') => {
                     self.depth = 0;
-                    match self.state {
-                        Lexing::Opened(0) => Lexing::Normal,
-                        Lexing::Opened(length) => Lexing::Literal(length),
-                        _ => Lexing::Normal,
-                    }
+                    Lexing::Normal
                 }
                 (Lexing::Normal, b'(') => {
                     self.depth += 1;
@@ -1376,11 +1393,12 @@ mod tests {
         assert_eq!(structure.limit, None);
         let places: Vec<String> = structure.places().into_iter().map(|(at, _)| at).collect();
         assert_eq!(places, ["1", "2"]);
+        let pair = |name: &str, value: &str| (name.to_string(), value.to_string());
         assert_eq!(
             structure.leaf("1"),
             Some(&Leaf {
                 content_type: "text/plain".to_string(),
-                charset: "utf-8".to_string(),
+                params: vec![pair("charset", "utf-8")],
                 encoding: "7bit".to_string(),
                 size: 10,
                 ..Leaf::default()
@@ -1390,12 +1408,11 @@ mod tests {
             structure.leaf("2"),
             Some(&Leaf {
                 content_type: "application/pdf".to_string(),
-                name: "a.pdf".to_string(),
+                params: vec![pair("name", "a.pdf")],
                 disposition: "attachment".to_string(),
-                filename: "plan.pdf".to_string(),
+                disposition_params: vec![pair("filename", "plan.pdf")],
                 encoding: "base64".to_string(),
                 size: 780,
-                ..Leaf::default()
             })
         );
         assert_eq!(parts::text_places(&structure), ["1"]);
@@ -1437,6 +1454,30 @@ mod tests {
             .join()
             .unwrap();
         assert!(parsed);
+    }
+
+    #[test]
+    fn a_literal_at_each_level_does_not_reset_the_depth() {
+        // A name sent as a literal, as a server sends one with 8-bit bytes
+        // or a quote: its line break is inside the reply.
+        let leaf = "(\"TEXT\" \"PLAIN\" (\"NAME\" {1}\r\nx) NIL NIL \"7BIT\" 1 1)";
+        let mut body = leaf.to_string();
+        for _ in 0..2_000 {
+            body = format!("({leaf}{body} \"MIXED\")");
+        }
+        let reply = format!("* 1 FETCH (UID 7 BODYSTRUCTURE {body})\r\n");
+        assert!(!Nesting::default().read(reply.as_bytes()));
+        let mut nesting = Nesting::default();
+        assert!(!reply.bytes().all(|byte| nesting.read(&[byte])));
+        // A binary literal, `~{n}`, and a non-synchronising one, `{n+}`, too.
+        for opener in ["~{1}", "{1+}"] {
+            let deep = reply.replace("{1}", opener);
+            assert!(!Nesting::default().read(deep.as_bytes()), "{opener}");
+        }
+        // Shallow, the same reply is read, and imap-proto parses it.
+        let shallow = format!("* 1 FETCH (UID 7 BODYSTRUCTURE ({leaf}{leaf} \"MIXED\"))\r\n");
+        assert!(Nesting::default().read(shallow.as_bytes()));
+        assert!(Response::parse(shallow.as_bytes()).is_ok());
     }
 
     #[test]

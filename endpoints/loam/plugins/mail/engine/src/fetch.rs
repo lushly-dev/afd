@@ -15,6 +15,8 @@ use crate::store::{AccountRow, MessageId, PartSeen, Place, Shown, StoreError};
 pub enum FetchError {
     /// No mailbox the engine syncs shows the message now.
     NotShown,
+    /// The file is larger than the engine reads back from its log.
+    TooLarge,
     /// The mailbox's generation changed since the message was seen: sync
     /// must list it again first.
     Moved,
@@ -35,6 +37,7 @@ impl fmt::Display for FetchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotShown => write!(f, "no mailbox shows the message now"),
+            Self::TooLarge => write!(f, "the file is over 256 MiB, more than the engine reads"),
             Self::Moved => write!(f, "the mailbox changed since the message was seen"),
             Self::NotReturned => write!(f, "the provider did not return the message"),
             Self::Conflict => write!(
@@ -113,8 +116,16 @@ pub async fn fetch_part(
     place: &str,
     now: i64,
 ) -> Result<bool, FetchError> {
-    if engine.with_store(|store| store.part_held(message, place))? {
+    let (held, structure) = engine
+        .with_store(|store| Ok((store.part_held(message, place)?, store.structure(message)?)))?;
+    if held {
         return Ok(false);
+    }
+    if structure
+        .and_then(|structure| structure.leaf(place).map(|leaf| leaf.size))
+        .is_some_and(|size| size > crate::store::READ_LIMIT)
+    {
+        return Err(FetchError::TooLarge);
     }
     fetch(engine, message, &Wanted::Part(place.to_string()), now).await?;
     Ok(true)
@@ -246,12 +257,15 @@ async fn fetch_in(
                 .ok_or(FetchError::NotReturned)
         }
         Wanted::InParts => {
-            let structure = provider
-                .structures(id)
-                .await?
-                .pop()
-                .ok_or(FetchError::NotReturned)?
-                .structure;
+            let structure = match provider.structure(&place.provider_id).await {
+                Ok(structure) => structure.ok_or(FetchError::NotReturned)?,
+                // Held as a structure past the limit: the message is shown
+                // with its headers alone, and never asked for again.
+                Err(ProviderError::TooDeep) => {
+                    return Ok(Got::InParts(Structure::too_deep(), Vec::new()));
+                }
+                Err(error) => return Err(error.into()),
+            };
             let places = parts::text_places(&structure);
             let texts = if places.is_empty() {
                 Vec::new()

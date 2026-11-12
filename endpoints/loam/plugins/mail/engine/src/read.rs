@@ -735,6 +735,8 @@ fn fetch_failure(error: &FetchError) -> CommandError {
     match error {
         FetchError::Store(error) => store_failure(error),
         FetchError::Provider(error) => provider_failure(error),
+        FetchError::TooLarge => CommandError::new("NOT_HELD", error.to_string())
+            .with_suggestion("Open the message in the provider's own app to save this file."),
         FetchError::NotReturned => CommandError::new("NOT_HELD", error.to_string())
             .with_suggestion("Try again later; the provider may return it then.")
             .with_retryable(true),
@@ -808,14 +810,14 @@ impl CommandHandler for AttachmentOpen {
                 .message_parts(message)?
                 .into_iter()
                 .find(|part| part.place == place);
-            Ok((part, store.body_bytes(message)?))
+            Ok((part, store.part_content(message, &place)?))
         });
-        let (part, whole) = match found {
-            Ok((Some(found), whole)) => (found, whole),
+        let (part, bytes) = match found {
+            Ok((Some(found), bytes)) => (found, bytes),
             Ok((None, _)) => (part, None),
             Err(error) => return failure(store_failure(&error)),
         };
-        let Some(bytes) = whole.and_then(|whole| derive::part_content(&whole, &place)) else {
+        let Some(bytes) = bytes else {
             return failure(part_missing());
         };
         let total = bytes.len();

@@ -577,7 +577,7 @@ fn compute_place(
 /// Whether a read failed because the bytes are gone or damaged, which trying
 /// again will not change. A file system that refuses for the moment is not
 /// this: the caller stops and tries later.
-fn unreadable(error: &StoreError) -> bool {
+pub(super) fn unreadable(error: &StoreError) -> bool {
     matches!(
         error,
         StoreError::NotFound(_)
@@ -657,8 +657,8 @@ impl Store {
         // A body that is not held, or is damaged, leaves the subject
         // searchable. A file system that refuses for the moment does not: the
         // note stays, and the document is made when it can be read.
-        let text = match self.body_of(MessageId(message)) {
-            Ok(body) => body.map(|body| body.text).unwrap_or_default(),
+        let text = match self.body_text(MessageId(message)) {
+            Ok(text) => text,
             Err(error) if unreadable(&error) => String::new(),
             Err(error) => return Err(error),
         };

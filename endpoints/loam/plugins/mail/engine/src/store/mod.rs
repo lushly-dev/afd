@@ -281,7 +281,7 @@ pub const UNRETURNED_AFTER_TRIES: u32 = 3;
 
 /// The longest header block or message the store will read back from the log.
 /// A provider's largest message is far below it.
-const READ_LIMIT: u64 = 256 * 1024 * 1024;
+pub const READ_LIMIT: u64 = 256 * 1024 * 1024;
 
 /// The open store. One process at a time holds it.
 #[derive(Debug)]

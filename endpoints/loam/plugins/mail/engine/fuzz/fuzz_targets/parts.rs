@@ -1,11 +1,12 @@
 //! A message held in parts: a structure as the store keeps it, then bytes
-//! given to every part. Read back, numbered, written out and read without
-//! failing or panicking, within the limits of the specification's 6.4.
+//! given to its parts. Read back, numbered, written out and read, and each
+//! file decoded and read on its own, without failing or panicking, within
+//! the limits of the specification's 6.4.
 #![no_main]
 
 use std::collections::BTreeMap;
 
-use loam_mail::parts::{Structure, assemble, body_fields, text_places};
+use loam_mail::parts::{Structure, assemble, body_fields, decoded, text_places, with_file};
 
 libfuzzer_sys::fuzz_target!(|bytes: &[u8]| {
     // The structure, then a NUL, then the bytes each part holds.
@@ -21,14 +22,18 @@ libfuzzer_sys::fuzz_target!(|bytes: &[u8]| {
     };
     let places = structure.places();
     assert!(places.len() <= 4 * loam_mail::parts::MOST_PARTS);
-    let _ = text_places(&structure);
-    let held: BTreeMap<String, Vec<u8>> = places
-        .iter()
+    let texts: BTreeMap<String, Vec<u8>> = text_places(&structure)
+        .into_iter()
         .take(8)
-        .map(|(place, _)| (place.clone(), held.to_vec()))
+        .map(|place| (place, held.to_vec()))
         .collect();
-    let _ = assemble(&structure, &held);
-    let fields = body_fields(&structure, &held);
+    let _ = assemble(&structure, &texts);
+    let mut fields = body_fields(&structure, &texts);
     assert!(fields.text.len() <= 2 * 1024 * 1024);
     assert!(fields.parts.len() <= 1000);
+    for (place, _) in places.iter().take(8) {
+        if let Some(file) = decoded(&structure, place, held) {
+            with_file(&mut fields, place, &file);
+        }
+    }
 });
