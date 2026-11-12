@@ -1,0 +1,13 @@
+Subject: s
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/html
+
+<p>hi</p><p style="display:none">x</p><a href="https://e.example/">https://bank.example/</a>
+--b
+Content-Type: application/pdf; name="a.pdf"
+Content-Transfer-Encoding: base64
+
+TVqQAAMAAAAE
+--b--

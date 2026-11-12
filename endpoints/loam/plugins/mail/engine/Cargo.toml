@@ -37,6 +37,12 @@ async-imap = { version = "0.12", default-features = false, features = ["runtime-
 async-trait = "0.1"
 # The approval middleware's signing key, made afresh for each process.
 getrandom = "0.3"
+# Reading a message's HTML for the evidence of the specification's section 6: the text a person
+# sees, the text they do not, and its links.
+html5ever = "0.40"
+markup5ever_rcdom = "0.40"
+# A link's host read as a browser reads it: backslashes, missing slashes, IDNs, IPv6.
+url = "2"
 mail-parser = "1.0.1"
 # The store (the specification's section 4). SQLite is bundled, at the version Umbel pins, so the
 # repository carries one.

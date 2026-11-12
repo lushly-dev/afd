@@ -42,8 +42,10 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
   log: accounts, mailboxes, each message's identity, which bytes are held, and what a provider
   showed. `derived.rs` holds what is: a message's fields and parts, its thread, where each
   thread shows, and the rebuild that makes all of it again from the log.
-- **What code reads from a message** (`src/derive.rs`): the sender, the subject, the date, the
-  ids that join a thread, the parts and the text, with `mail-parser`.
+- **What code reads from a message** (`src/derive.rs`, `src/html.rs`): the sender, the subject,
+  the date, the ids that join a thread, the parts and the text a person sees, with `mail-parser`
+  and `html5ever`; and the evidence of the specification's section 6: hidden text, links, list
+  headers, the provider's authentication results, files' real types, the template.
 - **The search index** (`src/index.rs`): tantivy over each message's subject and text.
 - **The provider interface** (`src/provider/`): what sync asks of a provider, in words that name
   no protocol, and its IMAP implementation, which only reads.
@@ -61,6 +63,9 @@ LOAM_MAIL_LIVE_ADDRESS_FILE=<file> LOAM_MAIL_LIVE_PASSWORD_FILE=<file> \
 LOAM_MAIL_LIVE_DIR=<new directory> LOAM_MAIL_LIVE_OUT=<results file> \
   cargo test --release --test live -- --ignored --nocapture
 ```
+
+The readers of strangers' bytes are fuzzed with `cargo-fuzz` and nightly Rust, from `engine/fuzz/`,
+for example `cargo +nightly fuzz run body`.
 
 The limits of the specification's section 4.4 are measured by `tests/limits.rs` with made-up
 mail. Its small run is part of the tests; the full run is ignored by default. At 500 000

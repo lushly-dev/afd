@@ -1,0 +1,5 @@
+Received: from a by p00-icloudmta.icloud.com; x
+Authentication-Results: spf.icloud.com; spf=pass smtp.mailfrom="x dkim=pass"@y (c; dmarc=pass)
+Received: from b by mail.sender.example; x
+Authentication-Results: dkim-verifier.icloud.com; dkim=pass
+

@@ -131,7 +131,8 @@ Each crate's maintenance history was not read.
 | `sha2` | 0.11 | MIT or Apache-2.0 | The log's file names and a message's identity | The version the `afd` crate uses |
 | `zstd` | 0.14 | BSD-3-Clause | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |
 | `mail-parser` | 1.0.1 | Apache-2.0 or MIT | Parsing messages | The licence is stated on crates.io, which answers the proposal's follow-up |
-| `ammonia` | 4.2 | MIT or Apache-2.0 | Cleaning HTML for display | None |
+| `ammonia` | 4.2 | MIT or Apache-2.0 | Cleaning HTML for display | Step B4 found that 4.2 depends on `cssparser` and `dtoa-short`, which are MPL-2.0, outside the licence check's allowlist. Whether to allow them is the owner's, before the read commands need it |
+| `html5ever`, `markup5ever_rcdom` | 0.40, 0.40 | MIT or Apache-2.0 | Reading a message's HTML for its evidence ([6.1](#61-what-is-read)) | Added by step B4. The DOM crate is published as unofficial by html5ever's authors; the engine reads with it and builds nothing on it |
 | `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Checked by step B3. With `imap-proto` 0.17 it parses `VANISHED`, `HIGHESTMODSEQ`, `MODSEQ` and the `COPYUID` code, and it has `UID EXPUNGE`. It has no call that opens a mailbox with QRESYNC, and it sets aside on a bounded channel, dropping when full, any response its own calls do not expect. So the engine uses it for the connection, the sign-in and the parser, sends its own commands and reads every response itself. `imap-codec` is not needed |
 | `rustls`, `tokio-rustls`, `rustls-native-certs` | 0.23, 0.26, 0.8 | MIT, Apache-2.0 or ISC | TLS to the provider, with the operating system's certificates | Added by step B3, with `ring` rather than the default `aws-lc-rs`, which needs CMake to build |
 | `lettre` | 0.11 | MIT | SMTP, from phase D | None |
@@ -315,13 +316,14 @@ for later phases are a sketch, fixed by the step that creates each.
 | `account` | An account and its provider | No |
 | `mailbox` | A mailbox, with its provider identity, its role, its sync cursor, how many ids its last listing named, and when the provider stopped listing it | No |
 | `message` | A message's identity: the hash of its header block, the size the provider reports, when it was first seen and when the provider received it | No |
-| `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 adds the template, the list and bulk headers and the authentication header | Yes |
+| `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 added its evidence ([6.1](#61-what-is-read)): the list and bulk headers, `Reply-To` and whether it differs from the sender, the topmost authentication header's server and results, how much text is hidden, how many links and how many of them name a host other than their target, the template key and the body's shape | Yes |
+| `link` | A link in a message held whole: its target, its target's host, the host its shown text names, and whether the two differ | Yes |
 | `held` | Which of a message's bytes the log holds: the header block, the whole, a text part or an attachment, each with its hash | No |
 | `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted: a row is ended, as superseded, removed or closed by a new `UIDVALIDITY`, and a new row is written | No: it is the record of what the provider showed |
 | `unreturned` | A listed message that did not arrive: the mailbox, the provider's id, how many tries, when | No |
 | `refetch` | A message's file that a read found damaged or missing, for sync to fetch again; after three fetches that return other bytes, it is left for a person | No |
 | `body_missing` | A message whose body the provider did not return when asked: how many tries, when ([5.3](#53-order-and-fairness)) | No |
-| `part` | A part of a message held whole: its place as IMAP numbers it, its type, its file name, its size once decoded, and whether it is offered as an attachment. Whether a part fetched alone is held is in `held` | Yes |
+| `part` | A part of a message held whole: its place as IMAP numbers it, its type, its file name, its size once decoded, and whether it is offered as an attachment; for a file, its type as its bytes show it, whether that differs from what it says it is, and the hash of its content. Whether a part fetched alone is held is in `held` | Yes |
 | `thread` | A thread, with what a list needs: last date, counts, the subject of its oldest message, the snippet and sender of its newest. Its id is the lowest id of its messages | Yes |
 | `thread_key` | A Message-ID a message has or names, as 16 bytes of its SHA-256, and the thread it belongs to ([5.6](#56-threads-on-imap)) | Yes |
 | `thread_place` | A thread in a mailbox: how many of its messages the mailbox currently shows, how many of those are unread (no `\Seen` flag), and the date of the newest of them. Indexed by mailbox and date, newest first | Yes, from `envelope` and `observation` |
@@ -406,8 +408,10 @@ too. Gmail, where a message is one message with several labels, is checked by st
 - The schema has a version. A migration runs forward only, on start, inside a transaction. A
   version newer than the program fails the start with `STORE_NEWER`.
 - A row in `envelope` records the parser's version. Raising it marks rows stale, and the engine
-  recomputes them in the background, oldest last. The version is 1 and nothing has raised it,
-  so the background recomputation is built by the first step that does: step B4.
+  recomputes them in the background, oldest last. Step B4 raised it to 2 with the evidence of
+  [6.1](#61-what-is-read). Until `serve` runs sync in the background (step B5), each pass of
+  `mail-sync` derives stale messages again for up to 30 seconds, newest first, and
+  `mail-status` counts what is left; `mail-rebuild` derives everything.
 
 ### 4.4 Limits to meet
 
@@ -593,9 +597,14 @@ A message joins the thread of any message its `References` or `In-Reply-To` name
 names it. A message that names none starts a thread. When a message names messages of two
 threads, they become one. Two messages that name the same message are one thread, whether or
 not that message is held. A thread's id is the lowest id of its messages, so the order in which
-mail arrives does not change it. The last 200 ids of a `References` header and the first 200 of `In-Reply-To` are read. Whether a shared subject may join two messages with no such
-header is decided by step B4, with a count from the owner's mailbox of how often it would be
-wrong.
+mail arrives does not change it. The last 200 ids of a `References` header and the first 200 of `In-Reply-To` are read.
+
+A shared subject does not join two messages. Step B4 counted, on the owner's iCloud account
+without its largest mailbox ([the counts](live-icloud-b4.results.json)): of 2 466 subjects
+shared by two messages or more, with `Re:` and the like removed, 1 159 were in threads their
+headers keep apart, so joining by subject would have been wrong for nearly half of them, under
+6 075 messages. 16 214 of the 22 612 messages name no other message, and stay a thread of their
+own until one names them.
 
 ### 5.7 What "synced" means
 
@@ -625,12 +634,39 @@ Evidence is what code can read from a message without judging it. It is recomput
 | Visible text | The text a person would see: the plain part, or the HTML with markup removed |
 | Hidden text | Text in the HTML a person would not see ([6.2](#62-hidden-text)). Kept apart; never in the snippet or the index's main field |
 | Links | Each link's target and its visible text, and whether the text names a different host from the target |
-| The authentication header | The `Authentication-Results` header. Any server on the way can write one, so it is content until step B4 fixes, per provider, how to tell the one the account's own provider added. Only that one becomes the engine's own fact |
+| The authentication header | The `Authentication-Results` header. Any server on the way can write one, so it is content unless the account's own provider added it. Only that one becomes the engine's own fact. Fixed by step B4 below |
 | List and bulk headers | `List-Id`, `List-Unsubscribe`, `List-Unsubscribe-Post`, `Precedence`, `Auto-Submitted` |
 | `Reply-To` | Recorded, and flagged when it differs from the sender |
-| Attachments | Type by content, not by name, where the bytes are held; name; size; hash |
+| Attachments | Type by content, not by name, where the bytes are held; name; size; hash. Every part with a name or offered as an attachment is read, whatever type it declares; it is marked when its bytes are a program and its name is not a program's, or when they are another kind of file than its name's ending (or, without one, its type) says |
 | Thread | [5.5](#55-gmail) and [5.6](#56-threads-on-imap) |
 | Template | [6.3](#63-the-template-fingerprint) |
+
+**The provider's authentication header** (step B4, on the owner's iCloud account,
+[the counts](live-icloud-b4.results.json), which the probe in `engine/tests/live_evidence.rs`
+writes). iCloud writes one header for each check (`spf.icloud.com`, `dkim-verifier.icloud.com`,
+`dmarc.icloud.com`, `bimi.icloud.com`, and in older mail servers under `me.com`, `mac.com` and
+`apple.com`). They are never the first fields of the block: iCloud's own `Received` fields come
+first, the one where the message came in from outside among them, then its results, often with
+other fields between them, then the sender's first `Received` field. So the engine:
+
+- passes over the fields at the top, and refuses to vouch for anything if one of them is a
+  `Received` field taken by a server with a domain that is no known provider's: that is the
+  sender's, and what follows the provider did not write;
+- reads the `Authentication-Results` fields from the first one down to the next `Received`
+  field, from servers of the provider the first one names (a table of each provider's domains,
+  which is data), and takes each check's first result;
+- reads results with their comments and quoted strings removed, the first word of each part
+  only (RFC 8601).
+
+Of 22 612 header blocks, 14 141 had such headers; the engine reads iCloud's results for 13 543 of
+them and vouches for nothing in 598, mostly older mail laid out otherwise. The results are the
+engine's own fact only when the provider is the account's. **What is not verified:** whether
+iCloud removes a header a sender wrote with its servers' names. If it does not, such a header
+placed directly under iCloud's own, by a sender who talks to iCloud's servers directly, could fill
+a check iCloud did not report, and when iCloud reported nothing it could stand for iCloud's. A sender can also write a `Received` field naming an internal host or an
+address, which the refusal above takes for the provider's; it catches only an honest layout.
+Until that is checked, an authentication result orders and flags mail; it is never a reason to act
+without the person.
 
 ### 6.2 Hidden text
 
@@ -641,6 +677,32 @@ reads inline styles and the message's own style blocks. It loads nothing from th
 rule list is data, and the test corpus in [section 14](#14-exit-criteria-and-tests) grows with
 each case found.
 
+As step B4 built it (`engine/src/html.rs`):
+
+- A style block's rule applies when its selector is a tag, a class, an id, or a tag with a class
+  or an id; a rule with any other selector, or inside an at-rule (`@media`, `@font-face`), is not
+  applied, so text hidden only by such a rule reads as visible. `!important` is honoured, over
+  an element's own style too; otherwise rules apply in order, without CSS's specificity, so a
+  less specific rule written later can hide text a browser shows (it never shows hidden text).
+  `mso-hide`, which hides only in Outlook, does not hide: iCloud shows it.
+- What hides: `display: none`, `visibility: hidden` (which a descendant can undo), opacity of
+  0.05 or less, a font size under 2 pixels or points or under 0.15 em, a zero height or width
+  with `overflow: hidden`, a position 500 pixels or more off the page, `clip` and `clip-path`
+  that show nothing, `transform: scale(0)`, the `hidden` attribute, and text
+  the colour of its background or with no colour at all. Under a background image the colour
+  behind the text is unknown, and the text is taken as shown.
+- What is never rendered (`<head>`, `<script>`, `<style>`, `<template>`, `<noscript>`,
+  `<object>`, `<iframe>`) is not text: neither shown nor counted as hidden.
+- Characters no one can see (zero-width characters, bidirectional controls, Unicode's tag
+  characters and the other default-ignorable code points) are removed from visible text,
+  plain or HTML, and counted as hidden.
+- When a message has HTML, what a person sees is its HTML; its plain part is not read, since a
+  client shows the HTML. Hidden text is counted, kept out of the snippet and the index, and not
+  stored: a read command that shows it reads it from the log.
+- A link's host is read as a browser reads it (backslashes, missing slashes, `//host`,
+  international names, IPv6); text that is an address naming another site than the link's, or
+  an address shown for a link whose host cannot be read, marks the link.
+
 ### 6.3 The template fingerprint
 
 The engine computes two values for every message:
@@ -649,6 +711,14 @@ The engine computes two values for every message:
 | --- | --- | --- |
 | The **template key** | The sender or list id, the MIME structure and the subject's shape with numbers and identifiers removed. This is the census's measure | Screening ([7.2](#72-the-screening-class)), so the engine's rule is the one Q2 was measured with |
 | The **body shape** | A hash of the body's skeleton: an HTML body's elements with the text removed, or a plain body's line shapes | With the key, stream stories ([section 8](#8-stories)) and, later, extractors |
+
+The engine's template key is the census's measure exactly: `census.py`'s subject shape and its
+reading of the MIME structure from `BODYSTRUCTURE` are ported, with a test of the census's own
+outputs, and the source is the `List-Id` header as written or else the sender's address.
+
+The template key needs the structure, which only a message held whole gives, so a message held
+as its headers alone (junk, trash, and a message over 1 MiB until step B4's second pull request
+fetches its structure) has none yet.
 
 The census's body check agreed with the template key on 13% of sampled templates on iCloud and
 43% on Gmail, so the key alone groups mail whose bodies differ. That is acceptable for
@@ -660,9 +730,18 @@ engine computes it beside the census's figure, and how many stream stories each 
 
 - The parser and everything that reads its output are fuzzed (`cargo-fuzz`), with a corpus kept
   in the repository. A fuzz run is part of the workflow's daily run, not of every pull request.
+  Step B4 built the targets (`engine/fuzz/`: a header block, a whole message, HTML) and runs them
+  locally with nightly Rust. The workflow has no daily run yet; adding one spends CI time, which
+  is the owner's to decide.
 - Limits are enforced before work is done: a message's size, its depth of nesting, its number of
   parts, a header's length. A message over a limit is stored in the log, marked `unparsed` with
-  the limit it broke, and shown with its headers alone.
+  the limit it broke, and shown with its headers alone. Step B4's limits: a header block of
+  1 MiB, a message of 64 MiB, 1 000 parts, parts nested 20 deep. A text part is decoded only up
+  to the 1 MiB of text the index keeps, and an HTML part up to 4 MiB. HTML is read only up to its
+  10 000th tag and while no more than 256 elements, and no more than 16 formatting elements
+  (`b`, `i`, `a` and the like, which the parser makes again for each block), are open, counted as
+  the parser counts them; at most 1 000 style rules are kept. The HTML parser and style matching
+  slow sharply, and use gigabytes, on hostile documents past these.
 - A panic while parsing one message marks that message `unparsed` and does not stop a sync.
 - HTML handed to a caller for display is cleaned with `ammonia`: no script, no form, no frame,
   and every remote reference reported so the caller decides whether to load it. The engine
@@ -1131,7 +1210,7 @@ file.
 | B1 | The plugin folder, the crate's skeleton, the workflow and the Loam exclusion (L8); `loam-mail help` runs |
 | B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet). The second built what a list, a thread and a search need (`envelope`, `part`, `thread`, `thread_key`, `thread_place`), and the command line's running of a command. Left to the step that owns each: unread counts, with the provider interface's flags (B3); the parts of a message fetched in parts, which need its structure from the provider (B3); hidden text, the template, the limits of [6.4](#64-parsing-strangers-bytes) and the index's filters (B4); Gmail's own threads (B6); `sender`, `template` and `story` (phase C) |
 | B3 | In two pull requests, as B2. First: the provider interface, IMAP, the scripted IMAP server, iCloud sync with resume and unreturned messages, unread counts, repairs of damaged files, `mail-sync` and `mail-status`, and the checks on the owner's account ([4.2](#42-what-makes-two-messages-the-same) and the IMAP crate of [section 2](#2-units-placement-and-crates)). Second: `mail-account-add` and `mail-account-list`, the keychain, and the command line's approval of a person's command ([3.5](#35-commands-only-a-person-may-run)). The headers and text of a message over 1 MiB (M20) moved to B4, which builds the fetching of a part that opening a message or an attachment needs; such a message does not hold a mailbox back from "synced" ([5.7](#57-what-synced-means)) |
-| B4 | Evidence, threads, labels on results; the read commands and `mail-search`; fetching a part of a message, for opening it and for the text of a message over 1 MiB (M20); the fuzz targets |
+| B4 | In two pull requests. First: the evidence of [6.1](#61-what-is-read) and [6.3](#63-the-template-fingerprint), the limits of [6.4](#64-parsing-strangers-bytes), the parser's version raised and stale rows derived again, the fuzz targets, and the two decisions on the owner's mail: which authentication header is the provider's, and whether a shared subject joins a thread ([5.6](#56-threads-on-imap)). Second: labels on results ([12.1](#121-content-labels)); the read commands and `mail-search`; cleaning HTML for display; fetching a part of a message, for opening it and for the text of a message over 1 MiB (M20) |
 | B5 | `serve`, tokens, the layer and the two routes, stdio; the command line forwarding to a running server; `mail-account-remove` |
 | B6 | Gmail sync through the API, with the scripted API |
 | B7 | The acceptance run on the owner's accounts |

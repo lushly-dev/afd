@@ -254,8 +254,16 @@ impl CommandHandler for Sync {
                     }
                 }
             }
+            // Mail an older derivation read is read again, a while each pass.
+            // A failure here is reported beside the pass, which stands.
+            let (rederived, rederive_error) = rederive_for_a_while(engine, clock);
+            let rederive_error = rederive_error.map(|error| store_failure(&error).message);
             if !follow {
-                return success(json!({ "accounts": reports }));
+                return success(json!({
+                    "accounts": reports,
+                    "rederived": rederived,
+                    "rederiveError": rederive_error,
+                }));
             }
             engine.report("waiting five minutes before the next pass");
             tokio::time::sleep(FOLLOW_EVERY).await;
@@ -289,6 +297,31 @@ pub fn sync(engine: Arc<Engine>) -> CommandDefinition {
     .with_expose(ExposeOptions::new().with_cli(true).with_mcp(true))
 }
 
+/// How long a pass of `mail-sync` spends deriving again what an older
+/// version of the derivation read.
+const REDERIVE_FOR: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Derives again, newest first, what an older derivation read, for at most
+/// [`REDERIVE_FOR`]. Returns how many messages it derived, and why it stopped
+/// short when it did.
+fn rederive_for_a_while(engine: &Engine, clock: &dyn afd::Clock) -> (u64, Option<StoreError>) {
+    let started = std::time::Instant::now();
+    let mut done = 0u64;
+    while started.elapsed() < REDERIVE_FOR {
+        let batch = match engine.with_store(|store| store.rederive_stale(200, clock.now())) {
+            Ok(batch) => batch,
+            // What was derived before the failure stays derived.
+            Err(error) => return (done, Some(error)),
+        };
+        if batch == 0 {
+            break;
+        }
+        done += u64::try_from(batch).unwrap_or(u64::MAX);
+        engine.report(&format!("derived {done} messages again"));
+    }
+    (done, None)
+}
+
 /// A mailbox's state (the specification's section 5.7).
 fn mailbox_state(row: &MailboxRow, status: &MailboxStatus) -> &'static str {
     if row.cursor.is_none() || status.counts.awaited > 0 {
@@ -320,6 +353,7 @@ impl CommandHandler for Status {
             Err(error) => return failure(*error),
         };
         let read = self.engine.with_store(|store| {
+            let stale = store.stale_count()?;
             let mut result = Vec::new();
             for account in &accounts {
                 let mut mailboxes = Vec::new();
@@ -356,10 +390,14 @@ impl CommandHandler for Status {
                     "mailboxes": mailboxes,
                 }));
             }
-            Ok(result)
+            Ok((result, stale))
         });
         match read {
-            Ok(accounts) => success(json!({ "accounts": accounts })),
+            Ok((accounts, stale)) => success(json!({
+                "accounts": accounts,
+                // Messages an older derivation read, waiting to be read again.
+                "stale": stale,
+            })),
             Err(error) => failure(store_failure(&error)),
         }
     }
