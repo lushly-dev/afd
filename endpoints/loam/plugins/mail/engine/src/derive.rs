@@ -452,6 +452,188 @@ fn received_by(value: &str) -> String {
     after("by")
 }
 
+/// A message's recipients, as its header block names them: each address in
+/// lower case, with the name beside it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Recipients {
+    /// `To`.
+    pub to: Vec<(String, String)>,
+    /// `Cc`.
+    pub cc: Vec<(String, String)>,
+    /// `Reply-To`.
+    pub reply_to: Vec<(String, String)>,
+}
+
+/// The most recipients of one kind read.
+const RECIPIENTS_LIMIT: usize = 100;
+
+/// Who a message is addressed to. This never fails or panics.
+#[must_use]
+pub fn recipients(header_block: &[u8]) -> Recipients {
+    if header_block.len() > HEADER_LIMIT {
+        return Recipients::default();
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(message) = MessageParser::new().parse_headers(header_block) else {
+            return Recipients::default();
+        };
+        let list = |found: Option<mail_parser::AddressList<'_>>| -> Vec<(String, String)> {
+            found
+                .map(|list| {
+                    list.mailboxes()
+                        .take(RECIPIENTS_LIMIT)
+                        .map(|mailbox| {
+                            (
+                                mailbox
+                                    .address()
+                                    .map(|address| one_line(&address.to_lowercase(), SENDER_LIMIT))
+                                    .unwrap_or_default(),
+                                mailbox
+                                    .name()
+                                    .map(|name| one_line(name, SENDER_LIMIT))
+                                    .unwrap_or_default(),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        Recipients {
+            to: list(message.to()),
+            cc: list(message.cc()),
+            reply_to: list(message.reply_to()),
+        }
+    }))
+    .unwrap_or_default()
+}
+
+/// What a person reading a whole message is shown.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Reading {
+    /// The text a person sees.
+    pub visible: String,
+    /// The text a person would not see.
+    pub hidden: String,
+    /// The HTML as written, when the message has some.
+    pub html: Option<String>,
+}
+
+/// Reads a whole message for a person: its visible text, its hidden text,
+/// and its HTML. This never fails or panics.
+#[must_use]
+pub fn reading(whole: &[u8]) -> Reading {
+    if whole.len() > MESSAGE_LIMIT {
+        return Reading::default();
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(message) = MessageParser::new()
+            .max_depth(DEPTH_LIMIT + 1)
+            .max_parts(PARTS_LIMIT + 1)
+            .parse(whole)
+        else {
+            return Reading::default();
+        };
+        let html: Vec<String> = message
+            .html_body()
+            .filter(|part| matches!(part.kind(), PartKind::Html))
+            .filter_map(|part| part.text_prefix_bytes(crate::html::HTML_LIMIT))
+            .map(|text| text.into_owned())
+            .collect();
+        if html.is_empty() {
+            let visible = body_fields(whole)
+                .text
+                .replace("\r\n", "\n")
+                .trim_end()
+                .to_string();
+            return Reading {
+                visible,
+                ..Reading::default()
+            };
+        }
+        let mut reading = Reading {
+            html: Some(html.join("\n")),
+            ..Reading::default()
+        };
+        for part in &html {
+            let read = crate::html::read(part);
+            for (into, from) in [
+                (&mut reading.visible, read.visible),
+                (&mut reading.hidden, read.hidden),
+            ] {
+                if !from.is_empty() {
+                    if !into.is_empty() {
+                        into.push_str("\n\n");
+                    }
+                    into.push_str(prefix(&from, TEXT_LIMIT.saturating_sub(into.len())));
+                }
+            }
+        }
+        reading
+    }))
+    .unwrap_or_default()
+}
+
+/// The decoded content of the part at `place` in a whole message, numbered
+/// as [`body_fields`] numbers parts. This never fails or panics.
+#[must_use]
+pub fn part_content(whole: &[u8], place: &str) -> Option<Vec<u8>> {
+    if whole.len() > MESSAGE_LIMIT {
+        return None;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        let message = MessageParser::new()
+            .max_depth(DEPTH_LIMIT + 1)
+            .max_parts(PARTS_LIMIT + 1)
+            .parse(whole)?;
+        find_part(message.root_part(), "", place, 0)
+    }))
+    .ok()
+    .flatten()
+}
+
+/// The part at `wanted`, walked as [`walk`] walks.
+fn find_part(part: MessagePart<'_>, place: &str, wanted: &str, depth: usize) -> Option<Vec<u8>> {
+    if depth > DEPTH_LIMIT {
+        return None;
+    }
+    let own = || {
+        if place.is_empty() {
+            "1".to_string()
+        } else {
+            place.to_string()
+        }
+    };
+    match part.kind() {
+        PartKind::Multipart => part.children().enumerate().find_map(|(index, child)| {
+            let child_place = if place.is_empty() {
+                (index + 1).to_string()
+            } else {
+                format!("{place}.{}", index + 1)
+            };
+            if wanted == child_place || wanted.starts_with(&format!("{child_place}.")) {
+                find_part(child, &child_place, wanted, depth + 1)
+            } else {
+                None
+            }
+        }),
+        PartKind::Message(nested) => {
+            let own = own();
+            if wanted == own {
+                return Some(part.decoded().into_owned());
+            }
+            let root = nested.root_part();
+            if matches!(root.kind(), PartKind::Multipart) {
+                find_part(root, &own, wanted, depth + 1)
+            } else {
+                find_part(root, &format!("{own}.1"), wanted, depth + 1)
+            }
+        }
+        PartKind::Text | PartKind::Html | PartKind::Binary | PartKind::InlineBinary => {
+            (own() == wanted).then(|| part.decoded().into_owned())
+        }
+    }
+}
+
 /// The text without its comments (in parentheses, which may nest) and its
 /// quoted strings, which carry no results (RFC 8601).
 fn strip_comments_and_quotes(text: &str) -> String {
@@ -1030,6 +1212,18 @@ const EXPECTED: &[(&[&str], &[&str], &str)] = &[
     (&["mov"], &["video/quicktime"], "video/quicktime"),
 ];
 
+/// The ending a file gets when the engine names it by what its bytes show:
+/// only for a kind that one ending names, never for a container that holds
+/// several kinds or for a program.
+#[must_use]
+pub fn ending(detected: &str) -> Option<&'static str> {
+    EXPECTED
+        .iter()
+        .find(|(_, _, kind)| *kind == detected)
+        .map(|(endings, _, _)| endings[0])
+        .filter(|ending| !matches!(*ending, "doc" | "docx"))
+}
+
 /// The kinds of file that run as programs.
 const PROGRAMS: &[&str] = &[
     "application/x-msdownload",
@@ -1275,6 +1469,73 @@ mod tests {
             .unwrap();
         assert_eq!(file.detected, "application/x-msdownload");
         assert!(file.type_differs && file.hash.is_some());
+    }
+
+    #[test]
+    fn a_part_is_found_by_its_place_and_a_reading_keeps_hidden_text_apart() {
+        let whole = concat!(
+            "To: Ann <Ann@Example.com>, b@example.com\r\n",
+            "Content-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n",
+            "--outer\r\n",
+            "Content-Type: multipart/alternative; boundary=\"inner\"\r\n\r\n",
+            "--inner\r\nContent-Type: text/plain\r\n\r\nplain words\r\n",
+            "--inner\r\nContent-Type: text/html\r\n\r\n",
+            "<p>shown</p><p style=\"display:none\">secret</p>\r\n",
+            "--inner--\r\n",
+            "--outer\r\nContent-Type: application/pdf; name=\"a.pdf\"\r\n",
+            "Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjc=\r\n",
+            "--outer--\r\n",
+        );
+        assert_eq!(part_content(whole.as_bytes(), "2").unwrap(), b"%PDF-1.7");
+        assert_eq!(
+            part_content(whole.as_bytes(), "1.1").unwrap(),
+            b"plain words"
+        );
+        assert_eq!(part_content(whole.as_bytes(), "3"), None);
+        let read = reading(whole.as_bytes());
+        assert_eq!(
+            (read.visible.as_str(), read.hidden.as_str()),
+            ("shown", "secret")
+        );
+        assert!(read.html.unwrap().contains("display:none"));
+        let to = recipients(whole.as_bytes()).to;
+        assert_eq!(to[0], ("ann@example.com".to_string(), "Ann".to_string()));
+        assert_eq!(to.len(), 2);
+    }
+
+    #[test]
+    fn a_part_inside_a_forwarded_message_is_found_by_the_place_the_list_gives() {
+        let whole = concat!(
+            "Content-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n",
+            "--outer\r\nContent-Type: text/plain\r\n\r\nsee below\r\n",
+            "--outer\r\nContent-Type: message/rfc822\r\n\r\n",
+            "Subject: inner\r\n",
+            "Content-Type: multipart/mixed; boundary=\"inner\"\r\n\r\n",
+            "--inner\r\nContent-Type: text/plain\r\n\r\ninner words\r\n",
+            "--inner\r\nContent-Type: application/pdf; name=\"in.pdf\"\r\n",
+            "Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjc=\r\n",
+            "--inner--\r\n",
+            "--outer\r\nContent-Type: application/pdf; name=\"out.pdf\"\r\n",
+            "Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjc=\r\n",
+            "--outer--\r\n",
+        );
+        let body = body_fields(whole.as_bytes());
+        for named in ["in.pdf", "out.pdf"] {
+            let part = body.parts.iter().find(|part| part.name == named).unwrap();
+            assert_eq!(
+                part_content(whole.as_bytes(), &part.place).unwrap(),
+                b"%PDF-1.7",
+                "{named} at {}",
+                part.place
+            );
+        }
+        assert_eq!(
+            part_content(whole.as_bytes(), "2.1").unwrap(),
+            b"inner words"
+        );
+        assert_eq!(ending("application/pdf"), Some("pdf"));
+        assert_eq!(ending("application/zip"), None);
+        assert_eq!(ending("application/x-msdownload"), None);
     }
 
     #[test]

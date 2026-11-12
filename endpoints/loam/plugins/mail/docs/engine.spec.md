@@ -131,7 +131,7 @@ Each crate's maintenance history was not read.
 | `sha2` | 0.11 | MIT or Apache-2.0 | The log's file names and a message's identity | The version the `afd` crate uses |
 | `zstd` | 0.14 | BSD-3-Clause | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |
 | `mail-parser` | 1.0.1 | Apache-2.0 or MIT | Parsing messages | The licence is stated on crates.io, which answers the proposal's follow-up |
-| `ammonia` | 4.2 | MIT or Apache-2.0 | Cleaning HTML for display | Step B4 found that 4.2 depends on `cssparser` and `dtoa-short`, which are MPL-2.0, outside the licence check's allowlist. Whether to allow them is the owner's, before the read commands need it |
+| `ammonia` | 4.2 | MIT or Apache-2.0 | Cleaning HTML for display | Step B4 found that 4.2 depends on `cssparser` and `dtoa-short`, which are MPL-2.0, outside the licence check's allowlist. The owner allowed MPL-2.0 for those two crates by name on 2026-11-12; MPL is file-level copyleft, so their own files stay MPL and nothing else of the engine is touched. The licence check names them as exceptions, so no other crate brings MPL in unnoticed |
 | `html5ever`, `markup5ever_rcdom` | 0.40, 0.40 | MIT or Apache-2.0 | Reading a message's HTML for its evidence ([6.1](#61-what-is-read)) | Added by step B4. The DOM crate is published as unofficial by html5ever's authors; the engine reads with it and builds nothing on it |
 | `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Checked by step B3. With `imap-proto` 0.17 it parses `VANISHED`, `HIGHESTMODSEQ`, `MODSEQ` and the `COPYUID` code, and it has `UID EXPUNGE`. It has no call that opens a mailbox with QRESYNC, and it sets aside on a bounded channel, dropping when full, any response its own calls do not expect. So the engine uses it for the connection, the sign-in and the parser, sends its own commands and reads every response itself. `imap-codec` is not needed |
 | `rustls`, `tokio-rustls`, `rustls-native-certs` | 0.23, 0.26, 0.8 | MIT, Apache-2.0 or ISC | TLS to the provider, with the operating system's certificates | Added by step B3, with `ring` rather than the default `aws-lc-rs`, which needs CMake to build |
@@ -729,10 +729,10 @@ engine computes it beside the census's figure, and how many stream stories each 
 ### 6.4 Parsing strangers' bytes
 
 - The parser and everything that reads its output are fuzzed (`cargo-fuzz`), with a corpus kept
-  in the repository. A fuzz run is part of the workflow's daily run, not of every pull request.
-  Step B4 built the targets (`engine/fuzz/`: a header block, a whole message, HTML) and runs them
-  locally with nightly Rust. The workflow has no daily run yet; adding one spends CI time, which
-  is the owner's to decide.
+  in the repository. The fuzz targets (`engine/fuzz/`: a header block, a whole message, HTML,
+  built by step B4) run locally with nightly Rust whenever the parsing code changes, not in the
+  workflow: the owner decided on 2026-11-12 that fuzzing stays local, since a daily run spends CI
+  time.
 - Limits are enforced before work is done: a message's size, its depth of nesting, its number of
   parts, a header's length. A message over a limit is stored in the log, marked `unparsed` with
   the limit it broke, and shown with its headers alone. Step B4's limits: a header block of
@@ -745,7 +745,14 @@ engine computes it beside the census's figure, and how many stream stories each 
 - A panic while parsing one message marks that message `unparsed` and does not stop a sync.
 - HTML handed to a caller for display is cleaned with `ammonia`: no script, no form, no frame,
   and every remote reference reported so the caller decides whether to load it. The engine
-  loads none.
+  loads none. As step B4 built it, a relative address is removed (a message has no page to
+  resolve it against), a `cid:` image of the message is kept, and the remote references are read
+  from the cleaned HTML as a browser parses it, so an address spelled to slip past a check (a tab
+  inside `https`, say) is still counted. `mail-message-open` counts the remote references for
+  every caller, and gives the cleaned HTML, the references themselves and the hidden text only to
+  a person at a terminal who asks (`cli` and `human`): an agent, at the command line as `script`
+  or over MCP, reads the visible text. Whether Loam's app gets the HTML over its mount is step
+  B5's, with `serve`.
 
 ## 7. Relationships and screening
 
@@ -1037,9 +1044,9 @@ says otherwise.
 | `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's, with the other person's commands that remove something |
 | `mail-token-create`, `mail-token-list`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)) |
 | `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)) |
-| `mail-thread-list`, `mail-thread-open`, `mail-message-open` | B | Read | cli, mcp | An output budget on each; lists are paged by cursor |
-| `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP |
-| `mail-search` | B | Read | cli, mcp | |
+| `mail-thread-list`, `mail-thread-open`, `mail-message-open` | B | Read | cli, mcp | An output budget on each; lists are paged by cursor. Step B4: `mail-thread-list` takes a mailbox's id and gives its threads newest first; `mail-thread-open` a thread's messages oldest first, with each message's evidence; `mail-message-open` fetches a message's body when it is not held (1 MiB or less), trying each mailbox that shows it, and gives its recipients, evidence, links, files and a window of its visible text, with where the next window starts. The window is fitted to the budget as the budget measures the result; when even a small window does not fit, the HTML, then the hidden text, then half the links are left out and named in `leftOut`, and past that the call fails rather than give an empty window. A person at a terminal gets each command's largest budget |
+| `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP. Step B4 opens a file of a message held whole, fetching the message first; a file of a message over 1 MiB is the third pull request's. The file at the command line is named by the engine (the part's place, and an ending for what its bytes show), never by the message; over MCP the bytes are base64 inside the content part, a window at a time from `from`, with where the next starts |
+| `mail-search` | B | Read | cli, mcp | Step B4: the best matches first, paged by cursor up to the first 1 000 |
 | `mail-rebuild` | B | Local | cli | Under `serve` it runs in the server and reports through `mail-status` |
 | `mail-sender-list`, `mail-sender-show` | C | Read | cli, mcp | |
 | `mail-sender-screen` | C | Local, undoable; a person | cli | No approval prompt ([7.3](#73-the-persons-decisions)) |
@@ -1102,10 +1109,12 @@ message or suggestion, or in an approval's summary. A person sees content before
 through a preview command's labelled parts, and the command line names each value as it shows
 it ("Subject, as written by the sender").
 
-The exact shape of a labelled part is decided by step B4 against the shape Umbel's knowledge
-plugin returns, so that one reader handles both. Until then a labelled value is
-`{ "trust": "content", "text": ... }`. A mailbox's name is the provider's text, so `mail-status`
-labels it.
+The shape, decided by step B4 against the one Umbel's knowledge plugin returns so that one reader
+handles both: a labelled part is a JSON object with `"trust": "content"` beside the values that
+came from mail, as Umbel's hits and windows are. A message in a list, for example, is
+`{ "message": 12, "date": ..., "evidence": {...}, "content": { "trust": "content", "subject": ...,
+"sender": {...}, "snippet": ... } }`. A mailbox's name is the provider's text, so `mail-status`
+labels it the same way.
 
 ### 12.2 Provenance
 
@@ -1129,6 +1138,7 @@ Beside the crate's own codes:
 | `PROVIDER_UNAVAILABLE` | The provider could not be reached; retryable |
 | `PROVIDER_LIMIT` | The provider's rate or quota limit; retryable after the time given |
 | `NOT_HELD` | The bytes asked for are not in the log and could not be fetched now |
+| `PART_NOT_FOUND` | A message has no part at the place named |
 | `PERSON_REQUIRED` | A person's command with no terminal |
 | `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller |
 | `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired |
@@ -1210,7 +1220,7 @@ file.
 | B1 | The plugin folder, the crate's skeleton, the workflow and the Loam exclusion (L8); `loam-mail help` runs |
 | B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet). The second built what a list, a thread and a search need (`envelope`, `part`, `thread`, `thread_key`, `thread_place`), and the command line's running of a command. Left to the step that owns each: unread counts, with the provider interface's flags (B3); the parts of a message fetched in parts, which need its structure from the provider (B3); hidden text, the template, the limits of [6.4](#64-parsing-strangers-bytes) and the index's filters (B4); Gmail's own threads (B6); `sender`, `template` and `story` (phase C) |
 | B3 | In two pull requests, as B2. First: the provider interface, IMAP, the scripted IMAP server, iCloud sync with resume and unreturned messages, unread counts, repairs of damaged files, `mail-sync` and `mail-status`, and the checks on the owner's account ([4.2](#42-what-makes-two-messages-the-same) and the IMAP crate of [section 2](#2-units-placement-and-crates)). Second: `mail-account-add` and `mail-account-list`, the keychain, and the command line's approval of a person's command ([3.5](#35-commands-only-a-person-may-run)). The headers and text of a message over 1 MiB (M20) moved to B4, which builds the fetching of a part that opening a message or an attachment needs; such a message does not hold a mailbox back from "synced" ([5.7](#57-what-synced-means)) |
-| B4 | In two pull requests. First: the evidence of [6.1](#61-what-is-read) and [6.3](#63-the-template-fingerprint), the limits of [6.4](#64-parsing-strangers-bytes), the parser's version raised and stale rows derived again, the fuzz targets, and the two decisions on the owner's mail: which authentication header is the provider's, and whether a shared subject joins a thread ([5.6](#56-threads-on-imap)). Second: labels on results ([12.1](#121-content-labels)); the read commands and `mail-search`; cleaning HTML for display; fetching a part of a message, for opening it and for the text of a message over 1 MiB (M20) |
+| B4 | In three pull requests. First: the evidence of [6.1](#61-what-is-read) and [6.3](#63-the-template-fingerprint), the limits of [6.4](#64-parsing-strangers-bytes), the parser's version raised and stale rows derived again, the fuzz targets, and the two decisions on the owner's mail: which authentication header is the provider's, and whether a shared subject joins a thread ([5.6](#56-threads-on-imap)). Second: labels on results ([12.1](#121-content-labels)); the read commands and `mail-search`; cleaning HTML for display; fetching a message's body when it is opened. Third: a message over 1 MiB (M20): its structure, its text parts at sync, and a file of it fetched when it is opened |
 | B5 | `serve`, tokens, the layer and the two routes, stdio; the command line forwarding to a running server; `mail-account-remove` |
 | B6 | Gmail sync through the API, with the scripted API |
 | B7 | The acceptance run on the owner's accounts |

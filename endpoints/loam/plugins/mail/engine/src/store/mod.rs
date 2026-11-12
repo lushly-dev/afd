@@ -8,10 +8,12 @@
 //! is written in the same transaction as the bytes it is read from.
 
 mod derived;
+mod read;
 mod schema;
 mod sync;
 
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
+pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
 pub use sync::{
     AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
 };

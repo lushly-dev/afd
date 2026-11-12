@@ -18,6 +18,10 @@ use std::io::Write;
 
 use afd::{ActorKind, CommandContext, CommandError, CommandInterface, CommandRegistry, failure};
 
+/// What a person at a terminal asks of a command's output budget: more than
+/// any command allows, so each gives its largest.
+const PERSON_BUDGET: u64 = 1 << 40;
+
 use crate::PROGRAM;
 use crate::commands::credential_for;
 use crate::secrets::Secrets;
@@ -129,12 +133,17 @@ fn run_command(
             return Ok(EXIT_USAGE);
         }
     };
-    let context = CommandContext::new()
+    let mut context = CommandContext::new()
         .with_interface(CommandInterface::Cli)
         .with_actor(match caller {
             Caller::Terminal(_) => ActorKind::Human,
             Caller::Script => ActorKind::Script,
         });
+    // A person at a terminal reads what a command gives, not a model's
+    // context: each command's largest budget, which the ask is clamped to.
+    if matches!(caller, Caller::Terminal(_)) {
+        context = context.with_output_budget_ask(PERSON_BUDGET);
+    }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
