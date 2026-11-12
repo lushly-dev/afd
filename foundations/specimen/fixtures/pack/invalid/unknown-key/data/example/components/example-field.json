@@ -33,17 +33,7 @@
 				"default": false,
 				"name": "disabled",
 				"property": "disabled",
-				"type": "boolean",
-				"values": [
-					{
-						"basis": "verified",
-						"value": true
-					},
-					{
-						"basis": "observed",
-						"value": false
-					}
-				]
+				"type": "boolean"
 			},
 			{
 				"basis": "verified",
@@ -134,7 +124,7 @@
 		{
 			"basis": "observed",
 			"from": "example-field--invalid",
-			"html": "<example-field label=\"Email\" invalid>\n\t<span slot=\"hint\">Enter an address with an @.</span>\n</example-field>"
+			"html": "<example-field invalid label=\"Email\">\n\t<span slot=\"hint\">Enter an address with an @.</span>\n</example-field>"
 		}
 	],
 	"format": 0,

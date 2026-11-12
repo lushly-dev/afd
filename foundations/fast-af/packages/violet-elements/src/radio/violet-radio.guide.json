@@ -1,0 +1,33 @@
+{
+  "tag": "violet-radio",
+  "summary": "One option of a violet-radio-group, with a slotted label and optional supporting text.",
+  "usage": [
+    {
+      "id": "radio.group",
+      "text": "Use it inside violet-radio-group. Alone it is not form-associated, submits nothing, and is not unchecked when another radio with the same name is checked."
+    },
+    {
+      "id": "radio.value",
+      "text": "Give each radio a distinct value attribute. The default is \"on\", and the group selects by value, so radios without one are indistinguishable.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "radio.change",
+      "text": "A user check fires a bubbling change event with detail { checked: true, value }. Nothing fires when it is already checked or when the group unchecks it.",
+      "members": [
+        "change"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "radio.description",
+      "text": "Content in the supporting slot is linked as the radio's description.",
+      "members": [
+        "supporting"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "streaming",
+				"name": "status",
+				"property": "status",
+				"rules": [
+					"taxonomy.status"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "calc(var(--_status-indicator-size) * 0.375)",
+				"name": "--_status-dot-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-status-font-size, var(--_caption-size, 12px))",
+				"name": "--_status-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-status-indicator-size, var(--_caption-line, 16px))",
+				"name": "--_status-indicator-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-status-line-height, var(--_caption-line, 16px))",
+				"name": "--_status-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_status-indicator-size) * 0.25)",
+				"name": "--_status-streaming-dot-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_status-streaming-dot-size) * 0.75)",
+				"name": "--_status-streaming-gap"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Custom status text (overrides default).",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-message-status--all-statuses",
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 16px;\"><div><span style=\"font-size: 11px; color: rgb(107, 114, 128); display: block; margin-block-end: 4px;\">submitted</span><violet-message-status status=\"submitted\"></violet-message-status></div><div><span style=\"font-size: 11px; color: rgb(107, 114, 128); display: block; margin-block-end: 4px;\">streaming</span><violet-message-status status=\"streaming\"></violet-message-status></div><div><span style=\"font-size: 11px; color: rgb(107, 114, 128); display: block; margin-block-end: 4px;\">error</span><violet-message-status status=\"error\"></violet-message-status></div><div><span style=\"font-size: 11px; color: rgb(107, 114, 128); display: block; margin-block-end: 4px;\">cancelled</span><violet-message-status status=\"cancelled\"></violet-message-status></div><div><span style=\"font-size: 11px; color: rgb(107, 114, 128); display: block; margin-block-end: 4px;\">retrying</span><violet-message-status status=\"retrying\"></violet-message-status></div></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message-status--cancelled",
+			"html": "<violet-message-status status=\"cancelled\"></violet-message-status>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message-status--custom-text",
+			"html": "<violet-message-status status=\"streaming\">Generating meal plan...</violet-message-status>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.status",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-message-status",
+	"usage": []
+}

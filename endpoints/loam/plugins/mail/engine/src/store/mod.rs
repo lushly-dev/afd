@@ -1,18 +1,28 @@
 //! The store: the log on disk and the SQLite tables over it (the
 //! specification's section 4).
 //!
-//! This is the part that is not derived from the log: accounts and mailboxes,
-//! each message's identity and which of its bytes are held, and the record of
-//! what a provider showed. The derived tables and the search index are built
-//! over it by a later step.
+//! This file is the part that is not derived from the log: accounts and
+//! mailboxes, each message's identity and which of its bytes are held, and
+//! the record of what a provider showed. What is derived (a message's fields,
+//! its thread, where a thread shows, the search index) is in `derived`, and
+//! is written in the same transaction as the bytes it is read from.
 
+mod derived;
 mod schema;
+mod sync;
+
+pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
+pub use sync::{
+    AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
+};
 
 use std::fmt;
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
+use crate::derive;
 use crate::home::{Home, HomeError, HomeLock};
+use crate::index::{Index, IndexError};
 use crate::log::{BlobId, Log, LogError};
 
 /// Why the store could not be opened, read or written.
@@ -40,6 +50,11 @@ pub enum StoreError {
     Home(HomeError),
     /// The log refused.
     Log(LogError),
+    /// The search index refused.
+    Index(IndexError),
+    /// The search index is older than the tables, or gone: it was removed or
+    /// restored from elsewhere. `mail-rebuild` makes it again.
+    IndexStale,
     /// SQLite refused.
     Sqlite(rusqlite::Error),
 }
@@ -63,6 +78,11 @@ impl fmt::Display for StoreError {
             Self::Conflict => write!(f, "other bytes are already held for that part"),
             Self::Home(error) => error.fmt(f),
             Self::Log(error) => error.fmt(f),
+            Self::Index(error) => error.fmt(f),
+            Self::IndexStale => write!(
+                f,
+                "the search index is older than the store; run `mail-rebuild`"
+            ),
             Self::Sqlite(error) => write!(f, "the store's database refused: {error}"),
         }
     }
@@ -82,6 +102,12 @@ impl From<HomeError> for StoreError {
 impl From<LogError> for StoreError {
     fn from(error: LogError) -> Self {
         Self::Log(error)
+    }
+}
+
+impl From<IndexError> for StoreError {
+    fn from(error: IndexError) -> Self {
+        Self::Index(error)
     }
 }
 
@@ -259,6 +285,9 @@ const READ_LIMIT: u64 = 256 * 1024 * 1024;
 pub struct Store {
     connection: Connection,
     log: Log,
+    /// The search index, opened when it is first needed.
+    index: Option<Index>,
+    index_directory: std::path::PathBuf,
     _lock: HomeLock,
 }
 
@@ -282,6 +311,8 @@ impl Store {
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "NORMAL")?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
+        // Every statement of a batch is prepared once and kept.
+        connection.set_prepared_statement_cache_capacity(128);
         schema::migrate(&mut connection, migrations)?;
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.
@@ -290,6 +321,8 @@ impl Store {
         Ok(Self {
             connection,
             log,
+            index: None,
+            index_directory: home.index(),
             _lock: lock,
         })
     }
@@ -347,7 +380,8 @@ impl Store {
             "INSERT INTO mailbox (account_id, provider_key, name, role, header_only)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT (account_id, provider_key) DO UPDATE
-             SET name = excluded.name, role = excluded.role, header_only = excluded.header_only",
+             SET name = excluded.name, role = excluded.role, header_only = excluded.header_only,
+                 gone_at = NULL",
             params![
                 account.0,
                 seen.provider_key,
@@ -398,7 +432,7 @@ impl Store {
     ) -> Result<bool, StoreError> {
         let transaction = self.connection.transaction()?;
         let stored: String = transaction
-            .query_row(
+            .one(
                 "SELECT validity FROM mailbox WHERE id = ?1",
                 [mailbox.0],
                 |row| row.get(0),
@@ -408,7 +442,7 @@ impl Store {
         if stored == validity {
             return Ok(false);
         }
-        let closed = transaction.execute(
+        let closed = transaction.run(
             "UPDATE observation SET ended_at = ?2, ended_by = 'closed'
              WHERE mailbox_id = ?1 AND ended_at IS NULL",
             params![mailbox.0, now],
@@ -417,8 +451,13 @@ impl Store {
             // One row for the mailbox: a view of it reads it again in full.
             note_change(&transaction, now, "mailbox-closed", mailbox.0)?;
         }
-        transaction.execute("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
-        transaction.execute(
+        transaction.run("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
+        // The mailbox shows nothing until it is listed again.
+        transaction.run(
+            "DELETE FROM thread_place WHERE mailbox_id = ?1",
+            [mailbox.0],
+        )?;
+        transaction.run(
             "UPDATE mailbox SET validity = ?2, cursor = NULL WHERE id = ?1",
             params![mailbox.0, validity],
         )?;
@@ -467,7 +506,9 @@ impl Store {
     /// Records a batch of headers a provider returned for a mailbox, all or
     /// none: each header block goes to the log, each message is found by its
     /// identity or created, and what the mailbox now shows is recorded. A
-    /// message that had been listed and not returned leaves that list.
+    /// message that had been listed and not returned leaves that list. What
+    /// the headers say (the sender, the subject, the thread) is derived in the
+    /// same transaction.
     ///
     /// # Errors
     /// [`StoreError::ValidityMismatch`] when `validity` is not the mailbox's
@@ -480,15 +521,18 @@ impl Store {
         now: i64,
     ) -> Result<BatchOutcome, StoreError> {
         // The log first: a file with no row is harmless, a row with no file is not.
-        let blobs: Vec<BlobId> = batch
+        let blocks: Vec<&[u8]> = batch
             .iter()
-            .map(|seen| self.log.put(&seen.header_block))
-            .collect::<Result<_, _>>()?;
+            .map(|seen| seen.header_block.as_slice())
+            .collect();
+        let blobs = self.log.put_all(&blocks)?;
         // On the disk before any row says they are held.
         self.log.make_durable(&blobs)?;
+        self.ensure_index()?;
         let transaction = self.connection.transaction()?;
         check_validity(&transaction, mailbox, validity)?;
         let mut outcome = BatchOutcome::default();
+        let mut touched = derived::Touched::new(derived::rebuild_cursor(&transaction)?);
         for (seen, blob) in batch.iter().zip(blobs) {
             record_header(
                 &transaction,
@@ -498,15 +542,20 @@ impl Store {
                 blob,
                 now,
                 &mut outcome,
+                &mut touched,
             )?;
         }
+        derived::settle(&transaction, &touched, now)?;
         transaction.commit()?;
+        self.index_documents(&touched.documents)?;
         Ok(outcome)
     }
 
     /// Records bytes fetched for messages, all or none: the whole of a
     /// message, a text part, or an attachment someone opened. The files are
-    /// on the disk before any row says they are held.
+    /// on the disk before any row says they are held. A message that arrives
+    /// whole has its snippet, its parts and its text derived in the same
+    /// transaction.
     ///
     /// A part already held with the same bytes is left as it is. One held
     /// with other bytes is refused: a message's identity fixes its bytes, so
@@ -516,21 +565,25 @@ impl Store {
     /// [`StoreError::NotFound`] when a message does not exist,
     /// [`StoreError::BadPlace`] when a part's place is not digits and dots,
     /// and [`StoreError::Conflict`] when other bytes are held there.
-    pub fn record_parts(&mut self, parts: &[PartSeen<'_>]) -> Result<Vec<BlobId>, StoreError> {
+    pub fn record_parts(
+        &mut self,
+        parts: &[PartSeen<'_>],
+        now: i64,
+    ) -> Result<Vec<BlobId>, StoreError> {
         for part in parts {
             if !part.place.is_valid() {
                 return Err(StoreError::BadPlace);
             }
         }
-        let blobs: Vec<BlobId> = parts
-            .iter()
-            .map(|part| self.log.put(part.bytes))
-            .collect::<Result<_, _>>()?;
+        let bytes: Vec<&[u8]> = parts.iter().map(|part| part.bytes).collect();
+        let blobs = self.log.put_all(&bytes)?;
         self.log.make_durable(&blobs)?;
+        self.ensure_index()?;
         let transaction = self.connection.transaction()?;
+        let mut touched = derived::Touched::new(derived::rebuild_cursor(&transaction)?);
         for (part, blob) in parts.iter().zip(&blobs) {
             let exists: Option<i64> = transaction
-                .query_row(
+                .one(
                     "SELECT id FROM message WHERE id = ?1",
                     [part.message.0],
                     |row| row.get(0),
@@ -541,7 +594,7 @@ impl Store {
             }
             let (place, kind) = part.place.columns();
             let held: Option<Vec<u8>> = transaction
-                .query_row(
+                .one(
                     "SELECT blob FROM held WHERE message_id = ?1 AND part = ?2",
                     params![part.message.0, place],
                     |row| row.get(0),
@@ -551,7 +604,7 @@ impl Store {
                 Some(other) if other != blob.as_bytes() => return Err(StoreError::Conflict),
                 Some(_) => {}
                 None => {
-                    transaction.execute(
+                    transaction.run(
                         "INSERT INTO held (message_id, part, kind, blob, size)
                          VALUES (?1, ?2, ?3, ?4, ?5)",
                         params![
@@ -562,10 +615,26 @@ impl Store {
                             size_of(part.bytes)
                         ],
                     )?;
+                    if part.place == Place::Whole {
+                        transaction.run(
+                            "DELETE FROM body_missing WHERE message_id = ?1",
+                            [part.message.0],
+                        )?;
+                    }
+                    if part.place == Place::Whole && !touched.awaits_rebuild(part.message.0) {
+                        derived::derive_body(
+                            &transaction,
+                            part.message.0,
+                            derive::body_fields(part.bytes),
+                            &mut touched,
+                        )?;
+                    }
                 }
             }
         }
+        derived::settle(&transaction, &touched, now)?;
         transaction.commit()?;
+        self.index_documents(&touched.documents)?;
         Ok(blobs)
     }
 
@@ -585,7 +654,7 @@ impl Store {
         let transaction = self.connection.transaction()?;
         check_validity(&transaction, mailbox, validity)?;
         for provider_id in provider_ids {
-            transaction.execute(
+            transaction.run(
                 "INSERT INTO unreturned
                      (mailbox_id, validity, provider_id, tries, first_tried_at, last_tried_at)
                  VALUES (?1, ?2, ?3, 1, ?4, ?4)
@@ -615,27 +684,30 @@ impl Store {
         let transaction = self.connection.transaction()?;
         check_validity(&transaction, mailbox, validity)?;
         let mut ended = 0;
+        let mut touched = derived::Touched::new(derived::rebuild_cursor(&transaction)?);
         for provider_id in provider_ids {
-            let observation: Option<i64> = transaction
-                .query_row(
+            let observation: Option<(i64, i64)> = transaction
+                .one(
                     "UPDATE observation SET ended_at = ?4, ended_by = 'removed'
                      WHERE mailbox_id = ?1 AND validity = ?2 AND provider_id = ?3
                        AND ended_at IS NULL
-                     RETURNING id",
+                     RETURNING id, message_id",
                     params![mailbox.0, validity, provider_id, now],
-                    |row| row.get(0),
+                    |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()?;
-            if let Some(observation) = observation {
+            if let Some((observation, message)) = observation {
                 ended += 1;
                 note_change(&transaction, now, "observation-ended", observation)?;
+                derived::touch_place(&transaction, mailbox.0, message, &mut touched)?;
             }
-            transaction.execute(
+            transaction.run(
                 "DELETE FROM unreturned
                  WHERE mailbox_id = ?1 AND validity = ?2 AND provider_id = ?3",
                 params![mailbox.0, validity, provider_id],
             )?;
         }
+        derived::settle(&transaction, &touched, now)?;
         transaction.commit()?;
         Ok(ended)
     }
@@ -679,7 +751,15 @@ impl Store {
             .optional()?
             .ok_or(StoreError::NotFound("part"))?;
         let id = BlobId::from_bytes(&blob).ok_or(StoreError::NotFound("part"))?;
-        Ok(self.log.get(id, READ_LIMIT)?)
+        match self.log.get(id, READ_LIMIT) {
+            Ok(bytes) => Ok(bytes),
+            Err(error @ (LogError::Corrupt(_) | LogError::NotHeld(_))) => {
+                // Sync fetches it again, and storing the bytes repairs it.
+                self.note_damaged(message, place, wall_clock())?;
+                Err(error.into())
+            }
+            Err(error) => Err(error.into()),
+        }
     }
 
     /// A mailbox's counts.
@@ -723,6 +803,35 @@ impl Store {
     }
 }
 
+/// Statements that run once for each message of a batch are prepared once
+/// and kept, which `Connection::execute` and `query_row` do not do.
+pub(super) trait Kept {
+    /// Runs a statement that returns no row.
+    fn run(&self, sql: &str, params: impl rusqlite::Params) -> rusqlite::Result<usize>;
+    /// Reads the one row a statement returns.
+    fn one<T>(
+        &self,
+        sql: &str,
+        params: impl rusqlite::Params,
+        read: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    ) -> rusqlite::Result<T>;
+}
+
+impl Kept for Connection {
+    fn run(&self, sql: &str, params: impl rusqlite::Params) -> rusqlite::Result<usize> {
+        self.prepare_cached(sql)?.execute(params)
+    }
+
+    fn one<T>(
+        &self,
+        sql: &str,
+        params: impl rusqlite::Params,
+        read: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    ) -> rusqlite::Result<T> {
+        self.prepare_cached(sql)?.query_row(params, read)
+    }
+}
+
 /// Fails unless `validity` is the mailbox's generation.
 fn check_validity(
     transaction: &Transaction<'_>,
@@ -730,7 +839,7 @@ fn check_validity(
     validity: &str,
 ) -> Result<(), StoreError> {
     let stored: String = transaction
-        .query_row(
+        .one(
             "SELECT validity FROM mailbox WHERE id = ?1",
             [mailbox.0],
             |row| row.get(0),
@@ -745,6 +854,10 @@ fn check_validity(
 }
 
 /// Records one header of a batch inside the batch's transaction.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one call site; a struct would only rename the batch"
+)]
 fn record_header(
     transaction: &Transaction<'_>,
     mailbox: MailboxId,
@@ -753,30 +866,40 @@ fn record_header(
     blob: BlobId,
     now: i64,
     outcome: &mut BatchOutcome,
+    touched: &mut derived::Touched,
 ) -> Result<(), StoreError> {
     let hash = blob.as_bytes().as_slice();
-    let created = transaction.execute(
-        "INSERT INTO message (header_hash, reported_size, first_seen_at) VALUES (?1, ?2, ?3)
+    let created = transaction.run(
+        "INSERT INTO message (header_hash, reported_size, first_seen_at, received_at)
+         VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT (header_hash, reported_size) DO NOTHING",
-        params![hash, sql_size(seen.reported_size), now],
+        params![hash, sql_size(seen.reported_size), now, seen.internal_date],
     )?;
-    let message: i64 = transaction.query_row(
+    let message: i64 = transaction.one(
         "SELECT id FROM message WHERE header_hash = ?1 AND reported_size = ?2",
         params![hash, sql_size(seen.reported_size)],
         |row| row.get(0),
     )?;
     if created > 0 {
         outcome.new_messages += 1;
-        transaction.execute(
+        transaction.run(
             "INSERT INTO held (message_id, part, kind, blob, size)
              VALUES (?1, 'header', 'header', ?2, ?3)",
             params![message, hash, size_of(&seen.header_block)],
         )?;
+        if !touched.awaits_rebuild(message) {
+            derived::derive_header(
+                transaction,
+                message,
+                &derive::header_fields(&seen.header_block),
+                touched,
+            )?;
+        }
     }
 
     let flags = flags_json(&seen.flags);
     let current: Option<(i64, i64, String, Option<String>)> = transaction
-        .query_row(
+        .one(
             "SELECT id, message_id, flags, provider_thread FROM observation
              WHERE mailbox_id = ?1 AND validity = ?2 AND provider_id = ?3 AND ended_at IS NULL",
             params![mailbox.0, validity, seen.provider_id],
@@ -789,20 +912,27 @@ fn record_header(
         {
             outcome.unchanged += 1;
         }
-        Some((previous, ..)) => {
-            transaction.execute(
+        Some((previous, shown, ..)) => {
+            transaction.run(
                 "UPDATE observation SET ended_at = ?2, ended_by = 'superseded' WHERE id = ?1",
                 params![previous, now],
             )?;
             observe(transaction, mailbox, validity, seen, message, &flags, now)?;
             outcome.changed += 1;
+            // The provider's id may now name another message, and the flags
+            // decide what is unread.
+            if shown != message {
+                derived::touch_place(transaction, mailbox.0, shown, touched)?;
+            }
+            derived::touch_place(transaction, mailbox.0, message, touched)?;
         }
         None => {
             observe(transaction, mailbox, validity, seen, message, &flags, now)?;
             outcome.added += 1;
+            derived::touch_place(transaction, mailbox.0, message, touched)?;
         }
     }
-    transaction.execute(
+    transaction.run(
         "DELETE FROM unreturned WHERE mailbox_id = ?1 AND validity = ?2 AND provider_id = ?3",
         params![mailbox.0, validity, seen.provider_id],
     )?;
@@ -819,7 +949,7 @@ fn observe(
     flags: &str,
     now: i64,
 ) -> Result<(), StoreError> {
-    transaction.execute(
+    transaction.run(
         "INSERT INTO observation
              (message_id, mailbox_id, validity, provider_id, provider_thread, flags,
               internal_date, seen_at)
@@ -844,13 +974,13 @@ fn observe(
 }
 
 /// Appends a row to the change table.
-fn note_change(
+pub(super) fn note_change(
     transaction: &Transaction<'_>,
     now: i64,
     kind: &str,
     subject: i64,
 ) -> Result<(), StoreError> {
-    transaction.execute(
+    transaction.run(
         "INSERT INTO change (at, kind, subject) VALUES (?1, ?2, ?3)",
         params![now, kind, subject],
     )?;
@@ -883,6 +1013,15 @@ fn json_string(text: &str) -> String {
     }
     quoted.push('"');
     quoted
+}
+
+/// The time now in milliseconds, for a record that is only informative.
+fn wall_clock() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 /// A size as SQLite holds it. No message is 8 EiB long; one that claims to be is clamped.
@@ -918,5 +1057,7 @@ fn restrict_to_owner(path: &std::path::Path) -> Result<(), StoreError> {
     Ok(())
 }
 
+#[cfg(test)]
+mod derived_tests;
 #[cfg(test)]
 mod tests;

@@ -6,6 +6,9 @@ export const CAPTURE_VERSION = '0.9' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
+export type * from './pack-types.js';
+
+import type { PackConfig } from './pack-types.js';
 
 export interface SpecimenContext {
 	viewport: { width: number; height: number };
@@ -21,6 +24,21 @@ export interface SpecimenContext {
 	 * keep the browser's defaults, as Storybook's Vitest runner leaves them for a retained story.
 	 */
 	themeMedia?: 'browser-default';
+}
+/** A theme a specimen renders in. */
+export type SpecimenTheme = SpecimenContext['theme'];
+/**
+ * The themes an entry is meant to render in, when it does not follow every theme: an auth page
+ * that is always light, say. A retained story declares it with a tag, `light-only`,
+ * `dark-only` or `high-contrast-only`, on the story or its meta; a native specimen with its
+ * `themes` field. An entry with none follows the theme.
+ */
+export interface ThemeSupport {
+	/** The themes it supports, in the order light, dark, high contrast. */
+	supported: SpecimenTheme[];
+	basis: 'declared';
+	/** Why, in a line: "matches the marketing site". */
+	reason?: string;
 }
 export type Target = { selector: string } | { role: string; name?: string };
 export type ScenarioStep =
@@ -178,8 +196,12 @@ export interface SpecimenEntry {
 	component?: string;
 	/** Present on retained stories discovered in CSF compatibility mode. */
 	story?: StoryIdentity;
+	/** The themes it is meant for, when it declares a limit; absent when it follows the theme. */
+	themes?: ThemeSupport;
 	/** Sent with a render, not discovered: properties to read live on each tag, for coverage. */
 	observe?: Record<string, string[]>;
+	/** Sent with a render, not discovered: markup the page mounts after loading the module. */
+	remount?: string;
 }
 /** What Storybook's index gives a retained story, and what discovery could not read. */
 export interface StoryIdentity {
@@ -241,6 +263,13 @@ export interface BenchConfig {
 	 * states one component's guidance or a set of shared rules. Needs `manifest`.
 	 */
 	guides?: string[];
+	/**
+	 * Guide source modules, relative to the configuration and inside the root: each default-exports
+	 * a guide source or an array of them, which Node runs to add shared rules. Needs `manifest`.
+	 */
+	guideSources?: string[];
+	/** What `specimen pack` builds: one library's component pack. Needs `manifest`. */
+	pack?: PackConfig;
 }
 export interface ValidationIssue {
 	/** `deferred`: only the module, run, can settle it. */
@@ -896,6 +925,69 @@ export interface MatrixRun {
 		unchanged: number;
 		insufficient: number;
 	};
+	elapsedMs: number;
+}
+/**
+ * Render each entry in every theme and compare the frames, to find what does not follow the
+ * theme. One entry by `id`, or those a `filter` selects; neither checks them all.
+ */
+export interface ThemesRequest {
+	id?: string;
+	filter?: SuiteFilter;
+	/** Two or more themes to compare; defaults to all three. */
+	themes?: SpecimenTheme[];
+	/** Defaults to `mount`. */
+	checkpoint?: string;
+	/** What every render shares; its theme is ignored. Defaults to 1280 × 720 with reduced motion. */
+	context?: Partial<SpecimenContext>;
+	/** The share of pixels, 0 to 1, at or under which two frames count as the same. Defaults to 0.02. */
+	threshold?: number;
+	timeoutMs?: number;
+	workers?: number;
+}
+/**
+ * - `follows`: the frame changes with the theme.
+ * - `declared`: the frame stays the same, or looks under a theme it does not support as under one
+ *   it does, and the entry declares its themes.
+ * - `pinned`: the frame stays the same because the story settles its own theme global.
+ * - `undeclared`: the frame stays the same and nothing says so. A gate fails on these.
+ * - `contradicted`: the entry declares a limit, but its frame changes with the theme.
+ * - `unavailable`: a theme could not be rendered or compared; `reason` says why.
+ */
+export type ThemeStatus =
+	| 'follows'
+	| 'declared'
+	| 'pinned'
+	| 'undeclared'
+	| 'contradicted'
+	| 'unavailable';
+export interface ThemeReport {
+	id: string;
+	title: string;
+	component?: string;
+	status: ThemeStatus;
+	/** What the entry declares, if anything. */
+	declared: ThemeSupport | null;
+	/** Each theme compared, against the first. */
+	frames: {
+		theme: SpecimenTheme;
+		/** The theme it rendered in: a story that sets its own theme global renders in that one. */
+		rendered: SpecimenTheme | null;
+		/** The share of pixels that differ from the first theme's frame, 0 to 1; `null` when not compared. */
+		changed: number | null;
+		reason?: string;
+	}[];
+	reason?: string;
+}
+export interface ThemesRun {
+	themes: SpecimenTheme[];
+	checkpoint: string;
+	threshold: number;
+	/** No entry is `undeclared`. */
+	valid: boolean;
+	reports: ThemeReport[];
+	counts: Record<ThemeStatus, number> & { total: number };
+	workers: number;
 	elapsedMs: number;
 }
 /** What a retained story's run found: the play, then the accessibility check. */

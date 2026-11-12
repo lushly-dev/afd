@@ -254,6 +254,23 @@ const template = html<VioletSelect>`
     </div>
 `;
 
+/**
+ * Violet reusable select primitive.
+ *
+ * @summary Button-triggered popup list for choosing one option; the form receives the chosen option's value.
+ * @slot - The options: violet-option and violet-option-group elements.
+ * @fires input - Emitted when the chosen option changes.
+ * @fires change - Emitted when the chosen option changes.
+ * @csspart field - Field wrapper.
+ * @csspart label - Label text element.
+ * @csspart control-shell - Wrapper around the trigger and the popup panel.
+ * @csspart trigger - The button that opens the list and shows the chosen option.
+ * @csspart caret - Decorative open indicator.
+ * @csspart panel - Popup panel.
+ * @csspart listbox - The popup list that holds the slotted options.
+ * @csspart supporting-text - Supporting text element.
+ * @csspart error-message - Error text element.
+ */
 export class VioletSelect extends FASTElement {
     public static readonly formAssociated = true;
 

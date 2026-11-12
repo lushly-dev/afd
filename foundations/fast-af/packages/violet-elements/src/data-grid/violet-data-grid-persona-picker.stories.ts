@@ -57,6 +57,7 @@ function renderPersonaPicker(args: PersonaPickerStoryArgs): HTMLElement {
 
 const meta = {
   title: "Components/Data Grid/Persona Picker",
+  component: "violet-data-grid-persona-picker",
   tags: ["autodocs"],
   parameters: {
     docs: {

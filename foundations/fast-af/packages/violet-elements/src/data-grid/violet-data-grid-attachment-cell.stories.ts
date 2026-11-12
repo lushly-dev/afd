@@ -48,6 +48,7 @@ function renderAttachmentCell(args: AttachmentCellStoryArgs): HTMLElement {
 
 const meta = {
   title: "Components/Data Grid/Attachment Cell",
+  component: "violet-data-grid-attachment-cell",
   tags: ["autodocs"],
   parameters: {
     docs: {

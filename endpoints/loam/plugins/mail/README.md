@@ -19,13 +19,46 @@ cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo
 ```
 
 It is built a step at a time from the specification's section 15. It answers `help` and
-`version`, and holds no mail command yet. So far it has:
+`version` and runs a command the registry exposes to the command line, printing its result as
+JSON: `loam-mail <command> [input]`. Its commands so far are `mail-sync`, `mail-status` and
+`mail-rebuild`. It can sync an iCloud account over IMAP, but nothing can add one yet: the
+account and its sign-in in the keychain arrive with `mail-account-add`, in the second half of
+step B3. So far it has:
 
 - **The data directory** (`src/home.rs`): where it is, and the lock that lets one process own it.
 - **The log** (`src/log.rs`): each message's bytes as the provider returned them, one compressed
   file each, named by the SHA-256 of the bytes and checked against it on every read.
-- **The store** (`src/store/`): the SQLite tables that are not derived from the log. They hold
-  accounts, mailboxes, each message's identity, which bytes are held, and what a provider showed.
+- **The store** (`src/store/`): the SQLite tables. `mod.rs` holds what is not derived from the
+  log: accounts, mailboxes, each message's identity, which bytes are held, and what a provider
+  showed. `derived.rs` holds what is: a message's fields and parts, its thread, where each
+  thread shows, and the rebuild that makes all of it again from the log.
+- **What code reads from a message** (`src/derive.rs`): the sender, the subject, the date, the
+  ids that join a thread, the parts and the text, with `mail-parser`.
+- **The search index** (`src/index.rs`): tantivy over each message's subject and text.
+- **The provider interface** (`src/provider/`): what sync asks of a provider, in words that name
+  no protocol, and its IMAP implementation, which only reads.
+- **Sync** (`src/sync.rs`): a pass over an account, mailboxes taking turns, resumable after any
+  stop; `src/store/sync.rs` is what it reads and records in the store.
+- **The commands** (`src/commands.rs`, over `src/engine.rs`).
+
+Sync is tested against a scripted IMAP server (`tests/support/imap.rs`), the test double the
+specification's section 14 asks for. `tests/live.rs` runs a pass against a real iCloud account,
+with the sign-in in two files, and reports counts only; it is ignored by default:
+
+```sh
+LOAM_MAIL_LIVE_ADDRESS_FILE=<file> LOAM_MAIL_LIVE_PASSWORD_FILE=<file> \
+LOAM_MAIL_LIVE_DIR=<new directory> LOAM_MAIL_LIVE_OUT=<results file> \
+  cargo test --release --test live -- --ignored --nocapture
+```
+
+The limits of the specification's section 4.4 are measured by `tests/limits.rs` with made-up
+mail. Its small run is part of the tests; the full run is ignored by default. At 500 000
+messages every limit was met ([the results](docs/limits-500000-icloud.results.json)):
+
+```sh
+LOAM_MAIL_MEASURE_CENSUS=<counts file> LOAM_MAIL_MEASURE_OUT=<results file> \
+  cargo test --release --test limits -- --ignored --nocapture
+```
 
 It also holds the registry's rules, checked when the engine starts
 and by its tests: a destructive command always requires approval, a command with an approval

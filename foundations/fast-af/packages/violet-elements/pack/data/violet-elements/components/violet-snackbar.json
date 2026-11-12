@@ -1,0 +1,228 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "declared",
+				"default": "polite",
+				"name": "announcement",
+				"property": "announcement",
+				"rules": [
+					"taxonomy.announcement"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "dismissible",
+				"property": "dismissible",
+				"rules": [
+					"taxonomy.dismissible"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "6000",
+				"name": "timeout",
+				"property": "timeout",
+				"rules": [
+					"taxonomy.timeout"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "default",
+				"name": "tone",
+				"property": "tone",
+				"rules": [
+					"taxonomy.tone"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-action, var(--_text-primary))",
+				"name": "--_snackbar-action"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-body-line, var(--_body-line))",
+				"name": "--_snackbar-body-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-body-size, var(--_body-size))",
+				"name": "--_snackbar-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-border, var(--_border-subtle))",
+				"name": "--_snackbar-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-emphasis, var(--_text-primary))",
+				"name": "--_snackbar-emphasis"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-gap, var(--_space-sm))",
+				"name": "--_snackbar-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-padding-block, var(--_space-sm))",
+				"name": "--_snackbar-padding-block"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-padding-inline, var(--_space-md))",
+				"name": "--_snackbar-padding-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-radius, calc(var(--_radius-lg) * 1.33))",
+				"name": "--_snackbar-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-shadow, var(--_shadow-floating))",
+				"name": "--_snackbar-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-snackbar-surface, var(--_surface-floating))",
+				"name": "--_snackbar-surface"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-sm)",
+				"name": "--violet-button-padding-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_snackbar-surface)",
+				"name": "--violet-card-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_snackbar-border)",
+				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "0",
+				"name": "--violet-card-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_snackbar-radius)",
+				"name": "--violet-card-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_snackbar-shadow)",
+				"name": "--violet-card-shadow"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the snackbar closes. Detail: `{ reason: \"timeout\" | \"dismiss-button\" }`.",
+				"name": "dismiss"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the open state changes. Detail: `{ open: boolean }`.",
+				"name": "open-change"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Snackbar message content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional single action control. Presence disables auto-dismiss.",
+				"name": "action"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-snackbar--dismiss-interaction",
+			"html": "<violet-snackbar announcement=\"polite\" dismissible timeout=\"6000\" tone=\"default\">Row changes synced.</violet-snackbar>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-snackbar--dismissible",
+			"html": "<violet-snackbar announcement=\"polite\" dismissible open timeout=\"6000\" tone=\"default\">Row changes synced.</violet-snackbar>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-snackbar--overview",
+			"html": "<violet-snackbar announcement=\"polite\" open timeout=\"6000\" tone=\"default\">Row changes synced.</violet-snackbar>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "announcement",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"message.announcement",
+		"overlay.open-change",
+		"taxonomy.announcement",
+		"taxonomy.dismissible",
+		"taxonomy.open",
+		"taxonomy.timeout",
+		"taxonomy.tone"
+	],
+	"status": "stable",
+	"tag": "violet-snackbar",
+	"usage": []
+}

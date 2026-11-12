@@ -52,6 +52,7 @@ function renderTextArea(args: VioletTextAreaStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Text Area",
+    component: "violet-text-area",
     tags: ["autodocs"],
     parameters: {
         docs: {

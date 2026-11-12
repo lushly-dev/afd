@@ -1,0 +1,24 @@
+{"n":1,"tool":"ideas-capture","command":null,"why":"A view the person wants kept; instructions say capture, not memory."}
+{"n":2,"tool":"ideas-capture","command":null,"why":"A decided position to save as an idea."}
+{"n":3,"tool":"ideas-capture","command":null,"why":"A principle worth keeping; store as an idea."}
+{"n":4,"tool":"ideas-capture","command":null,"why":"Explicit request to hold onto an idea."}
+{"n":5,"tool":"ideas-capture","command":null,"why":"A claim to be kept permanently."}
+{"n":6,"tool":"ideas-capture","command":null,"why":"Evidence with a source; capture records provenance."}
+{"n":7,"tool":"ideas-capture","command":null,"why":"An open question to capture as an idea."}
+{"n":8,"tool":"ideas-capture","command":null,"why":"A principle to remember as an idea."}
+{"n":9,"tool":"ideas-ask","command":null,"why":"Asks what they previously said on a subject."}
+{"n":10,"tool":"ideas-ask","command":null,"why":"Asks whether their view changed; ideas-ask tracks changes."}
+{"n":11,"tool":"ideas-ask","command":null,"why":"Gathers supporting evidence from their ideas."}
+{"n":12,"tool":"ideas-ask","command":null,"why":"Asks where their views contradict."}
+{"n":13,"tool":"ideas-ask","command":null,"why":"Summarises their beliefs from stored ideas."}
+{"n":14,"tool":"ideas-ask","command":null,"why":"Check for an existing similar idea without saving."}
+{"n":15,"tool":"ideas-ask","command":null,"why":"Writing in their voice requires ideas-ask first."}
+{"n":16,"tool":"ideas-ask","command":null,"why":"Gathering material for a draft starts with ideas-ask."}
+{"n":17,"tool":"ideas-ask","command":null,"why":"Writing from their ideas; ask first."}
+{"n":18,"tool":"ideas-ask","command":null,"why":"Chapter outline needs their views on water first."}
+{"n":19,"tool":"memory-remember","command":null,"why":"A working preference, not an idea."}
+{"n":20,"tool":"memory-remember","command":null,"why":"A fact about the person for future sessions."}
+{"n":21,"tool":"memory-remember","command":null,"why":"A preference about how to work with them."}
+{"n":22,"tool":"memory-remember","command":null,"why":"A personal fact about availability."}
+{"n":23,"tool":"knowledge-search","command":null,"why":"Question about a document's content; search documents."}
+{"n":24,"tool":"knowledge-search","command":null,"why":"Need to locate the calendar document before opening it."}

@@ -67,9 +67,11 @@ In CSF compatibility mode a configuration names the consumer's existing Storyboo
 ```json
 {
   "stories": ["src/**/*.stories.ts"],
-  "preview": ".storybook/preview.ts"
+  "preview": "specimens/preview.ts"
 }
 ```
+
+Any path relative to the configuration works. A project moving from Storybook can point at its existing `.storybook/preview.ts`; a new one needs no `.storybook` directory.
 
 Each `stories` entry is a glob, directory, file or `{ "directory", "files", "titlePrefix" }`, read as Storybook's `stories` entries are, relative to the configuration file. Extended globs such as `@(a|b)` are rejected; use braces.
 
@@ -154,6 +156,42 @@ const run = await bench.matrix({
 ```
 
 Each cell after the first captured one reports a `diff` against it: its status, the channels that changed, and any limitations. A cell that could not be captured stays in the report as `unavailable` with its reason, and is not an error. `observations: true` keeps each capture. The default checkpoint is a native scenario's end, or a retained story's `mount`.
+
+## Declare and check themes
+
+An entry follows the theme unless it says otherwise. A story that is meant for some themes only, such as a sign-in page that stays light to match a marketing site, declares it with a tag on the story or its meta:
+
+```ts
+export default { title: 'Auth/Sign in', tags: ['light-only'] };
+```
+
+`light-only`, `dark-only` and `high-contrast-only` each add their theme, so `light-only` with `high-contrast-only` supports both. A story that pins its own theme, as a Light and Dark pair set through args does, declares it the same way: `light-only` on one, `dark-only` on the other. A native specimen declares it in the configuration, with an optional one-line reason:
+
+```json
+{ "id": "sign-in", "title": "Auth/Sign in", "module": "./sign-in.specimens.ts", "exportName": "Page",
+  "themes": { "supported": ["light"], "reason": "Matches the marketing site." } }
+```
+
+Discovery puts the declaration on the entry as `themes` (`{ supported, basis: 'declared', reason? }`), which `list()` returns and the review page shows.
+
+`themes()` (`specimen-themes`, `specimen themes [ID]`) renders one entry by `id`, or those a `filter` selects, in each theme and compares the screenshots pixel by pixel. It is not part of `run`; ask for it when you want the audit:
+
+```sh
+specimen themes --match auth --theme light,dark --threshold 0.02
+```
+
+The defaults are all three themes, the `mount` checkpoint, reduced motion and a threshold of 0.02: two frames count as the same when at most 2% of their pixels differ. That figure is from an audit of 916 stories, where the pages meant to stay light changed 0% and stories that follow the theme changed 10% or more. Each report has a `status`:
+
+| Status | Meaning |
+| --- | --- |
+| `follows` | The frame changes with the theme |
+| `declared` | It declares its themes, and its frame under a theme it does not support looks as it does under one it does; or it declares every compared theme and its frame stays the same |
+| `pinned` | The frame stays the same because the story sets its own theme global |
+| `undeclared` | The frame stays the same and nothing declares it |
+| `contradicted` | It declares a limit, but its frame changes under a theme it does not support |
+| `unavailable` | A theme did not render; `reason` says why |
+
+Each report also lists, per theme, the theme it rendered in and the share of pixels that differ from the first theme's frame. `valid` is false, and the CLI exits 1, when any entry is `undeclared`, so a consumer can gate on it.
 
 ## Check accessibility
 
@@ -356,9 +394,11 @@ The helpers are the libraries `storybook/test` bundles, at the versions it bundl
 
 Plugins install before any specimen or story module loads. A plugin, runner or theme registered twice is an error, and a step naming a missing runner fails before it runs.
 
+A fifth point, the **guide source**, runs in Node, not in the page: `"guideSources": ["./specimen.guides.mjs"]` names modules whose default export is a guide source, or an array of them, declared with `defineGuideSource`. Its `rules(context)` returns shared rules, `{ id, text, appliesTo }` as a guide file states them, from data the library already keeps; `context.read(path)` reads a file relative to the configuration and refuses one outside the root, and `context.schemas` is what the manifest says. Its rules join the guide files' before any check, so `specimen-validate` reports their problems against the module, `guides@1` counts them, a pack's rules file holds them, and `specimen-pack-export` rebuilds them with no browser. It runs in Node because a rule is text, not something a render shows: in the page, export could not recheck it and a static check would need a browser. `guideSources` needs `manifest`.
+
 `inspect()` (`specimen-inspect`, `specimen inspect ID`) resolves an entry without capturing it. It reports the args, the context, a retained story's composed annotations, the plugins installed, and the component's schema from the manifest and the plugins. A component no source describes is reported as a limitation.
 
-`@lushly-dev/specimen-fast-af` is FAST-AF's plugin.
+`@lushly-dev/specimen-fast-af` is FAST-AF's plugin, and its `/guides` entry FAST-AF's guide source, which states an attribute taxonomy's definitions as shared rules.
 
 ## Build a review page
 
@@ -369,9 +409,9 @@ python3 -m http.server 4173 --directory /tmp/specimen-static
 
 The output directory must be empty. Open `/index.html` for the index, or `/specimen.html?id=baseline&viewport=375x812&theme=dark` for a preview.
 
-The index groups specimens by component, a story's title or a native specimen's title without its last segment, under a heading for each shared prefix such as `Components`. A story with a play is tagged `play`. The filter matches every word against a specimen's name, group, id and tags, and keeps its text in `q`, so a reloaded or shared link opens filtered. Every count follows the filter. A preview names the specimen, its id and its group, each segment of the group a link to the index filtered to it, and shows the frame on a stage captioned with its size and theme. The viewport is a device preset (Phone, Large phone, Tablet, Laptop, Desktop or Wide) or a custom width and height, A theme or a preset applies as soon as you pick it; a custom size applies when you press Apply. Drag the frame's corner to resize it: the story sees its window resize, as on a device, and the caption, the viewport controls and the URL's `viewport` follow, so a reload or a shared link opens at that size.
+The index groups specimens by component, a story's title or a native specimen's title without its last segment, under a heading for each shared prefix such as `Components`. A story with a play is tagged `play`, and one that declares its themes is tagged with them, such as `light only`, with its reason as the tag's title. The filter matches every word against a specimen's name, group, id and tags, and keeps its text in `q`, so a reloaded or shared link opens filtered. Every count follows the filter. A preview names the specimen, its id and its group, each segment of the group a link to the index filtered to it, and shows the frame on a stage captioned with its size and theme. When the selected theme is one the specimen does not support, the preview says so above the frame, with the declared reason, so a light frame under Dark reads as intended. The viewport is a device preset (Phone, Large phone, Tablet, Laptop, Desktop or Wide) or a custom width and height, A theme or a preset applies as soon as you pick it; a custom size applies when you press Apply. Drag the frame's corner to resize it: the story sees its window resize, as on a device, and the caption, the viewport controls and the URL's `viewport` follow, so a reload or a shared link opens at that size.
 
-The pages have one small stylesheet of their own, linked only on the index and the preview. A story's frame and an automated render never load it, so it cannot change an observation. Restyle the pages by setting its custom properties, such as `--specimen-surface`, `--specimen-text` and `--specimen-accent`. Its colors use `light-dark()`, and follow the theme the page selects. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **50,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
+The pages have one small stylesheet of their own, linked only on the index and the preview. A story's frame and an automated render never load it, so it cannot change an observation. Restyle the pages by setting its custom properties, such as `--specimen-surface`, `--specimen-text` and `--specimen-accent`. Its colors use `light-dark()`, and follow the theme the page selects. The page also reads `container` (`WIDTH` or `WIDTHxHEIGHT`), `locale`, `reducedMotion` and `motion`. A selected viewport uses a sized iframe so width media queries, viewport units and `innerWidth` reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **52,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies; the proposal's 50,000 left no room once the shell's own code reached 49,800 bytes. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
 
 Each bench page, this one included, starts `Math.random` from a fixed seed, so a framework's random marker comes out the same each time and a link reopens to the same DOM. A capture's manifest records this in `checkpoint.baseline`. The clock stays real, so a story showing today's date will still differ tomorrow.
 
@@ -387,9 +427,31 @@ A link can also carry `checkpoint`: `after-run` runs a retained story's play in 
 
 ## Component packs
 
-A component pack describes a library's components for an agent: attributes, slots, events, roles, guidance and shared rules, each fact labelled with where it came from. Specimen does not build packs yet. `@lushly-dev/specimen/pack` has the format's version 0: its schemas, `checkPack` and the catalog writer, and `@lushly-dev/specimen/pack/<kind>.schema.json` has a JSON Schema for each file kind. Version 0 can change in any release. [The format](docs/pack-format.md) describes it, and `fixtures/pack/` holds an example library and one invalid case per problem `checkPack` reports.
+A component pack describes a library's components for an agent: attributes, slots, events, roles, guidance and shared rules, each fact labelled with where it came from. `@lushly-dev/specimen/pack` has the format's version 0: its schemas, `checkPack` and the catalog writer, and `@lushly-dev/specimen/pack/<kind>.schema.json` has a JSON Schema for each file kind. Version 0 can change in any release. [The format](docs/pack-format.md) describes it, and `fixtures/pack/` holds an example library and one invalid case per problem `checkPack` reports.
 
-Guidance a library's authors write lives in guide files, found through the `guides` key: `"guides": ["src/**/*.guide.json"]`, which needs `manifest`. A file holds one component's `summary`, `status`, `usage`, `a11y` and `detail`, or, with a top-level `rules`, rules stated once with what each applies to. Each statement has a stable `id`, and may list in `members` the attributes, properties, slots, events, CSS properties or commands it names. `@lushly-dev/specimen/guide/<kind>.schema.json` has a JSON Schema for each kind (`component`, `rules`). `specimen-validate` checks them with no browser: the shape, the 160- and 240-character limits, tags and members the manifest does not have, and duplicate tags and ids. Where a plugin could add a member the manifest lacks, an unknown member is reported as `deferred`, not as an error. `specimen-coverage` reports each statement's level in `guides@1` (see [Report coverage](#report-coverage)). Nothing reads guides into a pack yet.
+Guidance a library's authors write lives in guide files, found through the `guides` key: `"guides": ["src/**/*.guide.json"]`, which needs `manifest`. A file holds one component's `summary`, `status`, `usage`, `a11y`, `roles` (its roles in states a capture does not show, such as an open popup's) and `detail`, or, with a top-level `rules`, rules stated once with what each applies to. Each statement has a stable `id`, and may list in `members` the attributes, properties, slots, events, CSS properties or commands it names. `@lushly-dev/specimen/guide/<kind>.schema.json` has a JSON Schema for each kind (`component`, `rules`). `specimen-validate` checks them with no browser: the shape, the 160- and 240-character limits, tags and members the manifest does not have, and duplicate tags and ids. Where a plugin could add a member the manifest lacks, an unknown member is reported as `deferred`, not as an error. `specimen-coverage` reports each statement's level in `guides@1` (see [Report coverage](#report-coverage)).
+
+A `pack` key names the library a project builds a pack for, which needs `manifest`:
+
+```json
+"pack": {
+  "library": "example",
+  "title": "Example components",
+  "prefix": "example-",
+  "directory": "./pack",
+  "package": "./package.json",
+  "import": "example-components/{module}"
+}
+```
+
+Every component whose tag starts with `prefix` gets a record. `directory` is the committed form's root, `package` the manifest whose name and version export stamps, and `import` the specifier that registers a component (`{module}` is the module the manifest names, `{tag}` the tag and `{name}` the tag without the prefix); `examples` caps how many a record keeps (3 by default).
+
+- `bench.pack()` runs every case twice, retrying a failed case once, and writes the committed form: one record per component and the library's rules. A case whose observations differ between the passes contributes nothing and is listed as `unstable`; a run with a failed case writes nothing unless `allowFailed` names it. An example is the markup a case about the component mounted, mounted again on its own and kept only when it shows the same; each one left out is listed with its reason. The report lists each component's gaps, and anything the build left out of a record, such as a manifest description over its limit.
+- `component` rebuilds one record. Its cases come from an index each full build writes (a cache in `node_modules/.cache/specimen/`, not committed): the cases that rendered each tag, every case that failed listed under every tag. The index is used only when the bench's bundle and the configuration are unchanged since it was written; otherwise every case runs, and the report's `selection` says why. Only that record is written or compared. A full build in CI stays the authority.
+- `bench.packCheck()` builds the same way, writes nothing, and names the committed files that differ (`changed`, `added`, `removed`); `valid` is true only when none does and no case failed.
+- `bench.packExport({ directory, revision? })` writes the exported form from the committed records, with no browser: the records, the rules and the catalog, stamped with the package. It first rebuilds what files alone say, the facts the manifest declares and the statements in the guide files, and refuses, naming the record, when one differs from what was committed. Other libraries already in `directory` stay as they are, and so does a deployment's `pack.toml`: export writes beside the target and swaps the directories.
+
+`specimen-pack`, `specimen-pack-check` and `specimen-pack-export` in `@lushly-dev/specimen-afd`, and `specimen pack [TAG]`, `pack-check [TAG]` and `pack-export DIR` in the CLI, call these. How each fact's basis is decided is in [the format](docs/pack-format.md#how-specimen-builds-a-pack). `fixtures/pack-library/` is the example library the format's fixture pack is built from.
 
 ## Use programmatically
 

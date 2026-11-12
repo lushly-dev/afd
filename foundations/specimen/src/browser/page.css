@@ -227,6 +227,7 @@ button {
 	display: none;
 }
 #specimen-page-context-notice,
+#specimen-page-theme-notice,
 #specimen-page-checkpoint-notice,
 #specimen-page-error {
 	margin: 0 0 var(--specimen-gap);

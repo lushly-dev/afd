@@ -331,6 +331,9 @@ impl Checker {
             self.ascending(path, "/a11y/axe/exceptions", &strs(Some(&axe.exceptions)));
         }
         self.ascending(path, "/rules", &strs(Some(&record.rules)));
+        if let Some(themes) = &record.themes {
+            self.ascending(path, "/themes/supported", &strs(Some(&themes.supported)));
+        }
     }
 
     /// `checkLibrary`'s checks across the rules and the records.

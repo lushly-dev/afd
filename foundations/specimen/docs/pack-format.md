@@ -3,9 +3,10 @@
 A component pack tells an agent what it needs to use a library's components:
 each component's attributes, slots, events and accessibility facts, the
 guidance written for it, and the rules the library states once for many
-components. Every fact says where it came from. Specimen will build packs from
-what it observes when it runs a library's stories (`specimen pack`, not yet
-written), and an Umbel plugin will serve them in batches. The plan is the
+components. Every fact says where it came from. Specimen builds packs from
+what it observes when it runs a library's stories (`bench.pack()`; see
+[How Specimen builds a pack](#how-specimen-builds-a-pack)), and an Umbel plugin
+serves them in batches. The plan is the
 [Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/active/component-briefs/component-briefs.proposal.md).
 
 **Version 0 can change in any release.** It becomes version 1 once Specimen
@@ -111,8 +112,8 @@ three are Specimen's coverage levels.
 | Basis | Meaning |
 | --- | --- |
 | `verified` | A claim's expectations ran and held, about this fact, in this state. For a statement: the check its claim carries ran and held |
-| `observed` | Specimen saw it in a case that passed: an attribute's state, a role, an axe result, an example's markup |
-| `declared` | The custom elements manifest or a plugin's schema says so; nothing ran it |
+| `observed` | Specimen saw it in a case that passed: an attribute's state, a role, an axe result, an example's markup, the themes its frames follow |
+| `declared` | The custom elements manifest, a plugin's schema or a story's tag says so; nothing ran it |
 | `authored` | A person wrote it; nothing checks it |
 
 `verified` means that the check tied to a fact ran and passed in the run
@@ -127,6 +128,7 @@ Each kind of fact allows only the words that can be true of it:
 | Statement, shared rule | `verified`, `authored` |
 | Role | `observed`, `authored` |
 | axe result, example | `observed` |
+| Themes | `declared`, `observed` |
 
 A summary and a record's long form are descriptions, not facts, and carry no
 basis.
@@ -158,6 +160,18 @@ other (`SCHEMA_INVALID`).
 | `examples` | `from` (the story that rendered it), `html` (the markup that rendered), `basis` |
 | `detail` | Optional: the long form |
 | `gaps` | What is missing: `summary`, `usage`, `a11y-statement`, `role`, `example`, or `unobserved` with the `section` and `name` of a member the manifest declares and no case showed |
+| `themes` | Optional: the themes it renders as intended, `supported` (one or more of `dark`, `high-contrast` and `light`), `basis`, and an optional one-line `reason`, such as "Matches the marketing site." Absent when nothing has declared or observed them |
+
+A component that supports every theme follows the theme, so a record needs
+`themes` only to say that one does not, or to record that Specimen saw it
+follow them all. `declared` comes from the author: a `light-only`,
+`dark-only` or `high-contrast-only` tag on its stories, or a native
+specimen's `themes`. `observed` comes from rendering it in each theme and
+comparing the frames (`specimen themes`).
+
+`themes` was added within version 0, so a reader built before it, such as
+Specimen `2.2.0-preview.3`, refuses a record that carries it as
+`SCHEMA_INVALID`.
 
 Values and defaults are strings, integers between −(2⁵³ − 1) and 2⁵³ − 1,
 booleans or `null`. No other number is allowed, so every reader writes
@@ -234,8 +248,8 @@ Each file has exactly one serialization (`canonicalJson`, which is
 Lists of named
 things are in ascending order with no repeats: a record's attributes, slots,
 events, commands and CSS properties by name; its roles by state; its rule
-ids, an attribute's rule ids, a slot's accepted elements and the axe
-exceptions; a rules file's rules by id and each rule's tags and attributes;
+ids, an attribute's rule ids, a slot's accepted elements, the axe
+exceptions and the supported themes; a rules file's rules by id and each rule's tags and attributes;
 a catalog's components by tag, each compared by UTF-16 code unit (byte order
 for these ASCII names). Statements, values, examples and gaps keep the
 order they are written in. Anything else is `NOT_CANONICAL`, and a repeat is
@@ -277,6 +291,64 @@ file: `FORMAT_UNSUPPORTED`, `SCHEMA_INVALID`, `IDENTIFIER_INVALID`,
 Schema pattern cannot see). The rest need the layout, the bytes or more than
 one file, and are `checkPack`'s.
 
+## How Specimen builds a pack
+
+`bench.pack()` builds a record for every component whose tag starts with the
+configured prefix, from three sources: the schemas (the manifest and the
+plugins' schema sources), the captures of the cases that passed in both of its
+passes, and the guide files. A case that failed, or showed something different
+in each pass, contributes nothing. The rules below are Specimen's; another
+writer of the format may choose its own.
+
+- **Attributes** are the members a capture can read through an attribute; a
+  property with no attribute has no entry. A value's basis is its coverage
+  level: `verified` from a claim, `observed` when a case showed it, `declared`
+  otherwise. An attribute's own basis is the best its values earned in a state
+  other than its default, so a boolean is `observed` once a case showed it set.
+  An open-ended attribute is `observed` when a case showed it with a value
+  other than its default. A finite set is listed in `values`, except `true`
+  and `false` alone. `rules` are the shared rules that name the attribute.
+- **Slots** take the better of their filled and empty levels; `accepts` lists
+  the library's elements a case showed assigned to the slot. **Events** and
+  **commands** take their coverage level, and **CSS properties** are
+  `declared`. `form` is present, `observed`, when a case showed the element
+  form-associated, and `verified` when a claim proved its participation.
+- **Roles.** In the default state, every instance a case showed has to have
+  the same computed role (capture 0.9); the role is then `observed`. Its
+  `name` says how the name was given when every instance agrees: `from the
+  <attribute> attribute` when an attribute holds the name, `from its text`
+  otherwise, and nothing when the element names others with
+  `aria-labelledby`. A guide's `roles` give the roles of other states, which
+  stay `authored`, and a guide's default-state role only where none was
+  observed.
+- **The accessibility check** counts for the component a case is about, the
+  one the entry names: `violations` is how many axe rules failed across those
+  cases, and `exceptions` the rules a native specimen's policy excused.
+- **Statements and rules** come from the guide files, and rules also from the
+  guide sources (modules the `guideSources` key names, which run in Node),
+  `verified` when a claim
+  with its check held in `guides@1`, `authored` otherwise. A record's `rules`
+  are those that name its tag or one of its attributes.
+- **Examples** come from the cases that name the component: the light DOM the
+  case mounted, with shadow content left out, each element's attributes in
+  name order (a page writes them in the order they were set, which can differ
+  from run to run) and an empty attribute written as its name. One is kept only when it is the same in both passes, fits 4 000
+  characters, and, mounted on its own after the case's module has loaded,
+  shows the same elements, states and roles. At most three are kept, the first
+  by case id.
+- **Gaps** list, in this order, a missing summary, usage statement,
+  accessibility statement, role and example, then each attribute and slot
+  whose basis is `declared`.
+- A manifest's text is written on one line, with its whitespace collapsed;
+  one over its limit, or holding a control character, is left out and
+  reported, and so is an identifier the format does not allow.
+
+`bench.packCheck()` builds the same way and compares; `bench.packExport()`
+rechecks, without a browser, what the manifest, the guide files and the guide
+sources alone say.
+`fixtures/pack-library/` is the example library: built, it gives
+`fixtures/pack/committed/` byte for byte, and exported, `fixtures/pack/exported/`.
+
 ## Fixtures
 
 `fixtures/pack/` in Specimen's source holds the format's test packs.
@@ -284,8 +356,10 @@ one file, and are `checkPack`'s.
 - `committed/` and `exported/`: an example library, `example`, in both
   forms. `example-field`, `example-option` and `example-select` are in use,
   and `example-dropdown` is deprecated and names its replacement. Every key a
-  record can hold, every basis, every kind of gap and a record with no
-  summary each appear at least once.
+  record can hold except `themes`, every basis, every kind of gap and a record
+  with no summary each appear at least once. `themes` came after the example,
+  so the tests and two invalid cases, `themes-basis` and `themes-unsorted`,
+  hold it instead of a change to every case's digests.
 - `invalid/`: one case per directory, and `invalid/cases.json` naming each.
   A case is the exported example with its directory's files laid over it and
   the files in its `remove` list deleted; a case that only deletes has no

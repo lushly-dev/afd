@@ -34,7 +34,8 @@
     "theme:build": "node ./scripts/build-runtime-theme.mjs",
     "icons:build": "node ./scripts/build-icons.mjs",
     "cem:analyze": "cem analyze --config custom-elements-manifest.config.js && node ./scripts/normalize-custom-elements.mjs",
-    "verify:exports": "node ./scripts/verify-package-exports.mjs"
+    "verify:exports": "node ./scripts/verify-package-exports.mjs",
+    "pack:build": "node scripts/build-pack.mjs"
   },
   "dependencies": {
     "@tanstack/virtual-core": "3.19.11",
@@ -54,6 +55,7 @@
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@lushly-dev/fast-element": "workspace:*",
     "@lushly-dev/specimen": "workspace:*",
+    "@lushly-dev/specimen-fast-af": "workspace:*",
     "@typescript/typescript6": "^6.0.2",
     "@vitest/browser-playwright": "^5.1.0",
     "@vitest/coverage-v8": "^5.1.0",

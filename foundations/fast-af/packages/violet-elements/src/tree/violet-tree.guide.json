@@ -1,0 +1,48 @@
+{
+  "tag": "violet-tree",
+  "summary": "Single-selection tree view of nested violet-tree-item elements, for hierarchies such as folders or categories.",
+  "usage": [
+    {
+      "id": "tree.structure",
+      "text": "Children are violet-tree-item elements; nest an item inside another to make a branch. Only the tree's direct item children are its root items."
+    },
+    {
+      "id": "tree.value",
+      "text": "value selects the item whose value matches, or whose label text matches when the item has no value. With no tree value, an item marked selected is used.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "tree.events",
+      "text": "change fires on user selection with detail { value, itemId }; setting value from script fires nothing. expanded-change fires only when the user expands or collapses a branch.",
+      "members": [
+        "change",
+        "expanded-change",
+        "value"
+      ]
+    },
+    {
+      "id": "tree.not-form",
+      "text": "It is not form-associated: a form does not receive its value and there is no invalid attribute. Read value or listen for change; error-text shows whenever it is set.",
+      "members": [
+        "value",
+        "error-text"
+      ]
+    },
+    {
+      "id": "tree.keyboard",
+      "text": "Arrows move focus without selecting; Enter or Space selects. Right expands or enters a branch, Left collapses or goes to the parent, Home and End jump, typed letters find an item."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "tree.name",
+      "text": "Name it with label or aria-label; with neither it is named \"Tree\". When label is set, aria-label is ignored.",
+      "members": [
+        "label",
+        "aria-label"
+      ]
+    }
+  ]
+}

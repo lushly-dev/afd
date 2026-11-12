@@ -489,6 +489,32 @@
 					}
 				]
 			}
+		},
+		"themes": {
+			"type": "object",
+			"properties": {
+				"supported": {
+					"minItems": 1,
+					"maxItems": 3,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": ["dark", "high-contrast", "light"]
+					}
+				},
+				"basis": {
+					"type": "string",
+					"enum": ["declared", "observed"]
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 240,
+					"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+				}
+			},
+			"required": ["supported", "basis"],
+			"additionalProperties": false
 		}
 	},
 	"required": ["format", "tag", "status", "api", "a11y", "usage", "rules", "examples", "gaps"],

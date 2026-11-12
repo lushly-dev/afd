@@ -1,0 +1,137 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "spinner.name",
+				"text": "Unless decorative, it is role img named by the label attribute, default \"Loading\". It is not a live region, so it announces nothing when it appears."
+			},
+			{
+				"basis": "authored",
+				"id": "spinner.decorative",
+				"text": "Set decorative when visible text nearby, such as \"Saving...\", already says it is loading; it is then hidden from assistive technology."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "decorative",
+				"property": "decorative",
+				"rules": [
+					"taxonomy.decorative"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "md",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "\"sm\" | \"md\" | \"lg\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "sm"
+					},
+					{
+						"basis": "observed",
+						"value": "md"
+					},
+					{
+						"basis": "observed",
+						"value": "lg"
+					}
+				]
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-compact, 24px)",
+				"name": "--_spinner-size"
+			},
+			{
+				"basis": "declared",
+				"default": "2px",
+				"name": "--_spinner-stroke"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_border-subtle) 65%, transparent)",
+				"name": "--_spinner-track"
+			}
+		],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-spinner--decorative",
+			"html": "<violet-spinner decorative label size=\"sm\"></violet-spinner>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-spinner--in-context",
+			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);font-family:inherit;font-size:var(--type-body-md-size);line-height:var(--type-body-md-line);color:var(--color-text-secondary);\">\n            <violet-spinner decorative label size=\"sm\"></violet-spinner>\n            <span>Syncing row changes…</span>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-spinner--overview",
+			"html": "<violet-spinner label=\"Loading crop plan\" size=\"md\"></violet-spinner>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.decorative",
+		"import.root",
+		"taxonomy.decorative",
+		"taxonomy.label",
+		"taxonomy.size",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Small indeterminate loading indicator for a local wait, such as inside a button or a panel that is loading.",
+	"tag": "violet-spinner",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "spinner.status",
+			"text": "It shows activity only. Announce when loading starts and ends with text in a status region of your own, and remove the spinner when done."
+		},
+		{
+			"basis": "authored",
+			"id": "spinner.motion",
+			"text": "Under prefers-reduced-motion the rotation slows to 1.6 seconds per turn rather than stopping."
+		}
+	]
+}

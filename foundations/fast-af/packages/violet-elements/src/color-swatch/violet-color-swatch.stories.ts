@@ -11,6 +11,7 @@ type VioletColorSwatchStoryArgs = {
 
 const meta = {
     title: "Components/Color Swatch",
+    component: "violet-color-swatch",
     tags: ["autodocs"],
     parameters: {
         docs: {

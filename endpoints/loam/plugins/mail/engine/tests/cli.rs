@@ -4,13 +4,23 @@
 
 use std::process::Command;
 
-use loam_mail::cli::{EXIT_OK, EXIT_USAGE, run};
+use std::sync::Arc;
+
+use loam_mail::cli::{Caller, EXIT_FAILED, EXIT_OK, EXIT_USAGE, run};
+use loam_mail::engine::Engine;
+use loam_mail::home::Home;
 
 fn run_with(args: &[&str]) -> (u8, String, String) {
-    let registry = loam_mail::registry().expect("the engine's registry is sound");
+    run_in(None, args)
+}
+
+fn run_in(home: Option<Home>, args: &[&str]) -> (u8, String, String) {
+    let registry =
+        loam_mail::registry(&Arc::new(Engine::new(home))).expect("the engine's registry is sound");
     let args: Vec<String> = args.iter().map(ToString::to_string).collect();
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let status = run(&args, &registry, &mut out, &mut err).expect("writing to memory");
+    let status =
+        run(&args, &registry, Caller::Script, &mut out, &mut err).expect("writing to memory");
     (
         status,
         String::from_utf8(out).expect("utf-8"),
@@ -65,4 +75,81 @@ fn the_built_program_answers_help() {
         .output()
         .expect("the program runs");
     assert_eq!(refused.status.code(), Some(2));
+}
+
+#[test]
+fn help_lists_the_commands_the_command_line_can_run() {
+    let (_, out, _) = run_with(&["help"]);
+    assert!(out.contains("Commands:\n  mail-rebuild  "), "{out}");
+}
+
+#[test]
+fn a_command_runs_and_prints_its_result_as_json() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let home = Home::at(directory.path().join("data"));
+    let (status, out, err) = run_in(Some(home.clone()), &["mail-rebuild"]);
+    assert_eq!(status, EXIT_OK, "{out}{err}");
+    let result: serde_json::Value = serde_json::from_str(&out).expect("JSON");
+    assert_eq!(result["success"], true);
+    assert_eq!(result["data"]["messages"], 0);
+    assert_eq!(result["data"]["threads"], 0);
+    assert_eq!(result["data"]["resumed"], false);
+    assert_eq!(result["metadata"]["actorKind"], "script");
+    // An empty object is the same as no input.
+    let (status, _, _) = run_in(Some(home), &["mail-rebuild", "{}"]);
+    assert_eq!(status, EXIT_OK);
+}
+
+#[test]
+fn an_input_that_is_not_one_json_object_is_refused_before_the_command_runs() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let home = Home::at(directory.path().join("data"));
+    for args in [
+        &["mail-rebuild", "[]"][..],
+        &["mail-rebuild", "not json"],
+        &["mail-rebuild", "{}", "{}"],
+    ] {
+        let (status, out, err) = run_in(Some(home.clone()), args);
+        assert_eq!(status, EXIT_USAGE, "{args:?}");
+        assert!(out.is_empty());
+        assert!(err.contains("JSON object"), "{err}");
+    }
+    assert!(!home.root().exists(), "nothing was opened");
+}
+
+#[test]
+fn a_command_that_fails_says_why_as_json_and_exits_with_one() {
+    // No data directory can be worked out: the command fails, help does not.
+    let (status, out, _) = run_in(None, &["mail-rebuild"]);
+    assert_eq!(status, EXIT_FAILED);
+    let result: serde_json::Value = serde_json::from_str(&out).expect("JSON");
+    assert_eq!(result["success"], false);
+    assert_eq!(result["error"]["code"], "STORE_FAILED");
+    assert!(result["error"]["suggestion"].is_string());
+}
+
+#[test]
+fn a_store_another_process_owns_fails_the_command_with_its_code() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let home = Home::at(directory.path().join("data"));
+    let _owner = loam_mail::store::Store::open(&home).expect("the store opens");
+    let (status, out, _) = run_in(Some(home), &["mail-rebuild"]);
+    assert_eq!(status, EXIT_FAILED);
+    let result: serde_json::Value = serde_json::from_str(&out).expect("JSON");
+    assert_eq!(result["error"]["code"], "STORE_IN_USE");
+}
+
+#[test]
+fn the_built_program_rebuilds_the_store_it_is_pointed_at() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let output = Command::new(env!("CARGO_BIN_EXE_loam-mail"))
+        .arg("mail-rebuild")
+        .env("LOAM_MAIL_HOME", directory.path().join("data"))
+        .output()
+        .expect("the program runs");
+    assert!(output.status.success(), "{output:?}");
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON");
+    assert_eq!(result["success"], true);
+    assert!(directory.path().join("data/mail.sqlite3").exists());
+    assert!(output.stderr.is_empty(), "no progress without a terminal");
 }

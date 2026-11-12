@@ -1,0 +1,24 @@
+{
+	"tag": "example-select",
+	"summary": "Pick one value from a short, fixed list that opens as a popup.",
+	"status": "preview",
+	"usage": [
+		{
+			"id": "select.when",
+			"text": "Use for a choice from a short, fixed list. For free text, use example-field."
+		}
+	],
+	"a11y": [
+		{
+			"id": "select.label-required",
+			"text": "Set label; the selected option's text is not a name.",
+			"members": ["label"]
+		}
+	],
+	"roles": [
+		{
+			"state": "open",
+			"role": "listbox"
+		}
+	]
+}

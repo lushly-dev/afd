@@ -1,0 +1,100 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "accordion.focus",
+				"text": "Arrow keys wrap from the last header to the first and back, and disabled items are skipped by arrows, Home and End."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "multi",
+				"name": "expand-mode",
+				"property": "expandMode",
+				"rules": [
+					"taxonomy.expand-mode"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when an item's expanded state changes.",
+				"name": "change"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-accordion-item"
+				],
+				"basis": "observed",
+				"description": "`violet-accordion-item` elements.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-accordion--overview",
+			"html": "<div style=\"max-inline-size: 42rem;\"><violet-accordion expand-mode=\"multi\"><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Propagation planning</span>Coordinate sowing windows, propagation media, and bench allocation before crop launch.</violet-accordion-item><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Irrigation notes</span>Track moisture thresholds, emitter checks, and seasonal watering adjustments.</violet-accordion-item><violet-accordion-item heading-level=\"3\"><span slot=\"heading\">Harvest timing</span>Capture expected maturity, target harvest dates, and handoff notes for fulfillment.</violet-accordion-item></violet-accordion></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-accordion--single-expand",
+			"html": "<div style=\"max-inline-size: 42rem;\"><violet-accordion expand-mode=\"single\"><violet-accordion-item heading-level=\"3\"><span slot=\"heading\">Propagation planning</span>Coordinate sowing windows, propagation media, and bench allocation before crop launch.</violet-accordion-item><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Irrigation notes</span>Track moisture thresholds, emitter checks, and seasonal watering adjustments.</violet-accordion-item><violet-accordion-item heading-level=\"3\"><span slot=\"heading\">Harvest timing</span>Capture expected maturity, target harvest dates, and handoff notes for fulfillment.</violet-accordion-item></violet-accordion></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-accordion--with-disabled-item",
+			"html": "<violet-accordion expand-mode=\"multi\"><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Active section</span>This section is currently expanded.</violet-accordion-item><violet-accordion-item disabled heading-level=\"3\"><span slot=\"heading\">Disabled section</span>This body should remain unavailable.</violet-accordion-item></violet-accordion>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.expand-mode",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Stack of collapsible sections made of violet-accordion-item children.",
+	"tag": "violet-accordion",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "accordion.mode",
+			"text": "The expand-mode attribute is multi (default) or single. In single mode, opening an item collapses the others, and only the first item marked expanded stays open when items are added."
+		},
+		{
+			"basis": "authored",
+			"id": "accordion.change",
+			"text": "A change event fires on user toggles with detail { item, expanded }, where item is the violet-accordion-item element. Setting expanded on an item from script fires nothing and collapses no siblings."
+		},
+		{
+			"basis": "authored",
+			"id": "accordion.keys",
+			"text": "Arrow keys, Home and End are captured for any keydown inside an item, panel content included, and move focus between headers. Text inputs and other arrow-key controls placed in a panel lose those keys."
+		}
+	]
+}

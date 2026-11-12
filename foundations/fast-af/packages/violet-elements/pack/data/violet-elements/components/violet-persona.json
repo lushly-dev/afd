@@ -1,0 +1,165 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "decorative",
+				"property": "decorative",
+				"rules": [
+					"taxonomy.decorative"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "initials",
+				"property": "initials",
+				"rules": [
+					"taxonomy.initials"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "sm",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "\"xs\" | \"sm\" | \"md\" | \"lg\" | \"xl\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "xs"
+					},
+					{
+						"basis": "observed",
+						"value": "sm"
+					},
+					{
+						"basis": "observed",
+						"value": "md"
+					},
+					{
+						"basis": "observed",
+						"value": "lg"
+					},
+					{
+						"basis": "observed",
+						"value": "xl"
+					}
+				]
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "src",
+				"property": "src",
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_border-subtle) 90%, transparent)",
+				"name": "--_persona-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-persona-font-size, 12px)",
+				"name": "--_persona-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--shadow-control, 0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04))",
+				"name": "--_persona-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-persona-size, 32px)",
+				"name": "--_persona-size"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, #b9d3b0 48%, var(--_surface-card))",
+				"name": "--_tone-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_text-primary)",
+				"name": "--_tone-foreground"
+			}
+		],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-persona--decorative",
+			"html": "<violet-persona decorative initials=\"D\" label=\"Decorative profile image\" size=\"sm\" src></violet-persona>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-persona--image",
+			"html": "<violet-persona initials label=\"Katri Athokas\" size=\"md\" src=\"https://fabricweb.azureedge.net/fabric-website/assets/images/avatar/KatriAthokas.jpg\"></violet-persona>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-persona--overview",
+			"html": "<violet-persona initials label=\"Lydia Bauer\" size=\"sm\" src></violet-persona>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.decorative",
+		"import.root",
+		"taxonomy.decorative",
+		"taxonomy.initials",
+		"taxonomy.label",
+		"taxonomy.size",
+		"taxonomy.src.violet-message-media",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-persona",
+	"usage": []
+}

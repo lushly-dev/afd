@@ -1,0 +1,45 @@
+{
+  "tag": "violet-accordion-item",
+  "summary": "One collapsible section of a violet-accordion, with a heading slot and a body.",
+  "usage": [
+    {
+      "id": "accordion-item.parent",
+      "text": "Use it inside violet-accordion: its header button only fires a toggle-request event (detail.expanded), and the accordion sets the expanded attribute. Alone, a click changes nothing unless the page handles that event.",
+      "members": [
+        "toggle-request",
+        "expanded"
+      ]
+    },
+    {
+      "id": "accordion-item.slots",
+      "text": "Header text goes in the heading slot, which renders inside a button, so put no interactive or heading elements there. The body is the default slot. The expanded attribute in markup opens it initially.",
+      "members": [
+        "heading",
+        "expanded"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "accordion-item.level",
+      "text": "The heading-level attribute (1 to 6, default 3; other values become 3) sets the header's aria-level. Match it to the page's heading outline.",
+      "members": [
+        "heading-level"
+      ]
+    },
+    {
+      "id": "accordion-item.region",
+      "text": "An expanded panel is a region labelled by its header button, so keep each heading slot's text short and distinct.",
+      "members": [
+        "heading"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "state": "expanded",
+      "role": "region",
+      "name": "from its heading slot text"
+    }
+  ]
+}

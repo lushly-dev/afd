@@ -1,0 +1,42 @@
+{
+  "tag": "violet-tabs",
+  "summary": "Tab set that shows one violet-tab-panel at a time, chosen by its violet-tab; for switching views within one section of a page.",
+  "usage": [
+    {
+      "id": "tabs.structure",
+      "text": "Only direct children count: violet-tab and violet-tab-panel elements, paired by order (first tab with first panel). It assigns their slots, missing ids, hidden state and ARIA links.",
+      "members": [
+        "tab",
+        "tabpanel"
+      ]
+    },
+    {
+      "id": "tabs.active",
+      "text": "activeid is the active tab's id, so give tabs ids to set or read it. If it names no enabled tab, a tab with aria-selected=\"true\", else the first enabled one, wins and activeid is rewritten.",
+      "members": [
+        "activeid"
+      ]
+    },
+    {
+      "id": "tabs.change",
+      "text": "change fires whenever activeid changes, from script too, and once at startup when activeid was not set. event.detail is the active violet-tab element; read its id.",
+      "members": [
+        "change",
+        "activeid"
+      ]
+    },
+    {
+      "id": "tabs.keyboard",
+      "text": "Activation is automatic: arrow keys for the orientation (Left and Right mirrored in RTL), Home and End move focus and activate in one step, skipping disabled tabs. Each panel is a tab stop.",
+      "members": [
+        "orientation"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "tabs.name",
+      "text": "The tablist cannot be named: the role=\"tablist\" element is inside the shadow root, there is no label attribute, and an aria-label on the host does not reach it."
+    }
+  ]
+}

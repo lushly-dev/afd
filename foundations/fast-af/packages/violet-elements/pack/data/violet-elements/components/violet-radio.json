@@ -1,0 +1,235 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "radio.description",
+				"text": "Content in the supporting slot is linked as the radio's description."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Checked state for the radio.",
+				"name": "checked",
+				"property": "checked",
+				"rules": [
+					"taxonomy.checked"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables the radio.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Presents a compact inline layout that can collapse to the control only.",
+				"name": "inline",
+				"property": "inline",
+				"rules": [
+					"taxonomy.inline"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the radio as invalid.",
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Native group name forwarded from a parent radio group when available.",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "on",
+				"description": "Submitted value associated with this radio.",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"name": "--_border-strong"
+			},
+			{
+				"basis": "declared",
+				"default": "max(var(--_size-font-md), calc(var(--_target-size) * 0.5))",
+				"name": "--_control-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"name": "--_danger-border"
+			},
+			{
+				"basis": "declared",
+				"default": "max(8px, calc(var(--_control-size) * 0.5))",
+				"name": "--_dot-size"
+			},
+			{
+				"basis": "declared",
+				"default": "999px",
+				"name": "--_radius-full"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-background, #ddeadf)",
+				"name": "--_selection-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"name": "--_selection-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground, #244635)",
+				"name": "--_selection-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-font-md, 14px)",
+				"name": "--_size-font-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-radio-inline-gap, 4px)",
+				"name": "--_space-inline-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-card, #faf9f5)",
+				"name": "--_surface-card"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-radio-inline-target-size, var(--_target-size-compact))",
+				"name": "--_target-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-body-md-line, 20px)",
+				"name": "--_type-body-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-caption-xs-line, 14px)",
+				"name": "--_type-caption-line"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the radio becomes checked through user interaction.",
+				"name": "change"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Radio label content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional supporting copy rendered under the label.",
+				"name": "supporting"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-radio--checked",
+			"html": "<violet-radio aria-checked=\"true\" checked name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\">Direct seed<span slot=\"supporting\">Use when the crop should stay in its final bed.</span></violet-radio>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-radio--disabled",
+			"html": "<violet-radio aria-checked=\"false\" aria-disabled=\"true\" disabled name=\"sowingMethod\" role=\"radio\" tabindex=\"-1\" value=\"transplant\">Tray transplant<span slot=\"supporting\">Unavailable while this batch is already committed to field.</span></violet-radio>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-radio--inline",
+			"html": "<violet-radio aria-checked=\"true\" aria-label=\"Compact direct seed option\" checked inline name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\"></violet-radio>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.checked",
+		"taxonomy.disabled",
+		"taxonomy.inline",
+		"taxonomy.invalid",
+		"taxonomy.name",
+		"taxonomy.value",
+		"theme.install",
+		"toggle.label"
+	],
+	"status": "stable",
+	"summary": "One option of a violet-radio-group, with a slotted label and optional supporting text.",
+	"tag": "violet-radio",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "radio.group",
+			"text": "Use it inside violet-radio-group. Alone it is not form-associated, submits nothing, and is not unchecked when another radio with the same name is checked."
+		},
+		{
+			"basis": "authored",
+			"id": "radio.value",
+			"text": "Give each radio a distinct value attribute. The default is \"on\", and the group selects by value, so radios without one are indistinguishable."
+		},
+		{
+			"basis": "authored",
+			"id": "radio.change",
+			"text": "A user check fires a bubbling change event with detail { checked: true, value }. Nothing fires when it is already checked or when the group unchecks it."
+		}
+	]
+}

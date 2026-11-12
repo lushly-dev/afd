@@ -17,6 +17,7 @@ const GARDEN_IMAGE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http:
 
 const meta = {
     title: "Conversation/Message Media",
+    component: "violet-message-media",
     tags: ["autodocs"],
     parameters: {
         docs: {

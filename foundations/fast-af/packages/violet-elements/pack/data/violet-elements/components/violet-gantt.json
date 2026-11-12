@@ -1,0 +1,270 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "declared",
+				"default": "Timeline",
+				"description": "Accessible name for the treegrid.",
+				"name": "aria-label",
+				"property": "ariaLabel",
+				"rules": [
+					"taxonomy.aria-label",
+					"taxonomy.aria-label.not-for"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "natural",
+				"description": "Density controls the minimum logical row height; rows grow to fit visible item lanes.",
+				"name": "density",
+				"property": "density",
+				"rules": [
+					"taxonomy.density"
+				],
+				"type": "VioletGanttDensity"
+			},
+			{
+				"basis": "declared",
+				"default": "",
+				"description": "BCP 47 locale used only for visible calendar labels.",
+				"name": "locale",
+				"property": "locale",
+				"rules": [
+					"taxonomy.locale"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-actual-border, #186f83)",
+				"name": "--_gantt-actual"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-advisory-border, #9a6700)",
+				"name": "--_gantt-advisory"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-label-sm-line, 16px)",
+				"name": "--_gantt-axis-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-label-sm-size, 12px)",
+				"name": "--_gantt-axis-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-label-sm-line, 16px)",
+				"name": "--_gantt-content-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-control-type-size, 13px)",
+				"name": "--_gantt-content-size"
+			},
+			{
+				"basis": "declared",
+				"default": "24px",
+				"name": "--_gantt-expander-width"
+			},
+			{
+				"basis": "declared",
+				"default": "52px",
+				"name": "--_gantt-header-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-name-column-width, 16rem)",
+				"name": "--_gantt-name-width"
+			},
+			{
+				"basis": "declared",
+				"default": "64px",
+				"name": "--_gantt-row-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-selection-ring, #4b67b0)",
+				"name": "--_gantt-selection"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_space-sm) / 2)",
+				"name": "--_gantt-tree-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-label-sm-weight, 500)",
+				"name": "--_gantt-type-weight"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-window-background, #dde7da)",
+				"name": "--_gantt-window"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-window-foreground, #253823)",
+				"name": "--_gantt-window-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-work-background, #526b4e)",
+				"name": "--_gantt-work"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-gantt-work-foreground, #ffffff)",
+				"name": "--_gantt-work-text"
+			},
+			{
+				"basis": "declared",
+				"description": "Non-color-only underline for actual provenance.",
+				"name": "--violet-gantt-actual-border"
+			},
+			{
+				"basis": "declared",
+				"description": "Leading edge for advisory provenance, paired with a glyph.",
+				"name": "--violet-gantt-advisory-border"
+			},
+			{
+				"basis": "declared",
+				"description": "Sticky row-name column width; defaults to 16rem.",
+				"name": "--violet-gantt-name-column-width"
+			},
+			{
+				"basis": "declared",
+				"description": "Name width below the 34rem container breakpoint; defaults to 10rem.",
+				"name": "--violet-gantt-name-column-width-narrow"
+			},
+			{
+				"basis": "declared",
+				"description": "Controlled selection ring.",
+				"name": "--violet-gantt-selection-ring"
+			},
+			{
+				"basis": "declared",
+				"description": "Window background.",
+				"name": "--violet-gantt-window-background"
+			},
+			{
+				"basis": "declared",
+				"description": "Window text color.",
+				"name": "--violet-gantt-window-foreground"
+			},
+			{
+				"basis": "declared",
+				"description": "Scheduled interval background.",
+				"name": "--violet-gantt-work-background"
+			},
+			{
+				"basis": "declared",
+				"description": "Scheduled interval text color.",
+				"name": "--violet-gantt-work-foreground"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Requests controlled expansion state. Detail: `{ expandedRowIds }`.",
+				"name": "expanded-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Activates or inspects an item. Detail: `{ itemId }`.",
+				"name": "item-activate"
+			},
+			{
+				"basis": "declared",
+				"description": "Requests a controlled item selection. Detail: `{ itemId }`.",
+				"name": "item-selection-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Activates or inspects a row without selecting its children. Detail: `{ rowId }`.",
+				"name": "row-inspect"
+			},
+			{
+				"basis": "declared",
+				"description": "Requests a controlled viewport. Detail: `{ viewport, reason }`.",
+				"name": "viewport-change"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Consumer-owned presentation controls such as zoom, fit, Today, and pan actions.",
+				"name": "toolbar"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-gantt--calendar-scale-polish",
+			"html": "<div style=\"inline-size: 50rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"natural\" dir=\"ltr\" locale></violet-gantt></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-gantt--dense-overflow",
+			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"compact\" dir=\"ltr\" locale></violet-gantt></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-gantt--hierarchy-and-multiple-items",
+			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"natural\" dir=\"ltr\" locale></violet-gantt></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "aria-label",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "locale",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.aria-label",
+		"taxonomy.aria-label.not-for",
+		"taxonomy.density",
+		"taxonomy.locale",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-gantt",
+	"usage": []
+}

@@ -31,11 +31,24 @@ path = "src/main.rs"
 [dependencies]
 # Step B5 adds `server` when it serves MCP; until then the lock stays without the MCP SDK.
 afd = { path = "../../../../../packages/rust", default-features = false, features = ["native", "approval", "journal-file"] }
+# IMAP (the specification's section 5.2): its framing and its parser. The engine sends its own
+# commands and reads every response itself.
+async-imap = { version = "0.12", default-features = false, features = ["runtime-tokio"] }
+async-trait = "0.1"
+mail-parser = "1.0.1"
 # The store (the specification's section 4). SQLite is bundled, at the version Umbel pins, so the
 # repository carries one.
 rusqlite = { version = "0.41", features = ["bundled"] }
+serde_json = "1"
 # The log's file names, and a message's identity.
 sha2 = "0.11"
+tantivy = { version = "0.27", default-features = false, features = ["mmap", "stopwords", "stemmer", "lz4-compression"] }
+tokio = { version = "1", default-features = false, features = ["rt", "time", "net", "io-util"] }
+# TLS to the provider, with the operating system's certificates. `ring` rather than the default
+# `aws-lc-rs`, which needs CMake to build.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 # The log is compressed: mail is mostly text.
 zstd = { version = "0.14", default-features = false }
 

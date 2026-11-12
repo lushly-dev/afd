@@ -2,7 +2,7 @@
 
 **Preview,** like [Specimen](../../foundations/specimen/README.md): the commands can still change. Install it with `npm install @lushly-dev/specimen-cli@preview`, then Chromium's headless shell as [Specimen's install](../../foundations/specimen/README.md#install) describes.
 
-Install `@lushly-dev/specimen-cli` to obtain the `specimen` binary. The commands are `list`, `validate`, `inspect ID`, `render ID`, `run ID`, `migrate`, `diff LEFT.json RIGHT.json`, and `build OUTDIR`. Option validation, one CommandResult JSON value on stdout, atomic output files, and exit codes (0 success, 1 failure) are unchanged. `runCli` and `CliIO` are exported for embedding and testing. This endpoint composes Specimen and AFD through `@lushly-dev/specimen-afd`. The inspected application does not need those endpoint dependencies.
+Install `@lushly-dev/specimen-cli` to obtain the `specimen` binary. The commands are `list`, `validate`, `inspect ID`, `render ID`, `run ID`, `themes [ID]`, `migrate`, `diff LEFT.json RIGHT.json`, `build OUTDIR`, `pack [TAG]`, `pack-check [TAG]` and `pack-export DIR`. Option validation, one CommandResult JSON value on stdout, atomic output files, and exit codes (0 success, 1 failure) are unchanged. `runCli` and `CliIO` are exported for embedding and testing. This endpoint composes Specimen and AFD through `@lushly-dev/specimen-afd`. The inspected application does not need those endpoint dependencies.
 
 ```sh
 specimen list --root ./component-project
@@ -14,7 +14,11 @@ specimen render button --root ./component-project --viewport 375x812
 
 `coverage [TAG]` runs the selected cases and reports each component's required partitions at the level those runs earn. `--file`, `--tag`, `--match` and `--workers` narrow it.
 
+`pack [TAG]` builds the configured library's component pack (Specimen's `pack` key) from two passes over every case and writes its committed records; `TAG` rebuilds one record from the cases the last full build indexed. `--allow-failed A,B` names cases allowed to fail, and `--workers N` limits how many run at once. `pack-check [TAG]` builds the same way, writes nothing, and exits 1 when a committed record differs or a case failed: the drift check. `pack-export DIR` writes the exported form from the committed records with no browser, with `--revision SHA` recorded in its catalog, and refuses when the manifest or a guide file says something the records do not.
+
 `contract [TAG]` reports what FAST-AF's Fastbot story contract would, on evidence from a run, and exits non-zero when it is not valid. `--file`, `--tag`, `--match` and `--workers` narrow it.
+
+`themes [ID]` renders entries in each theme and compares the screenshots: which follow the theme, which stay the same and declare it with a `light-only`, `dark-only` or `high-contrast-only` tag, and which stay the same with nothing declaring it. `--theme light,dark` picks the themes (default all three), `--threshold 0.02` the share of pixels at or under which two frames count as the same, and `--file`, `--tag`, `--match` and `--workers` select and run entries as `a11y` does. It exits 1 when an entry is `undeclared`; read each report's `status`.
 
 `suggest TAG` proposes native specimens and claims for a component's gaps, always as unverified. `--gaps A,B` names them, or a coverage run finds them, and `--out FILE` saves the module, never over an existing file.
 

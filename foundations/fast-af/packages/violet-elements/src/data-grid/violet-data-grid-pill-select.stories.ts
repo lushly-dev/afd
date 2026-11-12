@@ -31,6 +31,7 @@ const toneOptions: VioletDataGridEditorOption[] = [
 
 const meta = {
     title: "Components/Data Grid/Pill Select",
+    component: "violet-data-grid-pill-select",
     tags: ["autodocs"],
     parameters: {
         docs: {

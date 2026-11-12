@@ -417,6 +417,7 @@ impl Shape {
             "examples",
             "detail",
             "gaps",
+            "themes",
         ];
         let Some(map) = self.object("", Some(value), &keys) else {
             return;
@@ -452,6 +453,28 @@ impl Shape {
         );
         self.opt_text("/detail", map.get("detail"), text::DETAIL, true);
         self.array("/gaps", map.get("gaps"), 0, 64, Self::gap);
+        if map.get("themes").is_some()
+            && let Some(themes) = self.object(
+                "/themes",
+                map.get("themes"),
+                &["supported", "basis", "reason"],
+            )
+        {
+            self.array(
+                "/themes/supported",
+                themes.get("supported"),
+                1,
+                3,
+                |shape, at, element| shape.one_of(at, element, THEMES),
+            );
+            self.one_of("/themes/basis", themes.get("basis"), THEMES_BASES);
+            self.opt_text(
+                "/themes/reason",
+                themes.get("reason"),
+                text::STATEMENT,
+                false,
+            );
+        }
         if !self.aborted(mark)
             && map.get("replacedBy").is_some()
             && map.get("status").and_then(Value::as_str) != Some("deprecated")
@@ -677,6 +700,8 @@ const API_BASES: &[&str] = &["verified", "observed", "declared"];
 const STATEMENT_BASES: &[&str] = &["verified", "authored"];
 const ROLE_BASES: &[&str] = &["observed", "authored"];
 const OBSERVED: &[&str] = &["observed"];
+const THEMES: &[&str] = &["dark", "high-contrast", "light"];
+const THEMES_BASES: &[&str] = &["declared", "observed"];
 const STATUSES: &[&str] = &["stable", "preview", "deprecated"];
 const GAP_SECTIONS: &[&str] = &["attributes", "slots", "events", "commands", "cssProperties"];
 const GAP_KINDS: &[&str] = &[
@@ -745,6 +770,18 @@ pub(crate) struct Record {
     pub(crate) examples: Vec<Example>,
     pub(crate) detail: Option<String>,
     pub(crate) gaps: Vec<Value>,
+    /// The themes it renders as intended; a brief does not show them yet.
+    pub(crate) themes: Option<Themes>,
+}
+
+/// `themes`: the themes a component supports, and how that is known.
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct Themes {
+    pub(crate) supported: Vec<String>,
+    #[allow(dead_code)]
+    pub(crate) basis: String,
+    #[allow(dead_code)]
+    pub(crate) reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

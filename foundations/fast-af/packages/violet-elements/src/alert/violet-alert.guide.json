@@ -1,0 +1,41 @@
+{
+  "tag": "violet-alert",
+  "summary": "Persistent inline message with tone, optional title, actions and dismiss button.",
+  "usage": [
+    {
+      "id": "alert.dismiss",
+      "text": "The dismissible attribute shows a close button that only fires a dismiss event (no detail). The alert stays in place until the page removes or hides it.",
+      "members": [
+        "dismissible",
+        "dismiss"
+      ]
+    },
+    {
+      "id": "alert.content",
+      "text": "The title slot renders in a p, not a heading. Tones default and info show no icon unless the icon slot is filled; success, warning and danger show a default icon.",
+      "members": [
+        "title",
+        "icon",
+        "tone"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "alert.announcement",
+      "text": "announcement defaults to off, so no live region. polite gives the title and body role=status, assertive gives role=alert. The actions slot is outside the live region.",
+      "members": [
+        "announcement",
+        "actions"
+      ]
+    },
+    {
+      "id": "alert.dismiss-focus",
+      "text": "The dismiss button is always named \"Dismiss alert\". When the page removes the alert on dismiss, move focus somewhere sensible, since the focused button goes with it.",
+      "members": [
+        "dismissible",
+        "dismiss"
+      ]
+    }
+  ]
+}

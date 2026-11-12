@@ -10,6 +10,15 @@
 
 It also passes a token map through: FAST-AF's private alias registry, composed and validated with the public maps (`composeTokenMaps`).
 
+**Guide source.** `@lushly-dev/specimen-fast-af/guides` is for Specimen's fifth plugin point, which runs in Node. `attributeTaxonomy({ file })` reads an attribute taxonomy shaped as `@lushly-dev/violet-elements`' `attribute-taxonomy.jsonc` and states each entry once as a shared rule, `taxonomy.<attribute>`: its definition and what it is not for, applying to every component with that attribute. When the two do not fit one rule's 240 characters, what it is not for is a rule of its own (`<id>.not-for`); a name the taxonomy defines more than once applies to the tags each entry lists instead (`taxonomy.<attribute>.<first tag>`). Name it from a module the configuration's `guideSources` key lists:
+
+```js
+// specimen/guides.mjs
+import { attributeTaxonomy } from '@lushly-dev/specimen-fast-af/guides';
+
+export default attributeTaxonomy({ file: 'attribute-taxonomy.jsonc' });
+```
+
 Wire it from a plugins module the bench configuration names:
 
 ```ts
@@ -28,6 +37,6 @@ export default fastAf({
 
 The bench installs plugins before any specimen or story module loads. Elements defined later therefore record their Definition Schema.
 
-`pnpm -F @lushly-dev/specimen-fast-af test` runs the browser-free schema tests. `test:browser` runs the plugin through Specimen's bench on a FAST element with an `@command`; it needs the native host and Chromium, as Specimen's own Chromium suite does.
+`pnpm -F @lushly-dev/specimen-fast-af test` runs the browser-free schema and guide source tests. `test:browser` runs the plugin through Specimen's bench on a FAST element with an `@command`; it needs the native host and Chromium, as Specimen's own Chromium suite does.
 
 It is admitted for the npm `preview` prerelease with Specimen, at `0.1.0-preview.0` first, and needs `@lushly-dev/fast-element` `^3.0.1-preview`, which releases in the same prerelease. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).

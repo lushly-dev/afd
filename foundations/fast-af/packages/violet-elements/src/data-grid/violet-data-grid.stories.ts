@@ -552,6 +552,7 @@ function renderMutableGrid(args: GridArgs): HTMLElement {
 
 const meta: Meta<GridArgs> = {
     title: "Components/Data Grid/Grid",
+    component: "violet-data-grid",
     tags: ["autodocs"],
     parameters: {
         docs: {

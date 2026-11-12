@@ -178,3 +178,39 @@ def test_lexical_scores_a_statement_one_against_itself():
     lane = match.Lexical(["Plant beans in spring.", "Hens eat the windfall.", "Plant beans early in spring."])
     assert lane.directed(0, 0) == pytest.approx(1.0)
     assert lane.score(0, 2) > lane.score(0, 1)
+
+
+def test_theme_measures():
+    themes = pytest.importorskip("themes")
+    assert themes.nmi([0, 0, 1, 1], [5, 5, 7, 7]) == pytest.approx(1.0)
+    assert themes.ari([0, 0, 1, 1], [1, 1, 0, 0]) == pytest.approx(1.0)
+    assert themes.ari([0, 0, 1, 1], [0, 1, 0, 1]) < 0.0
+
+
+def test_graph_themes_join_near_statements_only():
+    themes = pytest.importorskip("themes")
+    np = pytest.importorskip("numpy")
+    vectors = np.array([[1, 0, 0], [0.99, 0.1, 0], [0, 1, 0], [0.05, 0.99, 0], [0, 0, 1]], dtype=np.float32)
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    labels = themes.graph_themes(vectors, k=1, floor=0.9)
+    assert labels[0] == labels[1] and labels[2] == labels[3]
+    assert len({labels[0], labels[2], labels[4]}) == 3
+    ideas = [{"source": s} for s in ("x", "y", "x", "x", "z")]
+    described = themes.describe(labels, ideas)
+    assert described["themes"] == 2 and described["themes_across_sources"] == 1
+
+
+def test_ask_scores_judgments(tmp_path: Path):
+    ask = pytest.importorskip("ask")
+    judged = tmp_path / "judged.jsonl"
+    rows = [
+        {"n": 1, "kind": "lookup", "answered": "fully", "ideas_used": 5, "missing": ["nothing"], "budget": "enough"},
+        {"n": 2, "kind": "tension", "answered": "partly", "ideas_used": 3, "missing": ["relations", "time"],
+         "links_that_would_help": ["contradicts"], "budget": "too_small"},
+    ]
+    judged.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    out = tmp_path / "counts.json"
+    ask.main(["score", str(judged), "--out", str(out)])
+    counts = json.loads(out.read_text())["by_kind"]
+    assert counts["all"]["answered_fully"] == 1 and counts["tension"]["missing_relations"] == 1
+    assert counts["all"]["link_contradicts"] == 1

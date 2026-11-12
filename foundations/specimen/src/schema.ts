@@ -687,6 +687,71 @@ export const matrixRunSchema = z.strictObject({
 	elapsedMs: z.number().nonnegative(),
 });
 
+const themeEnum = contextSchema.shape.theme;
+/** What an entry declares of its themes: `SpecimenEntry.themes`. */
+export const themeSupportSchema = z.strictObject({
+	supported: z.array(themeEnum).min(1),
+	basis: z.literal('declared'),
+	reason: z.string().min(1).optional(),
+});
+export const themesRequestSchema = z.strictObject({
+	id: z.string().min(1).optional(),
+	filter: suiteRequestSchema.shape.filter,
+	themes: z
+		.array(themeEnum)
+		.min(2)
+		.refine((themes) => new Set(themes).size === themes.length, 'Name each theme once.')
+		.optional(),
+	checkpoint: z.string().min(1).optional(),
+	context: captureRequestSchema.shape.context,
+	threshold: z.number().min(0).max(1).optional(),
+	timeoutMs: captureRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+});
+const themeStatus = z.enum([
+	'follows',
+	'declared',
+	'pinned',
+	'undeclared',
+	'contradicted',
+	'unavailable',
+]);
+export const themesRunSchema = z.strictObject({
+	themes: z.array(themeEnum),
+	checkpoint: z.string(),
+	threshold: z.number().min(0).max(1),
+	valid: z.boolean(),
+	reports: z.array(
+		z.strictObject({
+			id: z.string(),
+			title: z.string(),
+			component: z.string().optional(),
+			status: themeStatus,
+			declared: themeSupportSchema.nullable(),
+			frames: z.array(
+				z.strictObject({
+					theme: themeEnum,
+					rendered: themeEnum.nullable(),
+					changed: z.number().min(0).max(1).nullable(),
+					reason: z.string().optional(),
+				})
+			),
+			reason: z.string().optional(),
+		})
+	),
+	counts: z.strictObject({
+		total: z.number().int().nonnegative(),
+		follows: z.number().int().nonnegative(),
+		declared: z.number().int().nonnegative(),
+		pinned: z.number().int().nonnegative(),
+		undeclared: z.number().int().nonnegative(),
+		contradicted: z.number().int().nonnegative(),
+		unavailable: z.number().int().nonnegative(),
+	}),
+	workers: z.number().int().positive(),
+	elapsedMs: z.number().nonnegative(),
+});
+
 /** A component's schema from the manifest, enriched by plugins' schema sources. */
 export const componentSchemaSchema = z.strictObject({
 	tag: z.string(),
@@ -791,4 +856,93 @@ export const migrationReportSchema = z.strictObject({
 		manual: z.number().int().nonnegative(),
 		applied: z.number().int().nonnegative(),
 	}),
+});
+
+/** Build the configured library's pack and write it, or check it against the committed one. */
+export const packRequestSchema = z.strictObject({
+	component: z.string().min(1).optional(),
+	timeoutMs: suiteRequestSchema.shape.timeoutMs,
+	workers: suiteRequestSchema.shape.workers,
+	allowFailed: z.array(z.string().min(1)).optional(),
+});
+const invalidClaimSchema = z.strictObject({
+	specimen: z.string(),
+	target: z.string(),
+	obligation: z.string(),
+	reason: z.string(),
+});
+const packReportShape = {
+	library: z.string().min(1),
+	directory: z.string().min(1),
+	problems: z.array(
+		z.strictObject({
+			code: z.string(),
+			path: z.string(),
+			at: z.string().optional(),
+			message: z.string(),
+		})
+	),
+	components: z.array(
+		z.strictObject({
+			tag: z.string().min(1),
+			gaps: z.array(
+				z.strictObject({
+					kind: z.string(),
+					section: z.string().optional(),
+					name: z.string().optional(),
+				})
+			),
+		})
+	),
+	omitted: z.array(z.strictObject({ tag: z.string(), field: z.string(), reason: z.string() })),
+	guides: z.strictObject({
+		verified: z.number().int().nonnegative(),
+		authored: z.number().int().nonnegative(),
+		invalidClaims: z.array(invalidClaimSchema),
+		claimed: z.number().int().nonnegative(),
+	}),
+	examples: z.strictObject({
+		kept: z.number().int().nonnegative(),
+		leftOut: z.array(z.strictObject({ tag: z.string(), from: z.string(), reason: z.string() })),
+	}),
+	selection: z.strictObject({
+		component: z.string().nullable(),
+		complete: z.boolean(),
+		reason: z.string(),
+	}),
+	cases: z.strictObject({
+		total: z.number().int().nonnegative(),
+		passed: z.number().int().nonnegative(),
+		failed: z.array(z.strictObject({ id: z.string(), message: z.string() })),
+		retried: z.array(z.string()),
+		unstable: z.array(z.string()),
+		skipped: z.number().int().nonnegative(),
+	}),
+	elapsedMs: z.number(),
+};
+export const packRunSchema = z.strictObject({
+	...packReportShape,
+	written: z.array(z.string()),
+	removed: z.array(z.string()),
+});
+export const packCheckRunSchema = z.strictObject({
+	...packReportShape,
+	valid: z.boolean(),
+	changed: z.array(z.string()),
+	added: z.array(z.string()),
+	removed: z.array(z.string()),
+});
+export const packExportRequestSchema = z.strictObject({
+	directory: z.string().min(1),
+	revision: z
+		.string()
+		.regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/)
+		.optional(),
+});
+export const packExportRunSchema = z.strictObject({
+	library: z.string().min(1),
+	directory: z.string().min(1),
+	digest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+	files: z.array(z.string()),
+	keptPackToml: z.boolean(),
 });

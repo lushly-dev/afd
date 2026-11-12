@@ -38,7 +38,7 @@ export interface LoadedConfig {
 	staticDirs: { from: string; to: string }[];
 	/** The performance baselines file, which recording may create. */
 	baselines?: string;
-	/** The configured guide files, with what the static checks found. */
+	/** The configured guide files and guide sources' rules, with what the static checks found. */
 	guides?: LoadedGuides;
 }
 export const digest = (value: string | Uint8Array): string =>
@@ -136,9 +136,20 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		const { from, to } = typeof entry === 'string' ? { from: entry, to: '/' } : entry;
 		staticDirs.push({ from: inside(root, await realpath(resolve(dirname(file), from)), from), to });
 	}
-	const guides = config.guides
-		? await loadGuides(root, dirname(file), config.guides, schemas, plugins.length > 0)
-		: undefined;
+	const guideSources: string[] = [];
+	for (const source of config.guideSources ?? [])
+		guideSources.push(inside(root, await realpath(resolve(dirname(file), source)), source));
+	const guides =
+		config.guides || config.guideSources
+			? await loadGuides(
+					root,
+					dirname(file),
+					config.guides ?? [],
+					schemas,
+					plugins.length > 0,
+					guideSources
+				)
+			: undefined;
 	const baselines = config.profile?.baselines;
 	return {
 		root,

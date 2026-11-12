@@ -49,7 +49,15 @@ function placeOf(entry: SpecimenEntry): { group: string; name: string } {
 }
 
 const path = (group: string) => group.replaceAll('/', ' / ');
-const tag = (text: string) => h('span', { className: 'specimen-tag' }, text);
+const tag = (text: string, title = '') => h('span', { className: 'specimen-tag', title }, text);
+/** `light only`: the themes an entry declares. */
+const only = (themes: NonNullable<SpecimenEntry['themes']>) =>
+	`${themes.supported.join(', ')} only`;
+/** The play and declared-themes tags an entry shows wherever it is listed. */
+const tags = ({ story, themes }: SpecimenEntry) => [
+	...(story?.play === 'present' ? [tag('play')] : []),
+	...(themes ? [tag(only(themes), themes.reason)] : []),
+];
 
 function viewport(value: string): SpecimenContext['viewport'] {
 	const dimensions = /^(\d+)x(\d+)$/.exec(value.trim());
@@ -337,12 +345,7 @@ export async function installPage(
 					})
 				),
 				h('h1', {}, name),
-				h(
-					'p',
-					{ className: 'specimen-meta' },
-					h('code', {}, entry.id),
-					...(entry.story?.play === 'present' ? [tag('play')] : [])
-				)
+				h('p', { className: 'specimen-meta' }, h('code', {}, entry.id), ...tags(entry))
 			);
 			const settings = controls(root, context);
 			root.append(h('div', { className: 'specimen-bar' }, settings.form));
@@ -353,6 +356,16 @@ export async function installPage(
 						'p',
 						{ id: 'specimen-page-context-notice', role: 'note' },
 						`This preview cannot emulate part of the requested context: ${differences.join('; ')}. Components that read these values show this browser's settings; the CLI render applies them.`
+					)
+				);
+			const { themes } = entry;
+			// A frame that keeps its look under another theme is the author's choice, not a broken switch.
+			if (themes && !themes.supported.includes(context.theme))
+				root.append(
+					h(
+						'p',
+						{ id: 'specimen-page-theme-notice', role: 'note' },
+						`Declared ${only(themes)}${themes.reason ? `: ${themes.reason.replace(/\.$/, '')}` : ''}. Under ${context.theme} it keeps that look by design.`
 					)
 				);
 			if (checkpoint && checkpoint !== 'mount' && !runs)
@@ -432,7 +445,7 @@ export async function installPage(
 							'li',
 							{},
 							h('a', { href: specimenUrl(item.id, context).href }, name),
-							...(item.story?.play === 'present' ? [tag('play')] : [])
+							...tags(item)
 						);
 						rows.push([
 							row,

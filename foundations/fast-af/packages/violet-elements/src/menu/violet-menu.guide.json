@@ -1,0 +1,51 @@
+{
+  "tag": "violet-menu",
+  "summary": "Action menu: a slotted trigger opens a floating list of violet-menu-item actions. For choosing a value, use a select instead.",
+  "usage": [
+    {
+      "id": "menu.structure",
+      "text": "Children: one focusable element in the trigger slot, then violet-menu-item elements with optional <hr> separators. Every violet-menu-item descendant counts as an item, so do not nest menus.",
+      "members": [
+        "trigger"
+      ]
+    },
+    {
+      "id": "menu.open",
+      "text": "The trigger toggles it on click; ArrowDown or ArrowUp opens it on the first or last item. open is a property with no attribute: set it or call show(), hide() and toggle().",
+      "members": [
+        "open"
+      ]
+    },
+    {
+      "id": "menu.invoke",
+      "text": "Listen for invoke on each item, or on the menu and read event.target. The menu then closes and returns focus to the trigger if focus was still inside it."
+    },
+    {
+      "id": "menu.keyboard",
+      "text": "In the open menu arrows wrap, Home and End jump, typed letters move to a matching item, Enter or Space invokes, Escape closes and refocuses the trigger, and Tab closes it and moves on."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "menu.label",
+      "text": "Set label: it is the menu's only accessible name. Despite the property's doc comment, there is no fallback to the trigger's text.",
+      "members": [
+        "label"
+      ]
+    },
+    {
+      "id": "menu.trigger-aria",
+      "text": "It sets aria-haspopup, aria-expanded and aria-controls on the trigger. violet-button forwards them to its inner button; violet-icon-button does not, so use violet-button or a native button.",
+      "members": [
+        "trigger"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "state": "open",
+      "role": "menu",
+      "name": "from the label attribute"
+    }
+  ]
+}

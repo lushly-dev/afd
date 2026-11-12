@@ -30,6 +30,7 @@ function renderBreadcrumb(): HTMLElement {
 
 const meta = {
     title: "Components/Breadcrumb",
+    component: "violet-breadcrumb",
     tags: ["autodocs"],
     parameters: {
         docs: {

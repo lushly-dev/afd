@@ -47,6 +47,17 @@ node endpoints/specimen-cli/dist/bin.js build /tmp/violet-stories --root foundat
 python3 -m http.server --directory /tmp/violet-stories
 ```
 
+## Component pack
+
+`violet-elements` has a [component pack](../specimen/README.md#component-packs) in `packages/violet-elements/pack/`: one record per component (all 77), what an agent writing a page needs to know of it, each fact labelled with where it came from, and the library's shared rules. Specimen builds the records from two passes over every story, the manifest, FAST-AF's plugin (`specimen/plugins.ts`), the guide files beside each component (`src/**/*.guide.json`, with the shared rules in `src/shared.guide.json`) and the attribute taxonomy, which `specimen/guides.mjs` turns into a rule per attribute. `pack/GAPS.md` lists what each record is missing: the backlog.
+
+`pnpm test:stories` also runs `specimen pack-check`, which builds the records again and fails when they differ from the committed ones, and checks `pack/GAPS.md`. After changing a component, a story, a guide or the taxonomy, rebuild them and commit the result:
+
+```sh
+pnpm -F @lushly-dev/violet-elements pack:build                  # every record, then pack/GAPS.md
+pnpm -F @lushly-dev/violet-elements pack:build violet-combobox  # one record, from the last full build's index
+```
+
 ## Publication
 
 In [`scripts/release/inventory.json`](../../scripts/release/inventory.json), `fast-element` is published to npm under the `preview` tag with Specimen, by AFD's `release.yml`: `npm install @lushly-dev/fast-element@preview`. The first preview, `3.0.1-preview.0`, was published without its built code and is deprecated; the owner approved it on 2026-11-04, and its manifest's repository now names AFD. `violet-elements` stays quarantined, and the upstream repository stays authoritative for it: it versions with Changesets and has no publish workflow, tags or releases. The 45 changesets pending upstream at import were not imported; the three describing the reconciled violet-elements changes are in [`.changeset`](../../.changeset). No package may publish under a Microsoft or other upstream namespace.

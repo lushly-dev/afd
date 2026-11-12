@@ -1,0 +1,36 @@
+{
+  "tag": "violet-empty-state",
+  "summary": "Placeholder for a view with no content or no results, with heading, message, media and actions.",
+  "usage": [
+    {
+      "id": "empty-state.content",
+      "text": "The heading and message attributes are plain text. Buttons go in the actions slot, an illustration in the media slot, and extra copy in the default slot, after the message. Empty media and actions regions are hidden.",
+      "members": [
+        "heading",
+        "message",
+        "actions",
+        "media"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "empty-state.heading",
+      "text": "The heading attribute always renders as an h3; its level cannot be changed. Where h3 does not fit the outline, leave heading empty and put your own heading in the default slot.",
+      "members": [
+        "heading"
+      ]
+    },
+    {
+      "id": "empty-state.announce",
+      "text": "It has no role or live region. When it replaces results after a search or filter, announce the change elsewhere, for example with a status message."
+    },
+    {
+      "id": "empty-state.media",
+      "text": "Media is read as is: give a purely decorative illustration alt=\"\" (or decorative on violet-image) so it is skipped.",
+      "members": [
+        "media"
+      ]
+    }
+  ]
+}

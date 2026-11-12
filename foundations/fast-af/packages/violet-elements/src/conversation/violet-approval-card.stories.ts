@@ -12,6 +12,7 @@ type ApprovalStoryArgs = {
 
 const meta = {
     title: "Conversation/Approval Card",
+    component: "violet-approval-card",
     tags: ["autodocs"],
     parameters: {
         docs: {

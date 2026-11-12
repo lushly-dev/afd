@@ -1,0 +1,230 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "alert.announcement",
+				"text": "announcement defaults to off, so no live region. polite gives the title and body role=status, assertive gives role=alert. The actions slot is outside the live region."
+			},
+			{
+				"basis": "authored",
+				"id": "alert.dismiss-focus",
+				"text": "The dismiss button is always named \"Dismiss alert\". When the page removes the alert on dismiss, move focus somewhere sensible, since the focused button goes with it."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "off",
+				"name": "announcement",
+				"property": "announcement",
+				"rules": [
+					"taxonomy.announcement"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "dismissible",
+				"property": "dismissible",
+				"rules": [
+					"taxonomy.dismissible"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "default",
+				"name": "tone",
+				"property": "tone",
+				"rules": [
+					"taxonomy.tone"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-body-line, var(--_body-line))",
+				"name": "--_alert-body-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-body-size, var(--_body-size))",
+				"name": "--_alert-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-border, var(--_border-subtle))",
+				"name": "--_alert-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-emphasis, var(--_text-secondary))",
+				"name": "--_alert-emphasis"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-gap, var(--_space-md))",
+				"name": "--_alert-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-icon-size, 1.125rem)",
+				"name": "--_alert-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-meta-size, var(--_caption-size))",
+				"name": "--_alert-meta-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-padding, var(--_space-md))",
+				"name": "--_alert-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-radius, calc(var(--_radius-md) * 1.5))",
+				"name": "--_alert-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-shadow, none)",
+				"name": "--_alert-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-surface, var(--_surface-card))",
+				"name": "--_alert-surface"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-title-line, var(--_body-line))",
+				"name": "--_alert-title-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-alert-title-size, var(--_body-size))",
+				"name": "--_alert-title-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_alert-surface)",
+				"name": "--violet-card-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_alert-border)",
+				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_alert-padding)",
+				"name": "--violet-card-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_alert-radius)",
+				"name": "--violet-card-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_alert-shadow)",
+				"name": "--violet-card-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_alert-icon-size)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the dismiss control is activated.",
+				"name": "dismiss"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Alert body content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional action buttons or links.",
+				"name": "actions"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional leading icon that overrides the default tone icon.",
+				"name": "icon"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional alert heading.",
+				"name": "title"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-alert--assertive-announcement",
+			"html": "<violet-alert announcement=\"assertive\" tone=\"danger\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-alert--dismiss-interaction",
+			"html": "<violet-alert announcement=\"off\" dismissible tone=\"warning\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-alert--dismissible",
+			"html": "<violet-alert announcement=\"off\" dismissible tone=\"warning\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"message.announcement",
+		"message.tone",
+		"taxonomy.announcement",
+		"taxonomy.dismissible",
+		"taxonomy.tone"
+	],
+	"status": "stable",
+	"summary": "Persistent inline message with tone, optional title, actions and dismiss button.",
+	"tag": "violet-alert",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "alert.dismiss",
+			"text": "The dismissible attribute shows a close button that only fires a dismiss event (no detail). The alert stays in place until the page removes or hides it."
+		},
+		{
+			"basis": "authored",
+			"id": "alert.content",
+			"text": "The title slot renders in a p, not a heading. Tones default and info show no icon unless the icon slot is filled; success, warning and danger show a default icon."
+		}
+	]
+}

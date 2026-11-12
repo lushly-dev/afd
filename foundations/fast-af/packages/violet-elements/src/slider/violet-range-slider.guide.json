@@ -1,0 +1,69 @@
+{
+  "tag": "violet-range-slider",
+  "summary": "Two-thumb range input for choosing a low and a high bound, such as a price range, with a built-in label and supporting text.",
+  "usage": [
+    {
+      "id": "range-slider.values",
+      "text": "Set the bounds with value-start and value-end (strings, defaults 25 and 75). Both are clamped to min and max, snapped to step, and start is kept at or below end. The value property returns only valueStart.",
+      "members": [
+        "value-start",
+        "value-end",
+        "valueStart",
+        "valueEnd",
+        "value"
+      ]
+    },
+    {
+      "id": "range-slider.form",
+      "text": "The form receives two entries, <name>-start and <name>-end (range-start and range-end when name is unset), not one value under name.",
+      "members": [
+        "name"
+      ]
+    },
+    {
+      "id": "range-slider.events",
+      "text": "input and change are CustomEvents with detail { valueStart, valueEnd }, not detail.value. The inner range's native input event also reaches host listeners, without detail; skip events that have none.",
+      "members": [
+        "input",
+        "change"
+      ]
+    },
+    {
+      "id": "range-slider.validation",
+      "text": "The required attribute has no effect on validity. Only the invalid attribute makes it invalid, showing error-text or the built-in \"Please choose a valid range.\"",
+      "members": [
+        "required",
+        "invalid",
+        "error-text"
+      ]
+    },
+    {
+      "id": "range-slider.ticks",
+      "text": "show-ticks draws marks only when (max - min) / step is from 2 to 50. With orientation=\"vertical\" the minimum is at the bottom.",
+      "members": [
+        "show-ticks",
+        "orientation"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "range-slider.thumb-names",
+      "text": "Each thumb is a native slider named only by label-start or label-end (default \"Minimum\", \"Maximum\"); the label attribute is in neither name. Name the quantity, e.g. label-start=\"Minimum price\".",
+      "members": [
+        "label-start",
+        "label-end",
+        "label"
+      ]
+    },
+    {
+      "id": "range-slider.bounds",
+      "text": "The thumbs cannot cross: the start thumb's announced maximum is valueEnd and the end thumb's minimum is valueStart. Arrow keys move the focused thumb by step.",
+      "members": [
+        "valueStart",
+        "valueEnd",
+        "step"
+      ]
+    }
+  ]
+}

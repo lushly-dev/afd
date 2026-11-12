@@ -7,11 +7,15 @@ import type {
 	CoverageRequest,
 	MatrixAxes,
 	MatrixRequest,
+	PackExportRequest,
+	PackRequest,
 	ProfileRequest,
 	SpecimenContext,
 	SuggestRequest,
 	SuiteFilter,
 	SuiteRequest,
+	ThemeSupport,
+	ThemesRequest,
 } from './types.js';
 
 /**
@@ -62,6 +66,26 @@ function size(value: unknown, path: string, heightOptional: boolean) {
 	const width = integer(fields.width, `${path}.width`, 1, 8192);
 	if (heightOptional && fields.height === undefined) return { width };
 	return { width, height: integer(fields.height, `${path}.height`, 1, 8192) };
+}
+
+/** The themes, in the order a declaration lists them. */
+export const THEMES = ['light', 'dark', 'high-contrast'] as const;
+
+/** A native specimen's declared themes: one or more, each once; listed in `THEMES` order. */
+export function themeSupport(value: unknown, path: string): ThemeSupport {
+	const fields = record(value, path, ['supported', 'reason']);
+	if (!Array.isArray(fields.supported) || fields.supported.length < 1)
+		fail(`${path}.supported`, 'expected at least one theme');
+	const supported = fields.supported.map((theme, index) =>
+		choice(theme, `${path}.supported[${index}]`, THEMES)
+	);
+	if (new Set(supported).size !== supported.length)
+		fail(`${path}.supported`, 'names a theme twice');
+	return {
+		supported: THEMES.filter((theme) => supported.includes(theme)),
+		basis: 'declared',
+		...(fields.reason === undefined ? {} : { reason: text(fields.reason, `${path}.reason`) }),
+	};
 }
 
 const CONTEXT_KEYS = [
@@ -161,6 +185,47 @@ export function parseCoverageRequest(value: unknown): CoverageRequest {
 	return request;
 }
 
+export function parsePackRequest(value: unknown): PackRequest {
+	const fields = record(value, 'pack request', [
+		'component',
+		'timeoutMs',
+		'workers',
+		'allowFailed',
+		'index',
+	]);
+	const request: PackRequest = {};
+	if (fields.component !== undefined)
+		request.component = text(fields.component, 'pack request.component');
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'pack request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'pack request.workers', 1, MAX_SUITE_WORKERS);
+	if (fields.allowFailed !== undefined) {
+		if (!Array.isArray(fields.allowFailed))
+			fail('pack request.allowFailed', 'expected an array of case ids');
+		request.allowFailed = fields.allowFailed.map((item, index) =>
+			text(item, `pack request.allowFailed[${index}]`)
+		);
+	}
+	return request;
+}
+
+export function parsePackExportRequest(value: unknown): PackExportRequest {
+	const fields = record(value, 'pack export request', ['directory', 'revision']);
+	return {
+		directory: text(fields.directory, 'pack export request.directory'),
+		...(fields.revision === undefined
+			? {}
+			: {
+					revision: text(
+						fields.revision,
+						'pack export request.revision',
+						/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/
+					),
+				}),
+	};
+}
+
 export function parseA11yRequest(value: unknown): A11yRequest {
 	const fields = record(value, 'accessibility request', [
 		'id',
@@ -189,6 +254,49 @@ export function parseA11yRequest(value: unknown): A11yRequest {
 			1,
 			MAX_SUITE_WORKERS
 		);
+	return request;
+}
+
+export function parseThemesRequest(value: unknown): ThemesRequest {
+	const path = 'themes request';
+	const fields = record(value, path, [
+		'id',
+		'filter',
+		'themes',
+		'checkpoint',
+		'context',
+		'threshold',
+		'timeoutMs',
+		'workers',
+	]);
+	const request: ThemesRequest = {};
+	if (fields.id !== undefined) request.id = text(fields.id, `${path}.id`);
+	if (fields.filter !== undefined) request.filter = suiteFilter(fields.filter, `${path}.filter`);
+	if (request.id !== undefined && request.filter !== undefined)
+		fail(path, 'give an id or a filter, not both');
+	if (fields.themes !== undefined) {
+		if (!Array.isArray(fields.themes) || fields.themes.length < 2)
+			fail(`${path}.themes`, 'expected at least two themes');
+		const themes = fields.themes.map((theme, index) =>
+			choice(theme, `${path}.themes[${index}]`, THEMES)
+		);
+		if (new Set(themes).size !== themes.length) fail(`${path}.themes`, 'names a theme twice');
+		request.themes = themes;
+	}
+	if (fields.checkpoint !== undefined)
+		request.checkpoint = text(fields.checkpoint, `${path}.checkpoint`);
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, `${path}.context`, true);
+	if (fields.threshold !== undefined) {
+		const threshold = fields.threshold;
+		if (typeof threshold !== 'number' || !(threshold >= 0 && threshold <= 1))
+			fail(`${path}.threshold`, 'expected a number from 0 to 1');
+		request.threshold = threshold;
+	}
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, `${path}.workers`, 1, MAX_SUITE_WORKERS);
 	return request;
 }
 
@@ -335,7 +443,14 @@ function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
 		fail('configuration.specimens', 'expected at least one specimen');
 	return value.map((item: unknown, index) => {
 		const path = `configuration.specimens[${index}]`;
-		const entry = record(item, path, ['id', 'title', 'module', 'exportName', 'component']);
+		const entry = record(item, path, [
+			'id',
+			'title',
+			'module',
+			'exportName',
+			'component',
+			'themes',
+		]);
 		return {
 			id: text(entry.id, `${path}.id`, /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
 			title: text(entry.title, `${path}.title`),
@@ -346,6 +461,9 @@ function specimens(value: unknown): NonNullable<BenchConfig['specimens']> {
 				: {
 						component: text(entry.component, `${path}.component`, /^[a-z][a-z0-9]*-[a-z0-9-]+$/),
 					}),
+			...(entry.themes === undefined
+				? {}
+				: { themes: themeSupport(entry.themes, `${path}.themes`) }),
 		};
 	});
 }
@@ -454,6 +572,8 @@ export function parseConfig(value: unknown): BenchConfig {
 		'profile',
 		'coverage',
 		'guides',
+		'guideSources',
+		'pack',
 	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
@@ -463,6 +583,10 @@ export function parseConfig(value: unknown): BenchConfig {
 		fail('configuration.test', 'test tags apply only to stories');
 	if (fields.guides !== undefined && fields.manifest === undefined)
 		fail('configuration.guides', 'guides are checked against a manifest');
+	if (fields.guideSources !== undefined && fields.manifest === undefined)
+		fail('configuration.guideSources', 'guide sources are checked against a manifest');
+	if (fields.pack !== undefined && fields.manifest === undefined)
+		fail('configuration.pack', 'a pack is built from a manifest');
 	return {
 		...(fields.specimens === undefined ? {} : { specimens: specimens(fields.specimens) }),
 		...(fields.stories === undefined ? {} : { stories: stories(fields.stories) }),
@@ -490,5 +614,51 @@ export function parseConfig(value: unknown): BenchConfig {
 						? fields.guides.map((item, index) => text(item, `configuration.guides[${index}]`))
 						: fail('configuration.guides', 'expected an array of file patterns'),
 				}),
+		...(fields.guideSources === undefined
+			? {}
+			: {
+					guideSources: Array.isArray(fields.guideSources)
+						? fields.guideSources.map((item, index) =>
+								text(item, `configuration.guideSources[${index}]`)
+							)
+						: fail('configuration.guideSources', 'expected an array of module paths'),
+				}),
+		...(fields.pack === undefined ? {} : { pack: packConfig(fields.pack) }),
+	};
+}
+
+const PACK_LIBRARY = /^[a-z][a-z0-9-]{0,63}$/;
+const PACK_PREFIX = /^[a-z][a-z0-9._]*-$/;
+
+function packConfig(value: unknown): NonNullable<BenchConfig['pack']> {
+	const fields = record(value, 'configuration.pack', [
+		'library',
+		'title',
+		'prefix',
+		'directory',
+		'package',
+		'import',
+		'examples',
+	]);
+	const library = text(fields.library, 'configuration.pack.library');
+	if (!PACK_LIBRARY.test(library))
+		fail('configuration.pack.library', 'expected a library id: lowercase letters, digits and -');
+	const prefix = text(fields.prefix, 'configuration.pack.prefix');
+	if (!PACK_PREFIX.test(prefix) || prefix.length > 32)
+		fail('configuration.pack.prefix', 'expected a tag prefix ending in -, such as example-');
+	const title = text(fields.title, 'configuration.pack.title');
+	if ([...title].length > 80) fail('configuration.pack.title', 'expected at most 80 characters');
+	return {
+		library,
+		title,
+		prefix,
+		directory: text(fields.directory, 'configuration.pack.directory'),
+		package: text(fields.package, 'configuration.pack.package'),
+		...(fields.import === undefined
+			? {}
+			: { import: text(fields.import, 'configuration.pack.import') }),
+		...(fields.examples === undefined
+			? {}
+			: { examples: integer(fields.examples, 'configuration.pack.examples', 0, 16) }),
 	};
 }

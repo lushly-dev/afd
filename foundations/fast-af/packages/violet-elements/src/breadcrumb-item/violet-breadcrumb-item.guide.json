@@ -1,0 +1,30 @@
+{
+  "tag": "violet-breadcrumb-item",
+  "summary": "One step of a violet-breadcrumb: a link, or plain text for the current page.",
+  "usage": [
+    {
+      "id": "breadcrumb-item.href",
+      "text": "It renders a link only when it is not current and href is relative, http(s) or mailto. Any other scheme, or no href, renders plain text. The current item is never a link.",
+      "members": [
+        "href",
+        "current"
+      ]
+    },
+    {
+      "id": "breadcrumb-item.separator",
+      "text": "A \"/\" separator follows each item except the current one. The separator slot replaces the glyph on that item only, so set it on every item.",
+      "members": [
+        "separator"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "breadcrumb-item.current",
+      "text": "The current item gets aria-current=\"page\" and separators are aria-hidden, so screen readers read only the item text.",
+      "members": [
+        "current"
+      ]
+    }
+  ]
+}

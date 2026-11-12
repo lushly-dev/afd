@@ -34,6 +34,7 @@ function renderTooltip(args: VioletTooltipStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Tooltip",
+    component: "violet-tooltip",
     tags: ["autodocs"],
     parameters: {
         docs: {

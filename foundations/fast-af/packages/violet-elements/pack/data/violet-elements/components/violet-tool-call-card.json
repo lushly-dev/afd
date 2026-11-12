@@ -1,0 +1,215 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "pending",
+				"name": "state",
+				"property": "state",
+				"rules": [
+					"taxonomy.state"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "",
+				"name": "tool-call-id",
+				"property": "toolCallId",
+				"rules": [
+					"taxonomy.tool-call-id"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "tool-name",
+				"property": "toolName",
+				"rules": [
+					"taxonomy.tool-name"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-background, #fbe2e2)",
+				"name": "--_danger-bg"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"name": "--_danger-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-text, #b42318)",
+				"name": "--_danger-text-local"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-background, #e3f1e7)",
+				"name": "--_success-bg"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-border, rgba(22, 101, 52, 0.28))",
+				"name": "--_success-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-text, #166534)",
+				"name": "--_success-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tool-font-size, var(--_caption-size, 12px))",
+				"name": "--_tool-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tool-line-height, var(--_caption-line, 16px))",
+				"name": "--_tool-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tool-name-size, var(--_body-size, 14px))",
+				"name": "--_tool-name-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-warning-background, #fdebcc)",
+				"name": "--_warning-bg"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-warning-border, rgba(245, 158, 11, 0.34))",
+				"name": "--_warning-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-warning-text, #92400e)",
+				"name": "--_warning-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_surface-card)",
+				"name": "--violet-card-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_border-subtle)",
+				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "none",
+				"name": "--violet-card-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_tool-name-size)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the delegated approval card is approved. Detail: { toolCallId }.",
+				"name": "approve"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the delegated approval card is denied. Detail: { toolCallId }.",
+				"name": "deny"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Additional content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Custom icon for the tool (defaults to system/settings icon).",
+				"name": "icon"
+			},
+			{
+				"basis": "observed",
+				"description": "Tool arguments display.",
+				"name": "input"
+			},
+			{
+				"basis": "observed",
+				"description": "Tool result display.",
+				"name": "output"
+			},
+			{
+				"basis": "observed",
+				"description": "Concise description of the tool's purpose.",
+				"name": "summary"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-tool-call-card--all-states",
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 12px; max-inline-size: 500px;\"><violet-tool-call-card state=\"pending\" tool-call-id tool-name=\"searchDatabase\"></violet-tool-call-card><violet-tool-call-card state=\"approval-requested\" tool-call-id tool-name=\"placeOrder\"></violet-tool-call-card><violet-tool-call-card state=\"executing\" tool-call-id tool-name=\"analyzeSoil\"></violet-tool-call-card><violet-tool-call-card state=\"output-available\" tool-call-id tool-name=\"getWeather\"></violet-tool-call-card><violet-tool-call-card state=\"output-error\" tool-call-id tool-name=\"fetchInventory\"></violet-tool-call-card><violet-tool-call-card state=\"cancelled\" tool-call-id tool-name=\"deleteRecords\"></violet-tool-call-card></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-tool-call-card--approval-needed",
+			"html": "<violet-tool-call-card state=\"approval-requested\" tool-call-id tool-name=\"placeOrder\"><span slot=\"summary\">Ready to place an order for 12 hostas and 6 ferns.</span></violet-tool-call-card>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-tool-call-card--complete",
+			"html": "<violet-tool-call-card state=\"output-available\" tool-call-id tool-name=\"getWeather\"><span slot=\"summary\">Retrieved weather forecast for Portland, OR.</span><div slot=\"output\">72°F, partly cloudy, 20% chance of rain.</div></violet-tool-call-card>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "tool-call-id",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.state",
+		"taxonomy.tool-call-id",
+		"taxonomy.tool-name",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-tool-call-card",
+	"usage": []
+}

@@ -45,6 +45,7 @@ function renderRadio(args: VioletRadioStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Radio",
+    component: "violet-radio",
     tags: ["autodocs"],
     parameters: {
         docs: {

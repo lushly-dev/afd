@@ -23,6 +23,7 @@ function renderItem(args: VioletBreadcrumbItemStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Breadcrumb Item",
+    component: "violet-breadcrumb-item",
     tags: ["autodocs"],
     parameters: {
         docs: {

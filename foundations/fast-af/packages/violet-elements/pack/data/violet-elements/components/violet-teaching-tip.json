@@ -1,0 +1,214 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"name": "anchor",
+				"property": "anchor",
+				"rules": [
+					"taxonomy.anchor"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "content",
+				"property": "content",
+				"rules": [
+					"taxonomy.content"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": 0,
+				"name": "current-step",
+				"property": "currentStep",
+				"rules": [
+					"taxonomy.current-step"
+				],
+				"type": "number"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "no-close-button",
+				"property": "noCloseButton",
+				"rules": [
+					"taxonomy.no-close-button"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "below",
+				"name": "positioning",
+				"property": "positioning",
+				"rules": [
+					"taxonomy.positioning"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": 0,
+				"name": "total-steps",
+				"property": "totalSteps",
+				"rules": [
+					"taxonomy.total-steps"
+				],
+				"type": "number"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-background, var(--_surface-card))",
+				"name": "--_tip-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-border-color, var(--_border-subtle))",
+				"name": "--_tip-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-border-width, var(--_card-border-width, 1px))",
+				"name": "--_tip-border-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-gap, var(--_space-sm))",
+				"name": "--_tip-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-max-width, 320px)",
+				"name": "--_tip-max-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-padding, var(--_space-md))",
+				"name": "--_tip-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-radius, var(--_radius-lg))",
+				"name": "--_tip-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-teaching-tip-shadow, var(--_shadow-floating))",
+				"name": "--_tip-shadow"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the teaching tip is closed by the user.",
+				"name": "dismiss"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the teaching tip opens or closes. Detail: `{ open: boolean }`.",
+				"name": "open-change"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-button"
+				],
+				"basis": "observed",
+				"description": "Trigger element that the teaching tip anchors to.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Teaching tip body content (alternative to the content attribute).",
+				"name": "body"
+			},
+			{
+				"basis": "observed",
+				"description": "Action buttons area (e.g., Next, Back, Done).",
+				"name": "footer"
+			},
+			{
+				"basis": "observed",
+				"description": "Teaching tip title text.",
+				"name": "title"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-teaching-tip--above",
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip content=\"Use this button to quickly add new items to your collection.\" current-step=\"0\" positioning=\"above\" total-steps=\"0\"><span slot=\"title\">Quick action</span><violet-button appearance=\"primary\" aria-controls=\"violet-teaching-tip-0\" aria-expanded=\"false\" aria-haspopup=\"dialog\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-teaching-tip--after",
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip content=\"Access your account settings and preferences from this menu.\" current-step=\"0\" positioning=\"after\" total-steps=\"0\"><span slot=\"title\">Settings panel</span><violet-button appearance=\"primary\" aria-controls=\"violet-teaching-tip-0\" aria-expanded=\"false\" aria-haspopup=\"dialog\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-teaching-tip--before",
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip content=\"The sidebar contains all your workspaces and recent projects.\" current-step=\"0\" positioning=\"before\" total-steps=\"0\"><span slot=\"title\">Navigation</span><violet-button appearance=\"primary\" aria-controls=\"violet-teaching-tip-0\" aria-expanded=\"false\" aria-haspopup=\"dialog\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"overlay.anchor",
+		"overlay.open-change",
+		"overlay.positioning",
+		"taxonomy.anchor",
+		"taxonomy.content",
+		"taxonomy.current-step",
+		"taxonomy.no-close-button",
+		"taxonomy.open",
+		"taxonomy.positioning",
+		"taxonomy.total-steps",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-teaching-tip",
+	"usage": []
+}

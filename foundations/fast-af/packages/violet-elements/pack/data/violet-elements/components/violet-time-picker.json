@@ -1,0 +1,263 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "time-picker.errors",
+				"text": "The shown error, built-in or error-text, is linked to the native input as its description after supporting-text, so it is read when the field is focused."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "min",
+				"property": "min",
+				"rules": [
+					"taxonomy.min"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": "natural",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletTimePickerSize"
+			},
+			{
+				"basis": "observed",
+				"default": "60",
+				"name": "step",
+				"property": "step",
+				"rules": [
+					"taxonomy.step"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_type-body-size-compact)",
+				"name": "--violet-control-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-caption-size-compact)",
+				"name": "--violet-control-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-label-size-compact)",
+				"name": "--violet-control-label-size"
+			},
+			{
+				"basis": "declared",
+				"default": "max(0.9rem, calc(var(--_target-size) * 0.33))",
+				"name": "--violet-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-compact)",
+				"name": "--violet-target-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the time value is committed.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the time value changes while editing.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-time-picker--disabled",
+			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker disabled error-text label=\"Start time\" max=\"21:00\" min=\"06:00\" name=\"start-time\" size=\"natural\" step=\"60\" supporting-text=\"This schedule is inherited from the greenhouse template.\" value=\"09:30\"></violet-time-picker>\n            </form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-time-picker--invalid",
+			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker error-text=\"Please choose a time.\" invalid label=\"Start time\" max=\"21:00\" min=\"06:00\" name=\"start-time\" required size=\"natural\" step=\"60\" supporting-text=\"Choose when this automation should begin each day.\" value></violet-time-picker>\n            </form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-time-picker--overview",
+			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker error-text label=\"Start time\" max=\"21:00\" min=\"06:00\" name=\"start-time\" size=\"natural\" step=\"60\" supporting-text=\"Choose when this automation should begin each day.\" value=\"09:30\"></violet-time-picker>\n            </form>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "size",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"event.native-input",
+		"field.input-change",
+		"field.label",
+		"field.label-required",
+		"field.supporting-text",
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.max",
+		"taxonomy.min",
+		"taxonomy.name",
+		"taxonomy.required",
+		"taxonomy.size",
+		"taxonomy.step",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Time-of-day field wrapping the native time input, with a label, supporting text and range checks; the value is a 24-hour time string.",
+	"tag": "violet-time-picker",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "time-picker.value",
+			"text": "value is a 24-hour \"HH:MM\" or \"HH:MM:SS\" string whatever the display format, and the form receives it under name. Any other string is invalid with \"Enter a valid time.\""
+		},
+		{
+			"basis": "authored",
+			"id": "time-picker.step",
+			"text": "step is in seconds, default 60, so only hours and minutes are edited. Use step=\"1\" to edit seconds, or e.g. 900 for 15-minute arrow-key steps."
+		},
+		{
+			"basis": "authored",
+			"id": "time-picker.range",
+			"text": "min and max are times within one day; a value outside them is invalid with \"Choose a time at or after/before ...\". A range that crosses midnight is not supported."
+		},
+		{
+			"basis": "authored",
+			"id": "time-picker.events",
+			"text": "input and change carry detail.value. The native input's own input event also reaches host listeners, without detail; skip events that have none."
+		}
+	]
+}
