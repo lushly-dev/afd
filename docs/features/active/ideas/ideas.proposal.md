@@ -11,11 +11,12 @@ Its working name is Ideas, and the plugin id is `ideas` ([section 11](#11-for-th
 
 ## Status
 
-- **State:** proposed. Written 2026-11-11 against `main` at `8ef7aa68`, from a design discussion
-  with the owner on 2026-11-10 and 2026-11-11, and revised three times the same day
-  ([Revision](#revision-of-2026-11-11)), the third time against `main` at `069af7b6`. Nothing is
-  implemented and nothing is approved beyond the owner's directions listed in
-  [section 11](#11-for-the-owner).
+- **State:** active, with phase 0 under way. Progress is in [STATUS.md](STATUS.md), which is the
+  ledger; read it first. Written 2026-11-11 against `main` at `8ef7aa68`, from a design
+  discussion with the owner on 2026-11-10 and 2026-11-11, and revised three times the same day
+  ([Revision](#revision-of-2026-11-11)), the third time against `main` at `069af7b6`. The owner
+  merged the third revision, answered the questions that stood before phase 0, and directed that
+  the work carry on through its phases ([section 11](#11-for-the-owner)). Nothing is implemented.
 - **Verified:** the facts in [What exists today](#2-what-exists-today) were read on `main` at
   `8ef7aa68` in the files each row names, and in `lushly-dev/violet` at `c4e8663` for Violet's
   web interface and plans. The rows on the person page, the tool list, guidance, loading
@@ -1335,7 +1336,41 @@ Directed or agreed on 2026-11-11, to be recorded when this plan is approved:
     daily use needs to be safe, so the loop is larger than the six jobs agreed: fourteen
     scenario files and 31 commands ([section 9](#9-steps)). That is the owner's to cut.
 
-Questions, each with a recommendation:
+### The owner's answers of 2026-11-11
+
+After merging the third revision the owner answered what stood before phase 0, and gave a
+direction for the rest of the plan. "Agreed" below means in his words. "On recommendation"
+means he was not asked that question by itself: the recommendation is acted on under his
+direction, it is listed in [STATUS.md](STATUS.md) for him to confirm, and he can overturn it.
+
+- **Direction.** Carry on from one phase to the next without stopping for his confirmation.
+  Questions are queued in [STATUS.md](STATUS.md) and put to him when the work cannot go on
+  without an answer. Changes that do not wait on him are committed, reviewed and merged.
+- **The second walk's changes.** Agreed: restricted material is returned only to a call that
+  asks for it by name; only a source that no model has handled can attest; and the loop is the
+  larger one, fourteen scenario files and 31 commands.
+
+| Question | Answer | Basis |
+| --- | --- | --- |
+| 7. The first instance | One machine with the embedded store and a persistent disk. Which authorization server, and which directory holds the first archive, had no recommendation and are still open; they are needed at step C1 | Agreed, for the part that had a recommendation |
+| 9. The phase 0 corpus | The question carried no recommendation, so this one was made after his answer: the owner's own archive of source material on one subject, in his private repository, measured where it lies. Only counts, rates and the tools leave it. A model drafts every label and the owner checks a sample of each kind in one sitting | On recommendation |
+| 11. The jobs | All twenty-nine are kept, ranked in the order of the [jobs table](#jobs-to-be-done). Job 11 is the first to go if the list must shrink | Agreed |
+| 14. The hierarchy | Decided after phase 0.6 and some weeks of the loop | Agreed |
+| 1. The wording of P1 | As recommended, to be written out in step A1 | On recommendation |
+| 2. Records or documents | Records, indexed through P2, unless phase 0.7 finds otherwise | On recommendation |
+| 3. The name for the hierarchy | Framing | On recommendation |
+| 4. The embedding lane | Yes, with a local model by default, chosen in phase 0.2 | On recommendation |
+| 5. The shared engine | Yes, as a foundation, with Violet held to the same vectors. Nothing is built before question 14 is answered | On recommendation |
+| 6. The host changes | All as host work, each specified in phase A or E | On recommendation |
+| 8. The plugin id | `ideas` | On recommendation |
+| 12. First-class places | `ideas-capture`, `ideas-ask` and `ideas-guide`, settled with phase 0.10's result | On recommendation |
+| 13. Who may settle a finding | Any caller, recorded, counted and open to reversal | On recommendation |
+| 15. A job for finding something new | Added once the loop is in use | On recommendation |
+| 10. Scope of P9 to P12 | Open. It carried no recommendation and nothing before phase H needs it | Open |
+
+### The questions as they were put
+
+Each carries its recommendation. The table above records what became of it.
 
 1. **The wording of P1.** Recommended: durable records may be written by agents where a plugin
    declares it; they carry their standing; a caller may exclude those without it; only a person,
