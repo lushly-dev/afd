@@ -2,7 +2,7 @@
 
 **Preview,** like [Specimen](../../foundations/specimen/README.md): the commands can still change. Install it with Specimen and its AFD peers: `npm install @lushly-dev/specimen@preview @lushly-dev/specimen-afd@preview @lushly-dev/afd-core @lushly-dev/afd-server`.
 
-`@lushly-dev/specimen-afd` adapts native Specimen operations to validated AFD definitions and CommandResult envelopes: `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-migrate`, `specimen-diff` and `specimen-build`. It supports Specimen `^2.2.0-preview`, its preview and the stable releases after it, and AFD core and AFD server `^2.2.0`; incompatible or missing peers must be resolved before using this integration.
+`@lushly-dev/specimen-afd` adapts native Specimen operations to validated AFD definitions and CommandResult envelopes: `specimen-list`, `specimen-validate`, `specimen-inspect`, `specimen-render`, `specimen-run`, `specimen-migrate`, `specimen-diff`, `specimen-build`, `specimen-pack`, `specimen-pack-check` and `specimen-pack-export`. It supports Specimen `^2.2.0-preview`, its preview and the stable releases after it, and AFD core and AFD server `^2.2.0`; incompatible or missing peers must be resolved before using this integration.
 
 ```ts
 import { createSpecimenBench } from '@lushly-dev/specimen';

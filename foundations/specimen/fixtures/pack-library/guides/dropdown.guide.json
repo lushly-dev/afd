@@ -1,0 +1,5 @@
+{
+	"tag": "example-dropdown",
+	"status": "deprecated",
+	"replacedBy": "example-select"
+}

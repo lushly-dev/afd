@@ -89,6 +89,33 @@
 				"additionalProperties": false
 			}
 		},
+		"roles": {
+			"maxItems": 16,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"state": {
+						"type": "string",
+						"maxLength": 64,
+						"pattern": "^[a-z][a-z0-9-]*$"
+					},
+					"role": {
+						"type": "string",
+						"maxLength": 32,
+						"pattern": "^[a-z]+$"
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 160,
+						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					}
+				},
+				"required": ["state", "role"],
+				"additionalProperties": false
+			}
+		},
 		"detail": {
 			"type": "string",
 			"minLength": 1,

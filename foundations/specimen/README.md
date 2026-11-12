@@ -387,9 +387,31 @@ A link can also carry `checkpoint`: `after-run` runs a retained story's play in 
 
 ## Component packs
 
-A component pack describes a library's components for an agent: attributes, slots, events, roles, guidance and shared rules, each fact labelled with where it came from. Specimen does not build packs yet. `@lushly-dev/specimen/pack` has the format's version 0: its schemas, `checkPack` and the catalog writer, and `@lushly-dev/specimen/pack/<kind>.schema.json` has a JSON Schema for each file kind. Version 0 can change in any release. [The format](docs/pack-format.md) describes it, and `fixtures/pack/` holds an example library and one invalid case per problem `checkPack` reports.
+A component pack describes a library's components for an agent: attributes, slots, events, roles, guidance and shared rules, each fact labelled with where it came from. `@lushly-dev/specimen/pack` has the format's version 0: its schemas, `checkPack` and the catalog writer, and `@lushly-dev/specimen/pack/<kind>.schema.json` has a JSON Schema for each file kind. Version 0 can change in any release. [The format](docs/pack-format.md) describes it, and `fixtures/pack/` holds an example library and one invalid case per problem `checkPack` reports.
 
-Guidance a library's authors write lives in guide files, found through the `guides` key: `"guides": ["src/**/*.guide.json"]`, which needs `manifest`. A file holds one component's `summary`, `status`, `usage`, `a11y` and `detail`, or, with a top-level `rules`, rules stated once with what each applies to. Each statement has a stable `id`, and may list in `members` the attributes, properties, slots, events, CSS properties or commands it names. `@lushly-dev/specimen/guide/<kind>.schema.json` has a JSON Schema for each kind (`component`, `rules`). `specimen-validate` checks them with no browser: the shape, the 160- and 240-character limits, tags and members the manifest does not have, and duplicate tags and ids. Where a plugin could add a member the manifest lacks, an unknown member is reported as `deferred`, not as an error. `specimen-coverage` reports each statement's level in `guides@1` (see [Report coverage](#report-coverage)). Nothing reads guides into a pack yet.
+Guidance a library's authors write lives in guide files, found through the `guides` key: `"guides": ["src/**/*.guide.json"]`, which needs `manifest`. A file holds one component's `summary`, `status`, `usage`, `a11y`, `roles` (its roles in states a capture does not show, such as an open popup's) and `detail`, or, with a top-level `rules`, rules stated once with what each applies to. Each statement has a stable `id`, and may list in `members` the attributes, properties, slots, events, CSS properties or commands it names. `@lushly-dev/specimen/guide/<kind>.schema.json` has a JSON Schema for each kind (`component`, `rules`). `specimen-validate` checks them with no browser: the shape, the 160- and 240-character limits, tags and members the manifest does not have, and duplicate tags and ids. Where a plugin could add a member the manifest lacks, an unknown member is reported as `deferred`, not as an error. `specimen-coverage` reports each statement's level in `guides@1` (see [Report coverage](#report-coverage)).
+
+A `pack` key names the library a project builds a pack for, which needs `manifest`:
+
+```json
+"pack": {
+  "library": "example",
+  "title": "Example components",
+  "prefix": "example-",
+  "directory": "./pack",
+  "package": "./package.json",
+  "import": "example-components/{module}"
+}
+```
+
+Every component whose tag starts with `prefix` gets a record. `directory` is the committed form's root, `package` the manifest whose name and version export stamps, and `import` the specifier that registers a component (`{module}` is the module the manifest names, `{tag}` the tag and `{name}` the tag without the prefix); `examples` caps how many a record keeps (3 by default).
+
+- `bench.pack()` runs every case twice, retrying a failed case once, and writes the committed form: one record per component and the library's rules. A case whose observations differ between the passes contributes nothing and is listed as `unstable`; a run with a failed case writes nothing unless `allowFailed` names it. An example is the markup a case about the component mounted, mounted again on its own and kept only when it shows the same; each one left out is listed with its reason. The report lists each component's gaps, and anything the build left out of a record, such as a manifest description over its limit.
+- `component` rebuilds one record. Its cases come from an index each full build writes (a cache in `node_modules/.cache/specimen/`, not committed): the cases that rendered each tag, every case that failed listed under every tag. The index is used only when the bench's bundle and the configuration are unchanged since it was written; otherwise every case runs, and the report's `selection` says why. Only that record is written or compared. A full build in CI stays the authority.
+- `bench.packCheck()` builds the same way, writes nothing, and names the committed files that differ (`changed`, `added`, `removed`); `valid` is true only when none does and no case failed.
+- `bench.packExport({ directory, revision? })` writes the exported form from the committed records, with no browser: the records, the rules and the catalog, stamped with the package. It first rebuilds what files alone say, the facts the manifest declares and the statements in the guide files, and refuses, naming the record, when one differs from what was committed. Other libraries already in `directory` stay as they are, and so does a deployment's `pack.toml`: export writes beside the target and swaps the directories.
+
+`specimen-pack`, `specimen-pack-check` and `specimen-pack-export` in `@lushly-dev/specimen-afd`, and `specimen pack [TAG]`, `pack-check [TAG]` and `pack-export DIR` in the CLI, call these. How each fact's basis is decided is in [the format](docs/pack-format.md#how-specimen-builds-a-pack). `fixtures/pack-library/` is the example library the format's fixture pack is built from.
 
 ## Use programmatically
 

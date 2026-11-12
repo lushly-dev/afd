@@ -105,11 +105,11 @@
       "upstream_sha256": null,
       "staged_path": "endpoints/specimen-cli/README.md",
       "staged_sha256": "0e5509a61bb71e912871962bb332ccd46a2e06a2960800b13d95fd1c27843050",
-      "current_import_sha256": "d07bf1a71bd78336a2f1f619d2fba1cb781b0333b85821eb526305118ccb83e8",
+      "current_import_sha256": "1ef59a909f0621d9dd7e1002bdd09efcebc9f5581aab76ee29caaf3a9a395e59",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "Link the in-repository transition document instead of the staging-only SPECIMEN-SPLIT.md; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 qualifying pairs: mark Specimen as a preview and record the result; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record"
+      "import_reason": "Link the in-repository transition document instead of the staging-only SPECIMEN-SPLIT.md; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 qualifying pairs: mark Specimen as a preview and record the result; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "endpoints/specimen-cli/package.json",
@@ -142,11 +142,11 @@
       "upstream_sha256": "09cfa93b8b3511830ad06601f97af28caf97b1ae25920f636b324f6157ec24b1",
       "staged_path": "endpoints/specimen-cli/src/cli.test.ts",
       "staged_sha256": "232fde377d630bfd7952d2c0bba0ab6c6884d8ee81700a466b73d6a68020ea1f",
-      "current_import_sha256": "7022570c54b5dcb370467535e134665531a472375fb5a3fddeb983a9208977bf",
+      "current_import_sha256": "813046a5ad1138ba84b8b66193ad39c46d288fb66a755fb1825ac4b7ff773902",
       "stage_classification": "modified-upstream",
       "stage_reason": "Moved from packages/specimen/src; import SpecimenCommandBench from the integration",
       "import_classification": "modified-after-staging",
-      "import_reason": "Cover default process stdout/stderr IO; after the split the standalone suite left function coverage at 75%, below the 80% threshold; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter"
+      "import_reason": "Cover default process stdout/stderr IO; after the split the standalone suite left function coverage at 75%, below the 80% threshold; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "endpoints/specimen-cli/src/cli.ts",
@@ -154,11 +154,11 @@
       "upstream_sha256": "05bee6e04928e79101da5f71aecf1b5b35a6c098040d416471e3eaccf251b794",
       "staged_path": "endpoints/specimen-cli/src/cli.ts",
       "staged_sha256": "1f494c4857a693577bbb55fddd687959fc4d2bf53af51ecaa55e26ca429bfbac",
-      "current_import_sha256": "f723e434d484ee23a08ce706c46f7b45afa02f88b55e1a289ba1adacce984551",
+      "current_import_sha256": "1416aae12ccaa6a88a44bf932bbcbd8ce844d8dd70d32d221720f2f366bac52d",
       "stage_classification": "modified-upstream",
       "stage_reason": "Moved from packages/specimen/src; import bench and commands through public native and integration exports",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "endpoints/specimen-cli/src/index.ts",
@@ -358,11 +358,11 @@
       "upstream_sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
       "staged_path": "packages/specimen/README.md",
       "staged_sha256": "19c9331ebd067dd32bee9a8cbf1170434f76327642aeca7d598b73ca3a3db2ca",
-      "current_import_sha256": "faa6db3872b8514d5f935451fc1a1a1667c358a6677bbf6ea9456b4124f94a52",
+      "current_import_sha256": "807cff62e824186b084cd2ec3b53c7211040c2950f67c52aec0a2f163b48a766",
       "stage_classification": "modified-upstream",
       "stage_reason": "Document the native/integration/endpoint split",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record; Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); The review page applies a theme or preset viewport as it is picked; Apply remains only for a custom size; An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow"
+      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record; Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); The review page applies a theme or preset viewport as it is picked; Apply remains only for a custom size; An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/experiments/README.md",
@@ -671,11 +671,11 @@
       "upstream_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
       "staged_path": "packages/specimen/src/bench-runtime.ts",
       "staged_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
-      "current_import_sha256": "5d6a1b072f074a8d2f0427e833e914eccf6d4f9c49ee6af7c1eaca1b9ffdb43a",
+      "current_import_sha256": "cef0156938e50ac86de40db5432a94d43f50d3c2d4eaa74f8d15a1b05302183e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918)"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/bench-worker-client.ts",
@@ -683,11 +683,11 @@
       "upstream_sha256": "f5b0ebb489133554fbc2cdaf64fe6dd223e76b39ac8f5ba7227545ff076191e0",
       "staged_path": "packages/specimen/src/bench-worker-client.ts",
       "staged_sha256": "f5b0ebb489133554fbc2cdaf64fe6dd223e76b39ac8f5ba7227545ff076191e0",
-      "current_import_sha256": "50e0a041670e0d2cd79083516fc8f60d54a9c76e1f55b5db760723bdf5f5aacd",
+      "current_import_sha256": "07a3f096be6e25c19055918824ffe87e96a1ff91b74963e7ceb0672d0353b41d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter"
+      "import_reason": "Imported exact staged candidate bytes; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/bench-worker.test.ts",
@@ -707,11 +707,11 @@
       "upstream_sha256": "6793bfedf9ee0f680fe888c7c4442b1132f2621142fe032c1d43ca560ad258c4",
       "staged_path": "packages/specimen/src/bench-worker.ts",
       "staged_sha256": "6793bfedf9ee0f680fe888c7c4442b1132f2621142fe032c1d43ca560ad258c4",
-      "current_import_sha256": "4e0b5a213fcd9b45b15835962b3389e7f731ecf4019ad47482955e82b6313eff",
+      "current_import_sha256": "3a6f35d63b5cb965b93ad9ad85b03effe4ed98fd7c80a4ba5cd01c8b00386cc2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter"
+      "import_reason": "Imported exact staged candidate bytes; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/bench.ts",
@@ -719,11 +719,11 @@
       "upstream_sha256": "8943030e2ecad946b180fcbb20cfb20f3562aae39c70b2726abc3b92f0c3358a",
       "staged_path": "packages/specimen/src/bench.ts",
       "staged_sha256": "8943030e2ecad946b180fcbb20cfb20f3562aae39c70b2726abc3b92f0c3358a",
-      "current_import_sha256": "6601c75f56d69b51e09f89e07de05a5c956ba3529bf213c14b6b37eeb42d4123",
+      "current_import_sha256": "da9c336e4b0703095f2ed062fc3e62c3ee789666ed1f95dc9f29045ef113942c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B1: guide files (the guides key, schema, loader and static checks)"
+      "import_reason": "Imported exact staged candidate bytes; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/browser/capture.ts",
@@ -755,11 +755,11 @@
       "upstream_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
       "staged_path": "packages/specimen/src/browser/index.ts",
       "staged_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
-      "current_import_sha256": "e982038beec57cec922a6cd34a5ecabf68f3b86f9d7cb0094dd6912fd7bd25c9",
+      "current_import_sha256": "ce8e4d6c8d9572efd655416af1fde2538298d74f67610b9e3a71aeddae6730ea",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/browser/instrumentation.ts",
@@ -923,11 +923,11 @@
       "upstream_sha256": "09c8a7ae03929807198fb977b06daa655537f1db50a3d7d9d01b2f831223f22d",
       "staged_path": "packages/specimen/src/schema.ts",
       "staged_sha256": "8c5269378f112d21ad06484ceefa033a9b0671eb3961f3401cb190709ea6bf36",
-      "current_import_sha256": "ed726c823f88854522f8a7132e0839a5b6a5ffa3abe8e11989e9167e16661bd1",
+      "current_import_sha256": "94d798e36935728d4b4fd1036a72e78fd9f4a0f836cf4e0e97364e9737be9b2c",
       "stage_classification": "modified-upstream",
       "stage_reason": "Move observation/build data validators into the native public schema module",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/types.ts",
@@ -935,11 +935,11 @@
       "upstream_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
       "staged_path": "packages/specimen/src/types.ts",
       "staged_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
-      "current_import_sha256": "3e945799d8bd294d9a8a80785bad747fb4c37a2328ea14f6bc4e8b4598ded1cb",
+      "current_import_sha256": "0e8ce4679113cc7cb5e0c96f1f1332dc1d24fd2eddca52714a2e990ed688e28c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name"
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); An uncaught error or unhandled rejection during a retained story fails it as `error`, under Vitest browser mode's rules, with the two-runner fixtures (#918); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/vite.ts",
@@ -995,11 +995,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "3beac92c32a749b919110b4b55d85b1ce61b0933ff054054ad277c7c961905e9",
+      "current_import_sha256": "865bb4347b916cf3f41a2b360a6fc75c3ad2457e040770fc0a22032288a8f129",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not present in the staged candidate",
       "import_classification": "added-after-staging",
-      "import_reason": "Browser-free configuration for the repository-wide pnpm test; coverage scoped to the modules it exercises; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check"
+      "import_reason": "Browser-free configuration for the repository-wide pnpm test; coverage scoped to the modules it exercises; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "integrations/specimen-afd/README.md",
@@ -1007,11 +1007,11 @@
       "upstream_sha256": null,
       "staged_path": "integrations/specimen-afd/README.md",
       "staged_sha256": "0de56a3599e0cd69eb1028bebf428b8ad06ef5a95b56dc08fa3abb084e04d467",
-      "current_import_sha256": "d497d14e5800723a0db17d74cc41468aa4c76242c60086ce67285c6945ed6ea1",
+      "current_import_sha256": "d6781a5c747100f8235ff05a85a30230dfd3166bc14177e870cb6fb63f0cf804",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "Link the in-repository transition document instead of the staging-only SPECIMEN-SPLIT.md; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T08 qualifying pairs: mark Specimen as a preview and record the result; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record"
+      "import_reason": "Link the in-repository transition document instead of the staging-only SPECIMEN-SPLIT.md; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T08 qualifying pairs: mark Specimen as a preview and record the result; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Install sections, the host's missing-browser message, and the .1 preview's record; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "integrations/specimen-afd/package.json",
@@ -1032,11 +1032,11 @@
       "upstream_sha256": "45fb6975b797b8b09b7d4e42aadd2a558bc799c7def51eea711d3dc8b22a69a4",
       "staged_path": "integrations/specimen-afd/src/commands.test.ts",
       "staged_sha256": "253a7f1ad3f779be1cf25f2dff73a4c572490dd8deb17da3034b29b2e1f6cc9d",
-      "current_import_sha256": "e202dcf1796e5e2ab9ccc7b700340c3994f72a93df7dcc9156908e3cb641894c",
+      "current_import_sha256": "5d28b32a58f12cb061155ec224b99d21f4300ebb7f00d11b5583ab518a7825b3",
       "stage_classification": "modified-upstream",
       "stage_reason": "Moved from packages/specimen/src; import Observation through @lushly-dev/specimen/types",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow"
+      "import_reason": "Imported exact staged candidate bytes; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "integrations/specimen-afd/src/commands.ts",
@@ -1044,11 +1044,11 @@
       "upstream_sha256": "99ef9bf918af9278c85bd723a3222a14c42ebeb503069e893e4740153ff06f59",
       "staged_path": "integrations/specimen-afd/src/commands.ts",
       "staged_sha256": "1e50efd4d3b58b5b57c191132cd8d833b059d677a1fd00c034fe4050bee8208b",
-      "current_import_sha256": "a523c2640d8b39c2e4ec7622c6175a5c11b85ed09ea289c96e484e6949e2ece5",
+      "current_import_sha256": "b3eff8949105b78a48ec2fca6d13446125b10cd6779aa4218a395ee2d5e4d645",
       "stage_classification": "modified-upstream",
       "stage_reason": "Moved from packages/specimen/src; import native API, schemas and types through public exports; data validators now come from @lushly-dev/specimen/schema",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter"
+      "import_reason": "Imported exact staged candidate bytes; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "integrations/specimen-afd/src/index.ts",
@@ -1104,11 +1104,11 @@
       "upstream_sha256": null,
       "staged_path": "verify-artifacts.mjs",
       "staged_sha256": "ad7f35d1389cd0bddd8c128d568f2031dab888df9b12f2077faa1151554270df",
-      "current_import_sha256": "80c24b7ca5e3049b878cdc7865d4443ca3ee33d46c8ea4180cd22b84a906e403",
+      "current_import_sha256": "05412f99fdee60b4576c887ebcc976795afe8d869d8c4f9935a8499a25bf5ba3",
       "stage_classification": "staging-evidence",
       "stage_reason": "Candidate staging tool or record, not upstream source",
       "import_classification": "derived-from-staging",
-      "import_reason": "Packed-artifact consumers re-rooted on the AFD workspace; receipt written outside the repository; exact peer assertions and an incompatible AFD core case added; server-to-core dependency wired to the local candidate tarball so negative peer checks work before publication without overriding incompatible root peers; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; The consumer installs the headless shell its own Playwright names (#796); The consumer's browser install keeps the workspace's browsers; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B2a: capture 0.9, each accessible element's computed role and name"
+      "import_reason": "Packed-artifact consumers re-rooted on the AFD workspace; receipt written outside the repository; exact peer assertions and an incompatible AFD core case added; server-to-core dependency wired to the local candidate tarball so negative peer checks work before publication without overriding incompatible root peers; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; The consumer installs the headless shell its own Playwright names (#796); The consumer's browser install keeps the workspace's browsers; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "docs/features/active/specimens/cpu-hotspot-validation.md",
@@ -1176,11 +1176,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "fbbb43e6eeebd9425cf8eeee0e6bc537b0cf7b4414f5d8dc388b339af3e19acc",
+      "current_import_sha256": "4864f13919130be40a7c3a2d2c8a8b3a9b213ca67ecbb7ae6c983c6fbd51b9a8",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 rehearsal: run one side alone, and record the result; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; Epic reconciliation: record what is done and what is left; Handoff: how to resume the epic; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Built and staged the prebuilt hosts in the release route, with a local packing rehearsal (Specimens G13); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Recorded the early merge of the preview's release PR and the publisher-authority fix (#790); Recorded the preview's failed first upload, the publishers and the retry (#796); Recorded the empty first preview and the release-gate fix (#803); Install sections, the host's missing-browser message, and the .1 preview's record; Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; T12 component packs: added to the plan and the ledger with the Component Briefs step A1 record (#949) and step A2's specifications, for the owner's approval; record the owner's approval of Component Briefs step A2 (#964); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow"
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged; T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T06 step 7: the seeded baseline and capture 0.5's manifest; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; T08 rehearsal: run one side alone, and record the result; T08 AFD's FAST-AF stories: separate helpers from component naming, the pairs harness and the record; T08 qualifying pairs: mark Specimen as a preview and record the result; Epic reconciliation: record what is done and what is left; Handoff: how to resume the epic; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Built and staged the prebuilt hosts in the release route, with a local packing rehearsal (Specimens G13); Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Recorded the early merge of the preview's release PR and the publisher-authority fix (#790); Recorded the preview's failed first upload, the publishers and the retry (#796); Recorded the empty first preview and the release-gate fix (#803); Install sections, the host's missing-browser message, and the .1 preview's record; Settle waits on each element's own registry (#707); the ARIA snapshot behind a modal dialog is the dialog's (#662); status reconciled after the preview and AFD 2.3.0 published; T12 component packs: added to the plan and the ledger with the Component Briefs step A1 record (#949) and step A2's specifications, for the owner's approval; record the owner's approval of Component Briefs step A2 (#964); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B2a: capture 0.9, each accessible element's computed role and name; axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "docs/features/active/specimens/frozen-inputs-inventory.md",
@@ -1764,11 +1764,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "c59b3bd8d337888326bbe121de155ac5559c6f695a73acfa4340b55305e6d173",
+      "current_import_sha256": "b31ecfea58a7707698ae940f925d502a02352b10f30d113c661f7180a1fce696",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/host/src/cdp.rs",
@@ -1800,11 +1800,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5d8d87ae82c494089dec6967985bcdc3a7aa3b0d5748ac42aaf2d07767115509",
+      "current_import_sha256": "927a88cd89f6d88a05c15b57f247981438a5382c5d352a47734b1595d3bccecc",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 4 preview-first codemod: specimen-migrate proposes a meta component only when the manifest and file name make it unambiguous, keeps every metadata field, reports Storybook imports and manual tasks with a diff, and writes only with apply; publication authority unchanged; T05 step 5: Vite's import.meta.glob in the native host, the consumer two-runner harness and its record; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/host/src/page.rs",
@@ -1908,11 +1908,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "1f94d543961a9225028d2e14e1238efa7f15b75a341fc5974f39a3806c04e63a",
+      "current_import_sha256": "272d84410413d7eac3cb995b772c8ba4972e906bfcb1dc551e047c318c4736d5",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Component Briefs step B1: guide files (the guides key, schema, loader and static checks)"
+      "import_reason": "T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; Loam D53, phase 0 specification section 4: the high-contrast theme context (the light color scheme with prefers-contrast: more) in the schema, validation, bench host, capture mismatch check, static preview and context probe; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T05 step 3 plugins and inspection: the four plugin points (manifest schema source with plugin enrichment, context-provider themes, versioned token maps validated together, named command runners and command steps), a plain custom-element plugin fixture, specimen-inspect, and the FAST-AF plugin as a new private quarantined unit; publication authority unchanged; T06 step 1: the full suites through both runners; retained runs in one chain, the real keyboard, static directories and the bounded wait; T06 step 2: suites with filters, worker limits and the once-only retry; the macOS rebuild fix; T06 step 3: specimen-a11y and native accessibility exceptions; T06 step 4: specimen-profile and baselines; T06 step 5: specimen-matrix and declared event history; T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; T07 step 4: specimen-suggest and the Fastbot adapter; Added the settled accessibility check (test.settledAccessibility) and its fixtures (Specimens T08, owner decision of 2026-11-02); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "docs/features/active/specimens/t05-compatibility.md",
@@ -3072,11 +3072,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "cc71d8dde8c39ae12d02f8ede05c80657907464524bda8b2a9f375a48af3e624",
+      "current_import_sha256": "e40e8ba04d2b54bf05fff25537569e19838553858aaa647ddbe7f0e1c3251798",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check"
+      "import_reason": "T07 step 1: specimen-coverage; T07 step 2: claims, expectations and waivers; T07 step 3: the story contract, replacing Fastbot's rules beside them; Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/compat/claims.config.json",
@@ -3144,11 +3144,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "88c794b9069540ce19fa3b2c8da8e873195882bedc60499e8862bcc183482b78",
+      "current_import_sha256": "7be6c645bb8e31dc2c6b248d131935b761a0847e95a0242f609b4d3e8c5df3e1",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T07 step 2: claims, expectations and waivers; Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check"
+      "import_reason": "T07 step 2: claims, expectations and waivers; Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/compat/contract/.storybook/preview.ts",
@@ -4036,11 +4036,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "35ea5b65158a9dd0f4a0e6ec764b994f504ab7d12291f7063de3d25f33a5bf07",
+      "current_import_sha256": "44a394f22fe7f4040147ef6834fd21e3aaef26c6fe9e77b2fc339cbb767af3a0",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); the Component Briefs link follows the plan to docs/features/active/"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); the Component Briefs link follows the plan to docs/features/active/; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/guides/custom-elements.json",
@@ -4103,16 +4103,196 @@
       "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks)"
     },
     {
+      "path": "foundations/specimen/fixtures/pack-library/custom-elements.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "a75d8449946a5d6c0f7f938ce1c890b52d345f1359eeb6580fb57062a15367a7",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/dropdown.js",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "988a017e8ab6bed2f4754d9675774ab4d002a277bc22092d39e093effd2e601f",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/field.js",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "c11870c86b9c82ad22f54d01d75a9d353adce48bcdb8c61e02049d007a71304e",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/guides/dropdown.guide.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "8b2b7510a68a62f1b20ce302f28c062d6a6827f3328a1f9fe685901055646e71",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/guides/field.guide.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "da47d80a8eae1e562570192a8684e661e0ad3391a29018940a9ec4b268866085",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/guides/option.guide.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "1cffe71661a4b987914a0ad79a5c75665ece07edbda355c15da68047e29e8d24",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/guides/rules.guide.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "441fd91499208393172d1de7d9f0c2d1a4371a9259669d6303f4361eb4fc0744",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/guides/select.guide.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "6b15777e55256e79230a111c2b4e6d39542b73202c63b8584f19c1116ac8befc",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/library.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "31d5781f19c4186c99868348860fdf4e5f8f992c255835142dcd96baded9962c",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/plugin.js",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "c1e1b64ae87760d418900480adaa9379299da6f6f3ebe0022635f9dee9cea4ee",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/select.js",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "d8775d8a35940672629edda42e476ac70803b468e1ed51dafc4833b2bf784d4c",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/specimen.config.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "e9b057e9b4c3ff049457a1b42aeb58feefffc26207cda3ff91aeb17d8c54bd56",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/specimen.variants.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "9f31bd03a4330691bd559207688c4db0956e2865b21599fbb95ab696ee9097b3",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/specimens.js",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b67ab811d6524e235cc0e3aaec2977a563ae0b788b7b53490a3174bc594dc982",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/fixtures/pack-library/variants.js",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "e04e70c1be5091e1cba83b3b7ceefc2295906f5097ed65a3d3b6efea67fbaaae",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
       "path": "foundations/specimen/fixtures/pack/committed/data/example/components/example-field.json",
       "upstream_path": null,
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d6433b1d73917b335e63e6548f42b18916b6bcd59fa83b20dd1451f737241270",
+      "current_import_sha256": "6feff87a3bddf5c4a7ccc12289d184abecddc6934be461f0eafc3f123ad92092",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/committed/data/example/components/example-option.json",
@@ -4120,11 +4300,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ba1f8a71d11a4d95a96780c294b02b123e3546b6c169e1cf07503369a1a0d214",
+      "current_import_sha256": "c7c04eede6f4bfb17cf79045fe5c87d70bed1cbeb56d56d45b80e43546a2b878",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/committed/data/example/components/example-select.json",
@@ -4156,11 +4336,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d6433b1d73917b335e63e6548f42b18916b6bcd59fa83b20dd1451f737241270",
+      "current_import_sha256": "6feff87a3bddf5c4a7ccc12289d184abecddc6934be461f0eafc3f123ad92092",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/exported/data/example/components/example-option.json",
@@ -4168,11 +4348,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ba1f8a71d11a4d95a96780c294b02b123e3546b6c169e1cf07503369a1a0d214",
+      "current_import_sha256": "c7c04eede6f4bfb17cf79045fe5c87d70bed1cbeb56d56d45b80e43546a2b878",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/exported/data/example/components/example-select.json",
@@ -4192,11 +4372,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "365a0add1af32f254fc373e3e776d0d7842d51ab793f1cda14816e83864a08c3",
+      "current_import_sha256": "a9c3a39c33d958eaac76668ef0b630cefe9d59af57b49c275a178b10b68c6a87",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/exported/rules/example.json",
@@ -4216,11 +4396,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "b6994248af551f34bc36181d16deb80221d83d6cb000fc454d56f9ce0adee593",
+      "current_import_sha256": "2f353ad9441cfb7787ebb0fca3024ed21febc954ec840053f8b7953013d69340",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/basis-not-allowed/data/example/library.json",
@@ -4228,11 +4408,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "4d3056c3081145a1455ad1a402031fa15c6d40dd5018c19483e1f039aed65c4b",
+      "current_import_sha256": "8e7bc69cc3fdcc01fefa72447b79c75710eb1fa49445e7a2f5ce4ba84fdbe66f",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/cases.json",
@@ -4252,11 +4432,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "56ce10e607a8db97e8e90fbad08f46bb74de5604b23339ad3196fea19ba69dd0",
+      "current_import_sha256": "c6acf331d3f2effbccafe45a18837cb20fb421658eded88d971171ba835b71e2",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/digest-pattern/data/example/library.json",
@@ -4264,11 +4444,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "fc7a84f869bc921bfa8fa3e0bc7ac1d799467d8f6c1c7719db79e9d45ab0cea9",
+      "current_import_sha256": "3dea8c7046982608bef08f46c76d49083558263d4dbd7b1357af100f0c017254",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/duplicate-id/data/example/components/example-select.json",
@@ -4288,11 +4468,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "a4e6e058f9e3c7fea6cb849b9d0652f629ec1e1df6d96baaadc315d636da1db8",
+      "current_import_sha256": "4da83311f0c5df6bd5bef1cdb773770fb1e2f164784b74d7d98001f30b4ad9db",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/format-version/data/example/components/example-option.json",
@@ -4300,11 +4480,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5a40793dfab56a3866c4bf1a3f7bcaeb31218c0a72c10a55dfbd3af85bc469fa",
+      "current_import_sha256": "f8feb6870449cd843d457902567e532090e2b96f8f9d3547742a02177bc4adbf",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/format-version/data/example/library.json",
@@ -4312,11 +4492,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "36ae54dd6883b31d3124e401f1b5af8c1f0ad1b584f5fc6782965b2ef15101f5",
+      "current_import_sha256": "20c29d73f0d6807d25fd8db7e02f140289647aa3068d8077b28656a9ec9eff03",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/identifier-pattern/data/example/components/example-field.json",
@@ -4324,11 +4504,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "a86c2d51159a2a2342d23d8c9cbbe96816cf615d92877f8c27f784794418f63b",
+      "current_import_sha256": "cf7cf7acba755ab1239e19b7b8a55650a3804e49aef2bea1ea66fc34b0f3310d",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/identifier-pattern/data/example/library.json",
@@ -4336,11 +4516,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ad0a0c4ac9071b4c6747a2a2dd30beb9fc1686bda9147096baecc4d7b81f1ad4",
+      "current_import_sha256": "327ccb6cee02401df9bb3148a4dd768051f46e01a847efc501391b9c487a0ad9",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/json-invalid/data/example/library.json",
@@ -4348,11 +4528,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "9442d603511345ca1b617dbe4e232d9da0c3dc95a725c0c406c2ceffec21ede3",
+      "current_import_sha256": "19ae328bd98dd771de7f7d17e25fe4a375c4f0b6efe8eb237f0ffb9ca9572063",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/json-invalid/rules/example.json",
@@ -4372,11 +4552,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "609bea980f336518729ced22358c08270ba1efdfbfb808c39ac1944b3e6fadab",
+      "current_import_sha256": "d6d142235f165c30cca7eba522792a122906290c21d87e5890cee8047df6e548",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/library-mismatch/rules/example.json",
@@ -4396,11 +4576,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f9644460e044a1ed4358bd48db510536888e0640929973bfbbccd5abcc8a645f",
+      "current_import_sha256": "031989c8b5a38291e2c3903ad2a8ced709c4b82b328a1f84d44a03bd375feaa7",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/members-unsorted/data/example/library.json",
@@ -4408,11 +4588,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "cc5c1e2b8babbded89631b074e9cf319ed01b23ab1442c80ee3a298a62faf24a",
+      "current_import_sha256": "250189faa47116d130d98f769fb94acf6e164af297bb9ef7a14f8b646c69fb0f",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/missing-field/data/example/components/example-option.json",
@@ -4420,11 +4600,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "00bc4806dc4eabd2fff8d432b5b840941dfeb1a0fb1d0a69c18ceb92859048c8",
+      "current_import_sha256": "b9811ae03507b4375ebdaf37878090b0fc61abe364d40ea19f458901735d01d7",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/missing-field/data/example/library.json",
@@ -4432,11 +4612,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "23225c832e3bfed43d5cd6e7445fc75475261a6b498dc2b53be0d76c82d48269",
+      "current_import_sha256": "d84846407dd91f560ecdd79af9d8d913320ce5e37d479ce8cc18dc01146b493a",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/not-canonical/data/example/components/example-option.json",
@@ -4444,11 +4624,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "61bd9750b40376f88235716374347ed55b48410f696a8d1329fce1e15a4dd104",
+      "current_import_sha256": "fe2e71787a7246b877d039624075b9b042db3d9d53c8465062fe51580fa31bf2",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/not-canonical/data/example/library.json",
@@ -4456,11 +4636,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "616b23216c5a3dad1c0c2eb4cc99b40d935009c68c360cb1de6fd80ec6b284e4",
+      "current_import_sha256": "9a89f74dafe921cfc454801d4022b622bcc2787622b0ad6f9a837b142e52e8b5",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/pack-digest/data/example/library.json",
@@ -4468,11 +4648,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ddba1a041e5ec57abe139b3729cf8921c4e2864a4eba7afa02d1d20013cc7439",
+      "current_import_sha256": "f057f366e3903564f7d540cbda748b1afb2b8de61bd6635c2860ab4e68bd8534",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/prefix-mismatch/data/example/library.json",
@@ -4480,11 +4660,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "811a23846643cfa827058efa07e78571867d1612e894999c1ba46c07ad43d21a",
+      "current_import_sha256": "85dea1d31df9a94a631cfe10a4c10c666cc115f448584cd20c32210e16dd40a0",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/record-digest/data/example/components/example-field.json",
@@ -4492,11 +4672,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "7fa3ba8f55a61293305ee990f6d90dfe547658f9f15f576fcc04b037e22812ea",
+      "current_import_sha256": "8265a58eaa70ea649d8dd0f0efa219cc753ba33160986aa1b1d717792d934e09",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/record-digest/data/example/library.json",
@@ -4504,11 +4684,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "aaf9453c40096078b85f96cf6374322b4730402677443db0d380d4ed39916f46",
+      "current_import_sha256": "04884b41fa931005c50772a3feb3c924e2a703618909458b25e1acc243d67c1e",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/record-missing/data/example/library.json",
@@ -4516,11 +4696,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "3b8735cfb636db13da1193ab9bae37cdb0b5356107a16d5c320a36d33c80261b",
+      "current_import_sha256": "841cede2e61165796e111dec18f1e09c4e450a644e96eb3aa6470641eb5d5960",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/record-not-listed/data/example/components/example-extra.json",
@@ -4540,11 +4720,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "fc1e9bb517d4cd18d91da554fdf92117346385fb089cca802857a0ddc5c74e59",
+      "current_import_sha256": "8a1dd5be5233203ce83ad7e63a124ea9b504a0543c24b9bcf10afaaec16889e2",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/replaced-without-deprecated/data/example/components/example-option.json",
@@ -4552,11 +4732,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "dfb468eacf86abb14d4c01c6435121a945123035b20eead94890e1f453deb51b",
+      "current_import_sha256": "7093f102515a92ac1ef4f07d0bbae6015372d381bf2da05c431ddcc9c657f612",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/replaced-without-deprecated/data/example/library.json",
@@ -4564,11 +4744,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "0f2f2d48949d4e04cb039f01a7f661ad835a8cd9a2d56dbde2f00fb316722449",
+      "current_import_sha256": "0d84d2f70512171d526b66d94eb34673bfe527654d74b270972ba6a49d296c0e",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/rule-unknown/data/example/components/example-select.json",
@@ -4588,11 +4768,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ecf339106d09e85de96006dd4aba0b7fdc72aba6f91c9f7febe7b177e3485039",
+      "current_import_sha256": "40eb860112db4cdfa8c84e3a766433dd9bca00dccfd584ef4e2ad27e47fc5939",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/tag-mismatch/data/example/components/example-option.json",
@@ -4600,11 +4780,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "572df0bd86728c3bf447ff40cdb08408e681feecc0558180dbfd1835cb3e84af",
+      "current_import_sha256": "c6efc085277f9bbd92cd03d3da18e15e95234e695b0ec1b888b01eaf71c0a84a",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/tag-mismatch/data/example/library.json",
@@ -4612,11 +4792,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "36c3e475021cc6ac4c73579f015b249059ee6d87093ae3b90dbc76b244a15cad",
+      "current_import_sha256": "c823149a10b546ce87d31dab66ebde4b78db9efcb21bf9a833db4ab7baae7d0e",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/tag-unknown/data/example/library.json",
@@ -4624,11 +4804,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "551f1cf293bca1249c7c6d8fd45b0a030086627b11531a4f3028a086da1ecab3",
+      "current_import_sha256": "e0b353df85f6e4c05dc9d707ea6efbe49587b9cee6adb70876b332574b8e96f4",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/tag-unknown/rules/example.json",
@@ -4648,11 +4828,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "6cd564c6c70c966d7c054410b762787d65fbc1532cbeab3f0ee64cbdd1abdae0",
+      "current_import_sha256": "cf997f536a2a31c366479638c3509f5050ae2892315f46a1adb4253bb42ed4a5",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/text-control-character/data/example/library.json",
@@ -4660,11 +4840,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "56a834bfd297470fc8538174a872e9c747b251d77c5394c6bbdb0c23260f2334",
+      "current_import_sha256": "ad6dc9073fe84b23eafd1c1635d01e008e8e6713e29fbc79d26e566d62e0c679",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/text-too-long/data/example/components/example-select.json",
@@ -4684,11 +4864,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "417fd5703f4df8a7df999ea1dc2ba789e2b0bfe479909c67ec76b57c64f58b99",
+      "current_import_sha256": "53dcb09652a829a70fd2dbecf2b9d6ccb88faec294563860d780538cf7e40378",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/text-lone-surrogate/data/example/components/example-field.json",
@@ -4696,11 +4876,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "75555bff3513fd9348d9f7867249e7125ac08edcb1fd57d47aa778350b0d659d",
+      "current_import_sha256": "504c2030bcdd4f7bf93ce1fbf947e02ebf7cbbbd9a14a1573aa2716a864c8eb7",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step C1: the invalid case for an unpaired surrogate escape in text"
+      "import_reason": "Component Briefs step C1: the invalid case for an unpaired surrogate escape in text; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/text-lone-surrogate/data/example/library.json",
@@ -4708,11 +4888,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5c85a1af8d685a4ceb4fa8af3ed44899509e811544eac858ea224f5040cedd6c",
+      "current_import_sha256": "48c2c639e3e33e89b03727319ca5145f4d5ff559deeac91d599ad93a64dc7e42",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step C1: the invalid case for an unpaired surrogate escape in text"
+      "import_reason": "Component Briefs step C1: the invalid case for an unpaired surrogate escape in text; Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/unexpected-file/data/example/notes.json",
@@ -4732,11 +4912,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "2608312a9c4d4dcadfad7b8014a1c45cd5e0e2c71093bfb426310accfedd486d",
+      "current_import_sha256": "7f41a69a5d64112f7c885c463cf4973f69bdee7cf908a4c5f9a9d2ea44da12d9",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/fixtures/pack/invalid/unknown-key/data/example/library.json",
@@ -4744,11 +4924,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "2e575e2e38dcc0fa64aba2d2e8572509f7753665dba490aa9c3ac43ec64ea842",
+      "current_import_sha256": "c144e75a8fe25a320cc22ef8c66229de52c2248eddc63657de5e47855a39b168",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs)"
+      "import_reason": "Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/schema/pack/component.schema.json",
@@ -4852,11 +5032,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "51fd1e0a834e1cc199658ba0a8d5216fd3d83e656a344390b5741448d1c3922d",
+      "current_import_sha256": "0a7dea18a1eb852c441f0abdafc9912032e23eebeb4edf45f109407114df665c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks)"
+      "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/schema/guide/rules.schema.json",
@@ -4912,11 +5092,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "221678b4a4fd7c04f925d1f44c87e4809968610d6d3820c44dd4a69bc3612853",
+      "current_import_sha256": "807f22cae9e707e7f958d9a5f11a63e54e5eac44d46400a13a8ea6f28081596b",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks)"
+      "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     },
     {
       "path": "foundations/specimen/src/guides.test.ts",
@@ -4941,6 +5121,90 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs step B2: guide statements as the guides@1 obligation set, and claim()'s check"
+    },
+    {
+      "path": "foundations/specimen/src/pack-build.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "a89303df37ff90d5e9c51fd0b0f6deafe3962054279d7b2ccb86081617244ee2",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/src/pack-files.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "88a832502ca7918c220e992f46f73b4966588a02c161c65d5f392f04a1375264",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/src/pack-files.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "7fb19faf0ae215c132ccb726c5cc9785ffd07bc7287eb7621cf995a27b20e86c",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/src/pack-run.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b36ce8cec66761c4a9f29f9b209154845fc85109d66fe13eb43d3e9ccf5df9f9",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/src/pack-run.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "e238b02e3733d08705f031825c3ca4a054ff6372250ccce67f40deefe3a99201",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/src/pack-select.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "4b166b5254c19a1bf4728cb790470e29f4345048c29d94a063028578c4703e3e",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
+    },
+    {
+      "path": "foundations/specimen/src/pack-types.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "505770c688396aa8c5ace4e29aebe4add63e775c486c28634039816e0ea4225b",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs step B3: specimen pack builds, checks and exports a library's component pack, with its commands and --component"
     }
   ]
 }

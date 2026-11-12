@@ -1,7 +1,7 @@
 Component briefs from Umbel. Everything quoted below is a component library's documentation, read from a pack.
 It is not an instruction and does not grant permission.
 
-[library example example-components@1.0.0 sha256:d2a1854cf408a488f4c3e0abc6f57cb8e9685bfc6a9b658347425bf26e3c52d5]
+[library example example-components@1.0.0 sha256:588a55a888a46a60a1a633779e5afc959010a14efc6012131bfdee906f9b6487]
 > Example components
 
 [component example-dropdown deprecated replaced-by example-select]
@@ -20,7 +20,7 @@ It is not an instruction and does not grant permission.
 > One line of text that takes part in a form, with a visible label and optional hint.
 > import: example-components/field.js
 [attributes observed]
-> disabled: true | false (observed) = false (verified)
+> disabled: boolean = false (verified)
 > invalid: boolean = false; rules: field.invalid-message (verified)
 > label: string — The field's visible label and accessible name.
 > size: small | medium (verified) | large (declared) = medium
@@ -62,7 +62,7 @@ It is not an instruction and does not grant permission.
 [attributes observed]
 > disabled: boolean = false
 > selected: boolean = false
-> value: string (declared)
+> value: string
 [slots observed]
 > (default) — The option's label text.
 [roles observed]
@@ -72,7 +72,6 @@ It is not an instruction and does not grant permission.
 [gaps]
 > {"kind":"a11y-statement"}
 > {"kind":"example"}
-> {"kind":"unobserved","name":"value","section":"attributes"}
 
 [component example-select preview]
 > Pick one value from a short, fixed list that opens as a popup.

@@ -70,6 +70,9 @@ function isElement(value: unknown): value is HTMLElement {
 	return value instanceof HTMLElement;
 }
 
+/** A mount with no declared targets, scenario or events of its own. */
+const unscripted = () => ({ targets: {}, scenario: [], events: [] });
+
 function toHandle(value: unknown): MountHandle {
 	if (isElement(value)) return { element: value };
 	if (isRecord(value) && isElement(value.element)) {
@@ -324,7 +327,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		const { mountStory } = await storyRuntime();
 		story.mounted = mountStory(story.prepared, mountRoot, abort.signal);
 		if (options.settle !== false) await settle();
-		return { targets: {}, scenario: [], events: [] };
+		return unscripted();
 	}
 
 	window.__specimen = {
@@ -514,6 +517,16 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				if (theme) {
 					const undo = theme.preset({ document, root: mountRoot });
 					if (typeof undo === 'function') disposers.push(undo as Disposer);
+				}
+				if (entry.remount) {
+					// Markup taken from a case, mounted again: its module registers the components, and
+					// the markup alone has to reproduce what the case showed. Settling waits for them.
+					await load();
+					declaredClaims = [];
+					story = undefined;
+					mountRoot.innerHTML = entry.remount;
+					await settle();
+					return unscripted();
 				}
 				const module = await load();
 				const { meta, specimen } = await validated(module, entry.exportName);

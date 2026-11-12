@@ -51,11 +51,6 @@
 		},
 		{
 			"kind": "example"
-		},
-		{
-			"kind": "unobserved",
-			"name": "value",
-			"section": "attributes"
 		}
 	],
 	"import": "example-components/select.js",

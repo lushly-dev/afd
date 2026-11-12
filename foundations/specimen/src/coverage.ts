@@ -89,7 +89,7 @@ interface Target {
 }
 
 /** A manifest's default, as written in source: `"primary"`, `false`, `undefined`. */
-function defaultValue(member: PropertySchema): SchemaValue | undefined {
+export function defaultValue(member: PropertySchema): SchemaValue | undefined {
 	const written = member.default?.trim();
 	if (written === undefined || written === 'undefined') return undefined;
 	if (written === 'true') return true;
@@ -121,12 +121,37 @@ function read(
 	return written;
 }
 
-const same = (observed: SchemaValue | undefined, value: SchemaValue) =>
+export const same = (observed: SchemaValue | undefined, value: SchemaValue) =>
 	observed !== undefined &&
 	(observed === value ||
 		(observed !== null && value !== null && String(observed) === String(value)));
 
 type Holds = (element: ElementObservation) => boolean;
+
+/** The members a capture can read: properties through their attribute or live state, then attributes. */
+export function schemaMembers(
+	schema: ComponentSchema
+): { member: PropertySchema; attribute: string | undefined }[] {
+	return [
+		...schema.properties.map((member) => ({ member, attribute: attributeOf(member, false) })),
+		...schema.attributes.map((member) => ({ member, attribute: attributeOf(member, true) })),
+	];
+}
+
+/** A finite member's value when nothing sets it: its default, `false` for a boolean, or `null`. */
+export function fallbackValue(member: PropertySchema): SchemaValue {
+	return defaultValue(member) ?? (member.values?.includes(false) ? false : null);
+}
+
+/** Whether an element shows every finite member at its default, as the `default` obligation asks. */
+export function inDefaultState(schema: ComponentSchema): Holds {
+	const finite = schemaMembers(schema).filter(({ member }) => member.values?.length);
+	return (element) =>
+		finite.every(({ member, attribute }) => {
+			const observed = read(element, member, attribute);
+			return observed === undefined || same(observed, fallbackValue(member));
+		});
+}
 
 function obligation(
 	id: string,
@@ -167,10 +192,7 @@ function componentCoverage(
 	);
 	const rendered = new Set(targets.map((target) => target.specimen)).size;
 	const none = `No case renders <${schema.tag}>.`;
-	const members = [
-		...schema.properties.map((member) => ({ member, attribute: attributeOf(member, false) })),
-		...schema.attributes.map((member) => ({ member, attribute: attributeOf(member, true) })),
-	];
+	const members = schemaMembers(schema);
 	const finite = members.filter(({ member }) => member.values?.length);
 	const obligations: CoverageObligation[] = [];
 	const holds = new Map<string, Holds>();
@@ -189,12 +211,7 @@ function componentCoverage(
 	state(
 		'default',
 		'default',
-		(element) =>
-			finite.every(({ member, attribute }) => {
-				const observed = read(element, member, attribute);
-				const fallback = defaultValue(member) ?? (member.values?.includes(false) ? false : null);
-				return observed === undefined || same(observed, fallback as SchemaValue);
-			}),
+		inDefaultState(schema),
 		'No case shows every finite member at its default.'
 	);
 	for (const { member, attribute } of finite) {

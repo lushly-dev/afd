@@ -7,6 +7,8 @@ import type {
 	CoverageRequest,
 	MatrixAxes,
 	MatrixRequest,
+	PackExportRequest,
+	PackRequest,
 	ProfileRequest,
 	SpecimenContext,
 	SuggestRequest,
@@ -159,6 +161,47 @@ export function parseCoverageRequest(value: unknown): CoverageRequest {
 	if (fields.workers !== undefined)
 		request.workers = integer(fields.workers, 'coverage request.workers', 1, MAX_SUITE_WORKERS);
 	return request;
+}
+
+export function parsePackRequest(value: unknown): PackRequest {
+	const fields = record(value, 'pack request', [
+		'component',
+		'timeoutMs',
+		'workers',
+		'allowFailed',
+		'index',
+	]);
+	const request: PackRequest = {};
+	if (fields.component !== undefined)
+		request.component = text(fields.component, 'pack request.component');
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'pack request.timeoutMs', 1, 60_000);
+	if (fields.workers !== undefined)
+		request.workers = integer(fields.workers, 'pack request.workers', 1, MAX_SUITE_WORKERS);
+	if (fields.allowFailed !== undefined) {
+		if (!Array.isArray(fields.allowFailed))
+			fail('pack request.allowFailed', 'expected an array of case ids');
+		request.allowFailed = fields.allowFailed.map((item, index) =>
+			text(item, `pack request.allowFailed[${index}]`)
+		);
+	}
+	return request;
+}
+
+export function parsePackExportRequest(value: unknown): PackExportRequest {
+	const fields = record(value, 'pack export request', ['directory', 'revision']);
+	return {
+		directory: text(fields.directory, 'pack export request.directory'),
+		...(fields.revision === undefined
+			? {}
+			: {
+					revision: text(
+						fields.revision,
+						'pack export request.revision',
+						/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/
+					),
+				}),
+	};
 }
 
 export function parseA11yRequest(value: unknown): A11yRequest {
@@ -454,6 +497,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'profile',
 		'coverage',
 		'guides',
+		'pack',
 	]);
 	if (fields.specimens === undefined && fields.stories === undefined)
 		fail('configuration', 'expected specimens, stories or both');
@@ -463,6 +507,8 @@ export function parseConfig(value: unknown): BenchConfig {
 		fail('configuration.test', 'test tags apply only to stories');
 	if (fields.guides !== undefined && fields.manifest === undefined)
 		fail('configuration.guides', 'guides are checked against a manifest');
+	if (fields.pack !== undefined && fields.manifest === undefined)
+		fail('configuration.pack', 'a pack is built from a manifest');
 	return {
 		...(fields.specimens === undefined ? {} : { specimens: specimens(fields.specimens) }),
 		...(fields.stories === undefined ? {} : { stories: stories(fields.stories) }),
@@ -490,5 +536,42 @@ export function parseConfig(value: unknown): BenchConfig {
 						? fields.guides.map((item, index) => text(item, `configuration.guides[${index}]`))
 						: fail('configuration.guides', 'expected an array of file patterns'),
 				}),
+		...(fields.pack === undefined ? {} : { pack: packConfig(fields.pack) }),
+	};
+}
+
+const PACK_LIBRARY = /^[a-z][a-z0-9-]{0,63}$/;
+const PACK_PREFIX = /^[a-z][a-z0-9._]*-$/;
+
+function packConfig(value: unknown): NonNullable<BenchConfig['pack']> {
+	const fields = record(value, 'configuration.pack', [
+		'library',
+		'title',
+		'prefix',
+		'directory',
+		'package',
+		'import',
+		'examples',
+	]);
+	const library = text(fields.library, 'configuration.pack.library');
+	if (!PACK_LIBRARY.test(library))
+		fail('configuration.pack.library', 'expected a library id: lowercase letters, digits and -');
+	const prefix = text(fields.prefix, 'configuration.pack.prefix');
+	if (!PACK_PREFIX.test(prefix) || prefix.length > 32)
+		fail('configuration.pack.prefix', 'expected a tag prefix ending in -, such as example-');
+	const title = text(fields.title, 'configuration.pack.title');
+	if ([...title].length > 80) fail('configuration.pack.title', 'expected at most 80 characters');
+	return {
+		library,
+		title,
+		prefix,
+		directory: text(fields.directory, 'configuration.pack.directory'),
+		package: text(fields.package, 'configuration.pack.package'),
+		...(fields.import === undefined
+			? {}
+			: { import: text(fields.import, 'configuration.pack.import') }),
+		...(fields.examples === undefined
+			? {}
+			: { examples: integer(fields.examples, 'configuration.pack.examples', 0, 16) }),
 	};
 }
