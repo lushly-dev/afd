@@ -21,6 +21,8 @@ const toggle = (part: 'sidebar' | 'inspector' | 'panel', label: string) => html<
 	</button>
 `;
 
+// The search button's label carries the shortcut it shows, so its name contains its visible text
+// (WCAG 2.5.3). It needs the label: at compact width only the icon shows.
 const template = html<LoamTitlebar>`
 	<span class="name">Loam</span>
 	<span class="new"
@@ -41,7 +43,7 @@ const template = html<LoamTitlebar>`
 	<button
 		class="quiet search"
 		type="button"
-		aria-label="Search commands"
+		aria-label="${(x) => `Search commands ${x.shortcut}`}"
 		aria-keyshortcuts="${(x) => x.ariaShortcut}"
 		@click="${(x) => dispatchAction(x, { action: 'palette-open' })}"
 	>

@@ -435,12 +435,15 @@ describe('P2-D8: the documents section', () => {
 		expect(
 			await tree(page)
 				.locator(':scope violet-tree > violet-tree-item')
+				// An open branch has no label: it is named by its content, which is its title.
 				.evaluateAll((items) =>
-					items.map(
-						(item) => `${item.getAttribute('aria-label')} ${item.getAttribute('aria-expanded')}`
-					)
+					items.map((item) => {
+						const title = item.querySelector(':scope > .label')?.textContent;
+						const name = item.getAttribute('aria-label') ?? `${title}, by content`;
+						return `${name} ${item.getAttribute('aria-expanded')}`;
+					})
 				)
-		).toEqual(['Recent true', 'Notes false', 'Trash false']);
+		).toEqual(['Recent, by content true', 'Notes false', 'Trash false']);
 		expect(await tree(page).locator('violet-tree').getAttribute('aria-label')).toBe('Documents');
 		expect(await row(page, `recent:${two}`).getAttribute('aria-label')).toBe('Two, Note');
 		// With no tab, main is the list.
@@ -463,6 +466,9 @@ describe('P2-D8: the documents section', () => {
 		// Opening Notes reads its documents; Enter on one keeps it.
 		await row(page, 'type:notes').locator(':scope > .label').click();
 		await row(page, `notes:${two}`).waitFor();
+		// Open, the branch gives up its label: the rows beneath it would be text its name lacks.
+		expect(await row(page, 'type:notes').getAttribute('aria-label')).toBeNull();
+		expect(await row(page, 'trash').getAttribute('aria-label')).toBe('Trash');
 		await row(page, `notes:${two}`).focus();
 		await page.keyboard.press('Enter');
 		await editorIdle(page);

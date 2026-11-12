@@ -72,6 +72,23 @@ describe("violet-data-grid-attachment-cell", () => {
     vi.restoreAllMocks();
   });
 
+
+  it("names the trigger by its label, then by what it shows", async () => {
+    const element = await renderAttachmentCell({ attachments: [] });
+    const root = element.shadowRoot;
+    const trigger = root?.querySelector(".trigger");
+    const text = (id: string) => root?.getElementById(id)?.textContent?.replace(/\s+/gu, " ").trim();
+
+    // Its visible text is part of its name (WCAG 2.5.3), after the label the host gave it.
+    expect(trigger?.getAttribute("aria-labelledby")).toBe("trigger-label trigger-value");
+    expect(root?.getElementById("trigger-label")?.hidden).toBe(true);
+    expect([text("trigger-label"), text("trigger-value")]).toEqual(["Attachments", "Add attachments"]);
+
+    // With no label of its own, an empty trigger shows its label and is named once.
+    element.removeAttribute("aria-label");
+    expect(element.triggerLabel).toBe("Add attachments");
+    expect(element.triggerLabelledBy).toBe("trigger-value");
+  });
   it("tracks pending attachments and emits change when the panel closes", async () => {
     const element = await renderAttachmentCell();
     const inputSpy = vi.fn();

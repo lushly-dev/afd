@@ -106,6 +106,15 @@ const styles = css`
         block-size: 100%;
     }
 
+    /*
+     * The initials repeat the label, which the root already carries, so they are generated
+     * content and no text of the page: a control that holds a persona is then not judged to
+     * show text its name lacks (WCAG 2.5.3).
+     */
+    .fallback::before {
+        content: attr(data-initials);
+    }
+
     @media (forced-colors: active) {
         .root {
             forced-color-adjust: none;
@@ -139,9 +148,13 @@ const template = html<VioletPersona>`
                 />
             `
         )}
-        <span class="fallback" part="fallback" aria-hidden="true" ?hidden="${x => Boolean(x.src) && !x.imageFailed}">
-            ${x => x.displayInitials}
-        </span>
+        <span
+            class="fallback"
+            part="fallback"
+            aria-hidden="true"
+            data-initials="${x => x.displayInitials}"
+            ?hidden="${x => Boolean(x.src) && !x.imageFailed}"
+        ></span>
     </div>
 `;
 

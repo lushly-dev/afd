@@ -260,12 +260,13 @@ const styles = css`
 
 const template = html<VioletDataGridMultiPicker>`
     <div class="root" part="base">
+        <span id="trigger-label" hidden>${(x) => x.triggerLabel}</span>
         <button
             class="trigger"
             type="button"
             part="trigger"
             ?disabled="${(x) => x.disabled}"
-            aria-label="${(x) => x.getAttribute("aria-label") || x.placeholder || "Select options"}"
+            aria-labelledby="${(x) => x.triggerLabelledBy}"
             aria-haspopup="listbox"
             aria-controls="${(x) => x.panelId}"
             aria-expanded="${(x) => String(x.open)}"
@@ -278,7 +279,7 @@ const template = html<VioletDataGridMultiPicker>`
               return true;
             }}"
         >
-            <span class="selection" part="selection" data-empty="${(x) => String(x.selectedValues.length === 0)}">
+            <span class="selection" id="trigger-value" part="selection" data-empty="${(x) => String(x.selectedValues.length === 0)}">
                 <span class="pills">
                     ${when(
                       (x) => x.selectedValues.length === 0,
@@ -529,6 +530,20 @@ export class VioletDataGridMultiPicker extends FASTElement {
 
   public set value(nextValue: string) {
     this.syncSelectionFromValue(nextValue);
+  }
+
+  /** What the trigger is for: the host's `aria-label`, else the placeholder. */
+  public get triggerLabel(): string {
+    return this.getAttribute("aria-label") || this.placeholder || "Select options";
+  }
+
+  /**
+   * The trigger is named by its label and then by what it shows, so its visible text is part
+   * of its name (WCAG 2.5.3). An empty trigger that shows its label is named once.
+   */
+  public get triggerLabelledBy(): string {
+    const showsLabel = this.selectedValues.length === 0 && this.triggerLabel === (this.placeholder || "Add options");
+    return showsLabel ? "trigger-value" : "trigger-label trigger-value";
   }
 
   public get panelId(): string {

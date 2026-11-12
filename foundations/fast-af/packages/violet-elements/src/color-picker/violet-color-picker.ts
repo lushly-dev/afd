@@ -435,7 +435,7 @@ const template = html<VioletColorPicker>`
                 ></violet-color-swatch>
                 <span class="trigger-copy">
                     <span class="${x => x.triggerValueClass}" id="${x => x.valueId}">${x => x.triggerValueText}</span>
-                    <span class="trigger-meta">${x => x.triggerMetaText}</span>
+                    <span class="trigger-meta" id="${x => x.metaId}">${x => x.triggerMetaText}</span>
                 </span>
                 <span class="trigger-icon" aria-hidden="true">
                     <violet-icon icon="system/chevron-right" decorative></violet-icon>
@@ -592,6 +592,7 @@ export class VioletColorPicker extends FASTElement {
     public readonly labelId: string;
     public readonly triggerId: string;
     public readonly valueId: string;
+    public readonly metaId: string;
     public readonly panelId: string;
     public readonly supportingId: string;
     public readonly errorId: string;
@@ -637,6 +638,7 @@ export class VioletColorPicker extends FASTElement {
         this.labelId = `violet-color-picker-label-${id}`;
         this.triggerId = `violet-color-picker-trigger-${id}`;
         this.valueId = `violet-color-picker-value-${id}`;
+        this.metaId = `violet-color-picker-meta-${id}`;
         this.panelId = `violet-color-picker-panel-${id}`;
         this.supportingId = `violet-color-picker-supporting-${id}`;
         this.errorId = `violet-color-picker-error-${id}`;
@@ -757,7 +759,8 @@ export class VioletColorPicker extends FASTElement {
             ids.push(this.labelId);
         }
 
-        ids.push(this.valueId);
+        // Every visible text of the trigger, in order, so the name contains it (WCAG 2.5.3).
+        ids.push(this.valueId, this.metaId);
         return ids.join(" ");
     }
 
