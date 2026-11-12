@@ -334,6 +334,10 @@ export function unfaithful(schema: unknown): Refusal | undefined {
 				: has('propertyNames') && node.propertyNames !== true && 'propertyNames';
 		if (keyed && (joined || branches.length > 0)) return at(keyed, 'keyed');
 		const explicit = types.length > 0 || has('enum') || has('const');
+		// A `oneOf` beside only `type: 'object'` is read branch by branch, so a closed branch keeps its
+		// keys closed (a tagged union, #872); beside anything else, or as `anyOf`, it is joined.
+		const alone =
+			!joined && node.type === 'object' && `${Object.keys(node).sort()}` === 'oneOf,type';
 		for (const [child, keyword, where] of subschemas(node)) {
 			const branch = BRANCHES.includes(keyword);
 			// Zod reads a key's schema with no `type` as a string's, unless it reads that schema alone.
@@ -344,7 +348,7 @@ export function unfaithful(schema: unknown): Refusal | undefined {
 			const problem = walk(
 				keys ? { type: 'string', ...child } : child,
 				`${path}/${where}`,
-				keyword === 'allOf' || (branch && (explicit || joined)),
+				keyword === 'allOf' || (branch && (explicit || joined) && !alone),
 				defaults && !branch && !['prefixItems', '$defs', 'definitions'].includes(keyword)
 			);
 			if (problem) return problem;
