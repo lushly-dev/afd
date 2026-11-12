@@ -49,11 +49,11 @@ and [section 9](ideas.proposal.md#9-steps) the rest.
 | --- | --- | --- |
 | 0 | 0.1 The unit and the types | Run 2026-11-11 by models on the owner's archive ([results](prototype/README.md#01-the-unit-and-the-types)): 28 ideas per 1 000 words; 90% of one extractor's reviewed ideas the right size and 73% of the other's; the common fault is two ideas in one; the seven types held (93% accepted); free tags do not converge. Open: the owner's check of a sample |
 | 0 | 0.2 Matching | Run 2026-11-11 on 1 717 model-labelled pairs and eight local models ([results](prototype/README.md#02-can-matching-be-trusted-to-refuse)): refusing cannot be trusted across documents (half the duplicates missed at 2% wrong refusals), offering candidates can (the duplicate in the first five for 91% to 97% with both lanes). Open: the owner's check of a sample of labels, and the model, which is P3's |
-| 0 | 0.3 Questions answered from ideas | Not started |
+| 0 | 0.3 Questions answered from ideas | In part, 2026-11-11 ([results](prototype/README.md#03-can-questions-be-answered-from-ideas)): of twenty questions a model drafted in the owner's voice, retrieval alone answered 10 fully, 9 partly and 1 not at all; lookups work, areas and tensions need relations, dates and syntheses. Open: twenty of the owner's own questions |
 | 0 | 0.4 Review load, and whether attested can be trusted | In part, 2026-11-11 ([results](prototype/README.md#04-the-sentence-rule-and-attested-in-part)): 23% of sentences lack a terminal mark, 83% of them list items; on the 12 sources two extractors both read, 61% of one's ideas and 93% of the other's are his words, word for word; 8% to 22% of those lean on their neighbours. Open: what the owner would disown, and the length of a sitting, which need him |
-| 0 | 0.5 Themes | Not started |
-| 0 | 0.6 Framings in Violet | Not started |
-| 0 | 0.7 Records or documents | Not started |
+| 0 | 0.5 Themes | In part, 2026-11-11 ([results](prototype/README.md#05-do-derived-themes-group-ideas-as-the-owner-would-in-part)): themes derived by a nearest-neighbour graph are stable across methods and models (normalised mutual information 0.78 to 0.96), put seven in ten ideas in a theme, never one giant theme, and most join several documents. Open: whether they match the owner's grouping (part 4 of Q5) |
+| 0 | 0.6 Framings in Violet | Done 2026-11-11 on invented ideas ([results](prototype/violet/README.md)): eight of fifteen checks work as they are, 3 000 ideas load in about a quarter of a second; every P7 gap is confirmed, and two more found: an omission cannot be undone, and rules report and do not refuse |
+| 0 | 0.7 Records or documents | Done 2026-11-11 ([reasoning](prototype/README.md#07-records-or-documents)): records, indexed through P2, as question 2 recommends |
 | 0 | 0.8 The owner's walk of the jobs | Not started |
 | 0 | 0.9 Confirming from the owner's harnesses | Not started; needs the owner at a harness |
 | 0 | 0.10 Finding the store with no skill | Not started |
@@ -78,7 +78,7 @@ answer is recorded in the proposal's section 11 and in the session log.
 | Q2 | Confirm, or overturn, the answers taken on recommendation: questions 1 to 6, 8, 9, 12, 13 and 15 of the proposal's section 11 | Each as the proposal recommends | Nothing waits on it. Each is settled for good when the specification that depends on it is approved | Open |
 | Q3 | Scope of P9 to P12: this plan's last phase, or plans of their own | None yet | Phase H | Open |
 | Q4 | The phase 0 corpus. The one chosen is an archive of his writing and research in his private repository. It may not stand for what his own instance will hold. Confirm it, or name another corpus to run again | Keep it for phase 0: the questions are about the shape of writing, not its subject. Run 0.1 and 0.2 again on another corpus when he names one | Nothing waits on it | Open |
-| Q5 | Check, in one sitting, samples of what models decided in phase 0: about 40 idea pairs labelled same, related or distinct, about 40 extracted ideas judged for size, and about 40 of his own sentences taken as ideas, each to keep or disown | The samples are drawn and kept with the corpus | Settling the thresholds in the host's matching specification (step A2) and the attested rule in the plugin's (step A3) | Open |
+| Q5 | Check, in one sitting, samples of what models decided in phase 0: about 40 idea pairs labelled same, related or distinct, about 40 extracted ideas judged for size, about 40 of his own sentences taken as ideas, each to keep or disown, and five derived themes, each to accept and name | The samples are drawn and kept with the corpus | Settling the thresholds in the host's matching specification (step A2) and the attested rule in the plugin's (step A3) | Open |
 
 ## Follow-ups not yet issues
 
@@ -92,6 +92,10 @@ answer is recorded in the proposal's section 11 and in the session log.
 | 2026-11-11 | Phase 0, step 0.1 | Free tags scatter (729 of 1 656 used once). The pack should hold the tags in use and offer them | For the plugin's specification (step A3), with job 27 |
 | 2026-11-11 | Phase 0, step 0.4 | A word-for-word idea can lean on the sentences around it, so a read of an attested idea should be able to return them; and two ideas in one is the extractor's most common fault | For the plugin's specification (step A3) and the extraction prompt |
 | 2026-11-11 | Phase 0, step 0.4 | Whether a source is a transcript cannot be read from its text: labelled fields take turns as speakers do. The plan already makes it a setting | Confirmed; nothing to change |
+| 2026-11-11 | Phase 0, step 0.6 | P7 gains two items: releasing an omission (Violet's reset of a subtract does nothing, `resolver.ts`), and rules that can refuse a write | For the hierarchy specification (P7, step E1), if the owner wants the hierarchy (question 14) |
+| 2026-11-11 | Phase 0, step 0.3 | Two link kinds the plan lacks: a later view of an earlier idea, which a model may state without retiring anything, and part of. A bundle should carry each idea's date | For the plugin's specification (step A3); changes the plan's section 4.5 |
+| 2026-11-11 | Phase 0, step 0.3 | A third of a retrieved bundle is off the question. A rerank by the calling model, or a budget by kind of question, is to be tried before the bundle is specified | For the plugin's specification (step A3) |
+| 2026-11-11 | Phase 0, step 0.1 | Extraction prompt version 2 adds tests for one idea and for standing alone | In progress: run on four sources |
 
 ## Session log
 

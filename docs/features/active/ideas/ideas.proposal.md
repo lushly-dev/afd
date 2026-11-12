@@ -1247,7 +1247,8 @@ No production code. A real corpus chosen by the owner, with a sample labelled by
 | 0.10 | Does an agent with no skill find the store? | The draft tool list, descriptions and instructions paragraph, with a model in each harness given everyday requests to save and to ask | The descriptions and the paragraph that work, and whether `memory-remember` stays first-class on an Ideas instance |
 
 Results are recorded in [`prototype/`](prototype/README.md) and their state in
-[STATUS.md](STATUS.md). Steps 0.1 and 0.2 ran on 2026-11-11, and 0.4 in part. Step 0.2 found that
+[STATUS.md](STATUS.md). Steps 0.1, 0.2, 0.6 and 0.7 ran on 2026-11-11, and 0.3, 0.4 and 0.5 in
+part. Step 0.2 found that
 refusing a capture cannot be trusted across documents and that offering the nearest ideas to the
 calling model can; the plugin's specification takes that up in place of the refusal in
 [4.4](#44-matching).
