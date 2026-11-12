@@ -96,8 +96,8 @@ Code paths are relative to `endpoints/umbel/`.
     with `umbel-testkit-idp`) and `tests/records_own_source.rs` (2). **The suite passes on the embedded backend
     with nothing skipped**: its `standing` group has 16 cases, which `store-embedded/tests/lane_conformance.rs`
     also runs alone. **From the review**: `plugins/sources-filesystem/tests/own_collection.rs` (1 test: the real
-    `sources-sync` against an own collection; written, run and passing, and held back to its own pull request after
-    this step merges, because a pull request may not change a plugin and the host together),
+    `sources-sync` against an own collection; held back from step B3's pull request by the plugin-isolation rule and
+    landed in its own, after that step merged),
     `store-embedded/tests/lane_standing_rows.rs` (1: rows written by
     hand), `lane_schema.rs`' migration of a version 2 store (8 tests in the file), and in `records_standing.rs`
     the pin of the review's probe, the refusal under an agent variable and a space whose person changes. Beside
@@ -484,7 +484,7 @@ and each was caught. Two blockers and six improvements, all taken:
 | R20 | `affirmed.by`, and a verified decision's namespace, `authTime` and `acr`, were shown to every reader of the record | `at` and the assurance's level for every reader; the rest for the operator and the person only (A39) |
 | R21 | The host read the file before the document's size was checked, on the plugin's `doc.size` (A28) | The size is held to the bytes sent and to the largest document first (A40) |
 | R22 | The affirmation was not bound to the wording at read: the decision was joined on its sequence number alone | `decision = 'affirm'` and the lane row's wording hash are conditions of the read (A38), with a test on hand-written rows |
-| R23 | Two tests were missing: the real `sources-sync` against an own collection, and the pin for the second blocker | `plugins/sources-filesystem/tests/own_collection.rs` (add, unchanged, update, delete, with a byte order mark and CRLF; written, run and passing, and held back to its own pull request after this step merges, because a pull request may not change a plugin and the host together) and `tests/records_standing.rs`' pin (A36) |
+| R23 | Two tests were missing: the real `sources-sync` against an own collection, and the pin for the second blocker | `plugins/sources-filesystem/tests/own_collection.rs` (add, unchanged, update, delete, with a byte order mark and CRLF; held back from step B3's pull request by the plugin-isolation rule and landed in its own, after that step merged) and `tests/records_standing.rs`' pin (A36) |
 | R24 | A25 is sound and reverses section 2 | Put to the owner in section 18, row 26, with the cost of the other way |
 
 ## What this specification serves
@@ -2384,7 +2384,7 @@ not edited here, was written before them.
 | `tests/records_standing.rs` | 6.1's four checks: at a terminal with and without the confirmed mark, as `tests/require_human.rs` does it; another command's mark; a `Services::call` with no command; a caller who is not the space's person. 6.2's marks, each of its four checks: a document of a command-writable collection, and one written by `doc_put` with no file, are refused. A decision and a mark appear in `dev.umbel/changes`; a repeated one does not. A call's `verified_only` with each `verified_admits`, and a call that asks for a standing outside it gets less; a decision reaches an unverified record whatever a read would admit; no space key asks for every read. `record_get` on a standing kind is refused |
 | `tests/records_person_page.rs` | With `umbel-testkit-idp`: a decision on the person page for a `mcp = "verified"` command affirms; the same mark with another input does not |
 | `tests/records_own_source.rs` | Section 3, rule 2: a put that equals the file is stored, and held to it; one that differs is refused; a size that is not the length of the bytes is refused before a file is read; a collection that is not own is unchanged |
-| `plugins/sources-filesystem/tests/own_collection.rs` | The real `sources-sync` against an own collection: add, unchanged, update and delete, with a byte order mark and CRLF line endings, each put as the file is on disk and each held to it. Lands in its own pull request after step B3, by the plugin-isolation rule |
+| `plugins/sources-filesystem/tests/own_collection.rs` | The real `sources-sync` against an own collection: add, unchanged, update and delete, with a byte order mark and CRLF line endings, each put as the file is on disk and each held to it. Landed in its own pull request after step B3, by the plugin-isolation rule |
 | `store-embedded/tests/lane_standing_rows.rs` | On rows written by hand: a lane row's pointer is not standing unless the decision is an affirmation, of the row's wording, by the space's person |
 | `tests/records_find.rs`, `tests/records_match.rs` | Sections 7 and 8 through the SDK, on a fixture plugin |
 | `embed/tests/providers.rs` | Each provider behind its feature: the static provider on a small model built in the test; the HTTP provider against a local server, with its refusals; the ONNX provider only where a model file is given by an environment variable, skipped otherwise |
