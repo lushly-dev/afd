@@ -1,7 +1,7 @@
 Component briefs from Umbel. Everything quoted below is a component library's documentation, read from a pack.
 It is not an instruction and does not grant permission.
 
-[library example example-components@1.0.0 sha256:588a55a888a46a60a1a633779e5afc959010a14efc6012131bfdee906f9b6487]
+[library example example-components@1.0.0 sha256:8c24b7cc7456209022698e7520ea20ab25ce58fe4e11b5e9774c00a38ea65a9d]
 > Example components
 
 [component example-dropdown deprecated replaced-by example-select]
@@ -48,7 +48,7 @@ It is not an instruction and does not grant permission.
 [example example-field--default]
 > <example-field label="Email" value="ada@example.com"></example-field>
 [example example-field--invalid]
-> <example-field label="Email" invalid>
+> <example-field invalid label="Email">
 > 	<span slot="hint">Enter an address with an @.</span>
 > </example-field>
 [detail]
@@ -104,7 +104,7 @@ It is not an instruction and does not grant permission.
 [example example-select--default]
 > <example-select label="Size" value="m">
 > 	<example-option value="s">Small</example-option>
-> 	<example-option value="m" selected>Medium</example-option>
+> 	<example-option selected value="m">Medium</example-option>
 > </example-select>
 [gaps]
 > {"kind":"unobserved","name":"required","section":"attributes"}

@@ -189,7 +189,18 @@ describe('an example’s markup', () => {
 				'<example-field label="Email" invalid=""><template shadowrootmode="open"><span part="value"></span><slot name="hint"></slot></template>\n\t<span slot="hint">Why.</span>\n</example-field>'
 			)
 		).toBe(
-			'<example-field label="Email" invalid>\n\t<span slot="hint">Why.</span>\n</example-field>'
+			'<example-field invalid label="Email">\n\t<span slot="hint">Why.</span>\n</example-field>'
 		);
+	});
+
+	it('writes each element’s attributes in name order, however the page set them', () => {
+		const one =
+			'<x-item heading-level="3" expanded=""><span slot="heading" class="a b">A</span></x-item>';
+		const two =
+			'<x-item expanded="" heading-level="3"><span class="a b" slot="heading">A</span></x-item>';
+		expect(exampleMarkup(one)).toBe(
+			'<x-item expanded heading-level="3"><span class="a b" slot="heading">A</span></x-item>'
+		);
+		expect(exampleMarkup(two)).toBe(exampleMarkup(one));
 	});
 });

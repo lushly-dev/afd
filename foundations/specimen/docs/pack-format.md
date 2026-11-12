@@ -330,8 +330,9 @@ writer of the format may choose its own.
   with its check held in `guides@1`, `authored` otherwise. A record's `rules`
   are those that name its tag or one of its attributes.
 - **Examples** come from the cases that name the component: the light DOM the
-  case mounted, with shadow content left out and an empty attribute written as
-  its name. One is kept only when it is the same in both passes, fits 4 000
+  case mounted, with shadow content left out, each element's attributes in
+  name order (a page writes them in the order they were set, which can differ
+  from run to run) and an empty attribute written as its name. One is kept only when it is the same in both passes, fits 4 000
   characters, and, mounted on its own after the case's module has loaded,
   shows the same elements, states and roles. At most three are kept, the first
   by case id.
