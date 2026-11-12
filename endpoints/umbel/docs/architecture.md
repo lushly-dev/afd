@@ -54,12 +54,20 @@ its own backends, on its own terms?
 7. **Provenance on everything.** Every stored record carries the
    [provenance envelope](#5-interfaces). Facts are invalidated, never
    overwritten. The host refuses a store write that drops the envelope.
-8. **Durable knowledge changes by proposal.** Memory is agent-writable and
-   expiring. The knowledge base changes only through a proposal that a policy
-   or a person approves, per area.
+8. **Durable knowledge changes by proposal, or carries its standing.** Memory
+   is agent-writable and expiring. The knowledge base changes only through a
+   proposal that a policy or a person approves, per area. *Amended 2026-11-11
+   ([D157](decisions.md)):* a plugin may also keep durable records that agents
+   write directly, provided every such record carries its standing. It is
+   unverified until a person, a rule the deployer declared, or a check against
+   a source that is the person's own gives it standing; it is labelled so on
+   every read; and it is left out for a caller that asks for verified content
+   only.
 9. **Stored content is untrusted input.** Results carry provenance labels,
    writes are scanned against a policy, plugins are sandboxed, raw tokens are
-   never forwarded, and agent output is never auto-promoted.
+   never forwarded, and agent output is never auto-promoted. *Amended
+   2026-11-11 ([D157](decisions.md)):* no call an agent makes gives a record
+   standing, its own or another's.
 10. **Permission-aware from the first plugin.** From phase 2, every document
     and chunk carries an access field; the caller's principal reaches the
     store; the store filters inside the query, before ranking.
@@ -519,6 +527,36 @@ material, from loosest to strongest:
   statistics per reader filter, memory recall scored over readable matches
   only, readable positions sealed deterministically, and readable-only totals, so that
   filtering is exact and a boundary in modes `oauth` and `gateway`.
+- *Decided 2026-11-11 ([D157](decisions.md)), for the
+  [Ideas plan](../../../docs/features/active/ideas/ideas.proposal.md):* a third
+  kind of durable content beside the two stores, **standing records**. They are
+  a plugin's own records, of a kind its manifest declares, that an agent may
+  write directly and that last. Each carries a standing, and the diagram above
+  does not change: nothing reaches the knowledge base except by proposal, and a
+  standing record is never knowledge. The rules:
+  - A record is written `unverified`. It gains standing in three ways only: a
+    person's decision, taken with the person assurance an approval needs
+    ([D115](decisions.md)); a rule the deployer declares in the workspace; or
+    a deterministic check against a source that is the person's own and whose
+    bytes no model handled. A caller's claim about a record or its source
+    decides nothing.
+  - Every read labels each record with its standing, in the verification label
+    the host already puts on knowledge and memory. A record that has standing
+    from a source check says so, with the source's date: that the person wrote
+    it then, and not that they hold it now.
+  - A caller that asks for verified content only gets records a person has
+    decided on. It gets records with standing from a source check only when it
+    asks for those too.
+  - A change to a record that has standing is a new version, which is
+    unverified and waits. What has standing is displaced only by a person's
+    decision.
+  - Such records are private to their space, carry the provenance envelope,
+    and are scanned as memory's are. They are indexed and matched apart from
+    the knowledge base, so an agent's writes do not move knowledge ranking
+    ([D70](decisions.md)'s reason, kept).
+
+  The declaration in the manifest, the label's values and the indexing are
+  specified with indexed records before any plugin takes this path.
 - Proposals, approvals and artifacts are records with idempotency keys and
   content hashes; every mutation appears in the event log.
 - Every hit carries a stable locator: document id, section or line range,
@@ -763,6 +801,8 @@ document needs as an amendment.
 | Journal | AFD's append-only record of command calls, with replay |
 | Event log | Umbel's projection of mutation entries in the journal, read by cursor |
 | Grant | A host service a plugin declared and the host allowed |
+| Standing record | *D157.* A plugin's durable record that an agent may write directly and that carries a standing: unverified until a person, a rule the deployer declared, or a check against the person's own source gives it one. Labelled on every read, and never knowledge |
+| Standing | *D157.* What a standing record's label says of it: unverified, written by the person in their own source on a date, or decided on by a person |
 | Proposal | A knowledge-plugin record that proposes a change to the knowledge base and, once decided, is its decision trace |
 | Principal | The caller as the host sees it: AFD actor and credentials plus Umbel's extension fields |
 | Provenance envelope | The fields every stored record carries, listed in section 5 |

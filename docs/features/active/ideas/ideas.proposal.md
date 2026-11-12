@@ -1359,11 +1359,11 @@ direction, it is listed in [STATUS.md](STATUS.md) for him to confirm, and he can
 
 | Question | Answer | Basis |
 | --- | --- | --- |
-| 7. The first instance | One machine with the embedded store and a persistent disk. Which authorization server, and which directory holds the first archive, had no recommendation and are still open; they are needed at step C1 | Agreed, for the part that had a recommendation |
-| 9. The phase 0 corpus | The question carried no recommendation, so this one was made after his answer: the owner's own archive of source material on one subject, in his private repository, measured where it lies. Only counts, rates and the tools leave it. A model drafts every label and the owner checks a sample of each kind in one sitting | On recommendation |
+| 7. The first instance | One machine with the embedded store and a persistent disk. It signs in through Better Auth, and its first archive is the owner's professional documents (answered 2026-11-11, later the same day). Which machine is still open; it is needed at step C1 | Agreed |
+| 9. The phase 0 corpus | The question carried no recommendation, so this one was made after his answer: the owner's own archive of source material on one subject, in his private repository, measured where it lies. Only counts, rates and the tools leave it. A model drafts every label and the owner checks a sample of each kind in one sitting | Agreed 2026-11-11, after phase 0 had run on it. His check of the samples is put off: the work carries on, and what phase 0 set is tuned when he has done it |
 | 11. The jobs | All twenty-nine are kept, ranked in the order of the [jobs table](#jobs-to-be-done). Job 11 is the first to go if the list must shrink | Agreed |
 | 14. The hierarchy | Decided after phase 0.6 and some weeks of the loop | Agreed |
-| 1. The wording of P1 | As recommended, to be written out in step A1 | On recommendation |
+| 1. The wording of P1 | As recommended, written out in step A1 as Umbel's D157 | On recommendation |
 | 2. Records or documents | Records, indexed through P2, unless phase 0.7 finds otherwise | On recommendation |
 | 3. The name for the hierarchy | Framing | On recommendation |
 | 4. The embedding lane | Yes, with a local model by default, chosen in phase 0.2 | On recommendation |
