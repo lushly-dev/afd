@@ -1626,7 +1626,7 @@ with no change to these commands.
   element in a modal arrives with phase 4.
 - **Refusals.** `OVERLAY_OWNER_INACTIVE`: a `modal-open` from an app that is not active. A
   toast from any app is allowed, as the architecture says. `OVERLAY_MODAL_BUSY`: a modal
-  already open. `OVERLAY_NOT_FOUND`. `OVERLAY_NOT_OWNER`: an app dismissing another's.
+  already open; a view's own open modal holds its next `modal-open` instead (9.7). `OVERLAY_NOT_FOUND`. `OVERLAY_NOT_OWNER`: an app dismissing another's.
 - **On app switch**, inside `app-open` and `app-close`, atomically and before the new app's
   surfaces render:
   - the previous owner's toasts are dismissed with `reason: 'app-switch'`;
@@ -2165,6 +2165,10 @@ unless they say otherwise.
   `modal-open` within 5 seconds of a person closing one of its modals is `OVERLAY_COOLDOWN`, journaled through the
   internal `app-modal-refuse`, in `port.call`, so the first-paint kernel holds only that name. Native apps are unchanged,
   since they are trusted. Modals opened and closed by the app itself count too, which costs an honest view nothing.
+  A view's `modal-open` runs one at a time, and none while that view's modal is open: a call sent then waits for the modal
+  to close and checks the cooldown after it. Checked only on arrival, a call sent while the modal was open could reach
+  the kernel just after a person closed it and open the next before the cooldown began
+  ([#1054](https://github.com/lushly-dev/afd/issues/1054)).
 - **A trace ID counts every call in the kernel,** which 9.1 keeps from a view as a seq. So `toolCallResult` drops
   `metadata.traceId`, and a frame's `callId` and `context.traceId` are `<instance>-<n>`. `parent` is still the real one.
   `OVERLAY_NOT_FOUND` against `OVERLAY_NOT_OWNER` still says that another app holds an `ovl-<n>`: 5.3 asks for that code,
