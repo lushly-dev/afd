@@ -199,14 +199,22 @@ db.close(); // close the database; the next call reopens it
 - **Its own database.** One table, `records(tbl, id, value)`, keyed by `(tbl, id)` and
   `WITHOUT ROWID`, each value the record's JSON, so any table name works. Adapters on the same
   file share their data, across processes too. A file that something else created is refused
-  with `STORAGE_ERROR`.
+  with `STORAGE_ERROR` and left as it was.
 - **Durable.** WAL mode with `synchronous = FULL`, so a committed write survives a power loss.
+  WAL needs the file on a local filesystem, not a network share.
 - **One transaction per write**, `BEGIN IMMEDIATE … COMMIT`, so `batch()` is atomic: a failed
   operation rolls the transaction back. `list()` filters, sorts and paginates as the other
-  adapters do, and without `sort` returns records in ID order.
-- **Options.** `busyTimeoutMs` (default 5000) is how long a write waits for another connection's
-  write before it rejects with `STORAGE_ERROR`. Without `node:sqlite`, calls reject with
-  `STORAGE_UNAVAILABLE` (503).
+  adapters do, and without `sort` returns records in ID order, compared as UTF-8 bytes (which
+  differs from IndexedDB's UTF-16 order only past U+FFFF). `list()` and `health()` read the whole
+  table, so their cost grows with it.
+- **Synchronous underneath.** `node:sqlite` blocks: a write waiting for another process's write
+  holds the event loop for up to `busyTimeoutMs`.
+- **IDs are text.** A table name or ID holding a lone UTF-16 surrogate is stored as U+FFFD, so
+  two such IDs can name the same record. Use well-formed strings.
+- **Options.** `busyTimeoutMs` (default 5000, a finite number 0 or more) is how long a write waits
+  for another connection's write before it rejects with `STORAGE_ERROR`. Without `node:sqlite`,
+  calls reject with `STORAGE_UNAVAILABLE` (503). Every other SQLite failure, reads included,
+  rejects with `STORAGE_ERROR` (500).
 
 ## With AFD commands
 

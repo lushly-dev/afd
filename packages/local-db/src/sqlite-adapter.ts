@@ -107,20 +107,31 @@ export class SqliteAdapter implements DataAdapter {
 		if (typeof options?.path !== 'string' || options.path === '') {
 			throw new DataAdapterError(400, 'SqliteAdapter needs a database path', 'INVALID_NAME');
 		}
+		const busyTimeoutMs = options.busyTimeoutMs ?? 5000;
+		if (typeof busyTimeoutMs !== 'number' || !Number.isFinite(busyTimeoutMs) || busyTimeoutMs < 0) {
+			throw new DataAdapterError(
+				400,
+				'SqliteAdapter needs busyTimeoutMs to be a finite number of milliseconds, 0 or more',
+				'INVALID_NAME'
+			);
+		}
 		this.path = options.path;
-		this.busyTimeoutMs = options.busyTimeoutMs ?? 5000;
+		this.busyTimeoutMs = Math.floor(busyTimeoutMs);
 	}
 
 	async get<T>(table: string, id: string): Promise<T | null> {
 		assertValidName('table', table);
 		assertValidName('record id', id);
-		const statements = this.open();
-		return (readRow(statements, table, id) as T | undefined) ?? null;
+		return this.read(
+			'read a record',
+			(statements) => (readRow(statements, table, id) as T | undefined) ?? null
+		);
 	}
 
 	async list<T>(table: string, params?: QueryParams): Promise<ListResult<T>> {
 		assertValidName('table', table);
-		const { rows: data, total } = queryRows(readTable(this.open(), table), params);
+		const rows = this.read('read a table', (statements) => readTable(statements, table));
+		const { rows: data, total } = queryRows(rows, params);
 		return { data: data as T[], total };
 	}
 
@@ -172,7 +183,10 @@ export class SqliteAdapter implements DataAdapter {
 
 	/** `status: 'ok'`, the schema version, and the number of nonempty tables. */
 	async health(): Promise<HealthStatus> {
-		const { tables } = this.open().countTables.get() as { tables: number };
+		const { tables } = this.read(
+			'count its tables',
+			(statements) => statements.countTables.get() as { tables: number }
+		);
 		return { status: 'ok', version: SCHEMA_VERSION, tables, uptime: 0 };
 	}
 
@@ -195,10 +209,12 @@ export class SqliteAdapter implements DataAdapter {
 		}
 		try {
 			// Set by `PRAGMA` too: the constructor's `timeout` arrived in Node.js 22.16.
-			database.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.floor(this.busyTimeoutMs))}`);
+			database.exec(`PRAGMA busy_timeout = ${this.busyTimeoutMs}`);
+			// Decide ownership before WAL: switching a file to WAL is persistent, and a refused file
+			// must be left as it was found.
+			prepareSchema(database, this.path);
 			database.exec('PRAGMA journal_mode = WAL');
 			database.exec('PRAGMA synchronous = FULL');
-			prepareSchema(database, this.path);
 			this.statements = prepare(database);
 		} catch (error) {
 			database.close();
@@ -206,6 +222,16 @@ export class SqliteAdapter implements DataAdapter {
 		}
 		this.database = database;
 		return this.statements;
+	}
+
+	/** Run a read outside a transaction, its failures as `STORAGE_ERROR` like every write's. */
+	private read<T>(action: string, work: (statements: Statements) => T): T {
+		const statements = this.open();
+		try {
+			return work(statements);
+		} catch (error) {
+			throw storageError(error, action);
+		}
 	}
 
 	/**
@@ -231,7 +257,9 @@ export class SqliteAdapter implements DataAdapter {
 			database.exec(rolledBackOnPurpose ? 'ROLLBACK' : 'COMMIT');
 			return result;
 		} catch (error) {
-			rollbackQuietly(database);
+			// A connection left inside a transaction would refuse every later `BEGIN`: close it, so
+			// the next call opens the file again. The error reported stays the one `work` raised.
+			if (!rollbackQuietly(database)) this.close();
 			throw storageError(error, action);
 		}
 	}
@@ -244,12 +272,20 @@ export function createSqliteAdapter(options: SqliteAdapterOptions): SqliteAdapte
 
 // ─── The schema and its statements ─────────────────────────────────────────────
 
-/** A rollback that leaves no error of its own: SQLite may already have rolled the transaction back. */
-function rollbackQuietly(database: DatabaseSync): void {
+/**
+ * Roll back without raising an error of its own, since SQLite may already have rolled the
+ * transaction back (`SQLITE_FULL`, an I/O error). Returns whether the connection is now outside a
+ * transaction; `isTransaction` is read where this Node.js has it.
+ */
+function rollbackQuietly(database: DatabaseSync): boolean {
+	const inTransaction = () => (database as { isTransaction?: boolean }).isTransaction;
+	if (inTransaction() === false) return true;
 	try {
 		database.exec('ROLLBACK');
+		return true;
 	} catch {
-		// No transaction was open.
+		// Without `isTransaction`, a failed ROLLBACK means no transaction was open.
+		return inTransaction() !== true;
 	}
 }
 

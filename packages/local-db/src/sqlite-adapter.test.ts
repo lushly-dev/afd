@@ -106,16 +106,56 @@ describe('P6-E7: SqliteAdapter, durability and transactions', () => {
 		const path = databasePath();
 		const adapter = open(path);
 		await adapter.create('items', { id: 'a', value: 1 });
-		// A value JSON cannot hold makes the write throw after the transaction began.
-		const cyclic: Record<string, unknown> = { id: 'c' };
-		cyclic.self = cyclic;
-		await expect(adapter.create('items', cyclic)).rejects.toThrow();
-		expect((await adapter.list('items')).total).toBe(1);
-		await adapter.create('items', { id: 'b', value: 2 });
-		expect((await adapter.list('items')).data.map((row) => (row as { id: string }).id)).toEqual([
-			'a',
-			'b',
+		// Make SQLite's own write throw once the transaction has begun.
+		const statements = (adapter as unknown as { statements: { put: { run: unknown } } }).statements;
+		const put = statements.put.run as (...args: unknown[]) => unknown;
+		let calls = 0;
+		statements.put.run = (...args: unknown[]) => {
+			calls += 1;
+			if (calls === 2) throw new Error('disk on fire');
+			return put.apply(statements.put, args);
+		};
+		await expect(
+			adapter
+				.update('items', 'a', { value: 2 })
+				.then(() => adapter.update('items', 'a', { value: 3 }))
+		).rejects.toMatchObject({
+			status: 500,
+			code: 'STORAGE_ERROR',
+			message: expect.stringContaining('disk on fire'),
+		});
+		calls = 0;
+		const result = await adapter.batch([
+			{ method: 'POST', path: '/items', body: { id: 'b', value: 1 } },
+			{ method: 'POST', path: '/items', body: { id: 'c', value: 1 } },
 		]);
+		expect(result.summary).toEqual({ total: 2, success: 0, failed: 2 });
+		expect(result.results[1]).toEqual({ status: 500, error: 'disk on fire' });
+		statements.put.run = put;
+		// The adapter still works, and only the first update was kept, on disk too.
+		await adapter.create('items', { id: 'd', value: 4 });
+		adapter.close();
+		expect((await open(path).list('items')).data).toEqual([
+			{ id: 'a', value: 2 },
+			{ id: 'd', value: 4 },
+		]);
+	});
+
+	it('reports a failed read as STORAGE_ERROR, as it does a failed write', async () => {
+		const path = databasePath();
+		const adapter = open(path);
+		await adapter.create('items', { id: 'a', value: 1 });
+		const editor = new DatabaseSync(path);
+		editor.exec(`UPDATE records SET value = 'not json' WHERE id = 'a'`);
+		editor.close();
+		await expect(adapter.get('items', 'a')).rejects.toMatchObject({
+			status: 500,
+			code: 'STORAGE_ERROR',
+		});
+		await expect(adapter.list('items')).rejects.toMatchObject({
+			status: 500,
+			code: 'STORAGE_ERROR',
+		});
 	});
 
 	it('P6-E7: two adapters on one file, in one process, interleave their writes and lose none', async () => {
@@ -181,12 +221,19 @@ describe('P6-E7: SqliteAdapter, durability and transactions', () => {
 		foreign.exec('CREATE TABLE notes (text TEXT)');
 		foreign.close();
 		await expect(open(path).get('items', 'a')).rejects.toMatchObject({ code: 'STORAGE_ERROR' });
+		// A refused file is left as it was found: never switched to WAL.
+		const after = new DatabaseSync(path);
+		expect(after.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'delete' });
+		after.close();
 		const versioned = databasePath();
 		const other = new DatabaseSync(versioned);
 		other.exec('PRAGMA user_version = 7');
 		other.close();
 		await expect(open(versioned).health()).rejects.toMatchObject({ code: 'STORAGE_ERROR' });
 		expect(() => new SqliteAdapter({ path: '' })).toThrow(DataAdapterError);
+		for (const busyTimeoutMs of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+			expect(() => new SqliteAdapter({ path, busyTimeoutMs })).toThrow(DataAdapterError);
+		}
 	});
 
 	it('reports STORAGE_UNAVAILABLE where node:sqlite is missing, as before Node.js 22.13', async () => {
