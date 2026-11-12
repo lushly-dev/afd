@@ -1,0 +1,63 @@
+{
+	"tool": "review of extraction prompt version 2",
+	"sources": 4,
+	"sample_per_extractor": 40,
+	"extractors": {
+		"a": "Claude Fable 5.2, prompt version 1",
+		"b": "Claude Sonnet 5.5, prompt version 1",
+		"c": "Claude Opus 5.5, prompt version 2"
+	},
+	"ideas_on_the_four_sources": {
+		"a": 276,
+		"b": 199,
+		"c": 317
+	},
+	"word_for_word_on_the_four_sources": {
+		"a": 152,
+		"b": 178,
+		"c": 87
+	},
+	"mean_statement_words": {
+		"a": 22.8,
+		"b": 28.1,
+		"c": 18.6
+	},
+	"review": {
+		"a": {
+			"n": 40,
+			"size_right": 38,
+			"in_context_yes": 38,
+			"type_ok": 38,
+			"wfw": 22,
+			"wfw_dependent": 2,
+			"size_not_an_idea": 1,
+			"size_too_small": 1,
+			"in_context_no_dependent": 2
+		},
+		"b": {
+			"n": 40,
+			"size_too_small": 12,
+			"in_context_no_dependent": 14,
+			"type_ok": 35,
+			"wfw": 37,
+			"wfw_dependent": 14,
+			"size_right": 22,
+			"in_context_yes": 26,
+			"size_too_big": 5,
+			"unfaithful": 1,
+			"size_not_an_idea": 1
+		},
+		"c": {
+			"n": 40,
+			"size_right": 39,
+			"in_context_yes": 38,
+			"type_ok": 36,
+			"wfw": 9,
+			"wfw_dependent": 1,
+			"unfaithful": 2,
+			"in_context_no_other": 1,
+			"size_too_small": 1,
+			"in_context_no_dependent": 1
+		}
+	}
+}
