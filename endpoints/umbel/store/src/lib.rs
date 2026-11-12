@@ -1,20 +1,24 @@
-//! Umbel's store traits, version 2 (phase 2 specification section 3.1, phase 3 section 5.2).
+//! Umbel's store traits, version 3 (phase 2 specification section 3.1, phase 3 section 5.2, the
+//! records host specification section 11).
 //!
 //! Four synchronous, object-safe traits per space: [`DocumentStore`] (documents, plugin records
 //! and the change log, one revision sequence), [`SearchIndex`] (the lexical lane),
 //! [`GraphStore`] (the structural graph) and, from version 2, [`MemoryStore`] (memory records,
-//! their own revision sequence and lexical lane). Every record carries an [`AccessSet`]; every
-//! read takes a [`ReaderFilter`] and applies it inside its own query. The crate holds types and
-//! traits only, and builds for `wasm32-wasip2`. The `conformance` feature adds the suite every
-//! backend runs.
+//! their own revision sequence and lexical lane). Version 3 adds the record lane: the shared
+//! types and pure functions of [`lane`] and the [`Embedder`] trait. Every record carries an
+//! [`AccessSet`]; every read takes a [`ReaderFilter`] and applies it inside its own query. The
+//! crate holds types and traits only, and builds for `wasm32-wasip2`. The `conformance` feature
+//! adds the suite every backend runs.
 
 mod access;
 mod canonical;
 mod document;
+mod embed;
 mod envelope;
 mod error;
 mod graph;
 mod index;
+pub mod lane;
 pub mod memory;
 mod traits;
 
@@ -29,6 +33,7 @@ pub use document::{
     MAX_LIST_LIMIT, MAX_RECORD_BYTES, Page, Record, RecordMeta, Rev, Status, Tier, Verification,
     check_identifier, check_record, is_slug, record_target,
 };
+pub use embed::{EmbedError, Embedder, ModelId};
 pub use envelope::{
     Actor, ActorKind, Assurance, Authority, ByAt, ChainLink, Confirmation, DerivedFrom,
     ENVELOPE_VERSION, Envelope, LATEST_ENVELOPE_VERSION, MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS,
@@ -49,4 +54,7 @@ pub use traits::{DocumentStore, GraphStore, IndexWriterSession, SearchIndex};
 
 /// The store traits' version (`workspace-show`'s `versions.store`). Owned here from phase 2 step
 /// 2; the host re-exports it. Version 2 is phase 3's (section 2): it adds [`MemoryStore`].
-pub const STORE_TRAITS_VERSION: u32 = 2;
+/// Version 3 is the records host specification's (section 11): it adds [`lane`] and
+/// [`Embedder`], and [`DocumentStore`] gains the lane's methods in that specification's steps B2
+/// to B5.
+pub const STORE_TRAITS_VERSION: u32 = 3;

@@ -1,10 +1,13 @@
-//! `umbel.toml`, versions 1 to 5: defaults, key scan and validation (phase 0 specification
+//! `umbel.toml`, versions 1 to 6: defaults, key scan and validation (phase 0 specification
 //! section 2; phase 1 section 9.1 adds the plugin instances of version 2; phase 2 section 4.1
 //! adds the collections, readers, access groups and store of version 3; phase 3 section 2.4 adds
 //! the `memory_write` grant table, `principal.agent_env` and
 //! `store.exclude_memory_from_machine_backup` of version 4; phase 5 section 2.2 adds `[auth]`,
 //! `[http.tls]`, `http.public_url`, `[limits]`, `[usage]`, `[principal.equivalents]` and group
-//! claims of version 5, in [`super::hosted`]).
+//! claims of version 5, in [`super::hosted`]; the records host specification section 3 adds a
+//! space's `person`, `verified_admits` and `[meaning]`, a collection's `own` and `speaker`,
+//! `[models]` and the `records_write` grant table's `default_access` of version 6, in
+//! [`super::records`]).
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
@@ -22,17 +25,23 @@ use super::hosted::{
 };
 use super::plugins_config::{
     GRANT_KEYS, INSTANCE_KEYS, INSTANCE_KEYS_V3, INSTANCE_RESERVED, LIMITS_KEYS,
-    MEMORY_WRITE_GRANT_KEYS, MEMORY_WRITE_GRANT_KEYS_V5, is_env_name,
+    MEMORY_WRITE_GRANT_KEYS, MEMORY_WRITE_GRANT_KEYS_V5, RECORDS_WRITE_GRANT_KEYS_V6, is_env_name,
+};
+use super::records::{
+    COLLECTION_KEYS_V6, MeaningConfig, ModelConfig, SPACE_KEYS_V6, SpaceStanding, TOP_KEYS_V6,
+    VerifiedAdmits, check_meaning_models, check_own_collections, collection_own, command_writable,
+    is_v6_key, space_standing,
 };
 use super::space::SpaceId;
 
 /// The configuration version this build writes (`umbel init`). It also reads version 1, which
 /// is version 2 with no plugins, version 2, which is version 3 with no collections, version 3,
-/// which is version 4 with no memory policy, and version 4, which is version 5 with
-/// `auth.mode = "none"`: each reads as version 5 with no change of meaning.
-pub const CONFIG_VERSION: u32 = 5;
+/// which is version 4 with no memory policy, version 4, which is version 5 with
+/// `auth.mode = "none"`, and version 5, which is version 6 with no person, no own collection and
+/// no model: each reads as version 6 with no change of meaning.
+pub const CONFIG_VERSION: u32 = 6;
 /// Every configuration version this build reads.
-pub const CONFIG_VERSIONS: &[u32] = &[1, 2, 3, 4, 5];
+pub const CONFIG_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6];
 
 const TOP_KEYS: &[&str] = &[
     "config_version",
@@ -171,10 +180,17 @@ pub struct CollectionConfig {
     pub strict: bool,
     /// The largest file read, in bytes.
     pub max_file_bytes: u64,
+    /// Version 6: whether the collection's documents are the own of the space's person (the
+    /// records host specification, section 3). `false` by default; refused on a collection a
+    /// command can write files into.
+    pub own: bool,
+    /// Version 6, with `own` only: which part of each document is the person's, for a plugin's
+    /// rule to use.
+    pub speaker: Option<String>,
 }
 
 /// One declared space.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct SpaceConfig {
     /// The space id.
@@ -185,6 +201,15 @@ pub struct SpaceConfig {
     pub readers: Vec<String>,
     /// The space's collections, in configuration order; none in versions 1 and 2.
     pub collections: Vec<CollectionConfig>,
+    /// Version 6: the one person whose decisions give standing in the space, a principal string
+    /// `human:<id>` (the records host specification, section 3).
+    pub person: Option<String>,
+    /// Version 6: what a call that asks for verified content only is given; affirmed records
+    /// by default.
+    pub verified_admits: VerifiedAdmits,
+    /// Version 6: `[spaces.<id>.meaning]`, the model the space's record lanes are matched by
+    /// meaning with; none by default.
+    pub meaning: Option<MeaningConfig>,
 }
 
 /// `[access.groups.<id>]`.
@@ -312,7 +337,8 @@ pub struct PrincipalConfig {
 #[non_exhaustive]
 pub struct Config {
     /// The `config_version` the file declared: 1, 2 with plugin instances, 3 with collections,
-    /// access groups and a store, 4 with the memory policy, or 5 with `[auth]`.
+    /// access groups and a store, 4 with the memory policy, 5 with `[auth]`, or 6 with standing
+    /// and `[models]`.
     pub version: u32,
     /// The workspace name.
     pub name: String,
@@ -347,6 +373,13 @@ pub struct Config {
     /// The principal projection's `policyVersion` (phase 5 section 2.1): `sha256:` and the hex
     /// SHA-256 of the canonical JSON of the `[auth]` and `[access]` tables as read.
     pub policy_version: String,
+    /// `[models]`, version 6: the embedding models a space may name, in configuration order;
+    /// none by default.
+    pub models: Vec<ModelConfig>,
+    /// The command-writable collections, as `(space, collection)` (the records host
+    /// specification, section 3), judged when the configuration was read:
+    /// [`Config::command_writable`] answers from it.
+    command_writable: Vec<(SpaceId, String)>,
 }
 
 /// Values that override the file: flags first, then environment variables.
@@ -406,7 +439,7 @@ impl ConfigFile {
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` for a syntax error or a missing or mistyped `config_version`;
-    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 5.
+    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 6.
     pub fn parse(text: &str) -> Result<Self, WorkspaceError> {
         let table: Table = text.parse().map_err(|error: toml::de::Error| {
             let place = error.span().map(|span| {
@@ -422,21 +455,21 @@ impl ConfigFile {
         match table.get("config_version") {
             None => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "is required; set config_version = 5",
+                "is required; set config_version = 6",
             )),
-            Some(Value::Integer(version @ (1..=5))) => {
+            Some(Value::Integer(version @ (1..=6))) => {
                 let version = u32::try_from(*version).unwrap_or(CONFIG_VERSION);
                 Ok(Self { table, version })
             }
             Some(Value::Integer(other)) => Err(WorkspaceError::config_unsupported(other)),
             Some(_) => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "must be the integer 1, 2, 3, 4 or 5",
+                "must be the integer 1, 2, 3, 4, 5 or 6",
             )),
         }
     }
 
-    /// The `config_version` of the file: 1 to 5.
+    /// The `config_version` of the file: 1 to 6.
     pub fn version(&self) -> u32 {
         self.version
     }
@@ -452,10 +485,12 @@ impl ConfigFile {
         let v3 = version >= 3;
         let v4 = version >= 4;
         let v5 = version >= 5;
+        let v6 = version >= 6;
         let top: Vec<&str> = TOP_KEYS
             .iter()
             .chain(TOP_KEYS_V3.iter().filter(|_| v3))
             .chain(TOP_KEYS_V5.iter().filter(|_| v5))
+            .chain(TOP_KEYS_V6.iter().filter(|_| v6))
             .copied()
             .collect();
         scan_table(&self.table, "", &top, &[], &mut scan);
@@ -505,8 +540,13 @@ impl ConfigFile {
         if v5 {
             self.scan_v5(&self.table, &mut scan);
         }
+        if v6 {
+            self.scan_v6(&self.table, &mut scan);
+        }
         if let Some(Value::Table(spaces)) = self.table.get("spaces") {
-            let (known, reserved) = if v3 {
+            let (known, reserved) = if v6 {
+                (SPACE_KEYS_V6, SPACE_RESERVED_V3)
+            } else if v3 {
                 (SPACE_KEYS_V3, SPACE_RESERVED_V3)
             } else {
                 (SPACE_KEYS, SPACE_RESERVED)
@@ -521,7 +561,11 @@ impl ConfigFile {
                                 scan_table(
                                     collection,
                                     &format!("{prefix}.collections.{cid}"),
-                                    COLLECTION_KEYS,
+                                    if v6 {
+                                        COLLECTION_KEYS_V6
+                                    } else {
+                                        COLLECTION_KEYS
+                                    },
                                     &[],
                                     &mut scan,
                                 );
@@ -559,6 +603,8 @@ impl ConfigFile {
                                 MEMORY_WRITE_GRANT_KEYS_V5
                             } else if version >= 4 && grant == "memory_write" {
                                 MEMORY_WRITE_GRANT_KEYS
+                            } else if version >= 6 && grant == "records_write" {
+                                RECORDS_WRITE_GRANT_KEYS_V6
                             } else {
                                 GRANT_KEYS
                             };
@@ -582,12 +628,15 @@ impl ConfigFile {
     pub fn into_config(self, root: &Path) -> Result<Config, WorkspaceError> {
         if let Some(key) = self.scan_keys().unknown.into_iter().next() {
             let v5_only = self.version < 5 && is_v5_key(&key);
+            let v6_only = self.version < 6 && is_v6_key(&key);
             return Err(WorkspaceError::config_invalid(
                 &key,
                 if self.version >= 3 && key.ends_with(".content_roots") {
                     "was replaced by collections in configuration version 3; declare [spaces.<id>.collections.<cid>] with a root"
                 } else if v5_only {
                     "needs config_version = 5"
+                } else if v6_only {
+                    "needs config_version = 6"
                 } else {
                     "is not a known key"
                 },
@@ -600,6 +649,10 @@ impl ConfigFile {
         let http = self.http()?;
         check_declared_groups(&spaces, &rest.access)?;
         check_collection_roots(&spaces, root)?;
+        check_meaning_models(&spaces, &rest.models)?;
+        // Section 3's first rule, as written and, for the roots that exist, as resolved.
+        let writable = command_writable(&spaces, &plugins, root);
+        check_own_collections(&spaces, &writable)?;
         rest.check_hosted(&http)?;
         Ok(Config {
             version: self.version,
@@ -619,6 +672,11 @@ impl ConfigFile {
             limits: rest.limits,
             usage: rest.usage,
             policy_version: self.policy_version(),
+            models: rest.models,
+            command_writable: writable
+                .into_iter()
+                .map(|entry| (entry.space, entry.collection))
+                .collect(),
         })
     }
 
@@ -640,6 +698,10 @@ impl ConfigFile {
         let rest = self.rest()?;
         if let Ok((spaces, _)) = self.spaces() {
             check_declared_groups(&spaces, &rest.access)?;
+            check_meaning_models(&spaces, &rest.models)?;
+            if let Ok(plugins) = self.plugins() {
+                check_own_collections(&spaces, &command_writable(&spaces, &plugins, root))?;
+            }
         }
         if let Ok(http) = self.http() {
             rest.check_hosted(&http)?;
@@ -678,12 +740,21 @@ impl ConfigFile {
                     let reader = Reader::new(Some(entry), &key);
                     let title = reader.string("title")?.unwrap_or_else(|| id.clone());
                     let readers = space_readers(&reader, &key)?;
-                    let collections = self.space_collections(entry, &key)?;
+                    let standing = if self.version >= 6 {
+                        space_standing(entry, &key)?
+                    } else {
+                        SpaceStanding::default()
+                    };
+                    let collections =
+                        self.space_collections(entry, &key, standing.person.is_some())?;
                     spaces.push(SpaceConfig {
                         id: space_id,
                         title,
                         readers,
                         collections,
+                        person: standing.person,
+                        verified_admits: standing.verified_admits,
+                        meaning: standing.meaning,
                     });
                 }
             }
@@ -696,6 +767,9 @@ impl ConfigFile {
                 title: SpaceId::MAIN.to_owned(),
                 readers: vec!["*".to_owned()],
                 collections: Vec::new(),
+                person: None,
+                verified_admits: VerifiedAdmits::default(),
+                meaning: None,
             });
         }
         let default_space = match Reader::new(Some(&self.table), "").string("default_space")? {
@@ -957,6 +1031,7 @@ impl ConfigFile {
             auth,
             limits: self.rate_limits()?,
             usage: self.usage()?,
+            models: self.models()?,
         })
     }
 
@@ -1011,11 +1086,13 @@ impl ConfigFile {
         Ok(AccessConfig { groups: parsed })
     }
 
-    /// `[spaces.<id>.collections.<cid>]` of the space table `entry`.
+    /// `[spaces.<id>.collections.<cid>]` of the space table `entry`. `person` says whether the
+    /// space names one, which a version 6 collection's `own` needs.
     fn space_collections(
         &self,
         entry: &Table,
         space_key: &str,
+        person: bool,
     ) -> Result<Vec<CollectionConfig>, WorkspaceError> {
         let key = format!("{space_key}.collections");
         let table = match entry.get("collections") {
@@ -1041,7 +1118,10 @@ impl ConfigFile {
             let Value::Table(table) = value else {
                 return Err(WorkspaceError::config_invalid(&key, "must be a table"));
             };
-            let collection = collection(id, table, &key)?;
+            let mut collection = collection(id, table, &key)?;
+            if self.version >= 6 {
+                (collection.own, collection.speaker) = collection_own(table, &key, person)?;
+            }
             for other in &collections {
                 if roots_overlap(&other.root, &collection.root) {
                     return Err(WorkspaceError::config_invalid(
@@ -1077,6 +1157,7 @@ struct Rest {
     auth: AuthConfig,
     limits: RateLimits,
     usage: UsageConfig,
+    models: Vec<ModelConfig>,
 }
 
 impl Rest {
@@ -1208,12 +1289,14 @@ fn collection(id: &str, table: &Table, key: &str) -> Result<CollectionConfig, Wo
                 i64::try_from(MAX_FILE_BYTES_CAP).unwrap_or(i64::MAX),
             )?
             .unwrap_or(DEFAULT_MAX_FILE_BYTES),
+        own: false,
+        speaker: None,
     })
 }
 
 /// A collection root, lexically: relative, with `/` separators, no `..`, and below the workspace
-/// root and outside `state/`.
-fn check_root(root: &str) -> Result<(), String> {
+/// root and outside `state/`. A model's `dir` follows the same rule.
+pub(super) fn check_root(root: &str) -> Result<(), String> {
     if root.is_empty() || root.chars().any(char::is_control) {
         return Err("must be a non-empty path without control characters".to_owned());
     }
@@ -1247,7 +1330,7 @@ fn root_parts(root: &str) -> Vec<&str> {
 }
 
 /// Whether one root is, or is inside, the other, compared by segment.
-fn roots_overlap(a: &str, b: &str) -> bool {
+pub(super) fn roots_overlap(a: &str, b: &str) -> bool {
     let (a, b) = (root_parts(a), root_parts(b));
     let shorter = a.len().min(b.len());
     a[..shorter] == b[..shorter]
@@ -1376,6 +1459,17 @@ fn check_collection_roots(spaces: &[SpaceConfig], workspace: &Path) -> Result<()
 }
 
 impl Config {
+    /// Whether a command can write files into the collection `collection` of `space` (the
+    /// records host specification, section 3): some enabled instance's
+    /// `grants.content_write.allow` covers it, or covers a collection of any space whose root
+    /// overlaps its root, as written or as resolved when the configuration was read. Judged on
+    /// the configuration as it is now: the host keeps no history of it.
+    pub fn command_writable(&self, space: &str, collection: &str) -> bool {
+        self.command_writable
+            .iter()
+            .any(|(s, c)| s.as_str() == space && c == collection)
+    }
+
     /// Apply flag and environment overrides.
     ///
     /// # Errors

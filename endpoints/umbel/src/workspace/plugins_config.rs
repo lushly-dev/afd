@@ -77,6 +77,9 @@ pub(super) const MEMORY_WRITE_GRANT_KEYS_V5: &[&str] = &[
     "erase_approvals",
     "erase_approval_window_s",
 ];
+/// The keys of `grants.records_write` from configuration version 6, which adds the access set
+/// the host gives a declared kind's record (the records host specification, sections 3 and 4.2).
+pub(super) const RECORDS_WRITE_GRANT_KEYS_V6: &[&str] = &["allow", "default_access"];
 /// The grants configuration version 4 adds to `deny` and `grants`.
 const GRANTS_V4: &[&str] = &["memory_write"];
 /// The component limits.
@@ -192,6 +195,10 @@ pub struct PluginInstance {
     /// `[plugins.<id>.grants.memory_write]`'s policy, configuration version 4; `None` when the
     /// instance gives `memory_write` no table.
     pub memory_write: Option<MemoryWritePolicy>,
+    /// `[plugins.<id>.grants.records_write] default_access`, configuration version 6: the access
+    /// set the host gives a new record of a declared kind, `private` (the writer's principal) by
+    /// default, or `space` (the records host specification, section 4.2).
+    pub records_default_access: DefaultAccess,
     /// The instance configuration, an object.
     pub config: Json,
     /// A component's limits.
@@ -382,10 +389,10 @@ fn instance(
             return Err(invalid("deny", &format!("names `{grant}` twice")));
         }
     }
-    let (allow, memory_write) = if version >= 3 {
+    let (allow, memory_write, records_default_access) = if version >= 3 {
         allow_lists(table, &prefix_key, declared, version)?
     } else {
-        (BTreeMap::new(), None)
+        (BTreeMap::new(), None, DefaultAccess::default())
     };
     let config = match table.and_then(|t| t.get("config")) {
         None => Json::Object(serde_json::Map::new()),
@@ -435,6 +442,7 @@ fn instance(
         deny,
         allow,
         memory_write,
+        records_default_access,
         config,
         limits,
         prefix,
@@ -451,11 +459,16 @@ fn instance(
     })
 }
 
-/// An instance's allow lists by grant, and its `memory_write` policy when it has one.
-type AllowLists = (BTreeMap<String, Vec<String>>, Option<MemoryWritePolicy>);
+/// An instance's allow lists by grant, its `memory_write` policy when it has one, and its
+/// `records_write` default access.
+type AllowLists = (
+    BTreeMap<String, Vec<String>>,
+    Option<MemoryWritePolicy>,
+    DefaultAccess,
+);
 
-/// `grants.<grant>.allow` of one instance (configuration version 3), and the `memory_write`
-/// policy of version 4.
+/// `grants.<grant>.allow` of one instance (configuration version 3), the `memory_write` policy
+/// of version 4 and the `records_write` default access of version 6.
 fn allow_lists(
     table: Option<&Table>,
     prefix_key: &str,
@@ -464,8 +477,9 @@ fn allow_lists(
 ) -> Result<AllowLists, WorkspaceError> {
     let key = format!("{prefix_key}.grants");
     let mut memory_write = None;
+    let mut records_default_access = DefaultAccess::default();
     let grants = match table.and_then(|t| t.get("grants")) {
-        None => return Ok((BTreeMap::new(), None)),
+        None => return Ok((BTreeMap::new(), None, records_default_access)),
         Some(Value::Table(grants)) => grants,
         Some(_) => return Err(WorkspaceError::config_invalid(&key, "must be a table")),
     };
@@ -496,12 +510,21 @@ fn allow_lists(
         let known = match (grant.as_str(), version) {
             ("memory_write", 5..) => MEMORY_WRITE_GRANT_KEYS_V5,
             ("memory_write", _) => MEMORY_WRITE_GRANT_KEYS,
+            ("records_write", 6..) => RECORDS_WRITE_GRANT_KEYS_V6,
             _ => GRANT_KEYS,
         };
         if let Some(unknown) = entry.keys().find(|k| !known.contains(&k.as_str())) {
             return Err(WorkspaceError::config_invalid(
                 &format!("{grant_key}.{unknown}"),
-                if grant != "memory_write" {
+                if grant == "records_write" {
+                    if RECORDS_WRITE_GRANT_KEYS_V6.contains(&unknown.as_str()) {
+                        "needs config_version = 6"
+                    } else if version >= 6 {
+                        "is not a known key; the records_write table holds allow and default_access"
+                    } else {
+                        "is not a known key; a grant table holds only `allow`"
+                    }
+                } else if grant != "memory_write" {
                     "is not a known key; a grant table holds only `allow`"
                 } else if MEMORY_WRITE_GRANT_KEYS_V5.contains(&unknown.as_str()) {
                     "needs config_version = 5"
@@ -514,6 +537,9 @@ fn allow_lists(
         }
         if grant == "memory_write" {
             memory_write = Some(memory_write_policy(entry, &grant_key)?);
+        }
+        if grant == "records_write" {
+            records_default_access = default_access(entry, &grant_key)?;
         }
         let allow_key = format!("{grant_key}.allow");
         let entries = Reader::new(Some(entry), &grant_key)
@@ -575,7 +601,22 @@ fn allow_lists(
         }
         lists.insert(grant.clone(), entries);
     }
-    Ok((lists, memory_write))
+    Ok((lists, memory_write, records_default_access))
+}
+
+/// `default_access` of a grant table: `private` (the default) or `space`.
+fn default_access(entry: &Table, grant_key: &str) -> Result<DefaultAccess, WorkspaceError> {
+    match Reader::new(Some(entry), grant_key)
+        .string("default_access")?
+        .as_deref()
+    {
+        None | Some("private") => Ok(DefaultAccess::Private),
+        Some("space") => Ok(DefaultAccess::Space),
+        Some(_) => Err(WorkspaceError::config_invalid(
+            &format!("{grant_key}.default_access"),
+            "must be \"private\" or \"space\"",
+        )),
+    }
 }
 
 /// `default_access`, `writers` and `agents_may_share` of `grants.memory_write` (phase 3 section
@@ -585,16 +626,7 @@ fn memory_write_policy(
     grant_key: &str,
 ) -> Result<MemoryWritePolicy, WorkspaceError> {
     let reader = Reader::new(Some(entry), grant_key);
-    let default_access = match reader.string("default_access")?.as_deref() {
-        None | Some("private") => DefaultAccess::Private,
-        Some("space") => DefaultAccess::Space,
-        Some(_) => {
-            return Err(WorkspaceError::config_invalid(
-                &format!("{grant_key}.default_access"),
-                "must be \"private\" or \"space\"",
-            ));
-        }
-    };
+    let default_access = default_access(entry, grant_key)?;
     let tokens = |name: &str| -> Result<Vec<String>, WorkspaceError> {
         let key = format!("{grant_key}.{name}");
         let tokens = reader.string_array(name)?.unwrap_or_default();

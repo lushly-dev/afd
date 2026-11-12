@@ -67,10 +67,11 @@ pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
 pub use umbel_sdk::{HostError as ServiceError, HostServices, Level, PipelineAttestation};
 
 /// The newest manifest version this host reads (`manifest_version`).
-pub const MANIFEST_VERSION: u32 = 5;
-/// Every manifest version this host reads: versions 2 to 5 are additions within protocol 1
-/// (D54, phase 3 section 2.3, phase 4 section 2.2, phase 5 section 2.3).
-pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3, 4, 5];
+pub const MANIFEST_VERSION: u32 = 6;
+/// Every manifest version this host reads: versions 2 to 6 are additions within protocol 1
+/// (D54, phase 3 section 2.3, phase 4 section 2.2, phase 5 section 2.3, the records host
+/// specification section 2).
+pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6];
 /// The plugin protocol version this host serves (`protocol`).
 pub const PLUGIN_PROTOCOL_VERSION: u32 = 1;
 /// The WIT world a component is built against.

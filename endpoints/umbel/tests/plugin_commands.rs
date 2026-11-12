@@ -131,10 +131,11 @@ async fn workspace_show_lists_the_plugins_and_the_versions() {
     );
     // Phase 5 section 2: lists name every version read side by side; `provenance` stays the
     // envelope version this host writes.
-    assert_eq!(shown["versions"]["config"], json!([1, 2, 3, 4, 5]));
-    assert_eq!(shown["versions"]["manifest"], json!([1, 2, 3, 4, 5]));
+    assert_eq!(shown["versions"]["config"], json!([1, 2, 3, 4, 5, 6]));
+    assert_eq!(shown["versions"]["manifest"], json!([1, 2, 3, 4, 5, 6]));
     assert_eq!(shown["versions"]["provenance"], 3);
-    assert_eq!(shown["versions"]["store"], 2);
+    // The records host specification, section 12.4: store traits version 3.
+    assert_eq!(shown["versions"]["store"], 3);
     for (shape, versions) in [
         ("principal", json!([0, 1])),
         ("envelope", json!([0, 1, 2, 3])),

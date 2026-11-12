@@ -51,7 +51,9 @@ fn every_version_constant_names_a_schema_file() {
     exists(format!("usage-event.v{}", umbel::USAGE_VERSION));
     exists(format!("person-decision.v{}", umbel::PERSON_VERSION));
     exists("protected-resource.v1".to_owned());
-    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5]);
+    // The records host specification adds configuration and manifest version 6 beside them
+    // (`config_v6.rs`, `manifest_v6.rs`).
+    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6]);
     assert_eq!(umbel::PRINCIPAL_VERSIONS, [0, 1]);
     assert_eq!(umbel::ENVELOPE_VERSIONS, [0, 1, 2, 3]);
     assert_eq!(umbel::EVENT_VERSIONS, [0, 1, 2, 3]);
@@ -134,7 +136,7 @@ fn the_version_5_config_schema_refuses_what_the_host_refuses() {
     let with = |edit: &dyn Fn(&mut Value)| edited(&base, |c| edit(c));
     let bad = [
         json!({ "config_version": 4, "auth": { "mode": "none" } }),
-        json!({ "config_version": 6 }),
+        json!({ "config_version": 7 }),
         // A non-loopback bind needs a hosted mode and TLS.
         json!({ "config_version": 5, "http": { "bind": "0.0.0.0:8443" } }),
         with(&|c| c["http"]["bind"] = json!("0.0.0.0:8443")),

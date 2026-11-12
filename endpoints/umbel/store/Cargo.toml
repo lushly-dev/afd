@@ -18,6 +18,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
 tempfile = { version = "3", optional = true }
+# The identical digest of a record lane (records host specification, section 8.1): NFKC and
+# Unicode default case folding. Pinned exactly, because a change of either crate's tables would
+# change stored digests; a new version is a new `lane::NORMALISATION_VERSION`. Both build for
+# `wasm32-wasip2`, as this crate must.
+caseless = "=0.2.2"
+unicode-normalization = "=0.1.26"
 
 [dev-dependencies]
 # `tests/suite_detects.rs` runs the suite against a deliberately broken fake.

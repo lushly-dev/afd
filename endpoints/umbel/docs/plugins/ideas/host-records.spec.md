@@ -15,7 +15,12 @@ Code paths are relative to `endpoints/umbel/`.
   that the plan carry on through its phases on its recommendations, with questions queued. **The owner has not yet
   read this specification.** Every decision here stays open to him (the
   [Ideas status](../../../../../docs/features/active/ideas/STATUS.md), Q2), and section
-  [18](#18-for-the-owner) lists what he could reasonably want otherwise. Nothing is implemented.
+  [18](#18-for-the-owner) lists what he could reasonably want otherwise. **Step B1 of section
+  [16](#16-implementation-plan), the shapes, is implemented** (2026-11-11), amended below
+  ([B1](#amendments-from-step-b1)): manifest version 6, configuration version 6, the lane's types and pure
+  functions, the `Embedder` trait, the SDK's eight methods answering `not_granted`, and the version constants.
+  Nothing acts on any of it yet: steps B2 to B6 are not implemented. **An independent review of step B1**
+  (2026-11-12) found one blocker and six improvements; all seven are taken, in the table after the amendments.
   - **Revised 2026-11-11 after an independent review** by one reviewer, whose verdict was "approve after the
     blockers": four blockers and nine improvements, about sixty citations sampled and found correct. All thirteen
     are taken, two of them in a different way from the one proposed.
@@ -26,7 +31,52 @@ Code paths are relative to `endpoints/umbel/`.
   - It refines D157 in three places, which D161 and D162 record and section [18](#18-for-the-owner) lists.
   - It differs from the plan's outline in several places, each because of something in the code. Section
     [18](#18-for-the-owner) marks them "differs from the plan".
-- **Last verified:** 2026-11-11, against the branch `lush/ideas-a2-records` at `083d3505`.
+- **Last verified:** 2026-11-12 for step B1 as revised after its review, on the branch `lush/ideas-b1-shapes` over
+  `main` at `e5de4194`: everything under "Run" below was run again on the revised code. The step was first
+  verified 2026-11-11, with the same commands.
+  - Read for the step, whole unless a part is named: `src/plugins/manifest.rs` (to line 1560, and where it tests
+    the manifest version after that), `manifest/v5.rs`, and `v4.rs`'s head; `src/workspace/config.rs`,
+    `plugins_config.rs` and `access.rs`, and `hosted.rs`'s key lists, key scan and `is_v5_key`;
+    `src/plugins/mod.rs`'s constants and grants; `src/doctor.rs`'s configuration checks; `store/src/lib.rs`,
+    `error.rs` and `canonical.rs`, `document.rs`'s record types and `check_record`, `memory/tokenizer.rs`'s header
+    and `tokens`; `sdk/src/store.rs` and `lib.rs`, and `cx.rs`'s `HostError` and the record methods of
+    `HostServices`; `src/versions.rs`, and `src/commands/workspace_show.rs`'s versions; in `tests/`, how
+    `manifest_v5.rs`, `config_v5.rs`, `schemas.rs` and `schemas/phase5.rs` pin a version's keys, and
+    `support/plugins.rs`; the structure of `schemas/plugin-manifest.v5.json` and `workspace-config.v5.json`;
+    `spec/plugin-manifest.md` (P3 to P6 and Umbel's profile) and the Umbel part of
+    `scripts/plugin-manifest.test.mjs`; `.github/workflows/umbel.yml`'s commands; and what the commit that added
+    version 5's shapes (`ed694c53`) changed outside its new files.
+  - Run, all passing, on macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from `endpoints/umbel/`: the Umbel gate of
+    `AGENTS.md`, each command by itself:
+    `cargo fmt --all --check`;
+    `cargo clippy --locked --workspace --all-targets -- -D warnings`;
+    `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings`;
+    `cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component`;
+    `cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp`;
+    `cargo test --locked --workspace` (262 `test result` lines printed here, from 246 test binaries and 16 doc-test
+    runs, all `ok`: 2430 tests passed, none failed, 1 ignored; the review's own run printed 265 such lines).
+  - Run beside the gate, all passing: `cargo build --locked --target wasm32-wasip2 -p umbel-store` and
+    `cargo build --locked -p umbel-store` (the two new dependencies, [A11](#amendments-from-step-b1));
+    `cargo +1.97.0 check --locked -p umbel-store -p umbel-sdk --all-targets` (the crates' minimum Rust; run
+    2026-11-11 and not again, since neither crate's library changed after it);
+    the six clippy legs of `.github/workflows/umbel.yml` that the gate does not name, each with `-D warnings`
+    (`-p umbel --lib --no-default-features`, the same with `--features mounted` and with `--features component`;
+    `-p umbel-sdk -p umbel-plugin-hello --features umbel-sdk/mounted,umbel-plugin-hello/mounted --all-targets`; the
+    four fixture components and `umbel-plugin-hello` with `--features umbel-plugin-hello/component` for
+    `wasm32-wasip2`; `-p umbel-plugin-knowledge --no-default-features --all-targets`);
+    `node --test scripts/plugin-manifest.test.mjs` (47 tests: Umbel's version 6 schema conforms to the shared
+    manifest's core); and, from the repository root, `biome check .`, `node scripts/run-tooling-tests.mjs` and the
+    portability, file-size, orphan-files, versions and boundaries checks.
+  - The five tests step B1's exit names: `tests/manifest_v6.rs` (13 tests), `tests/config_v6.rs` (21),
+    `store/tests/lane_normalise.rs` (9), `store/tests/lane_score.rs` (10) and `store/tests/lane_fixture.rs` (4).
+    The last recomputes sections [8.1](#81-identical)'s digest and [8.2](#82-words)'s scores in Rust, from
+    `umbel_store::lane` and the store's tokenizer, and they are this document's figures to four places: the first
+    time the code, and not the script below, produced them.
+  - Not run: Linux, which is where the Umbel workflow runs; the minimum Rust over the whole workspace (only
+    `umbel-store` and `umbel-sdk`, above); the todo example's conformance runs against Umbel; and `pnpm check` as
+    a whole, whose TypeScript builds and tests this change does not reach.
+- **Verified before that:** 2026-11-11, for the specification itself, against the branch `lush/ideas-a2-records` at
+  `083d3505`.
   - Read whole in the code: `store/src/traits.rs`, `document.rs`, `index.rs`, `access.rs`, `error.rs`, `lib.rs`,
     `memory/query.rs`; `store-embedded/src/schema.rs`, `documents.rs`, `connection.rs`, `lib.rs`, `sql.rs`,
     `memory/schema.rs`, `memory/rank.rs`; `sdk/src/store.rs` (to line 460); `src/person/mod.rs` (to line 400);
@@ -60,12 +110,19 @@ Code paths are relative to `endpoints/umbel/`.
     records across the three standings. A Python script that computed the worked scores of section
     [8.2](#82-words) and the digest of [8.1](#81-identical) from this document's formulas, taking its tokens from
     that SQLite's FTS5 `porter unicode61 remove_diacritics 2`.
-  - **No Rust was built or run.**
+  - **No Rust was built or run** for the specification; step B1's run is above.
   - The review's two measurements, on section 5.1's tables at 100 000 records, are the reviewer's and were not
     repeated here: about 1.0 second for the counts of 64 pooled records, and about 8 seconds for a rebuild in one
     transaction. Step B6 measures both.
 - **Done:** this document, its decision rows, and the amendments to the architecture and STATUS.md that it needs.
-- **Not done:** every step of section [16](#16-implementation-plan).
+  Step B1 of section [16](#16-implementation-plan), 2026-11-11, with its amendments
+  ([B1](#amendments-from-step-b1)).
+- **Not done:** steps B2 to B6 of section [16](#16-implementation-plan). Of what sections 2 and 3 describe, step B1
+  left to them everything that acts: the loader's `Shared.records` and `GateEntry.lane_writer` (B2), the second
+  own-collection rule and the mark (B3), and the model id and loading a model (B5). **Section 16 gives one part
+  of section [12.4](#124-workspace-show-and-plugin-show) to no step**: what `workspace-show` says of a space (its
+  person, `verifiedAdmits`, own collections and meaning) and the declared kinds `plugin-show` lists. B1 did the
+  three version numbers, which is all its row names; the rest needs a step before B6's exit reads it.
 - **Follow-ups:** the [table at the end](#follow-ups).
 
 ### Review response
@@ -104,6 +161,41 @@ blocker and six improvements in what the fixes had introduced. Changes:
 | F6 | A failed vector write after the commit was unspecified | No failure in step 8 fails the put: the host logs it and returns the `RecordMeta`, and the record waits for a rebuild (4.2) |
 | F7 | Two leftovers in section 2 | An undeclared put on a once-declared kind is said to touch `record_kinds`; and a changed `text` pointer is said to change every wording hash, so the rebuild removes every affirmation and evidence row of the kind, which the doctor counts and says first (section 2, 12.3) |
 
+### Amendments from step B1
+
+Step B1 (shapes) found these points this document had wrong, had given to two steps, or had not settled, and took the
+narrowest reading of each. None changes a decision row.
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A1 | Section [16](#16-implementation-plan) gives "command-writable collections across spaces, the own-collection rules" to step B3. Section [3](#3-configuration) makes the first rule a refusal when the configuration is read, and [15.2](#152-other-tests) puts its cases in `tests/config_v6.rs`, which is B1's exit. Had B1 accepted `own` on a command-writable collection, B3 would have refused a version 6 file B1 opened | B1 implements the first rule, as written and as resolved (a missing root to where it would be created, A2), and `Config::command_writable`, with every case 15.2 lists. B3 keeps the second rule (`STORE_OWN_SOURCE_MISMATCH`), the mark's four checks and the `StandingView` |
+| A2 | Section 3 gives `Config::command_writable(space, collection) -> bool`, and has the resolved form of an overlap checked "where `check_collection_roots` runs", with "a root that does not exist yet is checked when it does, at the next start". `Config` holds no workspace root, so the method could not resolve one. And a content write creates the directories its path lacks (`src/plugins/content.rs:238`), so a root that does not exist yet is already writable: left unresolved, a missing own root passed while another space's covered root reached its directory through a link, and a command could then write into it until the next start (the independent review's blocker, reproduced) | The command-writable collections are judged once, where the configuration is read (`ConfigFile::into_config`, which has the root), and `Config` keeps the answer. **Every root is resolved whether or not it exists** (`effective_root`, `src/workspace/records.rs`): followed through each symbolic link on its way, at most 40; the part that exists as the file system resolves it; a link whose target is missing to where the target would be; the segments after that as written. Section 3's sentence is replaced. **What this leaves, now stated in section 3, in 6.2's check 3 and in section 14**: the judgment is each host's at its own start, so a link changed under a running host is not seen until it restarts, and two hosts over one workspace that started at different times can disagree about a collection until both have. Section [6.2](#62-the-persons-own)'s check 3 reads this same answer in B3. The doctor's `config.parse` reports the first rule too |
+| A3 | Sections [1](#1-crate-layout-and-versions), [11.1](#111-umbel-store) and [12.4](#124-workspace-show-and-plugin-show) make the store traits version 3 where `DocumentStore` gains eleven methods. Section 16 gives B1 "the version constants" and gives the methods to B2 to B5 | `STORE_TRAITS_VERSION` is 3 from B1: version 3 begins with `lane` and `Embedder`, and the trait gains its methods under the same number in B2 to B5. `workspace-show` and `store-show` say 3. `StoreError`'s four variants and `ChangeKind::Standing` are not B1's: each arrives with the first method that answers it. The embedded store writes the constant into `meta.store_traits_version` when it creates a store, so a document store created between B1 and B2 holds 3 beside embedded schema 1; section [5.1](#51-tables-embedded-schema-version-2)'s migration sets the value, which leaves it right. **The memory store writes the same constant** when it is provisioned (`store-embedded/src/memory/pool.rs:408`), and 5.1's migration is the document store's alone: a memory store made from B1 on records 3, and one made before keeps 2, for good. Nothing reads `store_traits_version` in either store (the two inserts are its only uses), so nothing breaks and nothing is migrated; a later change that starts to read it must expect both values in memory stores |
+| A4 | Section [2](#2-declaration-d159) has the loader copy the declarations into `Shared.records` and set `GateEntry.lane_writer`. Nothing reads either before B2's put path, and a field nothing reads fails the gate's clippy | Left to B2. In B1 a declared kind is parsed, validated and kept on `Manifest.records`, and its records are written and read as an undeclared kind's. B2's first start therefore finds such a kind stale, as section 2 says of records written before a declaration |
+| A5 | `records` is a new top-level key of Umbel's profile of the shared plugin manifest. `spec/plugin-manifest.md`'s P3 lists every key a profile adds ("a change to this table is a change to this page"), and `scripts/plugin-manifest.test.mjs` pins the keys each of Umbel's schema versions adds. This document named neither | P3 gains `records`, top level, Umbel's from manifest version 6, and the page names `v6.json`; the test admits `records` from version 6 and holds the new schema to the core as it holds the other five. `tests/schemas.rs` gains the two version 6 stems, and each schema has two examples under `schemas/examples/` |
+| A6 | Section 2 fixes the text of five rules and gives its table's other rules no key and no text | Each names its key: `records[i].kind` (its shape; declared twice), `.standing` (true with no text pointer, which is that rule's and not "declares nothing"), `.text` and `.keys` (how many, a pointer's shape, named twice, a key that is also a text pointer), `.match` (its shape; not one of `text`), and `records` (more than 16). `records = []` declares nothing, so none of the five rules applies to it, as an empty `grants` reads today; in versions 1 to 5 it is the reserved key all the same. The rules run in this order: reserved, compiled, grants, the count, the entries, and the journal rule after memory's |
+| A7 | Sections 3 and [9.2](#92-models-in-the-configuration) leave these open | `own` without the space's `person` is refused at `own`, and `speaker` without `own = true` at `speaker`. A `meaning.model` that no `[models]` table declares is refused at `meaning.model`. A model's key that is another provider's is refused, naming the provider's own keys. `dimensions` is required for `http`, which has no other way to learn it. `weight` takes the integers 0 and 1 as well as a float. `dir` is checked as written, by a collection root's rule; that it resolves inside the workspace is B5's, where the files are read. A model's `name` and `version` refuse control characters, as `speaker` does by section 3; 9.2 gives each only a length. **An `http` model's `url` has one grammar, which the schema's pattern and the host's `check_model_url` both state**: `https://` and a host name of letters, digits, dots and hyphens or a bracketed IPv6 address, or `http://` and `127.` with three more octets of 0 to 255, or `[::1]` spelled so; then an optional port of 1 to 65535 without a leading zero; then an optional path, query or fragment of printable ASCII. So `http://127.999.0.1/`, a port of 99999 or 0, `https://a_b.example/` and `http://[0:0:0:0:0:0:0:1]/` are refused by both, where the first draft's schema and host each admitted some the other refused. `PluginInstance.records_default_access` holds the grant table's new key. `SpaceConfig` is no longer `Eq`, since `weight` is a float. **The model id is not computed in B1.** Section 9.2 takes it over "the canonical JSON of the table" and does not say whether that is the table as written or with its defaults filled, which decides whether `pooling = "mean"` written out names the same model as `pooling` left out. B5 settles it, by amendment |
+| A8 | Section 11.1 gives the lane's types and the names of three functions. What it left open | `Pointer::parse`'s message never holds the text. `RecordDecl` gains `to_json` and `match_pointer`, which `hash` and the fixture's test use. `extract` runs `RecordDecl::check` first; holds one string at a key pointer to the 1 to 256 bytes and no control character of a list's strings; and gives a wording hash for every kind with a text pointer, standing or not, as 5.1's column and [12.1](#121-store-records-reindex)'s comparison need. `normalise` has `match_digest` beside it. `score` holds `Corpus`, `Posting`, `idf`, `score`, `directed`, `words`, `cosine`, `fused` and `round4`, and a caller gives the postings in the terms' byte order, so every backend adds in one order. **A score with no shared term is 0 and never negative zero**: Rust's empty sum of floats is `-0.0`, which prints as `-0.0000` and serialises as `-0.0`, so `score` folds from `0.0` and `round4` adds `0.0`. **`cosine` answers 0.0 for two vectors of different lengths**, which are not of one model, where section 8.3 speaks only of two unit vectors; it is a floor for a pure function and not a rule a lane may lean on. For B5: a model whose vectors are not `dimensions` long is refused when it is loaded, and a stored vector of another length is another model id's, so a served lane never reaches that 0. `LaneRecord::to_json` writes `dev.umbel/standing` as `null` for a kind without standing. `ModelId` has `parse` and `as_str`. `Evidence`'s shape check is B3's. Every type derives `Debug`, `Clone` and `PartialEq`; only `Standing` has a wire form of its own |
+| A9 | Section [11.2](#112-the-sdk) puts the methods in `sdk/src/records.rs` and the three reads on `Reader` "through the `reads!` macro", which is private to `sdk/src/store.rs` | `record_read`, `record_find` and `record_match` are in that macro, in `store.rs`; `records.rs` holds the other five on `Cx` and all eight on `SpaceCx`. `HostServices`' defaults name the grant `records_write` for `record_put_cited`, `record_decide`, `doc_own_mark` and `doc_own_unmark`, `records` for the three reads, and `documents` for `doc_own` |
+| A10 | Section [15.1](#151-the-suite-d170) names two fixture files and `lane_fixture.rs` | B1 writes `store/fixtures/lane/records.json`: the five records of section 8.2, each with its access set and key values, section 8.1's three texts and their digest, and section 8.2's two texts with `N`, `L`, the identical ids, and every record's two directed scores and words score. `lane_fixture.rs` recomputes all of it, and holds the first rows to this document's figures as printed. `vectors.json` is left to the step whose suite reads it |
+| A11 | The [trajectory refresh](#trajectory-refresh) left unchecked that `unicode-normalization` and `caseless` build for `wasm32-wasip2`, and that the repository's licence policy admits `Unicode-3.0` | Both build for the host (`aarch64-apple-darwin`) and for `wasm32-wasip2`: `cargo build --locked --target wasm32-wasip2 -p umbel-store`, and the gate's component clippy and release builds, which compile both through `umbel-sdk`. Rust 1.97, the crates' minimum, checks them (`cargo +1.97.0 check --locked -p umbel-store -p umbel-sdk --all-targets`). `Cargo.lock` gains the two packages and nothing else: `tinyvec`, which `unicode-normalization` needs, was there. Their tables are Unicode 18.0.0 and Unicode 16.0.0, which `lane_normalise.rs` pins beside the two `=` requirements. Their licences are `(MIT OR Apache-2.0) AND Unicode-3.0`, and `MIT` for `caseless`, which carries a table made from Unicode's `CaseFolding-16.0.0.txt`. **The repository configures no licence policy**: it has no `deny.toml` and no `about.toml`, and no workflow runs a licence check, so there is nothing to hold the two to. `Unicode-3.0` was already in `Cargo.lock`, through `unicode-ident` and the `icu_*` crates |
+
+**An independent review of step B1** (2026-11-12) checked sections 2 and 3 as parsed, `normalise` and `score`, and
+the fixture, which it recomputed by itself, and reran part of the gate: formatting, workspace clippy, the
+workspace's tests and the `wasm32-wasip2` build of `umbel-store`, not the component clippy leg, the release fixture
+builds or the `hello-mcp` build. A focused pass confirmed the blocker closed after seven more attempts to evade it. It found one blocker and six improvements. All seven
+are taken:
+
+| # | Finding | Change made |
+| --- | --- | --- |
+| R1 | Blocker. A root that did not exist was never resolved, so `own = true` passed while its root was missing and another space's covered root reached the same directory through a link; a content write creates missing directories, so a command could then write into the own collection for the rest of the run. `tests/config_v6.rs` pinned the wrong answer for a missing `handbook` | Every root is resolved whether or not it exists (A2); section 3's sentence is replaced; the test is corrected and the reproduced case added, with a missing covered root, a link whose target is missing and a relative link |
+| R2 | A2 was a security statement that sat only in the amendment table | Stated in section 3, in 6.2's check 3 and in section 14, with that hosts started at different times can disagree |
+| R3 | A3 covered the document store only; the memory store writes the constant too | A3 says so: new memory stores record 3, old ones keep 2, and nothing reads the value |
+| R4 | The schema and the host disagreed on a model's `url`: the schema admitted `http://127.999.0.1/x`, a port of 99999 and `https://a_b.example/`; the host admitted `http://[0:0:0:0:0:0:0:1]/x` | One grammar in both (A7), with these cases in `the_schema_refuses_what_the_host_refuses` |
+| R5 | `cosine`'s 0.0 for vectors of two lengths, and the control characters refused in a model's `name` and `version`, were in the code and in no document | A8 and A7, with the note for B5 that a dimension mismatch is refused at load |
+| R6 | `lane_score.rs` asserted `directed(own, own)` is 1, which is one value divided by itself | The text is scored against a copy of its terms tokenised apart from another spelling, in both directions, and against the corpus's other records, which score below 1 |
+| R7 | The Status block said 262 results where the review's run printed 265 result lines, and STATUS.md ended "No Rust built or run" after describing a Rust run | The Status block says what the rerun printed here, 262 lines from 246 test binaries and 16 doc-test runs, and names the review's 265; STATUS.md's sentence is scoped to the specification's writing |
+
 ## What this specification serves
 
 The goal, from the plan: a thought captured through any agent lands at once, lasts, can be found by field and by
@@ -137,7 +229,7 @@ What the design leans on outside this repository, what was checked on 2026-11-11
 | FTS5 | **Not used by this lane** (D163), so no FTS5 option is leaned on. Its tokenizer's rules are, through the Rust port in `store/src/memory/tokenizer.rs`, which `store/tests/memory_tokenizer.rs` holds to FTS5's own tokens | Nothing |
 | `fastembed` (the ONNX provider) | `cargo info`: 7.7.0, Apache-2.0, Rust 1.88. Its source: `TextEmbedding::try_new_from_user_defined(UserDefinedEmbeddingModel, InitOptionsUserDefined)` takes the model and tokenizer files as bytes; every network path is behind the `hf-hub` feature; `ort` is pinned at `=2.0.0-rc.15`; `embed` takes `&mut self`. The architecture's table said 7.5 | That it builds on the workspace's toolchain with `default-features = false`; which TLS stack `ort/tls-rustls` brings; the size it adds; the licence of the ONNX Runtime binary the build fetches; each model's own licence, which is the deployer's to check |
 | `model2vec-rs` (the static provider) | `cargo info` and its source: 0.4.0, Rust 1.88, an MIT `LICENSE` file (crates.io shows no SPDX expression). `StaticModel::from_bytes(tokenizer, model, config, normalize)`, `encode`, `dim`; the feature `local-only` compiles out its downloads. It depends on `tokenizers` 0.21 and `safetensors` 0.5 | That its vectors equal the Python library's for `potion-base-8M`, which is what phase 0 measured: compare with `match.py embed` on a fixed list. That `tokenizers` builds without `onig`. The model's licence |
-| `unicode-normalization`, `caseless` (the identical digest) | `cargo info` and source: 0.1.26, `(MIT OR Apache-2.0) AND Unicode-3.0`, tables for Unicode 18.0.0; and 0.2.2, MIT, case folding for Unicode 16.0.0. Neither is in `Cargo.lock` today | That both build for `wasm32-wasip2`, which `umbel-store` must (`store/src/lib.rs:8`); that the repository's licence policy admits `Unicode-3.0` |
+| `unicode-normalization`, `caseless` (the identical digest) | `cargo info` and source: 0.1.26, `(MIT OR Apache-2.0) AND Unicode-3.0`, tables for Unicode 18.0.0; and 0.2.2, MIT, case folding for Unicode 16.0.0. Neither is in `Cargo.lock` today | That both build for `wasm32-wasip2`, which `umbel-store` must (`store/src/lib.rs:8`); that the repository's licence policy admits `Unicode-3.0`. **Checked in step B1** ([A11](#amendments-from-step-b1)): both build for it, and the repository configures no licence policy |
 | `reqwest` (the HTTP provider) | 0.13.5 is in `Cargo.lock` for the `auth` and `mounted` features, and its manifest has a `blocking` feature | That `blocking` composes with the host's runtime when called from a blocking thread |
 | Phase 0's figures | Read from its [results](../../../../../docs/features/active/ideas/prototype/README.md): across documents, 35 probes with a duplicate; within five candidates, words alone 0.886, fused 0.914 to 0.971; model labels, pooled pairs | They are indicative only (D167). The owner's check of the labels is queued (Ideas status, Q5) |
 | The phase 0 tokenizer | `match.py` tokenises with `[A-Za-z0-9]+`, drops tokens over 40 characters and stems with Snowball's English stemmer | **How much the lane's tokenizer changes the phase 0 rates.** The lane uses the memory tokenizer, which is Porter's first stemmer over `unicode61` tokens (section [8.2](#82-words)). Step B6 reruns phase 0's pairs |
@@ -349,17 +441,24 @@ input as a file and a document (`plugins/knowledge/src/proposal/apply.rs:761`).
 A collection is **command-writable** when some enabled instance's `grants.content_write.allow` covers it, or covers
 any collection of any space whose root overlaps its root. An allow entry covers `<space>/<cid>` when it is that
 string or `<space>/*` (`allows`, `src/plugins/store_services.rs:32`). Two roots overlap when they are equal or one
-contains the other, as written (`roots_overlap`, `src/workspace/config.rs:1250`) or once resolved (`resolve_root`,
-`config.rs:1318`). The check runs across spaces: today's overlap check is within one space only (`config.rs:1046`,
+contains the other, as written (`roots_overlap`, `src/workspace/config.rs:1250`) or once resolved, a root that does
+not exist yet to where it would be created (rule 1 below). The check runs across spaces: today's overlap check is within one space only (`config.rs:1046`,
 `:1341`), so two spaces may share a directory, and a file written through one is a file of the other.
 
 1. **No command writes files into an own collection.** A collection with `own = true` that is command-writable is
    `WORKSPACE_CONFIG_INVALID` at `spaces.<id>.collections.<cid>.own`: "a collection named as the person's own may
    not be written through content_write (plugins.<iid>.grants.content_write covers `<space>/<cid>`, whose root
-   overlaps it): a command's input would become a file there". The lexical form is checked when the configuration
-   is read, and the resolved form where `check_collection_roots` runs (`config.rs:1341`); a root that does not exist
-   yet is checked when it does, at the next start. So an own collection takes no knowledge proposal and no
-   verification write, and neither does any collection that shares its directory.
+   overlaps it): a command's input would become a file there". Both forms are checked when the configuration is
+   read, which a host does at its start. **A root that does not exist yet is resolved to where it would be
+   created** (amended in step B1, [A2](#amendments-from-step-b1)): a content write creates the directories its path lacks
+   (`src/plugins/content.rs:238`), so a missing root is already a place a command can write to. Each root is
+   followed through every symbolic link on its way: the part that exists is resolved as the file system resolves
+   it, a link whose target is missing is followed to where the target would be, and the segments after the last one
+   that exists are taken as written. This replaces "a root that does not exist yet is checked when it does, at the
+   next start", under which a missing own root passed while another space's covered root reached its directory
+   through a link, and a command could then write into the own collection for the rest of the run. So an own
+   collection takes no knowledge proposal and no verification write, and neither does any collection that shares
+   its directory.
 2. **A document put into an own collection equals its file.** `svc_doc_put` (`store_services.rs:367`), for a document
    whose collection is `own`, reads `<root>/<path>` through the confined reader `svc_content_read` uses
    (`src/plugins/content.rs:134`) and refuses the put unless the SHA-256 of those bytes is the document's
@@ -376,6 +475,17 @@ What these do not establish, in two parts, both the deployer's:
   history of it. A file written through `content_write` while a collection was covered stays on disk after the
   allow is removed, and then `own`, or a mark, passes both rules. A deployer who names a collection `own`, or takes
   a `content_write` allow away, is saying the files there now are the person's.
+- **What changes under a running host** (stated in step B1, [A2](#amendments-from-step-b1)). A host judges which collections are
+  command-writable once, when it reads the configuration at its start, with the symbolic links as they are then,
+  and keeps that answer for its life (`Config::command_writable`). A link made, moved or removed while it runs
+  changes which directory a root reaches, and the host does not see it until its next start. **Two hosts over one
+  workspace that started at different times can therefore disagree** about the same collection: one refuses a
+  configuration, or a mark, that the other accepts, until both have restarted. Changing links under a running host
+  is the deployer's, as a shell on the machine is.
+  One more case is known and left (found in B1's focused review): on a volume that ignores case, two paths that do
+  not yet exist and differ only in case are judged apart. A covered link to a missing `content/JOURNAL` beside an
+  own root `content/journal` passes until someone creates the directory, and the next start then refuses the
+  configuration. No command can make that directory through the link's spelling alone.
 
 Keeping an own collection free of text the person did not write is the deployer's.
 
@@ -716,7 +826,7 @@ A document is **the person's own now** when one of these holds for the document 
 - **By collection.** Its collection is configured `own = true` in the space. Section 3's two rules are what that
   rests on.
 - **By mark.** A `doc_own` row names it with `doc_hash` equal to its current content hash, and its collection is
-  not command-writable now (section 3).
+  not command-writable now (section 3), which is to say as this host judged it at its start ([A2](#amendments-from-step-b1)).
 
 When both hold, the basis is `collection`: the deployer's configuration is read first.
 
@@ -733,7 +843,9 @@ caller reads. A mark is refused unless all of these hold:
 1. The document is readable by the caller, else `NotFound`.
 2. Its current content hash equals `content_hash`, else `Conflict { current }`, so a person marks the bytes they
    were shown.
-3. **Its collection is not command-writable**, else `STORE_OWN_MARK_REFUSED`.
+3. **Its collection is not command-writable**, else `STORE_OWN_MARK_REFUSED`. The answer is the one the host took
+   when it read the configuration at its start (section 3, [A2](#amendments-from-step-b1)): a symbolic link changed since then is
+   not seen until the next start, and hosts that started at different times can disagree until they have.
 4. **It equals its file on disk**: the SHA-256 of `<root>/<path>`, read as section 3's rule 2 reads it, is its
    content hash, else `STORE_OWN_MARK_REFUSED`.
 
@@ -756,7 +868,7 @@ the host and not through a call's input.
 
 A document replaced by new content keeps its mark row, which no longer matches, so it stops being the person's own
 until marked again. A deleted document loses its row. A collection that becomes command-writable by a later change
-of configuration stops its marks from counting, without deleting them.
+of configuration stops its marks from counting, without deleting them, in each host from that host's next start.
 
 **Uploads.** No document arrives by upload today. The uploads specification (the plan's P17) must do one of two
 things, and this is its seam: store uploads outside own collections, or carry how a document arrived on a column of
@@ -1741,8 +1853,8 @@ The two built-ins answer `CommandError`s, with a suggestion as AFD requires:
 | An agent claims standing for its own write | No input of any service is read as standing. A decision row needs the person gate's proof for this call and this input (6.1); attested needs a document the host stores, at the cited hash, that is the person's own now (6.3). A body's fields are the plugin's |
 | An agent rewrites words a person affirmed | The wording of a standing record never changes (D160). A plugin version that drops the declaration to edit a wording leaves the kind stale, and the rebuild takes the standing from every record whose wording changed (section 2, 12.1) |
 | A compiled plugin sets `verbatim` wrongly | Possible: it is trusted code (D42, D162). The evidence records what it compared, so a replay finds it. Components cannot declare a kind |
-| A command's input becomes "the person's own" file | A collection cannot be `own` while it is command-writable, **in any space that shares its directory**, and a document put there must equal its file (section 3). Outside this, and stated: a shell on the machine, and files written there before the collection stopped being command-writable |
-| A command's input becomes the person's own by a mark | A mark is refused on a document whose collection is command-writable, and on one that is not its file on disk; a mark stops counting when its collection becomes command-writable (6.2). So an applied proposal cannot be marked while its collection is one. **Judged on the configuration now**: a file written while a collection was command-writable, and left after the allow was removed, passes; that is the deployer's (section 3) |
+| A command's input becomes "the person's own" file | A collection cannot be `own` while it is command-writable, **in any space that shares its directory**, and a document put there must equal its file (section 3). A root that does not exist yet counts where it would be created, since a content write makes missing directories. **Judged once, when a host reads the configuration at its start** ([A2](#amendments-from-step-b1)): a symbolic link changed under a running host is not seen until its next start, and two hosts started at different times can disagree until then. Outside this, and stated: a shell on the machine, links changed under a running host, and files written there before the collection stopped being command-writable |
+| A command's input becomes the person's own by a mark | A mark is refused on a document whose collection is command-writable, and on one that is not its file on disk; a mark stops counting when its collection becomes command-writable (6.2). So an applied proposal cannot be marked while its collection is one. **Judged on the configuration now, as each host read it at its start** ([A2](#amendments-from-step-b1)): a file written while a collection was command-writable, and left after the allow was removed, passes; and a link changed under a running host changes nothing for that host until it restarts, so hosts started at different times can disagree about one mark. Both are the deployer's (section 3) |
 | A person's mark is replayed onto other content | A mark names the content hash the person was shown and stops matching when the document changes (6.2) |
 | A reader learns of records it may not read | The reader clause is in every statement; statistics, totals, candidates and the missing-vector check count only the reader's records (5.3, 8.2, 9.4). The suite's differential cases hold it (15.1) |
 | A reader learns of a document it may not read, through a label | When the reader may not read the cited document, the label's source is `basis` alone: no id, hash, date, speaker, unit or rule (6.5). **One bit remains, and is accepted**: whether a record the reader can read is attested by a document it cannot. That bit moves when the unseen document is changed, deleted, marked or unmarked, and moves the record in and out of 6.6's filter and its totals. It says that some own document backs this wording now, and nothing of which. The alternative, reading such a record as unverified for that reader, would make standing differ by reader |
@@ -1893,9 +2005,9 @@ and a date of writing for a source (row 17).
 | Date | Raised by | Follow-up | Where it goes |
 | --- | --- | --- | --- |
 | 2026-11-11 | This specification | The PostgreSQL backend implements `DocumentStore`'s eleven new methods and passes the `lane`, `standing` and `matching` groups, with terms and key values found by lookup value and text sealed, as phase 6 plans for memory. Phase 6's specification predates them and is not edited here | The phase 6 owning agent, as an amendment to its specification before its step that certifies PostgreSQL |
-| 2026-11-11 | This specification | Store traits version 3 and workspace configuration version 6 are named by this document and by phase 6's. The second to land renumbers | Whichever of step B1 and phase 6's step 1 merges second |
+| 2026-11-11 | This specification | Store traits version 3 and workspace configuration version 6 are named by this document and by phase 6's. The second to land renumbers | Whichever of step B1 and phase 6's step 1 merges second. Step B1 (2026-11-11) takes both numbers in its pull request; `main` at `e5de4194` holds neither from phase 6, so once that pull request merges it is phase 6 that renumbers |
 | 2026-11-11 | This specification | The lane's tokenizer is not phase 0's. Phase 0's labelled pairs are scored again through `store-records-eval` | Step B6; the counts go in the Ideas status |
-| 2026-11-11 | This specification | The trajectory refresh's unchecked rows: the three provider crates' builds, sizes and licences, `model2vec-rs` against the Python library's vectors, the two Unicode crates on `wasm32-wasip2` | Steps B1 and B5, each recorded as an amendment here |
+| 2026-11-11 | This specification | The trajectory refresh's unchecked rows: the three provider crates' builds, sizes and licences, `model2vec-rs` against the Python library's vectors, the two Unicode crates on `wasm32-wasip2` | Steps B1 and B5, each recorded as an amendment here. B1's part, the two Unicode crates, is done ([A11](#amendments-from-step-b1)); the three provider crates stay with B5 |
 | 2026-11-11 | This specification | A plugin must pass the label through unchanged and affirm only what its preview showed (6.1, 6.5). Nothing in the host enforces either | The plugin's specification (the plan's step A3) and its review |
 | 2026-11-11 | This specification | The plugin's rule for "whole units, word for word" has no replay command. One that re-runs each record's evidence against the stored document and reports disagreements would make D162's "can be replayed" a check | The plugin's specification (step A3) |
 | 2026-11-11 | This specification | A gate report does not expire. A lane measured at 3 000 records is still served at 60 000 | Taken in the revision after the independent review: the report is bound to the lane it measured, and the doctor warns when the kind holds more than four times the records it held at the eval (10) |
