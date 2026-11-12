@@ -1,6 +1,7 @@
-//! The suite's `lane` group fails on a broken backend (records host specification, section
-//! 15.1): the embedded store behind a wrapper that breaks one rule of the lane at a time, as
-//! `index_suite_detects.rs` does for the index. Unbroken, the wrapper passes the group.
+//! The suite's `lane` and `standing` groups fail on a broken backend (records host
+//! specification, section 15.1): the embedded store behind a wrapper that breaks one rule of
+//! the lane, or of standing, at a time, as `index_suite_detects.rs` does for the index.
+//! Unbroken, the wrapper passes both groups.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -12,12 +13,14 @@ use std::sync::Arc;
 use serde_json::Value;
 use umbel_store::conformance::{Outcome, Stores, run_groups};
 use umbel_store::lane::{
-    DeclaredPut, FindOrder, FindPage, LaneLimits, LaneRecord, LaneStatus, LaneWrite, RecordDecl,
-    RecordFind, ReindexReport, StandingView,
+    Decided, Decision, DeclaredPut, FindOrder, FindPage, LaneLimits, LaneRecord, LaneStatus,
+    LaneWrite, Marked, OwnInfo, OwnMark, RecordDecision, RecordDecl, RecordFind, ReindexReport,
+    Standing, StandingView,
 };
 use umbel_store::{
-    AccessSet, Change, DocMeta, Document, DocumentStore, DocumentWrite, Embedder, Envelope, Expect,
-    ListQuery, MemoryFlag, Page, ReaderFilter, Record, RecordMeta, Rev, StoreError,
+    AccessSet, Change, ContentHash, DocMeta, Document, DocumentStore, DocumentWrite, Embedder,
+    Envelope, Expect, ListQuery, MemoryFlag, Page, ReaderFilter, Record, RecordMeta, Rev,
+    StoreError,
 };
 use umbel_store_embedded::{SqliteStore, StoreOptions};
 
@@ -41,6 +44,23 @@ enum Fault {
     CutNeverSet,
     /// An undeclared put is followed by nothing: a rebuild runs at once, so the mark is lost.
     StaleServed,
+    /// A read forgets which collections a command can write files into, so a mark counts
+    /// wherever it was made.
+    MarksCountWhereCommandsWrite,
+    /// A read admits every standing, whatever its view admits.
+    AdmitIgnored,
+    /// A decision reaches a record whoever decides.
+    DecideIgnoresReader,
+    /// A withdrawal writes nothing.
+    WithdrawKept,
+    /// A label shows its source to a reader who may not read the cited document.
+    SourceShownToEveryone,
+    /// A mark naming other content than the document's is made on the document's.
+    MarkIgnoresContent,
+    /// Every stored document counts as held to its file, whoever put it.
+    EveryDocumentHeld,
+    /// A read counts the decisions and marks of a person the space no longer has.
+    FormerPersonCounts,
 }
 
 thread_local! {
@@ -64,6 +84,21 @@ fn everything() -> ReaderFilter {
     .unwrap()
 }
 
+/// The view a faulty read runs under.
+fn faulty_view(fault: Fault, view: &StandingView) -> StandingView {
+    let mut view = view.clone();
+    match fault {
+        Fault::MarksCountWhereCommandsWrite => view.command_writable.clear(),
+        Fault::AdmitIgnored => {
+            view.admit = vec![Standing::Unverified, Standing::Attested, Standing::Affirmed];
+        }
+        // The suite's first person, whoever the view of the read names.
+        Fault::FormerPersonCounts => view.person.push("human:local".to_owned()),
+        _ => {}
+    }
+    view
+}
+
 fn readable(record: &LaneRecord, reader: &ReaderFilter) -> bool {
     AccessSet::new(record.record.envelope.access.iter().map(String::as_str))
         .is_ok_and(|access| reader.admits(&access))
@@ -71,7 +106,19 @@ fn readable(record: &LaneRecord, reader: &ReaderFilter) -> bool {
 
 impl DocumentStore for Faulty {
     fn put_document(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta, StoreError> {
+        if self.fault == Fault::EveryDocumentHeld {
+            return self.inner.put_document_held(doc, expect);
+        }
         self.inner.put_document(doc, expect)
+    }
+    fn put_document_held(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta, StoreError> {
+        self.inner.put_document_held(doc, expect)
+    }
+    fn hold_document(&self, doc: &str, hash: &ContentHash) -> Result<bool, StoreError> {
+        self.inner.hold_document(doc, hash)
+    }
+    fn unheld_documents(&self, collection: &str) -> Result<u64, StoreError> {
+        self.inner.unheld_documents(collection)
     }
     fn delete_document(
         &self,
@@ -177,7 +224,18 @@ impl DocumentStore for Faulty {
         if self.fault == Fault::ReadIgnoresReader && !reader.is_derivation() {
             return self.inner.read_record(ns, decl, id, view, &everything());
         }
-        self.inner.read_record(ns, decl, id, view, reader)
+        let view = &faulty_view(self.fault, view);
+        let mut found = self.inner.read_record(ns, decl, id, view, reader)?;
+        if self.fault == Fault::SourceShownToEveryone
+            && let Some(record) = &mut found
+        {
+            // The label a reader of every document would be given.
+            record.label = self
+                .inner
+                .read_record(ns, decl, id, view, &everything())?
+                .and_then(|seen| seen.label);
+        }
+        Ok(found)
     }
     fn find_records(
         &self,
@@ -187,7 +245,15 @@ impl DocumentStore for Faulty {
         view: &StandingView,
         reader: &ReaderFilter,
     ) -> Result<FindPage, StoreError> {
-        let honest = self.inner.find_records(ns, decl, query, view, reader);
+        let asked = view.admit.clone();
+        let view = &faulty_view(self.fault, view);
+        let honest = self
+            .inner
+            .find_records(ns, decl, query, view, reader)
+            .map(|page| FindPage {
+                admitted: asked,
+                ..page
+            });
         if reader.is_derivation() {
             return honest;
         }
@@ -229,6 +295,78 @@ impl DocumentStore for Faulty {
             Fault::CutNeverSet => honest.map(|page| FindPage { cut: false, ..page }),
             _ => honest,
         }
+    }
+    fn decide_record(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        decision: RecordDecision,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<Decided, StoreError> {
+        match self.fault {
+            Fault::DecideIgnoresReader if !reader.is_derivation() => {
+                self.inner
+                    .decide_record(ns, decl, id, decision, view, &everything())
+            }
+            Fault::WithdrawKept if decision.decision == Decision::Withdraw => {
+                // Answer as if it had been withdrawn, and write nothing.
+                let mut answered = self.inner.decide_record(
+                    ns,
+                    decl,
+                    id,
+                    RecordDecision {
+                        decision: Decision::Affirm,
+                        ..decision
+                    },
+                    view,
+                    reader,
+                )?;
+                answered.label.standing = Standing::Unverified;
+                answered.label.affirmed = None;
+                Ok(answered)
+            }
+            _ => self
+                .inner
+                .decide_record(ns, decl, id, decision, view, reader),
+        }
+    }
+    fn mark_document_own(
+        &self,
+        mark: OwnMark,
+        reader: &ReaderFilter,
+    ) -> Result<Marked, StoreError> {
+        match self.inner.mark_document_own(mark.clone(), reader) {
+            Err(StoreError::Conflict {
+                current: Some(current),
+            }) if self.fault == Fault::MarkIgnoresContent => self.inner.mark_document_own(
+                OwnMark {
+                    doc_hash: ContentHash::parse(&current)?,
+                    ..mark
+                },
+                reader,
+            ),
+            other => other,
+        }
+    }
+    fn unmark_document_own(
+        &self,
+        doc: &str,
+        at: &str,
+        trace_id: Option<&str>,
+        reader: &ReaderFilter,
+    ) -> Result<Rev, StoreError> {
+        self.inner.unmark_document_own(doc, at, trace_id, reader)
+    }
+    fn document_own(
+        &self,
+        doc: &str,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<Option<OwnInfo>, StoreError> {
+        self.inner
+            .document_own(doc, &faulty_view(self.fault, view), reader)
     }
     fn reindex_records(
         &self,
@@ -311,12 +449,17 @@ fn factory(dir: &Path, space: &str) -> Result<Stores, StoreError> {
 
 /// The `lane` cases that fail on a backend with `fault`.
 fn failures(fault: Fault) -> Vec<&'static str> {
+    failures_of("lane", fault)
+}
+
+/// The cases of `group` that fail on a backend with `fault`.
+fn failures_of(group: &str, fault: Fault) -> Vec<&'static str> {
     FAULT.set(fault);
-    let report = run_groups(&factory, None, &["lane"]);
+    let report = run_groups(&factory, None, &[group]);
     assert!(report.skipped().is_empty(), "{:?}", report.skipped());
     report
-        .group("lane")
-        .expect("the lane group ran")
+        .group(group)
+        .expect("the group ran")
         .cases
         .iter()
         .filter(|case| matches!(case.outcome, Outcome::Failed(_)))
@@ -374,6 +517,63 @@ fn each_lane_fault_fails_where_it_should() {
         ),
     ] {
         let failed = failures(fault);
+        assert!(
+            failed.contains(&case),
+            "{fault:?} is not caught by {case}: {failed:?}"
+        );
+    }
+}
+
+#[test]
+fn an_unfaulted_wrapper_passes_the_standing_group() {
+    assert_eq!(failures_of("standing", Fault::None), Vec::<&str>::new());
+}
+
+#[test]
+fn each_standing_fault_fails_where_it_should() {
+    for (fault, case) in [
+        (
+            Fault::MarksCountWhereCommandsWrite,
+            "a_mark_does_not_count_where_the_view_names_the_collection_command_writable",
+        ),
+        (
+            Fault::AdmitIgnored,
+            "admit_narrows_reads_finds_totals_and_statistics",
+        ),
+        (
+            Fault::DecideIgnoresReader,
+            "a_decision_reaches_only_a_record_its_reader_may_read_whatever_a_read_admits",
+        ),
+        (
+            Fault::WithdrawKept,
+            "affirm_and_withdraw_each_write_once_with_a_change_row",
+        ),
+        (
+            Fault::SourceShownToEveryone,
+            "a_reader_who_cannot_read_the_cited_document_sees_the_basis_alone",
+        ),
+        (
+            Fault::SourceShownToEveryone,
+            "an_unreadable_cited_document_moves_only_that_records_standing",
+        ),
+        (
+            Fault::MarkIgnoresContent,
+            "a_mark_names_the_content_it_was_made_on_and_is_withdrawn_by_an_unmark",
+        ),
+        (
+            Fault::MarkIgnoresContent,
+            "a_changed_document_lapses_attestation_and_citing_it_again_restores_it",
+        ),
+        (
+            Fault::EveryDocumentHeld,
+            "a_document_of_an_own_collection_attests_only_once_the_host_held_it_to_its_file",
+        ),
+        (
+            Fault::FormerPersonCounts,
+            "a_former_persons_decisions_and_marks_are_set_aside",
+        ),
+    ] {
+        let failed = failures_of("standing", fault);
         assert!(
             failed.contains(&case),
             "{fault:?} is not caught by {case}: {failed:?}"

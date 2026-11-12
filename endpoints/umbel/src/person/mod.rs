@@ -294,6 +294,66 @@ pub(crate) fn attested(
     })
 }
 
+/// The proof the plugin gate's person gate accepted for this run of `command` with the validated
+/// `input`, as the assurance a standing fact records (the records host specification, section
+/// 6.1, check 2; D115, D161): `None` when the call carries none. `person` is the least assurance
+/// the command's manifest names for each surface.
+///
+/// It has the person gate's own arms (`middleware::person_gate`), with [`attested`] in place of
+/// [`admit`]: the same checks, without spending the decision again, which the gate did for this
+/// call before the handler ran, and at a terminal one check more than the gate makes. So it
+/// answers by surface and never by what a call says of itself:
+///
+/// - at the CLI, for a command whose `person.cli` is `verified`: a decision on the person page
+///   for this command, this surface and the digest of this input, by the person the caller is;
+/// - at the CLI otherwise: the mark the CLI set after its prompt was answered, naming this
+///   command, **and** the CLI's human-present mark naming it (`authority::cli_mark`), which
+///   the CLI withholds when an agent variable is set. Standing is at least as strict as
+///   memory's `person` (D86): a process at a terminal that carries an agent variable passes
+///   the plugin gate and still has no proof;
+/// - over MCP, for a command whose `person.mcp` is `verified`: a decision on the person page, as
+///   at the CLI;
+/// - anywhere else (a batch, an in-process agent, the library, a surface the command names no
+///   assurance for): nothing. The terminal mark never stands in for `verified`.
+///
+/// Both marks are host-owned context fields: the CLI's single-command path and the relay set
+/// them, the context hook clears them on every MCP call, and `umbel batch` drops a request's
+/// context. A mark names one command, so a call made under another command's context (a
+/// pipeline's step, a command a handler runs in process) carries none for its own name, and a
+/// decision's mark names one input, so the same command with another input carries none either.
+///
+/// Only the caller decides which command and input it asks about: the host asks for the command
+/// it is running and the input it validated (`Services::build`), and gives a call that names no
+/// command no proof at all.
+pub(crate) fn gate_proof(
+    config: &Config,
+    command: &str,
+    person: crate::plugins::PersonDecl,
+    input: &Value,
+    context: &CommandContext,
+) -> Option<umbel_store::Assurance> {
+    use crate::plugins::Assurance as Level;
+    let verified = |surface: &str| {
+        attested(config, command, input, context)
+            .filter(|decision| decision.surface == surface)
+            .map(|decision| {
+                umbel_store::Assurance::verified(
+                    &decision.namespace,
+                    &decision.auth_time,
+                    &decision.acr,
+                )
+            })
+    };
+    match context.interface {
+        Some(CommandInterface::Cli) if person.cli == Level::Verified => verified("cli"),
+        Some(CommandInterface::Cli) => (crate::middleware::confirmed_by_a_person(command, context)
+            && crate::authority::cli_mark(context) == Some(command))
+        .then(umbel_store::Assurance::terminal),
+        Some(CommandInterface::Mcp) if person.mcp == Some(Level::Verified) => verified("mcp"),
+        _ => None,
+    }
+}
+
 /// The call a person is about to be asked to decide, when this run of `command` is that call's
 /// preview run by the host before begin ([`PERSON_CHECK_KEY`]); `None` otherwise.
 pub(crate) fn check_of(command: &str, context: &CommandContext) -> Option<umbel_sdk::PersonCheck> {
@@ -570,6 +630,168 @@ mod tests {
             serde_json::to_value(mark).unwrap(),
         );
         assert!(attested(&config, "gate-approve", &input(), &elsewhere).is_none());
+    }
+
+    /// The records host specification, section 6.1, check 2: the proof a standing fact is
+    /// written under is the one the person gate accepted for this command, on this surface, for
+    /// this input, by this caller. Every other call gets none.
+    #[test]
+    fn the_gate_proof_is_for_this_command_surface_input_and_caller() {
+        use crate::plugins::{Assurance as Level, PersonDecl};
+        let config = config();
+        let terminal = PersonDecl::default();
+        let over_mcp = PersonDecl {
+            mcp: Some(Level::Verified),
+            ..terminal
+        };
+        let at_page = PersonDecl {
+            cli: Level::Verified,
+            ..terminal
+        };
+        let proof = |command: &str, person: PersonDecl, input: &Value, context: &CommandContext| {
+            gate_proof(&config, command, person, input, context)
+        };
+
+        // Over MCP: a decision on the person page for this very call.
+        let good = context("notes-review", &input(), true);
+        let assurance = proof("notes-review", over_mcp, &input(), &good).unwrap();
+        assert_eq!(
+            assurance,
+            umbel_store::Assurance::verified("corp", "2026-11-08T00:00:00.000Z", "phr")
+        );
+        assert!(assurance.is_valid());
+        // A decision for another command: one the handler runs in process, or a pipeline's
+        // step, under the decided call's context.
+        assert!(proof("notes-capture", over_mcp, &input(), &good).is_none());
+        // For another input.
+        let other = serde_json::json!({ "proposal": "p-2" });
+        assert!(proof("notes-review", over_mcp, &other, &good).is_none());
+        // For another person: a mark of a namespace the caller is not in, and a caller with no
+        // person behind it.
+        let mut elsewhere = good.clone();
+        let mut mark = PersonMark::of(&good).unwrap();
+        mark.namespace = "else".into();
+        elsewhere.extra.insert(
+            PERSON_DECISION_KEY.to_owned(),
+            serde_json::to_value(mark).unwrap(),
+        );
+        assert!(proof("notes-review", over_mcp, &input(), &elsewhere).is_none());
+        let mut service = good.clone();
+        let mut principal = Principal::from_context(&good).unwrap();
+        principal.actor = Actor::new(ActorKind::Service).with_id("corp/sync");
+        principal.apply(&mut service);
+        assert!(proof("notes-review", over_mcp, &input(), &service).is_none());
+        // Without `humanPresent`, without the mark, or with a mark that is not the page's.
+        let absent = context("notes-review", &input(), false);
+        assert!(proof("notes-review", over_mcp, &input(), &absent).is_none());
+        let mut unmarked = good.clone();
+        unmarked.extra.remove(PERSON_DECISION_KEY);
+        assert!(proof("notes-review", over_mcp, &input(), &unmarked).is_none());
+        let mut forged = good.clone();
+        forged.extra.insert(
+            PERSON_DECISION_KEY.to_owned(),
+            serde_json::json!({ "command": "notes-review", "level": "verified" }),
+        );
+        assert!(proof("notes-review", over_mcp, &input(), &forged).is_none());
+        // A command that names no assurance over MCP takes none there, whatever the call
+        // carries; nor does a decision made for MCP stand at the CLI, or the other way.
+        assert!(proof("notes-review", terminal, &input(), &good).is_none());
+        assert!(proof("notes-review", at_page, &input(), &good).is_none());
+        let mut moved = good.clone();
+        moved.interface = Some(CommandInterface::Cli);
+        assert!(proof("notes-review", at_page, &input(), &moved).is_none());
+        assert!(proof("notes-review", over_mcp, &input(), &moved).is_none());
+
+        // At a terminal: the mark the CLI set after its prompt, naming this command.
+        // What the CLI sets for a person at a terminal who answered the prompt of `confirmed`:
+        // the confirmed mark and the human-present mark, both naming the command it ran.
+        let cli = |confirmed: Option<&str>| {
+            let mut context = CommandContext::new();
+            context.interface = Some(CommandInterface::Cli);
+            Principal::new(
+                Actor::new(ActorKind::Human).with_id("local"),
+                Transport::Cli,
+                Authentication::Process,
+            )
+            .apply(&mut context);
+            if let Some(confirmed) = confirmed {
+                context.extra.insert(
+                    crate::middleware::HUMAN_CONFIRMED_KEY.to_owned(),
+                    Value::from(confirmed),
+                );
+                context.extra.insert(
+                    crate::authority::HUMAN_PRESENT_KEY.to_owned(),
+                    Value::from(confirmed),
+                );
+            }
+            context
+        };
+        let confirmed = cli(Some("notes-review"));
+        assert_eq!(
+            proof("notes-review", terminal, &input(), &confirmed),
+            Some(umbel_store::Assurance::terminal())
+        );
+        // The terminal's mark is not bound to an input: one confirmation is one command.
+        assert!(proof("notes-review", terminal, &other, &confirmed).is_some());
+        // No mark; a mark naming another command, as a pipeline's step runs under its
+        // pipeline's; and a mark that is not a command's name.
+        assert!(proof("notes-review", terminal, &input(), &cli(None)).is_none());
+        assert!(proof("notes-review", terminal, &input(), &cli(Some("notes-pipe"))).is_none());
+        let mut truthy = cli(None);
+        truthy.extra.insert(
+            crate::middleware::HUMAN_CONFIRMED_KEY.to_owned(),
+            Value::Bool(true),
+        );
+        assert!(proof("notes-review", terminal, &input(), &truthy).is_none());
+        // An agent variable: the CLI asks and marks the confirmation, and withholds the
+        // human-present mark. The plugin gate passes such a call; it carries no proof.
+        let mut agent_variable = confirmed.clone();
+        agent_variable
+            .extra
+            .remove(crate::authority::HUMAN_PRESENT_KEY);
+        assert!(proof("notes-review", terminal, &input(), &agent_variable).is_none());
+        // Nor does a human-present mark for another command, a caller that is not a human, or
+        // one that did not come through the CLI's own transport.
+        let mut elsewhere_present = confirmed.clone();
+        elsewhere_present.extra.insert(
+            crate::authority::HUMAN_PRESENT_KEY.to_owned(),
+            Value::from("notes-pipe"),
+        );
+        assert!(proof("notes-review", terminal, &input(), &elsewhere_present).is_none());
+        for (kind, transport) in [
+            (ActorKind::Agent, Transport::Cli),
+            (ActorKind::Human, Transport::Library),
+        ] {
+            let mut other = confirmed.clone();
+            let authentication = if transport == Transport::Cli {
+                Authentication::Process
+            } else {
+                Authentication::Embedder
+            };
+            Principal::new(Actor::new(kind).with_id("local"), transport, authentication)
+                .apply(&mut other);
+            assert!(proof("notes-review", terminal, &input(), &other).is_none());
+        }
+        // The terminal mark never stands in for `verified`, at the CLI or over MCP.
+        assert!(proof("notes-review", at_page, &input(), &confirmed).is_none());
+        let mut over = confirmed.clone();
+        over.interface = Some(CommandInterface::Mcp);
+        assert!(proof("notes-review", over_mcp, &input(), &over).is_none());
+        assert!(proof("notes-review", terminal, &input(), &over).is_none());
+        // Anything that is neither the CLI nor MCP (a batch, an in-process agent, the library)
+        // has no proof, whatever marks it carries.
+        for interface in [None, Some(CommandInterface::Agent)] {
+            let mut context = confirmed.clone();
+            context.interface = interface;
+            for person in [terminal, at_page, over_mcp] {
+                assert!(proof("notes-review", person, &input(), &context).is_none());
+            }
+            let mut decided = good.clone();
+            decided.interface = interface;
+            for person in [terminal, at_page, over_mcp] {
+                assert!(proof("notes-review", person, &input(), &decided).is_none());
+            }
+        }
     }
 
     #[test]

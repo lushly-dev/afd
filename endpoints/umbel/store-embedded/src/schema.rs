@@ -2,8 +2,22 @@
 //! lane's (records host specification, section 5.1).
 
 /// `PRAGMA user_version` of the schema this build writes and serves. Version 2 adds the record
-/// lane's tables ([`LANE_SCHEMA`]); a store at version 1 gains them when it is opened.
-pub const SCHEMA_VERSION: u32 = 2;
+/// lane's tables ([`LANE_SCHEMA`]) and version 3 the table of documents held to their files
+/// ([`HELD_SCHEMA`]); a store at an earlier version gains them when it is opened.
+pub const SCHEMA_VERSION: u32 = 3;
+
+/// Schema version 3 (records host specification, section 5.1): which documents the host held to
+/// their file on disk, and at which content. A row is written only by the host, when it read
+/// `<root>/<path>` and found its hash to be the document's. It hangs from `documents`, so a
+/// deleted document loses it, and it names a content hash, so it says nothing of a document
+/// whose content changed. A table and not a column: a store that migrates then has the schema
+/// of a new one, statement for statement.
+pub(crate) const HELD_SCHEMA: &str = "
+CREATE TABLE doc_held (
+    doc      TEXT PRIMARY KEY REFERENCES documents (doc) ON DELETE CASCADE,
+    doc_hash TEXT NOT NULL                -- the content the host held to its file on disk
+) STRICT, WITHOUT ROWID;
+";
 
 /// Version 1's tables. Tables are `STRICT`. Access is a join table per kind of row, so a reader filter is a semi-join
 /// inside the same statement as the selection, ordering and limit. `change_access` holds the

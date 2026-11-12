@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 use serde_json::Value;
 use umbel_store::conformance::Stores;
 use umbel_store::lane::{
-    DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, RecordDecl, RecordFind,
-    ReindexReport, StandingView,
+    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, OwnInfo, OwnMark,
+    RecordDecision, RecordDecl, RecordFind, ReindexReport, StandingView,
 };
 use umbel_store::{
     AccessSet, Change, ChangeKind, ContentHash, Direction, DocGraph, DocMeta, Document,
@@ -343,6 +343,59 @@ impl DocumentStore for Fake {
         _view: &StandingView,
         _reader: &ReaderFilter,
     ) -> Result<FindPage, StoreError> {
+        Err(no_lane())
+    }
+
+    // The fake keeps no record of which documents the host held to their files: nothing reads
+    // the fact but the record lane, which it does not have.
+    fn put_document_held(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta, StoreError> {
+        self.put_document(doc, expect)
+    }
+
+    fn hold_document(&self, _doc: &str, _hash: &ContentHash) -> Result<bool, StoreError> {
+        Err(no_lane())
+    }
+
+    fn unheld_documents(&self, _collection: &str) -> Result<u64, StoreError> {
+        Err(no_lane())
+    }
+
+    fn decide_record(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _id: &str,
+        _decision: RecordDecision,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<Decided, StoreError> {
+        Err(no_lane())
+    }
+
+    fn mark_document_own(
+        &self,
+        _mark: OwnMark,
+        _reader: &ReaderFilter,
+    ) -> Result<Marked, StoreError> {
+        Err(no_lane())
+    }
+
+    fn unmark_document_own(
+        &self,
+        _doc: &str,
+        _at: &str,
+        _trace_id: Option<&str>,
+        _reader: &ReaderFilter,
+    ) -> Result<Rev, StoreError> {
+        Err(no_lane())
+    }
+
+    fn document_own(
+        &self,
+        _doc: &str,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<Option<OwnInfo>, StoreError> {
         Err(no_lane())
     }
 

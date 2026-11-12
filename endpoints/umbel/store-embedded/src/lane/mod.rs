@@ -7,6 +7,10 @@
 //! (section 5.3), so a total, a candidate and a cursor never count a record the reader may not
 //! read. A derivation reader is refused: the lane is never read without a reader, except by the
 //! rebuild and the status, which return counts and no record.
+//!
+//! A standing kind's records are labelled at each read ([`standing`], section 6): affirmed by a
+//! decision row, attested by evidence that cites a document that is the person's own now, or
+//! unverified. Nothing of that is read from a body or from a call.
 
 mod find;
 mod rank;
@@ -17,10 +21,10 @@ mod write;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use umbel_store::lane::{LaneRecord, LaneState, RecordDecl};
-use umbel_store::{MemoryFlag, ReaderFilter, StoreError};
+use umbel_store::{MemoryFlag, ReaderFilter, Rev, StoreError};
 
 use crate::documents::record_from_row;
-use crate::error::{Fail, to_i64};
+use crate::error::{Fail, to_i64, to_u64};
 use crate::sql::Sql;
 
 /// The columns every read of a lane record selects, over `record_lane l` joined to `records r`.
@@ -123,17 +127,27 @@ fn flags_from(text: &str) -> Result<Vec<MemoryFlag>, Fail> {
         .collect()
 }
 
-/// One row of [`RECORD_COLUMNS`] as the lane record a service returns, with its lane number.
-fn lane_record_from_row(row: &Row<'_>, decl: &RecordDecl) -> Result<(i64, LaneRecord), Fail> {
-    Ok((
-        row.get(7)?,
-        LaneRecord {
+/// One row of [`RECORD_COLUMNS`]: the lane record a service returns, with what the order and
+/// the label need of its lane row. The record carries no label until [`standing::label`] gives
+/// it one.
+struct Read {
+    lane: i64,
+    /// The revision of the record's first put.
+    created: Rev,
+    record: LaneRecord,
+}
+
+fn read_from_row(row: &Row<'_>) -> Result<Read, Fail> {
+    Ok(Read {
+        lane: row.get(7)?,
+        created: to_u64(row.get(8)?)?,
+        record: LaneRecord {
             record: record_from_row(row)?,
             created_at: row.get(9)?,
             flags: flags_from(&row.get::<_, String>(10)?)?,
-            label: standing::label(decl),
+            label: None,
         },
-    ))
+    })
 }
 
 /// A position of a declaration's list as SQLite's integer.

@@ -37,6 +37,8 @@ pub(crate) use check::run as check_plugin;
 #[cfg(feature = "testkit")]
 pub(crate) use check::single_plugin_config;
 pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
+#[cfg(feature = "store-embedded")]
+pub(crate) use content::file_hash as own_file_hash;
 pub(crate) use doctor::{
     checks as doctor_checks, first_class_check, loaded_check, pack_checks_check, pipelines_check,
 };

@@ -8,7 +8,7 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use umbel_store::StoreError;
 
 use crate::error::{Fail, map_sql};
-use crate::schema::{LANE_SCHEMA, SCHEMA, SCHEMA_VERSION};
+use crate::schema::{HELD_SCHEMA, LANE_SCHEMA, SCHEMA, SCHEMA_VERSION};
 
 /// How many idle connections the pool keeps.
 const MAX_IDLE: usize = 8;
@@ -190,6 +190,13 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
                     [key, value.as_str()],
                 )?;
             }
+        }
+        if version < 3 {
+            // Schema version 3: which documents the host held to their files. A store at
+            // version 1 or 2 gains the table empty: none of its documents was held, so none
+            // is the person's own by collection until the host holds it
+            // (`store-documents-hold`, or the next put of an own collection's document).
+            tx.execute_batch(HELD_SCHEMA)?;
         }
         tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         tx.commit()?;

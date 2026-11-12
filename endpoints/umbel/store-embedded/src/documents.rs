@@ -7,8 +7,8 @@ use rusqlite::{
 use serde::de::DeserializeOwned;
 use serde_json::Value as Json;
 use umbel_store::lane::{
-    DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, RecordDecl, RecordFind,
-    ReindexReport, StandingView,
+    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, OwnInfo, OwnMark,
+    RecordDecision, RecordDecl, RecordFind, ReindexReport, StandingView,
 };
 use umbel_store::{
     Change, ChangeKind, ContentHash, DocMeta, Document, DocumentStore, DocumentWrite, Embedder,
@@ -58,6 +58,31 @@ pub(crate) fn insert_change(
     tx.execute(
         "INSERT INTO changes (rev, kind, target, content_hash, trace_id, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![rev, kind, target, content_hash, envelope.trace_id, envelope.observed_at],
+    )?;
+    for token in access {
+        tx.execute(
+            "INSERT INTO change_access (rev, token) VALUES (?1, ?2)",
+            params![rev, token],
+        )?;
+    }
+    Ok(())
+}
+
+/// Append a change of kind `standing` (records host specification, section 5.1): a person's
+/// decision on a record or mark on a document. It carries no content hash, and is readable by
+/// the access set its record or document had when it was made.
+pub(crate) fn insert_standing_change(
+    tx: &Transaction<'_>,
+    rev: Rev,
+    target: &str,
+    trace_id: Option<&str>,
+    at: &str,
+    access: &[String],
+) -> Result<(), Fail> {
+    let rev = to_i64(rev)?;
+    tx.execute(
+        "INSERT INTO changes (rev, kind, target, content_hash, trace_id, at) VALUES (?1, 'standing', ?2, NULL, ?3, ?4)",
+        params![rev, target, trace_id, at],
     )?;
     for token in access {
         tx.execute(
@@ -118,8 +143,15 @@ fn meta_from_row(row: &Row<'_>) -> Result<DocMeta, Fail> {
     })
 }
 
-impl DocumentStore for SqliteStore {
-    fn put_document(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta, StoreError> {
+impl SqliteStore {
+    /// Write a document; `held` says the host held this content to its file on disk, which is
+    /// recorded in the same transaction. A put that is not held clears the fact.
+    fn write_document(
+        &self,
+        doc: DocumentWrite,
+        expect: Expect,
+        held: bool,
+    ) -> Result<DocMeta, StoreError> {
         doc.check(self.space())?;
         let record = doc.metadata_json()?;
         let flags = serde_json::to_string(&doc.flags)
@@ -150,9 +182,56 @@ impl DocumentStore for SqliteStore {
             for token in doc.access.tokens() {
                 tx.execute("INSERT INTO doc_access (doc, token) VALUES (?1, ?2)", params![doc.id, token])?;
             }
+            if held {
+                tx.execute(
+                    "INSERT INTO doc_held (doc, doc_hash) VALUES (?1, ?2)
+                     ON CONFLICT (doc) DO UPDATE SET doc_hash = excluded.doc_hash",
+                    params![doc.id, doc.content_hash.as_str()],
+                )?;
+            } else {
+                tx.execute("DELETE FROM doc_held WHERE doc = ?1", [&doc.id])?;
+            }
             insert_change(&tx, rev, "put", &doc.id, doc.content_hash.as_str(), &doc.envelope, doc.access.tokens())?;
             tx.commit()?;
             Ok(doc.meta(rev))
+        })
+    }
+}
+
+impl DocumentStore for SqliteStore {
+    fn put_document(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta, StoreError> {
+        self.write_document(doc, expect, false)
+    }
+
+    fn put_document_held(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta, StoreError> {
+        self.write_document(doc, expect, true)
+    }
+
+    fn hold_document(&self, doc: &str, hash: &ContentHash) -> Result<bool, StoreError> {
+        check_identifier("a document id", doc)?;
+        self.pool().with(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            // Only for the content the document has now: the fact is of that content.
+            let held = tx.execute(
+                "INSERT INTO doc_held (doc, doc_hash)
+                 SELECT d.doc, d.content_hash FROM documents d WHERE d.doc = ?1 AND d.content_hash = ?2
+                 ON CONFLICT (doc) DO UPDATE SET doc_hash = excluded.doc_hash",
+                params![doc, hash.as_str()],
+            )?;
+            tx.commit()?;
+            Ok(held == 1)
+        })
+    }
+
+    fn unheld_documents(&self, collection: &str) -> Result<u64, StoreError> {
+        self.pool().with(|conn| {
+            let unheld: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM documents d WHERE d.collection = ?1 AND NOT EXISTS
+                   (SELECT 1 FROM doc_held h WHERE h.doc = d.doc AND h.doc_hash = d.content_hash)",
+                [collection],
+                |row| row.get(0),
+            )?;
+            Ok(to_u64(unheld)?)
         })
     }
 
@@ -296,6 +375,7 @@ impl DocumentStore for SqliteStore {
                         "put" => ChangeKind::Put,
                         "delete" => ChangeKind::Delete,
                         "record" => ChangeKind::Record,
+                        "standing" => ChangeKind::Standing,
                         other => {
                             return Err(StoreError::Corrupt(format!(
                                 "unknown change kind `{other}`"
@@ -424,6 +504,45 @@ impl DocumentStore for SqliteStore {
         reader: &ReaderFilter,
     ) -> Result<FindPage, StoreError> {
         self.lane_find(ns, decl, query, view, reader)
+    }
+
+    fn decide_record(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        id: &str,
+        decision: RecordDecision,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<Decided, StoreError> {
+        self.lane_decide(ns, decl, id, &decision, view, reader)
+    }
+
+    fn mark_document_own(
+        &self,
+        mark: OwnMark,
+        reader: &ReaderFilter,
+    ) -> Result<Marked, StoreError> {
+        self.own_mark(&mark, reader)
+    }
+
+    fn unmark_document_own(
+        &self,
+        doc: &str,
+        at: &str,
+        trace_id: Option<&str>,
+        reader: &ReaderFilter,
+    ) -> Result<Rev, StoreError> {
+        self.own_unmark(doc, at, trace_id, reader)
+    }
+
+    fn document_own(
+        &self,
+        doc: &str,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<Option<OwnInfo>, StoreError> {
+        self.own_of(doc, view, reader)
     }
 
     fn reindex_records(

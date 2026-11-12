@@ -4,9 +4,11 @@
 //! read with the rest of that table in `plugins_config.rs`.
 //!
 //! This module parses, validates and stores them, with every rule section 3 checks when the
-//! configuration is read, each a `WORKSPACE_CONFIG_INVALID` naming the key. Nothing acts on them
-//! yet: standing, the own-source check, matching by meaning and the models themselves arrive in
-//! that specification's steps B3 to B5.
+//! configuration is read, each a `WORKSPACE_CONFIG_INVALID` naming the key. The record services
+//! act on a space's `person` and `verified_admits`, a collection's `own` and `speaker`, and the
+//! command-writable collections (`crate::plugins`' record and store services). Nothing acts on
+//! `[spaces.<id>.meaning]` and `[models]` yet: matching by meaning and the models themselves
+//! arrive in that specification's step B5.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;

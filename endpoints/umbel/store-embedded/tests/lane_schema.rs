@@ -1,9 +1,11 @@
-//! Embedded schema version 2 (records host specification, sections 5.1 and 15.2): a version 1
-//! store, with records in it, opens as version 2 with its records intact; every table and index
-//! of section 5.1 is there; the schema version is a build constant; and a kind declared after
-//! records of it exist is stale until a rebuild.
+//! The embedded schema's versions 2 and 3 (records host specification, sections 5.1 and 15.2):
+//! a version 1 store, with records in it, and a version 2 store, with a declared kind's lane in
+//! it, each open as version 3 with their rows intact; every table and index of section 5.1 is
+//! there; the schema version is a build constant; a kind declared after records of it exist is
+//! stale until a rebuild; and no document of a migrated store is held to its file.
 //!
-//! `fixtures/store-v1.sql` is a dump of a store the code before this schema wrote.
+//! `fixtures/store-v1.sql` and `store-v2.sql` are dumps of stores the code before each schema
+//! wrote.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -26,6 +28,7 @@ use umbel_store::{
 use umbel_store_embedded::{SCHEMA_VERSION, SqliteStore, StoreOptions};
 
 const V1: &str = include_str!("fixtures/store-v1.sql");
+const V2: &str = include_str!("fixtures/store-v2.sql");
 
 fn database(dir: &Path) -> PathBuf {
     dir.join("store").join("store.sqlite3")
@@ -86,6 +89,7 @@ fn view() -> StandingView {
     StandingView {
         own: Vec::new(),
         command_writable: Vec::new(),
+        person: Vec::new(),
         admit: vec![Standing::Unverified, Standing::Attested, Standing::Affirmed],
     }
 }
@@ -120,7 +124,7 @@ fn find_all(order: FindOrder) -> RecordFind {
 
 #[test]
 fn the_schema_version_is_a_build_constant() {
-    assert_eq!(SCHEMA_VERSION, 2);
+    assert_eq!(SCHEMA_VERSION, 3);
     let dir = tempfile::tempdir().expect("a temporary directory");
     let store = open_with(dir.path(), "main", StoreOptions::default()).expect("opening");
     assert_eq!(store.info().expect("info").schema_version, SCHEMA_VERSION);
@@ -152,6 +156,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
         "record_evidence",
         "record_decisions",
         "doc_own",
+        "doc_held",
     ] {
         assert!(tables.contains(table), "{table} is missing: {tables:?}");
     }
@@ -168,7 +173,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
     }
     // Every lane table is STRICT, and the digest index is partial.
     for (kind, name, sql) in objects(&raw) {
-        if kind == "table" && (name.starts_with("record_") || name == "doc_own") {
+        if kind == "table" && (name.starts_with("record_") || name.starts_with("doc_")) {
             assert!(sql.contains("STRICT"), "{name} is not STRICT");
         }
         if name == "record_lane_by_digest" {
@@ -183,6 +188,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
         ("record_vectors", "record_lane"),
         ("record_evidence", "record_lane"),
         ("doc_own", "documents"),
+        ("doc_held", "documents"),
     ] {
         let found: Vec<(String, String)> = raw
             .prepare(&format!("PRAGMA foreign_key_list({table})"))
@@ -202,7 +208,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
 }
 
 #[test]
-fn a_version_1_store_opens_as_version_2_with_its_records_intact() {
+fn a_version_1_store_opens_as_the_current_version_with_its_records_intact() {
     let dir = tempfile::tempdir().expect("a temporary directory");
     let raw = version_1(dir.path());
     let before = objects(&raw);
@@ -221,9 +227,9 @@ fn a_version_1_store_opens_as_version_2_with_its_records_intact() {
     drop(raw);
 
     let store = open_with(dir.path(), "main", StoreOptions::default()).expect("migrating");
-    assert_eq!(store.info().expect("info").schema_version, 2);
+    assert_eq!(store.info().expect("info").schema_version, SCHEMA_VERSION);
     let raw = Connection::open(database(dir.path())).expect("a raw connection");
-    assert_eq!(user_version(&raw), 2);
+    assert_eq!(user_version(&raw), SCHEMA_VERSION);
     assert_eq!(meta(&raw, "space").as_deref(), Some("main"));
     assert_eq!(meta(&raw, "store_traits_version").as_deref(), Some("3"));
     assert_eq!(meta(&raw, "lane_normalisation").as_deref(), Some("1"));
@@ -243,8 +249,15 @@ fn a_version_1_store_opens_as_version_2_with_its_records_intact() {
         objects(&fresh),
         "a migrated store has a new store's schema"
     );
-    // The lane is empty: the migration indexes nothing and declares nothing.
-    for table in ["record_kinds", "record_lane", "record_terms", "record_keys"] {
+    // The lane is empty: the migration indexes nothing, declares nothing and holds no
+    // document to a file.
+    for table in [
+        "record_kinds",
+        "record_lane",
+        "record_terms",
+        "record_keys",
+        "doc_held",
+    ] {
         let count: i64 = raw
             .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
             .expect("count");
@@ -311,6 +324,109 @@ fn a_version_1_store_opens_as_version_2_with_its_records_intact() {
     assert_eq!(objects(&raw), after);
 }
 
+/// The version 2 store of the fixture, as a file under `dir`.
+fn version_2(dir: &Path) -> Connection {
+    std::fs::create_dir_all(dir.join("store")).expect("the store directory");
+    let raw = Connection::open(database(dir)).expect("a raw connection");
+    raw.query_row("PRAGMA journal_mode=WAL", [], |r| r.get::<_, String>(0))
+        .expect("WAL");
+    raw.execute_batch(V2).expect("the version 2 dump");
+    assert_eq!(user_version(&raw), 2, "the fixture is a version 2 store");
+    raw
+}
+
+#[test]
+fn a_version_2_store_opens_as_version_3_with_its_lane_intact_and_no_document_held() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let raw = version_2(dir.path());
+    let before = objects(&raw);
+    let rows = |raw: &Connection, sql: &str| -> Vec<String> {
+        raw.prepare(sql)
+            .expect("prepare")
+            .query_map([], |r| r.get(0))
+            .expect("query")
+            .collect::<Result<_, _>>()
+            .expect("rows")
+    };
+    let tables = [
+        "SELECT doc || content_hash || quote(rev) FROM documents ORDER BY 1",
+        "SELECT id || content_hash || quote(rev) FROM records ORDER BY 1",
+        "SELECT id || wording_hash || quote(lane) || quote(created_rev) FROM record_lane ORDER BY 1",
+        "SELECT term || quote(lane) || quote(tf) FROM record_terms ORDER BY 1",
+        "SELECT value || quote(lane) FROM record_keys ORDER BY 1",
+        "SELECT kind || decl_hash || quote(stale) || quote(generation) FROM record_kinds ORDER BY 1",
+        "SELECT quote(rev) || kind || target FROM changes ORDER BY 1",
+    ];
+    let rows_before: Vec<Vec<String>> = tables.iter().map(|sql| rows(&raw, sql)).collect();
+    assert_eq!(rows_before[0].len(), 2, "two documents");
+    assert_eq!(rows_before[2].len(), 2, "two lane rows");
+    drop(raw);
+
+    let store = open_with(dir.path(), "main", StoreOptions::default()).expect("migrating");
+    assert_eq!(store.info().expect("info").schema_version, 3);
+    let raw = Connection::open(database(dir.path())).expect("a raw connection");
+    assert_eq!(user_version(&raw), 3);
+    // Version 2's tables and indexes are as they were, statement for statement, and their rows.
+    let after = objects(&raw);
+    for object in &before {
+        assert!(after.contains(object), "{} changed", object.1);
+    }
+    let rows_after: Vec<Vec<String>> = tables.iter().map(|sql| rows(&raw, sql)).collect();
+    assert_eq!(rows_after, rows_before);
+    // The migrated schema is a new store's.
+    let fresh_dir = tempfile::tempdir().expect("a temporary directory");
+    drop(open_with(fresh_dir.path(), "main", StoreOptions::default()).expect("a new store"));
+    let fresh = Connection::open(database(fresh_dir.path())).expect("a raw connection");
+    assert_eq!(
+        after,
+        objects(&fresh),
+        "a migrated store has a new store's schema"
+    );
+    // The one new table is empty: no document a version 2 store holds was held to its file,
+    // so none is the person's own by collection until the host holds it.
+    let held: i64 = raw
+        .query_row("SELECT COUNT(*) FROM doc_held", [], |r| r.get(0))
+        .expect("count");
+    assert_eq!(held, 0);
+    assert_eq!(store.unheld_documents("journal").expect("unheld"), 1);
+    assert_eq!(store.unheld_documents("talks").expect("unheld"), 1);
+
+    // The lane serves as it did: the kind is ready under its declaration, with no rebuild.
+    let note = RecordDecl {
+        standing: true,
+        text: vec![Pointer::parse("/statement").expect("a pointer")],
+        keys: vec![Pointer::parse("/bed").expect("a pointer")],
+        matched: Some(0),
+        ..note()
+    };
+    assert_eq!(
+        store.lane_status("notes", &note).expect("status").state,
+        LaneState::Ready
+    );
+    let own = StandingView {
+        own: vec![umbel_store::lane::OwnCollection {
+            id: "journal".to_owned(),
+            speaker: None,
+        }],
+        person: vec!["human:local".to_owned()],
+        ..view()
+    };
+    let read = store
+        .read_record("notes", &note, "n1", &own, &everyone())
+        .expect("read")
+        .expect("the note is readable");
+    assert_eq!(read.record.body["statement"], "Prune roses in late winter.");
+    assert_eq!(
+        read.label.expect("a label").standing,
+        Standing::Unverified,
+        "a standing record of a migrated store reads unverified"
+    );
+    // Two handles opening it again migrate nothing more.
+    let again = open_with(dir.path(), "main", StoreOptions::default()).expect("opening again");
+    assert_eq!(again.info().expect("info").schema_version, 3);
+    assert_eq!(objects(&raw), after);
+}
+
 #[test]
 fn the_migration_sets_the_traits_version_a_store_was_created_under() {
     // A store created before the records host specification's step B1 recorded traits version 2.
@@ -353,7 +469,7 @@ fn two_handles_opening_a_version_1_store_migrate_it_once() {
         assert_eq!(head.expect("head"), 6);
     }
     let raw = Connection::open(database(dir.path())).expect("a raw connection");
-    assert_eq!(user_version(&raw), 2);
+    assert_eq!(user_version(&raw), SCHEMA_VERSION);
 }
 
 #[test]

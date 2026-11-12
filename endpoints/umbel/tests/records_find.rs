@@ -4,8 +4,8 @@
 //! and access: a reader who may not read a record never sees it, in a find by key, a find by
 //! text, a total or a cursor, whoever it reads as.
 //!
-//! What a call admits (`standings`, `verified_only`) is that specification's step B3: until
-//! then a call that asks is refused, and a standing record reads unverified.
+//! What a call admits (`standings`, `verified_only`) narrows a find of a standing kind and is
+//! refused on a kind without standing; `records_standing.rs` holds what standing is.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -491,25 +491,31 @@ async fn each_rule_of_a_find_refuses_with_its_code() {
     )
     .await;
     assert!(!long.contains("canary"), "{long}");
-    // On a standing kind a call cannot ask for a standing yet: it is refused, never answered as
-    // if it had not asked.
-    for (op, query) in [
-        ("find", json!({ "kind": "note", "verifiedOnly": true })),
-        ("find", json!({ "kind": "note", "standings": ["affirmed"] })),
+    // On a standing kind a call may ask for a standing: it is answered, with what it admitted.
+    // Nothing here is affirmed or attested, so a call for verified content is given nothing.
+    for (query, admitted) in [
         (
-            "read",
-            json!({ "kind": "note", "id": "a", "verifiedOnly": true }),
+            json!({ "kind": "note", "verifiedOnly": true }),
+            json!(["affirmed"]),
         ),
         (
-            "read",
-            json!({ "kind": "note", "id": "a", "standings": ["unverified"] }),
+            json!({ "kind": "note", "standings": ["affirmed"] }),
+            json!(["affirmed"]),
+        ),
+        (
+            json!({ "kind": "note", "standings": ["attested"], "verifiedOnly": true }),
+            json!([]),
         ),
     ] {
-        assert_eq!(
-            refused(&host, op, query).await,
-            "invalid: RECORD_QUERY_INVALID: standings and verified_only are not served yet for a standing kind"
-        );
+        let page = result(&run(&host, agent("ada"), "notes-read", "find", query).await);
+        assert_eq!(page["admitted"], admitted, "{page}");
+        assert_eq!(page["total"], 0, "{page}");
+        assert_eq!(page["ids"], json!([]), "{page}");
     }
+    let unverified = json!({ "kind": "note", "standings": ["unverified"] });
+    let page = result(&run(&host, agent("ada"), "notes-read", "find", unverified).await);
+    assert_eq!(page["admitted"], json!(["unverified"]), "{page}");
+    assert_ne!(page["total"], 0, "{page}");
     assert_eq!(
         refused(&host, "find", json!({ "kind": "seed" })).await,
         "invalid: RECORD_KIND_NOT_DECLARED: the kind seed is not a declared record kind of notes"

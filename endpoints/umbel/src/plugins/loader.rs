@@ -967,6 +967,8 @@ fn prepare(
                         cli_only: command.expose.cli
                             && !mcp_registered(command, hosted)
                             && !command.expose.agent,
+                        require_human: command.require_human,
+                        person: command.person.unwrap_or_default(),
                     },
                 )
             })

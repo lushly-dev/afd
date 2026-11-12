@@ -312,6 +312,56 @@ pub struct Evidence {
     pub verbatim: bool,
 }
 
+/// The longest speaker, in characters.
+pub const MAX_SPEAKER_CHARS: usize = 128;
+
+/// A speaker's shape (sections 3 and 11.1): 1 to 128 characters, no control character.
+#[must_use]
+pub fn is_speaker(text: &str) -> bool {
+    (1..=MAX_SPEAKER_CHARS).contains(&text.chars().count()) && !text.chars().any(char::is_control)
+}
+
+impl Evidence {
+    /// The evidence's shape (section 11.1), before anything is read: a document id, 1 to
+    /// [`MAX_EVIDENCE_UNITS`] unit numbers of at least 1 in ascending order, a rule
+    /// `<name>/<version>` and a speaker of 1 to 128 characters. Whether the document is stored
+    /// with that content hash, and readable by the writer, is the store's check in the put's
+    /// transaction.
+    ///
+    /// # Errors
+    /// [`StoreError::EvidenceInvalid`], naming the rule and never a value.
+    pub fn check(&self) -> Result<()> {
+        let refuse = |rule: &str| Err(StoreError::EvidenceInvalid(rule.to_owned()));
+        if crate::document::check_identifier("a document id", &self.doc).is_err() {
+            return refuse(
+                "doc must be a document id of 1 to 512 bytes without a control character",
+            );
+        }
+        if self.units.is_empty() || self.units.len() > MAX_EVIDENCE_UNITS {
+            return refuse("units must hold 1 to 256 unit numbers");
+        }
+        if self.units[0] == 0 || self.units.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return refuse("units must be at least 1, ascending and distinct");
+        }
+        let rule_ok = self.rule.split_once('/').is_some_and(|(name, version)| {
+            is_slug(name)
+                && (1..=6).contains(&version.len())
+                && version.bytes().all(|byte| byte.is_ascii_digit())
+        });
+        if !rule_ok {
+            return refuse("rule must be <name>/<version>, such as sentences/1");
+        }
+        if self
+            .speaker
+            .as_deref()
+            .is_some_and(|text| !is_speaker(text))
+        {
+            return refuse("speaker must be 1 to 128 characters without a control character");
+        }
+        Ok(())
+    }
+}
+
 /// What the host adds to a declared put.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaneWrite {
@@ -341,13 +391,20 @@ pub struct OwnCollection {
     pub speaker: Option<String>,
 }
 
-/// What the host derives from the configuration for one call. Only the host builds one.
+/// What the host derives from the configuration for one call. Only the host builds one: it is
+/// how the deployer's configuration reaches a read, and nothing a call passes is in it but the
+/// standings the call asked to be narrowed to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StandingView {
     /// The space's own collections.
     pub own: Vec<OwnCollection>,
     /// The space's collections a command can write files into.
     pub command_writable: Vec<String>,
+    /// The principal strings the space's one person decides as: the configured person, and the
+    /// principal it stands for. A decision affirms, and a mark counts, only when it was made by
+    /// one of them, so a space whose person changes sets the former person's decisions aside.
+    /// Empty when the space has no person: nothing reads affirmed and no mark counts.
+    pub person: Vec<String>,
     /// The standings the call admits (section 6.6's `admitted`).
     pub admit: Vec<Standing>,
 }
@@ -372,14 +429,25 @@ impl OwnBasis {
     }
 }
 
-/// The decision that affirms a record now.
+/// The decision that affirms a record now, as its reader may see it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Affirmation {
-    /// The person's effective principal.
-    pub by: String,
     /// When, ISO 8601 UTC.
     pub at: String,
-    /// How the person was proven.
+    /// The level the person was proven at: `terminal` or `verified`.
+    pub level: String,
+    /// Who decided and how they were proven; `None` for a reader who is neither the operator
+    /// nor the space's person. A store answers it whole; the host withholds it.
+    pub seen: Option<AffirmationSeen>,
+}
+
+/// What a label shows of a decision to the operator and to the space's person.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AffirmationSeen {
+    /// The person's effective principal.
+    pub by: String,
+    /// How the person was proven, whole: for a decision on the person page it names the
+    /// identity namespace, the login's time and its `acr`.
     pub assurance: Assurance,
 }
 
@@ -427,11 +495,17 @@ impl StandingLabel {
     /// of a document the reader may not read.
     #[must_use]
     pub fn to_json(&self) -> Value {
+        // A reader who is neither the operator nor the person sees when and at what level,
+        // and nothing of who.
         let affirmed = self.affirmed.as_ref().map(|affirmed| {
+            let seen = affirmed.seen.as_ref();
             json!({
-                "by": affirmed.by,
+                "by": seen.map(|seen| &seen.by),
                 "at": affirmed.at,
-                "assurance": affirmed.assurance,
+                "assurance": match seen {
+                    Some(seen) => json!(seen.assurance),
+                    None => json!({ "level": affirmed.level }),
+                },
             })
         });
         let source = self.source.as_ref().map(|source| {
@@ -702,6 +776,55 @@ pub struct RecordDecision {
     pub trace_id: Option<String>,
 }
 
+impl RecordDecision {
+    /// What every backend refuses of a decision before it reads anything: a principal, a time
+    /// and one of the two assurances the person gate records.
+    ///
+    /// # Errors
+    /// [`StoreError::Invalid`].
+    pub fn check(&self) -> Result<()> {
+        check_decider(&self.by, &self.at, &self.assurance)
+    }
+}
+
+/// Who decided, when and how: the three members a decision and a mark share.
+fn check_decider(by: &str, at: &str, assurance: &Assurance) -> Result<()> {
+    if by.is_empty() || by.chars().any(char::is_control) {
+        return Err(StoreError::invalid(
+            "a decision names the person who made it",
+        ));
+    }
+    if at.is_empty() || at.chars().any(char::is_control) {
+        return Err(StoreError::invalid("a decision names when it was made"));
+    }
+    if !assurance.is_valid() {
+        return Err(StoreError::invalid(
+            "a decision's assurance must be the terminal's or the person page's",
+        ));
+    }
+    Ok(())
+}
+
+/// What a decision did (section 6.1): the record's label after it, and the revision it took.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Decided {
+    /// The record's label now, whatever a read would admit.
+    pub label: StandingLabel,
+    /// The revision the decision took; `None` when it wrote nothing: an affirmation of a record
+    /// already affirmed, or a withdrawal from one that is not.
+    pub rev: Option<Rev>,
+}
+
+/// What a mark did (section 6.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Marked {
+    /// The revision the mark holds: the one this call took, or the stored one when the mark
+    /// changed nothing.
+    pub rev: Rev,
+    /// Whether this call took that revision.
+    pub wrote: bool,
+}
+
 /// A person's mark that a document is their own, as the host hands it to the store.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnMark {
@@ -719,6 +842,27 @@ pub struct OwnMark {
     pub assurance: Assurance,
     /// The call's trace id.
     pub trace_id: Option<String>,
+}
+
+impl OwnMark {
+    /// What every backend refuses of a mark before it reads anything: a document id, a speaker
+    /// of 1 to 128 characters, and who marked, when and how.
+    ///
+    /// # Errors
+    /// [`StoreError::Invalid`].
+    pub fn check(&self) -> Result<()> {
+        crate::document::check_identifier("a document id", &self.doc)?;
+        if self
+            .speaker
+            .as_deref()
+            .is_some_and(|text| !is_speaker(text))
+        {
+            return Err(StoreError::invalid(
+                "a mark's speaker must be 1 to 128 characters without a control character",
+            ));
+        }
+        check_decider(&self.by, &self.at, &self.assurance)
+    }
 }
 
 /// How a document is the person's own now.
@@ -1015,9 +1159,12 @@ mod tests {
         let label = StandingLabel {
             standing: Standing::Affirmed,
             affirmed: Some(Affirmation {
-                by: "human:local".to_owned(),
                 at: "2026-11-03T08:00:00.000Z".to_owned(),
-                assurance: Assurance::terminal(),
+                level: "terminal".to_owned(),
+                seen: Some(AffirmationSeen {
+                    by: "human:local".to_owned(),
+                    assurance: Assurance::terminal(),
+                }),
             }),
             source: Some(LabelSource {
                 basis: OwnBasis::Marked,
@@ -1043,6 +1190,30 @@ mod tests {
                     "storedAt": null,
                     "generatedAt": null,
                 },
+            })
+        );
+        // A reader who is neither the operator nor the space's person sees when the record
+        // was affirmed and at what level, and nothing of who: no principal, and for a decision
+        // on the person page no namespace, login time or `acr`.
+        let withheld = StandingLabel {
+            standing: Standing::Affirmed,
+            affirmed: Some(Affirmation {
+                at: "2026-11-03T08:00:00.000Z".to_owned(),
+                level: "verified".to_owned(),
+                seen: None,
+            }),
+            source: None,
+        };
+        assert_eq!(
+            withheld.to_json(),
+            json!({
+                "standing": "affirmed",
+                "affirmed": {
+                    "by": null,
+                    "at": "2026-11-03T08:00:00.000Z",
+                    "assurance": { "level": "verified" },
+                },
+                "source": null,
             })
         );
         // A kind without standing carries no label, and no flags is an empty list.
