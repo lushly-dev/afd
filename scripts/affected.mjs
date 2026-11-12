@@ -154,6 +154,8 @@ export function planSuites(scope, { root, suites = SUITES, read = readSuiteTrigg
 	return plan;
 }
 
+// The tools verify checks for before it runs anything. `chromium` is not one: no `which` finds
+// Playwright's browser, so a missing one fails its step.
 const TOOLS = { cargo: 'cargo', cmake: 'cmake', openssl: 'openssl', uv: 'uv' };
 
 /** The tools a plan's steps need, each with the workflows that need it: a step's own, or its suite's. */

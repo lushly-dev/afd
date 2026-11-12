@@ -112,8 +112,8 @@ Adopt the task the invocation or conversation carries instead of asking what to 
 - **Gate plan:** before choosing what to touch, run
   `pnpm verify --list --files <paths>`. A docs-only edit can widen it: a README
   under `packages/rust/` pulls in five workflows, Umbel among them. `pnpm verify`
-  aborts before running anything if `uv`, `cargo`, `cmake` or `openssl` is missing,
-  so check the ones the plan needs now (`command -v uv cargo cmake openssl`). It
+  aborts before running anything if a planned step needs a missing `uv`, `cargo`,
+  `cmake` or `openssl`, so check the ones the plan needs now (`command -v uv cargo cmake openssl`). It
   does not check Chromium, which a Loam, Specimen or FAST-AF suite needs. Before an
   Umbel or Loam mounted run, check free
   disk: one Umbel build took its target directory to 14 GB
