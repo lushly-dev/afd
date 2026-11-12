@@ -30,6 +30,10 @@ differs:
 - `declared`: the library's own metadata says so.
 - `authored`: a person wrote it, and nothing checked it.
 
+`themes`, when a component has it, names the themes it supports. Fewer than all three means it
+keeps its look in the others by design, often with a `reason`: do not restyle it to follow the page's
+theme.
+
 `unknown` names the tags the library does not know. A `not-found` tag with `nearest` names is
 usually a typo; an `ambiguous` one is in several libraries, so pass `library`.
 

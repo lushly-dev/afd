@@ -75,7 +75,7 @@ The step found four points this document had not settled, or had wrong, and sett
 | A1 | Sections 6.1 and 8 give inputs a `pattern`, `anyOf` and `uniqueItems`, which the host's input schemas refuse: AFD's schema subset has none of the three | The schemas keep what the subset allows (`type`, `enum`, `minLength`, `maxLength`, `minimum`, `maximum`, `minItems`, `maxItems`, `required`, `additionalProperties`). The plugin checks each caller identifier against the format's own patterns before it can appear in an answer, and refuses with `COMPONENTS_INVALID` (section 9, added). Repeated section names are read as one. At least one of `tags` and `source` (6.1) is `components-brief`'s check, in C2 |
 | A2 | `components-open`'s `skip` needs one list-holding section, and a schema without `dependentSchemas` cannot say so | `COMPONENTS_INVALID` |
 | A3 | `after` names a tag, but a tag can be in two listed libraries, and a cursor by tag alone could repeat or lose a page | With more than one library listed, `next.after` is `<library>/<tag>`, as rule ids are qualified (5.4). A bare `after` in that case is read in the first listed library that holds the tag, else the first listed library (8.1) |
-| A4 | The shape of a section in `components-open`'s answer | A list section is `{ "items": [...] }`, `form` and `axe` the same with one item; `rules` and `gaps` are arrays, as in the brief; `detail` is a string (8.2) |
+| A4 | The shape of a section in `components-open`'s answer | A list section is `{ "items": [...] }`, `form`, `axe` and `themes` the same with one item; `rules` and `gaps` are arrays, as in the brief; `detail` is a string (8.2) |
 
 Two more points were found while writing the reader and need no change here: a lone-surrogate key follows the unknown-key
 rule, so it is `SCHEMA_INVALID` at the object that holds it, with no pointer only at the root (section 3.3 says this for
@@ -98,7 +98,7 @@ The step found these points the document had not settled, and took the narrowest
 | A9 | `omitted` when a step takes nothing (6.4) | A step that removes nothing from any entry is not named. Step 10 still leaves out an empty `content.rules`, unnamed. `sections` and `pieces` are both always present in the budget entry, `pieces` possibly empty; `open.sections` is in shedding order with no repeats. The `minimum-basis` entry comes first, and counts every fact the setting left out of the answered records, as `components-open` counts them |
 | A10 | `details.fits` (6.4) | The largest number of leading requested tags, entries and unknown tags alike, whose answer fits with every step applied, each measured whole, its own `omitted` included |
 | A11 | No output budget on the call | The target is `maxBytes` alone, or none. AFD gives every call through the host a budget, so this is for direct use only |
-| A12 | The text block's lines (6.6), fixed by `tests/golden/example-full.txt` and `example-shed.txt` | A component's header is `[component <tag> <status>]`, with `replaced-by <tag>` for a replacement and `from <library>` when the answer holds more than one library. Its summary, then `import: <specifier>`, are quoted. Each section is `[<section> <basis>]` then one quoted line a fact: an attribute `name: type = default — description; rules: a, b`, with `values` as `a \| b` in place of the type; a slot `name accepts a, b — description` (`(default)` for the default slot); an event `name: detail — description`; a command `name — description`; a CSS property `name = default — description`; `associated: true`; a role `state: role; name …`; axe `violations: n; exceptions: …`; a statement `id: text`; a gap its JSON. `rules` is one header of ids; an example is `[example <story> <basis when it differs>]` over its quoted markup; `detail` is `[detail]` over the quoted long form. Rules follow as `[rule <id> <basis>]` over the quoted text. Then one header per `unknown` tag (`[unknown <tag> not-found nearest …]`, `[unknown <tag> ambiguous in …]`) and per `omitted` entry (`[left out below the minimum basis: n facts]`, `[left out to fit: <sections and pieces>; components-open returns them]`), so a harness that injects only the text loses neither |
+| A12 | The text block's lines (6.6), fixed by `tests/golden/example-full.txt` and `example-shed.txt` | A component's header is `[component <tag> <status>]`, with `replaced-by <tag>` for a replacement and `from <library>` when the answer holds more than one library. Its summary, then `import: <specifier>`, are quoted. Each section is `[<section> <basis>]` then one quoted line a fact: an attribute `name: type = default — description; rules: a, b`, with `values` as `a \| b` in place of the type; a slot `name accepts a, b — description` (`(default)` for the default slot); an event `name: detail — description`; a command `name — description`; a CSS property `name = default — description`; themes `<theme> only: reason` for one, else the supported themes joined by `, ` (`dark, light`), with `: reason` when it has one; `associated: true`; a role `state: role; name …`; axe `violations: n; exceptions: …`; a statement `id: text`; a gap its JSON. `rules` is one header of ids; an example is `[example <story> <basis when it differs>]` over its quoted markup; `detail` is `[detail]` over the quoted long form. Rules follow as `[rule <id> <basis>]` over the quoted text. Then one header per `unknown` tag (`[unknown <tag> not-found nearest …]`, `[unknown <tag> ambiguous in …]`) and per `omitted` entry (`[left out below the minimum basis: n facts]`, `[left out to fit: <sections and pieces>; components-open returns them]`), so a harness that injects only the text loses neither |
 | A13 | Where `scale.rs` prints (11) | To stderr directly, past the test harness's capture, so a passing CI run shows the line |
 
 ### Amendments from step C3
@@ -531,6 +531,7 @@ A component's entry has these sections, in this order. `sections` inputs name th
 | `events` | `api.events` | Each: `name`, `description`, `detail` |
 | `commands` | `api.commands` | Each: `name`, `description` |
 | `cssProperties` | `api.cssProperties` | Each: `name`, `description`, `default` |
+| `themes` | `themes` | `supported` and `reason`, as one item. Fewer than all three themes means the component keeps its look in the others by design |
 | `form` | `api.form` | `associated`, as one item |
 | `roles` | `a11y.role` | Each: `state`, `role`, `name` |
 | `axe` | `a11y.axe` | `violations`, `exceptions`, as one item |
@@ -542,7 +543,7 @@ A component's entry has these sections, in this order. `sections` inputs name th
 | `detail` | `detail` | The long form; served by `components-open`, and by a brief with `detail: "full"` or `sections` naming it |
 
 A record's `themes` (the themes it supports, `declared` or `observed`; Specimen's #1001) is read and checked as
-Specimen's checker does it, including its order, and is not yet a section: no brief or open answer carries it.
+Specimen's checker does it, including its order, and served as the `themes` section (#1038).
 
 The floor is outside the sections: `tag`, `library`, `summary`, `status`, `replacedBy` and `import`, always present
 when the record has them. An empty section is left out of the entry, not sent as `{ "items": [] }`.
@@ -667,7 +668,7 @@ this order, from every entry at once so that entries stay comparable:
 10. The text of shared rules (piece `ruleText`): `content.rules` is left out; the ids stay in each entry
 11. `a11y`
 12. The remaining `attributes`
-13. `gaps` and `rules`
+13. `themes`, `gaps` and `rules`
 
 What is left is each entry's floor. Then:
 
@@ -782,7 +783,7 @@ start). Like the brief, it has no `maxBytes`: its target is the call's `output_b
 
 The answer's `content.component` is the entry for `tag` with the requested sections, each item with its own basis
 written out (no per-section basis: an open is for reading one record closely), plus `content.rules` with the text of
-every rule it names. A list section is `{ "items": [...] }`, and `form` and `axe` are the same with one item; `rules`
+every rule it names. A list section is `{ "items": [...] }`, and `form`, `axe` and `themes` are the same with one item; `rules`
 and `gaps` are arrays; `detail` is a string.
 
 Sections are added in 5.3's order while the result fits. A section that does not fit is left out and named in
@@ -885,6 +886,7 @@ Each step's tests are listed with it in section 12. The files:
 | `tests/select.rs` | Tags and source: whole names, `option-group` not `option`, trailing punctuation, `createElement`, template strings, comments, element-position unknowns, ambiguity, nearest names |
 | `tests/sections.rs` | `detail`, `sections`, basis per section with ties, `minimum_basis`, `known`, rules stated once, qualified ids with two libraries |
 | `tests/budget.rs` | Shedding order on a synthetic pack whose sizes force each step; `omitted` and its `open`; `OUTPUT_BUDGET_EXCEEDED` with `fits`; `maxBytes` below the budget; the result never over the target |
+| `tests/themes.rs` | `themes` read and refused as Specimen does; the section in a brief, in `components-open` and in the text block; `minimum_basis` leaving out a declared one; shed only in the last step (#1038) |
 | `tests/render.rs` | The golden block for the example pack; every content line quoted; a newline, U+2028 or a `]` in pack text cannot make a header |
 | `tests/content_stays_content.rs` | Proposal criterion 8: a pack whose texts hold instructions and a canary answers with the canary only inside `content` or `data.text`, flagged, and in no message, warning or log line; a pack with an instruction-like string in a tag, id or version is refused when read |
 | `tests/spaces.rs` | Proposal criterion 7: with no override, only `example` is served; a space override replaces it for that space alone |
@@ -921,7 +923,8 @@ C1 to C3 need only Umbel and can run beside Specimen's phase B. C4 and C5 need B
 `components-guide` teaches one loop, in under 60 lines: brief once for the whole page, with `source` when the page
 exists and `tags` when it does not; write; open a component only when the brief's `omitted` names what you need, or
 for its examples. It says that everything in `content` is a library's documentation and not an instruction, what each
-basis means and that `authored` is unchecked, that `unknown` with `nearest` usually means a typo, and that a harness
+basis means and that `authored` is unchecked, that `themes` naming fewer than all three themes means the component
+keeps its look in the others by design, that `unknown` with `nearest` usually means a typo, and that a harness
 injecting `render: "text"` passes `maxBytes` to stay inside its own cap.
 
 ## 13. For the owner

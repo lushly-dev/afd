@@ -55,6 +55,9 @@ fn canary_pack() -> Pack {
             each(&mut record["a11y"]["role"], |role| set_text(role, "name"));
             each(&mut record["a11y"]["statements"], |s| set_text(s, "text"));
             each(&mut record["usage"], |s| set_text(s, "text"));
+            record["themes"] = json!({
+                "supported": ["light"], "basis": "declared", "reason": SENTENCE,
+            });
             each(&mut record["examples"], |example| {
                 example["html"] = json!(format!("<div>\n\t{SENTENCE}\n</div>"));
             });

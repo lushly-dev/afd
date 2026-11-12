@@ -53,7 +53,7 @@ const ORDER: [Step; 13] = [
     Step::RuleText,
     Step::Sections(&["a11y"]),
     Step::Sections(&["attributes"]),
-    Step::Sections(&["gaps", "rules"]),
+    Step::Sections(&["themes", "gaps", "rules"]),
 ];
 
 impl Step {
