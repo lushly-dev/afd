@@ -361,6 +361,8 @@ export class VioletTextField extends FASTElement {
 
     public formResetCallback(): void {
         this.value = this.#defaultValue;
+        // Also when the value is unchanged: a partial entry, such as "-", reads as "" and must go too.
+        this.#writeControl(true);
     }
 
     public get form(): HTMLFormElement | null {
@@ -397,9 +399,9 @@ export class VioletTextField extends FASTElement {
      * Writes `value` to the native input only when it differs. A number input reads `""` while it holds a
      * partial entry such as `-`, so writing that `""` back, as a binding would, erased the `-` (#712).
      */
-    #writeControl(): void {
+    #writeControl(force = false): void {
         const control = this.shadowRoot?.querySelector<HTMLInputElement>("input.control");
-        if (control && control.value !== this.value) {
+        if (control && (force || control.value !== this.value)) {
             control.value = this.value;
         }
     }

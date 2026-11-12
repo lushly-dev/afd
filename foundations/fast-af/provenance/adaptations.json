@@ -9215,11 +9215,11 @@
       "upstream_sha256": "595e210e19c3980e14ffe77674c9d130692339f15fa07e8ad4da4a1624dce542",
       "staged_path": "packages/violet-elements/src/text-field/violet-text-field.spec.ts",
       "staged_sha256": "595e210e19c3980e14ffe77674c9d130692339f15fa07e8ad4da4a1624dce542",
-      "current_import_sha256": "73e37bec5146933a3a1c1cbc8ae8d98c1030eab8fd529e26874b7ca920aaa1a6",
+      "current_import_sha256": "76df5c6155f45d6979d6a1aec79c5844d2c1d043c84d4e51c403319f4730babd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Added number-entry specs: a typed minus sign survives over an empty or selected value, and a value set from outside still shows (lushly-dev/afd#712)"
+      "import_reason": "Added number-entry specs: a typed minus sign survives over an empty or selected value, the value attribute shows, a form reset clears a partial entry, and a value set from outside still shows (lushly-dev/afd#712)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.stories.ts",
@@ -9239,11 +9239,11 @@
       "upstream_sha256": "875eeee6864c93a534f5259f46f5eed705e89022323b8abc1d093c418cfe945d",
       "staged_path": "packages/violet-elements/src/text-field/violet-text-field.ts",
       "staged_sha256": "875eeee6864c93a534f5259f46f5eed705e89022323b8abc1d093c418cfe945d",
-      "current_import_sha256": "adcd9dfc662ef4d95e387f8aaecf783c3f8947d71cec1f36990b39fb7528692d",
+      "current_import_sha256": "7c6e9d2a25975c91f8e21b268b0d913021ba18e0377893d835cf8b8b8ac7ae22",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history). Then wrote value to the native input only when it differs, instead of binding :value, because a number input reads \"\" while it holds a partial entry such as \"-\" and writing that \"\" back erased the minus sign, so -2 became 2 (lushly-dev/afd#712)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history). Then wrote value to the native input only when it differs, instead of binding :value, because a number input reads \"\" while it holds a partial entry such as \"-\" and writing that \"\" back erased the minus sign, so -2 became 2; and wrote it on form reset even when unchanged, so a partial entry goes too (lushly-dev/afd#712)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text/violet-text.spec.ts",

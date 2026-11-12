@@ -465,6 +465,31 @@ describe("violet-text-field number entry (#712)", () => {
         });
     }
 
+    it("shows the value attribute it starts with", async () => {
+        document.body.innerHTML = '<violet-text-field type="number" value="4"></violet-text-field>';
+        await customElements.whenDefined("violet-text-field");
+        await nextFrame();
+        const field = document.querySelector("violet-text-field") as VioletTextField;
+        expect(input(field).value).toBe("4");
+    });
+
+    it("clears a partial entry on form reset", async () => {
+        const { field, form } = await renderField({
+            inForm: true,
+            configure: candidate => {
+                candidate.type = "number";
+            },
+        });
+        const control = input(field);
+        await userEvent.click(control);
+        await userEvent.keyboard("-");
+        await nextFrame();
+        form?.reset();
+        await nextFrame();
+        expect(control.validity.badInput).toBe(false);
+        expect(field.value).toBe("");
+    });
+
     it("still shows a value set from outside", async () => {
         const { field } = await renderField({
             configure: candidate => {
