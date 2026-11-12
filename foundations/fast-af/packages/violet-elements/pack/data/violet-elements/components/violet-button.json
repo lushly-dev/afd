@@ -171,7 +171,7 @@
 		{
 			"basis": "observed",
 			"from": "components-button--quiet-disabled",
-			"html": "<violet-button appearance=\"quiet\" type=\"button\" disabled>Quiet action</violet-button>"
+			"html": "<violet-button appearance=\"quiet\" disabled type=\"button\">Quiet action</violet-button>"
 		}
 	],
 	"format": 0,

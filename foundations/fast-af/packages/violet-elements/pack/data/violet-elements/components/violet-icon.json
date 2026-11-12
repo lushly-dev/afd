@@ -59,12 +59,12 @@
 		{
 			"basis": "observed",
 			"from": "components-icon--decorative",
-			"html": "<violet-icon style=\"--violet-icon-size: 20px;\" icon=\"system/settings\" label decorative></violet-icon>"
+			"html": "<violet-icon decorative icon=\"system/settings\" label style=\"--violet-icon-size: 20px;\"></violet-icon>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-icon--overview",
-			"html": "<violet-icon style=\"--violet-icon-size: 20px;\" icon=\"system/search\" label=\"Search icon\"></violet-icon>"
+			"html": "<violet-icon icon=\"system/search\" label=\"Search icon\" style=\"--violet-icon-size: 20px;\"></violet-icon>"
 		}
 	],
 	"format": 0,

@@ -178,17 +178,17 @@
 		{
 			"basis": "observed",
 			"from": "components-data-grid-pill-select--empty-state",
-			"html": "<violet-data-grid-pill-select error-text error-announcement=\"self\" value placeholder=\"Choose a method\" control-label=\"Planting method\"></violet-data-grid-pill-select>"
+			"html": "<violet-data-grid-pill-select control-label=\"Planting method\" error-announcement=\"self\" error-text placeholder=\"Choose a method\" value></violet-data-grid-pill-select>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-data-grid-pill-select--invalid",
-			"html": "<violet-data-grid-pill-select error-text=\"Choose a supported planting method.\" error-announcement=\"self\" value=\"Direct Cover\" placeholder=\"Choose a method\" control-label=\"Planting method\"></violet-data-grid-pill-select>"
+			"html": "<violet-data-grid-pill-select control-label=\"Planting method\" error-announcement=\"self\" error-text=\"Choose a supported planting method.\" placeholder=\"Choose a method\" value=\"Direct Cover\"></violet-data-grid-pill-select>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-data-grid-pill-select--keyboard-navigation",
-			"html": "<violet-data-grid-pill-select error-text error-announcement=\"self\" value=\"Transplant Cover\" placeholder=\"Choose a method\" control-label=\"Planting method\"></violet-data-grid-pill-select>"
+			"html": "<violet-data-grid-pill-select control-label=\"Planting method\" error-announcement=\"self\" error-text placeholder=\"Choose a method\" value=\"Transplant Cover\"></violet-data-grid-pill-select>"
 		}
 	],
 	"format": 0,

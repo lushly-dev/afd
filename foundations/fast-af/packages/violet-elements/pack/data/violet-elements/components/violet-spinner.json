@@ -91,17 +91,17 @@
 		{
 			"basis": "observed",
 			"from": "components-spinner--decorative",
-			"html": "<violet-spinner decorative size=\"sm\" label></violet-spinner>"
+			"html": "<violet-spinner decorative label size=\"sm\"></violet-spinner>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-spinner--in-context",
-			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);font-family:inherit;font-size:var(--type-body-md-size);line-height:var(--type-body-md-line);color:var(--color-text-secondary);\">\n            <violet-spinner decorative size=\"sm\" label></violet-spinner>\n            <span>Syncing row changes…</span>\n        </div>"
+			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);font-family:inherit;font-size:var(--type-body-md-size);line-height:var(--type-body-md-line);color:var(--color-text-secondary);\">\n            <violet-spinner decorative label size=\"sm\"></violet-spinner>\n            <span>Syncing row changes…</span>\n        </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-spinner--overview",
-			"html": "<violet-spinner size=\"md\" label=\"Loading crop plan\"></violet-spinner>"
+			"html": "<violet-spinner label=\"Loading crop plan\" size=\"md\"></violet-spinner>"
 		}
 	],
 	"format": 0,

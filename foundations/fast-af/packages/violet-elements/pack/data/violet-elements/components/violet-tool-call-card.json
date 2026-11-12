@@ -168,17 +168,17 @@
 		{
 			"basis": "observed",
 			"from": "conversation-tool-call-card--all-states",
-			"html": "<div style=\"display: flex; flex-direction: column; gap: 12px; max-inline-size: 500px;\"><violet-tool-call-card tool-name=\"searchDatabase\" state=\"pending\" tool-call-id></violet-tool-call-card><violet-tool-call-card tool-name=\"placeOrder\" state=\"approval-requested\" tool-call-id></violet-tool-call-card><violet-tool-call-card tool-name=\"analyzeSoil\" state=\"executing\" tool-call-id></violet-tool-call-card><violet-tool-call-card tool-name=\"getWeather\" state=\"output-available\" tool-call-id></violet-tool-call-card><violet-tool-call-card tool-name=\"fetchInventory\" state=\"output-error\" tool-call-id></violet-tool-call-card><violet-tool-call-card tool-name=\"deleteRecords\" state=\"cancelled\" tool-call-id></violet-tool-call-card></div>"
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 12px; max-inline-size: 500px;\"><violet-tool-call-card state=\"pending\" tool-call-id tool-name=\"searchDatabase\"></violet-tool-call-card><violet-tool-call-card state=\"approval-requested\" tool-call-id tool-name=\"placeOrder\"></violet-tool-call-card><violet-tool-call-card state=\"executing\" tool-call-id tool-name=\"analyzeSoil\"></violet-tool-call-card><violet-tool-call-card state=\"output-available\" tool-call-id tool-name=\"getWeather\"></violet-tool-call-card><violet-tool-call-card state=\"output-error\" tool-call-id tool-name=\"fetchInventory\"></violet-tool-call-card><violet-tool-call-card state=\"cancelled\" tool-call-id tool-name=\"deleteRecords\"></violet-tool-call-card></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-tool-call-card--approval-needed",
-			"html": "<violet-tool-call-card tool-name=\"placeOrder\" state=\"approval-requested\" tool-call-id><span slot=\"summary\">Ready to place an order for 12 hostas and 6 ferns.</span></violet-tool-call-card>"
+			"html": "<violet-tool-call-card state=\"approval-requested\" tool-call-id tool-name=\"placeOrder\"><span slot=\"summary\">Ready to place an order for 12 hostas and 6 ferns.</span></violet-tool-call-card>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-tool-call-card--complete",
-			"html": "<violet-tool-call-card tool-name=\"getWeather\" state=\"output-available\" tool-call-id><span slot=\"summary\">Retrieved weather forecast for Portland, OR.</span><div slot=\"output\">72°F, partly cloudy, 20% chance of rain.</div></violet-tool-call-card>"
+			"html": "<violet-tool-call-card state=\"output-available\" tool-call-id tool-name=\"getWeather\"><span slot=\"summary\">Retrieved weather forecast for Portland, OR.</span><div slot=\"output\">72°F, partly cloudy, 20% chance of rain.</div></violet-tool-call-card>"
 		}
 	],
 	"format": 0,

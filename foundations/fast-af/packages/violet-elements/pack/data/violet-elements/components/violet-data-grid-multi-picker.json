@@ -147,7 +147,7 @@
 		{
 			"basis": "observed",
 			"from": "components-data-grid-multi-picker--disabled",
-			"html": "<violet-data-grid-multi-picker aria-label=\"Cultivation tags\" placeholder=\"Add tags\" disabled></violet-data-grid-multi-picker>"
+			"html": "<violet-data-grid-multi-picker aria-label=\"Cultivation tags\" disabled placeholder=\"Add tags\"></violet-data-grid-multi-picker>"
 		},
 		{
 			"basis": "observed",

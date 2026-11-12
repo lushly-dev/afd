@@ -87,17 +87,17 @@
 		{
 			"basis": "observed",
 			"from": "components-text--overview",
-			"html": "<violet-text as=\"span\" variant=\"body\" tone=\"default\">Planting plans stay clearer when text hierarchy is calm and consistent.</violet-text>"
+			"html": "<violet-text as=\"span\" tone=\"default\" variant=\"body\">Planting plans stay clearer when text hierarchy is calm and consistent.</violet-text>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text--tones",
-			"html": "<div style=\"display:grid;gap:8px;\">\n            <violet-text tone=\"default\" as=\"span\" variant=\"body\">Default emphasis</violet-text>\n            <violet-text tone=\"secondary\" as=\"span\" variant=\"body\">Secondary emphasis</violet-text>\n            <violet-text tone=\"muted\" as=\"span\" variant=\"body\">Muted emphasis</violet-text>\n            <violet-text tone=\"success\" as=\"span\" variant=\"body\">Healthy irrigation sync</violet-text>\n            <violet-text tone=\"warning\" as=\"span\" variant=\"body\">Needs review before launch</violet-text>\n            <violet-text tone=\"danger\" as=\"span\" variant=\"body\">Timing conflict detected</violet-text>\n        </div>"
+			"html": "<div style=\"display:grid;gap:8px;\">\n            <violet-text as=\"span\" tone=\"default\" variant=\"body\">Default emphasis</violet-text>\n            <violet-text as=\"span\" tone=\"secondary\" variant=\"body\">Secondary emphasis</violet-text>\n            <violet-text as=\"span\" tone=\"muted\" variant=\"body\">Muted emphasis</violet-text>\n            <violet-text as=\"span\" tone=\"success\" variant=\"body\">Healthy irrigation sync</violet-text>\n            <violet-text as=\"span\" tone=\"warning\" variant=\"body\">Needs review before launch</violet-text>\n            <violet-text as=\"span\" tone=\"danger\" variant=\"body\">Timing conflict detected</violet-text>\n        </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text--truncated",
-			"html": "<div style=\"inline-size: 14rem;\">\n            <violet-text truncate as=\"span\" variant=\"body\" tone=\"default\">\n                Planting plans with extra long descriptive labels should gracefully truncate inside tighter layouts.\n            </violet-text>\n        </div>"
+			"html": "<div style=\"inline-size: 14rem;\">\n            <violet-text as=\"span\" tone=\"default\" truncate variant=\"body\">\n                Planting plans with extra long descriptive labels should gracefully truncate inside tighter layouts.\n            </violet-text>\n        </div>"
 		}
 	],
 	"format": 0,

@@ -80,7 +80,7 @@
 		{
 			"basis": "observed",
 			"from": "components-tab--disabled",
-			"html": "<div role=\"tablist\" aria-orientation=\"horizontal\"><violet-tab role=\"tab\" aria-selected=\"false\" aria-disabled=\"true\" tabindex=\"-1\" data-appearance=\"mixed\" data-orientation=\"horizontal\" disabled>Automation</violet-tab></div>"
+			"html": "<div aria-orientation=\"horizontal\" role=\"tablist\"><violet-tab aria-disabled=\"true\" aria-selected=\"false\" data-appearance=\"mixed\" data-orientation=\"horizontal\" disabled role=\"tab\" tabindex=\"-1\">Automation</violet-tab></div>"
 		}
 	],
 	"format": 0,

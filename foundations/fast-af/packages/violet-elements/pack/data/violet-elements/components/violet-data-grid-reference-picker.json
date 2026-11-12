@@ -177,17 +177,17 @@
 		{
 			"basis": "observed",
 			"from": "components-data-grid-reference-picker--create-request",
-			"html": "<violet-data-grid-reference-picker aria-label=\"Linked records\" placeholder=\"Link records\" multiple allow-create></violet-data-grid-reference-picker>"
+			"html": "<violet-data-grid-reference-picker allow-create aria-label=\"Linked records\" multiple placeholder=\"Link records\"></violet-data-grid-reference-picker>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-data-grid-reference-picker--disabled",
-			"html": "<violet-data-grid-reference-picker aria-label=\"Linked records\" placeholder=\"Link records\" disabled multiple></violet-data-grid-reference-picker>"
+			"html": "<violet-data-grid-reference-picker aria-label=\"Linked records\" disabled multiple placeholder=\"Link records\"></violet-data-grid-reference-picker>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-data-grid-reference-picker--overview",
-			"html": "<violet-data-grid-reference-picker aria-label=\"Linked records\" placeholder=\"Link records\" multiple></violet-data-grid-reference-picker>"
+			"html": "<violet-data-grid-reference-picker aria-label=\"Linked records\" multiple placeholder=\"Link records\"></violet-data-grid-reference-picker>"
 		}
 	],
 	"format": 0,

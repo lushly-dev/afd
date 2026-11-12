@@ -192,17 +192,17 @@
 		{
 			"basis": "observed",
 			"from": "components-date-range-picker--comfortable",
-			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker label=\"Harvest window\" supporting-text=\"Choose the planned harvest period for this crop plan.\" start=\"2026-03-20\" end=\"2026-03-27\" min=\"2026-03-01\" max=\"2026-04-30\" locale=\"en-US\" size=\"comfortable\" error-text></violet-date-range-picker>\n            </div>"
+			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker end=\"2026-03-27\" error-text label=\"Harvest window\" locale=\"en-US\" max=\"2026-04-30\" min=\"2026-03-01\" size=\"comfortable\" start=\"2026-03-20\" supporting-text=\"Choose the planned harvest period for this crop plan.\"></violet-date-range-picker>\n            </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-date-range-picker--compact",
-			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker label=\"Harvest window\" supporting-text=\"Choose the planned harvest period for this crop plan.\" start=\"2026-03-20\" end=\"2026-03-27\" min=\"2026-03-01\" max=\"2026-04-30\" locale=\"en-US\" size=\"compact\" error-text></violet-date-range-picker>\n            </div>"
+			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker end=\"2026-03-27\" error-text label=\"Harvest window\" locale=\"en-US\" max=\"2026-04-30\" min=\"2026-03-01\" size=\"compact\" start=\"2026-03-20\" supporting-text=\"Choose the planned harvest period for this crop plan.\"></violet-date-range-picker>\n            </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-date-range-picker--disabled",
-			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker label=\"Harvest window\" supporting-text=\"This range is inherited from the parent greenhouse template.\" start=\"2026-03-20\" end=\"2026-03-27\" min=\"2026-03-01\" max=\"2026-04-30\" locale=\"en-US\" size=\"natural\" disabled error-text></violet-date-range-picker>\n            </div>"
+			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker disabled end=\"2026-03-27\" error-text label=\"Harvest window\" locale=\"en-US\" max=\"2026-04-30\" min=\"2026-03-01\" size=\"natural\" start=\"2026-03-20\" supporting-text=\"This range is inherited from the parent greenhouse template.\"></violet-date-range-picker>\n            </div>"
 		}
 	],
 	"format": 0,

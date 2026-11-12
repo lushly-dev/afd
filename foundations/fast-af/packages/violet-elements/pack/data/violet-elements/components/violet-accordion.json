@@ -50,6 +50,11 @@
 	"examples": [
 		{
 			"basis": "observed",
+			"from": "components-accordion--overview",
+			"html": "<div style=\"max-inline-size: 42rem;\"><violet-accordion expand-mode=\"multi\"><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Propagation planning</span>Coordinate sowing windows, propagation media, and bench allocation before crop launch.</violet-accordion-item><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Irrigation notes</span>Track moisture thresholds, emitter checks, and seasonal watering adjustments.</violet-accordion-item><violet-accordion-item heading-level=\"3\"><span slot=\"heading\">Harvest timing</span>Capture expected maturity, target harvest dates, and handoff notes for fulfillment.</violet-accordion-item></violet-accordion></div>"
+		},
+		{
+			"basis": "observed",
 			"from": "components-accordion--single-expand",
 			"html": "<div style=\"max-inline-size: 42rem;\"><violet-accordion expand-mode=\"single\"><violet-accordion-item heading-level=\"3\"><span slot=\"heading\">Propagation planning</span>Coordinate sowing windows, propagation media, and bench allocation before crop launch.</violet-accordion-item><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Irrigation notes</span>Track moisture thresholds, emitter checks, and seasonal watering adjustments.</violet-accordion-item><violet-accordion-item heading-level=\"3\"><span slot=\"heading\">Harvest timing</span>Capture expected maturity, target harvest dates, and handoff notes for fulfillment.</violet-accordion-item></violet-accordion></div>"
 		},

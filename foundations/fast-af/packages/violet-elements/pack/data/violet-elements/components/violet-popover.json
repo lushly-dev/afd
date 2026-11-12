@@ -122,12 +122,12 @@
 		{
 			"basis": "observed",
 			"from": "components-popover--external-anchor",
-			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);\">\n            <violet-button id=\"popover-anchor\" appearance=\"secondary\" style=\"anchor-name: --violet-popover-anchor;\" type=\"button\">Anchor outside</violet-button>\n            <violet-popover anchor=\"popover-anchor\" positioning=\"after\">\n                <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                    <strong style=\"margin:0;\">Field note</strong>\n                    <p style=\"margin:0;\">This panel is anchored to an external trigger element.</p>\n                </div>\n            </violet-popover>\n        </div>"
+			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);\">\n            <violet-button appearance=\"secondary\" id=\"popover-anchor\" style=\"anchor-name: --violet-popover-anchor;\" type=\"button\">Anchor outside</violet-button>\n            <violet-popover anchor=\"popover-anchor\" positioning=\"after\">\n                <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                    <strong style=\"margin:0;\">Field note</strong>\n                    <p style=\"margin:0;\">This panel is anchored to an external trigger element.</p>\n                </div>\n            </violet-popover>\n        </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-popover--overview",
-			"html": "<violet-popover positioning=\"below\" anchor open>\n            <violet-button slot=\"trigger\" appearance=\"secondary\" type=\"button\">Open details</violet-button>\n            <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                <strong style=\"margin:0;\">Propagation details</strong>\n                <p style=\"margin:0;\">Seeded trays are staged for transplanting next week.</p>\n            </div>\n        </violet-popover>"
+			"html": "<violet-popover anchor open positioning=\"below\">\n            <violet-button appearance=\"secondary\" slot=\"trigger\" type=\"button\">Open details</violet-button>\n            <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                <strong style=\"margin:0;\">Propagation details</strong>\n                <p style=\"margin:0;\">Seeded trays are staged for transplanting next week.</p>\n            </div>\n        </violet-popover>"
 		}
 	],
 	"format": 0,

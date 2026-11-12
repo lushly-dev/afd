@@ -92,17 +92,17 @@
 		{
 			"basis": "observed",
 			"from": "components-progress--custom-value-text",
-			"html": "<violet-progress label=\"Irrigation capacity\" value=\"2\" max=\"4\" value-text=\"Half capacity\"></violet-progress>"
+			"html": "<violet-progress label=\"Irrigation capacity\" max=\"4\" value=\"2\" value-text=\"Half capacity\"></violet-progress>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-progress--indeterminate",
-			"html": "<violet-progress label=\"Loading crop summary\" value max=\"100\" value-text></violet-progress>"
+			"html": "<violet-progress label=\"Loading crop summary\" max=\"100\" value value-text></violet-progress>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-progress--overview",
-			"html": "<violet-progress label=\"Uploading field imagery\" value=\"48\" max=\"100\" value-text></violet-progress>"
+			"html": "<violet-progress label=\"Uploading field imagery\" max=\"100\" value=\"48\" value-text></violet-progress>"
 		}
 	],
 	"format": 0,

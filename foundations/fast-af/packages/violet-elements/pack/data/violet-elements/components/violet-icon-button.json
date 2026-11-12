@@ -109,17 +109,17 @@
 		{
 			"basis": "observed",
 			"from": "components-icon-button--overview",
-			"html": "<violet-icon-button appearance=\"secondary\" label=\"Settings\" type=\"button\"><violet-icon icon=\"system/settings\" decorative label></violet-icon></violet-icon-button>"
+			"html": "<violet-icon-button appearance=\"secondary\" label=\"Settings\" type=\"button\"><violet-icon decorative icon=\"system/settings\" label></violet-icon></violet-icon-button>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-icon-button--primary",
-			"html": "<violet-icon-button appearance=\"primary\" label=\"Pin item\" type=\"button\"><violet-icon icon=\"system/search\" decorative label></violet-icon></violet-icon-button>"
+			"html": "<violet-icon-button appearance=\"primary\" label=\"Pin item\" type=\"button\"><violet-icon decorative icon=\"system/search\" label></violet-icon></violet-icon-button>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-icon-button--quiet-disabled",
-			"html": "<violet-icon-button appearance=\"quiet\" label=\"Archive item\" type=\"button\" disabled><violet-icon icon=\"system/search\" decorative label></violet-icon></violet-icon-button>"
+			"html": "<violet-icon-button appearance=\"quiet\" disabled label=\"Archive item\" type=\"button\"><violet-icon decorative icon=\"system/search\" label></violet-icon></violet-icon-button>"
 		}
 	],
 	"format": 0,

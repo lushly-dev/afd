@@ -136,7 +136,7 @@
 		{
 			"basis": "observed",
 			"from": "components-option--disabled",
-			"html": "<div role=\"listbox\" aria-label=\"Sowing methods\"><violet-option id=\"violet-option-1\" role=\"option\" aria-selected=\"false\" aria-disabled=\"true\" value=\"hydroponic-setup\" label=\"Hydroponic setup\" disabled>Hydroponic setup<span slot=\"description\">Temporarily unavailable for this season.</span></violet-option></div>"
+			"html": "<div aria-label=\"Sowing methods\" role=\"listbox\"><violet-option aria-disabled=\"true\" aria-selected=\"false\" disabled id=\"violet-option-1\" label=\"Hydroponic setup\" role=\"option\" value=\"hydroponic-setup\">Hydroponic setup<span slot=\"description\">Temporarily unavailable for this season.</span></violet-option></div>"
 		}
 	],
 	"format": 0,

@@ -257,17 +257,17 @@
 		{
 			"basis": "observed",
 			"from": "components-slider--disabled",
-			"html": "<form style=\"display: contents;\"><violet-slider name=\"nutrient-dosing\" disabled orientation=\"horizontal\" label=\"Nutrient dosing\" supporting-text=\"This slider is locked while the irrigation program is inherited from the greenhouse template.\" error-text value-text value=\"25\" min=\"0\" max=\"100\" step=\"1\"></violet-slider></form>"
+			"html": "<form style=\"display: contents;\"><violet-slider disabled error-text label=\"Nutrient dosing\" max=\"100\" min=\"0\" name=\"nutrient-dosing\" orientation=\"horizontal\" step=\"1\" supporting-text=\"This slider is locked while the irrigation program is inherited from the greenhouse template.\" value=\"25\" value-text></violet-slider></form>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-slider--invalid",
-			"html": "<form style=\"display: contents;\"><violet-slider name=\"shade-cloth\" invalid orientation=\"horizontal\" label=\"Shade cloth level\" supporting-text=\"The selected level is outside the approved operating range for this bay.\" error-text=\"Choose a value within the approved range.\" value-text value=\"85\" min=\"0\" max=\"100\" step=\"5\"></violet-slider></form>"
+			"html": "<form style=\"display: contents;\"><violet-slider error-text=\"Choose a value within the approved range.\" invalid label=\"Shade cloth level\" max=\"100\" min=\"0\" name=\"shade-cloth\" orientation=\"horizontal\" step=\"5\" supporting-text=\"The selected level is outside the approved operating range for this bay.\" value=\"85\" value-text></violet-slider></form>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-slider--overview",
-			"html": "<form style=\"display: contents;\"><violet-slider name=\"moisture-threshold\" orientation=\"horizontal\" label=\"Moisture threshold\" supporting-text=\"Adjust the irrigation trigger point for this bed block.\" error-text value-text value=\"43\" min=\"0\" max=\"100\" step=\"1\"></violet-slider></form>"
+			"html": "<form style=\"display: contents;\"><violet-slider error-text label=\"Moisture threshold\" max=\"100\" min=\"0\" name=\"moisture-threshold\" orientation=\"horizontal\" step=\"1\" supporting-text=\"Adjust the irrigation trigger point for this bed block.\" value=\"43\" value-text></violet-slider></form>"
 		}
 	],
 	"format": 0,

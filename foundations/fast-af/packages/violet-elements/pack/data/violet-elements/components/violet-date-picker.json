@@ -214,17 +214,17 @@
 		{
 			"basis": "observed",
 			"from": "components-date-picker--comfortable",
-			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker label=\"Planting date\" supporting-text=\"Choose when this plan should begin.\" value=\"2026-03-23\" min=\"2026-03-01\" max=\"2026-04-15\" locale=\"en-US\" name=\"planting-date\" size=\"comfortable\" error-text></violet-date-picker>\n            </form>"
+			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker error-text label=\"Planting date\" locale=\"en-US\" max=\"2026-04-15\" min=\"2026-03-01\" name=\"planting-date\" size=\"comfortable\" supporting-text=\"Choose when this plan should begin.\" value=\"2026-03-23\"></violet-date-picker>\n            </form>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-date-picker--compact",
-			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker label=\"Planting date\" supporting-text=\"Choose when this plan should begin.\" value=\"2026-03-23\" min=\"2026-03-01\" max=\"2026-04-15\" locale=\"en-US\" name=\"planting-date\" size=\"compact\" error-text></violet-date-picker>\n            </form>"
+			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker error-text label=\"Planting date\" locale=\"en-US\" max=\"2026-04-15\" min=\"2026-03-01\" name=\"planting-date\" size=\"compact\" supporting-text=\"Choose when this plan should begin.\" value=\"2026-03-23\"></violet-date-picker>\n            </form>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-date-picker--disabled",
-			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker label=\"Planting date\" supporting-text=\"Date editing is inherited from the parent plan.\" value=\"2026-03-23\" min=\"2026-03-01\" max=\"2026-04-15\" locale=\"en-US\" name=\"planting-date\" size=\"natural\" disabled error-text></violet-date-picker>\n            </form>"
+			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker disabled error-text label=\"Planting date\" locale=\"en-US\" max=\"2026-04-15\" min=\"2026-03-01\" name=\"planting-date\" size=\"natural\" supporting-text=\"Date editing is inherited from the parent plan.\" value=\"2026-03-23\"></violet-date-picker>\n            </form>"
 		}
 	],
 	"format": 0,

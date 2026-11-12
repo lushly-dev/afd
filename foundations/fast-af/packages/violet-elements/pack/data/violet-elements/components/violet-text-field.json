@@ -240,17 +240,17 @@
 		{
 			"basis": "observed",
 			"from": "components-text-field--disabled",
-			"html": "<violet-text-field label=\"Plant name\" placeholder=\"Unavailable while sync is running\" type=\"search\" supporting-text=\"Disabled fields should stay visibly unavailable without losing structure.\" disabled name=\"plantName\"></violet-text-field>"
+			"html": "<violet-text-field disabled label=\"Plant name\" name=\"plantName\" placeholder=\"Unavailable while sync is running\" supporting-text=\"Disabled fields should stay visibly unavailable without losing structure.\" type=\"search\"></violet-text-field>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text-field--invalid",
-			"html": "<violet-text-field label=\"Quantity\" placeholder=\"Enter quantity\" type=\"text\" supporting-text=\"Required before checkout can continue.\" invalid name=\"quantity\" required></violet-text-field>"
+			"html": "<violet-text-field invalid label=\"Quantity\" name=\"quantity\" placeholder=\"Enter quantity\" required supporting-text=\"Required before checkout can continue.\" type=\"text\"></violet-text-field>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text-field--overview",
-			"html": "<violet-text-field label=\"Plant name\" placeholder=\"Search cultivated rows\" type=\"search\" supporting-text=\"Use this for quick filtering or manual entry.\" name=\"plantName\" required><violet-icon slot=\"before\" icon=\"system/search\" decorative label></violet-icon></violet-text-field>"
+			"html": "<violet-text-field label=\"Plant name\" name=\"plantName\" placeholder=\"Search cultivated rows\" required supporting-text=\"Use this for quick filtering or manual entry.\" type=\"search\"><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon></violet-text-field>"
 		}
 	],
 	"format": 0,

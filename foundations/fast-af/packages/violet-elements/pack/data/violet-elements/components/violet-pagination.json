@@ -91,17 +91,17 @@
 		{
 			"basis": "observed",
 			"from": "components-pagination--compact-window",
-			"html": "<violet-pagination label=\"Orders pages\" page=\"12\" page-count=\"24\" sibling-count=\"0\" boundary-count=\"1\"></violet-pagination>"
+			"html": "<violet-pagination boundary-count=\"1\" label=\"Orders pages\" page=\"12\" page-count=\"24\" sibling-count=\"0\"></violet-pagination>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-pagination--disabled",
-			"html": "<violet-pagination label=\"Archive pages\" disabled page=\"2\" page-count=\"5\" sibling-count=\"1\" boundary-count=\"1\"></violet-pagination>"
+			"html": "<violet-pagination boundary-count=\"1\" disabled label=\"Archive pages\" page=\"2\" page-count=\"5\" sibling-count=\"1\"></violet-pagination>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-pagination--overview",
-			"html": "<violet-pagination label=\"Crop pages\" page=\"5\" page-count=\"9\" sibling-count=\"1\" boundary-count=\"1\"></violet-pagination>"
+			"html": "<violet-pagination boundary-count=\"1\" label=\"Crop pages\" page=\"5\" page-count=\"9\" sibling-count=\"1\"></violet-pagination>"
 		}
 	],
 	"format": 0,

@@ -204,17 +204,17 @@
 		{
 			"basis": "observed",
 			"from": "components-toast--dismiss-interaction",
-			"html": "<violet-toast tone=\"success\" announcement=\"polite\" dismissible timeout=\"5000\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
+			"html": "<violet-toast announcement=\"polite\" dismissible timeout=\"5000\" tone=\"success\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-toast--dismissible",
-			"html": "<violet-toast open tone=\"success\" announcement=\"polite\" dismissible timeout=\"5000\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
+			"html": "<violet-toast announcement=\"polite\" dismissible open timeout=\"5000\" tone=\"success\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-toast--overview",
-			"html": "<violet-toast open tone=\"success\" announcement=\"polite\" timeout=\"5000\" dismissible>\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
+			"html": "<violet-toast announcement=\"polite\" dismissible open timeout=\"5000\" tone=\"success\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
 		}
 	],
 	"format": 0,

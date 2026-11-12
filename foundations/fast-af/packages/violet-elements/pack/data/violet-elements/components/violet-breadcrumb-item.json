@@ -63,7 +63,7 @@
 		{
 			"basis": "observed",
 			"from": "components-breadcrumb-item--current",
-			"html": "<div role=\"list\"><violet-breadcrumb-item current role=\"listitem\" aria-current=\"page\" href>Plans</violet-breadcrumb-item></div>"
+			"html": "<div role=\"list\"><violet-breadcrumb-item aria-current=\"page\" current href role=\"listitem\">Plans</violet-breadcrumb-item></div>"
 		},
 		{
 			"basis": "observed",

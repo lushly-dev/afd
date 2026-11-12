@@ -78,12 +78,12 @@
 		{
 			"basis": "observed",
 			"from": "components-menu-item--disabled",
-			"html": "<div role=\"menu\"><violet-menu-item disabled><violet-icon slot=\"before\" icon=\"system/settings\" decorative label></violet-icon>Unavailable action</violet-menu-item></div>"
+			"html": "<div role=\"menu\"><violet-menu-item disabled><violet-icon decorative icon=\"system/settings\" label slot=\"before\"></violet-icon>Unavailable action</violet-menu-item></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-menu-item--overview",
-			"html": "<div role=\"menu\"><violet-menu-item><violet-icon slot=\"before\" icon=\"system/search\" decorative label></violet-icon>Search records</violet-menu-item></div>"
+			"html": "<div role=\"menu\"><violet-menu-item><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon>Search records</violet-menu-item></div>"
 		},
 		{
 			"basis": "observed",

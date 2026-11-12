@@ -142,17 +142,17 @@
 		{
 			"basis": "observed",
 			"from": "conversation-composer--disabled",
-			"html": "<violet-chat-composer status=\"ready\" placeholder=\"Composer is disabled\" value=\"This draft is locked while the workspace syncs.\" style=\"max-inline-size: 600px;\" label=\"Message\" disabled></violet-chat-composer>"
+			"html": "<violet-chat-composer disabled label=\"Message\" placeholder=\"Composer is disabled\" status=\"ready\" style=\"max-inline-size: 600px;\" value=\"This draft is locked while the workspace syncs.\"></violet-chat-composer>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-composer--overview",
-			"html": "<violet-chat-composer status=\"ready\" placeholder=\"Send a message…\" value=\"Draft a planting note for the north shade bed.\" style=\"max-inline-size: 600px;\" label=\"Message\"></violet-chat-composer>"
+			"html": "<violet-chat-composer label=\"Message\" placeholder=\"Send a message…\" status=\"ready\" style=\"max-inline-size: 600px;\" value=\"Draft a planting note for the north shade bed.\"></violet-chat-composer>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-composer--streaming",
-			"html": "<violet-chat-composer status=\"streaming\" placeholder=\"Send a message…\" value=\"Summarize the latest irrigation recommendations.\" style=\"max-inline-size: 600px;\" label=\"Message\"></violet-chat-composer>"
+			"html": "<violet-chat-composer label=\"Message\" placeholder=\"Send a message…\" status=\"streaming\" style=\"max-inline-size: 600px;\" value=\"Summarize the latest irrigation recommendations.\"></violet-chat-composer>"
 		}
 	],
 	"format": 0,

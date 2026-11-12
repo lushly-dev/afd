@@ -180,17 +180,17 @@
 		{
 			"basis": "observed",
 			"from": "components-radio--checked",
-			"html": "<violet-radio role=\"radio\" aria-checked=\"true\" tabindex=\"0\" checked name=\"sowingMethod\" value=\"direct\">Direct seed<span slot=\"supporting\">Use when the crop should stay in its final bed.</span></violet-radio>"
+			"html": "<violet-radio aria-checked=\"true\" checked name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\">Direct seed<span slot=\"supporting\">Use when the crop should stay in its final bed.</span></violet-radio>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-radio--disabled",
-			"html": "<violet-radio aria-disabled=\"true\" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" disabled name=\"sowingMethod\" value=\"transplant\">Tray transplant<span slot=\"supporting\">Unavailable while this batch is already committed to field.</span></violet-radio>"
+			"html": "<violet-radio aria-checked=\"false\" aria-disabled=\"true\" disabled name=\"sowingMethod\" role=\"radio\" tabindex=\"-1\" value=\"transplant\">Tray transplant<span slot=\"supporting\">Unavailable while this batch is already committed to field.</span></violet-radio>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-radio--inline",
-			"html": "<violet-radio aria-label=\"Compact direct seed option\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" checked inline name=\"sowingMethod\" value=\"direct\"></violet-radio>"
+			"html": "<violet-radio aria-checked=\"true\" aria-label=\"Compact direct seed option\" checked inline name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\"></violet-radio>"
 		}
 	],
 	"format": 0,

@@ -44,7 +44,7 @@
 		{
 			"basis": "observed",
 			"from": "components-breadcrumb--overview",
-			"html": "<violet-breadcrumb aria-label=\"Crop plan path\" label=\"Crop plan path\"><violet-breadcrumb-item href=\"/plans\" role=\"listitem\">Plans</violet-breadcrumb-item><violet-breadcrumb-item href=\"/plans/propagation\" role=\"listitem\">Propagation</violet-breadcrumb-item><violet-breadcrumb-item current role=\"listitem\" aria-current=\"page\" href>Spring greens</violet-breadcrumb-item></violet-breadcrumb>"
+			"html": "<violet-breadcrumb aria-label=\"Crop plan path\" label=\"Crop plan path\"><violet-breadcrumb-item href=\"/plans\" role=\"listitem\">Plans</violet-breadcrumb-item><violet-breadcrumb-item href=\"/plans/propagation\" role=\"listitem\">Propagation</violet-breadcrumb-item><violet-breadcrumb-item aria-current=\"page\" current href role=\"listitem\">Spring greens</violet-breadcrumb-item></violet-breadcrumb>"
 		}
 	],
 	"format": 0,

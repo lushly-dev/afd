@@ -120,17 +120,17 @@
 		{
 			"basis": "observed",
 			"from": "components-persona--decorative",
-			"html": "<violet-persona label=\"Decorative profile image\" src initials=\"D\" decorative size=\"sm\"></violet-persona>"
+			"html": "<violet-persona decorative initials=\"D\" label=\"Decorative profile image\" size=\"sm\" src></violet-persona>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-persona--image",
-			"html": "<violet-persona label=\"Katri Athokas\" src=\"https://fabricweb.azureedge.net/fabric-website/assets/images/avatar/KatriAthokas.jpg\" initials size=\"md\"></violet-persona>"
+			"html": "<violet-persona initials label=\"Katri Athokas\" size=\"md\" src=\"https://fabricweb.azureedge.net/fabric-website/assets/images/avatar/KatriAthokas.jpg\"></violet-persona>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-persona--overview",
-			"html": "<violet-persona label=\"Lydia Bauer\" src initials size=\"sm\"></violet-persona>"
+			"html": "<violet-persona initials label=\"Lydia Bauer\" size=\"sm\" src></violet-persona>"
 		}
 	],
 	"format": 0,

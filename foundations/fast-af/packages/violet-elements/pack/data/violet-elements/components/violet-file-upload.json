@@ -293,17 +293,17 @@
 		{
 			"basis": "observed",
 			"from": "components-file-upload--disabled",
-			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload label=\"Upload field maps\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\" error-text=\"Add a valid file before continuing.\" appearance=\"button\" size=\"natural\" accept=\".pdf,.jpg,.jpeg,.png\" name=\"field-maps\" disabled max-files max-file-size></violet-file-upload></form></div>"
+			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"button\" disabled error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-file-upload--dropzone",
-			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload label=\"Upload field maps\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\" error-text=\"Add a valid file before continuing.\" appearance=\"dropzone\" size=\"natural\" accept=\".pdf,.jpg,.jpeg,.png\" name=\"field-maps\" multiple max-files max-file-size></violet-file-upload></form></div>"
+			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"dropzone\" error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files multiple name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-file-upload--overview",
-			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload label=\"Upload field maps\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\" error-text=\"Add a valid file before continuing.\" appearance=\"button\" size=\"natural\" accept=\".pdf,.jpg,.jpeg,.png\" name=\"field-maps\" max-files max-file-size></violet-file-upload></form></div>"
+			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"button\" error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
 		}
 	],
 	"format": 0,

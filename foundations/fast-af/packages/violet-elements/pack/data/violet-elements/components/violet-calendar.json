@@ -132,17 +132,17 @@
 		{
 			"basis": "observed",
 			"from": "components-calendar--constrained",
-			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar locale=\"en-US\" value=\"2026-03-23\" min=\"2026-03-18\" max=\"2026-03-28\" selection-mode=\"single\" start end></violet-calendar>\n            </div>"
+			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar end locale=\"en-US\" max=\"2026-03-28\" min=\"2026-03-18\" selection-mode=\"single\" start value=\"2026-03-23\"></violet-calendar>\n            </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-calendar--disabled",
-			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar locale=\"en-US\" value=\"2026-03-23\" disabled selection-mode=\"single\" start end min max></violet-calendar>\n            </div>"
+			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar disabled end locale=\"en-US\" max min selection-mode=\"single\" start value=\"2026-03-23\"></violet-calendar>\n            </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-calendar--overview",
-			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar locale=\"en-US\" value=\"2026-03-23\" selection-mode=\"single\" start end min max></violet-calendar>\n            </div>"
+			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar end locale=\"en-US\" max min selection-mode=\"single\" start value=\"2026-03-23\"></violet-calendar>\n            </div>"
 		}
 	],
 	"format": 0,

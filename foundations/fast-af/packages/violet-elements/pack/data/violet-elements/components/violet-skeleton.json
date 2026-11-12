@@ -92,17 +92,17 @@
 		{
 			"basis": "observed",
 			"from": "components-skeleton--avatar-and-copy",
-			"html": "<violet-card padding=\"medium\" appearance=\"outline\" style=\"inline-size:22rem;\" orientation=\"vertical\">\n            <div style=\"display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;\">\n                <violet-skeleton shape=\"circle\" size=\"lg\" aria-hidden=\"true\" lines=\"1\"></violet-skeleton>\n                <div style=\"display:grid;gap:8px;\">\n                    <violet-skeleton shape=\"rect\" size=\"md\" style=\"inline-size:8rem;\" aria-hidden=\"true\" lines=\"1\"></violet-skeleton>\n                    <violet-skeleton shape=\"text\" lines=\"3\" aria-hidden=\"true\" size=\"md\"></violet-skeleton>\n                </div>\n            </div>\n        </violet-card>"
+			"html": "<violet-card appearance=\"outline\" orientation=\"vertical\" padding=\"medium\" style=\"inline-size:22rem;\">\n            <div style=\"display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;\">\n                <violet-skeleton aria-hidden=\"true\" lines=\"1\" shape=\"circle\" size=\"lg\"></violet-skeleton>\n                <div style=\"display:grid;gap:8px;\">\n                    <violet-skeleton aria-hidden=\"true\" lines=\"1\" shape=\"rect\" size=\"md\" style=\"inline-size:8rem;\"></violet-skeleton>\n                    <violet-skeleton aria-hidden=\"true\" lines=\"3\" shape=\"text\" size=\"md\"></violet-skeleton>\n                </div>\n            </div>\n        </violet-card>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-skeleton--overview",
-			"html": "<div style=\"max-inline-size:20rem;\"><violet-skeleton shape=\"rect\" size=\"md\" lines=\"1\" animated aria-hidden=\"true\"></violet-skeleton></div>"
+			"html": "<div style=\"max-inline-size:20rem;\"><violet-skeleton animated aria-hidden=\"true\" lines=\"1\" shape=\"rect\" size=\"md\"></violet-skeleton></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-skeleton--static",
-			"html": "<div style=\"max-inline-size:20rem;\"><violet-skeleton shape=\"text\" size=\"md\" lines=\"3\" aria-hidden=\"true\"></violet-skeleton></div>"
+			"html": "<div style=\"max-inline-size:20rem;\"><violet-skeleton aria-hidden=\"true\" lines=\"3\" shape=\"text\" size=\"md\"></violet-skeleton></div>"
 		}
 	],
 	"format": 0,

@@ -117,17 +117,17 @@
 		{
 			"basis": "observed",
 			"from": "conversation-source-citation--citation-list",
-			"html": "<div style=\"display: flex; flex-direction: column; gap: 8px;\"><violet-source-citation type=\"url\" href=\"https://example.com/shade-plants\" source-title=\"Top 10 Shade Plants\" index=\"1\" source-id media-type></violet-source-citation><violet-source-citation type=\"url\" href=\"https://example.com/soil-guide\" source-title=\"Understanding Your Soil\" index=\"2\" source-id media-type></violet-source-citation><violet-source-citation type=\"document\" source-title=\"Garden Planning Worksheet.pdf\" index=\"3\" href source-id media-type></violet-source-citation></div>"
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 8px;\"><violet-source-citation href=\"https://example.com/shade-plants\" index=\"1\" media-type source-id source-title=\"Top 10 Shade Plants\" type=\"url\"></violet-source-citation><violet-source-citation href=\"https://example.com/soil-guide\" index=\"2\" media-type source-id source-title=\"Understanding Your Soil\" type=\"url\"></violet-source-citation><violet-source-citation href index=\"3\" media-type source-id source-title=\"Garden Planning Worksheet.pdf\" type=\"document\"></violet-source-citation></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-source-citation--document-source",
-			"html": "<violet-source-citation type=\"document\" source-title=\"USDA Plant Hardiness Zone Map\" index=\"2\" media-type=\"application/pdf\" href source-id></violet-source-citation>"
+			"html": "<violet-source-citation href index=\"2\" media-type=\"application/pdf\" source-id source-title=\"USDA Plant Hardiness Zone Map\" type=\"document\"></violet-source-citation>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-source-citation--no-badge",
-			"html": "<violet-source-citation type=\"url\" href=\"https://example.com/composting-basics\" source-title=\"Composting Basics for Beginners\" source-id media-type index></violet-source-citation>"
+			"html": "<violet-source-citation href=\"https://example.com/composting-basics\" index media-type source-id source-title=\"Composting Basics for Beginners\" type=\"url\"></violet-source-citation>"
 		}
 	],
 	"format": 0,

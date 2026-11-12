@@ -217,17 +217,17 @@
 		{
 			"basis": "observed",
 			"from": "components-gantt--calendar-scale-polish",
-			"html": "<div style=\"inline-size: 50rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt dir=\"ltr\" density=\"natural\" locale></violet-gantt></div>"
+			"html": "<div style=\"inline-size: 50rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"natural\" dir=\"ltr\" locale></violet-gantt></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-gantt--dense-overflow",
-			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt dir=\"ltr\" density=\"compact\" locale></violet-gantt></div>"
+			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"compact\" dir=\"ltr\" locale></violet-gantt></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-gantt--hierarchy-and-multiple-items",
-			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt dir=\"ltr\" density=\"natural\" locale></violet-gantt></div>"
+			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"natural\" dir=\"ltr\" locale></violet-gantt></div>"
 		}
 	],
 	"format": 0,

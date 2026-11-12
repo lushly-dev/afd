@@ -178,17 +178,17 @@
 		{
 			"basis": "observed",
 			"from": "components-snackbar--dismiss-interaction",
-			"html": "<violet-snackbar tone=\"default\" announcement=\"polite\" dismissible timeout=\"6000\">Row changes synced.</violet-snackbar>"
+			"html": "<violet-snackbar announcement=\"polite\" dismissible timeout=\"6000\" tone=\"default\">Row changes synced.</violet-snackbar>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-snackbar--dismissible",
-			"html": "<violet-snackbar open tone=\"default\" announcement=\"polite\" dismissible timeout=\"6000\">Row changes synced.</violet-snackbar>"
+			"html": "<violet-snackbar announcement=\"polite\" dismissible open timeout=\"6000\" tone=\"default\">Row changes synced.</violet-snackbar>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-snackbar--overview",
-			"html": "<violet-snackbar open tone=\"default\" announcement=\"polite\" timeout=\"6000\">Row changes synced.</violet-snackbar>"
+			"html": "<violet-snackbar announcement=\"polite\" open timeout=\"6000\" tone=\"default\">Row changes synced.</violet-snackbar>"
 		}
 	],
 	"format": 0,

@@ -453,7 +453,7 @@
 		{
 			"basis": "observed",
 			"from": "components-data-grid-grid--empty-state",
-			"html": "<violet-data-grid selection-mode=\"none\" density=\"natural\" focus-mode=\"row\" sort-mode=\"local\"></violet-data-grid>"
+			"html": "<violet-data-grid density=\"natural\" focus-mode=\"row\" selection-mode=\"none\" sort-mode=\"local\"></violet-data-grid>"
 		}
 	],
 	"format": 0,

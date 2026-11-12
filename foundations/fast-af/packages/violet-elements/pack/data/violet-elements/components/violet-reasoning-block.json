@@ -87,17 +87,17 @@
 		{
 			"basis": "observed",
 			"from": "conversation-reasoning-block--custom-label",
-			"html": "<violet-reasoning-block state=\"done\" label=\"Chain of thought\">Analyzing the query to determine the best approach for answering this question about garden maintenance schedules.</violet-reasoning-block>"
+			"html": "<violet-reasoning-block label=\"Chain of thought\" state=\"done\">Analyzing the query to determine the best approach for answering this question about garden maintenance schedules.</violet-reasoning-block>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-reasoning-block--expanded",
-			"html": "<violet-reasoning-block state=\"done\" expanded label=\"Thinking\">The user is asking about shade-tolerant plants. I should consider their USDA hardiness zone and soil type. Let me think about which perennials would work best for partial shade conditions with well-drained soil.\n\nI know hostas are popular but deer eat them. Ferns and astilbe are more deer-resistant options. Brunnera and bleeding heart are also good candidates.</violet-reasoning-block>"
+			"html": "<violet-reasoning-block expanded label=\"Thinking\" state=\"done\">The user is asking about shade-tolerant plants. I should consider their USDA hardiness zone and soil type. Let me think about which perennials would work best for partial shade conditions with well-drained soil.\n\nI know hostas are popular but deer eat them. Ferns and astilbe are more deer-resistant options. Brunnera and bleeding heart are also good candidates.</violet-reasoning-block>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-reasoning-block--overview",
-			"html": "<violet-reasoning-block state=\"done\" label=\"Thinking\">The user is asking about shade-tolerant plants. I should consider their USDA hardiness zone and soil type. Let me think about which perennials would work best for partial shade conditions with well-drained soil...</violet-reasoning-block>"
+			"html": "<violet-reasoning-block label=\"Thinking\" state=\"done\">The user is asking about shade-tolerant plants. I should consider their USDA hardiness zone and soil type. Let me think about which perennials would work best for partial shade conditions with well-drained soil...</violet-reasoning-block>"
 		}
 	],
 	"format": 0,

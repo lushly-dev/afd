@@ -165,17 +165,17 @@
 		{
 			"basis": "observed",
 			"from": "components-teaching-tip--above",
-			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip positioning=\"above\" content=\"Use this button to quickly add new items to your collection.\" current-step=\"0\" total-steps=\"0\"><span slot=\"title\">Quick action</span><violet-button aria-haspopup=\"dialog\" aria-expanded=\"false\" aria-controls=\"violet-teaching-tip-0\" appearance=\"primary\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip content=\"Use this button to quickly add new items to your collection.\" current-step=\"0\" positioning=\"above\" total-steps=\"0\"><span slot=\"title\">Quick action</span><violet-button appearance=\"primary\" aria-controls=\"violet-teaching-tip-0\" aria-expanded=\"false\" aria-haspopup=\"dialog\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-teaching-tip--after",
-			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip positioning=\"after\" content=\"Access your account settings and preferences from this menu.\" current-step=\"0\" total-steps=\"0\"><span slot=\"title\">Settings panel</span><violet-button aria-haspopup=\"dialog\" aria-expanded=\"false\" aria-controls=\"violet-teaching-tip-0\" appearance=\"primary\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip content=\"Access your account settings and preferences from this menu.\" current-step=\"0\" positioning=\"after\" total-steps=\"0\"><span slot=\"title\">Settings panel</span><violet-button appearance=\"primary\" aria-controls=\"violet-teaching-tip-0\" aria-expanded=\"false\" aria-haspopup=\"dialog\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-teaching-tip--before",
-			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip positioning=\"before\" content=\"The sidebar contains all your workspaces and recent projects.\" current-step=\"0\" total-steps=\"0\"><span slot=\"title\">Navigation</span><violet-button aria-haspopup=\"dialog\" aria-expanded=\"false\" aria-controls=\"violet-teaching-tip-0\" appearance=\"primary\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 200px;\"><violet-teaching-tip content=\"The sidebar contains all your workspaces and recent projects.\" current-step=\"0\" positioning=\"before\" total-steps=\"0\"><span slot=\"title\">Navigation</span><violet-button appearance=\"primary\" aria-controls=\"violet-teaching-tip-0\" aria-expanded=\"false\" aria-haspopup=\"dialog\" type=\"button\">Show Tip</violet-button></violet-teaching-tip></div>"
 		}
 	],
 	"format": 0,

@@ -187,17 +187,17 @@
 		{
 			"basis": "observed",
 			"from": "components-time-picker--disabled",
-			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker label=\"Start time\" supporting-text=\"This schedule is inherited from the greenhouse template.\" value=\"09:30\" name=\"start-time\" min=\"06:00\" max=\"21:00\" step=\"60\" size=\"natural\" disabled error-text></violet-time-picker>\n            </form>"
+			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker disabled error-text label=\"Start time\" max=\"21:00\" min=\"06:00\" name=\"start-time\" size=\"natural\" step=\"60\" supporting-text=\"This schedule is inherited from the greenhouse template.\" value=\"09:30\"></violet-time-picker>\n            </form>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-time-picker--invalid",
-			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker label=\"Start time\" supporting-text=\"Choose when this automation should begin each day.\" error-text=\"Please choose a time.\" name=\"start-time\" min=\"06:00\" max=\"21:00\" step=\"60\" size=\"natural\" required invalid value></violet-time-picker>\n            </form>"
+			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker error-text=\"Please choose a time.\" invalid label=\"Start time\" max=\"21:00\" min=\"06:00\" name=\"start-time\" required size=\"natural\" step=\"60\" supporting-text=\"Choose when this automation should begin each day.\" value></violet-time-picker>\n            </form>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-time-picker--overview",
-			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker label=\"Start time\" supporting-text=\"Choose when this automation should begin each day.\" value=\"09:30\" name=\"start-time\" min=\"06:00\" max=\"21:00\" step=\"60\" size=\"natural\" error-text></violet-time-picker>\n            </form>"
+			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker error-text label=\"Start time\" max=\"21:00\" min=\"06:00\" name=\"start-time\" size=\"natural\" step=\"60\" supporting-text=\"Choose when this automation should begin each day.\" value=\"09:30\"></violet-time-picker>\n            </form>"
 		}
 	],
 	"format": 0,

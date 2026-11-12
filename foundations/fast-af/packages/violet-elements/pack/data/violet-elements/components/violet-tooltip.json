@@ -144,17 +144,17 @@
 		{
 			"basis": "observed",
 			"from": "components-tooltip--after",
-			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 120px;\"><violet-tooltip positioning=\"after\" content=\"Tooltip to the right.\" delay=\"250\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 16px; cursor: pointer;\">Hover me</button></violet-tooltip></div>"
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 120px;\"><violet-tooltip content=\"Tooltip to the right.\" delay=\"250\" positioning=\"after\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 16px; cursor: pointer;\">Hover me</button></violet-tooltip></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-tooltip--all-positions",
-			"html": "<div style=\"display: flex; flex-wrap: wrap; gap: 32px; padding: 80px; justify-content: center; align-items: center;\"><violet-tooltip positioning=\"above\" content=\"Positioned above\" delay=\"100\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 20px; cursor: pointer;\">above</button></violet-tooltip><violet-tooltip positioning=\"below\" content=\"Positioned below\" delay=\"100\"><button aria-describedby=\"violet-tooltip-1\" style=\"padding: 8px 20px; cursor: pointer;\">below</button></violet-tooltip><violet-tooltip positioning=\"before\" content=\"Positioned before\" delay=\"100\"><button aria-describedby=\"violet-tooltip-2\" style=\"padding: 8px 20px; cursor: pointer;\">before</button></violet-tooltip><violet-tooltip positioning=\"after\" content=\"Positioned after\" delay=\"100\"><button aria-describedby=\"violet-tooltip-3\" style=\"padding: 8px 20px; cursor: pointer;\">after</button></violet-tooltip></div>"
+			"html": "<div style=\"display: flex; flex-wrap: wrap; gap: 32px; padding: 80px; justify-content: center; align-items: center;\"><violet-tooltip content=\"Positioned above\" delay=\"100\" positioning=\"above\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 20px; cursor: pointer;\">above</button></violet-tooltip><violet-tooltip content=\"Positioned below\" delay=\"100\" positioning=\"below\"><button aria-describedby=\"violet-tooltip-1\" style=\"padding: 8px 20px; cursor: pointer;\">below</button></violet-tooltip><violet-tooltip content=\"Positioned before\" delay=\"100\" positioning=\"before\"><button aria-describedby=\"violet-tooltip-2\" style=\"padding: 8px 20px; cursor: pointer;\">before</button></violet-tooltip><violet-tooltip content=\"Positioned after\" delay=\"100\" positioning=\"after\"><button aria-describedby=\"violet-tooltip-3\" style=\"padding: 8px 20px; cursor: pointer;\">after</button></violet-tooltip></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-tooltip--before",
-			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 120px;\"><violet-tooltip positioning=\"before\" content=\"Tooltip to the left.\" delay=\"250\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 16px; cursor: pointer;\">Hover me</button></violet-tooltip></div>"
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 120px;\"><violet-tooltip content=\"Tooltip to the left.\" delay=\"250\" positioning=\"before\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 16px; cursor: pointer;\">Hover me</button></violet-tooltip></div>"
 		}
 	],
 	"format": 0,

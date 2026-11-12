@@ -130,17 +130,17 @@
 		{
 			"basis": "observed",
 			"from": "components-segmented-control--disabled",
-			"html": "<violet-segmented-control label=\"Propagation view\" supporting-text error-text value=\"overview\" name disabled><violet-segment checked aria-disabled=\"true\" value=\"overview\">Overview</violet-segment><violet-segment aria-disabled=\"true\" value=\"planting\">Planting</violet-segment></violet-segmented-control>"
+			"html": "<violet-segmented-control disabled error-text label=\"Propagation view\" name supporting-text value=\"overview\"><violet-segment aria-disabled=\"true\" checked value=\"overview\">Overview</violet-segment><violet-segment aria-disabled=\"true\" value=\"planting\">Planting</violet-segment></violet-segmented-control>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-segmented-control--disabled-segment-tab-stop",
-			"html": "<div style=\"max-inline-size: 32rem;\"><form><violet-segmented-control name=\"propagation-view\" label=\"Propagation view\" supporting-text=\"Choose the working perspective for this crop plan.\" error-text value><violet-segment value=\"overview\">Overview</violet-segment><violet-segment value=\"planting\">Planting</violet-segment><violet-segment value=\"irrigation\">Irrigation</violet-segment></violet-segmented-control></form></div>"
+			"html": "<div style=\"max-inline-size: 32rem;\"><form><violet-segmented-control error-text label=\"Propagation view\" name=\"propagation-view\" supporting-text=\"Choose the working perspective for this crop plan.\" value><violet-segment value=\"overview\">Overview</violet-segment><violet-segment value=\"planting\">Planting</violet-segment><violet-segment value=\"irrigation\">Irrigation</violet-segment></violet-segmented-control></form></div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-segmented-control--invalid",
-			"html": "<violet-segmented-control label=\"Propagation view\" supporting-text error-text=\"Choose a view before continuing.\" value name invalid required><violet-segment value=\"overview\">Overview</violet-segment><violet-segment value=\"planting\">Planting</violet-segment></violet-segmented-control>"
+			"html": "<violet-segmented-control error-text=\"Choose a view before continuing.\" invalid label=\"Propagation view\" name required supporting-text value><violet-segment value=\"overview\">Overview</violet-segment><violet-segment value=\"planting\">Planting</violet-segment></violet-segmented-control>"
 		}
 	],
 	"format": 0,

@@ -138,17 +138,17 @@
 		{
 			"basis": "observed",
 			"from": "components-badge--appearances",
-			"html": "<div style=\"display:flex;flex-wrap:wrap;gap:12px;align-items:center;\">\n            <violet-badge appearance=\"filled\" color=\"accent\" label size=\"md\" icon>Filled</violet-badge>\n            <violet-badge appearance=\"outline\" color=\"accent\" label size=\"md\" icon>Outline</violet-badge>\n            <violet-badge appearance=\"subtle\" color=\"accent\" label size=\"md\" icon>Subtle</violet-badge>\n        </div>"
+			"html": "<div style=\"display:flex;flex-wrap:wrap;gap:12px;align-items:center;\">\n            <violet-badge appearance=\"filled\" color=\"accent\" icon label size=\"md\">Filled</violet-badge>\n            <violet-badge appearance=\"outline\" color=\"accent\" icon label size=\"md\">Outline</violet-badge>\n            <violet-badge appearance=\"subtle\" color=\"accent\" icon label size=\"md\">Subtle</violet-badge>\n        </div>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-badge--decorative",
-			"html": "<violet-badge decorative color=\"warning\" aria-hidden=\"true\" label appearance=\"filled\" size=\"md\" icon>Trial</violet-badge>"
+			"html": "<violet-badge appearance=\"filled\" aria-hidden=\"true\" color=\"warning\" decorative icon label size=\"md\">Trial</violet-badge>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-badge--icon-only",
-			"html": "<violet-badge color=\"accent\" icon=\"system/check\" label=\"Saved\" role=\"img\" aria-label=\"Saved\" appearance=\"filled\" size=\"md\"></violet-badge>"
+			"html": "<violet-badge appearance=\"filled\" aria-label=\"Saved\" color=\"accent\" icon=\"system/check\" label=\"Saved\" role=\"img\" size=\"md\"></violet-badge>"
 		}
 	],
 	"format": 0,

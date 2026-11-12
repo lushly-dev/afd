@@ -177,17 +177,17 @@
 		{
 			"basis": "observed",
 			"from": "components-text-area--disabled",
-			"html": "<violet-text-area label=\"Harvest notes\" placeholder=\"Unavailable while sync is running\" supporting-text=\"Disabled areas should still show their footprint in a dense form.\" rows=\"5\" disabled name=\"harvestNotes\"></violet-text-area>"
+			"html": "<violet-text-area disabled label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Unavailable while sync is running\" rows=\"5\" supporting-text=\"Disabled areas should still show their footprint in a dense form.\"></violet-text-area>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text-area--invalid",
-			"html": "<violet-text-area label=\"Harvest notes\" placeholder=\"Describe the issue...\" supporting-text=\"Required before submitting the crop review.\" rows=\"5\" invalid name=\"harvestNotes\" required></violet-text-area>"
+			"html": "<violet-text-area invalid label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Describe the issue...\" required rows=\"5\" supporting-text=\"Required before submitting the crop review.\"></violet-text-area>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-text-area--overview",
-			"html": "<violet-text-area label=\"Planting notes\" placeholder=\"Add observations for this bed...\" supporting-text=\"Keep the most recent field notes with the current plan.\" rows=\"4\" name=\"plantingNotes\" required></violet-text-area>"
+			"html": "<violet-text-area label=\"Planting notes\" name=\"plantingNotes\" placeholder=\"Add observations for this bed...\" required rows=\"4\" supporting-text=\"Keep the most recent field notes with the current plan.\"></violet-text-area>"
 		}
 	],
 	"format": 0,

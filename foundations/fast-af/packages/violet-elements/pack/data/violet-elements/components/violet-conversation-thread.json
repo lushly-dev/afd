@@ -54,12 +54,12 @@
 		{
 			"basis": "observed",
 			"from": "conversation-thread--busy",
-			"html": "<violet-conversation-thread style=\"block-size: 300px; border: 1px solid rgba(28, 26, 13, 0.1); border-radius: 8px;\" busy><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">Generate a weekly meal plan for two people.</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">I'll create a balanced meal plan for you...</violet-message-text></violet-message></violet-conversation-thread>"
+			"html": "<violet-conversation-thread busy style=\"block-size: 300px; border: 1px solid rgba(28, 26, 13, 0.1); border-radius: 8px;\"><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">Generate a weekly meal plan for two people.</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">I'll create a balanced meal plan for you...</violet-message-text></violet-message></violet-conversation-thread>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-thread--empty",
-			"html": "<violet-conversation-thread style=\"block-size: 300px; border: 1px solid rgba(28, 26, 13, 0.1); border-radius: 8px;\" empty><div slot=\"empty\" style=\"font-size: 14px;\"><p style=\"margin: 0px 0px 8px; font-weight: 600;\">Start a conversation</p><p style=\"margin: 0px; font-size: 13px;\">Ask a question or describe what you need help with.</p></div></violet-conversation-thread>"
+			"html": "<violet-conversation-thread empty style=\"block-size: 300px; border: 1px solid rgba(28, 26, 13, 0.1); border-radius: 8px;\"><div slot=\"empty\" style=\"font-size: 14px;\"><p style=\"margin: 0px 0px 8px; font-weight: 600;\">Start a conversation</p><p style=\"margin: 0px; font-size: 13px;\">Ask a question or describe what you need help with.</p></div></violet-conversation-thread>"
 		},
 		{
 			"basis": "observed",

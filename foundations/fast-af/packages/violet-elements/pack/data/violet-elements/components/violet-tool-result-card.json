@@ -92,17 +92,17 @@
 		{
 			"basis": "observed",
 			"from": "conversation-tool-result-card--error-result",
-			"html": "<violet-tool-result-card state=\"output-error\" expanded><span slot=\"summary\">Failed to retrieve weather data</span><div>Error: Connection timeout after 30s. The weather service did not respond.</div></violet-tool-result-card>"
+			"html": "<violet-tool-result-card expanded state=\"output-error\"><span slot=\"summary\">Failed to retrieve weather data</span><div>Error: Connection timeout after 30s. The weather service did not respond.</div></violet-tool-result-card>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-tool-result-card--expanded",
-			"html": "<violet-tool-result-card state=\"output-available\" expanded><span slot=\"summary\">Weather data retrieved successfully</span><div>Temperature: 72°F\nConditions: Partly cloudy\nHumidity: 45%\nWind: 8 mph NW</div></violet-tool-result-card>"
+			"html": "<violet-tool-result-card expanded state=\"output-available\"><span slot=\"summary\">Weather data retrieved successfully</span><div>Temperature: 72°F\nConditions: Partly cloudy\nHumidity: 45%\nWind: 8 mph NW</div></violet-tool-result-card>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-tool-result-card--overview",
-			"html": "<violet-tool-result-card state=\"output-available\" expanded><span slot=\"summary\">Weather data retrieved successfully</span><div>Temperature: 72°F\nConditions: Partly cloudy\nHumidity: 45%\nWind: 8 mph NW</div></violet-tool-result-card>"
+			"html": "<violet-tool-result-card expanded state=\"output-available\"><span slot=\"summary\">Weather data retrieved successfully</span><div>Temperature: 72°F\nConditions: Partly cloudy\nHumidity: 45%\nWind: 8 mph NW</div></violet-tool-result-card>"
 		}
 	],
 	"format": 0,

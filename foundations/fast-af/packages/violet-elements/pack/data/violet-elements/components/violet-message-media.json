@@ -92,17 +92,17 @@
 		{
 			"basis": "observed",
 			"from": "conversation-message-media--allowed-local-source",
-			"html": "<violet-message-media src=\"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22200%22%3E%3Crect%20width%3D%22400%22%20height%3D%22200%22%20fill%3D%22%238fbf8f%22%2F%3E%3C%2Fsvg%3E\" media-type=\"image/svg+xml\" filename=\"garden.svg\" alt=\"A green garden bed\" allowed-origins=\"https://cdn.example.com\"></violet-message-media>"
+			"html": "<violet-message-media allowed-origins=\"https://cdn.example.com\" alt=\"A green garden bed\" filename=\"garden.svg\" media-type=\"image/svg+xml\" src=\"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22200%22%3E%3Crect%20width%3D%22400%22%20height%3D%22200%22%20fill%3D%22%238fbf8f%22%2F%3E%3C%2Fsvg%3E\"></violet-message-media>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-message-media--audio-file",
-			"html": "<violet-message-media src=\"https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3\" media-type=\"audio/mpeg\" filename=\"bird-sounds.mp3\" alt allowed-origins></violet-message-media>"
+			"html": "<violet-message-media allowed-origins alt filename=\"bird-sounds.mp3\" media-type=\"audio/mpeg\" src=\"https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3\"></violet-message-media>"
 		},
 		{
 			"basis": "observed",
 			"from": "conversation-message-media--blocked-remote-source",
-			"html": "<violet-message-media src=\"https://tracker.example.invalid/pixel.png\" media-type=\"image/png\" filename=\"tracker.png\" allowed-origins=\"https://cdn.example.com\" alt></violet-message-media>"
+			"html": "<violet-message-media allowed-origins=\"https://cdn.example.com\" alt filename=\"tracker.png\" media-type=\"image/png\" src=\"https://tracker.example.invalid/pixel.png\"></violet-message-media>"
 		}
 	],
 	"format": 0,

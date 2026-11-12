@@ -184,17 +184,17 @@
 		{
 			"basis": "observed",
 			"from": "components-alert--assertive-announcement",
-			"html": "<violet-alert tone=\"danger\" announcement=\"assertive\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
+			"html": "<violet-alert announcement=\"assertive\" tone=\"danger\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-alert--dismiss-interaction",
-			"html": "<violet-alert tone=\"warning\" announcement=\"off\" dismissible>\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
+			"html": "<violet-alert announcement=\"off\" dismissible tone=\"warning\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-alert--dismissible",
-			"html": "<violet-alert tone=\"warning\" announcement=\"off\" dismissible>\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
+			"html": "<violet-alert announcement=\"off\" dismissible tone=\"warning\">\n            <span slot=\"title\">Propagation update</span>\n            Tray transplant is now the default path for late-spring greens in this plan.\n            <span slot=\"actions\">\n                <violet-button appearance=\"secondary\" type=\"button\">Review changes</violet-button>\n            </span>\n        </violet-alert>"
 		}
 	],
 	"format": 0,

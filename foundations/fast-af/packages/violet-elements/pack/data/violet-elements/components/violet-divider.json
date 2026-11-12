@@ -77,12 +77,12 @@
 		{
 			"basis": "observed",
 			"from": "components-divider--decorative",
-			"html": "<violet-divider appearance=\"subtle\" orientation=\"horizontal\" decorative></violet-divider>"
+			"html": "<violet-divider appearance=\"subtle\" decorative orientation=\"horizontal\"></violet-divider>"
 		},
 		{
 			"basis": "observed",
 			"from": "components-divider--overview",
-			"html": "<div style=\"display:grid;gap:12px;max-width:32rem;\">\n            <violet-text variant=\"label\" as=\"label\" tone=\"default\">Upcoming work</violet-text>\n            <violet-divider appearance=\"subtle\" orientation=\"horizontal\"></violet-divider>\n            <violet-text as=\"p\" variant=\"body\" tone=\"default\">Prepare spring seed trays, check propagation media, and confirm irrigation schedules.</violet-text>\n        </div>"
+			"html": "<div style=\"display:grid;gap:12px;max-width:32rem;\">\n            <violet-text as=\"label\" tone=\"default\" variant=\"label\">Upcoming work</violet-text>\n            <violet-divider appearance=\"subtle\" orientation=\"horizontal\"></violet-divider>\n            <violet-text as=\"p\" tone=\"default\" variant=\"body\">Prepare spring seed trays, check propagation media, and confirm irrigation schedules.</violet-text>\n        </div>"
 		},
 		{
 			"basis": "observed",
