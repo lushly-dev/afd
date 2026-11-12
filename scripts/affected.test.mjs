@@ -8,7 +8,14 @@ import { changedImporters, parseLockfile } from './affected/lockfile.mjs';
 import { OWN_TESTS, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, readTrigger, SUITES } from './affected/suites.mjs';
 import { readWorkspace, withDependencies, withDependents } from './affected/workspace.mjs';
-import { checkEnvironment, gate, parseArgs, planSuites, pnpmArgs } from './affected.mjs';
+import {
+	checkEnvironment,
+	gate,
+	parseArgs,
+	plannedTools,
+	planSuites,
+	pnpmArgs,
+} from './affected.mjs';
 import { releaseTestFiles, selectToolingTests, testFiles } from './run-tooling-tests.mjs';
 
 const lockfile = ({ zod = '4.6.6', settings = 'autoInstallPeers: true', root = '2.5.14' } = {}) =>
@@ -617,6 +624,28 @@ test('verify plans the triggered suites and their passing gates', (t) => {
 	// A file that selects the whole workspace triggers only the workflows it matches.
 	assert.deepEqual(plan(['tsconfig.json']), []);
 	assert.deepEqual(plan(['tsconfig.json', 'docs/a.md']), ['web', 'host']);
+});
+
+test('verify needs only the tools of the steps it plans (#781)', () => {
+	const suite = { workflow: 'mixed.yml', tools: ['uv', 'cargo', 'cmake'] };
+	const entry = (step) => ({ suite, step, reason: '' });
+	const plan = [entry({ run: 'build', tools: [] }), entry({ run: 'py', tools: ['uv'] })];
+	assert.deepEqual([...plannedTools(plan).keys()], ['uv']);
+	// A step without tools of its own needs its suite's.
+	const whole = [...plannedTools([entry({ run: 'all' })]).keys()];
+	assert.deepEqual(whole, ['uv', 'cargo', 'cmake']);
+	const other = { workflow: 'other.yml', tools: ['uv'] };
+	assert.deepEqual(
+		plannedTools([...plan, { suite: other, step: { run: 'x' }, reason: '' }]).get('uv'),
+		['mixed.yml', 'other.yml']
+	);
+});
+
+test("a step's tools are some of its suite's", () => {
+	for (const suite of SUITES)
+		for (const step of suite.steps)
+			for (const tool of step.tools ?? [])
+				assert.ok(suite.tools.includes(tool), `${suite.workflow}: ${step.run} needs ${tool}`);
 });
 
 test('the check gate runs even where LEFTHOOK=0 turns the git hooks off', () => {
