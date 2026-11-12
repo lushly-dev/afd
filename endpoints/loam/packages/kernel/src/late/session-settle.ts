@@ -58,6 +58,13 @@ export const REFRESH_RETRY_FIRST_MS = 5_000;
 export const REFRESH_RETRY_MAX_MS = 300_000;
 
 /**
+ * How long the kernel waits for the host's membership read, on its clock: one that has not answered by then has
+ * failed, so stage B and an owner's command never wait on a provider that does not answer (the re-review of step
+ * 2). Before an owner's command it refuses `MEMBERSHIP_UNAVAILABLE`; in a settle it decides with what is held.
+ */
+export const MEMBERSHIP_READ_TIMEOUT_MS = 10_000;
+
+/**
  * The commands before which the kernel reads the person's membership again (7.6): the owner cases of shared
  * commands and the owner commands that exist so far; step 4 adds the rest of `OWNER_COMMANDS`.
  */
@@ -256,8 +263,12 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		chain = ran.catch(report);
 		return ran;
 	};
-	/** Each change the adapter reports, counted, so a read it overlapped is not trusted. */
+	/**
+	 * Each change of person the adapter reports, counted, so a read it overlapped is not trusted (B2). An event that
+	 * leaves the person as they were, as an `expiresAt` slid on a refetch, is not one (the re-review's N1).
+	 */
 	let changes = 0;
+	let lastHeard: string | null | undefined;
 	let authRunning = 0;
 	let firing = false;
 	let stopped = false;
@@ -288,6 +299,11 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
 	}
 
+	/** Run `work` in the background: a failure is reported, never left unhandled. */
+	const background = (work: () => Promise<unknown>): void => {
+		work().catch(report);
+	};
+
 	/** The host's `schedule`, or `setTimeout` on the kernel's clock, which never holds a Node process open. */
 	const schedule =
 		deps.ports?.schedule ??
@@ -295,6 +311,19 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			const handle = setTimeout(fn, Math.max(0, at - now())) as { unref?(): void };
 			handle.unref?.();
 			return () => clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
+		});
+
+	/** The host's membership read, failed if it has not answered within {@link MEMBERSHIP_READ_TIMEOUT_MS}. */
+	const readMembership = (
+		read: NonNullable<KernelPortsV1['readMembership']>
+	): ReturnType<typeof read> =>
+		new Promise((resolve, reject) => {
+			const stop = schedule(now() + MEMBERSHIP_READ_TIMEOUT_MS, () =>
+				reject(
+					new Error(`The membership read did not answer within ${MEMBERSHIP_READ_TIMEOUT_MS} ms`)
+				)
+			);
+			read().then(resolve, reject).finally(stop);
 		});
 
 	/** The role and digest the kernel holds for `person`: what stage A was given, or the last settle journaled. */
@@ -320,7 +349,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			if (read) {
 				const seen = changes;
 				try {
-					const found = await read();
+					const found = await readMembership(read);
 					membership = { role: found?.role ?? null, membershipDigest: found?.digest ?? null };
 				} catch (cause) {
 					// A read that fails decides with what the kernel holds: line 0 refuses a person it does not list.
@@ -333,7 +362,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	}
 
 	/** A change no `auth-*` command made: settled, on the chain, when the person really changed. */
-	function notice(reason: SessionSettleReasonV1): Promise<void> {
+	async function notice(reason: SessionSettleReasonV1): Promise<void> {
 		if (stopped || replaying()) return Promise.resolve();
 		const person = current();
 		if (person === (target === undefined ? decidedNow() : target)) return chain.then(() => {});
@@ -365,7 +394,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		if (stopped) return;
 		const delay = Math.min(REFRESH_RETRY_FIRST_MS * 2 ** retries, REFRESH_RETRY_MAX_MS);
 		retries++;
-		wait(now() + delay, () => void fire(at));
+		wait(now() + delay, () => background(() => fire(at)));
 	};
 
 	/** The timer for the session's `expiresAt`, re-armed only when the adapter reports another one. */
@@ -378,7 +407,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		cancel = undefined;
 		armedFor = at;
 		retries = 0;
-		if (at !== undefined) wait(at, () => void fire(at));
+		if (at !== undefined) wait(at, () => background(() => fire(at)));
 	}
 
 	async function fire(at: number): Promise<void> {
@@ -386,7 +415,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		if (stopped) return;
 		// Woke early: a clamped delay, or a host whose timer ran ahead of the kernel's clock.
 		if (now() < at) {
-			wait(at, () => void fire(at));
+			wait(at, () => background(() => fire(at)));
 			return;
 		}
 		firing = true;
@@ -401,18 +430,25 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		}
 		firing = false;
 		if (stopped) return;
-		// An expired session is no one's (`sessionActor`), so a refresh that kept it settles to no one here.
-		await notice('expiry');
+		// An expired session is no one's (`sessionActor`), so a refresh that kept it settles to no one here. A
+		// settle that fails is reported, and the timer re-arms all the same.
+		try {
+			await notice('expiry');
+		} catch (cause) {
+			report(cause);
+		}
 		armedFor = undefined;
 		arm();
 	}
 
 	/** Every change the adapter reports: the timer re-arms, and a change no command made is settled. */
 	function heard(): void {
-		changes++;
+		const person = current();
+		if (person !== lastHeard) changes++;
+		lastHeard = person;
 		if (stopped || replaying()) return;
 		arm();
-		if (authRunning === 0 && !firing) void notice('tab');
+		if (authRunning === 0 && !firing) background(() => notice('tab'));
 	}
 
 	/**
@@ -531,6 +567,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		command,
 		copied,
 		async begin() {
+			lastHeard ??= current();
 			subscription ??= deps.auth.onAuthStateChange(heard);
 			if (replaying()) return;
 			// Stage A's person, whose records stage A read: the first settle names them, a change from null in the
@@ -580,7 +617,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				return undefined;
 			// Settled already, or only expired, which the timer settles; a change on its way is awaited with its notice.
 			if (target === undefined && (current() === decided || expiredOnly())) return undefined;
-			return notice('expiry');
+			// A change whose settle failed or was dropped: settled again as another tab's.
+			return notice('tab');
 		},
 		authStart() {
 			authRunning++;
@@ -616,7 +654,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			});
 		},
 		afterAuth() {
-			if (authRunning === 0) void notice('tab');
+			if (authRunning === 0) background(() => notice('tab'));
 		},
 		rereadsBefore: (name) =>
 			provider &&
@@ -633,7 +671,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				const seen = changes;
 				let found: Awaited<ReturnType<typeof read>>;
 				try {
-					found = await read();
+					found = await readMembership(read);
 				} catch (cause) {
 					report(cause);
 					return kit.membershipUnavailable(name);
