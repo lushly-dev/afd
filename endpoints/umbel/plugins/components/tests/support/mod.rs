@@ -22,6 +22,22 @@ pub fn specimen_fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../foundations/specimen/fixtures/pack")
 }
 
+/// `violet-elements`' committed pack: its records and rules, in Specimen's committed form.
+pub fn fast_af_committed() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../foundations/fast-af/packages/violet-elements/pack")
+}
+
+/// This crate's FAST-AF test data: the catalog export wrote, the page set and the fact fixture.
+pub fn fast_af_fixtures() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fast_af")
+}
+
+/// How to write `tests/fast_af/library.json` again, for a failure to name.
+pub const REEXPORT: &str = "export FAST-AF's pack again: from foundations/fast-af/packages/violet-elements, \
+    `node ../../../../endpoints/specimen-cli/dist/bin.js pack-export \"$DIR\"` into an empty directory, then copy \
+    `$DIR/data/violet-elements/library.json` to endpoints/umbel/plugins/components/tests/fast_af/library.json";
+
 pub const PACK_TOML: &str = r#"pack_version = 1
 id = "library"
 plugin = "components"
@@ -82,6 +98,24 @@ impl Pack {
 
     pub fn set_raw(&mut self, path: &str, text: &str) {
         self.files.insert(path.to_owned(), text.as_bytes().to_vec());
+    }
+
+    /// The pack `specimen pack-export` writes for `violet-elements`, beside Specimen's example
+    /// library: the export's records and rules are the committed ones byte for byte (the format's
+    /// two forms differ only by the catalog), and its catalog is the one export wrote,
+    /// `tests/fast_af/library.json`, whose digests the reader checks against those records.
+    pub fn fast_af() -> Self {
+        let mut pack = Self::example();
+        for (path, bytes) in read_tree(&fast_af_committed()) {
+            if path.starts_with("data/") || path.starts_with("rules/") {
+                pack.files.insert(path, bytes);
+            }
+        }
+        pack.files.insert(
+            "data/violet-elements/library.json".to_owned(),
+            std::fs::read(fast_af_fixtures().join("library.json")).unwrap(),
+        );
+        pack
     }
 
     /// Edits a file's JSON and writes it canonically. Call [`Self::regenerate`] after.
@@ -148,12 +182,12 @@ impl Pack {
         }
         self.set_json(
             &format!("rules/{library}.json"),
-            &json!({ "format": 0, "library": library, "rules": [] }),
+            &json!({ "format": 1, "library": library, "rules": [] }),
         );
         self.set_json(
             &format!("data/{library}/library.json"),
             &json!({
-                "format": 0, "library": library, "title": "Synthetic",
+                "format": 1, "library": library, "title": "Synthetic",
                 "package": { "name": "synthetic-components", "version": "1.0.0" },
                 "prefix": prefix, "digest": "", "rules": "", "components": components,
             }),
@@ -176,7 +210,7 @@ impl Pack {
         }
         self.set_json(
             &format!("rules/{library}.json"),
-            &json!({ "format": 0, "library": library, "rules": [
+            &json!({ "format": 1, "library": library, "rules": [
                 { "id": "shared.focus", "text": "Focus moves into the group in reading order and leaves it with Tab.",
                   "appliesTo": { "attributes": ["label"] }, "basis": "verified" },
                 { "id": "shared.labelling", "text": "Every group needs a label attribute; a nearby heading does not name it.",
@@ -186,7 +220,7 @@ impl Pack {
         self.set_json(
             &format!("data/{library}/library.json"),
             &json!({
-                "format": 0, "library": library, "title": "Synthetic",
+                "format": 1, "library": library, "title": "Synthetic",
                 "package": { "name": "synthetic-components", "version": "1.0.0" },
                 "prefix": prefix, "digest": "", "rules": "", "components": components,
             }),
@@ -260,7 +294,7 @@ pub fn entry<'a>(result: &'a Value, tag: &str) -> &'a Value {
 /// form, roles, axe, statements, rules, an example, a gap and a long form.
 pub fn rich_record(tag: &str, index: usize, rules: &[&str]) -> Value {
     json!({
-        "format": 0, "tag": tag, "status": "stable",
+        "format": 1, "tag": tag, "status": "stable",
         "summary": format!("Component {index:04} groups a few related controls and shows their state on the page."),
         "import": format!("synthetic-components/{tag}.js"),
         "api": {
@@ -315,7 +349,7 @@ pub fn rich_record(tag: &str, index: usize, rules: &[&str]) -> Value {
 /// A minimal valid record.
 pub fn record(tag: &str, summary: &str) -> Value {
     json!({
-        "format": 0, "tag": tag, "summary": summary, "status": "stable",
+        "format": 1, "tag": tag, "summary": summary, "status": "stable",
         "api": { "attributes": [], "slots": [], "events": [], "commands": [], "cssProperties": [] },
         "a11y": { "role": [], "statements": [] },
         "usage": [], "rules": [], "examples": [], "gaps": [],

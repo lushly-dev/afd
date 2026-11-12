@@ -15,6 +15,9 @@ on:
       # reader is held to Specimen's invalid fixtures (specification, section 4).
       - 'foundations/specimen/fixtures/pack/**'
       - 'foundations/specimen/docs/pack-format.md'
+      # Its end-to-end tests serve FAST-AF's committed pack with the catalog export wrote for it
+      # (specification, section 12, step C4), so a rebuilt record without a new export fails here.
+      - 'foundations/fast-af/packages/violet-elements/pack/**'
       - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   pull_request:
@@ -30,6 +33,9 @@ on:
       # reader is held to Specimen's invalid fixtures (specification, section 4).
       - 'foundations/specimen/fixtures/pack/**'
       - 'foundations/specimen/docs/pack-format.md'
+      # Its end-to-end tests serve FAST-AF's committed pack with the catalog export wrote for it
+      # (specification, section 12, step C4), so a rebuilt record without a new export fails here.
+      - 'foundations/fast-af/packages/violet-elements/pack/**'
       - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   # The macOS leg and the MSRV check run daily and on demand.
@@ -68,7 +74,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: host
-        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/docs/pack-format.md --path .cargo/config.toml --path .github/workflows/umbel.yml
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path .cargo/config.toml --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)
