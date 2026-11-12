@@ -1,0 +1,167 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "card.name",
+				"text": "An interactive card is a group with no name of its own; give the host aria-label or aria-labelledby."
+			},
+			{
+				"basis": "authored",
+				"id": "card.structure",
+				"text": "A non-interactive card adds no role; put a real heading element in the header slot when the card has a title."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "filled",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "interactive",
+				"property": "interactive",
+				"rules": [
+					"taxonomy.interactive"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "vertical",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "none",
+				"name": "padding",
+				"property": "padding",
+				"rules": [
+					"taxonomy.padding"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-card-background, var(--_surface-card))",
+				"name": "--_card-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-card-border-color, transparent)",
+				"name": "--_card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "1px",
+				"name": "--_card-border-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-card-padding, 0)",
+				"name": "--_card-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-card-radius, var(--_radius-md))",
+				"name": "--_card-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-card-shadow, var(--_shadow-card))",
+				"name": "--_card-shadow"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"accepts": [
+					"violet-text"
+				],
+				"basis": "observed",
+				"description": "Card body content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional footer area rendered below the body with a separator border.",
+				"name": "footer"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional header area rendered above the body with a separator border.",
+				"name": "header"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-card--all-appearances",
+			"html": "<div style=\"display: flex; gap: 16px; flex-wrap: wrap;\"><violet-card padding=\"medium\" appearance=\"filled\" style=\"inline-size: 200px;\" orientation=\"vertical\"><p style=\"margin: 0px; font-size: 13px;\">Filled appearance</p></violet-card><violet-card padding=\"medium\" appearance=\"outline\" style=\"inline-size: 200px;\" orientation=\"vertical\"><p style=\"margin: 0px; font-size: 13px;\">Outline appearance</p></violet-card><violet-card padding=\"medium\" appearance=\"subtle\" style=\"inline-size: 200px;\" orientation=\"vertical\"><p style=\"margin: 0px; font-size: 13px;\">Subtle appearance</p></violet-card></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-card--horizontal",
+			"html": "<violet-card padding=\"none\" appearance=\"filled\" orientation=\"horizontal\" style=\"max-inline-size: 420px;\"><img src=\"https://picsum.photos/seed/violet-card/160/160\" alt=\"Sample thumbnail\" style=\"inline-size: 160px; block-size: 160px; object-fit: cover; flex-shrink: 0; display: block;\"><div style=\"padding: 16px; display: flex; flex-direction: column; justify-content: center; gap: 4px;\"><h3 style=\"margin: 0px; font-size: 14px; font-weight: 600;\">Article Title</h3><p style=\"margin: 0px; font-size: 13px; color: rgb(65, 70, 81);\">A horizontal card with a thumbnail image beside the content area.</p></div></violet-card>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-card--interactive",
+			"html": "<violet-card padding=\"medium\" appearance=\"filled\" orientation=\"vertical\" tabindex=\"0\" role=\"group\" style=\"max-inline-size: 360px;\" interactive><p style=\"margin: 0px;\">Interactive card — hover for lift effect, tab for focus ring.</p></violet-card>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.appearance",
+		"taxonomy.interactive",
+		"taxonomy.orientation",
+		"taxonomy.padding",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Surface that frames related content, with optional header and footer slots.",
+	"tag": "violet-card",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "card.padding",
+			"text": "Padding defaults to none, so content touches the edge: set small, medium or large, or the --violet-card-padding custom property, which overrides every preset. Header and footer show only when filled."
+		},
+		{
+			"basis": "authored",
+			"id": "card.interactive",
+			"text": "The interactive attribute only adds tabindex=\"0\", role=\"group\" (unless a role is set) and hover and focus styling. It handles no keys and fires no event: add click and Enter/Space handling, or put a real button or link inside."
+		}
+	]
+}

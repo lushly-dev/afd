@@ -1,0 +1,186 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "badge.label",
+				"text": "The label attribute gives the host role img named by it, replacing the slotted text for assistive technology. Use it when the text alone, such as a bare count, is not meaningful."
+			},
+			{
+				"basis": "authored",
+				"id": "badge.decorative",
+				"text": "decorative sets aria-hidden on the host and drops any role and label; use it only when nearby text already says the same thing."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "filled",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "VioletBadgeAppearance"
+			},
+			{
+				"basis": "observed",
+				"default": "neutral",
+				"name": "color",
+				"property": "color",
+				"rules": [
+					"taxonomy.color"
+				],
+				"type": "VioletBadgeColor"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "decorative",
+				"property": "decorative",
+				"rules": [
+					"taxonomy.decorative"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "icon",
+				"property": "icon",
+				"rules": [
+					"taxonomy.icon"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "md",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletBadgeSize"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_surface-subtle)",
+				"name": "--_badge-bg"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_border-subtle)",
+				"name": "--_badge-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_caption-size)",
+				"name": "--_badge-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_caption-line)",
+				"name": "--_badge-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "1.25rem",
+				"name": "--_badge-min-block"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-md)",
+				"name": "--_badge-padding-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_text-secondary)",
+				"name": "--_badge-text"
+			},
+			{
+				"basis": "declared",
+				"default": "0.9em",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Badge text or short inline content.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-badge--appearances",
+			"html": "<div style=\"display:flex;flex-wrap:wrap;gap:12px;align-items:center;\">\n            <violet-badge appearance=\"filled\" color=\"accent\" label size=\"md\" icon>Filled</violet-badge>\n            <violet-badge appearance=\"outline\" color=\"accent\" label size=\"md\" icon>Outline</violet-badge>\n            <violet-badge appearance=\"subtle\" color=\"accent\" label size=\"md\" icon>Subtle</violet-badge>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-badge--decorative",
+			"html": "<violet-badge decorative color=\"warning\" aria-hidden=\"true\" label appearance=\"filled\" size=\"md\" icon>Trial</violet-badge>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-badge--icon-only",
+			"html": "<violet-badge color=\"accent\" icon=\"system/check\" label=\"Saved\" role=\"img\" aria-label=\"Saved\" appearance=\"filled\" size=\"md\"></violet-badge>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.decorative",
+		"import.root",
+		"taxonomy.appearance",
+		"taxonomy.color",
+		"taxonomy.decorative",
+		"taxonomy.icon",
+		"taxonomy.label",
+		"taxonomy.size"
+	],
+	"status": "stable",
+	"summary": "Compact, non-interactive inline label for a status, category or count.",
+	"tag": "violet-badge",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "badge.content",
+			"text": "Short text goes in the default slot. The icon attribute is a registry name (see violet-icon; register it first) rendered before the text and always decorative."
+		},
+		{
+			"basis": "authored",
+			"id": "badge.color",
+			"text": "color is visual only, so the text must state the status itself. A badge has no events; do not put buttons or links in it."
+		}
+	]
+}

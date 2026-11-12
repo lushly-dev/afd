@@ -1,0 +1,289 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "authored",
+				"name": "from the displayed month and year",
+				"role": "grid",
+				"state": "open"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "date-picker.keyboard",
+				"text": "ArrowDown in the input opens the calendar and focuses a day. Escape closes it and returns focus to the input, and is stopped so an enclosing dialog stays open. An outside click also closes it."
+			},
+			{
+				"basis": "authored",
+				"id": "date-picker.toggle",
+				"text": "The calendar button is named \"Choose date\", or \"Change date\" once a value is set, and exposes aria-expanded. The popup panel itself has no dialog role."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "locale",
+				"property": "locale",
+				"rules": [
+					"taxonomy.locale"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "min",
+				"property": "min",
+				"rules": [
+					"taxonomy.min"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "natural",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletDatePickerSize"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_type-body-size-compact)",
+				"name": "--violet-control-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-caption-size-compact)",
+				"name": "--violet-control-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-label-size-compact)",
+				"name": "--violet-control-label-size"
+			},
+			{
+				"basis": "declared",
+				"default": "max(0.9rem, calc(var(--_target-size) * 0.33))",
+				"name": "--violet-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-compact)",
+				"name": "--violet-target-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the date value is committed.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the date value changes while editing or selecting.",
+				"name": "input"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the calendar popup opens or closes.",
+				"name": "open-change"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-date-picker--comfortable",
+			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker label=\"Planting date\" supporting-text=\"Choose when this plan should begin.\" value=\"2026-03-23\" min=\"2026-03-01\" max=\"2026-04-15\" locale=\"en-US\" name=\"planting-date\" size=\"comfortable\" error-text></violet-date-picker>\n            </form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-date-picker--compact",
+			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker label=\"Planting date\" supporting-text=\"Choose when this plan should begin.\" value=\"2026-03-23\" min=\"2026-03-01\" max=\"2026-04-15\" locale=\"en-US\" name=\"planting-date\" size=\"compact\" error-text></violet-date-picker>\n            </form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-date-picker--disabled",
+			"html": "<form style=\"min-block-size: 20rem; max-inline-size: 20rem;\">\n                <violet-date-picker label=\"Planting date\" supporting-text=\"Date editing is inherited from the parent plan.\" value=\"2026-03-23\" min=\"2026-03-01\" max=\"2026-04-15\" locale=\"en-US\" name=\"planting-date\" size=\"natural\" disabled error-text></violet-date-picker>\n            </form>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "unobserved",
+			"name": "open",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"event.native-input",
+		"field.input-change",
+		"field.label",
+		"field.label-required",
+		"field.supporting-text",
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"overlay.open-change",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.locale",
+		"taxonomy.max",
+		"taxonomy.min",
+		"taxonomy.name",
+		"taxonomy.open",
+		"taxonomy.required",
+		"taxonomy.size",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Date field: a native date input plus a button that opens a calendar popup. Use for one calendar date; the value is an ISO date string.",
+	"tag": "violet-date-picker",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "date-picker.value",
+			"text": "value is an ISO date, YYYY-MM-DD, or empty, and the form receives it under name. min and max use the same format; a date outside them is invalid with a built-in message."
+		},
+		{
+			"basis": "authored",
+			"id": "date-picker.events",
+			"text": "input and change carry detail.value. Picking a day fires both, closes the calendar and returns focus to the input. The native input's own input event also reaches host listeners, without detail."
+		},
+		{
+			"basis": "authored",
+			"id": "date-picker.open",
+			"text": "Open the calendar with show(), toggleOpen() or the open attribute; close it with hide(). open-change fires with detail.open on each change, and once with false when the element connects."
+		},
+		{
+			"basis": "authored",
+			"id": "date-picker.locale",
+			"text": "locale (a BCP 47 tag; default the page lang) sets the calendar's month and weekday names only. The native input shows the date in the browser's own format."
+		}
+	]
+}

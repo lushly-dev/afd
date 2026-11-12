@@ -1,0 +1,242 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "authored",
+				"name": "from the title slot, else \"Dialog\"",
+				"role": "alertdialog",
+				"state": "alert"
+			},
+			{
+				"basis": "authored",
+				"name": "from the title slot, else \"Dialog\"",
+				"role": "dialog",
+				"state": "open"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "dialog.name",
+				"text": "Content in the title slot names the dialog. Without it the dialog is named \"Dialog\"; an aria-label on the host is not used, so always fill the title slot."
+			},
+			{
+				"basis": "authored",
+				"id": "dialog.focus",
+				"text": "On close, focus returns to the element focused when it opened, even inside another component's shadow root. A body that overflows becomes a tab stop so keyboard users can scroll it."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "no-backdrop",
+				"property": "noBackdrop",
+				"rules": [
+					"taxonomy.no-backdrop"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "no-close-button",
+				"property": "noCloseButton",
+				"rules": [
+					"taxonomy.no-close-button"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": "medium",
+				"name": "padding",
+				"property": "padding",
+				"rules": [
+					"taxonomy.padding"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "modal",
+				"name": "type",
+				"property": "type",
+				"rules": [
+					"taxonomy.type"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-backdrop, rgba(0, 0, 0, 0.4))",
+				"name": "--_dialog-backdrop"
+			},
+			{
+				"basis": "declared",
+				"default": "transparent",
+				"name": "--_dialog-backdrop-off"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-background, var(--_surface-card))",
+				"name": "--_dialog-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-border-width, var(--_card-border-width, 1px))",
+				"name": "--_dialog-border-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-margin, 2rem)",
+				"name": "--_dialog-margin"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-max-height, 85vh)",
+				"name": "--_dialog-max-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-padding, var(--_space-md))",
+				"name": "--_dialog-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-radius, var(--_radius-lg))",
+				"name": "--_dialog-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-shadow, var(--_shadow-floating))",
+				"name": "--_dialog-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-dialog-width, 35rem)",
+				"name": "--_dialog-width"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted after the dialog opens or closes.",
+				"name": "open-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted before close. Call preventDefault() to cancel.",
+				"name": "request-close"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Dialog body content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Action buttons area.",
+				"name": "footer"
+			},
+			{
+				"basis": "observed",
+				"description": "Dialog title text, auto-wired to aria-labelledby.",
+				"name": "title"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-dialog--alert",
+			"html": "<div><violet-button appearance=\"primary\" type=\"button\">Open Alert Dialog</violet-button><violet-dialog type=\"alert\" padding=\"medium\" no-close-button><span slot=\"title\">Unsaved Changes</span><p style=\"margin: 0px;\">You have unsaved changes that will be lost if you leave this page. Please save or discard your changes before continuing.</p><div slot=\"footer\" style=\"display: flex; gap: 8px; justify-content: flex-end;\"><violet-button appearance=\"secondary\" type=\"button\">Discard</violet-button><violet-button appearance=\"primary\" type=\"button\">Save Changes</violet-button></div></violet-dialog></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-dialog--custom-width",
+			"html": "<div><violet-button appearance=\"primary\" type=\"button\">Open Dialog</violet-button><violet-dialog type=\"modal\" padding=\"medium\" style=\"--violet-dialog-width: 800px;\"><span slot=\"title\">Wide Dialog</span><p style=\"margin: 0px;\">This dialog uses a custom width of 800px via --violet-dialog-width.</p><div slot=\"footer\" style=\"display: flex; gap: 8px; justify-content: flex-end;\"><violet-button appearance=\"secondary\" type=\"button\">Cancel</violet-button><violet-button appearance=\"primary\" type=\"button\">Confirm</violet-button></div></violet-dialog></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-dialog--form-dialog",
+			"html": "<div><violet-button appearance=\"primary\" type=\"button\">Open Form Dialog</violet-button><violet-dialog type=\"modal\" padding=\"medium\"><span slot=\"title\">Rename Item</span><form method=\"dialog\" style=\"display: flex; flex-direction: column; gap: 12px;\"><violet-text-field value=\"My Document\" label=\"New name\" placeholder type=\"text\" supporting-text name></violet-text-field><div style=\"display: flex; gap: 8px; justify-content: flex-end;\"><violet-button appearance=\"secondary\" type=\"button\">Cancel</violet-button><violet-button appearance=\"primary\" type=\"submit\" value=\"save\">Save</violet-button></div></form></violet-dialog><p style=\"margin-block-start: 12px; font-size: 13px; color: rgb(65, 70, 81);\">Return value: (none)</p></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "unobserved",
+			"name": "no-backdrop",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "open",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "padding",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"overlay.open-change",
+		"taxonomy.no-backdrop",
+		"taxonomy.no-close-button",
+		"taxonomy.open",
+		"taxonomy.padding",
+		"taxonomy.type",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Modal, non-modal or alert dialog on the native dialog element, with title, body and footer slots; opened by the open attribute or show().",
+	"tag": "violet-dialog",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "dialog.open",
+			"text": "Nothing opens it for you: set open or call show(). hide(returnValue?) closes it and returnValue reads the value back. Footer buttons need their own click handlers to close it."
+		},
+		{
+			"basis": "authored",
+			"id": "dialog.type",
+			"text": "type is modal (default, showModal()), non-modal (show(), page stays usable) or alert: role alertdialog, described by its body, and Escape does not close it."
+		},
+		{
+			"basis": "authored",
+			"id": "dialog.request-close",
+			"text": "The close button and Escape fire a cancelable request-close with detail.source \"close-button\" or \"keyboard\"; preventDefault() keeps it open. hide() and removing open skip it."
+		},
+		{
+			"basis": "authored",
+			"id": "dialog.close-button",
+			"text": "The header close button shows unless no-close-button is set; with no title and no-close-button the header is hidden. Only set it when a footer action closes the dialog."
+		}
+	]
+}

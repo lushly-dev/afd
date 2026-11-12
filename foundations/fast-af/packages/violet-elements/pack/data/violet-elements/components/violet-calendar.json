@@ -1,0 +1,179 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "end",
+				"property": "end",
+				"rules": [
+					"taxonomy.end"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "locale",
+				"property": "locale",
+				"rules": [
+					"taxonomy.locale"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "min",
+				"property": "min",
+				"rules": [
+					"taxonomy.min"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "single",
+				"name": "selection-mode",
+				"property": "selectionMode",
+				"rules": [
+					"taxonomy.selection-mode"
+				],
+				"type": "VioletCalendarSelectionMode"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "start",
+				"property": "start",
+				"rules": [
+					"taxonomy.start"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-foreground, #245c36)",
+				"name": "--_calendar-accent"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_calendar-accent) 16%, transparent)",
+				"name": "--_calendar-accent-soft"
+			},
+			{
+				"basis": "declared",
+				"default": "clamp(2rem, 6vw, 2.25rem)",
+				"name": "--_calendar-cell-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_radius-md) * 2)",
+				"name": "--_calendar-radius"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when a date or range is committed. Detail: `{ value }` or `{ start, end }`.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the focused selection changes. Detail: `{ value }` or `{ start, end }`.",
+				"name": "input"
+			}
+		],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-calendar--constrained",
+			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar locale=\"en-US\" value=\"2026-03-23\" min=\"2026-03-18\" max=\"2026-03-28\" selection-mode=\"single\" start end></violet-calendar>\n            </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-calendar--disabled",
+			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar locale=\"en-US\" value=\"2026-03-23\" disabled selection-mode=\"single\" start end min max></violet-calendar>\n            </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-calendar--overview",
+			"html": "<div style=\"max-inline-size: 20rem;\">\n                <violet-calendar locale=\"en-US\" value=\"2026-03-23\" selection-mode=\"single\" start end min max></violet-calendar>\n            </div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.end",
+		"taxonomy.locale",
+		"taxonomy.max",
+		"taxonomy.min",
+		"taxonomy.selection-mode",
+		"taxonomy.start",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-calendar",
+	"usage": []
+}

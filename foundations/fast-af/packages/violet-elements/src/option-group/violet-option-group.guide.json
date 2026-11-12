@@ -1,0 +1,33 @@
+{
+  "tag": "violet-option-group",
+  "summary": "Labelled group of violet-option elements inside a violet-select, violet-combobox or violet-listbox.",
+  "usage": [
+    {
+      "id": "option-group.label",
+      "text": "The label attribute renders a visible heading above the group's options.",
+      "members": [
+        "label"
+      ]
+    },
+    {
+      "id": "option-group.disabled",
+      "text": "The disabled attribute on the group makes every option inside it unselectable, whatever the options' own disabled state.",
+      "members": [
+        "disabled"
+      ]
+    },
+    {
+      "id": "option-group.import",
+      "text": "The select and combobox modules do not import this element; when importing per element, import the option-group module too or the group stays undefined."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "option-group.name",
+      "text": "The group is exposed with role group and named by its label attribute; without a label it is an unnamed group.",
+      "members": [
+        "label"
+      ]
+    }
+  ]
+}

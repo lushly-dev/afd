@@ -1,0 +1,165 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "icon-button.name",
+				"text": "Set the label attribute: it is the inner button's only accessible name and also its hover tooltip. Mark the slotted violet-icon decorative."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "secondary",
+				"description": "Visual emphasis variant for the button.",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "VioletIconButtonAppearance"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables the button.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Accessible name used for the internal button label.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "button",
+				"description": "Native button type forwarded to the internal control.",
+				"name": "type",
+				"property": "type",
+				"rules": [
+					"taxonomy.type"
+				],
+				"type": "\"button\" | \"submit\" | \"reset\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "button"
+					},
+					{
+						"basis": "declared",
+						"value": "submit"
+					},
+					{
+						"basis": "declared",
+						"value": "reset"
+					}
+				]
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "clamp(16px, calc(var(--_target-size) * 0.6667), 20px)",
+				"name": "--_icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-inline-sm, 4px)",
+				"name": "--_space-inline-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_icon-size)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"accepts": [
+					"violet-icon"
+				],
+				"basis": "observed",
+				"description": "Icon or image content for the button.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-icon-button--overview",
+			"html": "<violet-icon-button appearance=\"secondary\" label=\"Settings\" type=\"button\"><violet-icon icon=\"system/settings\" decorative label></violet-icon></violet-icon-button>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-icon-button--primary",
+			"html": "<violet-icon-button appearance=\"primary\" label=\"Pin item\" type=\"button\"><violet-icon icon=\"system/search\" decorative label></violet-icon></violet-icon-button>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-icon-button--quiet-disabled",
+			"html": "<violet-icon-button appearance=\"quiet\" label=\"Archive item\" type=\"button\" disabled><violet-icon icon=\"system/search\" decorative label></violet-icon></violet-icon-button>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "type",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.appearance",
+		"taxonomy.disabled",
+		"taxonomy.label",
+		"taxonomy.type",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Icon-only button for toolbar and utility actions; the default slot takes the icon and the label attribute names it.",
+	"tag": "violet-icon-button",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "icon-button.no-aria",
+			"text": "Unlike violet-button it forwards no aria-expanded, aria-pressed, aria-haspopup or aria-controls. For a toggle or popup trigger use violet-button with its ariaLabel property."
+		},
+		{
+			"basis": "authored",
+			"id": "icon-button.no-form",
+			"text": "Not form-associated: type=\"submit\" or \"reset\" does not submit or reset an enclosing form. Call form.requestSubmit() from a click listener."
+		},
+		{
+			"basis": "authored",
+			"id": "icon-button.content",
+			"text": "Slot one violet-icon, svg or img; it is sized to fill the button's icon area. The default appearance is secondary."
+		}
+	]
+}

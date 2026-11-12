@@ -1,0 +1,116 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "decorative",
+				"property": "decorative",
+				"rules": [
+					"taxonomy.decorative"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "square",
+				"name": "shape",
+				"property": "shape",
+				"rules": [
+					"taxonomy.shape"
+				],
+				"type": "VioletColorSwatchShape"
+			},
+			{
+				"basis": "observed",
+				"default": "natural",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletColorSwatchSize"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "1rem",
+				"name": "--_swatch-size"
+			}
+		],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-color-swatch--overview",
+			"html": "<div style=\"display:flex;align-items:center;gap:12px;\">\n                <violet-color-swatch value=\"#c84f3b\" shape=\"square\" size=\"natural\" label=\"Selected color #c84f3b\"></violet-color-swatch>\n                <span style=\"font: 500 14px/20px Montserrat, 'Segoe UI', sans-serif;\">#c84f3b</span>\n            </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-color-swatch--shapes",
+			"html": "<div style=\"display:flex;gap:16px;align-items:center;\">\n            <violet-color-swatch value=\"#244635\" size=\"comfortable\" label=\"Evergreen swatch\" shape=\"square\"></violet-color-swatch>\n            <violet-color-swatch value=\"#c84f3b\" shape=\"circle\" size=\"comfortable\" label=\"Coral swatch\"></violet-color-swatch>\n            <violet-color-swatch value=\"#d2b062\" shape=\"circle\" size=\"comfortable\" label=\"Ochre swatch\"></violet-color-swatch>\n        </div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.decorative",
+		"import.root",
+		"taxonomy.decorative",
+		"taxonomy.label",
+		"taxonomy.shape",
+		"taxonomy.size",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-color-swatch",
+	"usage": []
+}

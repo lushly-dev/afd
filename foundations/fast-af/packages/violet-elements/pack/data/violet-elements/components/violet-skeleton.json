@@ -1,0 +1,138 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "skeleton.hidden",
+				"text": "It always sets aria-hidden=\"true\" on itself, so convey the loading state elsewhere, for example aria-busy on the region being loaded or a visible status."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "animated",
+				"property": "animated",
+				"rules": [
+					"taxonomy.animated"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "1",
+				"name": "lines",
+				"property": "lines",
+				"rules": [
+					"taxonomy.lines"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "rect",
+				"name": "shape",
+				"property": "shape",
+				"rules": [
+					"taxonomy.shape"
+				],
+				"type": "VioletSkeletonShape"
+			},
+			{
+				"basis": "observed",
+				"default": "md",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletSkeletonSize"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "0.875rem",
+				"name": "--_skeleton-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "2rem",
+				"name": "--_skeleton-circle-size"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, white 68%, var(--_surface-card))",
+				"name": "--_skeleton-highlight"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_radius-md)",
+				"name": "--_skeleton-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_surface-subtle) 72%, var(--_surface-card))",
+				"name": "--_skeleton-surface"
+			}
+		],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-skeleton--avatar-and-copy",
+			"html": "<violet-card padding=\"medium\" appearance=\"outline\" style=\"inline-size:22rem;\" orientation=\"vertical\">\n            <div style=\"display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;\">\n                <violet-skeleton shape=\"circle\" size=\"lg\" aria-hidden=\"true\" lines=\"1\"></violet-skeleton>\n                <div style=\"display:grid;gap:8px;\">\n                    <violet-skeleton shape=\"rect\" size=\"md\" style=\"inline-size:8rem;\" aria-hidden=\"true\" lines=\"1\"></violet-skeleton>\n                    <violet-skeleton shape=\"text\" lines=\"3\" aria-hidden=\"true\" size=\"md\"></violet-skeleton>\n                </div>\n            </div>\n        </violet-card>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-skeleton--overview",
+			"html": "<div style=\"max-inline-size:20rem;\"><violet-skeleton shape=\"rect\" size=\"md\" lines=\"1\" animated aria-hidden=\"true\"></violet-skeleton></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-skeleton--static",
+			"html": "<div style=\"max-inline-size:20rem;\"><violet-skeleton shape=\"text\" size=\"md\" lines=\"3\" aria-hidden=\"true\"></violet-skeleton></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.animated",
+		"taxonomy.lines",
+		"taxonomy.shape",
+		"taxonomy.size",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Decorative placeholder shape shown while content loads.",
+	"tag": "violet-skeleton",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "skeleton.lines",
+			"text": "The lines attribute repeats the bar as a text block with a shorter last line. It repeats circles too, so keep lines at 1 for shape=\"circle\". Animation is off unless animated is set."
+		},
+		{
+			"basis": "authored",
+			"id": "skeleton.size",
+			"text": "Shapes rect and text draw the same bar: size sets its height (0.75 to 1rem) and the host's width sets its width, so size the host with CSS to match the content it stands in for."
+		}
+	]
+}

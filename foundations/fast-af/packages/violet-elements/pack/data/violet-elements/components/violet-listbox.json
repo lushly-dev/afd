@@ -1,0 +1,173 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "listbox.name",
+				"text": "The label attribute is not rendered: it becomes the list's aria-label, falling back to an aria-label on the host and then to \"Options\". Provide one of them."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "multiple",
+				"property": "multiple",
+				"rules": [
+					"taxonomy.multiple"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "selection-follows-focus",
+				"property": "selectionFollowsFocus",
+				"rules": [
+					"taxonomy.selection-follows-focus"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-listbox-max-block-size, 18rem)",
+				"name": "--_panel-max-block"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-listbox-min-inline-size, 14rem)",
+				"name": "--_panel-min-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-listbox-padding, var(--_space-inline-sm))",
+				"name": "--_panel-padding"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the selection changes.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the selection changes.",
+				"name": "input"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-option",
+					"violet-option-group"
+				],
+				"basis": "observed",
+				"description": "The options: violet-option and violet-option-group elements.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-listbox--disabled",
+			"html": "<violet-listbox label=\"Propagation method\" value=\"direct\" disabled><violet-option value=\"broadcast\" id=\"violet-option-1\" role=\"option\" aria-selected=\"false\" label>Broadcast sowing<span slot=\"description\">Fast coverage over larger beds.</span></violet-option><violet-option value=\"direct\" aria-selected=\"true\" id=\"violet-option-2\" role=\"option\" label selected>Direct seed<span slot=\"description\">Best when row spacing matters.</span></violet-option><violet-option value=\"transplant\" id=\"violet-option-3\" role=\"option\" aria-selected=\"false\" label>Tray transplant<span slot=\"description\">More control before planting.</span></violet-option><violet-option value=\"hydroponic\" disabled id=\"violet-option-4\" role=\"option\" aria-selected=\"false\" aria-disabled=\"true\" label>Hydroponic<span slot=\"description\">Not available in soil beds.</span></violet-option></violet-listbox>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-listbox--grouped-options",
+			"html": "<violet-listbox label=\"Seed source\" value=\"regional\"><violet-option-group label=\"Current suppliers\"><violet-option value=\"regional\" aria-selected=\"true\" id=\"violet-option-1\" role=\"option\" label selected>Regional catalog<span slot=\"description\">Preferred for weekly reorders.</span></violet-option><violet-option value=\"coop\" id=\"violet-option-2\" role=\"option\" aria-selected=\"false\" label>Local co-op<span slot=\"description\">Best for regional seed stock.</span></violet-option></violet-option-group><violet-option-group label=\"Archived suppliers\" disabled><violet-option value=\"legacy\" aria-selected=\"false\" aria-disabled=\"true\" id=\"violet-option-3\" role=\"option\" label>Legacy inventory<span slot=\"description\">Carryover lots from last year.</span></violet-option><violet-option value=\"overflow\" aria-selected=\"false\" aria-disabled=\"true\" id=\"violet-option-4\" role=\"option\" label>Overflow greenhouse<span slot=\"description\">Unavailable this cycle.</span></violet-option></violet-option-group></violet-listbox>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-listbox--overview",
+			"html": "<violet-listbox label=\"Propagation method\" value=\"transplant\"><violet-option value=\"broadcast\" id=\"violet-option-1\" role=\"option\" aria-selected=\"false\" label>Broadcast sowing<span slot=\"description\">Fast coverage over larger beds.</span></violet-option><violet-option value=\"direct\" aria-selected=\"false\" id=\"violet-option-2\" role=\"option\" label>Direct seed<span slot=\"description\">Best when row spacing matters.</span></violet-option><violet-option value=\"transplant\" id=\"violet-option-3\" role=\"option\" aria-selected=\"true\" label selected>Tray transplant<span slot=\"description\">More control before planting.</span></violet-option><violet-option value=\"hydroponic\" disabled id=\"violet-option-4\" role=\"option\" aria-selected=\"false\" aria-disabled=\"true\" label>Hydroponic<span slot=\"description\">Not available in soil beds.</span></violet-option></violet-listbox>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"field.aria-label",
+		"import.root",
+		"options.children",
+		"taxonomy.disabled",
+		"taxonomy.label",
+		"taxonomy.multiple",
+		"taxonomy.selection-follows-focus",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Always-visible list of violet-option children for choosing one value, or several with multiple; not a form field.",
+	"tag": "violet-listbox",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "listbox.not-form",
+			"text": "It is not form-associated and has no name attribute. Read the value property, or selectedValues in multiple mode, and submit it yourself."
+		},
+		{
+			"basis": "authored",
+			"id": "listbox.multiple",
+			"text": "With multiple, the selection is the selectedValues array property (no attribute) and value mirrors its first entry. Options marked selected seed it."
+		},
+		{
+			"basis": "authored",
+			"id": "listbox.events",
+			"text": "User selection fires input and change with detail.value, plus detail.selectedValues in multiple mode. selectValue(v) and toggleValue(v) fire them too unless their second argument is false."
+		},
+		{
+			"basis": "authored",
+			"id": "listbox.keyboard",
+			"text": "One tab stop. Arrows, Home, End and type-ahead move the highlight; Enter or Space selects, or toggles in multiple mode, where Ctrl or Cmd+A toggles all. selection-follows-focus selects while moving, single mode only."
+		}
+	]
+}

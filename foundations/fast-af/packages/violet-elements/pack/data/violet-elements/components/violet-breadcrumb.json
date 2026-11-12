@@ -1,0 +1,72 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "breadcrumb.name",
+				"text": "It renders a nav landmark named by label, default \"Breadcrumb\"; set a distinct label when a page has more than one trail."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": [
+			{
+				"accepts": [
+					"violet-breadcrumb-item"
+				],
+				"basis": "observed",
+				"description": "`violet-breadcrumb-item` elements.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-breadcrumb--overview",
+			"html": "<violet-breadcrumb aria-label=\"Crop plan path\" label=\"Crop plan path\"><violet-breadcrumb-item href=\"/plans\" role=\"listitem\">Plans</violet-breadcrumb-item><violet-breadcrumb-item href=\"/plans/propagation\" role=\"listitem\">Propagation</violet-breadcrumb-item><violet-breadcrumb-item current role=\"listitem\" aria-current=\"page\" href>Spring greens</violet-breadcrumb-item></violet-breadcrumb>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.label",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Navigation landmark that lays out violet-breadcrumb-item children as a trail ending at the current page.",
+	"tag": "violet-breadcrumb",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "breadcrumb.current",
+			"text": "The last item is marked current automatically; if items set current, the last of those wins and the others are cleared. This runs when items are added or removed, not when current changes later."
+		}
+	]
+}

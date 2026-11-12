@@ -1,0 +1,52 @@
+{
+  "tag": "violet-tooltip",
+  "summary": "Short plain-text hint shown on hover or focus of the element it wraps or is anchored to; never for essential or interactive content.",
+  "usage": [
+    {
+      "id": "tooltip.trigger",
+      "text": "The first element child (default slot) is the trigger, or set anchor to an element's id. It shows after delay on hover, at once on focus, and hides on leave or blur.",
+      "members": [
+        "anchor",
+        "delay"
+      ]
+    },
+    {
+      "id": "tooltip.content",
+      "text": "Text comes from the content attribute; an element in the content slot replaces it. It stays open while hovered, but keyboard users cannot reach anything inside it.",
+      "members": [
+        "content"
+      ]
+    },
+    {
+      "id": "tooltip.delay",
+      "text": "delay=\"0\" in markup is read as 250. Set the delay property to 0 from script for an immediate tooltip.",
+      "members": [
+        "delay"
+      ]
+    },
+    {
+      "id": "tooltip.events",
+      "text": "It fires no events. The open attribute reflects whether it is shown and can be set to force it open.",
+      "members": [
+        "open"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "tooltip.describedby",
+      "text": "It overwrites the trigger's aria-describedby with the id of its tooltip, which is inside its shadow root where page IDREFs do not resolve. Do not rely on it for a name or essential text."
+    },
+    {
+      "id": "tooltip.trigger-name",
+      "text": "An icon-only trigger still needs its own accessible name, such as violet-icon-button's label; the tooltip does not name it."
+    }
+  ],
+  "roles": [
+    {
+      "state": "open",
+      "role": "tooltip",
+      "name": "from the content attribute or content slot"
+    }
+  ]
+}

@@ -1,0 +1,171 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "alt",
+				"property": "alt",
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "decorative",
+				"property": "decorative",
+				"rules": [
+					"taxonomy.decorative"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "cover",
+				"name": "fit",
+				"property": "fit",
+				"rules": [
+					"taxonomy.fit"
+				],
+				"type": "VioletImageFit"
+			},
+			{
+				"basis": "declared",
+				"default": "lazy",
+				"name": "loading",
+				"property": "loading",
+				"rules": [
+					"taxonomy.loading"
+				],
+				"type": "VioletImageLoading"
+			},
+			{
+				"basis": "observed",
+				"default": "auto",
+				"name": "ratio",
+				"property": "ratio",
+				"rules": [
+					"taxonomy.ratio"
+				],
+				"type": "VioletImageRatio"
+			},
+			{
+				"basis": "observed",
+				"default": "rounded",
+				"name": "shape",
+				"property": "shape",
+				"rules": [
+					"taxonomy.shape"
+				],
+				"type": "VioletImageShape"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "src",
+				"property": "src",
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-image-background, var(--_surface-subtle))",
+				"name": "--_image-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-image-border, var(--_border-subtle))",
+				"name": "--_image-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-image-fit, cover)",
+				"name": "--_image-fit"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-image-radius, var(--_radius-lg))",
+				"name": "--_image-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "auto",
+				"name": "--_image-ratio"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"accepts": [
+					"violet-text"
+				],
+				"basis": "observed",
+				"description": "Optional fallback content shown when there is no image source or the image fails to load.",
+				"name": "fallback"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-image--contain-fit",
+			"html": "<div style=\"max-inline-size: 16rem;\">\n            <violet-image src=\"data:image/svg+xml;utf8,%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22960%22%20height%3D%22720%22%20viewBox%3D%220%200%20960%20720%22%3E%0A%20%20%3Crect%20width%3D%22960%22%20height%3D%22720%22%20fill%3D%22%23ddeadf%22%2F%3E%0A%20%20%3Crect%20x%3D%2290%22%20y%3D%2290%22%20width%3D%22780%22%20height%3D%22540%22%20rx%3D%2236%22%20fill%3D%22%23f7f3ea%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22300%22%20cy%3D%22280%22%20r%3D%2292%22%20fill%3D%22%239fc4ac%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M190%20540c70-110%20126-168%20172-168%2058%200%20102%2056%20168%20130%2036%2042%2084%2064%20146%2064h104v64H190z%22%20fill%3D%22%238eb79a%22%2F%3E%0A%3C%2Fsvg%3E%0A\" alt=\"Propagation trays\" ratio=\"video\" fit=\"contain\" shape=\"rounded\" loading=\"lazy\"></violet-image>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-image--decorative",
+			"html": "<div style=\"max-inline-size: 20rem;\"><violet-image src=\"data:image/svg+xml;utf8,%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22960%22%20height%3D%22720%22%20viewBox%3D%220%200%20960%20720%22%3E%0A%20%20%3Crect%20width%3D%22960%22%20height%3D%22720%22%20fill%3D%22%23ddeadf%22%2F%3E%0A%20%20%3Crect%20x%3D%2290%22%20y%3D%2290%22%20width%3D%22780%22%20height%3D%22540%22%20rx%3D%2236%22%20fill%3D%22%23f7f3ea%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22300%22%20cy%3D%22280%22%20r%3D%2292%22%20fill%3D%22%239fc4ac%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M190%20540c70-110%20126-168%20172-168%2058%200%20102%2056%20168%20130%2036%2042%2084%2064%20146%2064h104v64H190z%22%20fill%3D%22%238eb79a%22%2F%3E%0A%3C%2Fsvg%3E%0A\" alt fit=\"cover\" ratio=\"landscape\" shape=\"rounded\" loading=\"lazy\" decorative></violet-image></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-image--error-fallback",
+			"html": "<div style=\"max-inline-size: 16rem;\">\n            <violet-image src=\"https://invalid.invalid/missing-image.jpg\" alt=\"Fallback planting image\" ratio=\"landscape\" fit=\"cover\" shape=\"rounded\" loading=\"lazy\">\n                <violet-text slot=\"fallback\" variant=\"caption\" tone=\"muted\" as=\"span\">Image unavailable</violet-text>\n            </violet-image>\n        </div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "loading",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.decorative",
+		"import.root",
+		"taxonomy.alt.violet-image",
+		"taxonomy.decorative",
+		"taxonomy.fit",
+		"taxonomy.loading",
+		"taxonomy.ratio",
+		"taxonomy.shape",
+		"taxonomy.src.violet-image",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-image",
+	"usage": []
+}

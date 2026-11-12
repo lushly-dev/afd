@@ -1,0 +1,34 @@
+{
+  "tag": "violet-menu-item",
+  "summary": "One action inside violet-menu, with optional before and after slots for an icon or a shortcut hint.",
+  "usage": [
+    {
+      "id": "menu-item.invoke",
+      "text": "It fires invoke, with no detail, on click, and on Enter or Space through its violet-menu. There is no value attribute: identify the item by event.target, an id or a data-* attribute.",
+      "members": [
+        "invoke"
+      ]
+    },
+    {
+      "id": "menu-item.disabled",
+      "text": "A disabled item stays focusable and reachable with the arrow keys, but it fires no invoke and does not close the menu.",
+      "members": [
+        "disabled"
+      ]
+    },
+    {
+      "id": "menu-item.context",
+      "text": "Use it only inside violet-menu: keyboard activation, focus movement and closing all come from the menu."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "menu-item.text",
+      "text": "Type-ahead matches the start of the item's whole text content, before and after slots included, so keep the label first in source order and give icons the decorative attribute.",
+      "members": [
+        "before",
+        "after"
+      ]
+    }
+  ]
+}

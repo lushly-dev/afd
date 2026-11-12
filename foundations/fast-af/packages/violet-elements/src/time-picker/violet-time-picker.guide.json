@@ -1,0 +1,47 @@
+{
+  "tag": "violet-time-picker",
+  "summary": "Time-of-day field wrapping the native time input, with a label, supporting text and range checks; the value is a 24-hour time string.",
+  "usage": [
+    {
+      "id": "time-picker.value",
+      "text": "value is a 24-hour \"HH:MM\" or \"HH:MM:SS\" string whatever the display format, and the form receives it under name. Any other string is invalid with \"Enter a valid time.\"",
+      "members": [
+        "value",
+        "name"
+      ]
+    },
+    {
+      "id": "time-picker.step",
+      "text": "step is in seconds, default 60, so only hours and minutes are edited. Use step=\"1\" to edit seconds, or e.g. 900 for 15-minute arrow-key steps.",
+      "members": [
+        "step"
+      ]
+    },
+    {
+      "id": "time-picker.range",
+      "text": "min and max are times within one day; a value outside them is invalid with \"Choose a time at or after/before ...\". A range that crosses midnight is not supported.",
+      "members": [
+        "min",
+        "max"
+      ]
+    },
+    {
+      "id": "time-picker.events",
+      "text": "input and change carry detail.value. The native input's own input event also reaches host listeners, without detail; skip events that have none.",
+      "members": [
+        "input",
+        "change"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "time-picker.errors",
+      "text": "The shown error, built-in or error-text, is linked to the native input as its description after supporting-text, so it is read when the field is focused.",
+      "members": [
+        "error-text",
+        "supporting-text"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "tag": "violet-dialog",
+  "summary": "Modal, non-modal or alert dialog on the native dialog element, with title, body and footer slots; opened by the open attribute or show().",
+  "usage": [
+    {
+      "id": "dialog.open",
+      "text": "Nothing opens it for you: set open or call show(). hide(returnValue?) closes it and returnValue reads the value back. Footer buttons need their own click handlers to close it.",
+      "members": [
+        "open",
+        "returnValue",
+        "footer"
+      ]
+    },
+    {
+      "id": "dialog.type",
+      "text": "type is modal (default, showModal()), non-modal (show(), page stays usable) or alert: role alertdialog, described by its body, and Escape does not close it.",
+      "members": [
+        "type"
+      ]
+    },
+    {
+      "id": "dialog.request-close",
+      "text": "The close button and Escape fire a cancelable request-close with detail.source \"close-button\" or \"keyboard\"; preventDefault() keeps it open. hide() and removing open skip it.",
+      "members": [
+        "request-close",
+        "open"
+      ]
+    },
+    {
+      "id": "dialog.close-button",
+      "text": "The header close button shows unless no-close-button is set; with no title and no-close-button the header is hidden. Only set it when a footer action closes the dialog.",
+      "members": [
+        "no-close-button",
+        "title"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "dialog.name",
+      "text": "Content in the title slot names the dialog. Without it the dialog is named \"Dialog\"; an aria-label on the host is not used, so always fill the title slot.",
+      "members": [
+        "title"
+      ]
+    },
+    {
+      "id": "dialog.focus",
+      "text": "On close, focus returns to the element focused when it opened, even inside another component's shadow root. A body that overflows becomes a tab stop so keyboard users can scroll it."
+    }
+  ],
+  "roles": [
+    {
+      "state": "open",
+      "role": "dialog",
+      "name": "from the title slot, else \"Dialog\""
+    },
+    {
+      "state": "alert",
+      "role": "alertdialog",
+      "name": "from the title slot, else \"Dialog\""
+    }
+  ]
+}

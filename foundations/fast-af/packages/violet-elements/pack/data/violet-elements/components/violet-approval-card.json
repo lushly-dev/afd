@@ -1,0 +1,168 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "pending",
+				"name": "state",
+				"property": "state",
+				"rules": [
+					"taxonomy.state"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-state-warning-border, rgba(245, 158, 11, 0.34))",
+				"name": "--_approval-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-approval-caption-size, var(--_caption-size, 12px))",
+				"name": "--_approval-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-approval-font-size, var(--_body-size, 14px))",
+				"name": "--_approval-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-approval-line-height, var(--_body-line, 20px))",
+				"name": "--_approval-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-background, #fbe2e2)",
+				"name": "--_danger-bg-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-text, #b42318)",
+				"name": "--_danger-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-background, #e3f1e7)",
+				"name": "--_success-bg-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-text, #166534)",
+				"name": "--_success-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-warning-background, #fdebcc)",
+				"name": "--_warning-bg-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-warning-text, #92400e)",
+				"name": "--_warning-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_surface-card)",
+				"name": "--violet-card-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_approval-border-color)",
+				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "none",
+				"name": "--violet-card-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_approval-line-height)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "When the user approves the action.",
+				"name": "approve"
+			},
+			{
+				"basis": "declared",
+				"description": "When the user denies the action.",
+				"name": "deny"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Custom action buttons (approve/deny provided by default).",
+				"name": "actions"
+			},
+			{
+				"basis": "observed",
+				"description": "Expanded explanation or consequences.",
+				"name": "detail"
+			},
+			{
+				"basis": "observed",
+				"description": "What action needs approval.",
+				"name": "summary"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-approval-card--all-states",
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 16px; max-inline-size: 500px;\"><span style=\"font-size: 11px; color: rgb(107, 114, 128);\">pending</span><violet-approval-card state=\"pending\"><span slot=\"summary\">Update the watering schedule for all raised beds.</span><span slot=\"detail\">This will modify automated timers for 8 garden zones.</span></violet-approval-card><span style=\"font-size: 11px; color: rgb(107, 114, 128);\">approved</span><violet-approval-card state=\"approved\"><span slot=\"summary\">Watering schedule updated for all raised beds.</span></violet-approval-card><span style=\"font-size: 11px; color: rgb(107, 114, 128);\">denied</span><violet-approval-card state=\"denied\"><span slot=\"summary\">Delete the entire compost tracking history.</span><span slot=\"detail\">This would remove 2 years of composting data.</span></violet-approval-card></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-approval-card--approved",
+			"html": "<violet-approval-card state=\"approved\"><span slot=\"summary\">Order placed for 12 hostas and 6 ferns.</span></violet-approval-card>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-approval-card--denied",
+			"html": "<violet-approval-card state=\"denied\"><span slot=\"summary\">Delete all records from the plant inventory.</span><span slot=\"detail\">This would permanently remove 347 plant records.</span></violet-approval-card>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.state",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-approval-card",
+	"usage": []
+}

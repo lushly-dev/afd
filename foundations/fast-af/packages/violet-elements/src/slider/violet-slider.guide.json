@@ -1,0 +1,64 @@
+{
+  "tag": "violet-slider",
+  "summary": "Single-thumb range input with a built-in label, supporting text and error text; use to pick one number from a continuous or stepped range.",
+  "usage": [
+    {
+      "id": "slider.value",
+      "text": "The value is clamped to min..max and snapped to step from min whenever any of them changes, so read it back after setting it. Without a value attribute it starts at 50, clamped into range.",
+      "members": [
+        "value",
+        "min",
+        "max",
+        "step"
+      ]
+    },
+    {
+      "id": "slider.form",
+      "text": "There is no empty state: the form always receives the current value, and form reset restores the value it had when it connected.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "slider.validation",
+      "text": "The required attribute has no effect on validity. Only invalid makes it invalid, and the error text (default \"Please choose a valid value.\") is shown only while invalid is set.",
+      "members": [
+        "required",
+        "invalid",
+        "error-text"
+      ]
+    },
+    {
+      "id": "slider.events",
+      "text": "Each arrow-key step fires both input and change. A pointer drag fires input while moving and one change on release.",
+      "members": [
+        "input",
+        "change"
+      ]
+    },
+    {
+      "id": "slider.ticks",
+      "text": "The show-ticks attribute draws marks only when the range divides into 2 to 50 steps.",
+      "members": [
+        "show-ticks"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "slider.value-text",
+      "text": "The value-text attribute becomes aria-valuetext. Set it when the number alone is not meaningful, for example \"Medium\", and update it as the value changes.",
+      "members": [
+        "value-text"
+      ]
+    },
+    {
+      "id": "slider.error",
+      "text": "The error text, shown while invalid, is linked to the input as its description after the supporting text.",
+      "members": [
+        "error-text",
+        "invalid"
+      ]
+    }
+  ]
+}

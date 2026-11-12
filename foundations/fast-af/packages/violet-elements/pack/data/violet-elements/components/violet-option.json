@@ -1,0 +1,184 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "observed",
+				"name": "from its text",
+				"role": "option",
+				"state": "default"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "option.name",
+				"text": "The label attribute is not applied as an accessible name; assistive technology reads the option's content. Keep label matching the visible text."
+			},
+			{
+				"basis": "authored",
+				"id": "option.disabled",
+				"text": "A disabled option, or any option in a disabled violet-option-group, gets aria-disabled and is skipped by arrow keys and type-ahead and cannot be chosen."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "selected",
+				"property": "selected",
+				"rules": [
+					"taxonomy.selected"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-option-padding-inline-end, calc(var(--_space-inline-md) * 1.5))",
+				"name": "--_option-padding-inline-end"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-option-padding-inline-start, calc(var(--_space-inline-md) * 1.5))",
+				"name": "--_option-padding-inline-start"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--color-state-success-foreground, #245c36) 30%, transparent)",
+				"name": "--_selected-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-highlight, #ffffff)",
+				"name": "--_surface-active"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-subtle, #f0efe6)",
+				"name": "--_surface-hover"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--color-state-success-background, #e3f1e7) 58%, transparent)",
+				"name": "--_surface-selected"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the option is chosen, for the list that owns it.",
+				"name": "request-select"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "The option's label text.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Trailing content such as a shortcut or count.",
+				"name": "after"
+			},
+			{
+				"basis": "observed",
+				"description": "Leading content such as an icon.",
+				"name": "before"
+			},
+			{
+				"basis": "observed",
+				"description": "Secondary text under the label.",
+				"name": "description"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-option--disabled",
+			"html": "<div role=\"listbox\" aria-label=\"Sowing methods\"><violet-option id=\"violet-option-1\" role=\"option\" aria-selected=\"false\" aria-disabled=\"true\" value=\"hydroponic-setup\" label=\"Hydroponic setup\" disabled>Hydroponic setup<span slot=\"description\">Temporarily unavailable for this season.</span></violet-option></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.label",
+		"taxonomy.selected",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "One choice inside a violet-select, violet-combobox or violet-listbox; it does nothing on its own.",
+	"tag": "violet-option",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "option.value",
+			"text": "The value attribute defaults to the option's text when omitted. Selection is matched by value, so every option under one parent needs a distinct value."
+		},
+		{
+			"basis": "authored",
+			"id": "option.label",
+			"text": "The label attribute replaces the option's text for the select trigger, the combobox input, filtering and type-ahead; the slotted content still renders. Text in named slots never counts as the label."
+		},
+		{
+			"basis": "authored",
+			"id": "option.slots",
+			"text": "The default slot is the label; the before slot takes leading content such as an icon, after takes trailing content such as a count, and description takes a second line of text."
+		},
+		{
+			"basis": "authored",
+			"id": "option.parent",
+			"text": "A click asks the parent select, combobox or listbox to choose it; the parent consumes that request. Listen for change on the parent, not on the option."
+		},
+		{
+			"basis": "authored",
+			"id": "option.hidden",
+			"text": "Inside a combobox, do not set hidden on options yourself: the combobox overwrites every option's hidden attribute while filtering."
+		}
+	]
+}

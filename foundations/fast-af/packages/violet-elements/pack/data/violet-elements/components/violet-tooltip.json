@@ -1,0 +1,210 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "authored",
+				"name": "from the content attribute or content slot",
+				"role": "tooltip",
+				"state": "open"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "tooltip.describedby",
+				"text": "It overwrites the trigger's aria-describedby with the id of its tooltip, which is inside its shadow root where page IDREFs do not resolve. Do not rely on it for a name or essential text."
+			},
+			{
+				"basis": "authored",
+				"id": "tooltip.trigger-name",
+				"text": "An icon-only trigger still needs its own accessible name, such as violet-icon-button's label; the tooltip does not name it."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "declared",
+				"name": "anchor",
+				"property": "anchor",
+				"rules": [
+					"taxonomy.anchor"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "content",
+				"property": "content",
+				"rules": [
+					"taxonomy.content"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": 250,
+				"name": "delay",
+				"property": "delay",
+				"rules": [
+					"taxonomy.delay"
+				],
+				"type": "number"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "above",
+				"name": "positioning",
+				"property": "positioning",
+				"rules": [
+					"taxonomy.positioning"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-background, var(--_surface-card))",
+				"name": "--_tooltip-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-border-color, var(--_border-subtle))",
+				"name": "--_tooltip-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-border-width, var(--_card-border-width, 1px))",
+				"name": "--_tooltip-border-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-font-size, 12px)",
+				"name": "--_tooltip-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-gap, var(--_space-sm))",
+				"name": "--_tooltip-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-line-height, 16px)",
+				"name": "--_tooltip-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-max-width, 240px)",
+				"name": "--_tooltip-max-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-radius, var(--_radius-md))",
+				"name": "--_tooltip-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tooltip-shadow, var(--_shadow-floating))",
+				"name": "--_tooltip-shadow"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Trigger element that the tooltip anchors to.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Rich tooltip content (alternative to the content attribute).",
+				"name": "content"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-tooltip--after",
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 120px;\"><violet-tooltip positioning=\"after\" content=\"Tooltip to the right.\" delay=\"250\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 16px; cursor: pointer;\">Hover me</button></violet-tooltip></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-tooltip--all-positions",
+			"html": "<div style=\"display: flex; flex-wrap: wrap; gap: 32px; padding: 80px; justify-content: center; align-items: center;\"><violet-tooltip positioning=\"above\" content=\"Positioned above\" delay=\"100\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 20px; cursor: pointer;\">above</button></violet-tooltip><violet-tooltip positioning=\"below\" content=\"Positioned below\" delay=\"100\"><button aria-describedby=\"violet-tooltip-1\" style=\"padding: 8px 20px; cursor: pointer;\">below</button></violet-tooltip><violet-tooltip positioning=\"before\" content=\"Positioned before\" delay=\"100\"><button aria-describedby=\"violet-tooltip-2\" style=\"padding: 8px 20px; cursor: pointer;\">before</button></violet-tooltip><violet-tooltip positioning=\"after\" content=\"Positioned after\" delay=\"100\"><button aria-describedby=\"violet-tooltip-3\" style=\"padding: 8px 20px; cursor: pointer;\">after</button></violet-tooltip></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-tooltip--before",
+			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 120px;\"><violet-tooltip positioning=\"before\" content=\"Tooltip to the left.\" delay=\"250\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 16px; cursor: pointer;\">Hover me</button></violet-tooltip></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "unobserved",
+			"name": "anchor",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "open",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"overlay.anchor",
+		"overlay.positioning",
+		"taxonomy.anchor",
+		"taxonomy.content",
+		"taxonomy.delay",
+		"taxonomy.open",
+		"taxonomy.positioning",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Short plain-text hint shown on hover or focus of the element it wraps or is anchored to; never for essential or interactive content.",
+	"tag": "violet-tooltip",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "tooltip.trigger",
+			"text": "The first element child (default slot) is the trigger, or set anchor to an element's id. It shows after delay on hover, at once on focus, and hides on leave or blur."
+		},
+		{
+			"basis": "authored",
+			"id": "tooltip.content",
+			"text": "Text comes from the content attribute; an element in the content slot replaces it. It stays open while hovered, but keyboard users cannot reach anything inside it."
+		},
+		{
+			"basis": "authored",
+			"id": "tooltip.delay",
+			"text": "delay=\"0\" in markup is read as 250. Set the delay property to 0 from script for an immediate tooltip."
+		},
+		{
+			"basis": "authored",
+			"id": "tooltip.events",
+			"text": "It fires no events. The open attribute reflects whether it is shown and can be set to force it open."
+		}
+	]
+}

@@ -1,0 +1,170 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "popover.semantics",
+				"text": "It gives the surface no role or name and sets no aria-expanded on the trigger: label the slotted content yourself and set the trigger's aria-expanded from open-change."
+			},
+			{
+				"basis": "authored",
+				"id": "popover.focus",
+				"text": "Opening does not move focus into the surface; when its content is interactive, focus the first control yourself from open-change."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "anchor",
+				"property": "anchor",
+				"rules": [
+					"taxonomy.anchor"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "below",
+				"name": "positioning",
+				"property": "positioning",
+				"rules": [
+					"taxonomy.positioning"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-background, var(--_surface-card))",
+				"name": "--_popover-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-border, var(--_border-subtle))",
+				"name": "--_popover-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-gap, var(--_space-sm))",
+				"name": "--_popover-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-max-inline-size, min(24rem, calc(100vw - 24px)))",
+				"name": "--_popover-max-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-min-inline-size, 16rem)",
+				"name": "--_popover-min-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-padding, var(--_space-md))",
+				"name": "--_popover-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-radius, calc(var(--_radius-md) * 2))",
+				"name": "--_popover-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-popover-shadow, var(--_shadow-floating))",
+				"name": "--_popover-shadow"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the popover opens or closes. Detail: `{ open: boolean }`.",
+				"name": "open-change"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Popover body content.",
+				"name": ""
+			},
+			{
+				"accepts": [
+					"violet-button"
+				],
+				"basis": "observed",
+				"description": "Optional trigger element that toggles the popover.",
+				"name": "trigger"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-popover--external-anchor",
+			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);\">\n            <violet-button id=\"popover-anchor\" appearance=\"secondary\" style=\"anchor-name: --violet-popover-anchor;\" type=\"button\">Anchor outside</violet-button>\n            <violet-popover anchor=\"popover-anchor\" positioning=\"after\">\n                <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                    <strong style=\"margin:0;\">Field note</strong>\n                    <p style=\"margin:0;\">This panel is anchored to an external trigger element.</p>\n                </div>\n            </violet-popover>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-popover--overview",
+			"html": "<violet-popover positioning=\"below\" anchor open>\n            <violet-button slot=\"trigger\" appearance=\"secondary\" type=\"button\">Open details</violet-button>\n            <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                <strong style=\"margin:0;\">Propagation details</strong>\n                <p style=\"margin:0;\">Seeded trays are staged for transplanting next week.</p>\n            </div>\n        </violet-popover>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"overlay.anchor",
+		"overlay.open-change",
+		"overlay.positioning",
+		"taxonomy.anchor",
+		"taxonomy.open",
+		"taxonomy.positioning",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Anchored, non-modal floating surface with light dismiss, opened from a slotted trigger or an anchor element; for rich content that is not a menu.",
+	"tag": "violet-popover",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "popover.trigger",
+			"text": "Put the trigger in the trigger slot, or set anchor to the id of an outside element; a click on it calls toggle(). From script use show(), hide(), toggle() or the open attribute."
+		},
+		{
+			"basis": "authored",
+			"id": "popover.dismiss",
+			"text": "The surface is a native popover=\"auto\": an outside press, Escape or opening another auto popover closes it, and the open attribute follows."
+		},
+		{
+			"basis": "authored",
+			"id": "popover.anchor-id",
+			"text": "anchor is looked up with document.getElementById when the popover connects or anchor changes, so the element must already exist in the document, not inside a shadow root."
+		}
+	]
+}

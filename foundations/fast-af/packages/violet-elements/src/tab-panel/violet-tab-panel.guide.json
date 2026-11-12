@@ -1,0 +1,20 @@
+{
+  "tag": "violet-tab-panel",
+  "summary": "Content region inside violet-tabs, shown while the tab at the same position is active.",
+  "usage": [
+    {
+      "id": "tab-panel.usage",
+      "text": "Use it only as a direct child of violet-tabs; it has no attributes. It pairs with the tab at the same position, and violet-tabs toggles its hidden attribute. A panel with no matching tab stays hidden."
+    },
+    {
+      "id": "tab-panel.hidden",
+      "text": "Inactive panels are hidden, not removed, so their content stays in the DOM and keeps its state while another tab is active."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "tab-panel.name",
+      "text": "violet-tabs names it by its tab with aria-labelledby and makes it a tab stop, so the tab's text should describe the panel's content."
+    }
+  ]
+}

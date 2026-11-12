@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
+import { claim } from "@lushly-dev/specimen/evidence";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
 import "./violet-switch";
@@ -95,6 +96,7 @@ export const Overview: Story = {
         await expect(input.getAttribute("role")).toBe("switch");
         await expect(input.checked).toBe(false);
         await expect(element.checkValidity()).toBe(false);
+        const invalidWhileOff = !element.checkValidity();
 
         await userEvent.click(track);
 
@@ -102,13 +104,19 @@ export const Overview: Story = {
             expect(element.checked).toBe(true);
             expect(element.checkValidity()).toBe(true);
         });
+        await claim(element, "guide:switch.required", "invalid-off-valid-on", () =>
+            expect([invalidWhileOff, element.checked, element.checkValidity()]).toEqual([true, true, true]),
+        );
 
+        const { parentNode, nextSibling } = element;
         const form = document.createElement("form");
         form.append(element);
         await waitFor(() => {
             const formData = new FormData(form);
             expect(formData.get("irrigationAlerts")).toBe("enabled");
         });
+        // Back where it was, so the capture after the play shows it and its claim.
+        parentNode?.insertBefore(element, nextSibling);
     },
 };
 

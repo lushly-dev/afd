@@ -1,0 +1,137 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Space-separated origins (for example `https://cdn.example.com`) remote sources may load from. Empty by default (no policy).",
+				"name": "allowed-origins",
+				"property": "allowedOrigins",
+				"rules": [
+					"taxonomy.allowed-origins",
+					"taxonomy.allowed-origins.not-for"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "alt",
+				"property": "alt",
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "filename",
+				"property": "filename",
+				"rules": [
+					"taxonomy.filename"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "media-type",
+				"property": "mediaType",
+				"rules": [
+					"taxonomy.media-type"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "src",
+				"property": "src",
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-media-font-size, var(--_caption-size, 12px))",
+				"name": "--_media-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-media-line-height, var(--_caption-line, 16px))",
+				"name": "--_media-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-media-max-height, 300px)",
+				"name": "--_media-max-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-media-max-width, 100%)",
+				"name": "--_media-max-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_media-line-height)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-message-media--allowed-local-source",
+			"html": "<violet-message-media src=\"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22400%22%20height%3D%22200%22%3E%3Crect%20width%3D%22400%22%20height%3D%22200%22%20fill%3D%22%238fbf8f%22%2F%3E%3C%2Fsvg%3E\" media-type=\"image/svg+xml\" filename=\"garden.svg\" alt=\"A green garden bed\" allowed-origins=\"https://cdn.example.com\"></violet-message-media>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message-media--audio-file",
+			"html": "<violet-message-media src=\"https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3\" media-type=\"audio/mpeg\" filename=\"bird-sounds.mp3\" alt allowed-origins></violet-message-media>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message-media--blocked-remote-source",
+			"html": "<violet-message-media src=\"https://tracker.example.invalid/pixel.png\" media-type=\"image/png\" filename=\"tracker.png\" allowed-origins=\"https://cdn.example.com\" alt></violet-message-media>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.allowed-origins",
+		"taxonomy.allowed-origins.not-for",
+		"taxonomy.alt.violet-message-media",
+		"taxonomy.filename",
+		"taxonomy.media-type",
+		"taxonomy.src.violet-message-media",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-message-media",
+	"usage": []
+}

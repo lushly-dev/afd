@@ -1,0 +1,181 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": true,
+				"name": "multiple",
+				"property": "multiple",
+				"rules": [
+					"taxonomy.multiple"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "placeholder",
+				"property": "placeholder",
+				"rules": [
+					"taxonomy.placeholder"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"name": "--_border-strong"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-border-subtle, rgba(28, 26, 13, 0.10))",
+				"name": "--_border-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-focus-ring, rgba(24, 24, 27, 0.5))",
+				"name": "--_focus-ring"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--radius-md, 4px)",
+				"name": "--_radius-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08))",
+				"name": "--_shadow-floating"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-font-md, 14px)",
+				"name": "--_size-font-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-font-sm, 12px)",
+				"name": "--_size-font-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-card, #faf9f5)",
+				"name": "--_surface-card"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-floating, #f0efe6)",
+				"name": "--_surface-floating"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-page, #fffefa)",
+				"name": "--_surface-page"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-subtle, #f0efe6)",
+				"name": "--_surface-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-primary, #18181b)",
+				"name": "--_text-primary"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-secondary, #414651)",
+				"name": "--_text-secondary"
+			},
+			{
+				"basis": "declared",
+				"default": "13rem",
+				"name": "--violet-listbox-max-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "100%",
+				"name": "--violet-listbox-min-inline-size"
+			},
+			{
+				"basis": "declared",
+				"default": "0.25rem",
+				"name": "--violet-listbox-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "0.625rem",
+				"name": "--violet-persona-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "1.5rem",
+				"name": "--violet-persona-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the current pending assignee selection is committed by closing the picker.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted whenever the pending assignee selection changes while the panel is open.",
+				"name": "input"
+			}
+		],
+		"slots": []
+	},
+	"examples": [],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "example"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.multiple",
+		"taxonomy.placeholder",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-data-grid-persona-picker",
+	"usage": []
+}

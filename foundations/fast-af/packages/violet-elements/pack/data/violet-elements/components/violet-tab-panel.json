@@ -1,0 +1,64 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "tab-panel.name",
+				"text": "violet-tabs names it by its tab with aria-labelledby and makes it a tab stop, so the tab's text should describe the panel's content."
+			}
+		]
+	},
+	"api": {
+		"attributes": [],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Tab panel content.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-tab-panel--overview",
+			"html": "<violet-tab-panel role=\"tabpanel\" tabindex=\"0\">\n        <div style=\"display:grid;gap:12px;\">\n            <h3 style=\"margin:0;font:600 1rem/1.2 Montserrat, 'Segoe UI', sans-serif;\">Crop plan overview</h3>\n            <p style=\"margin:0;\">Capture current crop status, succession timing, and operating notes for the selected bed block.</p>\n        </div>\n    </violet-tab-panel>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Content region inside violet-tabs, shown while the tab at the same position is active.",
+	"tag": "violet-tab-panel",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "tab-panel.usage",
+			"text": "Use it only as a direct child of violet-tabs; it has no attributes. It pairs with the tab at the same position, and violet-tabs toggles its hidden attribute. A panel with no matching tab stays hidden."
+		},
+		{
+			"basis": "authored",
+			"id": "tab-panel.hidden",
+			"text": "Inactive panels are hidden, not removed, so their content stays in the DOM and keeps its state while another tab is active."
+		}
+	]
+}

@@ -1,0 +1,346 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "slider.value-text",
+				"text": "The value-text attribute becomes aria-valuetext. Set it when the number alone is not meaningful, for example \"Medium\", and update it as the value changes."
+			},
+			{
+				"basis": "authored",
+				"id": "slider.error",
+				"text": "The error text, shown while invalid, is linked to the input as its description after the supporting text."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "100",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "0",
+				"name": "min",
+				"property": "min",
+				"rules": [
+					"taxonomy.min"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "horizontal",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "VioletSliderOrientation"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "show-fill",
+				"property": "showFill",
+				"rules": [
+					"taxonomy.show-fill"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "show-ticks",
+				"property": "showTicks",
+				"rules": [
+					"taxonomy.show-ticks"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "1",
+				"name": "step",
+				"property": "step",
+				"rules": [
+					"taxonomy.step"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "50",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value-text",
+				"property": "valueText",
+				"rules": [
+					"taxonomy.value-text"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_target-size)",
+				"name": "--_control-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"name": "--_danger-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--radius-round, 9999px)",
+				"name": "--_radius-full"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"name": "--_rail-background"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--color-control-selected-foreground, #244635) 50%, var(--color-control-selected-background, #ddeadf))",
+				"name": "--_selection-fill"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08))",
+				"name": "--_shadow-floating"
+			},
+			{
+				"basis": "declared",
+				"default": "50%",
+				"name": "--_slider-percent"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_target-size) * 0.625)",
+				"name": "--_thumb-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_rail-background)",
+				"name": "--_tick-color"
+			},
+			{
+				"basis": "declared",
+				"default": "6px",
+				"name": "--_tick-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_target-size) * 0.125)",
+				"name": "--_track-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_target-size) * 4)",
+				"name": "--_vertical-track-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the slider value is committed.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the slider value changes while dragging or using the keyboard.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-slider--disabled",
+			"html": "<form style=\"display: contents;\"><violet-slider name=\"nutrient-dosing\" disabled orientation=\"horizontal\" label=\"Nutrient dosing\" supporting-text=\"This slider is locked while the irrigation program is inherited from the greenhouse template.\" error-text value-text value=\"25\" min=\"0\" max=\"100\" step=\"1\"></violet-slider></form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-slider--invalid",
+			"html": "<form style=\"display: contents;\"><violet-slider name=\"shade-cloth\" invalid orientation=\"horizontal\" label=\"Shade cloth level\" supporting-text=\"The selected level is outside the approved operating range for this bay.\" error-text=\"Choose a value within the approved range.\" value-text value=\"85\" min=\"0\" max=\"100\" step=\"5\"></violet-slider></form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-slider--overview",
+			"html": "<form style=\"display: contents;\"><violet-slider name=\"moisture-threshold\" orientation=\"horizontal\" label=\"Moisture threshold\" supporting-text=\"Adjust the irrigation trigger point for this bed block.\" error-text value-text value=\"43\" min=\"0\" max=\"100\" step=\"1\"></violet-slider></form>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "min",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "required",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"event.native-input",
+		"field.aria-label",
+		"field.input-change",
+		"field.label",
+		"field.supporting-text",
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.max",
+		"taxonomy.min",
+		"taxonomy.name",
+		"taxonomy.orientation",
+		"taxonomy.required",
+		"taxonomy.show-fill",
+		"taxonomy.show-ticks",
+		"taxonomy.step",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"taxonomy.value-text",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Single-thumb range input with a built-in label, supporting text and error text; use to pick one number from a continuous or stepped range.",
+	"tag": "violet-slider",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "slider.value",
+			"text": "The value is clamped to min..max and snapped to step from min whenever any of them changes, so read it back after setting it. Without a value attribute it starts at 50, clamped into range."
+		},
+		{
+			"basis": "authored",
+			"id": "slider.form",
+			"text": "There is no empty state: the form always receives the current value, and form reset restores the value it had when it connected."
+		},
+		{
+			"basis": "authored",
+			"id": "slider.validation",
+			"text": "The required attribute has no effect on validity. Only invalid makes it invalid, and the error text (default \"Please choose a valid value.\") is shown only while invalid is set."
+		},
+		{
+			"basis": "authored",
+			"id": "slider.events",
+			"text": "Each arrow-key step fires both input and change. A pointer drag fires input while moving and one change on release."
+		},
+		{
+			"basis": "authored",
+			"id": "slider.ticks",
+			"text": "The show-ticks attribute draws marks only when the range divides into 2 to 50 steps."
+		}
+	]
+}

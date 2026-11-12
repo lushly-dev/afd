@@ -1,0 +1,170 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "empty-state.heading",
+				"text": "The heading attribute always renders as an h3; its level cannot be changed. Where h3 does not fit the outline, leave heading empty and put your own heading in the default slot."
+			},
+			{
+				"basis": "authored",
+				"id": "empty-state.announce",
+				"text": "It has no role or live region. When it replaces results after a search or filter, announce the change elsewhere, for example with a status message."
+			},
+			{
+				"basis": "authored",
+				"id": "empty-state.media",
+				"text": "Media is read as is: give a purely decorative illustration alt=\"\" (or decorative on violet-image) so it is skipped."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "plain",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "VioletEmptyStateAppearance"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "heading",
+				"property": "heading",
+				"rules": [
+					"taxonomy.heading"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "message",
+				"property": "message",
+				"rules": [
+					"taxonomy.message"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "vertical",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "VioletEmptyStateOrientation"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "center",
+				"name": "--_empty-align"
+			},
+			{
+				"basis": "declared",
+				"default": "transparent",
+				"name": "--_empty-background"
+			},
+			{
+				"basis": "declared",
+				"default": "transparent",
+				"name": "--_empty-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-md)",
+				"name": "--_empty-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-lg)",
+				"name": "--_empty-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "none",
+				"name": "--_empty-shadow"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Optional extra descriptive content under the main message.",
+				"name": ""
+			},
+			{
+				"accepts": [
+					"violet-button"
+				],
+				"basis": "observed",
+				"description": "Optional actions shown below the copy.",
+				"name": "actions"
+			},
+			{
+				"accepts": [
+					"violet-image"
+				],
+				"basis": "observed",
+				"description": "Optional media or illustration shown before the copy.",
+				"name": "media"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-empty-state--copy-only",
+			"html": "<div style=\"max-inline-size:28rem;\">\n            <violet-empty-state heading=\"No recent notes\" message=\"Once the team starts logging greenhouse activity, it will show up here.\" appearance=\"plain\" orientation=\"vertical\"></violet-empty-state>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-empty-state--horizontal",
+			"html": "<div style=\"max-inline-size:40rem;\">\n            <violet-empty-state heading=\"No assignee selected\" message=\"Assign a grower to keep notifications and approvals moving smoothly.\" appearance=\"plain\" orientation=\"horizontal\">\n                <violet-image slot=\"media\" src=\"data:image/svg+xml;utf8,%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22720%22%20height%3D%22540%22%20viewBox%3D%220%200%20720%20540%22%3E%0A%20%20%3Crect%20width%3D%22720%22%20height%3D%22540%22%20fill%3D%22%23e6eadb%22%2F%3E%0A%20%20%3Crect%20x%3D%2296%22%20y%3D%2284%22%20width%3D%22528%22%20height%3D%22372%22%20rx%3D%2228%22%20fill%3D%22%23fbf8f0%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M176%20352h368%22%20stroke%3D%22%23c7d3b4%22%20stroke-width%3D%2228%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22252%22%20cy%3D%22248%22%20r%3D%2252%22%20fill%3D%22%23aac2a0%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M230%20332c46-58%2080-86%20120-86s76%2024%20136%2086%22%20fill%3D%22none%22%20stroke%3D%22%238eb79a%22%20stroke-width%3D%2226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%3C%2Fsvg%3E%0A\" alt decorative ratio=\"square\" style=\"inline-size:5rem;\" fit=\"cover\" shape=\"rounded\" loading=\"lazy\"></violet-image>\n                <violet-button slot=\"actions\" appearance=\"secondary\" type=\"button\">Assign owner</violet-button>\n            </violet-empty-state>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-empty-state--outline",
+			"html": "<div style=\"max-inline-size:32rem;\">\n                <violet-empty-state heading=\"No matching cultivars\" message=\"Try broadening your filters or importing a new seed inventory list.\" appearance=\"outline\" orientation=\"vertical\">\n                    <violet-image slot=\"media\" src=\"data:image/svg+xml;utf8,%0A%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22720%22%20height%3D%22540%22%20viewBox%3D%220%200%20720%20540%22%3E%0A%20%20%3Crect%20width%3D%22720%22%20height%3D%22540%22%20fill%3D%22%23e6eadb%22%2F%3E%0A%20%20%3Crect%20x%3D%2296%22%20y%3D%2284%22%20width%3D%22528%22%20height%3D%22372%22%20rx%3D%2228%22%20fill%3D%22%23fbf8f0%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M176%20352h368%22%20stroke%3D%22%23c7d3b4%22%20stroke-width%3D%2228%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22252%22%20cy%3D%22248%22%20r%3D%2252%22%20fill%3D%22%23aac2a0%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M230%20332c46-58%2080-86%20120-86s76%2024%20136%2086%22%20fill%3D%22none%22%20stroke%3D%22%238eb79a%22%20stroke-width%3D%2226%22%20stroke-linecap%3D%22round%22%2F%3E%0A%3C%2Fsvg%3E%0A\" alt decorative ratio=\"square\" style=\"inline-size:6rem;\" fit=\"cover\" shape=\"rounded\" loading=\"lazy\"></violet-image>\n                    <violet-button slot=\"actions\" appearance=\"primary\" type=\"button\">Create plan</violet-button>\n                    <violet-button slot=\"actions\" appearance=\"secondary\" type=\"button\">Import template</violet-button>\n                </violet-empty-state>\n            </div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.appearance",
+		"taxonomy.heading",
+		"taxonomy.message",
+		"taxonomy.orientation",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Placeholder for a view with no content or no results, with heading, message, media and actions.",
+	"tag": "violet-empty-state",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "empty-state.content",
+			"text": "The heading and message attributes are plain text. Buttons go in the actions slot, an illustration in the media slot, and extra copy in the default slot, after the message. Empty media and actions regions are hidden."
+		}
+	]
+}

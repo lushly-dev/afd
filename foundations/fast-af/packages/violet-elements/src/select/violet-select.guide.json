@@ -1,0 +1,65 @@
+{
+  "tag": "violet-select",
+  "summary": "Single-choice dropdown: a button that opens a list of violet-option children. Use when the user picks one value from a short fixed list.",
+  "usage": [
+    {
+      "id": "select.value",
+      "text": "The value attribute holds the chosen option's value and the trigger shows that option's label. With no value and no selected option nothing is chosen; the first option is not picked for you.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "select.unmatched",
+      "text": "A value that matches no enabled option is kept: the trigger shows the raw value and the form receives it. Set value only to an existing option's value.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "select.events",
+      "text": "Choosing an option fires input then change, each with detail.value, even when the same option is chosen again. selectValue(value) fires them too; assigning the value property does not.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "select.open",
+      "text": "It opens on click, Enter, Space or the arrow keys, from the open attribute, or with show(); it closes on choice, Escape, an outside press or focus leaving. No event reports opening or closing.",
+      "members": [
+        "open"
+      ]
+    },
+    {
+      "id": "select.typeahead",
+      "text": "Typing a character on the closed trigger selects the next option whose label starts with it and fires input and change without opening; while open, typing only moves the highlight."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "select.name",
+      "text": "The trigger is named by the label plus the shown value. Without a label its name is only the value or placeholder text.",
+      "members": [
+        "label"
+      ]
+    },
+    {
+      "id": "select.focus",
+      "text": "Opening moves focus into the list, where arrow keys, Home and End move the highlight and Enter or Space chooses. Escape and choosing return focus to the trigger."
+    },
+    {
+      "id": "select.error",
+      "text": "The rendered error message is linked to the trigger as its description, after the supporting text.",
+      "members": [
+        "error-text"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "state": "open",
+      "role": "listbox",
+      "name": "from the label and the shown value"
+    }
+  ]
+}

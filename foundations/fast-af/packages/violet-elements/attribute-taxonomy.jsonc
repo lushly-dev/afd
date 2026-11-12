@@ -1309,7 +1309,7 @@
       "property": "allowedOrigins",
       "valueType": "string",
       "category": "behavior",
-      "definition": "Space-separated list of origins a remote media source may load from. When set, a source that is not relative, same-origin, data: or blob: and whose origin is not listed is not requested and the component renders its generic file row instead.",
+      "definition": "Space-separated origins a remote media source may load from. When set, a source that is not relative, same-origin, data: or blob: and whose origin is not listed is not requested and the component renders its generic file row instead.",
       "useFor": ["restricting remote media sources for untrusted or model-supplied content"],
       "doNotUseFor": ["CORS configuration", "link or navigation allowlists", "values that are not URLs"],
       "usedBy": ["violet-message-media"]

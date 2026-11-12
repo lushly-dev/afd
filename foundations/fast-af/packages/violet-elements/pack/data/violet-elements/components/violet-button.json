@@ -1,0 +1,225 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "button.name",
+				"text": "The slotted text is the accessible name. For an icon-only button set the ariaLabel property in script (it has no attribute; an aria-label on the host is not forwarded), or use violet-icon-button."
+			},
+			{
+				"basis": "authored",
+				"id": "button.idrefs",
+				"text": "ariaLabelledby, ariaDescribedby and ariaErrormessage are script-only properties. Like aria-controls, their ids are written inside the shadow root, where ids from the page do not resolve."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "primary",
+				"description": "Visual emphasis variant for the button.",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "VioletButtonAppearance"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional controls reference forwarded to the inner button.",
+				"name": "aria-controls",
+				"property": "ariaControls",
+				"rules": [
+					"taxonomy.aria-controls"
+				],
+				"type": "string | null"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional expanded state forwarded to the inner button.",
+				"name": "aria-expanded",
+				"property": "ariaExpanded",
+				"rules": [
+					"taxonomy.aria-expanded"
+				],
+				"type": "string | null"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional popup type forwarded to the inner button.",
+				"name": "aria-haspopup",
+				"property": "ariaHasPopup",
+				"rules": [
+					"taxonomy.aria-haspopup"
+				],
+				"type": "string | null"
+			},
+			{
+				"basis": "declared",
+				"description": "Optional pressed state (\"true\", \"false\" or \"mixed\") forwarded to the inner button for toggle buttons.",
+				"name": "aria-pressed",
+				"property": "ariaPressed",
+				"rules": [
+					"taxonomy.aria-pressed"
+				],
+				"type": "string | null"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables the button.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "button",
+				"description": "Native button type forwarded to the internal control.",
+				"name": "type",
+				"property": "type",
+				"rules": [
+					"taxonomy.type"
+				],
+				"type": "\"button\" | \"submit\" | \"reset\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "button"
+					},
+					{
+						"basis": "observed",
+						"value": "submit"
+					},
+					{
+						"basis": "declared",
+						"value": "reset"
+					}
+				]
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--space-inline-md, 8px)",
+				"name": "--_space-inline-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-inline-sm, 4px)",
+				"name": "--_space-inline-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--space-stack-sm, 8px)",
+				"name": "--_space-stack-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-body-md-line, 20px)",
+				"name": "--_type-body-line"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Button label content.",
+				"name": ""
+			},
+			{
+				"accepts": [
+					"violet-icon"
+				],
+				"basis": "observed",
+				"description": "Trailing inline content such as a status glyph.",
+				"name": "after"
+			},
+			{
+				"accepts": [
+					"violet-icon"
+				],
+				"basis": "observed",
+				"description": "Leading inline content such as an icon.",
+				"name": "before"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-button--danger",
+			"html": "<violet-button appearance=\"danger\" type=\"button\">Delete bed</violet-button>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-button--overview",
+			"html": "<violet-button appearance=\"primary\" type=\"button\">Save bed plan</violet-button>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-button--quiet-disabled",
+			"html": "<violet-button appearance=\"quiet\" type=\"button\" disabled>Quiet action</violet-button>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "aria-pressed",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.appearance",
+		"taxonomy.aria-controls",
+		"taxonomy.aria-expanded",
+		"taxonomy.aria-haspopup",
+		"taxonomy.aria-pressed",
+		"taxonomy.disabled",
+		"taxonomy.type",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Text button for actions, with before and after slots for icons; also the trigger for menus, disclosures and toggle buttons.",
+	"tag": "violet-button",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "button.no-form",
+			"text": "Not form-associated: type=\"submit\" or \"reset\" is copied to a button inside the shadow root and does not submit or reset an enclosing form. Call form.requestSubmit() from a click listener."
+		},
+		{
+			"basis": "authored",
+			"id": "button.popup-toggle",
+			"text": "aria-expanded, aria-controls, aria-haspopup and aria-pressed set on the host (or the matching properties) are forwarded to the inner button. Use them for disclosure, menu and toggle buttons."
+		},
+		{
+			"basis": "authored",
+			"id": "button.slots",
+			"text": "Put a leading icon in the before slot and a trailing one in the after slot; mark a violet-icon there decorative when the text already says what the button does."
+		},
+		{
+			"basis": "authored",
+			"id": "button.appearance",
+			"text": "The default appearance is primary, so in a row of buttons set secondary, quiet or transparent on all but the main action, and danger on a destructive one."
+		}
+	]
+}

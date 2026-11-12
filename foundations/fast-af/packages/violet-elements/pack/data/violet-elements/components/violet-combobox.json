@@ -1,0 +1,248 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "authored",
+				"name": "from the label attribute, else the placeholder",
+				"role": "listbox",
+				"state": "open"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "combobox.name",
+				"text": "Set label: without it the input has no programmatic label and browsers fall back to the placeholder. The popup list is named by the label, else the placeholder, else \"Options\"."
+			},
+			{
+				"basis": "authored",
+				"id": "combobox.active",
+				"text": "Focus stays in the input; arrow keys move the highlighted option through aria-activedescendant and Enter chooses it."
+			},
+			{
+				"basis": "authored",
+				"id": "combobox.error",
+				"text": "The rendered error message is linked to the input as its description, after the supporting text."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "placeholder",
+				"property": "placeholder",
+				"rules": [
+					"taxonomy.placeholder"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when an option is chosen or the text is committed.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted while the text changes, with the text and the chosen option's value.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"accepts": [
+					"violet-option",
+					"violet-option-group"
+				],
+				"basis": "observed",
+				"description": "The options: violet-option and violet-option-group elements.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-combobox--disabled",
+			"html": "<div style=\"min-block-size: 16rem; padding-block-end: 9rem; box-sizing: border-box;\"><form><violet-combobox label=\"Seed source\" placeholder=\"Find a source\" supporting-text=\"Filter sources before committing one.\" error-text=\"Please choose a seed source.\" name=\"seed-source\" disabled><violet-option value=\"regional\" id=\"violet-option-1\" role=\"option\" aria-selected=\"false\" label>Regional catalog<span slot=\"description\">Fastest to reorder.</span></violet-option><violet-option value=\"coop\" id=\"violet-option-2\" role=\"option\" aria-selected=\"false\" label>Local co-op<span slot=\"description\">Strong spring availability.</span></violet-option><violet-option value=\"reserve\" id=\"violet-option-3\" role=\"option\" aria-selected=\"false\" label>Greenhouse reserve<span slot=\"description\">Best for backup stock.</span></violet-option><violet-option value=\"legacy\" id=\"violet-option-4\" role=\"option\" aria-selected=\"false\" label>Legacy inventory<span slot=\"description\">Older carryover seed lots.</span></violet-option></violet-combobox></form></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-combobox--invalid",
+			"html": "<div style=\"min-block-size: 16rem; padding-block-end: 9rem; box-sizing: border-box;\"><form><violet-combobox label=\"Seed source\" placeholder=\"Find a source\" supporting-text=\"Filter sources before committing one.\" error-text=\"Please choose a seed source.\" name=\"seed-source\" required invalid><violet-option value=\"regional\" id=\"violet-option-1\" role=\"option\" aria-selected=\"false\" label>Regional catalog<span slot=\"description\">Fastest to reorder.</span></violet-option><violet-option value=\"coop\" id=\"violet-option-2\" role=\"option\" aria-selected=\"false\" label>Local co-op<span slot=\"description\">Strong spring availability.</span></violet-option><violet-option value=\"reserve\" id=\"violet-option-3\" role=\"option\" aria-selected=\"false\" label>Greenhouse reserve<span slot=\"description\">Best for backup stock.</span></violet-option><violet-option value=\"legacy\" id=\"violet-option-4\" role=\"option\" aria-selected=\"false\" label>Legacy inventory<span slot=\"description\">Older carryover seed lots.</span></violet-option></violet-combobox></form></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-combobox--overview",
+			"html": "<div style=\"min-block-size: 16rem; padding-block-end: 9rem; box-sizing: border-box;\"><form><violet-combobox label=\"Seed source\" placeholder=\"Search sources\" supporting-text=\"Filter sources before committing one.\" error-text=\"Please choose a seed source.\" name=\"seed-source\"><violet-option value=\"regional\" id=\"violet-option-1\" role=\"option\" aria-selected=\"false\" label>Regional catalog<span slot=\"description\">Fastest to reorder.</span></violet-option><violet-option value=\"coop\" id=\"violet-option-2\" role=\"option\" aria-selected=\"false\" label>Local co-op<span slot=\"description\">Strong spring availability.</span></violet-option><violet-option value=\"reserve\" id=\"violet-option-3\" role=\"option\" aria-selected=\"false\" label>Greenhouse reserve<span slot=\"description\">Best for backup stock.</span></violet-option><violet-option value=\"legacy\" id=\"violet-option-4\" role=\"option\" aria-selected=\"false\" label>Legacy inventory<span slot=\"description\">Older carryover seed lots.</span></violet-option></violet-combobox></form></div>"
+		}
+	],
+	"format": 0,
+	"gaps": [
+		{
+			"kind": "unobserved",
+			"name": "value",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"event.native-input",
+		"field.label",
+		"field.label-required",
+		"field.placeholder",
+		"field.supporting-text",
+		"field.value-attribute",
+		"form.invalid",
+		"form.participation",
+		"form.required-error",
+		"import.root",
+		"options.children",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.name",
+		"taxonomy.open",
+		"taxonomy.placeholder",
+		"taxonomy.required",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Text input that filters a popup list of violet-option children; use when the list is long enough that the user should search it.",
+	"tag": "violet-combobox",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "combobox.value",
+			"text": "The value is the input text: after a choice, the option's label. The chosen option's value is the selectedOptionValue property, and the form receives that; raw text is submitted only when nothing is chosen."
+		},
+		{
+			"basis": "authored",
+			"id": "combobox.script",
+			"text": "To choose from script call selectValue(optionValue). Assigning the value property later changes only the text, not selectedOptionValue. An initial value may be an option's value or its label."
+		},
+		{
+			"basis": "authored",
+			"id": "combobox.filter",
+			"text": "Typing filters by label, ignoring case and punctuation; arrow keys skip non-matching options, and \"No matching options\" shows when none match. Unchosen text is discarded on Tab, Escape or an outside press."
+		},
+		{
+			"basis": "authored",
+			"id": "combobox.events",
+			"text": "Choosing fires only change, with detail { value, selectedValue, label }. Typing fires input and a native commit fires change, each with { value, selectedValue }; selectedValue is empty for unchosen text."
+		},
+		{
+			"basis": "authored",
+			"id": "combobox.open",
+			"text": "The list opens on focus, typing and arrow keys, and the open attribute reflects it. show() opens it; hide(true) closes it and resets the text to the chosen option's label, or empties it when nothing is chosen."
+		}
+	]
+}
