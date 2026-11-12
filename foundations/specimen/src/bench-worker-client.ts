@@ -17,6 +17,8 @@ import type {
 	MatrixRequest,
 	MatrixRun,
 	Observation,
+	PackBuildRequest,
+	PackBuildRun,
 	ProfileRequest,
 	ProfileRun,
 	RunRequest,
@@ -34,6 +36,7 @@ type WorkerOperation =
 	| { operation: 'runSuite'; request: SuiteRequest }
 	| { operation: 'a11y'; request: A11yRequest }
 	| { operation: 'coverage'; request: CoverageRequest }
+	| { operation: 'packBuild'; request: PackBuildRequest }
 	| { operation: 'contract'; request: ContractRequest }
 	| { operation: 'suggest'; request: SuggestRequest }
 	| { operation: 'profile'; request: ProfileRequest }
@@ -260,6 +263,10 @@ export class BenchWorkerClient {
 	async coverage(request: CoverageRequest): Promise<CoverageRun> {
 		await this.ready;
 		return (await this.request({ operation: 'coverage', request }, 3_600_000)) as CoverageRun;
+	}
+	async packBuild(request: PackBuildRequest = {}): Promise<PackBuildRun> {
+		await this.ready;
+		return (await this.request({ operation: 'packBuild', request }, 3_600_000)) as PackBuildRun;
 	}
 	async a11y(request: A11yRequest): Promise<A11yRun> {
 		await this.ready;

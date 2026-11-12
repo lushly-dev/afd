@@ -22,6 +22,7 @@ export const browserSuites = [
 	'src/drivers.test.ts',
 	'src/feasibility.test.ts',
 	'src/lifecycle.test.ts',
+	'src/pack-run.test.ts',
 ];
 
 export default defineConfig({
@@ -38,6 +39,7 @@ export default defineConfig({
 				'src/normalize.ts',
 				'src/normalize-ids.ts',
 				'src/pack.ts',
+				'src/pack-files.ts',
 				'src/pack-schema.ts',
 				'src/validate.ts',
 			],

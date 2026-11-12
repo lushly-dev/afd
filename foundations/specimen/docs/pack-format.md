@@ -3,9 +3,10 @@
 A component pack tells an agent what it needs to use a library's components:
 each component's attributes, slots, events and accessibility facts, the
 guidance written for it, and the rules the library states once for many
-components. Every fact says where it came from. Specimen will build packs from
-what it observes when it runs a library's stories (`specimen pack`, not yet
-written), and an Umbel plugin will serve them in batches. The plan is the
+components. Every fact says where it came from. Specimen builds packs from
+what it observes when it runs a library's stories (`bench.pack()`; see
+[How Specimen builds a pack](#how-specimen-builds-a-pack)), and an Umbel plugin
+serves them in batches. The plan is the
 [Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/active/component-briefs/component-briefs.proposal.md).
 
 **Version 0 can change in any release.** It becomes version 1 once Specimen
@@ -276,6 +277,60 @@ file: `FORMAT_UNSUPPORTED`, `SCHEMA_INVALID`, `IDENTIFIER_INVALID`,
 `TEXT_TOO_LONG` and `TEXT_INVALID` (except a lone surrogate, which a JSON
 Schema pattern cannot see). The rest need the layout, the bytes or more than
 one file, and are `checkPack`'s.
+
+## How Specimen builds a pack
+
+`bench.pack()` builds a record for every component whose tag starts with the
+configured prefix, from three sources: the schemas (the manifest and the
+plugins' schema sources), the captures of the cases that passed in both of its
+passes, and the guide files. A case that failed, or showed something different
+in each pass, contributes nothing. The rules below are Specimen's; another
+writer of the format may choose its own.
+
+- **Attributes** are the members a capture can read through an attribute; a
+  property with no attribute has no entry. A value's basis is its coverage
+  level: `verified` from a claim, `observed` when a case showed it, `declared`
+  otherwise. An attribute's own basis is the best its values earned in a state
+  other than its default, so a boolean is `observed` once a case showed it set.
+  An open-ended attribute is `observed` when a case showed it with a value
+  other than its default. A finite set is listed in `values`, except `true`
+  and `false` alone. `rules` are the shared rules that name the attribute.
+- **Slots** take the better of their filled and empty levels; `accepts` lists
+  the library's elements a case showed assigned to the slot. **Events** and
+  **commands** take their coverage level, and **CSS properties** are
+  `declared`. `form` is present, `observed`, when a case showed the element
+  form-associated, and `verified` when a claim proved its participation.
+- **Roles.** In the default state, every instance a case showed has to have
+  the same computed role (capture 0.9); the role is then `observed`. Its
+  `name` says how the name was given when every instance agrees: `from the
+  <attribute> attribute` when an attribute holds the name, `from its text`
+  otherwise, and nothing when the element names others with
+  `aria-labelledby`. A guide's `roles` give the roles of other states, which
+  stay `authored`, and a guide's default-state role only where none was
+  observed.
+- **The accessibility check** counts for the component a case is about, the
+  one the entry names: `violations` is how many axe rules failed across those
+  cases, and `exceptions` the rules a native specimen's policy excused.
+- **Statements and rules** come from the guide files, `verified` when a claim
+  with its check held in `guides@1`, `authored` otherwise. A record's `rules`
+  are those that name its tag or one of its attributes.
+- **Examples** come from the cases that name the component: the light DOM the
+  case mounted, with shadow content left out and an empty attribute written as
+  its name. One is kept only when it is the same in both passes, fits 4 000
+  characters, and, mounted on its own after the case's module has loaded,
+  shows the same elements, states and roles. At most three are kept, the first
+  by case id.
+- **Gaps** list, in this order, a missing summary, usage statement,
+  accessibility statement, role and example, then each attribute and slot
+  whose basis is `declared`.
+- A manifest's text is written on one line, with its whitespace collapsed;
+  one over its limit, or holding a control character, is left out and
+  reported, and so is an identifier the format does not allow.
+
+`bench.packCheck()` builds the same way and compares; `bench.packExport()`
+rechecks, without a browser, what the manifest and the guide files alone say.
+`fixtures/pack-library/` is the example library: built, it gives
+`fixtures/pack/committed/` byte for byte, and exported, `fixtures/pack/exported/`.
 
 ## Fixtures
 

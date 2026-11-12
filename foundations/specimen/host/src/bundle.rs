@@ -561,6 +561,21 @@ pub async fn build(source: &BenchSource) -> Result<Generation> {
 }
 
 impl Generation {
+    /// One digest of everything the bundle serves: the same sources give the same digest, so a
+    /// caller can tell whether what it learned from an earlier run still describes this one.
+    pub fn digest(&self) -> String {
+        let mut files: Vec<_> = self.files.iter().collect();
+        files.sort_by(|a, b| a.0.cmp(b.0));
+        let mut listing = String::new();
+        for (path, file) in files {
+            listing.push_str(path);
+            listing.push(' ');
+            listing.push_str(&file.digest);
+            listing.push('\n');
+        }
+        format!("sha256:{:x}", Sha256::digest(listing.as_bytes()))
+    }
+
     /// Whether any bundled source changed since this generation's build began.
     pub fn stale(&self) -> bool {
         self.changed_while_building

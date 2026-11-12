@@ -105,6 +105,21 @@ function harness() {
 			workers: 2,
 			elapsedMs: 1,
 		})),
+		pack: vi.fn(async () => ({ ...packReport, written: [], removed: [] })),
+		packCheck: vi.fn(async () => ({
+			...packReport,
+			valid: packValid,
+			changed: packValid ? [] : ['data/example/components/example-select.json'],
+			added: [],
+			removed: [],
+		})),
+		packExport: vi.fn(async ({ directory }: { directory: string }) => ({
+			library: 'example',
+			directory,
+			digest: `sha256:${'0'.repeat(64)}`,
+			files: ['rules/example.json'],
+			keptPackToml: false,
+		})),
 		matrix: vi.fn(async (request) => ({
 			id: request.id,
 			checkpoint: 'after-run',
@@ -169,6 +184,20 @@ function harness() {
 		},
 	};
 }
+
+let packValid = true;
+const packReport = {
+	library: 'example',
+	directory: '/pack',
+	problems: [],
+	components: [],
+	omitted: [],
+	guides: { verified: 0, authored: 0, invalidClaims: [], claimed: 0 },
+	examples: { kept: 0, leftOut: [] },
+	selection: { component: null, complete: true, reason: 'Every case ran.' },
+	cases: { total: 1, passed: 1, failed: [], retried: [], unstable: [], skipped: 0 },
+	elapsedMs: 1,
+};
 
 describe('specimen CLI', () => {
 	it('dispatches migrate as a preview unless --apply is given', async () => {
@@ -363,6 +392,32 @@ describe('specimen CLI', () => {
 			workers: 2,
 		});
 		expect(await runCli(['--root', root, 'coverage', 'a', 'b'], h.io)).toBe(1);
+	});
+	it('dispatches pack, pack-check and pack-export, and fails a check that found drift', async () => {
+		const h = harness();
+		const root = await directory();
+		expect(
+			await runCli(['--root', root, 'pack', 'example-option', '--allow-failed', 'a,b'], h.io)
+		).toBe(0);
+		expect(h.bench.pack).toHaveBeenLastCalledWith({
+			component: 'example-option',
+			allowFailed: ['a', 'b'],
+		});
+		packValid = true;
+		expect(await runCli(['--root', root, 'pack-check', '--workers', '2'], h.io)).toBe(0);
+		expect(h.bench.packCheck).toHaveBeenLastCalledWith({ workers: 2 });
+		packValid = false;
+		expect(await runCli(['--root', root, 'pack-check'], h.io)).toBe(1);
+		packValid = true;
+		expect(
+			await runCli(['--root', root, 'pack-export', 'out', '--revision', 'a'.repeat(40)], h.io)
+		).toBe(0);
+		expect(h.bench.packExport).toHaveBeenLastCalledWith({
+			directory: join(root, 'out'),
+			revision: 'a'.repeat(40),
+		});
+		expect(await runCli(['--root', root, 'pack-export'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'pack', '--revision', 'x'], h.io)).toBe(1);
 	});
 	it('dispatches suggest, and writes the proposal only where nothing is', async () => {
 		const h = harness();

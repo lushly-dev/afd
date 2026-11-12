@@ -243,6 +243,21 @@ function bench(): SpecimenCommandBench {
 			},
 			observation: observation(),
 		})),
+		pack: vi.fn(async () => ({ ...packReport, written: ['rules/example.json'], removed: [] })),
+		packCheck: vi.fn(async () => ({
+			...packReport,
+			valid: false,
+			changed: ['data/example/components/example-select.json'],
+			added: [],
+			removed: [],
+		})),
+		packExport: vi.fn(async ({ directory }) => ({
+			library: 'example',
+			directory,
+			digest: `sha256:${'0'.repeat(64)}`,
+			files: ['data/example/library.json', 'rules/example.json'],
+			keptPackToml: true,
+		})),
 		build: vi.fn(async (outDir) => ({
 			directory: outDir,
 			shellBytes: 1000,
@@ -251,6 +266,19 @@ function bench(): SpecimenCommandBench {
 		})),
 	};
 }
+
+const packReport = {
+	library: 'example',
+	directory: '/pack',
+	problems: [],
+	components: [{ tag: 'example-select', gaps: [] }],
+	omitted: [],
+	guides: { verified: 2, authored: 7, invalidClaims: [], claimed: 2 },
+	examples: { kept: 3, leftOut: [] },
+	selection: { component: null, complete: true, reason: 'Every case ran.' },
+	cases: { total: 9, passed: 9, failed: [], retried: [], unstable: [], skipped: 0 },
+	elapsedMs: 10,
+};
 
 describe('specimen commands', () => {
 	it('exposes schema-backed CLI/MCP commands and returns the registered metadata', async () => {
@@ -272,6 +300,9 @@ describe('specimen commands', () => {
 			'specimen-matrix',
 			'specimen-inspect',
 			'specimen-migrate',
+			'specimen-pack',
+			'specimen-pack-check',
+			'specimen-pack-export',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -347,6 +378,45 @@ describe('specimen commands', () => {
 		});
 		const invalid = await executeSpecimenCommand(instance, 'specimen-a11y', { other: true });
 		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+	});
+	it('builds, checks and exports a pack, the check as the one command that changes nothing', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const mutation = (name: string) => commands.find((command) => command.name === name)?.mutation;
+		expect(mutation('specimen-pack')).toBe(true);
+		expect(mutation('specimen-pack-check')).toBe(false);
+		expect(mutation('specimen-pack-export')).toBe(true);
+		const built = await executeSpecimenCommand(instance, 'specimen-pack', {
+			component: 'example-option',
+			allowFailed: ['broken'],
+		});
+		expect(built.success).toBe(true);
+		expect(instance.pack).toHaveBeenCalledWith({
+			component: 'example-option',
+			allowFailed: ['broken'],
+		});
+		const checked = await executeSpecimenCommand(instance, 'specimen-pack-check', {});
+		expect(checked.data).toMatchObject({
+			valid: false,
+			changed: ['data/example/components/example-select.json'],
+		});
+		const exported = await executeSpecimenCommand(instance, 'specimen-pack-export', {
+			directory: 'out',
+			revision: 'a'.repeat(40),
+		});
+		expect(exported.data).toMatchObject({ directory: 'out', keptPackToml: true });
+		const invalid = await executeSpecimenCommand(instance, 'specimen-pack-export', {
+			directory: 'out',
+			revision: 'main',
+		});
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+		vi.mocked(instance.packExport).mockRejectedValueOnce(
+			new Error('The committed records are out of date.')
+		);
+		const refused = await executeSpecimenCommand(instance, 'specimen-pack-export', {
+			directory: 'out',
+		});
+		expect(refused.error).toMatchObject({ code: 'SPECIMEN_PACK_EXPORT_FAILED' });
 	});
 	it('profiles without changing anything, and records a baseline as a mutation', async () => {
 		const instance = bench();

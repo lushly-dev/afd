@@ -27,7 +27,7 @@
         "type": "boolean"
       },
       {
-        "basis": "declared",
+        "basis": "observed",
         "name": "value",
         "property": "value",
         "type": "string"
@@ -52,11 +52,6 @@
     },
     {
       "kind": "example"
-    },
-    {
-      "kind": "unobserved",
-      "name": "value",
-      "section": "attributes"
     }
   ],
   "import": "example-components/select.js",
