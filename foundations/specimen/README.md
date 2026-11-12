@@ -82,7 +82,7 @@ Discovery that fails makes `list()`, `render()` and `build()` throw. It fails on
 2. Settle the story's viewport from `globals.viewport` and its theme from the project's theme global. Media keep the browser's defaults: the manifest records `themeMedia: 'browser-default'`.
 3. Render through the decorators into a plain `div` canvas.
 4. Run the play.
-5. Run the accessibility check with axe-core 4.13.0 over the body, under the story's `parameters.a11y` policy.
+5. Run the accessibility check with axe-core 4.14.0 over the body, under the story's `parameters.a11y` policy.
 
 A run reports `passed`, `failed` (by `render`, `play` or `a11y`), `skipped` or `excluded`. `test: { include, exclude, skip }` in the configuration selects stories as the addon's `tags` option does. A story that relies on something the runtime does not reproduce fails rather than running without it. See the [T05 record](../../docs/features/active/specimens/t05-compatibility.md).
 

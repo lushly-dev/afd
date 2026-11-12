@@ -86,8 +86,8 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
       axe-core:
-        specifier: 4.13.0
-        version: 4.13.0
+        specifier: 4.14.0
+        version: 4.14.0
       playwright:
         specifier: ^1.64.1
         version: 1.64.1
@@ -741,8 +741,8 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       axe-core:
-        specifier: 4.13.0
-        version: 4.13.0
+        specifier: 4.14.0
+        version: 4.14.0
       fake-indexeddb:
         specifier: ^6.2.7
         version: 6.2.7
@@ -974,8 +974,8 @@ importers:
         specifier: 3.2.4
         version: 3.2.4
       axe-core:
-        specifier: 4.13.0
-        version: 4.13.0
+        specifier: 4.14.0
+        version: 4.14.0
       chai:
         specifier: ^5.2.0
         version: 5.3.3
@@ -4046,8 +4046,8 @@ packages:
   atomically@2.1.1:
     resolution: {integrity: sha512-P4w9o2dqARji6P7MHprklbfiArZAWvo07yW7qs3pdljb3BWr12FIB7W+p0zJiuiVsUpRO0iZn1kFFcpPegg0tQ==}
 
-  axe-core@4.13.0:
-    resolution: {integrity: sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==}
+  axe-core@4.14.0:
+    resolution: {integrity: sha512-9WTZxEjsZ7b13TH8JPmbV2z8CHbl80/2hm3XPEG4JgNdQLK81IBRXmSxHfMAOkSqQeRxT/0dwNDz2GOm3zzpcQ==}
     engines: {node: '>=4'}
 
   balanced-match@4.0.4:
@@ -7600,7 +7600,7 @@ snapshots:
   '@storybook/addon-a11y@10.6.6(storybook@10.6.6(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1))':
     dependencies:
       '@storybook/global': 5.0.0
-      axe-core: 4.13.0
+      axe-core: 4.14.0
       storybook: 10.6.6(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1)
 
   '@storybook/addon-vitest@10.6.6(@vitest/browser-playwright@5.1.0)(@vitest/browser@5.1.0)(react@19.3.1)(storybook@10.6.6(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1))(vitest@5.1.0)':
@@ -8091,7 +8091,7 @@ snapshots:
       stubborn-fs: 2.0.0
       when-exit: 2.1.5
 
-  axe-core@4.13.0: {}
+  axe-core@4.14.0: {}
 
   balanced-match@4.0.4: {}
 
