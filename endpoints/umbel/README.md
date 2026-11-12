@@ -499,4 +499,4 @@ codebase to learn what is current.
 | [Sources](docs/sources.md) | Annotated source ledger with dates and inference limits |
 
 The feature index in [docs/features](../../docs/features/README.md) lists Umbel
-under proposed features and points here.
+under active features and points here.
