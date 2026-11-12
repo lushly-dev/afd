@@ -377,7 +377,11 @@ export async function runHarness(input: {
 					step = 'cleanup-removed';
 					check((await response.json()).removed === true);
 				} finally {
+					// A throw here replaces any earlier one, so it is this step's; otherwise the step stands.
+					const before = step;
+					step = 'cleanup-dispose';
 					await cleanup.dispose();
+					step = before;
 				}
 			}
 			step = 'context-close';
@@ -408,6 +412,7 @@ export async function runHarness(input: {
 /** An error's first line, at most 300 characters, with the control key removed. */
 function cleanupReason(error: unknown, controlKey = ''): string {
 	const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-	const line = (text.split('\n')[0] ?? '').slice(0, 300);
-	return controlKey ? line.replaceAll(controlKey, '[control key]') : line;
+	// Redacted before it is cut, so a key the cut would split is never half printed.
+	const line = text.split('\n')[0] ?? '';
+	return (controlKey ? line.replaceAll(controlKey, '[control key]') : line).slice(0, 300);
 }

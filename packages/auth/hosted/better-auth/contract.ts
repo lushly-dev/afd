@@ -241,6 +241,7 @@ export type CleanupStep =
 	| 'cleanup-request'
 	| 'cleanup-response'
 	| 'cleanup-removed'
+	| 'cleanup-dispose'
 	| 'context-close'
 	| 'browser-close'
 	| 'provider-close';

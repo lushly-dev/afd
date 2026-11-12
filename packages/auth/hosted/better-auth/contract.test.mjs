@@ -308,7 +308,7 @@ test('SIGTERM during a real local run unwinds provider, browser, store and certi
 	assert.equal(
 		receipt.cleanup,
 		'passed',
-		`cleanup failed at ${receipt.cleanupFailure} (HTTP ${receipt.cleanupStatus}): ${result.errors}`
+		`cleanup failed at ${receipt.cleanupFailure}${receipt.cleanupStatus ? ` (HTTP ${receipt.cleanupStatus})` : ''}: ${result.errors}`
 	);
 	assert.equal(receipt.resourceCleanup, 'passed');
 	assert.ok(receipt.assertions.length > 0);
