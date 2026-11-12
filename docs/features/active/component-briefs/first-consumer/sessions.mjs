@@ -11,6 +11,33 @@ import { join, resolve } from 'node:path';
 const [mode, first] = process.argv.slice(2);
 const readJson = (path) => JSON.parse(readFileSync(resolve(path), 'utf8'));
 
+/** Each tag's manifest declaration, as step 0.1's baseline.mjs counts declarations. */
+const declarations = new Map(
+	readJson(
+		join(
+			import.meta.dirname,
+			'../../../../../foundations/fast-af/packages/violet-elements/custom-elements.json'
+		)
+	)
+		.modules.flatMap((module) => module.declarations ?? [])
+		.filter((declaration) => declaration.tagName)
+		.map((declaration) => [declaration.tagName, declaration])
+);
+const declarationBytes = (tags) =>
+	Buffer.byteLength(
+		JSON.stringify(tags.filter((t) => declarations.has(t)).map((t) => declarations.get(t)))
+	);
+
+/** Bytes of each section across a brief's entries, and of its shared rules. */
+function sectionBytes(brief) {
+	const out = {};
+	for (const component of brief.data?.content?.components ?? [])
+		for (const [key, value] of Object.entries(component))
+			out[key] = (out[key] ?? 0) + Buffer.byteLength(JSON.stringify(value));
+	out['rule text'] = Buffer.byteLength(JSON.stringify(brief.data?.content?.rules ?? []));
+	return out;
+}
+
 /** The shedding order (proposal section 9; plugin specification 6.4), with what this script counts. */
 export const ORDER = [
 	'examples',
@@ -154,7 +181,8 @@ function used(brief, source, onPage) {
 			if (set.has(attribute.name)) out[key].named += 1;
 			if (attribute.values) {
 				out['finite values'].offered += 1;
-				if (attribute.values.includes(set.get(attribute.name))) out['finite values'].named += 1;
+				const values = attribute.values.map((entry) => entry?.value ?? entry);
+				if (values.includes(set.get(attribute.name))) out['finite values'].named += 1;
 			}
 		}
 		for (const slot of component.slots?.items ?? []) {
@@ -206,7 +234,15 @@ function collect(results) {
 						});
 					else otherUmbel.push(command);
 				}
-				const briefs = commands['components-brief'].filter((brief) => brief.answer?.success);
+				const briefs = commands['components-brief'].filter(
+					(brief) => brief.answer?.success && brief.answer.data?.content
+				);
+				const textBriefs = commands['components-brief'].filter(
+					(brief) => brief.answer?.success && typeof brief.answer.data?.text === 'string'
+				).length;
+				const refusedBriefs = commands['components-brief']
+					.filter((brief) => brief.answer && !brief.answer.success)
+					.map((brief) => brief.answer.error?.code);
 				const asked = [
 					...new Set(
 						briefs.flatMap((brief) => brief.answer.data.content.components.map((c) => c.tag))
@@ -226,6 +262,17 @@ function collect(results) {
 						])
 					),
 					otherUmbel,
+					textBriefs,
+					refusedBriefs,
+					briefSizes: briefs.map((brief) => {
+						const answered = brief.answer.data.content.components.map((c) => c.tag);
+						return {
+							bytes: brief.bytes,
+							tags: answered.length,
+							declarations: declarationBytes(answered),
+							sections: sectionBytes(brief.answer),
+						};
+					}),
 					briefInputs: briefs.map((brief) =>
 						brief.input?.source !== undefined
 							? { source: Buffer.byteLength(String(brief.input.source)) }
@@ -281,7 +328,23 @@ function report(rows) {
 		const others = mine.flatMap((row) => row.otherUmbel);
 		console.log(`  other Umbel tools: ${others.length ? others.join(', ') : 'none'}`);
 		console.log(
-			`  briefs by source: ${sum((r) => r.briefInputs.filter((i) => i.source !== undefined).length)}`
+			`  briefs by source: ${sum((r) => r.briefInputs.filter((i) => i.source !== undefined).length)}; as text: ${sum((r) => r.textBriefs)}; refused: ${mine.flatMap((r) => r.refusedBriefs).join(', ') || 'none'}`
+		);
+		const sizes = mine.flatMap((row) => row.briefSizes);
+		const ratios = sizes.map((size) => size.bytes / size.declarations);
+		console.log(
+			`  JSON brief bytes against the same components' declarations: median ${Math.round(median(ratios) * 100)} % (${Math.round(Math.min(...ratios) * 100)} % to ${Math.round(Math.max(...ratios) * 100)} %), at most half in ${ratios.filter((r) => r <= 0.5).length} of ${ratios.length}`
+		);
+		const totals = {};
+		for (const size of sizes)
+			for (const [key, value] of Object.entries(size.sections))
+				totals[key] = (totals[key] ?? 0) + value;
+		const all = Object.values(totals).reduce((a, b) => a + b, 0);
+		console.log(
+			`  where those briefs' bytes went: ${Object.entries(totals)
+				.sort((a, b) => b[1] - a[1])
+				.map(([key, value]) => `${key} ${Math.round((value / all) * 100)} %`)
+				.join(', ')}`
 		);
 		console.log(`  tags in unknown: ${mine.flatMap((r) => r.unknown).join(', ') || 'none'}`);
 		const shed = new Map();
