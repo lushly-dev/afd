@@ -830,6 +830,7 @@ describe('P2-D5: the editor commands', () => {
 				lateScope: {} as never,
 				check: {} as never,
 				isMutation: () => true,
+				drafts: { dirty: new Map(), selections: new Map() },
 			},
 			DOCUMENT_KIT
 		);

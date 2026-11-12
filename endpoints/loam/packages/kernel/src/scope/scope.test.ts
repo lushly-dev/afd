@@ -42,6 +42,20 @@ async function scoped(options: Parameters<typeof createScopedWorkspace>[0] = {})
 }
 
 const entries = (workspace: ScopedWorkspace) => workspace.journal.read();
+
+/**
+ * A kernel clock the test sets, stepping a millisecond per reading, which the fixture's Mock shares: a session ends
+ * on the kernel's time (phase 3 specification, 4.4; amended in its step 2 from faking the system's).
+ */
+function settableClock(start: number) {
+	let at = start;
+	return {
+		now: () => at++,
+		set(time: number) {
+			at = time;
+		},
+	};
+}
 const lastEntry = async (workspace: ScopedWorkspace) =>
 	(await entries(workspace)).at(-1) as JournalEntry;
 const replayOf = (journal: readonly JournalEntry[]) =>
@@ -241,12 +255,11 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 	});
 
 	it('takes an expired session into account at the next call, with no auth command', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		vi.setSystemTime(Date.UTC(2026, 10, 3));
-		const workspace = await scoped();
+		const time = settableClock(Date.UTC(2026, 10, 3));
+		const workspace = await scoped({ clock: time.now });
 		await enterRestricted(workspace);
 		const vault = (await workspace.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope;
-		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		time.set(Date.UTC(2026, 10, 3, 2));
 		// An app's command keeps the scope it was made in, and line 2 refuses it: no new read succeeds.
 		const where = await workspace.kernel.call<{ scope: ScopeV1 }>('dual-where');
 		expect(where.error?.code).toBe('PROJECT_NOT_FOUND');
@@ -256,36 +269,32 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 			WORKSPACE
 		);
 		expect((await workspace.kernel.call('layout-get')).success).toBe(true);
-		vi.useRealTimers();
 		const { report } = await replayOf(await entries(workspace));
 		expect(report.diverged).toBe(false);
 	});
 
 	it('refuses a surface bound to a restricted project once the session ends, and writes nothing', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		vi.setSystemTime(Date.UTC(2026, 10, 3));
-		const workspace = await scoped();
+		const time = settableClock(Date.UTC(2026, 10, 3));
+		const workspace = await scoped({ clock: time.now });
 		await enterRestricted(workspace);
 		const vault = (await workspace.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope;
 		const surface = workspace.kernel.appPort('dual').surface({ scope: vault as ScopeV1 });
-		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		time.set(Date.UTC(2026, 10, 3, 2));
 		const put = await surface.call('dual-put', { key: 'k', value: 'after' });
 		expect(put.error?.code).toBe('PROJECT_NOT_FOUND');
 		expect(await workspace.store.get('app-dual', 'k')).toBeNull();
 		expect((await workspace.store.list('app-dual')).data).toEqual([]);
-		vi.useRealTimers();
 	});
 
 	it('leaves a restricted project at stage A when the session has already expired', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		vi.setSystemTime(Date.UTC(2026, 10, 3));
+		const time = settableClock(Date.UTC(2026, 10, 3));
 		const store = new MemoryAdapter();
-		const auth = new MockAuthAdapter();
-		const first = await scoped({ store, auth });
+		const auth = new MockAuthAdapter({ clock: { now: time.now } });
+		const first = await scoped({ store, auth, clock: time.now });
 		await enterRestricted(first);
 		await first.kernel.flush();
 		await first.kernel.dispose();
-		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		time.set(Date.UTC(2026, 10, 3, 2));
 		// The same adapter, its session now expired, and a boot whose stage B waits: stage A alone chooses.
 		const second = await createKernel({
 			store,
@@ -294,14 +303,13 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 			auth,
 			environment: createFixedEnvironment(),
 			host: 'test',
-			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			clock: time.now,
 			boot: readBoot(scopedDeployment()) as BootProjectionV2,
 			appsLoader: () => new Promise(() => {}),
 		});
 		kernels.push(second);
 		expect((await second.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
 		expect((await second.call('layout-get')).success).toBe(true);
-		vi.useRealTimers();
 	});
 
 	it('moves the active scope to the workspace when the active project is archived, and restores it', async () => {
