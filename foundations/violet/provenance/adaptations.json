@@ -1722,9 +1722,9 @@
       "path": "integrations/violet-afd/README.md",
       "upstream_path": "packages/core/README.md",
       "upstream_sha256": "df71c1ac465fd2dfa21b3afb536f8af6b31b58688498df9fb8a54868404fb5a1",
-      "current_import_sha256": "383db99e8056ae404fe829f02a4d64bc6ec657a9c12dbea375c2bd8b0e581a54",
+      "current_import_sha256": "d5bc1de895d0c7e3c13e7f34ebff063c7c2fabd23f7a65c3975b47d368081092",
       "classification": "adapted",
-      "reason": "The pre-split core README with the integration package name, install and transition notes",
+      "reason": "The pre-split core README with the integration package name, install and transition notes; the AFD core range it names is the manifest's ^2.2.0",
       "candidate": {
         "path": "packages/afd/README.md",
         "sha256": "48e4e6302bb908a734b4844c2221a4ec334ebb6d0c32811aa148f656859ffd6a",

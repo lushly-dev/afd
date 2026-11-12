@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)](LICENSE)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta-16a34a?style=flat-square)](#)
-[![Release](https://img.shields.io/github/v/release/lushly-dev/botcore?display_name=tag&sort=semver&style=flat-square)](https://github.com/lushly-dev/botcore/releases)
+[![PyPI](https://img.shields.io/pypi/v/lushly-botcore?style=flat-square&label=PyPI)](https://pypi.org/project/lushly-botcore/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](#)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-8b5cf6?style=flat-square)](#)
 [![Companion: AFD](https://img.shields.io/badge/Companion-AFD-6d28d9?style=flat-square&logo=github)](https://github.com/lushly-dev/afd)
@@ -10,7 +10,7 @@
 
 > 🟢 **Beta** · Stable and in active use across multiple repositories. APIs are mostly stable; expect targeted iterative improvements. Feedback welcome!
 
-> **Reference pair:** botcore delivers shared command/skill infrastructure; AFD provides the command-first architecture contract those commands are designed to follow. See https://github.com/lushly-dev/afd.
+> **Reference pair:** botcore delivers shared command/skill infrastructure; AFD provides the command-first architecture contract those commands are designed to follow. botcore is developed and released from the [AFD repository](https://github.com/lushly-dev/afd/tree/main/endpoints/botcore).
 
 **What happens when every repo needs great agent tooling?**
 
