@@ -118,7 +118,7 @@ interface Row {
 
 /** The table's size, so a report of it can be checked. */
 const ACCEPTED = 47;
-const REFUSED = 75;
+const REFUSED = 76;
 
 const TABLE: Row[] = [
 	// `required` and `minProperties` in branches: the follow-up itself.
@@ -322,6 +322,17 @@ const TABLE: Row[] = [
 			{ kind: 'b', b: 'y', a: 'x' },
 			{ kind: 'c' },
 		],
+	},
+	{
+		construct: 'one closed oneOf branch beside only type: object',
+		schema: {
+			type: 'object',
+			oneOf: [
+				{ type: 'object', properties: { kind: { const: 'a' } }, additionalProperties: false },
+			],
+		},
+		refused: 'additionalProperties',
+		inputs: [{ kind: 'a', z: 1 }],
 	},
 	{
 		construct: 'closed anyOf branches beside only type: object',
