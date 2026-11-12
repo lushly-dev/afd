@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -12,6 +12,7 @@ import {
 	PACK_TOML,
 	prepareWorkspace,
 	UMBEL_TOML,
+	withLock,
 } from './umbel-components.mjs';
 
 function scratch(t) {
@@ -75,4 +76,21 @@ test('an export with no Specimen CLI fails with a suggestion, and starts nothing
 	assert.equal(result.success, false);
 	assert.equal(result.error.code, 'SPECIMEN_CLI_NOT_BUILT');
 	assert.match(result.error.suggestion, /pnpm build/);
+});
+
+test('an export holds a lock, waits for another and takes a stale one', (t) => {
+	const lock = join(scratch(t), 'export.lock');
+	assert.equal(
+		withLock(lock, () => existsSync(lock)),
+		true
+	);
+	assert.equal(existsSync(lock), false);
+	mkdirSync(lock);
+	const busy = withLock(lock, () => 'ran', { waitMs: 200, staleMs: 60_000 });
+	assert.equal(busy.error.code, 'PACK_EXPORT_BUSY');
+	assert.equal(
+		withLock(lock, () => 'ran', { waitMs: 200, staleMs: -1 }),
+		'ran'
+	);
+	assert.equal(existsSync(lock), false);
 });

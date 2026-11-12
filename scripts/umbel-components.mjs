@@ -22,7 +22,7 @@
  * does not start: a brief from a stale export would be wrong exactly where the code changed.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -99,6 +99,43 @@ export function prepareWorkspace(workspace) {
 	return override;
 }
 
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * Runs `work` holding the directory `lock` (the workspace's `export.lock`, outside the packs the host
+ * reads), so two sessions starting in one checkout do not export at once. A lock older than `staleMs`
+ * is a crashed start's, and taken.
+ */
+export function withLock(lock, work, { waitMs = 30_000, staleMs = 60_000 } = {}) {
+	const until = Date.now() + waitMs;
+	for (;;) {
+		try {
+			mkdirSync(lock);
+			break;
+		} catch (error) {
+			if (error.code !== 'EEXIST') throw error;
+			const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? 0);
+			if (age > staleMs) rmSync(lock, { recursive: true, force: true });
+			else if (Date.now() > until)
+				return {
+					success: false,
+					error: {
+						code: 'PACK_EXPORT_BUSY',
+						message: `another start holds ${lock}`,
+						suggestion:
+							'Start again once the other session has started, or remove the lock if none is running.',
+					},
+				};
+			else sleep(100);
+		}
+	}
+	try {
+		return work();
+	} finally {
+		rmSync(lock, { recursive: true, force: true });
+	}
+}
+
 /** Runs `specimen pack-export` into the override; returns its parsed CommandResult. */
 export function exportPack(override, root = REPO_ROOT) {
 	const cli = join(root, SPECIMEN_CLI);
@@ -138,10 +175,9 @@ function prepare() {
 	const workspace = resolve(
 		process.env.UMBEL_COMPONENTS_WORKSPACE ?? join(REPO_ROOT, '.umbel', 'components')
 	);
-	const binary = findBinary(binaryCandidates());
 	const override = prepareWorkspace(workspace);
-	const exported = exportPack(override);
-	return { workspace, binary, override, exported };
+	const exported = withLock(join(workspace, 'export.lock'), () => exportPack(override));
+	return { workspace, override, exported };
 }
 
 async function main() {
@@ -150,7 +186,14 @@ async function main() {
 		say('usage: node scripts/umbel-components.mjs [serve | prepare]');
 		process.exit(2);
 	}
-	const { workspace, binary, override, exported } = prepare();
+	const binary = findBinary(binaryCandidates());
+	if (!binary && mode === 'serve') {
+		say(
+			`no ${BINARY} binary found (tried ${binaryCandidates().join(', ')}). Build it from endpoints/umbel with \`cargo build --locked --release -p umbel-first-party\`, or set UMBEL_FIRST_PARTY.`
+		);
+		process.exit(1);
+	}
+	const { workspace, override, exported } = prepare();
 	if (!exported.success) {
 		say(`the export failed, so nothing is served: ${JSON.stringify(exported.error)}`);
 		process.exit(1);
@@ -172,12 +215,6 @@ async function main() {
 			)}\n`
 		);
 		return;
-	}
-	if (!binary) {
-		say(
-			`no ${BINARY} binary found (tried ${binaryCandidates().join(', ')}). Build it from endpoints/umbel with \`cargo build --locked --release -p umbel-first-party\`, or set UMBEL_FIRST_PARTY.`
-		);
-		process.exit(1);
 	}
 	say(
 		`exported ${exported.data.library} (${exported.data.digest}) in ${exported.elapsedMs} ms; serving ${binary}`
