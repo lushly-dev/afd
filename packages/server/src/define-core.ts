@@ -132,6 +132,14 @@ export interface ZodCommandOptions<TInput extends $ZodType, TOutput> {
 	contexts?: string[];
 
 	/**
+	 * OAuth scopes a caller's token needs to run this command over HTTP on a server with MCP
+	 * authorization (`spec/authorization.md`, M6), after the server's `requiredScopes`, compared
+	 * exactly; a host `ScopeResolver` may decide instead. Ignored in process. Reported as
+	 * `_meta.scopes` and by afd-detail.
+	 */
+	scopes?: string[];
+
+	/**
 	 * Extra `_meta` entries for this command's tool, its grouped action entry and afd-detail
 	 * (`spec/mcp-resources.md`, T1). Keys are reverse-DNS prefixed with two or more labels, outside
 	 * `dev.afd/` and the prefixes MCP reserves (`dev.umbel/origin`), or exactly `ui`, the MCP Apps
@@ -228,6 +236,9 @@ export interface ZodCommandDefinition<TInput extends $ZodType = ZodType, TOutput
 
 	/** Contexts this command belongs to */
 	contexts?: string[];
+
+	/** OAuth scopes a caller's token needs over authorized HTTP (`spec/authorization.md`, M6) */
+	scopes?: string[];
 
 	/** Extra `_meta` entries for this command's tool (`spec/mcp-resources.md`, T1) */
 	toolMeta?: Record<string, unknown>;
@@ -333,6 +344,8 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 		undoable: options.undoable,
 		approval: options.approval,
 		expose: options.expose,
+		// Only when set, so a command without scopes keeps the keys it always had.
+		...(options.scopes && { scopes: options.scopes }),
 	};
 
 	return {

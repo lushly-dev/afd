@@ -51,6 +51,8 @@ interface DetailResult {
 	callable: boolean;
 	/** The command's extra tool `_meta` entries (`spec/mcp-resources.md`, T1). */
 	toolMeta?: Record<string, unknown>;
+	/** The OAuth scopes the command needs over authorized HTTP (`spec/authorization.md`, M6). */
+	scopes?: string[];
 }
 
 interface DetailError {
@@ -220,6 +222,7 @@ export function executeDetail(
 			version: cmd.version,
 			callable: exposedCommandNames.has(cmd.name),
 			...(cmd.toolMeta && Object.keys(cmd.toolMeta).length > 0 && { toolMeta: cmd.toolMeta }),
+			...(cmd.scopes?.length && { scopes: cmd.scopes }),
 		};
 	});
 

@@ -158,8 +158,15 @@ export interface ProtectedResource {
 	unauthorizedBody(): { error: 'UNAUTHORIZED'; suggestion: string };
 	/** The 403's `WWW-Authenticate` value for the `missing` scopes, in order. */
 	forbiddenChallenge(missing: readonly string[]): string;
-	/** The 403's JSON body for the `missing` scopes. */
-	forbiddenBody(missing: readonly string[]): { error: 'INSUFFICIENT_SCOPE'; suggestion: string };
+	/**
+	 * The 403's JSON body for the `missing` scopes. `scopeSource` names what a caller obtains to
+	 * gain a scope when it is not a token for the resource (a host's own layer, M6): the
+	 * suggestion then reads "Obtain `<scopeSource>` that also grants ...".
+	 */
+	forbiddenBody(
+		missing: readonly string[],
+		scopeSource?: string
+	): { error: 'INSUFFICIENT_SCOPE'; suggestion: string };
 }
 
 /**
@@ -209,11 +216,12 @@ export function createProtectedResource(options: ProtectedResourceOptions): Prot
 			: [`${PROTECTED_RESOURCE_WELL_KNOWN}${parts.path}`, PROTECTED_RESOURCE_WELL_KNOWN]
 	);
 	const metadata = metadataUrls[0] as string;
-	const suggestion = (missing: readonly string[]) => {
+	const suggestion = (missing: readonly string[], scopeSource?: string) => {
 		const joined = joinedTokens(missing);
+		const source = scopeSource ?? `a token for ${resource}`;
 		return joined
-			? `Obtain a token for ${resource} that also grants ${joined}, then retry.`
-			: `Obtain a token for ${resource} that grants the scopes this call needs, then retry.`;
+			? `Obtain ${source} that also grants ${joined}, then retry.`
+			: `Obtain ${source} that grants the scopes this call needs, then retry.`;
 	};
 
 	return Object.freeze({
@@ -250,8 +258,8 @@ export function createProtectedResource(options: ProtectedResourceOptions): Prot
 				? `Bearer error="insufficient_scope", scope="${joined}", resource_metadata="${metadata}"`
 				: `Bearer error="insufficient_scope", resource_metadata="${metadata}"`;
 		},
-		forbiddenBody(missing: readonly string[]) {
-			return { error: 'INSUFFICIENT_SCOPE' as const, suggestion: suggestion(missing) };
+		forbiddenBody(missing: readonly string[], scopeSource?: string) {
+			return { error: 'INSUFFICIENT_SCOPE' as const, suggestion: suggestion(missing, scopeSource) };
 		},
 	});
 }

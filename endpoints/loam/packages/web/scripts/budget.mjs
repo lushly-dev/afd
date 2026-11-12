@@ -220,12 +220,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * #872's refinement of the input-schema rule, a closed tagged union (a `oneOf` of two or more branches
  * beside only `type: 'object'`) read branch by branch, cost `apps` 88 and raised `appsMinified` by that less
  * what `apps` had left, 79, to 394,973, approved by the owner on 2026-11-12 (`apps` 394,973).
+ * Phase 3's step 0c (AFD's MCP authorization scopes) raised `kernelMinified` to 114,444, approved by the
+ * coordinator on 2026-11-10: the kernel bundles afd-server's lean `/define` path, where `defineCommand` now
+ * carries a command's `scopes` (M6's metadata) and the engine two optional hooks that look a hidden command
+ * up as a missing one; no authorization code. First paint 288,640 and 89,242 gzip, +74 and +35 over `main`
+ * at `dd5d3616` (288,566 and 89,207), within 0c's allowance of 80 and 40; the kernel alone 114,444 (+93).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
 	jsGzip: 91_000,
 	cssMinified: 8_496,
-	kernelMinified: 114_364,
+	kernelMinified: 114_444,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,

@@ -10,6 +10,7 @@ import { z } from 'zod';
 import type { ContextField } from '../context-fields.js';
 import { type DescribedContextField, describeContextFields } from '../context-fields-describe.js';
 import { defineCommand, type ZodCommandDefinition } from '../schema.js';
+import { scopeViewOf } from '../scope-view.js';
 import type { ToolStrategy } from '../server-types.js';
 import { describableCommands, type GetDescribedCommands } from './described-command.js';
 
@@ -98,9 +99,12 @@ export function createAfdHelpCommand(
 				);
 			}
 
-			const firstClass = new Set(
-				toolSurface?.toolStrategy === 'hybrid' ? (toolSurface.firstClassTools ?? []) : []
+			// Only the first-class tools the caller's own list shows (spec/authorization.md, M6).
+			const view = scopeViewOf(context);
+			const shownFirstClass = (toolSurface?.firstClassTools ?? []).filter(
+				(name) => !view || view.shown(name)
 			);
+			const firstClass = new Set(toolSurface?.toolStrategy === 'hybrid' ? shownFirstClass : []);
 
 			// Map to output format
 			const commandInfos: CommandInfo[] = commands.map((cmd) => {
@@ -144,7 +148,7 @@ export function createAfdHelpCommand(
 				contractVersion: AFD_CONTRACT_VERSION,
 				...(toolSurface && { toolStrategy: toolSurface.toolStrategy }),
 				...(toolSurface?.toolStrategy === 'hybrid' && {
-					firstClassTools: [...(toolSurface.firstClassTools ?? [])],
+					firstClassTools: shownFirstClass,
 				}),
 				...(toolSurface?.contextFields?.length && {
 					contextFields: describeContextFields(toolSurface.contextFields),

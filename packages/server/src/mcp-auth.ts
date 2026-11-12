@@ -8,14 +8,37 @@
  * admits the verified credentials (M4), frozen and branded, for that request alone: the brand is
  * removed when the response closes. A route that runs a command without admitted credentials is
  * refused (M1: fail closed).
+ *
+ * Scopes (M6): each admitted request gets a scope view, decided once as it arrives, which the
+ * routes, the router, the engine and the listings read; the layer decides a `POST` body before
+ * dispatch and answers a missing scope with M5's 403. A host whose own layer vouches for its
+ * callers admits them with `handler.admit` and runs the same decision with
+ * `handler.preDispatchCheck`.
  */
 
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { TLSSocket } from 'node:tls';
 import { type Actor, type Clock, systemClock } from '@lushly-dev/afd-core';
-import { HttpRequestError } from './http-security.js';
-import { extractBearer } from './mcp-auth-bearer.js';
+import type { GroupByFn } from './command-routing.js';
+import {
+	HttpRequestError,
+	isJsonContent,
+	prereadBody,
+	readBodyBytes,
+	setPrereadBody,
+} from './http-security.js';
+import { extractBearer, namesAccessToken } from './mcp-auth-bearer.js';
+import {
+	bodyTooLarge,
+	decideBody,
+	decidesBody,
+	type ForbiddenStyle,
+	type PreDispatch,
+} from './mcp-auth-dispatch.js';
+
+export type { PreDispatch } from './mcp-auth-dispatch.js';
+
 import type { TokenVerifier } from './mcp-auth-jwt.js';
 import {
 	createProtectedResource,
@@ -23,6 +46,11 @@ import {
 	type ProtectedResource,
 } from './mcp-auth-resource.js';
 import { type AuthRuleCode, type Credentials, withRedactedInspect } from './mcp-auth-rules.js';
+import type { ScopeChallenge, ScopeResolver } from './mcp-auth-scopes.js';
+import { createScopeAuthority } from './mcp-auth-view.js';
+import type { ZodCommandDefinition } from './schema.js';
+import type { ScopeView } from './scope-view.js';
+import type { ToolStrategy } from './server-types.js';
 import { brandVerifiedCredentials, unbrandVerifiedCredentials } from './verified-credentials.js';
 
 /** A refused token, as {@link McpAuthOptions.onRefusal} receives it. Never the token or a claim. */
@@ -63,10 +91,60 @@ export interface McpAuthOptions {
 	 * Default: a `console.warn` line.
 	 */
 	onRefusal?: (refusal: AuthRefusal) => void;
+	/** Scopes every request needs, checked before a call's own (M6). Default: none. */
+	requiredScopes?: readonly string[];
+	/**
+	 * Decides every call instead of the static rule (a command's `scopes`); `requiredScopes`
+	 * still apply. Default: none, the static rule.
+	 */
+	resolver?: ScopeResolver;
+	/**
+	 * List only what the caller may use (M6, "Listing"): `tools/list`, `afd-discover`,
+	 * `afd-detail`, `afd-help`, `afd-docs`, `afd-schema` and grouped actions, with `tools/list`
+	 * then `cacheScope: "private"`. With a `resolver`, a command its `known` rejects does not exist
+	 * for the caller on any route (M6, "Hidden commands"). Default: `false`.
+	 */
+	filterToolsByScope?: boolean;
 }
 
-/** Options of M6 (scopes), which this version does not enforce; passing one fails closed. */
-const SCOPE_OPTIONS = ['requiredScopes', 'resolver', 'filterToolsByScope'] as const;
+/** What the server tells the layer about its own commands, for the scope decisions. */
+export interface AuthLayerContext {
+	maxBodyBytes: number;
+	clock?: Clock;
+	/** The MCP-exposed commands, built-ins included. */
+	commands: readonly ZodCommandDefinition[];
+	toolStrategy: ToolStrategy;
+	groupByFn?: GroupByFn;
+}
+
+/** What `handler.preDispatchCheck` takes: how a host's 403 is spelled. */
+export interface PreDispatchCheckOptions {
+	/** The 403's challenge in the host's own scheme, instead of M5's `Bearer` one. */
+	challenge?: ScopeChallenge;
+	/**
+	 * What a caller obtains to gain a scope, in the 403's suggestion ("Obtain `<scopeSource>`
+	 * that also grants ..."). Default: "a token for `<resource>`".
+	 */
+	scopeSource?: string;
+}
+
+/**
+ * The decision before dispatch for a host's own layer (`spec/authorization.md`, M6): the bearer
+ * layer's own implementation, so the two cannot drift.
+ */
+export interface PreDispatchCheck {
+	/** The largest body the decision reads; read at most this many bytes, plus one, before it. */
+	readonly maxBodyBytes: number;
+	/**
+	 * Decide `req`, whose body the host has read (`body`, as bytes or text), after admitting its
+	 * credentials with `handler.admit`. Pass the request on (with the body, as the handler's
+	 * third argument) only on `{ proceed: true }`; otherwise answer with the response given: the
+	 * 403 naming every missing scope, the 400 for a JSON-RPC batch, or the 413 for a body over
+	 * `maxBodyBytes`. A request without credentials admitted for this handler, a method other
+	 * than `POST`, and a body that cannot be parsed proceed, to be decided after routing.
+	 */
+	decide(req: IncomingMessage, body: Uint8Array | string): PreDispatch;
+}
 
 /** The default actor of a verified call (M4), when `createContext` maps none. */
 export function credentialsActor(credentials: Credentials): Actor {
@@ -76,6 +154,8 @@ export function credentialsActor(credentials: Credentials): Actor {
 /** The layer one HTTP handler runs before its routes. */
 export interface AuthLayer {
 	readonly protectedResource: ProtectedResource;
+	/** Whether the listings are filtered by scope (`filterToolsByScope`). */
+	readonly filterToolsByScope: boolean;
 	/**
 	 * Serve the metadata, or verify the request's token. `true` when the request may go on to its
 	 * route with credentials admitted; `false` when the layer answered it.
@@ -87,6 +167,17 @@ export interface AuthLayer {
 	 * @throws HttpRequestError 401 when it admitted none (M1: fail closed)
 	 */
 	credentialsFor(req: IncomingMessage): Credentials;
+	/** The scope view of an admitted request, decided once as it arrived. */
+	viewFor(req: IncomingMessage): ScopeView | undefined;
+	/**
+	 * Admit `credentials` a host's own layer vouches for, for `req` alone (`handler.admit`).
+	 *
+	 * @throws Error when `req` carries a bearer token or was admitted before, or the credentials
+	 *   fail the checks a verifier's do
+	 */
+	hostAdmit(req: IncomingMessage, credentials: Credentials): void;
+	/** The decision before dispatch for a host's own layer (`handler.preDispatchCheck`). */
+	preDispatchCheck(options?: PreDispatchCheckOptions): PreDispatchCheck;
 }
 
 const SAFE_RULE = /^[A-Za-z0-9_.:-]{1,64}$/;
@@ -218,25 +309,45 @@ function admissible(value: unknown, admission: Admission): Credentials | AuthRul
 	});
 }
 
+/** Scope tokens, each once, or a configuration error naming `what`. */
+function scopeList(what: string, scopes: unknown): string[] {
+	if (scopes === undefined) return [];
+	if (!Array.isArray(scopes)) throw new Error(`[AFD] ${what} must be an array of scope tokens`);
+	const kept: string[] = [];
+	for (const scope of scopes) {
+		if (!isScopeToken(scope)) {
+			throw new Error(`[AFD] ${what}: ${JSON.stringify(scope)} is not an OAuth scope token`);
+		}
+		if (!kept.includes(scope)) kept.push(scope);
+	}
+	return kept;
+}
+
 /**
  * The authorization layer of one HTTP handler.
  *
  * @throws Error for invalid options: the resource, an authorization server or a published scope
  *   malformed; a verifier missing or whose rules name another resource or binding requirement;
- *   or an M6 option (`requiredScopes`, `resolver`, `filterToolsByScope`), which this version
- *   does not enforce
+ *   a required scope or a command's declared scope that is not a scope token; a resolver without
+ *   `resolve` and `visible`
  */
-export function createAuthLayer(
-	options: McpAuthOptions,
-	maxBodyBytes: number,
-	clock: Clock = systemClock
-): AuthLayer {
-	for (const name of SCOPE_OPTIONS) {
-		if ((options as unknown as Record<string, unknown>)[name] !== undefined) {
-			throw new Error(
-				`[AFD] auth.${name} is not supported yet: scopes (spec/authorization.md, M6) are not enforced by this version, so the server refuses to start rather than ignore it`
-			);
-		}
+export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContext): AuthLayer {
+	const { maxBodyBytes } = server;
+	const clock = server.clock ?? systemClock;
+	const requiredScopes = scopeList('auth.requiredScopes', options.requiredScopes);
+	const { resolver } = options;
+	if (
+		resolver !== undefined &&
+		(typeof resolver?.resolve !== 'function' || typeof resolver.visible !== 'function')
+	) {
+		throw new Error('[AFD] auth.resolver must have resolve() and visible()');
+	}
+	if (options.filterToolsByScope !== undefined && typeof options.filterToolsByScope !== 'boolean') {
+		throw new Error('[AFD] auth.filterToolsByScope must be a boolean');
+	}
+	const filterToolsByScope = options.filterToolsByScope === true;
+	for (const command of server.commands) {
+		scopeList(`the scopes of command ${JSON.stringify(command.name)}`, command.scopes);
 	}
 	const { verifier } = options;
 	if (typeof verifier?.verify !== 'function') {
@@ -270,8 +381,20 @@ export function createAuthLayer(
 		}
 	}
 	const onRefusal = options.onRefusal ?? defaultRefusal;
+	const authority = createScopeAuthority({
+		requiredScopes,
+		resolver,
+		filterToolsByScope,
+		commands: server.commands,
+		toolStrategy: server.toolStrategy,
+		groupByFn: server.groupByFn,
+		resource,
+	});
 	// Only this layer's admissions count: a request admitted by another handler's layer is not.
 	const admitted = new WeakMap<IncomingMessage, Credentials>();
+	const views = new WeakMap<IncomingMessage, ScopeView>();
+	// Credentials a host's own layer vouched for, until the handler takes the request.
+	const vouched = new WeakMap<IncomingMessage, Credentials>();
 
 	function json(res: ServerResponse, status: number, body: unknown, challenge?: string): void {
 		res.writeHead(status, {
@@ -298,6 +421,47 @@ export function createAuthLayer(
 		return false;
 	}
 
+	function respond(res: ServerResponse, answer: PreDispatch): boolean {
+		if (answer.proceed) return true;
+		res.writeHead(answer.status, answer.headers);
+		res.end(answer.body);
+		return false;
+	}
+
+	/** Admit `credentials` for `req` and its response alone, branded until the response closes. */
+	function take(req: IncomingMessage, res: ServerResponse, credentials: Credentials): boolean {
+		if (res.destroyed || res.writableEnded) return false;
+		brandVerifiedCredentials(credentials);
+		admitted.set(req, credentials);
+		views.set(req, authority.view(credentials));
+		// No credentials outlive their request as verified.
+		res.once('close', () => unbrandVerifiedCredentials(credentials));
+		return true;
+	}
+
+	/**
+	 * The decision before dispatch on a body `req` carries (M6), read here when the route reads
+	 * one: at most `maxBodyBytes`, kept for the route to read again.
+	 */
+	async function decideBefore(
+		req: IncomingMessage,
+		path: string,
+		view: ScopeView,
+		style: ForbiddenStyle = {}
+	): Promise<PreDispatch> {
+		if (req.method !== 'POST' || !decidesBody(path) || !isJsonContent(req))
+			return { proceed: true };
+		let body = prereadBody(req);
+		if (!body) {
+			const read = await readBodyBytes(req, maxBodyBytes);
+			if (!read) return bodyTooLarge(path);
+			body = read;
+			setPrereadBody(req, body);
+		}
+		if (body.length > maxBodyBytes) return bodyTooLarge(path);
+		return decideBody(view, path, body.toString('utf8'), resource, style);
+	}
+
 	async function admit(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
 		// M7: the metadata is public.
 		if (resource.metadataPaths.includes(url.pathname)) {
@@ -308,6 +472,16 @@ export function createAuthLayer(
 			}
 			json(res, 200, resource.document());
 			return false;
+		}
+		// A host's own layer vouched for this caller: its credentials, and its own decision before
+		// dispatch (`preDispatchCheck`), stand for the bearer token's.
+		const host = vouched.get(req);
+		if (host) {
+			vouched.delete(req);
+			if (authorizationValues(req).length > 0 || namesAccessToken(url.search.slice(1))) {
+				return unauthorized(res, 'token-location');
+			}
+			return take(req, res, host);
 		}
 		// M2: a form body is read before the token, since a token in it refuses the request.
 		const form = isFormBody(req) ? await readFormBody(req, maxBodyBytes) : undefined;
@@ -335,12 +509,48 @@ export function createAuthLayer(
 		// Every route takes JSON; a form body has served its one purpose (M2).
 		if (form !== undefined)
 			throw new HttpRequestError(415, 'Content-Type must be application/json');
-		if (res.destroyed || res.writableEnded) return false;
-		brandVerifiedCredentials(credentials);
-		admitted.set(req, credentials);
-		// No credentials outlive their request as verified.
-		res.once('close', () => unbrandVerifiedCredentials(credentials));
-		return true;
+		if (!take(req, res, credentials)) return false;
+		// M6: the 403 before dispatch.
+		return respond(res, await decideBefore(req, url.pathname, views.get(req) as ScopeView));
+	}
+
+	function hostAdmit(req: IncomingMessage, credentials: Credentials): void {
+		const query = new URL(req.url ?? '/', 'http://host').search.slice(1);
+		if (authorizationValues(req).length > 0 || namesAccessToken(query)) {
+			throw new Error(
+				'[AFD] admit refuses a request that carries a bearer token: one request has one source of credentials'
+			);
+		}
+		if (vouched.has(req) || admitted.has(req)) {
+			throw new Error('[AFD] admit refuses a request whose credentials were admitted before');
+		}
+		const checked = admissible(credentials, {
+			resource: resource.resource,
+			requireBoundTokens,
+			certificate: certificateThumbprint(req),
+			now: Math.floor(clock.now() / 1000),
+			skewS: 0,
+		});
+		if (typeof checked === 'string') {
+			throw new Error(`[AFD] admit refuses the credentials: rule ${checked}`);
+		}
+		vouched.set(req, checked);
+	}
+
+	function preDispatchCheck(style: PreDispatchCheckOptions = {}): PreDispatchCheck {
+		return Object.freeze({
+			maxBodyBytes,
+			decide(req: IncomingMessage, body: Uint8Array | string): PreDispatch {
+				const bytes = typeof body === 'string' ? Buffer.from(body, 'utf8') : Buffer.from(body);
+				const path = new URL(req.url ?? '/', 'http://host').pathname;
+				if (bytes.length > maxBodyBytes) return bodyTooLarge(path);
+				if (req.method !== 'POST') return { proceed: true };
+				const credentials = vouched.get(req) ?? admitted.get(req);
+				if (!credentials || !decidesBody(path) || !isJsonContent(req)) return { proceed: true };
+				const view = views.get(req) ?? authority.view(credentials);
+				return decideBody(view, path, bytes.toString('utf8'), resource, style);
+			},
+		});
 	}
 
 	function credentialsFor(req: IncomingMessage): Credentials {
@@ -351,5 +561,13 @@ export function createAuthLayer(
 		});
 	}
 
-	return { protectedResource: resource, admit, credentialsFor };
+	return {
+		protectedResource: resource,
+		filterToolsByScope,
+		admit,
+		credentialsFor,
+		viewFor: (req) => views.get(req),
+		hostAdmit,
+		preDispatchCheck,
+	};
 }

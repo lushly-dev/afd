@@ -14,7 +14,7 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import type { ContextField } from './context-fields.js';
-import type { McpAuthOptions } from './mcp-auth.js';
+import type { McpAuthOptions, PreDispatchCheck, PreDispatchCheckOptions } from './mcp-auth.js';
 import type { Credentials } from './mcp-auth-rules.js';
 import type { ResourcesOption } from './resources.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -402,9 +402,34 @@ export type CreateRequestContext = (
  * Embeddable Node HTTP handler returned by `createMcpHandler()`.
  */
 export type McpHandler = {
-	(req: IncomingMessage, res: ServerResponse): Promise<void>;
+	/**
+	 * Serve one request. `body` is its body when a host's own layer has already read it (to run
+	 * {@link McpHandler.preDispatchCheck}); the handler then reads it instead of the stream.
+	 */
+	(req: IncomingMessage, res: ServerResponse, body?: Uint8Array | string): Promise<void>;
 	/** Close active SSE/stream responses when the embedding host shuts down. */
 	dispose(): void;
+	/**
+	 * **Trust-bearing.** Admit `credentials` that a host's own layer vouches for, for `req` alone,
+	 * instead of a bearer token (`spec/authorization.md`, M6, "A host's own layer"): only for a
+	 * gateway that has itself authenticated the caller, never from anything the caller sent. They
+	 * are checked as a verifier's are (shape, a numeric `expiresAt` not yet passed, the
+	 * certificate binding where required), frozen, and branded for `isVerifiedCredentials` while
+	 * the handler serves `req`. A request without them still needs a valid bearer token.
+	 *
+	 * @throws Error without the `auth` option; when `req` carries a bearer token (in the
+	 *   `Authorization` header or the query) or was admitted before; or when the credentials fail
+	 *   those checks
+	 */
+	admit(req: IncomingMessage, credentials: Credentials): void;
+	/**
+	 * The decision before dispatch for a host's own layer (M6): the bearer layer's own
+	 * implementation, with a 403 in the host's scheme (`challenge`) and suggestion
+	 * (`scopeSource`). Run its `decide(req, body)` after `admit` and after reading the body.
+	 *
+	 * @throws Error without the `auth` option
+	 */
+	preDispatchCheck(options?: PreDispatchCheckOptions): PreDispatchCheck;
 };
 
 /**

@@ -434,7 +434,7 @@ The entry loads nothing else of the server and is held browser-safe by
 
 With `auth`, `createMcpHandler` (and `createMcpServer` over HTTP) is an OAuth 2.1
 protected resource, as [`spec/authorization.md`](../../spec/authorization.md) M1
-to M5 and M7 specify:
+to M7 specify:
 
 ```typescript
 import { createMcpHandler, JwtVerifier, jwksKeySource } from '@lushly-dev/afd-server';
@@ -513,8 +513,73 @@ const handler = createMcpHandler({
   `auth.onRefusal`, by default a `console.warn` line, with the issuer's alias;
   never the token or a claim. A host verifier may wrap `JwtVerifier` to refuse
   more with a code of its own, which is answered the same way.
-- **Scopes (M6) are not enforced yet.** `requiredScopes`, `resolver` and
-  `filterToolsByScope` throw rather than be ignored.
+- **Scopes (M6).** A command declares the scopes a caller's token needs with
+  `defineCommand({ scopes: ['todo:write'] })`, and `auth.requiredScopes` names
+  those every request needs; a call needs both, compared exactly. A missing
+  scope is one 403 before dispatch, with M5's challenge
+  (`Bearer error="insufficient_scope", scope="<missing>", resource_metadata=...`)
+  and body, naming every missing scope of every step once, in step order: for
+  a command's own tool, a grouped action, `afd-call`, each step of `afd-batch`
+  and `afd-pipe`, `/rpc`, `/batch` and `/stream`. A JSON-RPC batch is refused
+  with 400 first. A call decided after routing (`GET /stream`, say) fails with
+  `INSUFFICIENT_SCOPE` (`details.scopes`, not retryable) before any
+  confirmation, a batch or pipeline as a whole.
+- **A resolver** (`auth.resolver`) decides every call instead of the static
+  rule: `resolve(command, input, credentials)` answers `'allowed'`,
+  `{ missing: [...] }` or `'defer'` (the registry answers), first on the
+  arguments as sent, then again at execution on the validated input, so a rule
+  keyed on an argument holds when a default or a pipeline step supplies it.
+  `visible` and, optionally, `known` decide the listings; both must be pure.
+- **Listing** (`auth.filterToolsByScope: true`): `tools/list` (then
+  `cacheScope: "private"`), `afd-discover`, `afd-detail`, `afd-help` and
+  grouped actions show only what the caller may use, and no suggestion names
+  another command. With a resolver, a command its `known` rejects does not
+  exist for that caller at all: every route answers it exactly as a name that
+  does not exist, before validation, middleware or a confirmation.
+
+#### A host's own layer
+
+A gateway that authenticates its callers itself, instead of a bearer token,
+vouches for each one with `handler.admit(req, credentials)`. **This is the host
+vouching for a caller:** only a gateway that has itself authenticated the
+caller may call it, never with anything the caller sent. The credentials are
+checked as a verifier's are (shape, a numeric `expiresAt` not yet passed, the
+certificate binding where required), frozen and branded while the handler
+serves `req`; `admit` refuses a request that carries a bearer token, or was
+admitted before. It exists only on the handler object, which the host holds.
+The host then runs the bearer layer's own decision before dispatch, and passes
+the body it read on to the handler:
+
+```typescript
+const check = handler.preDispatchCheck({
+  challenge: new ScopeChallenge('Gateway', { realm: 'todo' }),
+  scopeSource: 'a new assertion from the gateway',
+});
+
+async function serve(req, res) {
+  const body = await readBody(req, check.maxBodyBytes + 1);
+  try {
+    handler.admit(req, await gatewayCredentials(req));
+  } catch {
+    // A bearer token beside the gateway's credentials, or credentials that fail the checks.
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('One request has one source of credentials');
+    return;
+  }
+  const decided = check.decide(req, body);
+  if (!decided.proceed) {
+    res.writeHead(decided.status, decided.headers);
+    res.end(decided.body);
+    return;
+  }
+  await handler(req, res, body);
+}
+```
+
+`decide` answers exactly what the bearer layer would after admitting the same
+credentials (a 403, a 400 for a JSON-RPC batch, a 413 over the cap), but for a
+403's challenge in the host's scheme and its suggestion. A request with
+neither admitted credentials nor a valid bearer token still gets M5's 401.
 
 A server that also runs afd-auth's middleware passes `isVerifiedCredentials` to
 `createAuthMiddleware`, as [above](#verified-credentials-lushly-devafd-servercredentials).
@@ -1102,7 +1167,7 @@ Create an MCP server from commands.
 | `allowedHosts` | string[] | No | Accepted HTTP hostnames, without ports |
 | `maxBodyBytes` | number | No | Maximum JSON body bytes (default: 1048576) |
 | `createContext` | `(req, { credentials? }) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command; with `auth`, it is given the verified credentials |
-| `auth` | `McpAuthOptions` | No | [MCP authorization](#mcp-authorization): every HTTP route needs a verified bearer token |
+| `auth` | `McpAuthOptions` | No | [MCP authorization](#mcp-authorization): every HTTP route needs a verified bearer token, and `scopes`, `requiredScopes`, a `resolver` and `filterToolsByScope` decide each call |
 | `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
 | `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
 | `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |

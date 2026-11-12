@@ -27,7 +27,7 @@ function formDecode(encoded: string): string {
 }
 
 /** Whether an `application/x-www-form-urlencoded` string has a parameter named `access_token`. */
-function namesAccessToken(encoded: string): boolean {
+export function namesAccessToken(encoded: string): boolean {
 	return encoded
 		.split('&')
 		.some((pair) => formDecode(pair.split('=', 1)[0] ?? '') === 'access_token');
