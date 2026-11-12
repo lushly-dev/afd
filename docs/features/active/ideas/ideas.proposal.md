@@ -1246,6 +1246,12 @@ No production code. A real corpus chosen by the owner, with a sample labelled by
 | 0.9 | Can a person confirm from the harnesses the owner uses? | A stub person-only command on Umbel's phase 5 host, called from each harness | Which harnesses complete it, and what the others fall back to |
 | 0.10 | Does an agent with no skill find the store? | The draft tool list, descriptions and instructions paragraph, with a model in each harness given everyday requests to save and to ask | The descriptions and the paragraph that work, and whether `memory-remember` stays first-class on an Ideas instance |
 
+Results are recorded in [`prototype/`](prototype/README.md) and their state in
+[STATUS.md](STATUS.md). Steps 0.1 and 0.2 ran on 2026-11-11, and 0.4 in part. Step 0.2 found that
+refusing a capture cannot be trusted across documents and that offering the nearest ideas to the
+calling model can; the plugin's specification takes that up in place of the refusal in
+[4.4](#44-matching).
+
 If 0.6 shows that framings do not fit, the plan keeps the flat set of the loop and the slice,
 and P7 narrows to what Violet needs. If 0.9 shows that a harness the owner relies on cannot reach
 the person page, P15's list of pending decisions moves ahead of the loop.
