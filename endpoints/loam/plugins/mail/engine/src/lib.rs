@@ -13,11 +13,13 @@ pub mod cli;
 pub mod commands;
 pub mod derive;
 pub mod engine;
+pub mod fetch;
 pub mod home;
 pub mod html;
 pub mod index;
 pub mod log;
 pub mod provider;
+pub mod read;
 pub mod rules;
 pub mod secrets;
 pub mod store;
@@ -55,6 +57,11 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(commands::status(Arc::clone(engine)))?;
     registry.register(commands::account_add(Arc::clone(engine)))?;
     registry.register(commands::account_list(Arc::clone(engine)))?;
+    registry.register(read::thread_list(Arc::clone(engine)))?;
+    registry.register(read::thread_open(Arc::clone(engine)))?;
+    registry.register(read::message_open(Arc::clone(engine)))?;
+    registry.register(read::attachment_open(Arc::clone(engine)))?;
+    registry.register(read::search(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
         return Err(broken.join("\n"));

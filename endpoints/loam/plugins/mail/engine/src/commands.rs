@@ -148,21 +148,23 @@ fn accounts_for(engine: &Engine, named: Option<i64>) -> Result<Vec<AccountRow>, 
 fn sync_failure(error: &SyncError) -> CommandError {
     match error {
         SyncError::Store(error) => store_failure(error),
-        SyncError::Provider(ProviderError::SignIn) => {
-            CommandError::new("SIGN_IN_REQUIRED", error.to_string())
-                .with_suggestion("Sign in to the account again.")
-        }
-        SyncError::Provider(ProviderError::Keychain) => {
-            CommandError::new("SIGN_IN_REQUIRED", error.to_string())
-                .with_suggestion("Unlock the keychain, then try again.")
-        }
-        SyncError::Provider(ProviderError::NoCredential) => {
-            CommandError::new("SIGN_IN_REQUIRED", error.to_string())
-                .with_suggestion("Store the account's sign-in, then sync again.")
-        }
-        SyncError::Provider(_) => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
+        SyncError::Provider(error) => provider_failure(error),
+    }
+}
+
+/// A provider's refusal as a command's failure (the specification's 12.3).
+#[must_use]
+pub fn provider_failure(error: &ProviderError) -> CommandError {
+    match error {
+        ProviderError::SignIn => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
+            .with_suggestion("Sign in to the account again."),
+        ProviderError::Keychain => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
+            .with_suggestion("Unlock the keychain, then try again."),
+        ProviderError::NoCredential => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
+            .with_suggestion("Store the account's sign-in, then try again."),
+        _ => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
             .with_suggestion(
-                "Check the network, then run `loam-mail mail-sync` again; it carries on where it stopped.",
+                "Check the network, then try again; `loam-mail mail-sync` carries on where it stopped.",
             )
             .with_retryable(true),
     }

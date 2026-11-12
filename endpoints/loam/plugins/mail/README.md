@@ -21,14 +21,18 @@ cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo
 It is built a step at a time from the specification's section 15. It answers `help` and
 `version` and runs a command the registry exposes to the command line, printing its result as
 JSON: `loam-mail <command> [input]`. Its commands so far are `mail-account-add`,
-`mail-account-list`, `mail-sync`, `mail-status` and `mail-rebuild`. It syncs an iCloud account
-over IMAP. To add one, at a terminal on macOS, with an
+`mail-account-list`, `mail-sync`, `mail-status`, `mail-rebuild`, and the read commands
+`mail-thread-list`, `mail-thread-open`, `mail-message-open`, `mail-attachment-open` and
+`mail-search`. Whatever came from mail, a file's bytes included, sits in a part of a result
+labelled `"trust": "content"`. It syncs an iCloud account over IMAP. To add one, at a terminal on macOS, with an
 [app-specific password](https://support.apple.com/en-us/102654):
 
 ```sh
 cargo run --release -- mail-account-add '{"provider": "icloud", "address": "<the address>"}'
 cargo run --release -- mail-sync
 cargo run --release -- mail-status
+cargo run --release -- mail-thread-list '{"mailbox": <an id from mail-status>}'
+cargo run --release -- mail-search '{"query": "invoice"}'
 ```
 
 `mail-account-add` is a person's command: it says what it will do and asks, then asks for the
@@ -52,7 +56,8 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
 - **Sync** (`src/sync.rs`): a pass over an account, mailboxes taking turns, resumable after any
   stop; `src/store/sync.rs` is what it reads and records in the store.
 - **The keychain** (`src/secrets.rs`): where an account's sign-in is kept.
-- **The commands** (`src/commands.rs`, over `src/engine.rs`).
+- **The commands** (`src/commands.rs` and the read commands in `src/read.rs`, over
+  `src/engine.rs`); a message's body is fetched when it is opened (`src/fetch.rs`).
 
 Sync is tested against a scripted IMAP server (`tests/support/imap.rs`), the test double the
 specification's section 14 asks for. `tests/live.rs` runs a pass against a real iCloud account,

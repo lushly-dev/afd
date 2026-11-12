@@ -43,6 +43,9 @@ html5ever = "0.40"
 markup5ever_rcdom = "0.40"
 # A link's host read as a browser reads it: backslashes, missing slashes, IDNs, IPv6.
 url = "2"
+# Cleaning a message's HTML for display (the specification's 6.4). Its `cssparser` and
+# `dtoa-short` are MPL-2.0, allowed by name in `tests/licences.rs`.
+ammonia = "4.2"
 mail-parser = "1.0.1"
 # The store (the specification's section 4). SQLite is bundled, at the version Umbel pins, so the
 # repository carries one.

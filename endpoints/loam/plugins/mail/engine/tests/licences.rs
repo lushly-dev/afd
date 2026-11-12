@@ -20,6 +20,16 @@ const ALLOWED: &[&str] = &[
     "Zlib",
 ];
 
+/// Crates allowed under a licence outside [`ALLOWED`], each by name, so that no
+/// other crate brings that licence in unnoticed. Each is the owner's decision.
+const EXCEPTIONS: &[(&str, &str)] = &[
+    // MPL-2.0 is file-level copyleft: these crates' own files stay MPL, used
+    // unmodified, and nothing else of the engine is touched. `ammonia`, the
+    // HTML cleaner, needs them. Allowed by the owner on 2026-11-12.
+    ("cssparser", "MPL-2.0"),
+    ("dtoa-short", "MPL-2.0"),
+];
+
 /// Whether an SPDX expression can be satisfied with allowed licences alone:
 /// one side of an `OR`, both sides of an `AND`.
 fn permitted(expression: &str) -> bool {
@@ -124,7 +134,13 @@ fn every_crate_in_the_lockfile_is_permissively_licensed() {
     assert!(packages.len() > 1, "the lockfile's packages were read");
     let refused: Vec<String> = packages
         .iter()
-        .filter(|package| !package["license"].as_str().is_some_and(permitted))
+        .filter(|package| {
+            let licence = package["license"].as_str().unwrap_or_default();
+            let excepted = EXCEPTIONS.iter().any(|(name, allowed)| {
+                package["name"].as_str() == Some(name) && licence == *allowed
+            });
+            !excepted && !permitted(licence)
+        })
         .map(|package| {
             format!(
                 "{} {}: {}",

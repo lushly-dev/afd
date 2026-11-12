@@ -83,6 +83,12 @@ impl Engine {
         self
     }
 
+    /// The data directory, when there is one.
+    #[must_use]
+    pub fn home(&self) -> Option<&Home> {
+        self.home.as_ref()
+    }
+
     /// How sync reaches providers.
     #[must_use]
     pub fn connector(&self) -> Option<&Arc<dyn Connector>> {

@@ -895,6 +895,82 @@ fn tidy(text: &str) -> (String, usize) {
     (out, removed)
 }
 
+/// A message's HTML made safe to show (the specification's 6.4), and the
+/// remote references it holds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cleaned {
+    /// The HTML with no script, form, frame or style sheet, and links that
+    /// open apart from the page.
+    pub html: String,
+    /// The addresses of what the HTML would load from the network: images,
+    /// backgrounds, video posters. Nothing is loaded; the caller decides.
+    pub remote: Vec<String>,
+}
+
+/// The attributes whose address a client loads by itself.
+const LOADED: &[&str] = &["src", "srcset", "background", "poster", "lowsrc", "dynsrc"];
+
+/// The most remote references reported.
+const REMOTE_LIMIT: usize = 200;
+
+/// Cleans `html` for a person's client to show, with `ammonia`, and lists
+/// every remote reference left in it.
+///
+/// A message has no page of its own to resolve a relative address against,
+/// so relative addresses are removed. The references are then read from the
+/// cleaned HTML itself, as a browser would parse it: every address an
+/// element there would load, except a `cid:` part of the message, is
+/// reported, however it is spelled.
+#[must_use]
+pub fn clean(html: &str) -> Cleaned {
+    let (bounded, _) = bound(cut_text(html, HTML_LIMIT));
+    let mut builder = ammonia::Builder::default();
+    builder
+        .link_rel(Some("noopener noreferrer nofollow"))
+        .url_relative(ammonia::UrlRelative::Deny)
+        // An image of the message itself, which the client shows from the
+        // part it names.
+        .add_url_schemes(&["cid"])
+        .add_tag_attributes("img", &["width", "height", "alt"]);
+    let html = builder.clean(bounded).to_string();
+    let dom = html5ever::parse_document(RcDom::default(), html5ever::ParseOpts::default())
+        .one(html.as_str());
+    let mut remote = Vec::new();
+    loading(&dom.document, &mut remote, 0);
+    Cleaned { html, remote }
+}
+
+/// The addresses the elements under `node` would load.
+fn loading(node: &Handle, remote: &mut Vec<String>, depth: usize) {
+    // The document's own elements sit above the message's.
+    if depth > NESTING_LIMIT + 8 || remote.len() >= REMOTE_LIMIT {
+        return;
+    }
+    if let NodeData::Element { attrs, .. } = &node.data {
+        for attribute in attrs.borrow().iter() {
+            let name = attribute.name.local.to_ascii_lowercase();
+            if !LOADED.contains(&name.as_str()) {
+                continue;
+            }
+            let value = attribute.value.trim();
+            // A browser ignores tabs and newlines in an address.
+            let plain: String = value
+                .chars()
+                .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+                .collect();
+            if value.is_empty() || plain.to_ascii_lowercase().starts_with("cid:") {
+                continue;
+            }
+            if remote.len() < REMOTE_LIMIT {
+                remote.push(cut_text(&plain, 2048).to_string());
+            }
+        }
+    }
+    for child in node.children.borrow().iter() {
+        loading(child, remote, depth + 1);
+    }
+}
+
 /// The start of `text`, at most `bytes` long, cut between characters.
 fn cut_text(text: &str, bytes: usize) -> &str {
     if text.len() <= bytes {
@@ -1130,6 +1206,78 @@ mod tests {
             let _ = read(&String::from_utf8_lossy(found));
         }
         assert_eq!(normal_color("#ff\u{fffd}ff"), "");
+    }
+
+    #[test]
+    fn html_is_cleaned_and_its_remote_references_listed() {
+        let cleaned = clean(
+            r#"<p onclick="x()">Hi<script>steal()</script></p>
+               <form action="https://evil.example/"><input name="password"></form>
+               <iframe src="https://evil.example/frame"></iframe>
+               <img src="https://tracker.example/pixel.gif" width="1">
+               <img src="cid:logo@example.com">
+               <a href="https://shop.example.com/">Shop</a>"#,
+        );
+        for gone in [
+            "script", "steal", "onclick", "<form", "<input", "iframe", "frame",
+        ] {
+            assert!(!cleaned.html.contains(gone), "{gone}: {}", cleaned.html);
+        }
+        assert!(cleaned.html.contains("noopener"));
+        assert_eq!(cleaned.remote, vec!["https://tracker.example/pixel.gif"]);
+    }
+
+    #[test]
+    fn a_remote_reference_is_counted_however_it_is_spelled() {
+        // Every spelling a browser would load is either removed or counted.
+        let cleaned = clean(
+            r#"<img src="ht&#9;tps://one.example/p.gif">
+               <img src="\\two.example\p.gif">
+               <img src="/\three.example/p.gif">
+               <img src="//four.example/p.gif">
+               <img src="HTTPS://FIVE.example/p.gif">
+               <img src="relative/six.gif">
+               <img src="data:image/gif;base64,R0lGOD">
+               <video poster="https://seven.example/p.jpg"><source src="https://eight.example/v.mp4"></video>
+               <table background="https://nine.example/bg.gif"><tr><td>x</td></tr></table>
+               <img src="c&#9;id:logo@example.com">"#,
+        );
+        for host in [
+            "two.", "three.", "four.", "six.", "seven.", "eight.", "nine.", "data:",
+        ] {
+            if cleaned.html.contains(host) {
+                assert!(
+                    cleaned
+                        .remote
+                        .iter()
+                        .any(|reference| reference.contains(host)),
+                    "{host} is left in the HTML and not counted: {}",
+                    cleaned.html
+                );
+            }
+        }
+        for host in ["one.example", "FIVE.example"] {
+            assert!(
+                cleaned
+                    .remote
+                    .iter()
+                    .any(|reference| reference.contains(host)),
+                "{host}: {:?} {}",
+                cleaned.remote,
+                cleaned.html
+            );
+        }
+        assert!(
+            !cleaned
+                .remote
+                .iter()
+                .any(|reference| reference.contains("logo@"))
+        );
+        assert!(
+            clean(r#"<img src="cid:logo@example.com">"#)
+                .html
+                .contains("cid:logo@")
+        );
     }
 
     #[test]
