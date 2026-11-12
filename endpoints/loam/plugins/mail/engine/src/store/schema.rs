@@ -241,6 +241,54 @@ pub(super) const MIGRATIONS: &[&str] = &[
                             AND observation.ended_at IS NULL
                             AND instr(observation.flags, '\"\\\\Seen\"') > 0));
     ",
+    // 4: the evidence of section 6.1, derived from the log like the rest of `envelope` and
+    // `part`. Rows written by the derivation before it are stale (their `parser` is 1) and are
+    // derived again (4.3).
+    "
+    -- What the headers say about where the message came from and how it may be answered.
+    ALTER TABLE envelope ADD COLUMN list_id TEXT NOT NULL DEFAULT '';
+    -- 0 no unsubscribe header, 1 List-Unsubscribe, 2 that and one-click.
+    ALTER TABLE envelope ADD COLUMN unsubscribe INTEGER NOT NULL DEFAULT 0
+        CHECK (unsubscribe IN (0, 1, 2));
+    ALTER TABLE envelope ADD COLUMN precedence TEXT NOT NULL DEFAULT '';
+    ALTER TABLE envelope ADD COLUMN auto_submitted TEXT NOT NULL DEFAULT '';
+    ALTER TABLE envelope ADD COLUMN reply_to TEXT NOT NULL DEFAULT '';
+    ALTER TABLE envelope ADD COLUMN reply_to_differs INTEGER NOT NULL DEFAULT 0
+        CHECK (reply_to_differs IN (0, 1));
+    -- The topmost Authentication-Results header: the server that wrote it and its results.
+    -- Whether that server is the account's provider is decided by who reads it.
+    ALTER TABLE envelope ADD COLUMN auth_server TEXT NOT NULL DEFAULT '';
+    ALTER TABLE envelope ADD COLUMN auth_spf TEXT NOT NULL DEFAULT '';
+    ALTER TABLE envelope ADD COLUMN auth_dkim TEXT NOT NULL DEFAULT '';
+    ALTER TABLE envelope ADD COLUMN auth_dmarc TEXT NOT NULL DEFAULT '';
+    -- From the body, once it is held whole (6.1, 6.3).
+    ALTER TABLE envelope ADD COLUMN hidden_chars INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE envelope ADD COLUMN links INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE envelope ADD COLUMN mismatched_links INTEGER NOT NULL DEFAULT 0;
+    -- The template key's first half, from the headers; the key itself once the body is held.
+    ALTER TABLE envelope ADD COLUMN template_head BLOB CHECK (length(template_head) = 16);
+    ALTER TABLE envelope ADD COLUMN template_key BLOB CHECK (length(template_key) = 16);
+    ALTER TABLE envelope ADD COLUMN body_shape BLOB CHECK (length(body_shape) = 16);
+    CREATE INDEX envelope_template ON envelope (template_key) WHERE template_key IS NOT NULL;
+    CREATE INDEX envelope_stale ON envelope (parser, message_id);
+
+    -- A part's bytes, read for what they are.
+    ALTER TABLE part ADD COLUMN detected TEXT NOT NULL DEFAULT '';
+    ALTER TABLE part ADD COLUMN type_differs INTEGER NOT NULL DEFAULT 0
+        CHECK (type_differs IN (0, 1));
+    ALTER TABLE part ADD COLUMN hash BLOB CHECK (length(hash) = 32);
+
+    -- A link in a message, with the host the text shown for it names (6.1).
+    CREATE TABLE link (
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        ordinal INTEGER NOT NULL,
+        target TEXT NOT NULL,
+        target_host TEXT NOT NULL,
+        text_host TEXT NOT NULL,
+        mismatched INTEGER NOT NULL CHECK (mismatched IN (0, 1)),
+        PRIMARY KEY (message_id, ordinal)
+    ) STRICT, WITHOUT ROWID;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

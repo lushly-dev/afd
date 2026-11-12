@@ -14,6 +14,7 @@ pub mod commands;
 pub mod derive;
 pub mod engine;
 pub mod home;
+pub mod html;
 pub mod index;
 pub mod log;
 pub mod provider;

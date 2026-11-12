@@ -209,16 +209,24 @@ pub(super) fn derive_header(
         )?;
     }
 
+    let authentication = header.authentication.clone().unwrap_or_default();
     transaction.run(
         "INSERT INTO envelope
              (message_id, parser, thread_id, date, sent_at, sender_address, sender_name,
-              subject, unparsed)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+              subject, unparsed, list_id, unsubscribe, precedence, auto_submitted, reply_to,
+              reply_to_differs, auth_server, auth_spf, auth_dkim, auth_dmarc, template_head)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+                 ?18, ?19, ?20)
          ON CONFLICT (message_id) DO UPDATE SET
              parser = excluded.parser, thread_id = excluded.thread_id, date = excluded.date,
              sent_at = excluded.sent_at, sender_address = excluded.sender_address,
              sender_name = excluded.sender_name, subject = excluded.subject,
-             unparsed = excluded.unparsed",
+             unparsed = excluded.unparsed, list_id = excluded.list_id,
+             unsubscribe = excluded.unsubscribe, precedence = excluded.precedence,
+             auto_submitted = excluded.auto_submitted, reply_to = excluded.reply_to,
+             reply_to_differs = excluded.reply_to_differs, auth_server = excluded.auth_server,
+             auth_spf = excluded.auth_spf, auth_dkim = excluded.auth_dkim,
+             auth_dmarc = excluded.auth_dmarc, template_head = excluded.template_head",
         params![
             message,
             PARSER_VERSION,
@@ -228,7 +236,18 @@ pub(super) fn derive_header(
             header.sender_address,
             header.sender_name,
             header.subject,
-            header.unparsed
+            header.unparsed,
+            header.list_id,
+            header.unsubscribe,
+            header.precedence,
+            header.auto_submitted,
+            header.reply_to,
+            !header.reply_to.is_empty() && header.reply_to != header.sender_address,
+            authentication.server,
+            authentication.spf,
+            authentication.dkim,
+            authentication.dmarc,
+            header.template_head.as_slice()
         ],
     )?;
     touched.threads.insert(thread);
@@ -262,26 +281,56 @@ pub(super) fn derive_body(
     body: BodyFields,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
-    let row: Option<(i64, i64, String, String)> = transaction
+    type EnvelopeRow = (i64, i64, String, String, Option<Vec<u8>>);
+    let row: Option<EnvelopeRow> = transaction
         .one(
-            "SELECT thread_id, date, sender_address, subject FROM envelope WHERE message_id = ?1",
+            "SELECT thread_id, date, sender_address, subject, template_head
+             FROM envelope WHERE message_id = ?1",
             [message],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .optional()?;
-    let Some((thread, date, sender, subject)) = row else {
+    let Some((thread, date, sender, subject, head)) = row else {
         return Ok(());
     };
+    // The template key needs the structure, which only the body gives.
+    let head: Option<[u8; 16]> = head.and_then(|head| head.try_into().ok());
+    let template = head
+        .filter(|_| body.unparsed.is_none())
+        .map(|head| crate::derive::template_key(&head, &body.structure));
+    let mismatched = body.links.iter().filter(|link| link.mismatched).count();
     transaction.run(
-        "UPDATE envelope SET snippet = ?2, attachments = ?3, unparsed = coalesce(?4, unparsed)
+        "UPDATE envelope SET snippet = ?2, attachments = ?3, unparsed = coalesce(?4, unparsed),
+             hidden_chars = ?5, links = ?6, mismatched_links = ?7, template_key = ?8,
+             body_shape = ?9
          WHERE message_id = ?1",
-        params![message, body.snippet, body.attachments, body.unparsed],
+        params![
+            message,
+            body.snippet,
+            body.attachments,
+            body.unparsed,
+            body.hidden_chars,
+            i64::try_from(body.links.len()).unwrap_or(i64::MAX),
+            i64::try_from(mismatched).unwrap_or(i64::MAX),
+            template.as_ref().map(<[u8; 16]>::as_slice),
+            body.body_shape.as_ref().map(<[u8; 16]>::as_slice)
+        ],
     )?;
     transaction.run("DELETE FROM part WHERE message_id = ?1", [message])?;
     {
         let mut insert = transaction.prepare_cached(
-            "INSERT INTO part (message_id, place, content_type, name, size, attachment)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "INSERT INTO part
+                 (message_id, place, content_type, name, size, attachment, detected,
+                  type_differs, hash)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
              ON CONFLICT (message_id, place) DO NOTHING",
         )?;
         for part in &body.parts {
@@ -291,7 +340,27 @@ pub(super) fn derive_body(
                 part.content_type,
                 part.name,
                 i64::try_from(part.size).unwrap_or(i64::MAX),
-                part.attachment
+                part.attachment,
+                part.detected,
+                part.type_differs,
+                part.hash.as_ref().map(<[u8; 32]>::as_slice)
+            ])?;
+        }
+    }
+    transaction.run("DELETE FROM link WHERE message_id = ?1", [message])?;
+    {
+        let mut insert = transaction.prepare_cached(
+            "INSERT INTO link (message_id, ordinal, target, target_host, text_host, mismatched)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        )?;
+        for (ordinal, link) in body.links.iter().enumerate() {
+            insert.execute(params![
+                message,
+                i64::try_from(ordinal).unwrap_or(i64::MAX),
+                link.target,
+                link.target_host,
+                link.text_host,
+                link.mismatched
             ])?;
         }
     }
@@ -823,6 +892,7 @@ impl Store {
         let transaction = self.connection.transaction()?;
         transaction.execute_batch(
             "DELETE FROM part;
+             DELETE FROM link;
              DELETE FROM thread_place;
              DELETE FROM thread;
              DELETE FROM thread_key;
@@ -885,6 +955,64 @@ impl Store {
         transaction.commit()?;
         self.index_documents(&touched.documents)?;
         Ok(())
+    }
+
+    /// How many messages were derived by an older version of the derivation
+    /// and wait to be derived again.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn stale_count(&self) -> Result<u64, StoreError> {
+        let stale: i64 = self.connection.query_row(
+            "SELECT count(*) FROM envelope WHERE parser < ?1",
+            [PARSER_VERSION],
+            |row| row.get(0),
+        )?;
+        Ok(count(stale))
+    }
+
+    /// Derives again up to `limit` of the messages an older version of the
+    /// derivation wrote, newest first, so that the oldest mail waits longest
+    /// (the specification's 4.3). Returns how many it derived; 0 when none
+    /// are left, or while a rebuild is under way, which derives everything.
+    ///
+    /// # Errors
+    /// When the log, the database or the index refuses.
+    pub fn rederive_stale(&mut self, limit: u32, now: i64) -> Result<usize, StoreError> {
+        if rebuild_cursor(&self.connection)?.is_some() {
+            return Ok(0);
+        }
+        let messages: Vec<i64> = {
+            let mut statement = self.connection.prepare_cached(
+                "SELECT message_id FROM envelope WHERE parser < ?1
+                 ORDER BY message_id DESC LIMIT ?2",
+            )?;
+            statement
+                .query_map(params![PARSER_VERSION, limit], |row| row.get(0))?
+                .collect::<Result<_, _>>()?
+        };
+        if messages.is_empty() {
+            return Ok(0);
+        }
+        // The bytes are read and parsed before the transaction opens.
+        let mut derived = Vec::with_capacity(messages.len());
+        for message in &messages {
+            let (header, body) = self.read_derivation(*message)?;
+            derived.push((*message, header, body));
+        }
+        self.ensure_index()?;
+        let transaction = self.connection.transaction()?;
+        let mut touched = Touched::new(None);
+        for (message, header, body) in derived {
+            derive_header(&transaction, message, &header, &mut touched)?;
+            if let Some(body) = body {
+                derive_body(&transaction, message, body, &mut touched)?;
+            }
+        }
+        settle(&transaction, &touched, now)?;
+        transaction.commit()?;
+        self.index_documents(&touched.documents)?;
+        Ok(messages.len())
     }
 
     /// Derives the next batch of a rebuild under way.

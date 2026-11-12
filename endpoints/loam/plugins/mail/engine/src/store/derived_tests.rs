@@ -114,6 +114,7 @@ fn derived(store: &Store) -> Vec<(String, Vec<Vec<Value>>)> {
     [
         ("envelope", "message_id"),
         ("part", "message_id, place"),
+        ("link", "message_id, ordinal"),
         ("thread_key", "key"),
         ("thread", "id"),
         ("thread_place", "mailbox_id, thread_id"),
@@ -173,8 +174,51 @@ fn busy(home: &Home) -> (Store, MailboxId, MailboxId) {
         .unwrap();
     record(&mut store, archive, &headers[4..5]);
     store.record_removed(inbox, "", &["2"], NOW).unwrap();
+    // A message with evidence: a list, a reply-to elsewhere, an
+    // authentication header, HTML with hidden text and a link, and a file.
+    let rich = HeaderSeen {
+        header_block: RICH_HEADERS.as_bytes().to_vec(),
+        ..seen(8, "rich", &[])
+    };
+    let rich_message = record(&mut store, inbox, std::slice::from_ref(&rich));
+    store
+        .record_parts(
+            &[PartSeen {
+                message: rich_message[0],
+                place: Place::Whole,
+                bytes: &[RICH_HEADERS.as_bytes(), RICH_BODY.as_bytes()].concat(),
+            }],
+            NOW,
+        )
+        .unwrap();
     (store, inbox, archive)
 }
+
+const RICH_HEADERS: &str = "From: Shop <news@shop.example.com>\r\n\
+    Reply-To: collect@elsewhere.example.net\r\n\
+    Subject: Order 4421 shipped\r\n\
+    Message-ID: <m8@example.com>\r\n\
+    List-Id: Shop news <news.shop.example.com>\r\n\
+    List-Unsubscribe: <https://shop.example.com/u>\r\n\
+    List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n\
+    Received: from mr85p00im.me.com by p00-icloudmta-asmtp.icloud.com; Mon\r\n\
+    Authentication-Results: spf.icloud.com; spf=pass smtp.mailfrom=shop.example.com\r\n\
+    Authentication-Results: dkim-verifier.icloud.com;\r\n\
+    \tdkim=fail header.d=shop.example.com\r\n\
+    Received: from mx.shop.example.com by mr85p00im.me.com; Mon\r\n\
+    Authentication-Results: dmarc.icloud.com; dmarc=pass\r\n\
+    Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n";
+
+const RICH_BODY: &str = "--b\r\n\
+    Content-Type: text/html\r\n\r\n\
+    <p>Your order is on its way.</p><p style=\"display:none\">secret words</p>\
+    <a href=\"https://evil.example.net/x\">https://shop.example.com/track</a>\r\n\
+    --b\r\n\
+    Content-Type: application/pdf; name=\"label.pdf\"\r\n\
+    Content-Disposition: attachment; filename=\"label.pdf\"\r\n\
+    Content-Transfer-Encoding: base64\r\n\r\n\
+    TVqQAAMAAAAEAAAA\r\n\
+    --b--\r\n";
 
 #[test]
 fn headers_give_a_message_its_fields_and_its_thread() {
@@ -375,13 +419,13 @@ fn a_rebuild_reproduces_every_derived_table_and_the_index() {
 
     let done = store.rebuild(NOW, |_| {}).unwrap();
     assert!(done.finished);
-    assert_eq!(done.done, 7);
+    assert_eq!(done.done, 8);
     assert!(!store.rebuilding().unwrap());
     assert_eq!(derived(&store), before);
     assert_eq!(store.list_threads(inbox, None, 50).unwrap(), listed);
     assert_eq!(store.search("picnic", 10).unwrap().len(), 1);
     assert_eq!(store.search("figures", 10).unwrap().len(), 1);
-    assert_eq!(store.index.as_ref().unwrap().documents(), 7);
+    assert_eq!(store.index.as_ref().unwrap().documents(), 8);
     assert_eq!(rows(&store, "SELECT count(*) FROM index_pending"), 0);
 }
 
@@ -778,4 +822,213 @@ fn a_change_of_flags_is_a_change_of_what_is_unread() {
             .unwrap(),
         0
     );
+}
+
+#[test]
+fn a_message_s_evidence_is_derived_and_hidden_text_is_not_searched() {
+    let (_directory, home) = home();
+    let (mut store, _inbox, _) = busy(&home);
+    let evidence: (
+        String,
+        i64,
+        i64,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        i64,
+        i64,
+        bool,
+    ) = store
+        .connection
+        .query_row(
+            "SELECT list_id, unsubscribe, reply_to_differs, auth_server, auth_spf, auth_dkim,
+                    auth_dmarc, hidden_chars, links, mismatched_links, template_key IS NOT NULL
+             FROM envelope WHERE subject = 'Order 4421 shipped'",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                    row.get(8)?,
+                    row.get(9)?,
+                    row.get(10)?,
+                ))
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        evidence,
+        (
+            "news.shop.example.com".to_string(),
+            2,
+            1,
+            // iCloud's own results; the sender's DMARC line below where the
+            // message came in is not read.
+            "spf.icloud.com".to_string(),
+            "pass".to_string(),
+            "fail".to_string(),
+            String::new(),
+            12,
+            1,
+            1,
+            true
+        )
+    );
+    // The attachment says it is a PDF; its bytes are a Windows program.
+    let (detected, differs): (String, bool) = store
+        .connection
+        .query_row(
+            "SELECT detected, type_differs FROM part WHERE name = 'label.pdf'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        (detected.as_str(), differs),
+        ("application/x-msdownload", true)
+    );
+    // What a person sees is searched; what is hidden is not.
+    assert_eq!(store.search("shipped way", 10).unwrap().len(), 1);
+    assert_eq!(store.search("secret", 10).unwrap().len(), 0);
+}
+
+#[test]
+fn rows_from_an_older_derivation_are_derived_again_newest_first() {
+    let (_directory, home) = home();
+    let (mut store, inbox, _) = busy(&home);
+    let before = derived(&store);
+    store
+        .connection
+        .execute_batch("UPDATE envelope SET parser = 1, list_id = '', links = 0")
+        .unwrap();
+    assert_eq!(store.stale_count().unwrap(), 8);
+    assert_eq!(store.rederive_stale(3, NOW).unwrap(), 3);
+    let newest_first: Vec<i64> = {
+        let mut statement = store
+            .connection
+            .prepare("SELECT message_id FROM envelope WHERE parser = 1 ORDER BY message_id")
+            .unwrap();
+        statement
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+    assert_eq!(
+        newest_first,
+        vec![1, 2, 3, 4, 5],
+        "the three newest went first"
+    );
+    while store.rederive_stale(3, NOW).unwrap() > 0 {}
+    assert_eq!(store.stale_count().unwrap(), 0);
+    assert_eq!(derived(&store), before);
+    let _ = inbox;
+}
+
+#[test]
+fn a_store_from_before_the_evidence_is_derived_again_after_its_migration() {
+    let (_directory, home) = home();
+    {
+        let mut store = Store::open_with(&home, &schema::MIGRATIONS[..3]).unwrap();
+        let account = store.add_account("icloud", "a", 0).unwrap();
+        let inbox = store
+            .upsert_mailbox(
+                account,
+                &MailboxSeen {
+                    provider_key: "INBOX",
+                    name: "INBOX",
+                    role: Role::Inbox,
+                },
+            )
+            .unwrap();
+        // At version 3 the derivation that writes the evidence's columns
+        // cannot run: the rows are written as the version-1 derivation left
+        // them.
+        let headers = [seen(1, "plan", &[]), seen(2, "Re: plan", &[1])];
+        let blobs: Vec<_> = headers
+            .iter()
+            .map(|header| store.log().put(&header.header_block).unwrap())
+            .collect();
+        for (number, (header, blob)) in headers.iter().zip(&blobs).enumerate() {
+            let id = i64::try_from(number).unwrap() + 1;
+            store
+                .connection
+                .execute(
+                    "INSERT INTO message (id, header_hash, reported_size, first_seen_at)
+                     VALUES (?1, ?2, ?3, 0)",
+                    rusqlite::params![id, blob.as_bytes().as_slice(), 1000 + id],
+                )
+                .unwrap();
+            store
+                .connection
+                .execute(
+                    "INSERT INTO held (message_id, part, kind, blob, size)
+                     VALUES (?1, 'header', 'header', ?2, ?3)",
+                    rusqlite::params![
+                        id,
+                        blob.as_bytes().as_slice(),
+                        i64::try_from(header.header_block.len()).unwrap()
+                    ],
+                )
+                .unwrap();
+            store
+                .connection
+                .execute(
+                    "INSERT INTO observation (message_id, mailbox_id, validity, provider_id,
+                                              flags, seen_at)
+                     VALUES (?1, ?2, '', ?3, '[]', 0)",
+                    rusqlite::params![id, inbox.0, id.to_string()],
+                )
+                .unwrap();
+            store
+                .connection
+                .execute(
+                    "INSERT INTO envelope (message_id, parser, thread_id, date, sender_address,
+                                           sender_name, subject)
+                     VALUES (?1, 1, 1, ?1, 'x', '', 'old')",
+                    [id],
+                )
+                .unwrap();
+        }
+        store
+            .connection
+            .execute_batch("DELETE FROM engine_state WHERE key = 'rebuild'")
+            .unwrap();
+    }
+    let mut store = Store::open(&home).unwrap();
+    assert_eq!(store.schema_version().unwrap(), 4);
+    assert_eq!(store.stale_count().unwrap(), 2);
+    while store.rederive_stale(200, NOW).unwrap() > 0 {}
+    assert_eq!(store.stale_count().unwrap(), 0);
+    let subject: String = store
+        .connection
+        .query_row(
+            "SELECT subject FROM envelope WHERE message_id = 2",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(subject, "Re: plan", "derived again from the log");
+    let threads = store.list_threads(MailboxId(1), None, 10).unwrap();
+    assert_eq!(threads.len(), 1);
+}
+
+#[test]
+fn nothing_is_derived_again_while_a_rebuild_is_under_way() {
+    let (_directory, home) = home();
+    let (mut store, _, _) = busy(&home);
+    store
+        .connection
+        .execute_batch("UPDATE envelope SET parser = 1")
+        .unwrap();
+    store.rebuild_begin().unwrap();
+    assert_eq!(store.rederive_stale(200, NOW).unwrap(), 0);
 }
