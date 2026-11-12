@@ -127,7 +127,7 @@ Each crate's maintenance history was not read.
 | --- | --- | --- | --- | --- |
 | `afd` | 0.2.1, by path | MIT | Registry, journal, approvals, tasks, MCP server | None |
 | `rusqlite` | 0.41, bundled SQLite | MIT | The store | The version Umbel pins, so the repository carries one. 0.42 is current |
-| `tantivy` | 0.27 | MIT | The search index | None |
+| `tantivy` | 0.27 | MIT | The search index | Built without its default features; with `mmap`, `stopwords`, `stemmer` and `lz4-compression`, as the phase 0 harness was |
 | `sha2` | 0.11 | MIT or Apache-2.0 | The log's file names and a message's identity | The version the `afd` crate uses |
 | `zstd` | 0.14 | BSD-3-Clause | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |
 | `mail-parser` | 1.0.1 | Apache-2.0 or MIT | Parsing messages | The licence is stated on crates.io, which answers the proposal's follow-up |
@@ -135,6 +135,8 @@ Each crate's maintenance history was not read.
 | `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Whether it exposes QRESYNC, `UID EXPUNGE` and the `COPYUID` response is not verified. Step B3 checks, and names `imap-codec` (2.0 alpha) as the fallback if it does not |
 | `lettre` | 0.11 | MIT | SMTP, from phase D | None |
 | `keyring` | 4.2 | MIT or Apache-2.0 | The operating system's keychain | None |
+| `tokio` | 1 | MIT | Running a command from the command line; the `afd` crate's deadlines use it | With `rt` and `time` only until step B5 serves |
+| `async-trait`, `serde_json` | 0.1, 1 | MIT or Apache-2.0 | A command's handler and its input and result | The `afd` crate's own |
 
 Every crate here is permissively licensed. Step B1 added a licence check so a transitive
 dependency cannot change that unnoticed: a test in the crate reads the lockfile's packages and
@@ -278,23 +280,31 @@ and one for each attachment when it is fetched; its record says which parts are 
   on Linux, a flush for each file elsewhere. Flushing each file fully held the log to about 260
   header blocks a second on macOS, under [4.4](#44-limits-to-meet)'s limit; a flush for each
   batch of 250 stored between 1 700 and 3 100 a second over five runs, and no flush at all 4 400.
+- **A batch is written on several threads.** Creating a small file costs the file system a few
+  hundred microseconds whatever its size, which held the store just under
+  [4.4](#44-limits-to-meet)'s import limit when a batch's files were written one after another.
 - **Storing again repairs.** Storing bytes that are already held reads the file there first. A
   damaged one is moved to `blobs/damaged/`, never deleted, and written afresh. So fetching a
   message again mends its file, whatever damaged it.
 
-**The tables.** A sketch. Step B2 fixes the columns of each table when it creates it: the
-first half creates what is not derived, the second half the rest.
+**The tables.** Step B2 fixed the columns of the tables it created: its first half what is not
+derived, its second half a message's fields, its parts, threads and where they show. The rows
+for later phases are a sketch, fixed by the step that creates each.
 
 | Table | One row for | Derived from the log |
 | --- | --- | --- |
 | `account` | An account and its provider | No |
 | `mailbox` | A mailbox, with its provider identity, its role and its sync cursor | No |
-| `message` | A message: its identity, size, dates, sender, subject, a snippet, thread, template, the list and bulk headers found, the authentication header, the parser's version | Its identity no; the rest yes |
+| `message` | A message's identity: the hash of its header block, the size the provider reports, when it was first seen and when the provider received it | No |
+| `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 adds the template, the list and bulk headers and the authentication header | Yes |
 | `held` | Which of a message's bytes the log holds: the header block, the whole, a text part or an attachment, each with its hash | No |
 | `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted: a row is ended, as superseded, removed or closed by a new `UIDVALIDITY`, and a new row is written | No: it is the record of what the provider showed |
 | `unreturned` | A listed message that did not arrive: the mailbox, the provider's id, how many tries, when | No |
-| `part` | A part of a message: its place, type, size, hash and whether it is held | Yes |
-| `thread` | A thread, with what a list needs: last date, counts, a snippet | Yes |
+| `part` | A part of a message held whole: its place as IMAP numbers it, its type, its file name, its size once decoded, and whether it is offered as an attachment. Whether a part fetched alone is held is in `held` | Yes |
+| `thread` | A thread, with what a list needs: last date, counts, the subject of its oldest message, the snippet and sender of its newest. Its id is the lowest id of its messages | Yes |
+| `thread_key` | A Message-ID a message has or names, as 16 bytes of its SHA-256, and the thread it belongs to ([5.6](#56-threads-on-imap)) | Yes |
+| `thread_place` | A thread in a mailbox: how many of its messages the mailbox currently shows, and the date of the newest of them. Indexed by mailbox and date, newest first | Yes, from `envelope` and `observation` |
+| `index_pending`, `engine_state` | Which messages' documents the index has not yet committed, the highest it has, and how far a rebuild has come | No: the derivation's own bookkeeping |
 | `sender`, `sender_address` | A sender and its history with the person ([section 7](#7-relationships-and-screening)) | Counts yes; the person's decisions no |
 | `template` | A template and how often it was seen | Yes |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
@@ -303,12 +313,39 @@ first half creates what is not derived, the second half the rest.
 | `policy`, `token` | The person's policy; hashed tokens | No |
 | `draft`, `outbound`, `record` | From phases D and E | No |
 
-**The index.** tantivy, with the subject and the visible text indexed and not stored, and the
-message id, thread, account, mailbox, sender, date and screening class as fast fields for
-filtering.
+**The index.** tantivy, with the subject and the text indexed and not stored.
 
-**What a view reads.** A list of threads reads `thread` alone. Opening a message parses its file.
-Search asks the index for ids and reads `thread`.
+- **It holds what belongs to the message alone:** its id, its date, its sender, its subject and
+  its text. A message's thread, its mailboxes and its screening class change after it is
+  indexed, and the text is not stored, so changing a field of a document would mean reading the
+  message from the log again. Step B2 reads those from the tables after a search. Whether
+  `mail-search` needs any of them as a filter inside the index is decided by step B4, with that
+  cost.
+- **It never claims a document it lacks.** The transaction that derives a message notes in
+  `index_pending` that the index lacks its document. The document goes to the index after that
+  transaction commits. A commit of the index carries the highest number it holds, and only then
+  are the notes up to it removed. After a stop, what is still noted is made again from the log.
+  The index is flushed harder than SQLite (whose commits are `synchronous = NORMAL`), so after a
+  power failure, or a database restored from an older copy, the index can be ahead of the
+  tables; new notes are then numbered above what the index holds, so none is removed unmade.
+  A file that cannot be read for the moment leaves its note in place; one that is gone or
+  damaged leaves the subject searchable.
+- **It is committed** when 5 000 documents wait, before a search, and when a rebuild ends, so a
+  search sees everything recorded.
+- **An index older than the tables is reported**, not searched: the directory was removed or
+  restored from elsewhere. Recording and searching fail with `INDEX_STALE` until `mail-rebuild`
+  makes it again; lists do not need the index and go on working.
+
+**What is derived when.** In the transaction that records a batch of headers, each new message
+gets its `envelope` row, its thread and its document. In the transaction that records a message
+whole, it gets its snippet, its parts and its text. A thread's row and a thread's place in a
+mailbox are never adjusted: each is computed again from the messages, once for each batch that
+touched it. That is what lets a rebuild give exactly the rows that were there; a test compares
+every derived table before and after a rebuild, including threads that merge across mailboxes.
+
+**What a view reads.** A list of a mailbox's threads reads `thread_place` and `thread`, paged
+from the last row of the page before. Opening a message parses its file. Search asks the index
+for ids and reads `envelope` and `thread`.
 
 ### 4.2 What makes two messages the same
 
@@ -330,11 +367,18 @@ shown, never a message lost.
 
 - `mail-rebuild` recomputes every derived table and the index from the log and the tables that
   are not derived. It is the proof of M3 and the repair for a parser upgrade; it resumes after a
-  stop.
+  stop. It removes the index first and the derived rows next, then derives the messages in the
+  order of their ids, 200 to a transaction, recording how far it has come. Mail recorded while
+  it runs is left for it to derive when it gets there. A message whose bytes cannot be read back
+  gets a row that says so, and does not stop it; a file system that refuses for the moment
+  stops it, to be carried on later. A store that already held mail when these tables were
+  created is marked as needing a rebuild, and new mail waits for it as it does during any
+  rebuild.
 - The schema has a version. A migration runs forward only, on start, inside a transaction. A
   version newer than the program fails the start with `STORE_NEWER`.
-- A row in `message` records the parser's version. Raising it marks rows stale, and the engine
-  recomputes them in the background, oldest last.
+- A row in `envelope` records the parser's version. Raising it marks rows stale, and the engine
+  recomputes them in the background, oldest last. The version is 1 and nothing has raised it,
+  so the background recomputation is built by the first step that does: step B4.
 
 ### 4.4 Limits to meet
 
@@ -352,6 +396,31 @@ Step B2 measures this layout with the harness, with the census's shape, at 500 0
 The harness met Q3's four with the text kept in SQLite. This layout keeps it in the log instead,
 which is why they are measured again. The last limit is separate because the log holds whole
 messages with their attachments, which Q3's measure leaves out.
+
+**Measured by step B2** on 2026-11-11, in a release build on the owner's Mac (Apple silicon, macOS),
+with `tests/limits.rs` and the iCloud census's shape: 500 000 made-up messages, whole, with the
+census's sizes (attachments above 64 KiB, capped at 2 MiB), in six mailboxes, one of them holding
+five in six. Every limit is met ([the results](limits-500000-icloud.results.json)):
+
+| Measure | Limit | Measured |
+| --- | --- | --- |
+| List 50 threads, 95th percentile | 50 ms | 0.21 ms |
+| Search and read back 50, 95th percentile | 200 ms | 13.87 ms |
+| Import, store side, headers and whole messages | 500 a second | 733 a second |
+| The tables and the index, against the messages' bytes without attachments | 3 times | 0.23 times |
+| Open one message, 95th percentile | 50 ms | 1.49 ms |
+| The whole data directory on the disk, against the bytes held | 1.5 times | 0.89 times |
+
+- **Import is the narrow one.** It has half again the limit's room. It was 494 a second before
+  the log wrote a batch's files on several threads and the store kept its prepared statements.
+  The machine was busy with other work during the run (load averages 6 to 29 on its 10 cores);
+  the result records them. The Linux path, which flushes with `syncfs`, is not measured.
+- **What the reads did not cover.** They ran on a store opened afresh, but with the operating
+  system's file cache as the import left it; a cold cache is not measured. A search reads back
+  50 messages with their threads, not 50 distinct threads.
+- **What the mail does.** Two in three messages reply to an earlier one, one reply in fifty joins
+  two threads, and every hundredth message joins one thread that grows to 5 000. The template
+  copies share their template's text and add their own words.
 
 ## 5. Sync
 
@@ -451,8 +520,11 @@ The design the probe tests:
 
 ### 5.6 Threads on IMAP
 
-A message joins the thread of any message its `References` or `In-Reply-To` names. A message
-that names none starts a thread. Whether a shared subject may join two messages with no such
+A message joins the thread of any message its `References` or `In-Reply-To` names, or that
+names it. A message that names none starts a thread. When a message names messages of two
+threads, they become one. Two messages that name the same message are one thread, whether or
+not that message is held. A thread's id is the lowest id of its messages, so the order in which
+mail arrives does not change it. The last 200 ids of a `References` header and the first 200 of `In-Reply-To` are read. Whether a shared subject may join two messages with no such
 header is decided by step B4, with a count from the owner's mailbox of how often it would be
 wrong.
 
@@ -898,6 +970,8 @@ Beside the crate's own codes:
 | --- | --- |
 | `STORE_IN_USE` | Another process owns the store |
 | `STORE_NEWER` | The store's schema is newer than the program |
+| `STORE_FAILED` | The data directory, the log or the database refused; the message is the engine's own |
+| `INDEX_STALE` | The search index is older than the tables, or gone; `mail-rebuild` makes it again |
 | `ACCOUNT_NOT_FOUND`, `MAILBOX_NOT_FOUND`, `MESSAGE_NOT_FOUND`, `THREAD_NOT_FOUND` | A named thing does not exist |
 | `SIGN_IN_REQUIRED` | The provider refused the stored credential |
 | `PROVIDER_UNAVAILABLE` | The provider could not be reached; retryable |
@@ -982,7 +1056,7 @@ file.
 | --- | --- |
 | B0 | The Gmail API probe ([5.5](#55-gmail)), as a prototype beside the census. Corrects this document |
 | B1 | The plugin folder, the crate's skeleton, the workflow and the Loam exclusion (L8); `loam-mail help` runs |
-| B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet) |
+| B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet). The second built what a list, a thread and a search need (`envelope`, `part`, `thread`, `thread_key`, `thread_place`), and the command line's running of a command. Left to the step that owns each: unread counts, with the provider interface's flags (B3); the parts of a message fetched in parts, which need its structure from the provider (B3); hidden text, the template, the limits of [6.4](#64-parsing-strangers-bytes) and the index's filters (B4); Gmail's own threads (B6); `sender`, `template` and `story` (phase C) |
 | B3 | The provider interface, the scripted IMAP server, iCloud sync with resume and unreturned messages; `mail-account-add`, `mail-sync`, `mail-status` |
 | B4 | Evidence, threads, labels on results; the read commands and `mail-search`; the fuzz targets |
 | B5 | `serve`, tokens, the layer and the two routes, stdio; the command line forwarding to a running server |
