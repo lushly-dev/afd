@@ -105,6 +105,7 @@ export const styles = css`
 		max-inline-size: 100%;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		white-space: nowrap;
 		min-inline-size: var(--size-target-compact);
 		min-block-size: var(--size-target-compact);
 		padding-inline: var(--size-space-xs);

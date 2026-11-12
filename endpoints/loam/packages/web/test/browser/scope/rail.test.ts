@@ -685,15 +685,18 @@ describe('P2-E3: two projects, and an app at each level', () => {
 				whiteSpace: style.whiteSpace,
 				width: button.getBoundingClientRect().width,
 				barEnd: bar.getBoundingClientRect().right,
+				journalStart: journal.getBoundingClientRect().left,
 				journalEnd: journal.getBoundingClientRect().right,
+				itemEnd: (button.closest('loam-status-item') as Element).getBoundingClientRect().right,
 			};
 		});
 		expect(shown.truncated).toBe(true);
 		expect(shown.textOverflow).toBe('ellipsis');
 		expect(shown.whiteSpace).toBe('nowrap');
 		expect(shown.width).toBeGreaterThanOrEqual(24);
-		// The journal's item at the end stays whole, inside the bar.
-		expect(shown.journalEnd).toBeLessThanOrEqual(shown.barEnd);
+		// The project item gives way, and the journal's item at the end stays whole, inside the bar.
+		expect(shown.itemEnd).toBeLessThanOrEqual(shown.journalStart + 0.5);
+		expect(shown.journalEnd).toBeLessThanOrEqual(shown.barEnd + 0.5);
 		expect(await home.getAttribute('aria-label')).toBe(`Project: ${name}, home`);
 		await opened.context.close();
 	});
