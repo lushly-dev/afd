@@ -57,17 +57,19 @@ its own backends, on its own terms?
 8. **Durable knowledge changes by proposal, or carries its standing.** Memory
    is agent-writable and expiring. The knowledge base changes only through a
    proposal that a policy or a person approves, per area. *Amended 2026-11-11
-   ([D157](decisions.md)):* a plugin may also keep durable records that agents
-   write directly, provided every such record carries its standing. It is
-   unverified until a person, a rule the deployer declared, or a check against
-   a source that is the person's own gives it standing; it is labelled so on
-   every read; and it is left out for a caller that asks for verified content
-   only.
+   ([D157](decisions.md); the owner has not yet read the wording):* a plugin
+   may also keep durable records that agents write directly, provided every
+   such record carries its standing. It is unverified until a person affirms
+   it, or until the host's own deterministic check finds its wording, word for
+   word, in a source that is the person's own and that did not reach the host
+   as a command's input. It is labelled so on every read, and where verified
+   content only is asked for it is left out unless a person affirmed it.
 9. **Stored content is untrusted input.** Results carry provenance labels,
    writes are scanned against a policy, plugins are sandboxed, raw tokens are
    never forwarded, and agent output is never auto-promoted. *Amended
-   2026-11-11 ([D157](decisions.md)):* no call an agent makes gives a record
-   standing, its own or another's.
+   2026-11-11 ([D157](decisions.md)):* nothing an agent's call claims or
+   passes decides a record's standing, its own or another's. A person's
+   decision and the host's own check do.
 10. **Permission-aware from the first plugin.** From phase 2, every document
     and chunk carries an access field; the caller's principal reaches the
     store; the store filters inside the query, before ranking.
@@ -528,32 +530,52 @@ material, from loosest to strongest:
   only, readable positions sealed deterministically, and readable-only totals, so that
   filtering is exact and a boundary in modes `oauth` and `gateway`.
 - *Decided 2026-11-11 ([D157](decisions.md)), for the
-  [Ideas plan](../../../docs/features/active/ideas/ideas.proposal.md):* a third
-  kind of durable content beside the two stores, **standing records**. They are
-  a plugin's own records, of a kind its manifest declares, that an agent may
+  [Ideas plan](../../../docs/features/active/ideas/ideas.proposal.md), under
+  the owner's direction; he has not yet read the wording:* a third kind of
+  durable content beside the two stores, **standing records**. They are a
+  plugin's own records, of a kind its manifest declares, that an agent may
   write directly and that last. Each carries a standing, and the diagram above
   does not change: nothing reaches the knowledge base except by proposal, and a
   standing record is never knowledge. The rules:
-  - A record is written `unverified`. It gains standing in three ways only: a
-    person's decision, taken with the person assurance an approval needs
-    ([D115](decisions.md)); a rule the deployer declares in the workspace; or
-    a deterministic check against a source that is the person's own and whose
-    bytes no model handled. A caller's claim about a record or its source
-    decides nothing.
-  - Every read labels each record with its standing, in the verification label
-    the host already puts on knowledge and memory. A record that has standing
-    from a source check says so, with the source's date: that the person wrote
-    it then, and not that they hold it now.
-  - A caller that asks for verified content only gets records a person has
-    decided on. It gets records with standing from a source check only when it
-    asks for those too.
-  - A change to a record that has standing is a new version, which is
-    unverified and waits. What has standing is displaced only by a person's
-    decision.
-  - Such records are private to their space, carry the provenance envelope,
-    and are scanned as memory's are. They are indexed and matched apart from
-    the knowledge base, so an agent's writes do not move knowledge ranking
-    ([D70](decisions.md)'s reason, kept).
+  - A record is written `unverified`. Its wording gains standing in two ways
+    only. A person *affirms* it, by a decision taken with the person assurance
+    an approval needs ([D115](decisions.md)). Or the host's own deterministic
+    check finds that the wording is, word for word, part of a source that is
+    the person's own and that did not reach the host as a command's input:
+    *attested*. A source is the person's own when the deployer's configuration
+    names its collection as theirs, which is all the deployer's configuration
+    can do here, or when the person says so by a decision of the same
+    assurance.
+  - Nothing a call claims or passes decides standing: not what it says of a
+    record, of a source or of whose a source is. An agent's write can be found
+    attested, because the check is the host's and the source was already
+    there. The host knows only how a source arrived, not who typed it. A shell
+    on the host's machine, or whoever holds an upload address, can put a file
+    among the person's, as a shell reaches memory's files
+    ([D74](decisions.md)); keeping a collection named as the person's free of
+    such files is the deployer's.
+  - Every read labels each record as a standing record and with its standing.
+    The label never uses a knowledge tier's value, so an affirmed record
+    cannot read as verified knowledge. An attested record's label carries the
+    source's date: the person wrote it then, which is not that they hold it
+    now.
+  - Where verified content only is asked for, by a deployment's setting or by
+    a call, only affirmed records are returned. A deployment's setting may
+    also admit attested ones. A call never widens what the deployment set.
+  - A change to wording that has standing is a new version, which is
+    unverified and waits. Wording that has standing is displaced only by a
+    person's decision. Labels on a record that are not its wording may change
+    without one.
+  - Such records carry the provenance envelope with the authority the host
+    fills ([D71](decisions.md)), an access set that the caller's reader filter
+    is applied to inside the query (principle 10, [D53](decisions.md)), and
+    are private by default and scanned, as memory's are
+    ([D68](decisions.md)). They add nothing to the index or the graph that
+    knowledge search reads ([D70](decisions.md)'s reason, kept); whether a
+    later change to the graph admits their edges is that change's to decide.
+  - "The person" is the one person a space is configured for. Whose decision
+    counts in a space several people share is not settled here, and a plugin
+    that takes this path serves spaces of one person until it is.
 
   The declaration in the manifest, the label's values and the indexing are
   specified with indexed records before any plugin takes this path.
@@ -801,8 +823,8 @@ document needs as an amendment.
 | Journal | AFD's append-only record of command calls, with replay |
 | Event log | Umbel's projection of mutation entries in the journal, read by cursor |
 | Grant | A host service a plugin declared and the host allowed |
-| Standing record | *D157.* A plugin's durable record that an agent may write directly and that carries a standing: unverified until a person, a rule the deployer declared, or a check against the person's own source gives it one. Labelled on every read, and never knowledge |
-| Standing | *D157.* What a standing record's label says of it: unverified, written by the person in their own source on a date, or decided on by a person |
+| Standing record | *D157.* A plugin's durable record that an agent may write directly and that carries a standing: unverified until a person affirms it, or until the host's deterministic check finds its wording in a source that is the person's own and did not reach the host as a command's input. Labelled on every read, and never knowledge |
+| Standing | *D157.* What a standing record's label says of its wording: unverified; attested, which is word for word from the person's own source, with its date; or affirmed by a person |
 | Proposal | A knowledge-plugin record that proposes a change to the knowledge base and, once decided, is its decision trace |
 | Principal | The caller as the host sees it: AFD actor and credentials plus Umbel's extension fields |
 | Provenance envelope | The fields every stored record carries, listed in section 5 |
