@@ -41,6 +41,7 @@ export const testFiles = [
 	'scripts/run-tooling-tests.test.mjs',
 	'scripts/affected.test.mjs',
 	'scripts/rust-sweep.test.mjs',
+	'scripts/umbel-components.test.mjs',
 ];
 
 /** Suites that test the release tooling with fixture repositories. */

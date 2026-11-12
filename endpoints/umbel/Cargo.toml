@@ -43,8 +43,10 @@ testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
 # The doctor's hosted profile (step 2c) reads certificate validity with `x509-parser` and, on
 # Linux and macOS, the file system type of `state/shared/` with `rustix`'s `statfs`; both were
 # already in the lock. The gateway mode (step 4) checks an assertion's signature with
-# `jsonwebtoken`, AFD's own version, also already in the lock.
-auth = ["afd/server-auth", "dep:aws-lc-rs", "dep:base64", "dep:http-body-util", "dep:jsonwebtoken", "dep:reqwest", "dep:rusqlite", "dep:rustix", "dep:rustls-platform-verifier", "dep:rustls-pki-types", "dep:tokio-rustls", "dep:url", "dep:x509-parser"]
+# `jsonwebtoken`, AFD's own version, also already in the lock. The gateway and the HTTP layers name
+# `http` types, so `auth` enables it: `umbel-first-party` builds the library with `auth` and no loader,
+# and `cargo build -p umbel-first-party` failed without it (Component Briefs, step C5).
+auth = ["afd/server-auth", "dep:aws-lc-rs", "dep:base64", "dep:http", "dep:http-body-util", "dep:jsonwebtoken", "dep:reqwest", "dep:rusqlite", "dep:rustix", "dep:rustls-platform-verifier", "dep:rustls-pki-types", "dep:tokio-rustls", "dep:url", "dep:x509-parser"]
 # The mounted MCP server loader (specification section 6.3): rmcp's client over a child process's
 # stdio and Streamable HTTP, with rustls (rmcp's `reqwest` feature is what enables it). The child
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither

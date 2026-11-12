@@ -63,6 +63,30 @@ description = "The component libraries this space's agents are briefed on."
 Write the files with Specimen's `pack-export`. A new override needs a restart, and a changed one is
 not rechecked against the host's pack limits until then.
 
+## Use in this repository
+
+Agents working in this repository get FAST-AF's briefs from the `umbel` server in the root
+`.mcp.json`, which runs `node scripts/umbel-components.mjs`. Each time it starts, it writes a
+workspace in `.umbel/components/` (ignored by git) whose `umbel.toml` enables this plugin alone,
+exports `violet-elements`' pack from the checkout into space `main`'s override with
+`specimen pack-export`, and runs `umbel-first-party serve --stdio` on it. It builds nothing, and if the
+export fails (a record no longer matches the manifest or the guides) it does not start, since a
+brief from an older export would be wrong where the code changed.
+
+Once per checkout, or after pulling Umbel changes:
+
+```sh
+pnpm build                                              # Specimen's CLI, among the rest
+cd endpoints/umbel && cargo build --locked --release -p umbel-first-party
+```
+
+The launcher takes the newest release build under `$CARGO_TARGET_DIR` or `endpoints/umbel/target`,
+then a debug build; `UMBEL_FIRST_PARTY` names another binary. A project server in `.mcp.json` runs
+only after a person approves it in Claude Code; for Codex, add the same command with `codex mcp add`.
+`node scripts/umbel-components.mjs prepare` exports and prints what would be served, without
+serving. What it costs is recorded in the
+[Component Briefs status](../../../../docs/features/active/component-briefs/STATUS.md#step-c5-the-setup-and-its-cost).
+
 ## Limits
 
 - A call reads at most 16 MiB of pack files. Every library a call touches is read whole, so a pack
