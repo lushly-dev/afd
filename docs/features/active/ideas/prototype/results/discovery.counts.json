@@ -1,0 +1,133 @@
+{
+	"tool": "discovery/score.py",
+	"requests": 24,
+	"runs": {
+		"A-host-default/haiku": {
+			"answered": 24,
+			"right": 14,
+			"by_kind": {
+				"ask": "0/6",
+				"docs": "2/2",
+				"draft": "0/4",
+				"memory": "4/4",
+				"save": "8/8"
+			},
+			"save_landed_in": {
+				"ideas-capture": 8
+			},
+			"memory_landed_in": {
+				"memory-remember": 4
+			},
+			"ask_and_draft_landed_in": {
+				"context-bundle": 7,
+				"knowledge-search": 3
+			}
+		},
+		"A-host-default/sonnet": {
+			"answered": 24,
+			"right": 14,
+			"by_kind": {
+				"ask": "0/6",
+				"docs": "2/2",
+				"draft": "0/4",
+				"memory": "4/4",
+				"save": "8/8"
+			},
+			"save_landed_in": {
+				"ideas-capture": 8
+			},
+			"memory_landed_in": {
+				"memory-remember": 4
+			},
+			"ask_and_draft_landed_in": {
+				"search ideas": 4,
+				"search ideas evidence": 1,
+				"search ideas contradiction": 1,
+				"search ideas similar": 1,
+				"search ideas draft": 1,
+				"context-bundle": 1,
+				"search ideas outline": 1
+			}
+		},
+		"B-recommended/haiku": {
+			"answered": 24,
+			"right": 2,
+			"by_kind": {
+				"ask": "0/6",
+				"docs": "2/2",
+				"draft": "0/4",
+				"memory": "0/4",
+				"save": "0/8"
+			},
+			"save_landed_in": {
+				"ideas-guide": 8
+			},
+			"memory_landed_in": {
+				"none": 4
+			},
+			"ask_and_draft_landed_in": {
+				"ideas-guide": 10
+			}
+		},
+		"B-recommended/sonnet": {
+			"answered": 24,
+			"right": 20,
+			"by_kind": {
+				"ask": "6/6",
+				"docs": "2/2",
+				"draft": "4/4",
+				"memory": "0/4",
+				"save": "8/8"
+			},
+			"save_landed_in": {
+				"ideas-capture": 8
+			},
+			"memory_landed_in": {
+				"none": 4
+			},
+			"ask_and_draft_landed_in": {
+				"ideas-ask": 10
+			}
+		},
+		"C-recommended-with-memory/haiku": {
+			"answered": 24,
+			"right": 24,
+			"by_kind": {
+				"ask": "6/6",
+				"docs": "2/2",
+				"draft": "4/4",
+				"memory": "4/4",
+				"save": "8/8"
+			},
+			"save_landed_in": {
+				"ideas-capture": 8
+			},
+			"memory_landed_in": {
+				"memory-remember": 4
+			},
+			"ask_and_draft_landed_in": {
+				"ideas-ask": 10
+			}
+		},
+		"C-recommended-with-memory/sonnet": {
+			"answered": 24,
+			"right": 24,
+			"by_kind": {
+				"ask": "6/6",
+				"docs": "2/2",
+				"draft": "4/4",
+				"memory": "4/4",
+				"save": "8/8"
+			},
+			"save_landed_in": {
+				"ideas-capture": 8
+			},
+			"memory_landed_in": {
+				"memory-remember": 4
+			},
+			"ask_and_draft_landed_in": {
+				"ideas-ask": 10
+			}
+		}
+	}
+}

@@ -1,0 +1,278 @@
+{
+	"tool": "themes.py",
+	"model": "BAAI/bge-base-en-v1.5",
+	"extractor": "a",
+	"ideas": 3233,
+	"comparison_groupings": {
+		"source": 49,
+		"source_and_section": 245
+	},
+	"runs": {
+		"graph@0.7": {
+			"themes": 473,
+			"ideas_in_a_theme": 2926,
+			"share_in_a_theme": 0.905,
+			"singletons": 307,
+			"size": {
+				"median": 4,
+				"p90": 13,
+				"max": 47
+			},
+			"largest_theme_share": 0.0145,
+			"themes_over": {
+				"5": 165,
+				"10": 68,
+				"20": 19,
+				"50": 0
+			},
+			"themes_across_sources": 389,
+			"share_of_themes_across_sources": 0.8224,
+			"themes_across_5_or_more_sources": 88,
+			"against_source": {
+				"nmi": 0.5312,
+				"nmi_shuffled": 0.3843,
+				"ari": 0.0531
+			},
+			"against_section": {
+				"nmi": 0.6561,
+				"nmi_shuffled": 0.5534,
+				"ari": 0.0827
+			}
+		},
+		"graph@0.75": {
+			"themes": 457,
+			"ideas_in_a_theme": 2302,
+			"share_in_a_theme": 0.712,
+			"singletons": 931,
+			"size": {
+				"median": 3,
+				"p90": 11,
+				"max": 46
+			},
+			"largest_theme_share": 0.0142,
+			"themes_over": {
+				"5": 111,
+				"10": 47,
+				"20": 15,
+				"50": 0
+			},
+			"themes_across_sources": 357,
+			"share_of_themes_across_sources": 0.7812,
+			"themes_across_5_or_more_sources": 54,
+			"against_source": {
+				"nmi": 0.5627,
+				"nmi_shuffled": 0.4556,
+				"ari": 0.0389
+			},
+			"against_section": {
+				"nmi": 0.6915,
+				"nmi_shuffled": 0.6158,
+				"ari": 0.0594
+			}
+		},
+		"graph@0.8": {
+			"themes": 376,
+			"ideas_in_a_theme": 1329,
+			"share_in_a_theme": 0.4111,
+			"singletons": 1904,
+			"size": {
+				"median": 3,
+				"p90": 6,
+				"max": 24
+			},
+			"largest_theme_share": 0.0074,
+			"themes_over": {
+				"5": 45,
+				"10": 14,
+				"20": 2,
+				"50": 0
+			},
+			"themes_across_sources": 262,
+			"share_of_themes_across_sources": 0.6968,
+			"themes_across_5_or_more_sources": 14,
+			"against_source": {
+				"nmi": 0.5977,
+				"nmi_shuffled": 0.5517,
+				"ari": 0.0141
+			},
+			"against_section": {
+				"nmi": 0.7357,
+				"nmi_shuffled": 0.7015,
+				"ari": 0.0278
+			}
+		},
+		"tree@0.25": {
+			"themes": 682,
+			"ideas_in_a_theme": 2037,
+			"share_in_a_theme": 0.6301,
+			"singletons": 1196,
+			"size": {
+				"median": 2,
+				"p90": 5,
+				"max": 38
+			},
+			"largest_theme_share": 0.0118,
+			"themes_over": {
+				"5": 57,
+				"10": 9,
+				"20": 1,
+				"50": 0
+			},
+			"themes_across_sources": 468,
+			"share_of_themes_across_sources": 0.6862,
+			"themes_across_5_or_more_sources": 16,
+			"against_source": {
+				"nmi": 0.5904,
+				"nmi_shuffled": 0.5285,
+				"ari": 0.0167
+			},
+			"against_section": {
+				"nmi": 0.7267,
+				"nmi_shuffled": 0.6816,
+				"ari": 0.0344
+			}
+		},
+		"tree@0.3": {
+			"themes": 656,
+			"ideas_in_a_theme": 2702,
+			"share_in_a_theme": 0.8358,
+			"singletons": 531,
+			"size": {
+				"median": 3,
+				"p90": 7,
+				"max": 135
+			},
+			"largest_theme_share": 0.0418,
+			"themes_over": {
+				"5": 91,
+				"10": 37,
+				"20": 7,
+				"50": 1
+			},
+			"themes_across_sources": 494,
+			"share_of_themes_across_sources": 0.753,
+			"themes_across_5_or_more_sources": 34,
+			"against_source": {
+				"nmi": 0.5599,
+				"nmi_shuffled": 0.4468,
+				"ari": 0.0419
+			},
+			"against_section": {
+				"nmi": 0.6917,
+				"nmi_shuffled": 0.6073,
+				"ari": 0.0724
+			}
+		},
+		"tree@0.35": {
+			"themes": 469,
+			"ideas_in_a_theme": 3075,
+			"share_in_a_theme": 0.9511,
+			"singletons": 158,
+			"size": {
+				"median": 3,
+				"p90": 11,
+				"max": 358
+			},
+			"largest_theme_share": 0.1107,
+			"themes_over": {
+				"5": 120,
+				"10": 50,
+				"20": 22,
+				"50": 4
+			},
+			"themes_across_sources": 388,
+			"share_of_themes_across_sources": 0.8273,
+			"themes_across_5_or_more_sources": 67,
+			"against_source": {
+				"nmi": 0.5178,
+				"nmi_shuffled": 0.3437,
+				"ari": 0.0832
+			},
+			"against_section": {
+				"nmi": 0.6336,
+				"nmi_shuffled": 0.5002,
+				"ari": 0.0857
+			}
+		}
+	},
+	"between_methods": {
+		"graph@0.7 vs tree@0.25": {
+			"nmi": 0.8936,
+			"nmi_shuffled": 0.7958,
+			"ari": 0.2482
+		},
+		"graph@0.7 vs tree@0.3": {
+			"nmi": 0.8949,
+			"nmi_shuffled": 0.7294,
+			"ari": 0.3139
+		},
+		"graph@0.7 vs tree@0.35": {
+			"nmi": 0.8375,
+			"nmi_shuffled": 0.6262,
+			"ari": 0.1478
+		},
+		"graph@0.75 vs tree@0.25": {
+			"nmi": 0.9372,
+			"nmi_shuffled": 0.8417,
+			"ari": 0.3264
+		},
+		"graph@0.75 vs tree@0.3": {
+			"nmi": 0.9166,
+			"nmi_shuffled": 0.78,
+			"ari": 0.3115
+		},
+		"graph@0.75 vs tree@0.35": {
+			"nmi": 0.85,
+			"nmi_shuffled": 0.6838,
+			"ari": 0.1319
+		},
+		"graph@0.8 vs tree@0.25": {
+			"nmi": 0.9649,
+			"nmi_shuffled": 0.9055,
+			"ari": 0.4945
+		},
+		"graph@0.8 vs tree@0.3": {
+			"nmi": 0.9203,
+			"nmi_shuffled": 0.849,
+			"ari": 0.209
+		},
+		"graph@0.8 vs tree@0.35": {
+			"nmi": 0.8412,
+			"nmi_shuffled": 0.7593,
+			"ari": 0.059
+		}
+	},
+	"between_models": {
+		"compare_model": "nomic-ai/nomic-embed-text-v1.5-Q",
+		"graph@0.7": {
+			"nmi": 0.8302,
+			"nmi_shuffled": 0.6884,
+			"ari": 0.2606
+		},
+		"graph@0.75": {
+			"nmi": 0.8831,
+			"nmi_shuffled": 0.7763,
+			"ari": 0.2763
+		},
+		"graph@0.8": {
+			"nmi": 0.9415,
+			"nmi_shuffled": 0.8951,
+			"ari": 0.2816
+		},
+		"tree@0.25": {
+			"nmi": 0.931,
+			"nmi_shuffled": 0.8668,
+			"ari": 0.2571
+		},
+		"tree@0.3": {
+			"nmi": 0.872,
+			"nmi_shuffled": 0.7362,
+			"ari": 0.2903
+		},
+		"tree@0.35": {
+			"nmi": 0.7802,
+			"nmi_shuffled": 0.5374,
+			"ari": 0.3022
+		}
+	}
+}
