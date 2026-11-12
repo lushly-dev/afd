@@ -168,7 +168,11 @@ child process; do not invoke `server.mjs` with copied secret JSON in transcripts
 
 The runner prints a JSON allowlist: source revision, local/runtime/client/server
 versions, browser version, origin, explicit provider kind, named assertion
-results and remaining `not-run` checks, failure phase and cleanup status. It
+results and remaining `not-run` checks, failure phase and cleanup status, and,
+when cleanup fails, the step that failed (`cleanupFailure`, such as
+`cleanup-response` or `provider-close`) and the cleanup endpoint's HTTP status
+(`cleanupStatus`); the error's first line, with the control key removed, goes
+to stderr. It
 omits configured identity values, session/user IDs, OAuth codes/state, cookie
 values, passwords, secret keys, raw errors and raw network logs.
 

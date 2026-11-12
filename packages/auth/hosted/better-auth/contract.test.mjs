@@ -218,6 +218,16 @@ test('receipts whitelist output and strip OAuth query/fragment/credentials', () 
 	assert.ok(!encoded.includes(secret));
 	assert.equal(JSON.parse(encoded).origin, 'https://example.test');
 	assert.ok(!encoded.includes('environment'));
+	const failed = JSON.parse(
+		receiptJSON({
+			...JSON.parse(encoded),
+			cleanup: 'failed',
+			cleanupFailure: 'cleanup-response',
+			cleanupStatus: 503,
+		})
+	);
+	assert.equal(failed.cleanupFailure, 'cleanup-response');
+	assert.equal(failed.cleanupStatus, 503);
 });
 function run(args, env = {}, interruptAfterMs) {
 	return new Promise((resolve, reject) => {
@@ -294,7 +304,12 @@ test('SIGTERM during a real local run unwinds provider, browser, store and certi
 	assert.equal(receipt.result, 'failed');
 	assert.equal(receipt.interrupted, true);
 	assert.equal(result.readySeen, true);
-	assert.equal(receipt.cleanup, 'passed');
+	// A failure names its step and its reason, so a recurrence of #994 says what failed.
+	assert.equal(
+		receipt.cleanup,
+		'passed',
+		`cleanup failed at ${receipt.cleanupFailure} (HTTP ${receipt.cleanupStatus}): ${result.errors}`
+	);
 	assert.equal(receipt.resourceCleanup, 'passed');
 	assert.ok(receipt.assertions.length > 0);
 	assert.deepEqual(await cache(), cacheBefore);

@@ -231,7 +231,19 @@ export interface Receipt {
 	failurePhase?: string;
 	interrupted?: boolean;
 	cleanup: 'passed' | 'failed' | 'not-started';
+	/** The step of the cleanup that failed, by name: never the error itself (#994). */
+	cleanupFailure?: CleanupStep;
+	/** The cleanup endpoint's HTTP status, when it answered without success. */
+	cleanupStatus?: number;
 }
+
+export type CleanupStep =
+	| 'cleanup-request'
+	| 'cleanup-response'
+	| 'cleanup-removed'
+	| 'context-close'
+	| 'browser-close'
+	| 'provider-close';
 
 export function receiptJSON(receipt: Receipt): string {
 	return JSON.stringify(
@@ -251,6 +263,8 @@ export function receiptJSON(receipt: Receipt): string {
 			failurePhase: receipt.failurePhase,
 			interrupted: receipt.interrupted,
 			cleanup: receipt.cleanup,
+			cleanupFailure: receipt.cleanupFailure,
+			cleanupStatus: receipt.cleanupStatus,
 		},
 		null,
 		2
