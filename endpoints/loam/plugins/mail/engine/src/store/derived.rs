@@ -49,6 +49,8 @@ pub struct ThreadListed {
     pub last_date: i64,
     /// How many of its messages this mailbox shows.
     pub shown: u64,
+    /// How many of those are unread.
+    pub unread: u64,
     /// How many messages it has in all.
     pub messages: u64,
     /// How many attachments its messages have.
@@ -456,19 +458,31 @@ fn compute_thread(transaction: &Transaction<'_>, thread: i64) -> Result<(), Stor
     Ok(())
 }
 
+/// `\Seen` as the store writes it inside an observation's flags: a JSON
+/// string, so its backslash is escaped.
+pub(super) const SEEN_IN_FLAGS: &str = "\"\\\\Seen\"";
+
 fn compute_place(
     transaction: &Transaction<'_>,
     mailbox: i64,
     thread: i64,
 ) -> Result<(), StoreError> {
-    let (messages, last_date): (i64, Option<i64>) = transaction.one(
-        "SELECT count(*), max(envelope.date) FROM envelope
+    // A message is unread when no current observation of it in this mailbox
+    // carries `\Seen`.
+    let (messages, last_date, unread): (i64, Option<i64>, i64) = transaction.one(
+        "SELECT count(*), max(envelope.date),
+                count(*) FILTER (WHERE NOT EXISTS (
+                    SELECT 1 FROM observation
+                    WHERE observation.message_id = envelope.message_id
+                      AND observation.mailbox_id = ?1 AND observation.ended_at IS NULL
+                      AND instr(observation.flags, ?3) > 0))
+         FROM envelope
          WHERE envelope.thread_id = ?2
            AND EXISTS (SELECT 1 FROM observation
                        WHERE observation.message_id = envelope.message_id
                          AND observation.mailbox_id = ?1 AND observation.ended_at IS NULL)",
-        params![mailbox, thread],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        params![mailbox, thread, SEEN_IN_FLAGS],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
     match last_date {
         None => {
@@ -479,11 +493,12 @@ fn compute_place(
         }
         Some(last_date) => {
             transaction.run(
-                "INSERT INTO thread_place (mailbox_id, thread_id, last_date, messages)
-                 VALUES (?1, ?2, ?3, ?4)
+                "INSERT INTO thread_place (mailbox_id, thread_id, last_date, messages, unread)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT (mailbox_id, thread_id) DO UPDATE SET
-                     last_date = excluded.last_date, messages = excluded.messages",
-                params![mailbox, thread, last_date, messages],
+                     last_date = excluded.last_date, messages = excluded.messages,
+                     unread = excluded.unread",
+                params![mailbox, thread, last_date, messages, unread],
             )?;
         }
     }
@@ -670,7 +685,7 @@ impl Store {
         let mut statement = self.connection.prepare_cached(
             "SELECT thread_place.thread_id, thread_place.last_date, thread_place.messages,
                     thread.messages, thread.attachments, thread.subject, thread.snippet,
-                    thread.last_sender
+                    thread.last_sender, thread_place.unread
              FROM thread_place JOIN thread ON thread.id = thread_place.thread_id
              WHERE thread_place.mailbox_id = ?1
                AND (thread_place.last_date, thread_place.thread_id) < (?2, ?3)
@@ -687,6 +702,7 @@ impl Store {
                 subject: row.get(5)?,
                 snippet: row.get(6)?,
                 last_sender: row.get(7)?,
+                unread: count(row.get(8)?),
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -819,6 +835,58 @@ impl Store {
         Ok(())
     }
 
+    /// What a message's bytes in the log say: its headers, and its body when
+    /// it is held whole. Bytes that are gone or damaged give fields that say
+    /// so; a file system that refuses for the moment is an error.
+    fn read_derivation(
+        &self,
+        message: i64,
+    ) -> Result<(HeaderFields, Option<BodyFields>), StoreError> {
+        let header = match self.read_part(MessageId(message), "header") {
+            Ok(block) => derive::header_fields(&block),
+            Err(error) if unreadable(&error) => HeaderFields {
+                unparsed: Some("the headers could not be read from the log"),
+                ..HeaderFields::default()
+            },
+            Err(error) => return Err(error),
+        };
+        let body = match self.read_part(MessageId(message), "whole") {
+            Ok(whole) => Some(derive::body_fields(&whole)),
+            Err(StoreError::NotFound(_)) => None,
+            Err(error) if unreadable(&error) => Some(BodyFields {
+                unparsed: Some("the body could not be read from the log"),
+                ..BodyFields::default()
+            }),
+            Err(error) => return Err(error),
+        };
+        Ok((header, body))
+    }
+
+    /// Derives a message again from its bytes, as a rebuild would: after a
+    /// damaged file is repaired, what was derived while it could not be read
+    /// is replaced. A message a rebuild under way has not reached is left to
+    /// it.
+    ///
+    /// # Errors
+    /// When the log, the database or the index refuses.
+    pub(super) fn rederive(&mut self, message: i64, now: i64) -> Result<(), StoreError> {
+        let (header, body) = self.read_derivation(message)?;
+        self.ensure_index()?;
+        let transaction = self.connection.transaction()?;
+        let mut touched = Touched::new(rebuild_cursor(&transaction)?);
+        if touched.awaits_rebuild(message) {
+            return Ok(());
+        }
+        derive_header(&transaction, message, &header, &mut touched)?;
+        if let Some(body) = body {
+            derive_body(&transaction, message, body, &mut touched)?;
+        }
+        settle(&transaction, &touched, now)?;
+        transaction.commit()?;
+        self.index_documents(&touched.documents)?;
+        Ok(())
+    }
+
     /// Derives the next batch of a rebuild under way.
     ///
     /// # Errors
@@ -861,23 +929,7 @@ impl Store {
         // The bytes are read and parsed before the transaction opens.
         let mut derived = Vec::with_capacity(messages.len());
         for message in &messages {
-            let header = match self.read_part(MessageId(*message), "header") {
-                Ok(block) => derive::header_fields(&block),
-                Err(error) if unreadable(&error) => HeaderFields {
-                    unparsed: Some("the headers could not be read from the log"),
-                    ..HeaderFields::default()
-                },
-                Err(error) => return Err(error),
-            };
-            let body = match self.read_part(MessageId(*message), "whole") {
-                Ok(whole) => Some(derive::body_fields(&whole)),
-                Err(StoreError::NotFound(_)) => None,
-                Err(error) if unreadable(&error) => Some(BodyFields {
-                    unparsed: Some("the body could not be read from the log"),
-                    ..BodyFields::default()
-                }),
-                Err(error) => return Err(error),
-            };
+            let (header, body) = self.read_derivation(*message)?;
             derived.push((*message, header, body));
         }
 

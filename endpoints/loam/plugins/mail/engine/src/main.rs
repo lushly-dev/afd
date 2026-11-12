@@ -7,11 +7,16 @@ use std::sync::Arc;
 use loam_mail::cli::Caller;
 use loam_mail::engine::Engine;
 use loam_mail::home::Home;
+use loam_mail::provider::imap::{Endpoint, ICLOUD_NAMES, ImapConnector};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let home = Home::resolve(|name| std::env::var(name).ok()).ok();
-    let mut engine = Engine::new(home);
+    // The sign-in is read from the keychain, which arrives with
+    // `mail-account-add` in the second half of step B3; until then there is
+    // none, and sync says so.
+    let icloud = ImapConnector::new(Endpoint::icloud(), ICLOUD_NAMES, |_| None);
+    let mut engine = Engine::new(home).with_connector(Arc::new(icloud));
     if std::io::stderr().is_terminal() {
         engine = engine.with_progress(Arc::new(|line| eprintln!("{line}")));
     }

@@ -108,7 +108,7 @@ fn run_command(
             Caller::Script => ActorKind::Script,
         });
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
+        .enable_all()
         .build()?;
     let result = runtime.block_on(registry.execute(name, input, Some(context)));
     let rendered = serde_json::to_string_pretty(&result).map_err(std::io::Error::other)?;

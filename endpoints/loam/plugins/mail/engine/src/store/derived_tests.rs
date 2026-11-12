@@ -698,3 +698,84 @@ fn a_change_row_says_which_threads_a_batch_changed() {
         1
     );
 }
+
+#[test]
+fn the_migration_that_adds_unread_counts_them_from_the_observations() {
+    let (_directory, home) = home();
+    {
+        let store = Store::open_with(&home, &schema::MIGRATIONS[..2]).unwrap();
+        store
+            .connection
+            .execute_batch(
+                r#"
+                INSERT INTO account (id, provider, address, created_at) VALUES (1, 'icloud', 'a', 0);
+                INSERT INTO mailbox (id, account_id, provider_key, name, role, header_only)
+                    VALUES (1, 1, 'INBOX', 'INBOX', 'inbox', 0);
+                INSERT INTO message (id, header_hash, reported_size, first_seen_at)
+                    VALUES (1, zeroblob(32), 10, 0), (2, randomblob(32), 10, 0);
+                INSERT INTO observation (message_id, mailbox_id, validity, provider_id, flags, seen_at)
+                    VALUES (1, 1, '', '1', '["\\Seen"]', 0), (2, 1, '', '2', '[]', 0);
+                INSERT INTO envelope (message_id, parser, thread_id, date, sender_address,
+                                      sender_name, subject)
+                    VALUES (1, 1, 1, 5, 'a', '', 's'), (2, 1, 1, 6, 'a', '', 's');
+                INSERT INTO thread (id, last_date, messages, attachments, last_message, subject,
+                                    snippet, last_sender)
+                    VALUES (1, 6, 2, 0, 2, 's', '', 'a');
+                INSERT INTO thread_place (mailbox_id, thread_id, last_date, messages)
+                    VALUES (1, 1, 6, 2);
+                "#,
+            )
+            .unwrap();
+    }
+    let store = Store::open(&home).unwrap();
+    let listed = store.list_threads(MailboxId(1), None, 10).unwrap();
+    assert_eq!((listed[0].shown, listed[0].unread), (2, 1));
+}
+
+#[test]
+fn a_change_of_flags_is_a_change_of_what_is_unread() {
+    let (_directory, home) = home();
+    let (mut store, inbox, _) = seeded(&home);
+    record(
+        &mut store,
+        inbox,
+        &[seen(1, "plan", &[]), seen(2, "plan", &[1])],
+    );
+    let unread = |store: &Store| store.list_threads(inbox, None, 10).unwrap()[0].unread;
+    assert_eq!(unread(&store), 2);
+    let changed = store
+        .record_flags(
+            inbox,
+            "",
+            &[
+                crate::provider::FlagsSeen {
+                    provider_id: "1".to_string(),
+                    flags: vec!["\\Seen".to_string()],
+                },
+                // One the mailbox does not show is left alone.
+                crate::provider::FlagsSeen {
+                    provider_id: "77".to_string(),
+                    flags: vec![],
+                },
+            ],
+            NOW + 1,
+        )
+        .unwrap();
+    assert_eq!(changed, 1);
+    assert_eq!(unread(&store), 1);
+    // The same flags again change nothing.
+    assert_eq!(
+        store
+            .record_flags(
+                inbox,
+                "",
+                &[crate::provider::FlagsSeen {
+                    provider_id: "1".to_string(),
+                    flags: vec!["\\Seen".to_string()],
+                }],
+                NOW + 2,
+            )
+            .unwrap(),
+        0
+    );
+}

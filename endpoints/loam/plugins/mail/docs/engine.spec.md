@@ -132,10 +132,11 @@ Each crate's maintenance history was not read.
 | `zstd` | 0.14 | BSD-3-Clause | Compressing the log | Builds the zstd C library, as `rusqlite` builds SQLite |
 | `mail-parser` | 1.0.1 | Apache-2.0 or MIT | Parsing messages | The licence is stated on crates.io, which answers the proposal's follow-up |
 | `ammonia` | 4.2 | MIT or Apache-2.0 | Cleaning HTML for display | None |
-| `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Whether it exposes QRESYNC, `UID EXPUNGE` and the `COPYUID` response is not verified. Step B3 checks, and names `imap-codec` (2.0 alpha) as the fallback if it does not |
+| `async-imap` | 0.12 | MIT or Apache-2.0 | IMAP | Checked by step B3. With `imap-proto` 0.17 it parses `VANISHED`, `HIGHESTMODSEQ`, `MODSEQ` and the `COPYUID` code, and it has `UID EXPUNGE`. It has no call that opens a mailbox with QRESYNC, and it sets aside on a bounded channel, dropping when full, any response its own calls do not expect. So the engine uses it for the connection, the sign-in and the parser, sends its own commands and reads every response itself. `imap-codec` is not needed |
+| `rustls`, `tokio-rustls`, `rustls-native-certs` | 0.23, 0.26, 0.8 | MIT, Apache-2.0 or ISC | TLS to the provider, with the operating system's certificates | Added by step B3, with `ring` rather than the default `aws-lc-rs`, which needs CMake to build |
 | `lettre` | 0.11 | MIT | SMTP, from phase D | None |
 | `keyring` | 4.2 | MIT or Apache-2.0 | The operating system's keychain | None |
-| `tokio` | 1 | MIT | Running a command from the command line; the `afd` crate's deadlines use it | With `rt` and `time` only until step B5 serves |
+| `tokio` | 1 | MIT | Running a command from the command line; the `afd` crate's deadlines use it; the connection to the provider | With `rt`, `time`, `net` and `io-util` until step B5 serves |
 | `async-trait`, `serde_json` | 0.1, 1 | MIT or Apache-2.0 | A command's handler and its input and result | The `afd` crate's own |
 
 Every crate here is permissively licensed. Step B1 added a licence check so a transitive
@@ -294,16 +295,18 @@ for later phases are a sketch, fixed by the step that creates each.
 | Table | One row for | Derived from the log |
 | --- | --- | --- |
 | `account` | An account and its provider | No |
-| `mailbox` | A mailbox, with its provider identity, its role and its sync cursor | No |
+| `mailbox` | A mailbox, with its provider identity, its role, its sync cursor, how many ids its last listing named, and when the provider stopped listing it | No |
 | `message` | A message's identity: the hash of its header block, the size the provider reports, when it was first seen and when the provider received it | No |
 | `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 adds the template, the list and bulk headers and the authentication header | Yes |
 | `held` | Which of a message's bytes the log holds: the header block, the whole, a text part or an attachment, each with its hash | No |
 | `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted: a row is ended, as superseded, removed or closed by a new `UIDVALIDITY`, and a new row is written | No: it is the record of what the provider showed |
 | `unreturned` | A listed message that did not arrive: the mailbox, the provider's id, how many tries, when | No |
+| `refetch` | A message's file that a read found damaged or missing, for sync to fetch again; after three fetches that return other bytes, it is left for a person | No |
+| `body_missing` | A message whose body the provider did not return when asked: how many tries, when ([5.3](#53-order-and-fairness)) | No |
 | `part` | A part of a message held whole: its place as IMAP numbers it, its type, its file name, its size once decoded, and whether it is offered as an attachment. Whether a part fetched alone is held is in `held` | Yes |
 | `thread` | A thread, with what a list needs: last date, counts, the subject of its oldest message, the snippet and sender of its newest. Its id is the lowest id of its messages | Yes |
 | `thread_key` | A Message-ID a message has or names, as 16 bytes of its SHA-256, and the thread it belongs to ([5.6](#56-threads-on-imap)) | Yes |
-| `thread_place` | A thread in a mailbox: how many of its messages the mailbox currently shows, and the date of the newest of them. Indexed by mailbox and date, newest first | Yes, from `envelope` and `observation` |
+| `thread_place` | A thread in a mailbox: how many of its messages the mailbox currently shows, how many of those are unread (no `\Seen` flag), and the date of the newest of them. Indexed by mailbox and date, newest first | Yes, from `envelope` and `observation` |
 | `index_pending`, `engine_state` | Which messages' documents the index has not yet committed, the highest it has, and how far a rebuild has come | No: the derivation's own bookkeeping |
 | `sender`, `sender_address` | A sender and its history with the person ([section 7](#7-relationships-and-screening)) | Counts yes; the person's decisions no |
 | `template` | A template and how often it was seen | Yes |
@@ -362,6 +365,14 @@ or in part, so the rule is the same for all of them:
 Whether a provider returns the same header block for one message in two mailboxes is checked on
 the owner's accounts in step B3. If it does not, the two are stored as two messages: a duplicate
 shown, never a message lost.
+
+**Checked on iCloud by step B3** on 2026-11-11 ([the results](live-icloud-b3.results.json)):
+of 293 369 messages in 36 mailboxes, 152 Message-IDs are in more than one mailbox, and every one
+of them is held as several messages. In 150 the header blocks differ, as a copy delivered to the
+inbox and the copy in the sent mailbox do; in 2 the header block is the same and the size iCloud
+reports differs. No message was shown in two mailboxes as one. So on iCloud the rule above never
+joined two copies, and the few it keeps apart are what a person would see twice in another client
+too. Gmail, where a message is one message with several labels, is checked by step B6.
 
 ### 4.3 Rebuild and migration
 
@@ -455,14 +466,40 @@ says which role.
 - **Identity in a mailbox.** A message in a mailbox is its `UIDVALIDITY` and UID. If
   `UIDVALIDITY` changes, the mailbox's observations are closed and it is listed again; messages
   already in the log are matched ([4.2](#42-what-makes-two-messages-the-same)).
+- **What is sent.** Step B3's connection sends `CAPABILITY`, `LOGIN`, `ENABLE QRESYNC`, `LIST`,
+  `EXAMINE`, `UID SEARCH`, `UID FETCH` with `BODY.PEEK`, and `LOGOUT`, and nothing else; a test
+  over the scripted server fails if any other command is sent.
 - **First sync.** `UID SEARCH ALL`, then headers in batches of 250, newest first, then bodies.
-- **Later syncs.** With CONDSTORE, `CHANGEDSINCE` the stored mod-sequence finds changed flags.
-  With QRESYNC, `VANISHED` reports removals; without it, the engine lists the UIDs again and
-  compares. New mail is the UIDs above the highest seen.
-- **Waiting.** `IDLE` on the inbox where the server offers it; other mailboxes are polled. The
-  interval is decided by step B3.
-- **A dropped connection** is retried with backoff. A batch is the unit of progress: the cursor
-  moves only after a batch is stored.
+  The cursor (the next UID and the highest mod-sequence) is stored once every listed message has
+  been tried. A mailbox that stops before then is listed again on the next pass, and only what it
+  does not yet show is fetched: the stop costs one listing, and the flags of what it already
+  shows, never a batch already stored. The flags are read because the cursor that listing stores
+  will not cover a change made while the pass was stopped.
+- **Later syncs.** With QRESYNC, the mailbox is opened with the stored cursor, and the server
+  names what vanished and the flags that changed. With CONDSTORE alone, `CHANGEDSINCE` finds
+  changed flags and `UID SEARCH ALL` what remains. With neither, every message's flags are read
+  and `UID SEARCH ALL` says what remains: a message the server lists and never returns is missing
+  from a `FETCH` and has not left. New mail is the UIDs from the cursor's next UID on. A
+  generation that changes between two openings in one pass begins the mailbox again.
+- **Flags** are kept as the server gives them, with the system flags written one way whatever
+  their case. `\Recent` is left out: it belongs to a session, not to the message.
+- **Waiting.** `IDLE` on the inbox where the server offers it; other mailboxes are polled. Step
+  B3 polls every five minutes, in `mail-sync` with `follow`; `IDLE` arrives with `serve` (step
+  B5), where sync runs in the background.
+- **A dropped connection** is opened again with backoff (one second, doubling, five times), and
+  the step that failed is tried again. A batch is the unit of progress: the cursor moves only
+  after a batch is stored.
+- **A request that keeps failing** on a connection that can be opened is asked again with a new
+  connection, without counting toward giving up the pass. After two failures it is asked for a
+  message at a time, and a message whose request fails alone four times is passed over and
+  counted as not returned ([5.4](#54-messages-listed-and-not-returned)), so a message the engine
+  cannot read never holds back its mailbox. Twenty-four such failures in a row across the
+  account end the pass with `PROVIDER_UNAVAILABLE`.
+- **Signing in.** A `NO` to `LOGIN` is `SIGN_IN_REQUIRED`, unless its code is `UNAVAILABLE`,
+  which is the server refusing for the moment. The reply is read for its code alone.
+- **A mailbox the provider stops listing** shows nothing: its observations are closed. If it is
+  listed again, it is listed in full and its messages are matched by their identity. A listing
+  that does not name the inbox retires nothing.
 
 ### 5.3 Order and fairness
 
@@ -470,7 +507,15 @@ says which role.
   a mailbox of 283 000 messages is still arriving.
 - Within a mailbox, newest first. Within an account, the inbox and the sent mailbox go first:
   the sent mailbox is what tells the engine whom the person has written to.
-- Bodies follow headers. A message someone opens is fetched at once, ahead of the queue.
+- Bodies follow headers, in each mailbox: a mailbox fetches its bodies once its headers are in,
+  while a larger one is still fetching headers. A turn with nothing to fetch opens nothing. A
+  message someone opens is fetched at once, ahead of the queue (step B4).
+- A body that conflicts with bytes already held for its message is set aside, and the rest of its
+  batch is recorded.
+- A body the provider does not return when asked follows the rule of
+  [5.4](#54-messages-listed-and-not-returned): a try counts at most once an hour, and after three
+  it no longer holds the mailbox back from "synced". It is asked for again weekly, and
+  `mail-status` counts it.
 - The junk and trash mailboxes are **header-only**: their bodies are fetched only when someone
   opens a message. They are shown apart, and are in no story and in no count the person did not
   ask for. Their headers still count toward a burst ([7.4](#74-bursts)).
@@ -492,6 +537,12 @@ A fetch that succeeds and returns nothing for a listed message is not an error. 
    ([9.1](#91-selections)).
 
 A message that disappears from the listing is a removal, recorded as an observation.
+
+A message's file that a read finds damaged or missing is noted, and the next pass fetches its
+bytes again from a mailbox that shows it. Storing the same bytes repairs the file
+([4.1](#41-layout)), and the message is derived again, so that what was derived while the file
+could not be read gives way to what a rebuild would give. A provider that returns other bytes
+three times leaves the note for a person.
 
 ### 5.5 Gmail
 
@@ -539,8 +590,10 @@ the last successful pass, and the last error.
 - An account is synced when its mailboxes are.
 
 `mail-sync` does not wait for any of this. Under `serve` it asks the background sync to run a
-pass now and returns the state. Run directly at a terminal with no server, it syncs until
-stopped, printing progress.
+pass now and returns the state. Run directly with no server, it runs one pass, until each
+mailbox has fetched what it can, and returns what the pass did, in counts; at a terminal it prints
+progress, ids and counts only. With `follow`, which only the command line may ask for, it keeps
+syncing until stopped, a pass every five minutes (step B3's interval; see [5.2](#52-imap)).
 
 ## 6. Evidence
 
@@ -953,7 +1006,9 @@ through a preview command's labelled parts, and the command line names each valu
 it ("Subject, as written by the sender").
 
 The exact shape of a labelled part is decided by step B4 against the shape Umbel's knowledge
-plugin returns, so that one reader handles both.
+plugin returns, so that one reader handles both. Until then a labelled value is
+`{ "trust": "content", "text": ... }`. A mailbox's name is the provider's text, so `mail-status`
+labels it.
 
 ### 12.2 Provenance
 
@@ -1057,7 +1112,7 @@ file.
 | B0 | The Gmail API probe ([5.5](#55-gmail)), as a prototype beside the census. Corrects this document |
 | B1 | The plugin folder, the crate's skeleton, the workflow and the Loam exclusion (L8); `loam-mail help` runs |
 | B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet). The second built what a list, a thread and a search need (`envelope`, `part`, `thread`, `thread_key`, `thread_place`), and the command line's running of a command. Left to the step that owns each: unread counts, with the provider interface's flags (B3); the parts of a message fetched in parts, which need its structure from the provider (B3); hidden text, the template, the limits of [6.4](#64-parsing-strangers-bytes) and the index's filters (B4); Gmail's own threads (B6); `sender`, `template` and `story` (phase C) |
-| B3 | The provider interface, the scripted IMAP server, iCloud sync with resume and unreturned messages; `mail-account-add`, `mail-sync`, `mail-status` |
+| B3 | In two pull requests, as B2. First: the provider interface, IMAP, the scripted IMAP server, iCloud sync with resume and unreturned messages, unread counts, repairs of damaged files, `mail-sync` and `mail-status`, and the checks on the owner's account ([4.2](#42-what-makes-two-messages-the-same) and the IMAP crate of [section 2](#2-units-placement-and-crates)). Second: `mail-account-add` with the keychain, the command line's approval of a person's command ([3.5](#35-commands-only-a-person-may-run)), and the headers and text of a message over 1 MiB (M20) |
 | B4 | Evidence, threads, labels on results; the read commands and `mail-search`; the fuzz targets |
 | B5 | `serve`, tokens, the layer and the two routes, stdio; the command line forwarding to a running server |
 | B6 | Gmail sync through the API, with the scripted API |
