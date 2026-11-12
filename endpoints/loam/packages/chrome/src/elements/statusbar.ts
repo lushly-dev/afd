@@ -32,6 +32,9 @@ const styles = [
 			gap: var(--space-inline-sm);
 			min-inline-size: 0;
 		}
+		.end {
+			flex-shrink: 0;
+		}
 		@media (forced-colors: active) {
 			:host {
 				background: Canvas;

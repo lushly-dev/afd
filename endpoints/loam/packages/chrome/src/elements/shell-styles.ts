@@ -98,7 +98,13 @@ export const styles = css`
 		clip-path: inset(50%);
 		white-space: nowrap;
 	}
+	.project-status {
+		min-inline-size: 0;
+	}
 	.project-home {
+		max-inline-size: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		min-inline-size: var(--size-target-compact);
 		min-block-size: var(--size-target-compact);
 		padding-inline: var(--size-space-xs);

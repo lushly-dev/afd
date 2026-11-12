@@ -663,6 +663,41 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		await opened.context.close();
 	});
 
+	it('a long project name ends in an ellipsis in the status bar, and the item keeps the whole name (#866)', async () => {
+		// The narrowest width with a status bar: below 640 the layout is compact and hides it.
+		const opened = await openShell(browser, site.root, { viewport: { width: 640, height: 480 } });
+		const { page } = opened;
+		// 80 characters, the most a name may have (records.ts), and wide ones.
+		const name = 'Quarterly Planning Workshop for the Northern Market, Warehouses and Many Members';
+		expect(await kernelCall(page, 'project-create', { name, slug: 'quarterly' })).toMatchObject({
+			success: true,
+		});
+		await scopeTo(page, 'quarterly');
+		const home = page.locator('loam-statusbar .project-home');
+		await expect.poll(() => home.textContent()).toContain(name);
+		const shown = await home.evaluate((button) => {
+			const bar = (button.getRootNode() as ShadowRoot).querySelector('loam-statusbar') as Element;
+			const journal = bar.querySelector('.journal-status') as Element;
+			const style = getComputedStyle(button);
+			return {
+				truncated: button.scrollWidth > button.clientWidth,
+				textOverflow: style.textOverflow,
+				whiteSpace: style.whiteSpace,
+				width: button.getBoundingClientRect().width,
+				barEnd: bar.getBoundingClientRect().right,
+				journalEnd: journal.getBoundingClientRect().right,
+			};
+		});
+		expect(shown.truncated).toBe(true);
+		expect(shown.textOverflow).toBe('ellipsis');
+		expect(shown.whiteSpace).toBe('nowrap');
+		expect(shown.width).toBeGreaterThanOrEqual(24);
+		// The journal's item at the end stays whole, inside the bar.
+		expect(shown.journalEnd).toBeLessThanOrEqual(shown.barEnd);
+		expect(await home.getAttribute('aria-label')).toBe(`Project: ${name}, home`);
+		await opened.context.close();
+	});
+
 	it('P2-E11: loads hello and tally as version 1 and tasks as version 2, side by side', async () => {
 		const opened = await openShell(browser, site.root);
 		const versions = await opened.page.evaluate(async () => {
