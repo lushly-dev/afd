@@ -170,8 +170,9 @@ export interface SessionSettle {
 	/**
 	 * Before a command that reads membership again (7.6): a changed digest is a top-level `session-settle`
 	 * with `reason: 'membership'`, before the call that needed it runs. A replay replays the entry instead.
+	 * Answers `false` when the host's read failed, and the call is then refused (fail closed).
 	 */
-	reread(name: string, input: unknown): Promise<void>;
+	reread(name: string, input: unknown): Promise<boolean>;
 	/** A reload, for a replay: each page starts settled to no one (10). */
 	reload(): void;
 	stop(): void;
@@ -242,7 +243,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	/** The role and digest a settle records for `person`: read again when the host can, else the kernel's. */
 	async function membershipFor(
 		person: string | null,
-		read: boolean
+		read: boolean,
+		strict = false
 	): Promise<Pick<SessionSettleInputV1, 'role' | 'membershipDigest'>> {
 		if (!provider || person === null) return { role: null, membershipDigest: null };
 		if (read && deps.ports?.readMembership) {
@@ -250,7 +252,10 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				const found = await deps.ports.readMembership();
 				return { role: found?.role ?? null, membershipDigest: found?.digest ?? null };
 			} catch (cause) {
-				// A read that fails decides with what the kernel holds: line 0 refuses a person it does not list.
+				// Before an owner's command a failed read refuses the call (`strict`, fail closed). Elsewhere, as a
+				// settle on a change of person, it decides with what the kernel holds: line 0 refuses a person it
+				// does not list.
+				if (strict) throw cause;
 				report(cause);
 			}
 		}
@@ -512,15 +517,22 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			arm();
 		},
 		async reread(name, input) {
-			if (!provider || replaying() || !rereads(name, input)) return;
+			if (!provider || replaying() || !rereads(name, input)) return true;
 			const person = current();
-			if (person === null) return;
-			const membership = await membershipFor(person, true);
+			if (person === null) return true;
+			let membership: Pick<SessionSettleInputV1, 'role' | 'membershipDigest'>;
+			try {
+				membership = await membershipFor(person, true, true);
+			} catch (cause) {
+				report(cause);
+				return false;
+			}
 			// Unchanged from what the kernel decides with, which the last settle journaled or stage A was given.
 			const held = await membershipFor(person, false);
 			if (membership.role === held.role && membership.membershipDigest === held.membershipDigest)
-				return;
+				return true;
 			await deps.runBoot('session-settle', { person, ...membership, reason: 'membership' });
+			return true;
 		},
 		reload() {
 			settled = null;

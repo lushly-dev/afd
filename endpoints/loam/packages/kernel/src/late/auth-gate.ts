@@ -136,6 +136,19 @@ export const sessionChanged = (): CommandResult<never> =>
 		{ retryable: true, details: { [PAGE_DECIDED]: true } }
 	);
 
+/**
+ * `MEMBERSHIP_UNAVAILABLE` (4.4, 7.6): the host's membership read failed before a command that needs it.
+ * Fail closed, never deciding an owner's command on what the kernel last held. Retryable, journaled, and
+ * decided by the page, so a replay answers it from its entry.
+ */
+export const membershipUnavailable = (name: string): CommandResult<never> =>
+	kernelFailure(
+		'MEMBERSHIP_UNAVAILABLE',
+		`Membership could not be read before '${name}'`,
+		'Try again in a moment; the sign-in provider did not answer',
+		{ retryable: true, details: { [PAGE_DECIDED]: true } }
+	);
+
 /** The agent interface's agent when a call names none (phase 3 specification, 3.1). */
 export const SHELL_AGENT = 'shell-agent';
 

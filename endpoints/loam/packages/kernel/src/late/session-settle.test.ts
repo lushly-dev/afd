@@ -569,6 +569,33 @@ describe('P3-E4: membership is journaled, first and on every change (4.4, 7.6)',
 		expect(replayed.report.diverged).toBe(false);
 	});
 
+	it("P3-E4: a membership read that fails before an owner's command refuses it, retryable, and a replay agrees", async () => {
+		let failing = true;
+		const made = await providerWorkspace({
+			ports: {
+				...scopedPorts(),
+				readMembership: async () => {
+					if (failing) throw new Error('provider unreachable');
+					return { role: 'owner' as const, digest: 'd1' };
+				},
+			},
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		const refused = await made.kernel.call('project-create', { name: 'Ledger' });
+		expect(refused.error).toMatchObject({ code: 'MEMBERSHIP_UNAVAILABLE', retryable: true });
+		expect(
+			(await settles(made)).filter(
+				(entry) => (entry.input as SessionSettleInputV1).reason === 'membership'
+			)
+		).toHaveLength(0);
+		expect((await made.kernel.call('project-list', {})).data).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ name: 'Ledger' })])
+		);
+		failing = false;
+		expect((await made.kernel.call('project-create', { name: 'Ledger' })).success).toBe(true);
+		expect((await replayProvider(await journalOf(made))).report.diverged).toBe(false);
+	});
+
 	it('P3-E4: a person the read no longer finds a member is refused by line 0 on what was read', async () => {
 		const made = await providerWorkspace({
 			ports: { ...scopedPorts(), readMembership: async () => null },

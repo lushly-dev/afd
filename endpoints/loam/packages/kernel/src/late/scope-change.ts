@@ -22,7 +22,7 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { lineZero } from './auth-gate.js';
+import { lineZero, membershipUnavailable } from './auth-gate.js';
 import type { DocumentCheck } from './document-types.js';
 import {
 	archivedRefusal,
@@ -284,7 +284,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			if (session) {
 				// Membership read again before an owner's command, settled top-level when it changed, then line 0
 				// on what was read (phase 3 specification, 4.4 and 7.6).
-				await session.reread(name, input);
+				if (!(await session.reread(name, input))) return membershipUnavailable(name);
 				const refused = lineZero(scope, call, name);
 				if (refused) return refused;
 			}
