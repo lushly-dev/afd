@@ -89,6 +89,16 @@ const lookupPublished = (artifact, { timeoutMs }) =>
 		)
 	);
 
+/**
+ * npm can serve a fresh tarball well after accepting it: Specimen's linux-x64-gnu host was still
+ * missing ten minutes after its upload in run 43111505926 (#1007). Poll for thirty minutes, backing off from five
+ * seconds to one minute, so a slow blob holds no release while a missing one still does.
+ */
+export const READBACK_DEADLINE_MS = 1_800_000;
+export const READBACK_MAX_ATTEMPTS = 60;
+const firstWaitMs = 5000;
+const longestWaitMs = 60_000;
+
 /** Retry only an absent version after a successful upload; never retry an upload. */
 export function readPublished(
 	artifact,
@@ -99,14 +109,18 @@ export function readPublished(
 			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds),
 	} = {}
 ) {
-	const deadline = now() + 600_000;
-	for (let attempt = 0; attempt < 120 && now() < deadline; attempt++) {
+	const deadline = now() + READBACK_DEADLINE_MS;
+	let pause = firstWaitMs;
+	for (let attempt = 0; attempt < READBACK_MAX_ATTEMPTS && now() < deadline; attempt++) {
 		const metadata = lookup(artifact, {
 			timeoutMs: Math.max(1, Math.ceil(Math.min(10000, deadline - now()))),
 		});
 		if (metadata?.notVisible !== true) return metadata;
 		const remaining = deadline - now();
-		if (attempt < 119 && remaining > 0) wait(Math.min(5000, remaining));
+		if (attempt < READBACK_MAX_ATTEMPTS - 1 && remaining > 0) {
+			wait(Math.min(pause, remaining));
+			pause = Math.min(pause * 2, longestWaitMs);
+		}
 	}
 	throw new Error(`Registry version is still not visible: ${artifact.name}@${artifact.version}`);
 }
