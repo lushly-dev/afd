@@ -34,22 +34,22 @@ have met their exit criteria on `main`:
   scope what an app sees, and documents whose types an app contributes, open
   side by side in the editor area.
 
-Phase 3, identity, and phase 6, hosts, are being built. Settings and
-overlays, the copilot, the builder and the collaboration service have not
-started. [STATUS.md](docs/STATUS.md) says exactly what is done and what is
-not; this summary only orients.
+Phase 3, identity, and phase 6, hosts, are being built. Phases 4, 5, 7 and
+8 (settings and experiments, the copilot, the builder, and guides) and the
+collaboration service have not started. [STATUS.md](docs/STATUS.md) says
+exactly what is done and what is not; this summary only orients.
 
 What is here:
 
 | Directory | What it holds |
 | --- | --- |
-| [`packages/`](packages/README.md) | The TypeScript packages: manifest, SDK, test kit, CLI, theme, kernel, console, chrome, the browser host, identity and the hosted server. Its README lists each one and the commands that build and test them |
+| [`packages/`](packages/README.md) | The TypeScript packages: manifest, SDK, test kit, CLI, theme, kernel, console, chrome, the browser host, identity and the hosted server. Its README has the commands that build and test them |
 | `apps/` | Five small apps that prove the contract: `hello` (the reference app, in all three kinds), `tally`, `tasks` (scoped to a project), and `notes` and `checklist` (document types) |
 | [`plugins/mail/`](plugins/mail/README.md) | Loam Mail, a plugin with an engine of its own in Rust, under construction |
 | `docs/` | The design: architecture, decisions, phase specifications and status |
 
-Nothing is released. Every package is `private: true` and its release unit
-is quarantined with no route under the
+Nothing is released. Every TypeScript package is `private: true`, and every
+release unit, the mail engine included, is quarantined with no route under the
 [platform migration](../../docs/features/active/platform-monorepo/) rules.
 The name was decided on 2026-10-30 (decision D22 in the
 [decision log](docs/decisions.md)).
