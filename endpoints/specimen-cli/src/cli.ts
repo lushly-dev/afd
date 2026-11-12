@@ -385,7 +385,9 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 						...(parsed.options.has('theme')
 							? { themes: (parsed.options.get('theme') ?? '').split(',').filter(Boolean) }
 							: {}),
-						...(threshold === undefined ? {} : { threshold: Number(threshold) }),
+						...(threshold === undefined
+							? {}
+							: { threshold: threshold.trim() ? Number(threshold) : Number.NaN }),
 						...(parsed.options.has('checkpoint')
 							? { checkpoint: parsed.options.get('checkpoint') }
 							: {}),

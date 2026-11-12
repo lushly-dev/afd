@@ -192,9 +192,11 @@ describe('theme reports', () => {
 		expect(themeReport(entry(light), frames(all), looks([0, 1, 0]), 0.02).status).toBe(
 			'contradicted'
 		);
-		// A declaration of every compared theme sets no limit, so it follows like any other.
+		// A declaration of every compared theme sets no limit, so it follows like any other, and a
+		// frame that stays the same is what the author declared.
 		const every = { supported: all, basis: 'declared' as const };
 		expect(themeReport(entry(every), frames(all), looks([0, 1, 2]), 0.02).status).toBe('follows');
+		expect(themeReport(entry(every), frames(all), looks([0, 0, 0]), 0.02).status).toBe('declared');
 	});
 
 	it('counts a story that sets its own theme global as pinned', () => {
@@ -206,6 +208,15 @@ describe('theme reports', () => {
 		);
 		expect(report.status).toBe('pinned');
 		expect(report.frames.map((frame) => frame.rendered)).toEqual(['dark', 'dark', 'dark']);
+		// No theme reported is no evidence of a pin.
+		expect(
+			themeReport(
+				entry(),
+				frames(all, () => null as never),
+				looks([0, 0, 0]),
+				0.02
+			).status
+		).toBe('undeclared');
 	});
 
 	it('reports a theme that did not render, and compares nothing', () => {

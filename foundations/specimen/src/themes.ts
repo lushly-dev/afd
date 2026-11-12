@@ -67,9 +67,14 @@ export function themeReport(
 		);
 		status = holds ? 'declared' : 'contradicted';
 	} else if (same) {
+		// A declaration of every compared theme says it supports them all, such as an image that
+		// looks the same in each: the author said so, so it is not undeclared.
 		const rendered = new Set(frames.map((frame) => frame.rendered));
-		status =
-			rendered.size === 1 && frames.some((frame) => frame.rendered !== frame.theme)
+		status = declared
+			? 'declared'
+			: rendered.size === 1 &&
+					!rendered.has(null) &&
+					frames.some((frame) => frame.rendered !== frame.theme)
 				? 'pinned'
 				: 'undeclared';
 	} else status = 'follows';

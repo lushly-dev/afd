@@ -169,6 +169,10 @@ follow them all. `declared` comes from the author: a `light-only`,
 specimen's `themes`. `observed` comes from rendering it in each theme and
 comparing the frames (`specimen themes`).
 
+`themes` was added within version 0, so a reader built before it, such as
+Specimen `2.2.0-preview.3`, refuses a record that carries it as
+`SCHEMA_INVALID`.
+
 Values and defaults are strings, integers between −(2⁵³ − 1) and 2⁵³ − 1,
 booleans or `null`. No other number is allowed, so every reader writes
 numbers the same way. An attribute's `values` lists a finite set; an

@@ -12,8 +12,8 @@ const CATALOG = '\0specimen-catalog';
 /**
  * The proposal's shell ceiling was 50,000. The shell is Specimen's own code before a consumer adds
  * any: 49,504 bytes on the fixtures before the declared-themes tag and notice (#1001), which take it
- * to 49,793, past what a consumer's shell such as Lushly's (48,800 to 49,800) leaves. 2,000 more
- * keeps a consumer's build passing and leaves room for the next small page change.
+ * to 49,793. A consumer's shell is larger than the fixtures', so 50,000 no longer fit one with
+ * typical additions; 2,000 more keeps such a build passing and leaves room for a small page change.
  */
 const SHELL_BUDGET = 52_000;
 /** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */

@@ -942,7 +942,8 @@ export interface ThemesRequest {
 }
 /**
  * - `follows`: the frame changes with the theme.
- * - `declared`: the frame stays the same and the entry declares its themes.
+ * - `declared`: the frame stays the same, or looks under a theme it does not support as under one
+ *   it does, and the entry declares its themes.
  * - `pinned`: the frame stays the same because the story settles its own theme global.
  * - `undeclared`: the frame stays the same and nothing says so. A gate fails on these.
  * - `contradicted`: the entry declares a limit, but its frame changes with the theme.

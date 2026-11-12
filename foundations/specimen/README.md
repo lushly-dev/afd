@@ -185,7 +185,7 @@ The defaults are all three themes, the `mount` checkpoint, reduced motion and a 
 | Status | Meaning |
 | --- | --- |
 | `follows` | The frame changes with the theme |
-| `declared` | The frame under a theme it does not support looks as it does under one it does, as declared |
+| `declared` | It declares its themes, and its frame under a theme it does not support looks as it does under one it does; or it declares every compared theme and its frame stays the same |
 | `pinned` | The frame stays the same because the story sets its own theme global |
 | `undeclared` | The frame stays the same and nothing declares it |
 | `contradicted` | It declares a limit, but its frame changes under a theme it does not support |

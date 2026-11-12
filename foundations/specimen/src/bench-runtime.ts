@@ -993,7 +993,8 @@ export async function createInProcessBench(
 							...(timeoutMs ? { timeoutMs } : {}),
 						};
 						const { observation } = await capture(request, { reuseBundle: true });
-						return observation?.manifest.context.theme ?? null;
+						if (!observation) throw new Error('The render captured no frame.');
+						return observation.manifest.context.theme;
 					},
 				},
 				parseThemesRequest(rawRequest)
