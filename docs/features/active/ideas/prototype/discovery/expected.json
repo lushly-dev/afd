@@ -1,0 +1,7 @@
+{
+	"save": ["ideas-capture"],
+	"ask": ["ideas-ask"],
+	"draft": ["ideas-ask"],
+	"memory": ["memory-remember"],
+	"docs": ["knowledge-search", "knowledge-open"]
+}

@@ -56,7 +56,7 @@ and [section 9](ideas.proposal.md#9-steps) the rest.
 | 0 | 0.7 Records or documents | Done 2026-11-11 ([reasoning](prototype/README.md#07-records-or-documents)): records, indexed through P2, as question 2 recommends |
 | 0 | 0.8 The owner's walk of the jobs | Not started |
 | 0 | 0.9 Confirming from the owner's harnesses | Not started; needs the owner at a harness |
-| 0 | 0.10 Finding the store with no skill | Not started |
+| 0 | 0.10 Finding the store with no skill | In part, 2026-11-11, on paper ([probe](prototype/discovery/README.md)): with the three Ideas commands and `memory-remember` first-class, both models tried routed 24 of 24 everyday requests right; without `memory-remember`, requests to remember went to no tool. Open: real harnesses against a hosted instance |
 | A | A1 P1 as amendments to Umbel's architecture and decision log | Not started |
 | A | A2 Host specifications for P2, P3 and P15 to P18 | Not started |
 | A | A3 The plugin's specification, with the scenarios moved beside it | Not started |
@@ -92,6 +92,7 @@ answer is recorded in the proposal's section 11 and in the session log.
 | 2026-11-11 | Phase 0, step 0.1 | Free tags scatter (729 of 1 656 used once). The pack should hold the tags in use and offer them | For the plugin's specification (step A3), with job 27 |
 | 2026-11-11 | Phase 0, step 0.4 | A word-for-word idea can lean on the sentences around it, so a read of an attested idea should be able to return them; and two ideas in one is the extractor's most common fault | For the plugin's specification (step A3) and the extraction prompt |
 | 2026-11-11 | Phase 0, step 0.4 | Whether a source is a transcript cannot be read from its text: labelled fields take turns as speakers do. The plan already makes it a setting | Confirmed; nothing to change |
+| 2026-11-11 | Phase 0, step 0.10 | Question 12's recommendation is reversed by the probe: keep `memory-remember` first-class and leave `workspace-show` and `event-list` out. Recorded in the proposal's section 11. The instruction to call `ideas-guide` first led one model to call it before every request | For the plugin's documentation of `mcp.first_class_tools`, and the instructions paragraph (step A3) |
 | 2026-11-11 | Phase 0, step 0.6 | P7 gains two items: releasing an omission (Violet's reset of a subtract does nothing, `resolver.ts`), and rules that can refuse a write | For the hierarchy specification (P7, step E1), if the owner wants the hierarchy (question 14) |
 | 2026-11-11 | Phase 0, step 0.3 | Two link kinds the plan lacks: a later view of an earlier idea, which a model may state without retiring anything, and part of. A bundle should carry each idea's date | A lead from one judge on model-drafted questions, whose list of kinds differed from the plan's. To confirm on the owner's twenty questions with the plan's list before section 4.5 changes |
 | 2026-11-11 | Phase 0, step 0.5 | Themes change with the method and the model, so a synthesis names its member ideas and never a theme, and each embedding model needs its own similarity floor | For the plugin's specification (step A3); consistent with the plan's section 4.7 |

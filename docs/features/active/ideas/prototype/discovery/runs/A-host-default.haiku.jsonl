@@ -1,0 +1,24 @@
+{"n": 1, "tool": "ideas-capture", "command": null, "why": "Person asks to keep a position; ideas-capture saves it."}
+{"n": 2, "tool": "ideas-capture", "command": null, "why": "Stated decision to save; a position, so ideas-capture."}
+{"n": 3, "tool": "ideas-capture", "command": null, "why": "Principle to keep for later; ideas-capture fits."}
+{"n": 4, "tool": "ideas-capture", "command": null, "why": "Explicit idea to hold onto; ideas-capture saves it."}
+{"n": 5, "tool": "ideas-capture", "command": null, "why": "Claim to write down permanently; ideas-capture."}
+{"n": 6, "tool": "ideas-capture", "command": null, "why": "Evidence with source; ideas-capture records evidence and origin."}
+{"n": 7, "tool": "ideas-capture", "command": null, "why": "Open question to capture; ideas-capture supports open questions."}
+{"n": 8, "tool": "ideas-capture", "command": null, "why": "Idea for the book to remember; ideas-capture."}
+{"n": 9, "tool": "knowledge-search", "command": null, "why": "Recall of past statements; search the space for companion planting."}
+{"n": 10, "tool": "context-bundle", "command": null, "why": "Changed-mind question needs views over time; bundle context."}
+{"n": 11, "tool": "knowledge-search", "command": null, "why": "Asks for collected evidence; search for hedgerow pollinator material."}
+{"n": 12, "tool": "context-bundle", "command": null, "why": "Finding contradictions needs all watering views together; bundle context."}
+{"n": 13, "tool": "context-bundle", "command": null, "why": "Summary of beliefs on soil health; assemble bundled context."}
+{"n": 14, "tool": "knowledge-search", "command": null, "why": "Duplicate check without saving; search rather than capture."}
+{"n": 15, "tool": "context-bundle", "command": null, "why": "Drafting in voice needs ideas and context; bundle first."}
+{"n": 16, "tool": "context-bundle", "command": null, "why": "Gathering material for a talk; assemble context bundle."}
+{"n": 17, "tool": "context-bundle", "command": null, "why": "Thread from ideas about pests; bundle relevant ideas first."}
+{"n": 18, "tool": "context-bundle", "command": null, "why": "Chapter outline from water ideas; bundle context first."}
+{"n": 19, "tool": "memory-remember", "command": null, "why": "Fact about person's preferences; memory-remember stores it."}
+{"n": 20, "tool": "memory-remember", "command": null, "why": "Garden facts for future sessions; memory-remember stores them."}
+{"n": 21, "tool": "memory-remember", "command": null, "why": "Working preference for drafts; memory-remember stores it."}
+{"n": 22, "tool": "memory-remember", "command": null, "why": "Personal availability fact; memory-remember stores it."}
+{"n": 23, "tool": "knowledge-search", "command": null, "why": "Asks what a document says; search documents for leeks."}
+{"n": 24, "tool": "knowledge-search", "command": null, "why": "Need the planting calendar located first; search documents."}

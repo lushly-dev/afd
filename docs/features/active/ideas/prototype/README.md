@@ -14,6 +14,7 @@ only counts, rates and the tools are here. Every example in this folder is inven
 | [`themes.py`](themes.py) | 0.5 | Derives themes two ways from statement embeddings and compares them with each other, across models and with a given grouping |
 | [`ask.py`](ask.py) | 0.3 | Builds a bundle of ideas for each question and counts a judge's verdicts |
 | [`violet/`](violet/README.md) | 0.6 | Invented ideas loaded into Violet's engine as composite values in a tree of framings, with fifteen checks |
+| [`discovery/`](discovery/README.md) | 0.10 | A probe on paper: models shown three tool lists say which tool they would call for 24 everyday requests |
 | [`match.py`](match.py) | 0.2 | Embeds statements with local models, pools candidate pairs for labelling, and reports how each lane sorts them |
 | [`prompts/label-pairs.md`](prompts/label-pairs.md), [`prompts/review-units.md`](prompts/review-units.md), [`prompts/judge-bundles.md`](prompts/judge-bundles.md) | 0.2, 0.1, 0.3 | The labelling, review and judging prompts |
 | [`test_prototype.py`](test_prototype.py) | | Tests on invented fixtures |
@@ -312,3 +313,8 @@ Each is proposed for the plugin's specification (step A3) and recorded in [STATU
 11. **Framings fit, with seven engine changes.** The five P7 names, and two more: an omission must
     be releasable, and a rule must be able to refuse a write. A field-level change matters most
     for ideas, whose tags and type change far more often than their wording.
+12. **Keep `memory-remember` first-class.** In a probe on paper
+    ([`discovery/`](discovery/README.md)), the three Ideas commands with `memory-remember` kept and
+    `workspace-show` and `event-list` left out routed all 24 everyday requests right in both models
+    tried. Leaving `memory-remember` out, as question 12 recommended, sent every request to remember
+    a preference to no tool; the host's default order sent no question to the store.

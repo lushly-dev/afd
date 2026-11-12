@@ -1247,8 +1247,8 @@ No production code. A real corpus chosen by the owner, with a sample labelled by
 | 0.10 | Does an agent with no skill find the store? | The draft tool list, descriptions and instructions paragraph, with a model in each harness given everyday requests to save and to ask | The descriptions and the paragraph that work, and whether `memory-remember` stays first-class on an Ideas instance |
 
 Results are recorded in [`prototype/`](prototype/README.md) and their state in
-[STATUS.md](STATUS.md). Steps 0.1, 0.2, 0.6 and 0.7 ran on 2026-11-11, and 0.3, 0.4 and 0.5 in
-part. Step 0.2 found that
+[STATUS.md](STATUS.md). Steps 0.1, 0.2, 0.6 and 0.7 ran on 2026-11-11, and 0.3, 0.4, 0.5 and 0.10
+in part. Step 0.2 found that
 refusing a capture cannot be trusted across documents and that offering the nearest ideas to the
 calling model can; the plugin's specification takes that up in place of the refusal in
 [4.4](#44-matching).
@@ -1370,7 +1370,7 @@ direction, it is listed in [STATUS.md](STATUS.md) for him to confirm, and he can
 | 5. The shared engine | Yes, as a foundation, with Violet held to the same vectors. Nothing is built before question 14 is answered | On recommendation |
 | 6. The host changes | All as host work, each specified in phase A or E | On recommendation |
 | 8. The plugin id | `ideas` | On recommendation |
-| 12. First-class places | `ideas-capture`, `ideas-ask` and `ideas-guide`, settled with phase 0.10's result | On recommendation |
+| 12. First-class places | `ideas-capture`, `ideas-ask` and `ideas-guide`, with `memory-remember` kept and `workspace-show` and `event-list` left out. The recommendation was to leave `memory-remember` out; a probe in phase 0.10 found that requests to remember then reach no tool, so it was changed | On recommendation, changed by phase 0.10 |
 | 13. Who may settle a finding | Any caller, recorded, counted and open to reversal | On recommendation |
 | 15. A job for finding something new | Added once the loop is in use | On recommendation |
 | 10. Scope of P9 to P12 | Open. It carried no recommendation and nothing before phase H needs it | Open |
