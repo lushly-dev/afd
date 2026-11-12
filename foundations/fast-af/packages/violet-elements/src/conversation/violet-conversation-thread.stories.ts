@@ -24,6 +24,7 @@ function createMessage(role: string, text: string): HTMLElement {
 
 const meta = {
     title: "Conversation/Thread",
+    component: "violet-conversation-thread",
     tags: ["autodocs"],
     parameters: {
         docs: {

@@ -75,6 +75,7 @@ function renderListbox(args: VioletListboxStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Listbox",
+    component: "violet-listbox",
     tags: ["autodocs"],
     parameters: {
         docs: {

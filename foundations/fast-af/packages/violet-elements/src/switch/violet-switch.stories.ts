@@ -47,6 +47,7 @@ function renderSwitch(args: VioletSwitchStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Switch",
+    component: "violet-switch",
     tags: ["autodocs"],
     parameters: {
         docs: {

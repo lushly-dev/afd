@@ -71,6 +71,7 @@ function renderReferencePicker(args: ReferencePickerStoryArgs): HTMLElement {
 
 const meta = {
   title: "Components/Data Grid/Reference Picker",
+  component: "violet-data-grid-reference-picker",
   tags: ["autodocs"],
   args: { disabled: false },
   parameters: {

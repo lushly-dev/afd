@@ -49,6 +49,7 @@ function renderCheckbox(args: VioletCheckboxStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Checkbox",
+    component: "violet-checkbox",
     tags: ["autodocs"],
     parameters: {
         docs: {

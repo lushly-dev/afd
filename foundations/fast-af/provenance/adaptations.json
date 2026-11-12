@@ -5687,11 +5687,11 @@
       "upstream_sha256": "122ace98f24df68c9c8cc1d8d2ff65d8078d4df72f87848b1ad6e1887455f075",
       "staged_path": "packages/violet-elements/src/accordion-item/violet-accordion-item.stories.ts",
       "staged_sha256": "122ace98f24df68c9c8cc1d8d2ff65d8078d4df72f87848b1ad6e1887455f075",
-      "current_import_sha256": "20472bda43f2efa48bae4fc12e0beb3c0042ee44a2dcb47994026a0c7c7931f2",
+      "current_import_sha256": "43c44cb931f1d84d1bc6358b198d5616870e5986ce7c499a4ecbbf62ab8b40e3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/accordion-item/violet-accordion-item.ts",
@@ -5723,11 +5723,11 @@
       "upstream_sha256": "afd69691468be6c954facd384938e9ce2ddc9e3a8f8b4744c1087d7c221728b9",
       "staged_path": "packages/violet-elements/src/accordion/violet-accordion.stories.ts",
       "staged_sha256": "afd69691468be6c954facd384938e9ce2ddc9e3a8f8b4744c1087d7c221728b9",
-      "current_import_sha256": "a829eea1bf8b3ea1f9e47b273a89fd4c8b8c8b46602f7f8f2f076c53a0e02d85",
+      "current_import_sha256": "f093be8dbf941d1010e7239c77d65cd0c0a206459c0e1aa407dda40652c01c8a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/accordion/violet-accordion.ts",
@@ -5831,11 +5831,11 @@
       "upstream_sha256": "980e357d05cb1768af8d5f987e31e10892bc4b9b9a8c05b93b724580bbbee340",
       "staged_path": "packages/violet-elements/src/breadcrumb-item/violet-breadcrumb-item.stories.ts",
       "staged_sha256": "980e357d05cb1768af8d5f987e31e10892bc4b9b9a8c05b93b724580bbbee340",
-      "current_import_sha256": "7a8a0d41d1bfed50dea017a8ace487129b2188349b683956eb7a0ac14c4cca0a",
+      "current_import_sha256": "d0566a3cfabb64cd15086554ba84ef89e93a0aa950b7cd6938bbd2d514e1473a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/breadcrumb-item/violet-breadcrumb-item.ts",
@@ -5867,11 +5867,11 @@
       "upstream_sha256": "a674e799b33deaa9a00ac72f9b027632fd0157e7cb42a95a8889dc98d3fca533",
       "staged_path": "packages/violet-elements/src/breadcrumb/violet-breadcrumb.stories.ts",
       "staged_sha256": "a674e799b33deaa9a00ac72f9b027632fd0157e7cb42a95a8889dc98d3fca533",
-      "current_import_sha256": "7f20a611613edac4d83f3af8af20e4ee26797b5cdcee4d36dac69a080a1b3bd1",
+      "current_import_sha256": "a11184b8cb44dedc8341120a57ba6d3614f630027551b5c4ce9dae5b53046192",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/breadcrumb/violet-breadcrumb.ts",
@@ -5903,11 +5903,11 @@
       "upstream_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
       "staged_path": "packages/violet-elements/src/button/violet-button.stories.ts",
       "staged_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
-      "current_import_sha256": "51d0b6bcda7b1a7938a7a8bdab5d418935674184ffda9890636e0b54a5bb6752",
+      "current_import_sha256": "32b0122898fad9521cd236dbd8f8efa1a67504190420799a9045e2464641e4d8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact upstream bytes (fast-af #235); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact upstream bytes (fast-af #235); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/button/violet-button.ts",
@@ -5975,11 +5975,11 @@
       "upstream_sha256": "0eadebbfada7faabfe0714e1e6fe8ca2273274ed06b171bf9ac04c3c22af7a8c",
       "staged_path": "packages/violet-elements/src/card/violet-card.stories.ts",
       "staged_sha256": "0eadebbfada7faabfe0714e1e6fe8ca2273274ed06b171bf9ac04c3c22af7a8c",
-      "current_import_sha256": "a788030174030a9b6aa13db2e2962cc5b9b62a0204f7791eab62b78952c42c35",
+      "current_import_sha256": "a2e8539afdaf943f20cd05b0598d256c6560a7132cb7aa9ade891a65de043063",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/card/violet-card.ts",
@@ -6011,11 +6011,11 @@
       "upstream_sha256": "63b082959ba01e73699f4ca0a36251f1618bc1d57e88f20780453de0851de4fa",
       "staged_path": "packages/violet-elements/src/carousel/violet-carousel.stories.ts",
       "staged_sha256": "63b082959ba01e73699f4ca0a36251f1618bc1d57e88f20780453de0851de4fa",
-      "current_import_sha256": "4a66c61a7add78f31332fdce11c854435e76f90a49c4846a9778919f039f4746",
+      "current_import_sha256": "d58411494fea61674b24a4d9bc95799a0a18a2fb814fb959a622e8bdae24fe4f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/carousel/violet-carousel.ts",
@@ -6047,11 +6047,11 @@
       "upstream_sha256": "ed33c0775e3d82166b9f1188a326897162806ced1e966114bc0432f2a7aa87e1",
       "staged_path": "packages/violet-elements/src/checkbox/violet-checkbox.stories.ts",
       "staged_sha256": "ed33c0775e3d82166b9f1188a326897162806ced1e966114bc0432f2a7aa87e1",
-      "current_import_sha256": "4c8f79bd5bb98ffc87de2bed356dec234424c2978b35898383b9a149ee06dc89",
+      "current_import_sha256": "5536385ea02ab77be235dcf57b63cf665ba76bb720b82591863daa3be852bd90",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/checkbox/violet-checkbox.ts",
@@ -6083,11 +6083,11 @@
       "upstream_sha256": "24d8607f99c2045ad230afc14313508882f5a8a5e8bbe241701e5485b609a4ae",
       "staged_path": "packages/violet-elements/src/color-picker/violet-color-picker.stories.ts",
       "staged_sha256": "24d8607f99c2045ad230afc14313508882f5a8a5e8bbe241701e5485b609a4ae",
-      "current_import_sha256": "f0e911e8c16ee48c407858222f207d4ac52b59fd031a5b505601089d04b3f76e",
+      "current_import_sha256": "c173f80262ef57de32f1c59cad3138ed3201fb70c4ea208ecbdcd01ffa8edf78",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.ts",
@@ -6131,11 +6131,11 @@
       "upstream_sha256": "d7f9b64d267ba654db375cbb53f8ccf4ea9e2b7cea0a4c12ddaad328f5e7d3c0",
       "staged_path": "packages/violet-elements/src/color-swatch/violet-color-swatch.stories.ts",
       "staged_sha256": "d7f9b64d267ba654db375cbb53f8ccf4ea9e2b7cea0a4c12ddaad328f5e7d3c0",
-      "current_import_sha256": "531490ece1fa59d8936afd6571762bdfce50a327f18175eff344d95c4d40f095",
+      "current_import_sha256": "1d3bbfb2ad1da0670d158645aeae3d96063b850dbc090ac64e402249a3184706",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-swatch/violet-color-swatch.ts",
@@ -6167,11 +6167,11 @@
       "upstream_sha256": "3fcd1af2d813e37fb2426babad0ecaecaad8c224a26c4510919b46125b0f4209",
       "staged_path": "packages/violet-elements/src/combobox/violet-combobox.stories.ts",
       "staged_sha256": "3fcd1af2d813e37fb2426babad0ecaecaad8c224a26c4510919b46125b0f4209",
-      "current_import_sha256": "dfb3cbc44cf492da1daa7df198734791a2e53477466170f57191968bfb53ec57",
+      "current_import_sha256": "5b19e2815696853cda8268dad1c71c9199ba70e6d2e50f19f0fbe1522606decf",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/combobox/violet-combobox.ts",
@@ -6203,11 +6203,11 @@
       "upstream_sha256": "2605af090616c3821526df212942b81cda6846dfdcd6b45b757d89ddeb3733dd",
       "staged_path": "packages/violet-elements/src/conversation/violet-approval-card.stories.ts",
       "staged_sha256": "2605af090616c3821526df212942b81cda6846dfdcd6b45b757d89ddeb3733dd",
-      "current_import_sha256": "c234347705b95f00e1de09cff02cbe2c8eb0096e88480e263008f3e213063c23",
+      "current_import_sha256": "74651bd4575342244596f8365bb5b95872283ed90c5731686182a1dbd3fcb0b1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-approval-card.ts",
@@ -6239,11 +6239,11 @@
       "upstream_sha256": "d24f2b66d86fa0bf7ab5bd94b4108bf7479a6a0c7a41ae9a764ccf348b3ef416",
       "staged_path": "packages/violet-elements/src/conversation/violet-chat-composer.stories.ts",
       "staged_sha256": "d24f2b66d86fa0bf7ab5bd94b4108bf7479a6a0c7a41ae9a764ccf348b3ef416",
-      "current_import_sha256": "723bb8ae74cc1ee1d9a28b4d6a3fa4909cf021c2b01384caacff02943b5e5a4f",
+      "current_import_sha256": "4e79305e371fcaf7c2d343fb3826b760ab97fe5bc4b4d7876baa3357881ad25d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-chat-composer.ts",
@@ -6275,11 +6275,11 @@
       "upstream_sha256": "5302a0b372a786ffd348def5434702e5eb08b567984f1ea183ee50efb1eeb7ed",
       "staged_path": "packages/violet-elements/src/conversation/violet-chat-suggestions.stories.ts",
       "staged_sha256": "5302a0b372a786ffd348def5434702e5eb08b567984f1ea183ee50efb1eeb7ed",
-      "current_import_sha256": "e200e60fb20910504279619674b6959daca22010e7759ad4fbe33d3b602a3d11",
+      "current_import_sha256": "886014c42c29d5c2c86f31dbe5d430fb55e90f59c920e0978acdc5da4f846e1c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-chat-suggestions.ts",
@@ -6311,11 +6311,11 @@
       "upstream_sha256": "d56e6fa42f68500a893150236e04f98941b1b01c79b1a3d2140ef73bc303aa4e",
       "staged_path": "packages/violet-elements/src/conversation/violet-conversation-thread.stories.ts",
       "staged_sha256": "d56e6fa42f68500a893150236e04f98941b1b01c79b1a3d2140ef73bc303aa4e",
-      "current_import_sha256": "a4fbc9b22152d586c69b551a7c28efc96d640bd758c73d0c27d9b70ba18da273",
+      "current_import_sha256": "cad9c231c85000981de710f42267774acc87ba8f3e5373f97db4777b97757ba0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-conversation-thread.ts",
@@ -6347,11 +6347,11 @@
       "upstream_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-media.stories.ts",
       "staged_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
-      "current_import_sha256": "dfd4874f9f4c18b7b395453834281ae70447e73e334aa2fbaa309666c4042ea4",
+      "current_import_sha256": "ce47b659a73e0fea269eb09adaaffa89929feee4c6212a9ff9d74339602d67f8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact upstream bytes (fast-af #232); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact upstream bytes (fast-af #232); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-media.ts",
@@ -6383,11 +6383,11 @@
       "upstream_sha256": "0ebb2c7c7445abadc82799b94eeb9f7252320a36216c2f1fafd34e830eb5eddf",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-status.stories.ts",
       "staged_sha256": "0ebb2c7c7445abadc82799b94eeb9f7252320a36216c2f1fafd34e830eb5eddf",
-      "current_import_sha256": "6cf7a3688f838b6f2109390ac9b89baf0e39dc9c89dbd8f7b4ca890c33fb7f62",
+      "current_import_sha256": "054dde56cce0b4816846816e74cd98e155b350bc2b3a5a14bb07c14f1340d471",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-status.ts",
@@ -6419,11 +6419,11 @@
       "upstream_sha256": "75afbcb6e26341fe57c129250ec5a6e92d35b1d33cd5c0bd79a2618fe5881acf",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-text.stories.ts",
       "staged_sha256": "75afbcb6e26341fe57c129250ec5a6e92d35b1d33cd5c0bd79a2618fe5881acf",
-      "current_import_sha256": "20c8f7b2ded4903d33620918bd2a6d608afbab55f4fc325d31fa1b80c8699c55",
+      "current_import_sha256": "7935d26ebc5987515df235b1c3574dccce8bf7af6e74be08cd32ca0ddc7d81a5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-text.ts",
@@ -6455,11 +6455,11 @@
       "upstream_sha256": "a9447df7c2382bf0432065443fc2cd6f140c1cf223b6c3cfd43e4957af8ca705",
       "staged_path": "packages/violet-elements/src/conversation/violet-message.stories.ts",
       "staged_sha256": "a9447df7c2382bf0432065443fc2cd6f140c1cf223b6c3cfd43e4957af8ca705",
-      "current_import_sha256": "a383620b09088ac629bf78642146c991b95b44588400367b6a424f2efae4b515",
+      "current_import_sha256": "76a0600d598dc036bc2704d834e1472de41b31408ed07948da47dbd46c497d3d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message.ts",
@@ -6491,11 +6491,11 @@
       "upstream_sha256": "5a6e941bdccf1fdd8ca37ffac0f9af581b394cb7e6fd349cdd5a9662e075348e",
       "staged_path": "packages/violet-elements/src/conversation/violet-reasoning-block.stories.ts",
       "staged_sha256": "5a6e941bdccf1fdd8ca37ffac0f9af581b394cb7e6fd349cdd5a9662e075348e",
-      "current_import_sha256": "b180ba347e9a6ca367a4ef1e52271d850237e91b8734bbaf06ed4c9251d418d1",
+      "current_import_sha256": "1da8cd171177417c9875c73a93a44291c16606b6db205fdba95649495a75110f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-reasoning-block.ts",
@@ -6527,11 +6527,11 @@
       "upstream_sha256": "3428698dcdaffab8d10126b080b758a274bd84e59ac3aa995287e23a18d48ffc",
       "staged_path": "packages/violet-elements/src/conversation/violet-source-citation.stories.ts",
       "staged_sha256": "3428698dcdaffab8d10126b080b758a274bd84e59ac3aa995287e23a18d48ffc",
-      "current_import_sha256": "1496f0b142015e4394db20db0bb98421ed68edd3289722a43db91af012e70271",
+      "current_import_sha256": "087fe4476e14817c340f951cd4ada83b0eb19dec13338519021234b4f9f5ac9d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-source-citation.ts",
@@ -6563,11 +6563,11 @@
       "upstream_sha256": "d7dffd3e63698869aea4618e7d9f2e0ae5e359e12e1cd49ecdf3a0787f156173",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-call-card.stories.ts",
       "staged_sha256": "d7dffd3e63698869aea4618e7d9f2e0ae5e359e12e1cd49ecdf3a0787f156173",
-      "current_import_sha256": "3fd35fd9d10ae9eb11ed589b160535a581e20712c849a59cef653cdbdcf2647a",
+      "current_import_sha256": "5fb3b0cf70244fcfb2a2871f95d978158f881225ca958e6fb8f5edb0fbe2af7f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-tool-call-card.ts",
@@ -6599,11 +6599,11 @@
       "upstream_sha256": "30db49c6ce15e6c7babe99796022e268f17bdf3c996a91b6a54259d27dc5b8cc",
       "staged_path": "packages/violet-elements/src/conversation/violet-tool-result-card.stories.ts",
       "staged_sha256": "30db49c6ce15e6c7babe99796022e268f17bdf3c996a91b6a54259d27dc5b8cc",
-      "current_import_sha256": "fd62001ca54457f8d85f7698a607493c856d393f15ab8e8bc5cf80fc17a9a682",
+      "current_import_sha256": "f5b64916f26b2c8efec3f221dc81a88f184b8db2d8da18ab33b37566a8f01c12",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-tool-result-card.ts",
@@ -6647,11 +6647,11 @@
       "upstream_sha256": "be971c537a008327ff816ec6ebc7d4f69c0305e4880361a6abcf4427097196aa",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell.stories.ts",
       "staged_sha256": "be971c537a008327ff816ec6ebc7d4f69c0305e4880361a6abcf4427097196aa",
-      "current_import_sha256": "2e9a823d2f9b92a6f656afee2d18247327aa3303649e0dbdb16e4be34fb040ef",
+      "current_import_sha256": "c4ae838b9bc0b0c76659e12003c37ede390b432dca158c767a3a73c66689ab6a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell.ts",
@@ -6947,11 +6947,11 @@
       "upstream_sha256": "c674f5f24bcb075dc1a9258f5fde094837de3f972b089b1040515e6d1eba08ec",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.stories.ts",
       "staged_sha256": "c674f5f24bcb075dc1a9258f5fde094837de3f972b089b1040515e6d1eba08ec",
-      "current_import_sha256": "a30bdb89f037555051dc2b316570fc9e210a6b2e5fda9eb10692451ae2e3adff",
+      "current_import_sha256": "88a8fe0df4b4d7a2f70bc7702449d95021caaf9806366a7bda22c2b8209549a8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.ts",
@@ -7019,11 +7019,11 @@
       "upstream_sha256": "b27e0b46dc63a4e2a59c88dd271e2b0ea3eeeb4474b3fca2ba984a75bf945812",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-persona-picker.stories.ts",
       "staged_sha256": "b27e0b46dc63a4e2a59c88dd271e2b0ea3eeeb4474b3fca2ba984a75bf945812",
-      "current_import_sha256": "63031bbc183585c636c01f34fedd2dee891fda050d4a5da0f82b6d188d0120e9",
+      "current_import_sha256": "13d2cf560ec6567c25aab0c98b95bb9b1d9f660cede1acdfbd88b1470f127e39",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-persona-picker.ts",
@@ -7055,11 +7055,11 @@
       "upstream_sha256": "3018e48a14405a3eaf52ad921ed108f0c7aca73a04d55afcf93c56dccd2450f9",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-pill-select.stories.ts",
       "staged_sha256": "3018e48a14405a3eaf52ad921ed108f0c7aca73a04d55afcf93c56dccd2450f9",
-      "current_import_sha256": "b3068a1351c4ab541caa38bdf414c7bcf2982a9fd293c47a4d0629aacdf3f31b",
+      "current_import_sha256": "da2aedb38c6be8e39f6d4a8b67668959d3412e440ef3b2b6b08ff715dce76e67",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-pill-select.ts",
@@ -7151,11 +7151,11 @@
       "upstream_sha256": "285adba81d0c3fa3051b1ac1b76f662dbca80bd299ac888871af8c7ced3ba7cd",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-rating.stories.ts",
       "staged_sha256": "285adba81d0c3fa3051b1ac1b76f662dbca80bd299ac888871af8c7ced3ba7cd",
-      "current_import_sha256": "23b834a481ab89dea8b606c51c275a47dd148b8fa8b4258e71f4446f7fe12dd3",
+      "current_import_sha256": "af54e1a37396b54b7c8e094ddf743d0601ebdcdce31391f9fafbc25b5d6eb341",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-rating.ts",
@@ -7199,11 +7199,11 @@
       "upstream_sha256": "a4d16f40fae6a498a9df29a9aa2fecfeba004c8ee3ebf266d2f143856f9f06a1",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.stories.ts",
       "staged_sha256": "a4d16f40fae6a498a9df29a9aa2fecfeba004c8ee3ebf266d2f143856f9f06a1",
-      "current_import_sha256": "19a1ec42cc0f1eec2a69fdcd5b182fdd4878c5a17d4580379dd654d3dd421f29",
+      "current_import_sha256": "9a5a8e41146200cbde05b9fe754d0498ce089132a410f69e29363da6f13b1472",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.ts",
@@ -7415,11 +7415,11 @@
       "upstream_sha256": "8bbcde190e9d0dda070def253e97f6ba93b3d7123b56785893bfaf6a3e290cd4",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid.stories.ts",
       "staged_sha256": "8bbcde190e9d0dda070def253e97f6ba93b3d7123b56785893bfaf6a3e290cd4",
-      "current_import_sha256": "3d98dd6804bb18209bf261be61627e282d0eff1ccbcce6f6323569c5c19e5c24",
+      "current_import_sha256": "b1cd5e798d97dd25a600514f59536f035ffaee916bfbb7653109a7e75da2d306",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid.styles.ts",
@@ -7559,11 +7559,11 @@
       "upstream_sha256": "2b4dfde4ee19823b515575143d87ff18030a884f82987fc92f65ee56d8363e7f",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.stories.ts",
       "staged_sha256": "2b4dfde4ee19823b515575143d87ff18030a884f82987fc92f65ee56d8363e7f",
-      "current_import_sha256": "f7c33dc6e2c047b17a63b9f9e5d15e165ad6c7097c22866dbf6ef550a481059f",
+      "current_import_sha256": "8b66559e5fc56ef4e8734f0157d8cc1e6c9b65671ba927e4f8cec84d65ec3298",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.ts",
@@ -7703,11 +7703,11 @@
       "upstream_sha256": "3758fc25b855b99f2180b59e31ba7dc0f5e4c36c0a93c444365af10a1db9b399",
       "staged_path": "packages/violet-elements/src/file-upload/violet-file-upload.stories.ts",
       "staged_sha256": "3758fc25b855b99f2180b59e31ba7dc0f5e4c36c0a93c444365af10a1db9b399",
-      "current_import_sha256": "9286aa497353dd5587fadc448aa44c61482323f5f9032578aad4d23ead1bd67f",
+      "current_import_sha256": "14ad2df2b0b8d21a5a552500220c5602865390618b4e730d8bd87e8f607972c9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/file-upload/violet-file-upload.ts",
@@ -7967,11 +7967,11 @@
       "upstream_sha256": "ad35f77e928dc4a3d02c4763c747faf2fcf8ac7be9ee41baf463b5e20be1fa63",
       "staged_path": "packages/violet-elements/src/icon-button/violet-icon-button.stories.ts",
       "staged_sha256": "ad35f77e928dc4a3d02c4763c747faf2fcf8ac7be9ee41baf463b5e20be1fa63",
-      "current_import_sha256": "6e83ac3a3536dbc35a9568a61ba42fe205fbf95f79bbeaf795f33f220c042477",
+      "current_import_sha256": "55d73afd9963fa0f77dce523cb72d65fa108d1e6d1e44d7d1bbab1d6adad3141",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/icon-button/violet-icon-button.ts",
@@ -8231,11 +8231,11 @@
       "upstream_sha256": "160fd3061629acb6d1146664c1addf6a7fbc1baf3943023f9c001b7d42d60eb2",
       "staged_path": "packages/violet-elements/src/icon/violet-icon.stories.ts",
       "staged_sha256": "160fd3061629acb6d1146664c1addf6a7fbc1baf3943023f9c001b7d42d60eb2",
-      "current_import_sha256": "24f57282318f9edffa6fb1f525664c1712fbe327c455b29449efed05a4109e8b",
+      "current_import_sha256": "9bb91f659995db12b1eefbe17a0e7eddade18b0c6486660ef4a05c354e8c554e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/icon/violet-icon.ts",
@@ -8327,11 +8327,11 @@
       "upstream_sha256": "d8da4d6e5a9b453457d77a9f45d25c2e6f9ccf509ac10b685582a0d8189c16d7",
       "staged_path": "packages/violet-elements/src/listbox/violet-listbox.stories.ts",
       "staged_sha256": "d8da4d6e5a9b453457d77a9f45d25c2e6f9ccf509ac10b685582a0d8189c16d7",
-      "current_import_sha256": "774e46854ed1bfef809685f341e9fc13fb9dc4e58a9597d886953e803ce45bda",
+      "current_import_sha256": "bdb53aeca212108750cfead41795f0bbff10e849af6b7e728d48675bbc0f0af9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/listbox/violet-listbox.ts",
@@ -8363,11 +8363,11 @@
       "upstream_sha256": "48768ce8c12ea1994ce0518a2baeb7c27b2674cb8ea48a8cfc957186bb526ce6",
       "staged_path": "packages/violet-elements/src/menu/violet-menu-item.stories.ts",
       "staged_sha256": "48768ce8c12ea1994ce0518a2baeb7c27b2674cb8ea48a8cfc957186bb526ce6",
-      "current_import_sha256": "6972685a830042974c6fd06f4d47529033cc295352f38d8e762f74c88007d04b",
+      "current_import_sha256": "40ec32dc81223dbafddca20622777d6347363277f726e7a9035f061cf87052bd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/menu/violet-menu-item.ts",
@@ -8399,11 +8399,11 @@
       "upstream_sha256": "ff8d142a30de13d2a0537265f1f6870f5f8e1b86bc6b5578af6295599955bf88",
       "staged_path": "packages/violet-elements/src/menu/violet-menu.stories.ts",
       "staged_sha256": "ff8d142a30de13d2a0537265f1f6870f5f8e1b86bc6b5578af6295599955bf88",
-      "current_import_sha256": "53d468c3c7562fae932ecb811c75c4d48a5a580c66b041d386a95aab24874a83",
+      "current_import_sha256": "a5d6aa2ad3d7b7a4feb8a3dde3d794a47ed64e0b13e46f6de333883adb0525b8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/menu/violet-menu.ts",
@@ -8435,11 +8435,11 @@
       "upstream_sha256": "4592b9036b2ffa65f0c6d0b706c0791fb802a6bccc151028f0d0c396d722bb5a",
       "staged_path": "packages/violet-elements/src/option-group/violet-option-group.stories.ts",
       "staged_sha256": "4592b9036b2ffa65f0c6d0b706c0791fb802a6bccc151028f0d0c396d722bb5a",
-      "current_import_sha256": "3f57b3a6c3d667800232a70de792b17e2b704486b99d87b8927429bbd22c5cba",
+      "current_import_sha256": "46cefd2736059832e36d0a4accd50e5442a00f6a9d9168a9f3745536757af74d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option-group/violet-option-group.ts",
@@ -8471,11 +8471,11 @@
       "upstream_sha256": "5b08de4dd65892763e6b0f70db6eda7f1923ca48bfb5535058a69b0d1d749566",
       "staged_path": "packages/violet-elements/src/option/violet-option.stories.ts",
       "staged_sha256": "5b08de4dd65892763e6b0f70db6eda7f1923ca48bfb5535058a69b0d1d749566",
-      "current_import_sha256": "6881314f250ae4704ea9d9a11e729bc6673093197a94e04ef6f0225575e7e24e",
+      "current_import_sha256": "a018de905c374ab0fa681d53b54470f16ef63b1f0c968c36058d812917a518d3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option/violet-option.ts",
@@ -8507,11 +8507,11 @@
       "upstream_sha256": "2881189f7dec463a77fe141e0c2151b7991c6fadcf4fb4bb7382bc9e2fe79fff",
       "staged_path": "packages/violet-elements/src/pagination/violet-pagination.stories.ts",
       "staged_sha256": "2881189f7dec463a77fe141e0c2151b7991c6fadcf4fb4bb7382bc9e2fe79fff",
-      "current_import_sha256": "63d14690a098ecfdafd710b350b6ac2e313428c869072bc4cb8c7914a0cc5cc8",
+      "current_import_sha256": "0e60c9ab6b805addba7266cab37216c178ee571e4b50652896d01891791ee510",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/pagination/violet-pagination.ts",
@@ -8543,11 +8543,11 @@
       "upstream_sha256": "02e886bd8571cb93d89e0ba7ae5d3256ffaa0a28091ca9029a362d34f74650be",
       "staged_path": "packages/violet-elements/src/persona/violet-persona.stories.ts",
       "staged_sha256": "02e886bd8571cb93d89e0ba7ae5d3256ffaa0a28091ca9029a362d34f74650be",
-      "current_import_sha256": "138950b737943871b932a6c51f86fe59018122ea15836932ffe645b15a04faec",
+      "current_import_sha256": "c20eeb1d0784c376ff29748bba3d90361e238211e41c9c0b21a9f90fbcf44b09",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/persona/violet-persona.ts",
@@ -8651,11 +8651,11 @@
       "upstream_sha256": "000526ce2a86cf8461b02778054d250ef8cc8143fada52cdc419efd2c16ee3b0",
       "staged_path": "packages/violet-elements/src/radio-group/violet-radio-group.stories.ts",
       "staged_sha256": "000526ce2a86cf8461b02778054d250ef8cc8143fada52cdc419efd2c16ee3b0",
-      "current_import_sha256": "673e836387259ad08cf2459eedc165adcd9c136ea4beaf9e10af2201433b6b9d",
+      "current_import_sha256": "8c54a5b3c768b249d135eff77457946b0b023c197321a3fcfd05b2a7754adf74",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/radio-group/violet-radio-group.ts",
@@ -8687,11 +8687,11 @@
       "upstream_sha256": "ebf89fc3ff8708cd43ca0d2dc7490bf84d163af24c3615a001183e76e3a77332",
       "staged_path": "packages/violet-elements/src/radio/violet-radio.stories.ts",
       "staged_sha256": "ebf89fc3ff8708cd43ca0d2dc7490bf84d163af24c3615a001183e76e3a77332",
-      "current_import_sha256": "d154f34a71fbf4f8b8bcacff7a2019103ebcbcc8a53d27d5717fb6c81b4fe1a8",
+      "current_import_sha256": "7bf6ef177843ad1fad327b0a95e5e7f84f1ab7da05a56fd7b618bcf56430191f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/radio/violet-radio.ts",
@@ -8723,11 +8723,11 @@
       "upstream_sha256": "a02678461d7331637da7073fcc48d5e740d5baa9e582b0d3eb49fbfa25fd4460",
       "staged_path": "packages/violet-elements/src/segment/violet-segment.stories.ts",
       "staged_sha256": "a02678461d7331637da7073fcc48d5e740d5baa9e582b0d3eb49fbfa25fd4460",
-      "current_import_sha256": "db9749e75bf258835d2c3fa3de350866833c04a736961f4f848df2a692a527ed",
+      "current_import_sha256": "708602037d4a7ee198f15602c14547e5d1641e938bcdc9e373518ae2e2d0cbb7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segment/violet-segment.ts",
@@ -8759,11 +8759,11 @@
       "upstream_sha256": "00362c95cd612cb786e3b3b39c25a9468ad7492ad188ee16650ed33f9d67f14c",
       "staged_path": "packages/violet-elements/src/segmented-control/violet-segmented-control.stories.ts",
       "staged_sha256": "00362c95cd612cb786e3b3b39c25a9468ad7492ad188ee16650ed33f9d67f14c",
-      "current_import_sha256": "16e3e55c2c6241843de0bf43ba89aa783830240430447b48d10f673682ae7efd",
+      "current_import_sha256": "62803c084deff5a00b6e53fda0e6d7109c0c426bb1e02361da581bc96598d976",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segmented-control/violet-segmented-control.ts",
@@ -8795,11 +8795,11 @@
       "upstream_sha256": "130ebc949e368114fcf643b23d8f6f2c1e2b568cae1d6c97395805cf4eba1bca",
       "staged_path": "packages/violet-elements/src/select/violet-select.stories.ts",
       "staged_sha256": "130ebc949e368114fcf643b23d8f6f2c1e2b568cae1d6c97395805cf4eba1bca",
-      "current_import_sha256": "6f7afc5045dda2e31546c0da93f801de1452c7b8d5bcb0c150fc20feeb88f058",
+      "current_import_sha256": "f6cee0eb0f192d09c144b33352fe5eaeb04543e965479e5dc4ba5620b78d0097",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/select/violet-select.ts",
@@ -8855,11 +8855,11 @@
       "upstream_sha256": "be0d75dd438598afd0c074e3f7ee7dcd471671f9a38cac1b283c4e277d606970",
       "staged_path": "packages/violet-elements/src/slider/violet-range-slider.stories.ts",
       "staged_sha256": "be0d75dd438598afd0c074e3f7ee7dcd471671f9a38cac1b283c4e277d606970",
-      "current_import_sha256": "cdff88b358df125771e8a9deb9d848b8f9d6c5867f8428d6511e14945c7eb483",
+      "current_import_sha256": "62e201fdb55439432e4d3630727f20a85ee8b33ca0bb43c91a462503617745cc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/slider/violet-range-slider.ts",
@@ -8891,11 +8891,11 @@
       "upstream_sha256": "35b5746a4970f8437e8869f0546f75d9aff0fdbe675f2f54d76cff7e3fe8943d",
       "staged_path": "packages/violet-elements/src/slider/violet-slider.stories.ts",
       "staged_sha256": "35b5746a4970f8437e8869f0546f75d9aff0fdbe675f2f54d76cff7e3fe8943d",
-      "current_import_sha256": "77d09157ecd952701e4c6fca9c260d128c0c1dc29aab0d66b832ed6f8674984c",
+      "current_import_sha256": "8b47c16b0b9939e30700fa6368c6ebed3f4c8787fe24109ec1aa5e1ce45478a3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/slider/violet-slider.ts",
@@ -8999,11 +8999,11 @@
       "upstream_sha256": "b2ad27fecd306498559fee101687767586446e1720681e1c9868e1c7eb000131",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.stories.ts",
       "staged_sha256": "b2ad27fecd306498559fee101687767586446e1720681e1c9868e1c7eb000131",
-      "current_import_sha256": "6923da68548dd85163f3b20c62979127ba17fb85c415dc8ce3869efa28eddec4",
+      "current_import_sha256": "e866db7b34ce1964277d34cb9849349f903f81b837ac418de6896c8c6cbd4f1f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/switch/violet-switch.ts",
@@ -9035,11 +9035,11 @@
       "upstream_sha256": "a51b4162e90e1c87f113946f43c3577fa483411dc4a157e8e2565d6e9178f3f9",
       "staged_path": "packages/violet-elements/src/tab-panel/violet-tab-panel.stories.ts",
       "staged_sha256": "a51b4162e90e1c87f113946f43c3577fa483411dc4a157e8e2565d6e9178f3f9",
-      "current_import_sha256": "50b068d30a8ab673950cfb446abf39329feb2bca35b7728d069692d4810701e6",
+      "current_import_sha256": "9c91ca677b60a3bcc50c6526911a764ecb18b3566ba50180b1d33d765835e2c8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab-panel/violet-tab-panel.ts",
@@ -9071,11 +9071,11 @@
       "upstream_sha256": "e3da9d47960beb95379549f6f7243b85c90db4144f27dc9be88da8ff2337a512",
       "staged_path": "packages/violet-elements/src/tab/violet-tab.stories.ts",
       "staged_sha256": "e3da9d47960beb95379549f6f7243b85c90db4144f27dc9be88da8ff2337a512",
-      "current_import_sha256": "d273799128acb9d9c4d9ec924cfde2096d84e97d5241addea74f926f9d9ece14",
+      "current_import_sha256": "29cdf10c984f8b3892381f77fbcb4f6d95f57943c1850f42e7d4b7f55e9022d0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab/violet-tab.ts",
@@ -9107,11 +9107,11 @@
       "upstream_sha256": "a362337a00d07a2fddc32183e88f5662c081e890c36f1e7806e6f4d22ac5e39d",
       "staged_path": "packages/violet-elements/src/tabs/violet-tabs.stories.ts",
       "staged_sha256": "a362337a00d07a2fddc32183e88f5662c081e890c36f1e7806e6f4d22ac5e39d",
-      "current_import_sha256": "3a54c16a3f134c656f180465173c18279f05a98042b42a3dfcbe299e536a6660",
+      "current_import_sha256": "a7cf7f10979720ff93b6d6b4bcf0f6366336fae9a56fec9d63bac9eeb5fc1c4e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tabs/violet-tabs.ts",
@@ -9143,11 +9143,11 @@
       "upstream_sha256": "4d5a4b59c8d6b65bf89ace15861c7d2bb282042b1437683591885b7d080318d5",
       "staged_path": "packages/violet-elements/src/teaching-tip/violet-teaching-tip.stories.ts",
       "staged_sha256": "4d5a4b59c8d6b65bf89ace15861c7d2bb282042b1437683591885b7d080318d5",
-      "current_import_sha256": "fe8406782fc388a79c99544c7975ff2d4fb345b10d0dc4b5f78a9df5f47daf2f",
+      "current_import_sha256": "c0d156e7ec62f1c0f3598a5dab335797c15b0b0e2e984f56fb3eb352dbcc2e42",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/teaching-tip/violet-teaching-tip.ts",
@@ -9179,11 +9179,11 @@
       "upstream_sha256": "9957bd5e21409cddc67e4d172ab7794881fd2f9fcecec34d7f8fb45e82334860",
       "staged_path": "packages/violet-elements/src/text-area/violet-text-area.stories.ts",
       "staged_sha256": "9957bd5e21409cddc67e4d172ab7794881fd2f9fcecec34d7f8fb45e82334860",
-      "current_import_sha256": "040e0936a47cac6ddeeb0b6d648a6d343bd98f94a03736d7c463d55592c8bb12",
+      "current_import_sha256": "4db5523cfa5865aac457f7b7da74cf75c87043ddf492c78864abe9ededd0ff09",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-area/violet-text-area.ts",
@@ -9227,11 +9227,11 @@
       "upstream_sha256": "a023727abd58b4753c9d9bc4757d81b9b1cb47e0bbef686c583f3cd3b26e1ebb",
       "staged_path": "packages/violet-elements/src/text-field/violet-text-field.stories.ts",
       "staged_sha256": "a023727abd58b4753c9d9bc4757d81b9b1cb47e0bbef686c583f3cd3b26e1ebb",
-      "current_import_sha256": "df17b2c6d7dd6f9d55d2b0a890b7e62be1fb9b0887afb16a5e14bcb30ccae14e",
+      "current_import_sha256": "a21f2c9b4293fc53207296d3ab7ab446f5594ff518d788ce0853605ae4f7ec29",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.ts",
@@ -9323,11 +9323,11 @@
       "upstream_sha256": "0aaa184487f2616a1d400c4fd0d85694a8809af623773ab0e809ea1201b486eb",
       "staged_path": "packages/violet-elements/src/theme/violet-theme.stories.ts",
       "staged_sha256": "0aaa184487f2616a1d400c4fd0d85694a8809af623773ab0e809ea1201b486eb",
-      "current_import_sha256": "d8a4beb7b7fb503edde490ffc359aa4ba568279b0e7e62662b3943258768a319",
+      "current_import_sha256": "cf4174272e37c561596685ff48b6fada1fd24d55f43cb5e44ccf149f28b74489",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Offer the generated high-contrast preset in the scoped theme story's preset control (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Offer the generated high-contrast preset in the scoped theme story's preset control (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/theme/violet-theme.ts",
@@ -9443,11 +9443,11 @@
       "upstream_sha256": "36bc0d66ec613a0134c0fbb95816d68e3a0f8525e05917ca17c28e8b541fa17e",
       "staged_path": "packages/violet-elements/src/tooltip/violet-tooltip.stories.ts",
       "staged_sha256": "36bc0d66ec613a0134c0fbb95816d68e3a0f8525e05917ca17c28e8b541fa17e",
-      "current_import_sha256": "f0608796a67a447ed27fb81ac0ee92c58b0ec8c60a67b8628a4ad4b2d7e9a26d",
+      "current_import_sha256": "c966a28672f58499cc4d261e1d0f55fba6aa0128d3298ecb606527607d0eb3ce",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tooltip/violet-tooltip.ts",
@@ -9479,11 +9479,11 @@
       "upstream_sha256": "67bee0e7eaf7204882a94004a0810dce96abbf3da8a382244ea356e4fe7153e4",
       "staged_path": "packages/violet-elements/src/tree-item/violet-tree-item.stories.ts",
       "staged_sha256": "67bee0e7eaf7204882a94004a0810dce96abbf3da8a382244ea356e4fe7153e4",
-      "current_import_sha256": "62612afa0aa3b864987d8a4ed3403798b61a2a3ed332cb15fa1082a6c4926d9b",
+      "current_import_sha256": "1e5330b0224113dde16ed204de1743050597779322c8e96780c982ad28a9d95d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tree-item/violet-tree-item.ts",
@@ -9515,11 +9515,11 @@
       "upstream_sha256": "a4a4a92f13814e43ac7da81e9920558ed8ae7a624514d561c38b958aefc10b96",
       "staged_path": "packages/violet-elements/src/tree/violet-tree.stories.ts",
       "staged_sha256": "a4a4a92f13814e43ac7da81e9920558ed8ae7a624514d561c38b958aefc10b96",
-      "current_import_sha256": "9b2770f048537ca8d78739f7951d5a5d0871722bd1270c5b7ec8891d3d610c08",
+      "current_import_sha256": "a981b399db486e97c1077d11607db5cb6abaa996e8986d50489b58bcd459fc18",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tree/violet-tree.ts",

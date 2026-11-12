@@ -41,6 +41,7 @@ function renderSegmentedControl(args: VioletSegmentedControlStoryArgs): HTMLElem
 
 const meta = {
     title: "Components/Segmented Control",
+    component: "violet-segmented-control",
     tags: ["autodocs"],
     parameters: {
         docs: {

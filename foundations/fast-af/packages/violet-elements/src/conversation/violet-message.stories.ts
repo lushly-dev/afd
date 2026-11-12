@@ -27,6 +27,7 @@ function renderMessage(args: MessageStoryArgs): HTMLElement {
 
 const meta = {
     title: "Conversation/Message",
+    component: "violet-message",
     tags: ["autodocs"],
     parameters: {
         docs: {

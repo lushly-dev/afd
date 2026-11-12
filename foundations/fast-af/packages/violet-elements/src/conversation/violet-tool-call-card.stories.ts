@@ -11,6 +11,7 @@ type ToolCallStoryArgs = {
 
 const meta = {
     title: "Conversation/Tool Call Card",
+    component: "violet-tool-call-card",
     tags: ["autodocs"],
     parameters: {
         docs: {

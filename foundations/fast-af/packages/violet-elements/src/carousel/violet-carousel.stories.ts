@@ -69,6 +69,7 @@ function renderCarousel(args: VioletCarouselStoryArgs): string {
 
 const meta = {
     title: "Components/Carousel",
+    component: "violet-carousel",
     tags: ["autodocs"],
     parameters: {
         docs: {

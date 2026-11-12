@@ -28,6 +28,7 @@ function renderSegment(args: VioletSegmentStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Segment",
+    component: "violet-segment",
     tags: ["autodocs"],
     parameters: {
         docs: {

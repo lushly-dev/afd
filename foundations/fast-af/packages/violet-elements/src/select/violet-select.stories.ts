@@ -87,6 +87,7 @@ function renderSelect(args: VioletSelectStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Select",
+    component: "violet-select",
     tags: ["autodocs"],
     parameters: {
         docs: {

@@ -11,6 +11,7 @@ type ResultStoryArgs = {
 
 const meta = {
     title: "Conversation/Tool Result Card",
+    component: "violet-tool-result-card",
     tags: ["autodocs"],
     parameters: {
         docs: {

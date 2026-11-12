@@ -42,6 +42,7 @@ function renderTree(args: VioletTreeStoryArgs): string {
 
 const meta = {
     title: "Components/Tree",
+    component: "violet-tree",
     tags: ["autodocs"],
     parameters: {
         docs: {

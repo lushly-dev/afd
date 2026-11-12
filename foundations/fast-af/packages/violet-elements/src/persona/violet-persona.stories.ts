@@ -24,6 +24,7 @@ function renderPersona(args: VioletPersonaStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Persona",
+    component: "violet-persona",
     tags: ["autodocs"],
     parameters: {
         docs: {

@@ -49,6 +49,7 @@ function renderTip(args: VioletTeachingTipStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Teaching Tip",
+    component: "violet-teaching-tip",
     tags: ["autodocs"],
     parameters: {
         docs: {

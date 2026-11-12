@@ -33,6 +33,7 @@ function renderCard(args: VioletCardStoryArgs, content?: (card: HTMLElement) => 
 
 const meta = {
     title: "Components/Card",
+    component: "violet-card",
     tags: ["autodocs"],
     parameters: {
         docs: {

@@ -53,6 +53,7 @@ function renderMultiPicker(args: MultiPickerStoryArgs): HTMLElement {
 
 const meta = {
   title: "Components/Data Grid/Multi Picker",
+  component: "violet-data-grid-multi-picker",
   tags: ["autodocs"],
   args: { disabled: false },
   parameters: {

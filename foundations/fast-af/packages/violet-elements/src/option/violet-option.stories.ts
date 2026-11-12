@@ -37,6 +37,7 @@ function renderOption(args: VioletOptionStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Option",
+    component: "violet-option",
     tags: ["autodocs"],
     parameters: {
         docs: {

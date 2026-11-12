@@ -48,6 +48,7 @@ function renderSlider(args: VioletSliderStoryArgs): HTMLFormElement {
 
 const meta = {
     title: "Components/Slider",
+    component: "violet-slider",
     tags: ["autodocs"],
     parameters: {
         docs: {
