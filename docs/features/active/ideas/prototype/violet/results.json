@@ -1,0 +1,273 @@
+{
+	"step": "0.6",
+	"ranAt": "2026-11-12T04:36:41.294Z",
+	"node": "v26.13.0",
+	"engine": "integrations/violet-afd dist (command registry) over foundations/violet core, MemoryDatabase",
+	"tree": {
+		"core": null,
+		"public": "core",
+		"book": "core",
+		"product": "core",
+		"public-short": "public"
+	},
+	"checks": [
+		{
+			"check": 1,
+			"name": "root idea resolves in every framing",
+			"outcome": "works as is",
+			"note": "tokens.resolve returns the composite value unchanged in all 5 framings; counts 300/300/300/300/300",
+			"evidence": {
+				"seen": [true, true, true, true, true],
+				"counts": [300, 300, 300, 300, 300]
+			}
+		},
+		{
+			"check": 2,
+			"name": "override in one framing, siblings unaffected",
+			"outcome": "works as is",
+			"note": "token.override on book changes book only; public and product keep the root statement",
+			"evidence": {
+				"book": "For the book: garlic goes in the ground in October.",
+				"pub": "Raised beds benefit from a thin layer of finished compost (#2).",
+				"prod": "Raised beds benefit from a thin layer of finished compost (#2)."
+			}
+		},
+		{
+			"check": 3,
+			"name": "root change reaches framings that did not override",
+			"outcome": "works as is",
+			"note": "a root change is an override at the root itself (there is no update command); it reaches every framing that did not override, and an overriding framing keeps its own wording without notice",
+			"evidence": {
+				"rootOverrideAccepted": true,
+				"after": {
+					"core": "Compost: revised at the root.",
+					"public": "Compost: revised at the root.",
+					"book": "Compost: revised at the root.",
+					"product": "Compost: revised at the root.",
+					"public-short": "Compost: revised at the root."
+				},
+				"bookKeeps": "book wording",
+				"pubGets": "root rewording"
+			}
+		},
+		{
+			"check": 4,
+			"name": "subtract in a framing hides it from its child too",
+			"outcome": "works as is",
+			"note": "token.subtract on public removes the idea from public and public-short; book keeps it",
+			"evidence": {
+				"inPub": false,
+				"inShort": false,
+				"inBook": true
+			}
+		},
+		{
+			"check": 5,
+			"name": "reset restores",
+			"outcome": "works awkwardly",
+			"note": "reset of an override restores the root statement (true); reset of a subtract (an omit) is accepted but the idea stays hidden; reset appends an op (book ops for the idea: override,reset)",
+			"evidence": {
+				"r1": true,
+				"bookAfter": "Raised beds benefit from a thin layer of finished compost (#2).",
+				"r2": {
+					"nodeId": "public",
+					"tokenId": "idea.i0005",
+					"toAncestor": "core",
+					"operationId": "WrMkytcRpPKCDLp2uUdml"
+				},
+				"pubAfter": false,
+				"shortAfter": false,
+				"opsBook": ["override", "reset"]
+			}
+		},
+		{
+			"check": 6,
+			"name": "add an idea only a framing has",
+			"outcome": "works as is",
+			"note": "token.add on product: present in product, absent from core; adding an id the root already has is refused (TOKEN_ALREADY_EXISTS)",
+			"evidence": {
+				"inProd": true,
+				"inCore": false,
+				"clash": "TOKEN_ALREADY_EXISTS"
+			}
+		},
+		{
+			"check": 7,
+			"name": "copy: pins or follows",
+			"outcome": "works awkwardly",
+			"note": "copy follows its source (product read book v1 then book v2); lineage marks tracksSource=true; there is no pinned copy (a pin needs an override with the value at that moment)",
+			"evidence": {
+				"v1": "book v1",
+				"v2": "book v2",
+				"copyStep": {
+					"nodeId": "product",
+					"operation": "copy",
+					"value": {
+						"statement": "book v2",
+						"type": "question",
+						"tags": ["beginner", "climate"]
+					},
+					"fromNode": "book",
+					"tracksSource": true
+				}
+			}
+		},
+		{
+			"check": 8,
+			"name": "lineage in the grandchild",
+			"outcome": "works as is",
+			"note": "token.lineage on public-short: core:add > public:override > public-short:inherit, resolvedAt public",
+			"evidence": {
+				"steps": ["core:add", "public:override", "public-short:inherit"],
+				"resolvedAt": "public"
+			}
+		},
+		{
+			"check": 9,
+			"name": "compare two framings",
+			"outcome": "works as is",
+			"note": "tokens.compare (onlyDifferent) and compare.nodes both run; composite values compare whole, so a tags-only change counts the same as a reworded statement (4 differing rows)",
+			"evidence": {
+				"tokensCompare": {
+					"baseline": "public"
+				},
+				"compareNodes": {
+					"nodeA": "public",
+					"nodeB": "book",
+					"similarity": 99
+				},
+				"diffCount": 4,
+				"sample": "{\"nodes\":[{\"id\":\"public\",\"name\":\"public\",\"type\":\"custom\",\"depth\":1},{\"id\":\"book\",\"name\":\"book\",\"type\":\"custom\",\"depth\":1}],\"baseline\":\"public\",\"tokens\":[{\"id\":\"idea.i0004\",\"category\":\"custom\",\"tier\":\"semantic\",\"differs\":true,\"cells\":{\"public\":{\"state\":\"inherited\",\"value\":{\"statement\":\"root rewording\",\"type\":\"method\",\"tags\":[\"harvest\",\"tools\"]},\"resolvedValue\":\"{\\\"statement\\\":\\\"root rewording\\\",\\\"type\\\":\\\"method\\\",\\\"tags\\\":[\\\"harvest\\\",\\\"tools\\\"]}\",\"source\":\"core\",\"differs\":false},\"book\":{\"state\":\"override\",\"value\":{\"statement\":\"book wording\",\"type\":\"method\",\"tags\":[\"harvest\",\"tools\"]},\"resolve"
+			}
+		},
+		{
+			"check": 10,
+			"name": "impact / dry run of one change and of a batch across nodes",
+			"outcome": "works awkwardly",
+			"note": "changes.impact previews one or up to 50 changes at ONE node and writes nothing (store unchanged: true); 51 changes refused (VALIDATION_ERROR); there is no input for changes at several nodes (an extra key is silently ignored), so a batch across framings cannot be previewed as one",
+			"evidence": {
+				"one": [
+					"core:changes",
+					"book:changes",
+					"product:changes",
+					"public:changes",
+					"public-short:changes"
+				],
+				"batchNodes": [
+					"core:changes",
+					"book:changes",
+					"product:changes",
+					"public:changes",
+					"public-short:changes"
+				],
+				"tooMany": "VALIDATION_ERROR",
+				"acrossAccepted": true,
+				"unchanged": true
+			}
+		},
+		{
+			"check": 11,
+			"name": "change one field without overriding the statement",
+			"outcome": "not possible",
+			"note": "override replaces the whole value: after tagging in book and rewording at the root, book still reads \"Potatoes attract more beneficial insects when flowers are near (#14).\"; a partial value {tags} is accepted and drops the statement (book now reads undefined); a metadata key on override is silently dropped (not in its input schema)",
+			"evidence": {
+				"bookStatement": "Potatoes attract more beneficial insects when flowers are near (#14).",
+				"partialAccepted": true,
+				"metadataOnOverride": true
+			}
+		},
+		{
+			"check": 12,
+			"name": "read the tree as of an earlier moment",
+			"outcome": "not possible",
+			"note": "no command takes a moment (asOf-like input: false); audit.list returns the change (1 event); replaying stored operations up to the moment through resolveInheritance gives \"Raised beds are best harvested in the morning (#17).\", but node edits, deletions and includes are not versioned, so that is outside the engine",
+			"evidence": {
+				"schemaHasAsOf": false,
+				"auditCount": 1,
+				"replayed": "Raised beds are best harvested in the morning (#17)."
+			}
+		},
+		{
+			"check": 13,
+			"name": "idea held back from descendants until released",
+			"outcome": "works awkwardly",
+			"note": "emulated by a subtract in every child (hidden: true); a framing created later receives it at once (leak: true); release by reset does not bring it back, and no command removes the subtract; no held state exists",
+			"evidence": {
+				"hidden": [true, true, true, true],
+				"leaksToNew": true,
+				"release": [true, true, true],
+				"visibleAfter": false
+			}
+		},
+		{
+			"check": 14,
+			"name": "constraint: public may not hold an idea tagged private",
+			"outcome": "works awkwardly",
+			"note": "a pattern constraint over the JSON of the value, scoped by id glob at public; validate reports (public {\"totalTokens\":298,\"validTokens\":289,\"errors\":9,\"warnings\":0,\"infos\":0}, public-short {\"totalTokens\":298,\"validTokens\":289,\"errors\":9,\"warnings\":0,\"infos\":0}); a write that breaks it is accepted, only reported",
+			"evidence": {
+				"set": "ok",
+				"validatePublic": {
+					"totalTokens": 298,
+					"validTokens": 289,
+					"errors": 9,
+					"warnings": 0,
+					"infos": 0
+				},
+				"validateShort": {
+					"totalTokens": 298,
+					"validTokens": 289,
+					"errors": 9,
+					"warnings": 0,
+					"infos": 0
+				},
+				"writeAccepted": true,
+				"privateExample": "idea.i0037"
+			}
+		},
+		{
+			"check": 15,
+			"name": "other: ids, value types, node types",
+			"outcome": "works awkwardly",
+			"note": "any non-empty id except reserved segments ({\"idea.Plant garlic in fall\":\"accepted\",\"idea/i1\":\"accepted\",\"idea.__proto__\":\"VALIDATION_ERROR\",\"01HZX5ULIDLIKEID\":\"accepted\",\"idea.i0000.v2\":\"accepted\"}); a bare array value refused; composite resolvedValue is JSON text; tokens carry design metadata defaults (category custom, tier semantic); node type 'framing' refused, so framings use custom",
+			"evidence": {
+				"tries": {
+					"idea.Plant garlic in fall": "accepted",
+					"idea/i1": "accepted",
+					"idea.__proto__": "VALIDATION_ERROR",
+					"01HZX5ULIDLIKEID": "accepted",
+					"idea.i0000.v2": "accepted"
+				},
+				"arrayValue": false,
+				"resolvedValueSample": "{\"statement\":\"Tomatoes do better with deep, infrequent watering (#0).\",\"type\":\"c",
+				"metadata": {
+					"category": "custom",
+					"tier": "semantic",
+					"status": "stable",
+					"platforms": [],
+					"tags": []
+				},
+				"nodeTypeFraming": false
+			}
+		}
+	],
+	"timings": [
+		{
+			"ideas": 300,
+			"loadMs": 10,
+			"perAddMs": 0.03,
+			"resolveGrandchildMs": 1,
+			"resolved": 300,
+			"compareMs": 4,
+			"impactOneChangeMs": 23
+		},
+		{
+			"ideas": 3000,
+			"loadMs": 218,
+			"perAddMs": 0.07,
+			"resolveGrandchildMs": 9,
+			"resolved": 3000,
+			"compareMs": 36,
+			"impactOneChangeMs": 246
+		}
+	]
+}

@@ -1,7 +1,8 @@
-# Extraction prompt, version 1
+# Extraction prompt, version 2
 
-The prompt an extractor is given in phase 0. It is one prompt, the same for every source and
-every model, so that two extractors can be compared.
+The prompt an extractor is given in phase 0. Version 2 adds the tests for one idea and for
+standing alone after version 1's review found two ideas in one the commonest fault, and
+word-for-word ideas that lean on their neighbours. Version 1 is in the history of this file.
 
 ---
 
@@ -34,6 +35,17 @@ instructions to an editor, status fields, tables of contents, links, acknowledge
 what the author quotes only to reject it, unless the rejection is the idea. Capture each idea
 once for the document, where it is stated best, even when the document repeats it.
 
+## Two tests before you write each idea
+
+1. **One idea.** Could someone hold one part of it and reject another? Then it is two ideas: a
+   claim and its reason, a rule and its exception, two items of a list joined by "and", a
+   finding and what the author makes of it. Write each one. A model made of named parts is one
+   idea only when the parts mean nothing apart.
+2. **Alone.** Read the statement with nothing around it. If it says "this", "these", "that
+   approach", "the above", "here" or "it" and nothing in it says what is meant, or if it
+   answers a heading that it does not carry, it does not stand alone. Then add the unit that
+   supplies the missing part to `cites` and give a `statement` that carries it.
+
 ## How to write one
 
 Write one JSON object per idea, one per line:
@@ -45,7 +57,7 @@ Write one JSON object per idea, one per line:
 
 - `cites`: the numbers of the units the idea rests on. Always given.
 - **Prefer the author's own words.** When one unit, or two or three units next to each other,
-  state the idea and stand alone, cite them and give no `statement`. The idea is then exactly
+  state exactly one idea and pass the test of standing alone, cite them and give no `statement`. The idea is then exactly
   those units, in order.
 - **Restate only when you must:** when the idea is spread over the text, when the sentences lean
   on what came before, or when the wording carries scaffolding. Then give a `statement` in plain

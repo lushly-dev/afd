@@ -11,17 +11,21 @@ only counts, rates and the tools are here. Every example in this folder is inven
 | [`sentences.py`](sentences.py) | 0.1, 0.4 | The sentence rule: a source as numbered units (prose and list sentences, headings, table rows, quotes, code), so an extractor cites by number |
 | [`prompts/extract.md`](prompts/extract.md) | 0.1 | The one extraction prompt every model was given |
 | [`ideas.py`](ideas.py) | 0.1, 0.4 | Checks an extraction against its sources, marks what is word for word, counts it, and draws a review sample |
+| [`themes.py`](themes.py) | 0.5 | Derives themes two ways from statement embeddings and compares them with each other, across models and with a given grouping |
+| [`ask.py`](ask.py) | 0.3 | Builds a bundle of ideas for each question and counts a judge's verdicts |
+| [`violet/`](violet/README.md) | 0.6 | Invented ideas loaded into Violet's engine as composite values in a tree of framings, with fifteen checks |
 | [`match.py`](match.py) | 0.2 | Embeds statements with local models, pools candidate pairs for labelling, and reports how each lane sorts them |
-| [`prompts/label-pairs.md`](prompts/label-pairs.md), [`prompts/review-units.md`](prompts/review-units.md) | 0.2, 0.1 | The labelling and review prompts |
+| [`prompts/label-pairs.md`](prompts/label-pairs.md), [`prompts/review-units.md`](prompts/review-units.md), [`prompts/judge-bundles.md`](prompts/judge-bundles.md) | 0.2, 0.1, 0.3 | The labelling, review and judging prompts |
 | [`test_prototype.py`](test_prototype.py) | | Tests on invented fixtures |
 
 ```sh
-uv run --python 3.12 --with pytest --with numpy --with snowballstemmer \
+uv run --python 3.12 --with pytest --with numpy --with scipy --with snowballstemmer \
     pytest docs/features/active/ideas/prototype -q
 ```
 
 Python 3.10 or later. `corpus.py`, `sentences.py` and `ideas.py` use the standard library only;
-`match.py` needs `numpy` and `snowballstemmer`, and `fastembed` to embed.
+`match.py` and `ask.py` need `numpy` and `snowballstemmer`, and `fastembed` to embed; `themes.py`
+needs `numpy` and `scipy`.
 
 ## The run of 2026-11-11
 
@@ -122,6 +126,64 @@ that fuse two lanes were chosen on the same labels. The store held about 3 200 i
 falls further down the list as a store grows, so recall at a fixed number of candidates will
 fall with it.
 
+### 0.3 Can questions be answered from ideas?
+
+[`results/bundles.counts.json`](results/bundles.counts.json).
+
+**Method.** A model drafted twenty questions in the owner's voice from his own summary of the
+subject: six lookups ("what do I think about"), four about a whole area, three about evidence,
+three about tensions or changes of mind, and four that gather material for a piece. For each,
+`ask.py` built a bundle of 25 of extractor `a`'s ideas by words and meaning fused (weight 0.7 on
+`bge-base-en-v1.5`), with no links, themes or syntheses, since none exist yet. A judge, Claude Opus
+5.5, answered each from its bundle alone and said what was missing. The questions are a model's,
+not the owner's; the plan asks for twenty of his own.
+
+| Kind | Questions | Fully | Partly | Not at all |
+| --- | --- | --- | --- | --- |
+| Lookup | 6 | 5 | 1 | 0 |
+| Area | 4 | 0 | 4 | 0 |
+| Evidence | 3 | 1 | 2 | 0 |
+| Tension | 3 | 2 | 0 | 1 |
+| Draft | 4 | 2 | 2 | 0 |
+| All | 20 | 10 | 9 | 1 |
+
+- **Lookups work from retrieval alone.** Five of six were answered fully.
+- **What was missing was mostly relations.** The judge named how ideas bear on each other 11
+  times, a view of the owner's 7, when a view was held 6, evidence 4 and a statement of the whole
+  3. None of the four questions about a whole area was answered fully: three lacked relations
+  and two a statement of the whole.
+- **The links it asked for.** Refines 12 times, supersedes 8, part of 7, contradicts 5, supports
+  4, example of 3. The judge chose from a list that differed from the plan's: it offered
+  *supersedes* and *part of*, which the plan does not have, called *challenges* contradicts, and
+  left out *depends-on* and *summarises*. So the two kinds it asked for are a lead, not a finding,
+  until a judge chooses from the plan's own list.
+- **The budget.** 25 was enough for 12 questions, too small for 6 and too large for 2. 37% of the
+  ideas in a bundle had nothing to do with the question; 38% were used.
+
+### 0.6 Does a hierarchy of framings fit ideas?
+
+[`violet/README.md`](violet/README.md), [`violet/results.json`](violet/results.json). Invented
+ideas, so this step touched no private material.
+
+Violet's engine, as it is on `main`, holds ideas as composite values in a tree of framings. Of
+fifteen checks, seven work as they are: an idea resolves everywhere, an override stays in its
+framing, a change at the root reaches every framing that did not override, an omission hides an idea
+from descendants, an idea of a framing's own, lineage, and compare. Copy works awkwardly: it follows
+its source and cannot be pinned. Load and resolve are fast: 3 000 ideas load in about a quarter of a
+second, a framing resolves in under 10 ms and two framings compare in about 35 ms.
+
+What does not fit:
+
+- Every gap the plan's P7 names is confirmed: no pinned copy, no reading the tree as it was, no
+  change to one field of a value (a value given only `tags` is accepted and erases the
+  statement), no preview of a batch across framings (one node and 50 changes at most), and no
+  idea held back until released.
+- Two the plan did not name. **An omission cannot be undone**: reset of an omitted idea is
+  accepted and does nothing, and no command removes it. **Rules report and do not refuse**: a
+  write that breaks a constraint is accepted and reported, and a rule is a regular expression
+  over the value's JSON text.
+- Design-token defaults ride along on every idea, and the engine refuses `framing` as a node type.
+
 ### 0.4 The sentence rule and attested (in part)
 
 - **Whole sentences.** Over the 66 distinct sources, 23% of prose and list sentences end without
@@ -142,6 +204,52 @@ fall with it.
   decide.
 - **Not measured.** How many attested statements the owner would disown, and how long a sitting of
   decisions takes. Both need the owner.
+
+### 0.5 Do derived themes group ideas as the owner would? (in part)
+
+[`results/themes.counts.json`](results/themes.counts.json).
+
+**Method.** Extractor `a`'s 3 233 ideas, embedded with `bge-base-en-v1.5`, grouped two ways: a
+graph that joins each idea to those of its ten nearest neighbours that also count it among
+theirs, above a similarity floor, with themes as the graph's communities by label propagation in
+a fixed order; and average-linkage clustering cut at a cosine distance. Each was run again with
+`nomic-embed-text-v1.5-Q` to see whether the themes belong to the ideas or to the model. The
+owner's own grouping is not yet given, so each idea's source document and section stand in for
+it.
+
+| Run | Themes | Ideas in a theme | Median size | Largest | Over 10 ideas | Across documents |
+| --- | --- | --- | --- | --- | --- | --- |
+| Graph, floor 0.70 | 473 | 91% | 4 | 47 | 68 | 82% |
+| Graph, floor 0.75 | 457 | 71% | 3 | 46 | 47 | 78% |
+| Graph, floor 0.80 | 376 | 41% | 3 | 24 | 14 | 70% |
+| Tree, distance 0.25 | 682 | 63% | 2 | 38 | 9 | 69% |
+| Tree, distance 0.30 | 656 | 84% | 3 | 135 | 37 | 75% |
+| Tree, distance 0.35 | 469 | 95% | 3 | 358 | 50 | 83% |
+
+- **Themes are only partly stable.** Two methods, or one method on two models, agree above chance
+  and far from fully: an adjusted Rand index of 0.06 to 0.49 between methods (most pairs 0.13 to
+  0.49) and 0.26 to 0.30 between models, where chance is 0 and identical groupings 1. Normalised
+  mutual information looks high (0.78 to 0.96) but groupings of the same shapes shuffled at random
+  score 0.54 to 0.91 on it, so it says little here. The model comparison also applied one similarity
+  floor to two models whose similarities run on different scales. A theme is a view of the ideas at
+  a moment, not something with an identity of its own.
+- **The graph avoids one giant theme; the tree does not.** Cut loosely, the tree chains: at 0.35
+  one theme holds 11% of all ideas. The graph's largest theme stays under 1.5%.
+- **Themes cut across documents.** Seven to eight in ten join ideas from more than one document,
+  and they agree only loosely with the documents' own sections (adjusted Rand index at most
+  0.09). That is what themes are for: the same thought met in several places.
+- **Not measured.** Whether they match how the owner groups his ideas. That needs his grouping of
+  a sample, and is added to his check (Q5).
+
+### 0.7 Records or documents?
+
+From what 0.1 to 0.6 found. An archive of 115 000 words becomes about 3 200 statements of a median
+23 words. Each needs its own standing, version, sources, links, themes and place in each framing;
+matching, review, attested and erasure all act on one statement at a time, and Violet's engine
+resolves thousands of such values in milliseconds. As documents, every idea would be a file of
+two sentences with all of that in front matter, and the knowledge plugin's verify-by date and
+proposals would act on files a person never reads. **Ideas are records**, indexed through P2, as
+the plan's question 2 recommends.
 
 ## What this means for the plan
 
@@ -169,3 +277,22 @@ Each is proposed for the plugin's specification (step A3) and recorded in [STATU
 6. **Attested needs its context.** Between one in twelve and one in five word-for-word ideas lean on
    their neighbours, by extractor. A read of an attested idea should be able to return the sentences
    around it, and phase 0.4's check of what the owner would disown stays open.
+7. **Themes are views; a synthesis attaches to its members.** The graph at a floor near 0.75 puts
+   seven in ten ideas in a theme and never one giant theme, but its themes change with the method
+   and the model. A synthesis should name the ideas it sums up, as the plan's section 4.7 has it,
+   and never a theme by an id. A synthesis is worth asking for above about ten members, 47 themes
+   in this archive. Both numbers wait on the owner's grouping, and each model needs its own floor.
+8. **A later view is a link a model can state** (a lead from one judge and model-drafted
+   questions, to confirm on the owner's twenty). In an archive nobody has reviewed, nothing is
+   retired, so a question about a change of mind finds both views and cannot tell which came
+   later. A model should be able to link a later view to an earlier one without retiring it,
+   leaving retirement to the person, and a bundle should carry each idea's date.
+9. **Part of** (the same lead). Ideas that are parts of one model or one list want a kind of their
+   own; summarises runs the other way and is for syntheses.
+10. **Bundles are relevant, not yet focused.** Retrieval alone gives a lookup what it needs. For
+    an area or a tension the bundle needs the theme, the synthesis and the links around what it
+    found, which is the plan's design; and a third of a bundle is noise that a model reranking
+    the candidates, or a budget set by the kind of question, would remove.
+11. **Framings fit, with seven engine changes.** The five P7 names, and two more: an omission must
+    be releasable, and a rule must be able to refuse a write. A field-level change matters most
+    for ideas, whose tags and type change far more often than their wording.
