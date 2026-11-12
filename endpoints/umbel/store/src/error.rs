@@ -78,6 +78,11 @@ pub enum StoreError {
         /// The most postings one call counts.
         limit: u64,
     },
+    /// A put's evidence is not acceptable (`RECORD_EVIDENCE_INVALID`, sections 4.2 and 13): its
+    /// shape breaks a rule, or the document it cites is absent, not readable by the writer or
+    /// stored with another content hash, without saying which of those three. The reason names
+    /// the rule and never a value. Nothing was written.
+    EvidenceInvalid(String),
 }
 
 impl StoreError {
@@ -129,6 +134,7 @@ impl fmt::Display for StoreError {
             Self::LaneTooBroad { limit } => {
                 write!(f, "the call counts more than {limit} postings")
             }
+            Self::EvidenceInvalid(rule) => write!(f, "the evidence is not acceptable: {rule}"),
         }
     }
 }

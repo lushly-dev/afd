@@ -313,7 +313,11 @@ pub(super) fn ranked(
         sql.push(" AND l.lane IN ")
             .bind_list(page.iter().map(|candidate| candidate.lane));
         and_visible(&mut sql, decl, view, reader);
-        by_lane.extend(records(conn, &sql, decl)?);
+        by_lane.extend(
+            records(conn, &sql, decl, view, reader)?
+                .into_iter()
+                .map(|read| (read.lane, read.record)),
+        );
     }
     Ok(FindPage {
         items: scored

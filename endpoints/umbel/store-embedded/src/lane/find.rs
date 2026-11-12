@@ -8,8 +8,8 @@ use umbel_store::lane::{
 use umbel_store::{ReaderFilter, StoreError};
 
 use super::{
-    FROM_LANE, RECORD_COLUMNS, and_keys, and_visible, lane_record_from_row, limit_of, position,
-    rank, refuse_derivation, require_ready,
+    FROM_LANE, RECORD_COLUMNS, Read, and_keys, and_visible, limit_of, position, rank,
+    read_from_row, refuse_derivation, require_ready, standing,
 };
 use crate::SqliteStore;
 use crate::error::{Fail, to_i64, to_u64};
@@ -47,18 +47,24 @@ fn and_filters(
     and_visible(sql, decl, view, reader);
 }
 
-/// The rows of `sql` as lane records, in the statement's order.
+/// The rows of `sql` as lane records, in the statement's order, each with its label as `reader`
+/// may see it (section 6.5).
 pub(super) fn records(
     conn: &Connection,
     sql: &Sql,
     decl: &RecordDecl,
-) -> Result<Vec<(i64, LaneRecord)>, Fail> {
-    let mut statement = conn.prepare_cached(&sql.text)?;
-    let mut rows = statement.query(params_from_iter(&sql.params))?;
+    view: &StandingView,
+    reader: &ReaderFilter,
+) -> Result<Vec<Read>, Fail> {
     let mut found = Vec::new();
-    while let Some(row) = rows.next()? {
-        found.push(lane_record_from_row(row, decl)?);
+    {
+        let mut statement = conn.prepare_cached(&sql.text)?;
+        let mut rows = statement.query(params_from_iter(&sql.params))?;
+        while let Some(row) = rows.next()? {
+            found.push(read_from_row(row)?);
+        }
     }
+    standing::label(conn, decl, view, reader, &mut found)?;
     Ok(found)
 }
 
@@ -98,23 +104,15 @@ fn listed(
         _ => " ORDER BY l.id LIMIT ",
     })
     .bind(limit_of(u64::from(query.limit) + 1)?);
-    let mut found = Vec::new();
-    {
-        let mut statement = conn.prepare_cached(&sql.text)?;
-        let mut rows = statement.query(params_from_iter(&sql.params))?;
-        while let Some(row) = rows.next()? {
-            let created = to_u64(row.get(8)?)?;
-            found.push((created, lane_record_from_row(row, decl)?.1));
-        }
-    }
+    let mut found = records(conn, &sql, decl, view, reader)?;
     let more = found.len() > limit;
     found.truncate(limit);
     let next = more
         .then(|| found.last())
         .flatten()
-        .map(|(created, last)| match query.order {
-            FindOrder::Recent => Cursor::Recent(*created, last.record.id.clone()),
-            _ => Cursor::Id(last.record.id.clone()),
+        .map(|last| match query.order {
+            FindOrder::Recent => Cursor::Recent(last.created, last.record.record.id.clone()),
+            _ => Cursor::Id(last.record.record.id.clone()),
         })
         .map(|cursor| cursor.encode());
     let total = if query.total {
@@ -127,7 +125,7 @@ fn listed(
         None
     };
     Ok(FindPage {
-        items: found.into_iter().map(|(_, record)| record).collect(),
+        items: found.into_iter().map(|read| read.record).collect(),
         next,
         total,
         admitted: view.admit.clone(),
@@ -152,8 +150,8 @@ impl SqliteStore {
             // One snapshot for the kind's state and the read.
             let tx = conn.transaction()?;
             require_ready(&tx, ns, decl)?;
-            let found = records(&tx, &sql, decl)?;
-            Ok(found.into_iter().next().map(|(_, record)| record))
+            let found = records(&tx, &sql, decl, view, reader)?;
+            Ok(found.into_iter().next().map(|read| read.record))
         })
     }
 

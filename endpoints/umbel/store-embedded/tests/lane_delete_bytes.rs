@@ -82,6 +82,7 @@ fn view() -> StandingView {
     StandingView {
         own: Vec::new(),
         command_writable: Vec::new(),
+        person: Vec::new(),
         admit: vec![Standing::Unverified, Standing::Attested, Standing::Affirmed],
     }
 }

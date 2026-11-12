@@ -387,6 +387,10 @@ impl HostBuilder {
                 Arc::clone(&stores),
                 Arc::clone(&loaded_cell),
             ));
+            builtins.push(commands::store_documents_hold(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
             builtins
         };
         let builtin_names: HashSet<String> = builtins
@@ -872,13 +876,21 @@ fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
         .filter_map(|(name, entry)| entry.digest.clone().map(|keep| (name.clone(), keep)))
         .collect();
     #[cfg(feature = "store-embedded")]
-    commands.insert(
-        commands::STORE_RECORDS_REINDEX.to_owned(),
-        commands::STORE_RECORDS_REINDEX_KEPT
-            .iter()
-            .map(|key| (*key).to_owned())
-            .collect(),
-    );
+    for (name, kept) in [
+        (
+            commands::STORE_RECORDS_REINDEX,
+            commands::STORE_RECORDS_REINDEX_KEPT,
+        ),
+        (
+            commands::STORE_DOCUMENTS_HOLD,
+            commands::STORE_DOCUMENTS_HOLD_KEPT,
+        ),
+    ] {
+        commands.insert(
+            name.to_owned(),
+            kept.iter().map(|key| (*key).to_owned()).collect(),
+        );
+    }
     commands
 }
 

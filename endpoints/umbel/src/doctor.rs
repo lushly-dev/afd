@@ -191,7 +191,12 @@ pub const MEMORY_CHECKS: [&str; 7] = [
 
 /// The doctor's record lane checks (the records host specification, section 12.3), which only a
 /// sealed host runs: it reads the lane of each declared kind of each loaded plugin instance.
-pub const RECORD_CHECKS: [&str; 2] = ["records.declared", "records.size"];
+pub const RECORD_CHECKS: [&str; 4] = [
+    "records.declared",
+    "records.standing",
+    "records.own",
+    "records.size",
+];
 
 /// The hosted profile's checks (phase 5 specification, section 6.1, with `auth.ca_files` from
 /// step 2c, `auth.trusted_proxies` from step 3 and `auth.person_listener` from step 5b), in the

@@ -18,7 +18,7 @@ use umbel_store::{
 
 use super::grants::CallServices;
 use crate::access::{Caller, effective_principal_of, reader_filter};
-use crate::store::{SpaceStores, codes, host_error};
+use crate::store::{SpaceStores, codes, host_error, records};
 
 type Result<T> = std::result::Result<T, ServiceError>;
 
@@ -145,7 +145,7 @@ impl CallServices {
     }
 
     /// Write access to `space` under `grant` for `collection`.
-    fn writing(
+    pub(super) fn writing(
         &self,
         grant: &str,
         space: &str,
@@ -382,11 +382,46 @@ impl CallServices {
                 doc.space
             )));
         }
+        // A document put into a collection named as the person's own equals its file (the
+        // records host specification, section 3, rule 2): the host reads `<root>/<path>` itself
+        // and refuses a put whose content is not that file's. So what such a collection holds
+        // is what is on disk there, never a command's input.
+        //
+        // The document's size is the plugin's word until the store checks it, and the host
+        // reads a file of that length: so the size is held to the bytes sent, and to the
+        // largest document, before any file is read. A put that passed is stored with the fact
+        // that the host held it to its file, in the same transaction; any other put clears it.
+        let own = self.own_collection(space, &collection);
+        if own {
+            if doc.size != doc.bytes.len() as u64 {
+                return Err(ServiceError::Invalid(
+                    "size is not the length of the bytes".to_owned(),
+                ));
+            }
+            if doc.bytes.len() > umbel_store::MAX_DOCUMENT_BYTES {
+                return Err(ServiceError::TooLarge(format!(
+                    "a document is at most {} bytes",
+                    umbel_store::MAX_DOCUMENT_BYTES
+                )));
+            }
+            if self
+                .own_file_hash(space, &collection, &doc.path, doc.size)
+                .as_ref()
+                != Some(&doc.content_hash)
+            {
+                return Err(ServiceError::Invalid(format!(
+                    "{}: a document of a collection named as the person's own must equal its file on disk",
+                    records::STORE_OWN_SOURCE_MISMATCH
+                )));
+            }
+        }
         doc.envelope = self.seal(space, doc.envelope)?;
-        let meta = stores
-            .documents
-            .put_document(doc, expect)
-            .map_err(host_error)?;
+        let meta = if own {
+            stores.documents.put_document_held(doc, expect)
+        } else {
+            stores.documents.put_document(doc, expect)
+        }
+        .map_err(host_error)?;
         self.note_write(meta.rev);
         Ok(meta)
     }
@@ -409,6 +444,40 @@ impl CallServices {
         Ok(rev)
     }
 
+    /// Whether the collection `collection` of `space` is configured as the person's own.
+    pub(super) fn own_collection(&self, space: &str, collection: &str) -> bool {
+        self.shared
+            .workspace
+            .config()
+            .spaces
+            .iter()
+            .find(|declared| declared.id.as_str() == space)
+            .is_some_and(|declared| {
+                declared
+                    .collections
+                    .iter()
+                    .any(|declared| declared.id == collection && declared.own)
+            })
+    }
+
+    /// `record_get` and `record_list` return a bare record, with no label. On a standing kind
+    /// they are refused (the records host specification, section 6.5), so that no read of a
+    /// standing record is unlabelled: the plugin reads through `record_read` and `record_find`.
+    fn refuse_standing_kind(&self, kind: &str) -> Result<()> {
+        if self
+            .shared
+            .records
+            .get(kind)
+            .is_some_and(|decl| decl.standing)
+        {
+            return Err(ServiceError::Invalid(format!(
+                "{}: {kind} is a standing kind: read it with record_read or record_find, which label it",
+                records::RECORD_KIND_STANDING
+            )));
+        }
+        Ok(())
+    }
+
     pub(super) fn svc_record_get(
         &self,
         space: &str,
@@ -416,6 +485,7 @@ impl CallServices {
         id: &str,
     ) -> Result<Option<Record>> {
         let (stores, filter) = self.reading("records", space)?;
+        self.refuse_standing_kind(kind)?;
         stores
             .documents
             .get_record(&self.shared.instance, kind, id, &filter)
@@ -430,6 +500,7 @@ impl CallServices {
         limit: u32,
     ) -> Result<Page<Record>> {
         let (stores, filter) = self.reading("records", space)?;
+        self.refuse_standing_kind(kind)?;
         stores
             .documents
             .list_records(&self.shared.instance, kind, after, limit, &filter)
@@ -450,7 +521,7 @@ impl CallServices {
         // specification, section 4.2); an undeclared kind behaves as it always has.
         #[cfg(feature = "store-embedded")]
         if let Some(decl) = self.declared_kind(kind) {
-            return self.put_declared(space, &stores, decl, id, body, envelope, expect);
+            return self.put_declared(space, &stores, decl, id, body, envelope, expect, None);
         }
         let envelope = self.seal(space, envelope)?;
         let meta = stores

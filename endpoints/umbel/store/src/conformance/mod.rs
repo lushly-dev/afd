@@ -26,6 +26,7 @@ mod lane;
 mod memory;
 mod records;
 pub mod samples;
+mod standing;
 
 use std::fmt::{self, Debug};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -304,6 +305,7 @@ const GROUPS: &[Group] = &[
     ("documents", documents::CASES),
     ("records", records::CASES),
     ("lane", lane::CASES),
+    ("standing", standing::CASES),
     ("changes", changes::CASES),
     ("envelope", envelope::CASES),
     ("access", access::CASES),

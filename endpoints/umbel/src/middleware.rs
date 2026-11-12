@@ -78,7 +78,8 @@ const HOST_PREFIX: &str = "dev.umbel/";
 /// Commands whose successful result is never projected into an event: the cursor the caller
 /// stores, the rebuild of the streams themselves, the export of skills to a directory and the
 /// scaffold of a plugin directory, and the copy of a space's stores (a workspace write that
-/// changes no knowledge), and the rebuild of a record lane, which changes no record.
+/// changes no knowledge), the rebuild of a record lane, which changes no record, and the
+/// holding of an own collection's documents to their files, which changes no document.
 pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &[
     "event-ack",
     "event-rebuild",
@@ -86,6 +87,7 @@ pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &[
     "plugin-new",
     "store-backup",
     "store-records-reindex",
+    "store-documents-hold",
 ];
 
 /// Resolves a call's space (`Workspace::resolve_space`).
@@ -480,7 +482,7 @@ fn person_gate(
 /// Whether a person at a terminal confirmed `command`: the call came through the CLI and the CLI
 /// marked it after the prompt was answered. A batch, MCP, an in-process agent and the library
 /// never carry the mark.
-fn confirmed_by_a_person(command: &str, context: &CommandContext) -> bool {
+pub(crate) fn confirmed_by_a_person(command: &str, context: &CommandContext) -> bool {
     context.interface == Some(CommandInterface::Cli)
         && context
             .extra

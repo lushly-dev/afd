@@ -168,7 +168,7 @@ async fn a_store_newer_than_this_build_fails_stores_version() {
         .unwrap()
         .to_owned();
     assert!(
-        message.contains("version 99") && message.contains("serves up to version 2"),
+        message.contains("version 99") && message.contains("serves up to version 3"),
         "{message}"
     );
 }
@@ -316,7 +316,9 @@ mod memory {
 }
 
 /// The record lane's checks (records host specification, section 12.3): `records.declared` and
-/// `records.size`, which read the lane of each declared kind of each loaded plugin instance.
+/// `records.size`, which read the lane of each declared kind of each loaded plugin instance, and
+/// `records.standing`, which reads the configuration of each space where a standing kind is
+/// enabled.
 mod records {
     use super::*;
     use support::records::{Notes, config as notes_config, manifest};
@@ -476,5 +478,64 @@ mod records {
         .await;
         let (status, message, _) = check(&host, "records.declared").await;
         assert_eq!(status, "pass", "{message}");
+    }
+
+    #[tokio::test]
+    async fn a_space_with_a_standing_kind_and_no_person_warns_and_each_is_listed() {
+        use support::standing::{config, plugin, workspace};
+        let writable = "\n[plugins.notes.grants.content_write]\nallow = [\"garden/wiki\"]\n";
+        let garden = "person = \"human:local\"\nverified_admits = \"affirmed+attested\"";
+        // The garden has its person; the orchard, where the same standing kind is enabled,
+        // has none. No space has a store: the check reads the configuration and the manifests.
+        let dir = workspace(&config(garden, "", writable));
+        let host = seal(dir.path(), |b| b.with_compiled(plugin())).unwrap();
+        let (status, message, suggestion) = check(&host, "records.standing").await;
+        assert_eq!(status, "warn", "{message}");
+        assert!(
+            message.starts_with(
+                "spaces where a standing record kind is enabled and no person is configured, so no record there can be affirmed or attested: orchard."
+            ),
+            "{message}"
+        );
+        assert!(
+            message.contains(
+                "garden (notes.note): own collections: journal; command-writable collections: wiki; verified_admits: affirmed+attested"
+            ),
+            "{message}"
+        );
+        assert!(
+            message.contains(
+                "orchard (notes.note): own collections: none; command-writable collections: none; verified_admits: affirmed"
+            ),
+            "{message}"
+        );
+        assert!(
+            !message.contains("human:local"),
+            "whether a person is set, never who: {message}"
+        );
+        assert!(
+            suggestion.contains("person = \"human:<id>\""),
+            "{suggestion}"
+        );
+        let outcome = call(&host, agent("a"), "workspace-doctor", json!({})).await;
+        assert!(outcome.success, "a warning leaves the workspace healthy");
+        drop(host);
+        // With a person in each space the check passes, and still lists them.
+        let dir = workspace(&config(garden, "person = \"human:rowan\"", writable));
+        let host = seal(dir.path(), |b| b.with_compiled(plugin())).unwrap();
+        let (status, message, _) = check(&host, "records.standing").await;
+        assert_eq!(status, "pass", "{message}");
+        assert!(
+            message
+                .starts_with("every space where a standing record kind is enabled has a person."),
+            "{message}"
+        );
+        assert!(message.contains("orchard (notes.note)"), "{message}");
+        // A workspace where no standing kind is enabled has nothing to say.
+        let dir = support::workspace(&notes_config("", ""));
+        let host = notes_host(dir.path(), undeclared());
+        let (status, message, _) = check(&host, "records.standing").await;
+        assert_eq!(status, "pass", "{message}");
+        assert_eq!(message, "No space enables a standing record kind");
     }
 }

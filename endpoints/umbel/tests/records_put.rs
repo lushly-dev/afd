@@ -5,8 +5,8 @@
 //! command holds no text, and the journal entry of one declared `digest` holds none. An
 //! undeclared kind behaves as it always has.
 //!
-//! Evidence (step 6) and the vector after the write (step 8) are that specification's steps B3
-//! and B5, as is the authority of a call that carries the person gate's proof.
+//! Evidence (step 6), and the authority of a call that carries the person gate's proof, are in
+//! `records_standing.rs`. The vector after the write (step 8) is that specification's step B5.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -486,23 +486,36 @@ async fn an_undeclared_kind_behaves_as_it_always_has() {
             "invalid: RECORD_KIND_NOT_DECLARED: the kind log is not a declared record kind of notes",
         );
     }
-    // The undeclared reads still serve a declared kind without a label, until step B3.
-    assert!(
-        put(&host, agent("ada"), note("n1", STATEMENT))
-            .await
-            .success
-    );
+    // `record_get` and `record_list` still serve a declared kind without standing, which has
+    // no label to lose. On a standing kind they are refused: no read of one is unlabelled.
+    let bed = json!({ "kind": "bed", "id": "north", "body": { "name": "The north bed" } });
+    assert!(put(&host, agent("ada"), bed).await.success);
     let listed = result(
         &run(
             &host,
             agent("ada"),
             "notes-read",
             "list",
-            json!({ "kind": "note" }),
+            json!({ "kind": "bed" }),
         )
         .await,
     );
-    assert_eq!(listed, json!(["n1"]));
+    assert_eq!(listed, json!(["north"]));
+    assert!(
+        put(&host, agent("ada"), note("n1", STATEMENT))
+            .await
+            .success
+    );
+    for (op, args) in [
+        ("list", json!({ "kind": "note" })),
+        ("get", json!({ "kind": "note", "id": "n1" })),
+    ] {
+        let refused = run(&host, agent("ada"), "notes-read", op, args).await;
+        assert_eq!(
+            message(&refused),
+            "invalid: RECORD_KIND_STANDING: note is a standing kind: read it with record_read or record_find, which label it",
+        );
+    }
 }
 
 #[tokio::test]

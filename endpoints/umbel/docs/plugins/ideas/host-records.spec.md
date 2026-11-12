@@ -22,12 +22,23 @@ Code paths are relative to `endpoints/umbel/`.
   **An independent review of step B1** (2026-11-12) found one blocker and six improvements; all seven are taken,
   in the table after the amendments. Step B1 is merged: [#1048](https://github.com/lushly-dev/afd/pull/1048), as
   `dd72d6b6`.
-  - **Step B2, the lane and finding, is implemented** (2026-11-12) on the branch `lush/ideas-b2-lane`, amended
-    below ([B2](#amendments-from-step-b2), A12 to A23). It is in its pull request, not merged. **An independent
+  - **Step B2, the lane and finding, is implemented** (2026-11-12), amended
+    below ([B2](#amendments-from-step-b2), A12 to A23), and merged:
+    [#1063](https://github.com/lushly-dev/afd/pull/1063), as `5c7c963a`. **An independent
     review of step B2** (2026-11-12) found one blocker and eight improvements; all nine are taken, in the table
     after its amendments (R8 to R16). A kind a manifest declares is now written with its lane rows and found by key and by text when the
-    put returns; an undeclared kind behaves as before. Steps B3 to B6 are not implemented: no record can be
-    affirmed or attested, nothing is matched, and no vector is written.
+    put returns; an undeclared kind behaves as before.
+  - **Step B3, standing, is implemented** (2026-11-12) on the branch `lush/ideas-b3-standing`, amended below
+    ([B3](#amendments-from-step-b3), A24 to A40). It is in its pull request, not merged. **An independent
+    security review of step B3** (2026-11-12) found two blockers and six improvements; all eight are taken, in
+    the table after its amendments (R17 to R24). A standing record now reads `unverified`, `attested` or
+    `affirmed`, computed at each read. It is affirmed only inside a call that carries the person gate's proof,
+    which at a terminal an agent variable withholds, by the space's one configured person, and only while that
+    person is the space's and the wording is the one decided on; it is attested only by evidence that cites,
+    word for word, a document that is the person's own now, which for an own collection means the host held it
+    to its file on disk; and a call for verified content is given at most what the space's `verified_admits`
+    names. The embedded schema is version 3. Steps B4 to B6 are not implemented: nothing is matched, and no
+    vector is written.
   - **Revised 2026-11-11 after an independent review** by one reviewer, whose verdict was "approve after the
     blockers": four blockers and nine improvements, about sixty citations sampled and found correct. All thirteen
     are taken, two of them in a different way from the one proposed.
@@ -38,7 +49,97 @@ Code paths are relative to `endpoints/umbel/`.
   - It refines D157 in three places, which D161 and D162 record and section [18](#18-for-the-owner) lists.
   - It differs from the plan's outline in several places, each because of something in the code. Section
     [18](#18-for-the-owner) marks them "differs from the plan".
-- **Last verified:** 2026-11-12 for step B2 as revised after its review, on the branch `lush/ideas-b2-lane` over
+- **Last verified:** 2026-11-12 for step B3 as revised after its review, on the branch `lush/ideas-b3-standing`
+  over `main` at `5c7c963a`, on macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from `endpoints/umbel/`. Every
+  command under "Run" below was run again after the last code edit of the revision, the tests last.
+  - **The review** (2026-11-12, independent, of the step's security) attacked the proof through a nested call,
+    another command, another input, a step of a batch and of a pipeline, MCP with no decision, a forged mark and
+    the CLI with no terminal; checked that attested is never stored and lapses on every change, that the
+    evidence's refusals are alike, that no label names a tier, that `verified_only` is never wider than
+    `verified_admits`, and that every new statement carries the reader clause; and put eight faults of its own
+    into the code, each caught. All of that held. It reproduced two things by probe: a terminal process with an
+    agent variable set affirming, and a document stored before `own = true` attesting an agent's records after
+    the configuration change alone. For the revision, read again: `src/authority.rs`' marks, `src/cli/mod.rs`
+    where they are set, `store-embedded/src/connection.rs`' migration, `store-embedded/tests/lane_schema.rs`,
+    `src/commands/store_records.rs`, and `plugins/sources-filesystem/tests/` (its sync tests and support).
+  - Read for the step, whole unless a part is named: this document's Status, its step B1 and B2 amendments with
+    their review tables, the follow-ups table, and sections 2 to 7 and 11 to 16; `src/middleware.rs`' plugin
+    gate, `person_gate` and `confirmed_by_a_person`; `src/person/mod.rs`, and in `service.rs` its header,
+    `run_fields` and the ledger's `admit`; `src/authority.rs`; `src/plugins/grants.rs`, `record_services.rs`,
+    `store_services.rs` (to the graph services), `content.rs`, `compiled.rs`' handler, `pipelines.rs`' header and
+    handler, and in `loader.rs` the gate entry and where `Shared` is built; `src/cli/mod.rs` where the terminal's
+    marks are set; `src/store/mod.rs`; `src/commands/store_records.rs`; `src/workspace/records.rs` (its head) and
+    in `config.rs` `SpaceConfig`, `CollectionConfig` and `command_writable`; `store/src/lane.rs` (the standing
+    types), `traits.rs`, `error.rs`, in `document.rs` `DocumentWrite::check` and `ChangeKind`,
+    `conformance/mod.rs`, and in `conformance/lane.rs` its helpers and its statistics case;
+    `store-embedded/src/lane/` (every file), `documents.rs`, `sql.rs` and `schema.rs`; `sdk/src/records.rs` and
+    the record methods of `cx.rs`; in `tests/`, `require_human.rs`, `support/records.rs`, `support/person.rs`,
+    `support/plugins.rs`, the head of `person_page.rs` and of `records_put.rs`, and `doctor_stores.rs`' record
+    tests; `store-embedded/tests/lane_suite_detects.rs`, and `lane_rebuild.rs`' last test; decision rows D160 to
+    D162. Not read: `src/person/page.rs`, `relay.rs` and `oidc.rs`, and the rest of `service.rs`.
+  - Run, all passing, each command by itself, the commands step B1's entry below names:
+    `cargo fmt --all --check`;
+    `cargo clippy --locked --workspace --all-targets -- -D warnings`;
+    `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings`;
+    `cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component`;
+    `cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp`;
+    `cargo test --locked --workspace` (277 `test result` lines, from 261 test binaries and 16 doc-test runs, all `ok`: 2525 tests passed, none failed, 1 ignored).
+  - Run beside the gate, all passing: `cargo build --locked --target wasm32-wasip2 -p umbel-store`; the six
+    clippy legs of `.github/workflows/umbel.yml` that the gate does not name, each with `-D warnings`
+    (`-p umbel --lib --no-default-features`, the same with `--features mounted` and with `--features component`;
+    `-p umbel-sdk -p umbel-plugin-hello --features umbel-sdk/mounted,umbel-plugin-hello/mounted --all-targets`;
+    the four fixture components and `umbel-plugin-hello` with `--features umbel-plugin-hello/component` for
+    `wasm32-wasip2`; `-p umbel-plugin-knowledge --no-default-features --all-targets`); and
+    `cargo clippy --locked -p umbel-store-embedded --lib -- -D warnings`, the embedded store without its
+    `testkit` feature.
+  - The tests step B3's exit names: `tests/records_standing.rs` (19 tests), `tests/records_person_page.rs` (2,
+    with `umbel-testkit-idp`) and `tests/records_own_source.rs` (2). **The suite passes on the embedded backend
+    with nothing skipped**: its `standing` group has 16 cases, which `store-embedded/tests/lane_conformance.rs`
+    also runs alone. **From the review**: `plugins/sources-filesystem/tests/own_collection.rs` (1 test: the real
+    `sources-sync` against an own collection), `store-embedded/tests/lane_standing_rows.rs` (1: rows written by
+    hand), `lane_schema.rs`' migration of a version 2 store (8 tests in the file), and in `records_standing.rs`
+    the pin of the review's probe, the refusal under an agent variable and a space whose person changes. Beside
+    them: `store-embedded/tests/lane_suite_detects.rs` gains two tests (the `standing`
+    group fails on each of eight broken backends and passes on the unbroken wrapper); `tests/doctor_stores.rs`
+    gains one of `records.standing`; `src/person/mod.rs` has a unit test of `gate_proof` over every way a call
+    can carry no proof, `src/plugins/record_services.rs` one of section 6.6's `admitted`, and
+    `src/commands/store_records.rs` one more, of `records.standing`. Two of step B2's tests changed with what
+    they pinned: `records_find.rs`' refusal of `standings` on a standing kind is now an answer, and
+    `records_put.rs`' `record_list` of a standing kind is now a refusal.
+  - **Thirty-two faults were put into the code, one at a time, and each was caught**; the tree was restored
+    after each, and the gate above ran on the restored tree. Fourteen in the host: a decision and a mark without
+    the proof; a proof for a command that is not `require-human`; a call that names no command taking the proof
+    of the command the mark names; the terminal's mark not held to this command; a person-page proof not bound
+    to this input; the caller not held to the space's person; every put of a standing record the person's; a
+    mark's third check removed, and its fourth; section 3's rule 2 removed; the file read through a symbolic
+    link; a call's `standings` widening past `verified_admits`; `verified_only` admitting every standing; and
+    `record_get` served on a standing kind. Sixteen in the embedded store: a decision reaching a record its
+    reader may not read; attested without the cited content hash; every collection own; a mark counting for
+    content it was not made on; evidence that is not word for word attesting; the speaker not held; a mark
+    counting in a command-writable collection; the source shown to a reader who may not read the document; the
+    standing clause not applied; evidence citing a document the writer may not read, and another content hash; a
+    mark and an unmark reaching a document their reader may not read; a mark naming any content hash; a
+    standing record's wording changing; and `document_own` answering for an unreadable document. Two with a
+    mark's first and second checks removed in the host and in the store together, since each is made twice.
+    **Two were caught at first only by the suite**, with no test through the host: a mark counting for content
+    it was not made on, and evidence that is not word for word. `records_standing.rs` now holds both.
+    **For the revision, sixteen more, each caught**: the terminal's proof without the human-present mark; an own
+    collection attesting, and `document_own` answering, without the held fact; a former person's decisions
+    counting; the affirmation not bound to the lane row's wording, and a decision that is not an affirmation
+    affirming; the decider shown to every reader of a read, and of a find; the file read before the size is
+    held to the bytes; a put into an own collection not recorded as held; a put nothing held keeping the fact; a
+    hold recorded for any content hash; a mark by another person writing nothing; an affirmation not written
+    over a former person's; a proof for a command that is not `require-human`; and `store-documents-hold`
+    holding a document that differs from its file.
+  - Run from the repository root, on Node 24.21.0 and not the `.nvmrc`'s 26, all passing:
+    `node --test scripts/plugin-manifest.test.mjs` (47 tests), `biome check endpoints/umbel` (237 files) and the
+    file-size, orphan-files, portability and boundaries checks.
+  - Before the review the same commands passed on the step as first written: `cargo test --locked --workspace`
+    gave 275 `test result` lines and 2519 tests; the difference is the revision's own tests.
+  - Not run: Linux, which is where the Umbel workflow runs; the minimum Rust (`cargo +1.97.0 check`); the todo
+    example's conformance runs against Umbel; and `pnpm check` and `pnpm verify` as a whole. No timing was
+    taken: step B6 measures.
+- **Verified before that:** 2026-11-12 for step B2 as revised after its review, on the branch `lush/ideas-b2-lane` over
   `main` at `dd72d6b6`, on macOS (`aarch64-apple-darwin`) with Rust 1.98.0, from `endpoints/umbel/`. Every
   command under "Run" below was run again after the last code edit of the revision, the tests last.
   - **The review** (2026-11-12, independent) reran formatting, the workspace's clippy and the whole workspace's
@@ -196,20 +297,33 @@ Code paths are relative to `endpoints/umbel/`.
     transaction. Step B6 measures both.
 - **Done:** this document, its decision rows, and the amendments to the architecture and STATUS.md that it needs.
   Step B1 of section [16](#16-implementation-plan), 2026-11-11, with its amendments
-  ([B1](#amendments-from-step-b1)), merged as `dd72d6b6`.
-- **In progress:** step B2, implemented, reviewed independently and verified 2026-11-12 on `lush/ideas-b2-lane`,
-  with its amendments ([B2](#amendments-from-step-b2)) and its review's nine findings taken; in its pull
-  request, not merged. It holds: embedded schema version 2 and its migration;
-  `put_declared_record` without evidence, `put_record`'s stale mark, `read_record`, `find_records`,
-  `lane_status` and `reindex_records` in chunks, without vectors; the host's put path of section 4.2 without
-  steps 6 and 8, `record_read` and `record_find`; the loader's `Shared.records` and `GateEntry.lane_writer`;
+  ([B1](#amendments-from-step-b1)), merged as `dd72d6b6`. Step B2, 2026-11-12, reviewed independently, with its
+  amendments ([B2](#amendments-from-step-b2)) and its review's nine findings taken, merged as `5c7c963a`
+  ([#1063](https://github.com/lushly-dev/afd/pull/1063)): embedded schema version 2 and its migration;
+  `put_declared_record`, `put_record`'s stale mark, `read_record`, `find_records`, `lane_status` and
+  `reindex_records` in chunks, without vectors; the host's put path of section 4.2 without steps 6 and 8,
+  `record_read` and `record_find`; the loader's `Shared.records` and `GateEntry.lane_writer`;
   `store-records-reindex`; the doctor's `records.declared` and `records.size`; and the suite's `lane` group.
-- **Not done:** steps B3 to B6 of section [16](#16-implementation-plan). Step B2 left B3 two seams
-  ([A13](#amendments-from-step-b2)): the label and the standing clause in `store-embedded/src/lane/standing.rs`,
-  and `CallServices::standing_view`, which refuses a call that asks for a standing until B3 can answer it. It
-  left B3 the first row of section 4.2's authority table ([A12](#amendments-from-step-b2)), and B5
-  `store-records-reindex`'s `vectorsOnly` and `meaning` ([A18](#amendments-from-step-b2)). Of what sections 2 and
-  3 describe, B3 has the second own-collection rule and the mark, and B5 the model id and loading a model.
+- **In progress:** step B3, implemented, reviewed independently and verified 2026-11-12 on
+  `lush/ideas-b3-standing`, with its amendments ([B3](#amendments-from-step-b3)) and its review's eight findings
+  taken; in its pull request, not merged. It holds:
+  `gate_proof` and `CallServices.person_gate`; `decide_record`, `mark_document_own`, `unmark_document_own` and
+  `document_own`, with `record_decide`, `doc_own_mark`, `doc_own_unmark` and `doc_own`; evidence, section 4.2's
+  steps 6 and 7.5 and `record_put_cited`; the label and section 6.3's clause, computed at each read; the
+  `StandingView` the host builds from a space's own and command-writable collections, its `verified_admits` and
+  the call's `verified_only` and `standings`; the first row of section 4.2's authority table; section 3's rule
+  2 in `svc_doc_put`; `record_get` and `record_list` refused on a standing kind; `ChangeKind::Standing`; the
+  doctor's `records.standing`, and `records.declared` saying what a rebuild removes whatever the declaration;
+  and the suite's `standing` group. Both follow-ups addressed to it are settled (A25, A26). **From its
+  review**: embedded schema version 3 and its migration; `put_document_held`, `hold_document` and
+  `unheld_documents`; `store-documents-hold`; the doctor's `records.own`; `StandingView.person`; the terminal
+  proof's human-present mark; and the label's decider shown to the operator and the person only.
+- **Not done:** steps B4 to B6 of section [16](#16-implementation-plan). Step B3 leaves B4 the standing of a
+  match: `match_records` takes the same clause and the same labels as a find
+  (`store-embedded/src/lane/standing.rs`: `and_admitted`, `label`), the `standing` group's case that
+  `admit` narrows it ([A34](#amendments-from-step-b3)), and in `svc_record_match` the withholding of who affirmed
+  a hit ([A39](#amendments-from-step-b3)). B5 has `store-records-reindex`'s `vectorsOnly` and
+  `meaning` ([A18](#amendments-from-step-b2)), the model id and loading a model.
   **Section 16 gives one part
   of section [12.4](#124-workspace-show-and-plugin-show) to no step**: what `workspace-show` says of a space (its
   person, `verifiedAdmits`, own collections and meaning) and the declared kinds `plugin-show` lists. B1 did the
@@ -325,6 +439,52 @@ fault-detection claim above sound, and one blocker and eight improvements. All n
 | R15 | The `lane` group had no test that it fails on a broken backend, as the index has | `store-embedded/tests/lane_suite_detects.rs`: the embedded store behind a wrapper that breaks one rule at a time. Eight faults, each failing the case that should catch it, and the unbroken wrapper passing the group |
 | R16 | A15 put a contract on every backend without saying so where a backend's author reads, and A19 is also the moment a standing kind's wording becomes fixed | `reindex_records`' documentation on the trait states the three things a rebuild must hold; section 4.2's step 7.6 states A19, and that for a standing kind that put fixes the wording |
 
+### Amendments from step B3
+
+Step B3 (standing) found these points this document had left no way to do, had stated two ways, or had not
+settled, and took the narrowest reading of each. None changes a decision row. Two of them, A25 and A26, are the
+follow-ups the table at the end addressed to this step. A36 to A40 were made after the step's independent
+review, whose table follows this one; A36 replaces A35. The numbers carry on from step B2's.
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A24 | Section [11.1](#111-umbel-store) gives `decide_record` the result `StandingLabel` and `mark_document_own` the result `Rev`. Section [6.1](#61-affirmed-record_decide) has the host note for the call only a decision that took a revision, and [6.2](#62-the-persons-own) has a mark that changes nothing return the stored `rev` and note nothing. Neither result says whether a revision was taken | The trait's two methods answer what they wrote: `Decided { label, rev: Option<Rev> }` and `Marked { rev, wrote }`, both in `umbel_store::lane`; section 11.1's block says so. The SDK's `record_decide` and `doc_own_mark` keep section [11.2](#112-the-sdk)'s results. The other way, comparing the store's head before and after, would let a write another process made in between be noted for this call |
+| A25 | **The follow-up addressed to this step**: a kind whose `standing` changes and whose wording does not. Section [2](#2-declaration-d159) said that changing `standing` costs every standing the kind holds, and [12.3](#123-doctor-checks) had the doctor say so; section [12.1](#121-store-records-reindex)'s rebuild clears a record only when its wording hash is not the one its lane row held | **Only a changed wording costs standing.** Declared with standing, then without, then with it again over the same text pointers, a record whose wording never moved reads affirmed again, with its evidence. This is the smaller of the two choices, and it is D160's own words ("the rebuild takes the affirmation and the evidence from every record whose wording changed"). It keeps D160 because every way a wording can move clears what stood on it: a put on a kind without standing (section [4.3](#43-wording-never-changes-d160)), and a rebuild that finds another wording than its lane row held, whatever the declaration (R10). So a wording that moved and came back has lost its affirmation, and one that kept it is the wording the person saw. It keeps D161 because nothing writes a standing fact while a kind has no standing: `record_decide` and `record_put_cited` are refused there, so an affirmation that is read was written inside a gated call by the space's person. The rebuild's code is unchanged. Sections 2 and 12.3 are corrected. Held by the `standing` group's rebuild case, by `store-embedded/tests/lane_rebuild.rs` (as step B2 left it) and by `tests/records_standing.rs` end to end |
+| A26 | **The follow-up addressed to this step**: the doctor said what a rebuild will remove only for a manifest that declares standing, and since R10 the rebuild also removes it under a declaration without standing whose `text` changed | `records.declared` adds the two counts for any stale kind whose stored `text` differs from the manifest's, whatever the manifest declares it as, when the kind holds an affirmation or an evidence row. With A25, a stored `standing` that differs is no longer a reason. A kind that holds neither is told nothing |
+| A27 | Section 6.2 gives a mark four checks, in order. Section 11.1 gives `mark_document_own(mark, reader)` no view and no file, so the store can make only the first two | The host makes all four, in order, before it calls the store: it reads the document under the caller's filter (`NotFound`), compares the content hash (`Conflict`), asks `Config::command_writable` for the document's collection, and hashes the file. The store makes checks 1 and 2 again in the transaction that writes the mark. Check 3 is held a second time at every read, by section [6.3](#63-attested)'s clause over the view. An unmark of a document the caller may not read is `NotFound`, as an unmark with no mark is |
+| A28 | Section [3](#3-configuration)'s rule 2 and 6.2's check 4 read `<root>/<path>` "through the confined reader `svc_content_read` uses". That service asks the plugin for the `content` grant and counts the bytes toward the call's 64 MiB | The host reads the file for itself (`own_file_hash`, `src/plugins/content.rs`): the same path rules and the same refusal of a symbolic link inside the root, with no grant asked and nothing counted. `<path>` is the document record's `path`. Anything that is not a regular file of the document's size inside the root is a mismatch: a missing file, a directory, a link, a path with `..`, a collection whose root is missing. The file is read only when its length is the document's |
+| A29 | Section 6.1 says a step of a pipeline has `None` under its own name, and that `None` is `RECORD_DECISION_NOT_GATED` | Both hold, and a caller never sees the second for a gated step: the plugin gate runs for the step first and refuses it with `CONFIRMATION_REQUIRED`, because the mark names the pipeline. The same is true of a batch. `gate_proof` is the second line: it is what answers when a handler asks for services under a name the call was not decided for (`Services::call`, another command, the same command with another input). It also holds a person-page decision to the surface of the arm that reads it, which `attested` already implies. **What it does not hold, by section 6.1's own design**: that a decision on the person page was for this caller and not another person of the same namespace. That is the ledger's part of `admit`, which the gate ran for this call. **At a terminal it first held no more than the plugin gate's check**, where memory's `person` also asks for the CLI's human-present mark (D86), so a process with a terminal and an agent variable affirmed; step B3 pinned that and put it to the owner, and its review ruled it a blocker: see A37. `CommandPolicy.person` is the command's `person`, or the default (the terminal at the CLI, nothing over MCP). Section [4.2](#42-what-the-host-does-in-order)'s first authority row asks for the proof alone, so a put inside a gated call is `person` whether or not the caller is the space's person |
+| A30 | Section 6.1's check 1 answers `RECORD_KIND_NOT_STANDING` for any kind that is not a standing kind of the instance; section [13](#13-failures) answers `RECORD_KIND_NOT_DECLARED` for a lane service on an undeclared kind | `record_decide` follows 6.1: one check, one code, declared or not. `record_put_cited` follows 13: `RECORD_KIND_NOT_DECLARED` for a kind the manifest does not declare, `RECORD_KIND_NOT_STANDING` for one it declares without standing. `record_get` and `record_list` are refused on a standing kind after the grant and the space are checked, for a `Reader` too; step B2's test that listed a standing kind through `record_list` now holds the refusal |
+| A31 | Section 4.2 has the evidence's shape checked in step 6 and its document in step 7.5, and section 13 gives one code for both. What it left open | `Evidence::check` is in `umbel-store` ([A8](#amendments-from-step-b1) left it to this step), and the host and the store both call it. `StoreError::EvidenceInvalid` carries the rule and never a value. **An absent document, one the writer may not read and one with another content hash get one message**, so a refusal says nothing of a document the writer may not read. The store refuses evidence on a kind without standing as `Invalid`. `ChangeKind::Standing` arrives here ([A3](#amendments-from-step-b1), [A17](#amendments-from-step-b2)): `changes` reads it, and no reader of changes acts on it |
+| A32 | Section [7](#7-finding-d164) reads a page's labels by "a second statement over `record_evidence` and `documents`", and section [5.3](#53-the-reader-clause) asks the reader clause of every statement of a read | A page's labels are two statements over its lanes: the decisions that affirm them, and the sources that attest them. Both join `record_lane l` and carry the reader clause again, as R12 settled for a ranked find. A lane row whose `affirmed_seq` names no decision row was first `Corrupt`; since the review it is a record that is not affirmed (A38). `record_decide` computes its answer with the same statements, under the caller's filter and with no standing clause. The seam step B2 left, `store-embedded/src/lane/standing.rs`, now holds the label, the clause, the decision, the marks and the evidence's check |
+| A33 | Section [12.3](#123-doctor-checks) does not say which spaces `records.standing` reads, nor what it says of a person | It reads every declared space, with or without a store, since it reads the configuration and the loaded manifests alone; it runs on a sealed host, as the other two do. It lists, for each space where a standing kind is enabled, the kinds, the own collections, the command-writable ones and `verified_admits`. **It says whether a person is set and never who.** The three checks are reported in the order `records.declared`, `records.standing`, `records.size` |
+| A34 | Section [15.1](#151-the-suite-d170) lists the `standing` group's cases | The group has 16 cases, after `lane` (14 before the step's review, which added the two of A36 and A38). They are section 15.1's, with `match_records` left to step B4, whose method it is, and with these made explicit: a decision on a record its reader may not read is `NotFound` and writes nothing, under any `admit`; a mark's first two checks; a deleted document loses its mark for good; nothing a body holds is read as standing; and a wording that moved and came back while its kind had no standing has lost its affirmation (A25). `store-embedded/tests/lane_conformance.rs` runs the group alone, and `lane_suite_detects.rs` holds that it fails on eight broken backends (six before the review). The group builds each `StandingView` itself: that the host builds the right one from a configuration is `tests/records_standing.rs`' |
+| A35 | **A limit this step found, and states.** Section 3's rule 2 is checked when a document is put. A document stored before its collection was named `own`, or stored by `doc_put` with no file while it was not, was never held to it, and reads as the person's own by collection from the moment the deployer sets `own = true`. Section 3's "what was written before" spoke of files only | Stated in section 3 and in section [14](#14-security), as the deployer's: naming a collection `own` is saying that the documents stored for it now are the person's, as well as the files. `tests/records_own_source.rs` holds what is true: every put from then on is held to the file. A doctor check that compares the stored documents of each own collection with their files would turn the statement into a check; it is a [follow-up](#follow-ups) **Superseded after the step's review by A36**: the review reproduced the gap as an attack, and it is closed, not stated |
+| A36 | **Replaces A35's stated gap** (the review's second blocker). A call stored `journal/unfiled` with no file on disk and `journal/roses` differing from its file, and cited both, while `journal` was not own; after `own = true` alone both records read attested and passed `verified_only`. Section 3's rule 2 was a check at each put, and "own by collection" read the configuration alone | **The host keeps, for each document, the fact that it held its current content to its file on disk**, and "own by collection" asks for it (sections 3, 6.2 and 6.3). The fact is one row of a new table, `doc_held`, naming the content hash: embedded schema version 3, with a migration that leaves it empty and a test on the dump of a version 2 store (5.1). It is a table and not a column of `documents`, which the ruling's words allow either way, because a migrated store must have a new store's schema statement for statement. It is written in three places and nowhere else: `put_document_held`, which `svc_doc_put` calls for an own collection after rule 2 passed, in the put's transaction; `hold_document`, after a mark's fourth check passed; and `hold_document` from `store-documents-hold` (12.5), a CLI-only, operator-only built-in that compares each stored document of one own collection with its file and reports three counts and never text. Any other put clears the fact, and a deleted document loses it. The doctor's `records.own` counts the documents of own collections not yet held and names the command (12.3). `DocumentStore` gains the three methods under traits version 3 (11.1). Held by the suite's case, by `tests/records_standing.rs`, which pins the review's probe as refused, by `tests/records_own_source.rs`, and by `plugins/sources-filesystem/tests/own_collection.rs`, which runs the real `sources-sync` against an own collection: add, unchanged, update and delete, with a byte order mark and CRLF line endings, each put as the file is on disk and each held to it |
+| A37 | **The review's first blocker, ruled.** Section 6.1 made the terminal's proof the plugin gate's own check. A process at a terminal with an agent variable set answers the `require-human` prompt and passes that gate, so it affirmed and marked, where memory's `person` refuses it (D86) | `gate_proof`'s terminal row also asks that the CLI's human-present mark name the command (`authority::cli_mark`, now `pub(crate)`), which the CLI sets only for a human at a terminal with no agent variable. So `gate_proof` no longer has exactly the gate's arms: at a terminal it is stricter, and a call the gate passed can be `RECORD_DECISION_NOT_GATED`. Section 6.1's table and text say so; section 14 states what remains as D74's and D86's limit, an agent that unsets the variable and holds a pseudo-terminal, with `person = { cli = "verified" }` as the answer where that matters; section 18 has row 24. `tests/records_standing.rs` pins the refusal for each built-in variable and a configured one, for `affirm`, `mark` and `unmark`, and that a put inside such a call is not `person` |
+| A38 | **Affirmed was stored and not read** (the review's third and sixth findings). A lane row's `affirmed_seq` was read as standing by itself: after `spaces.<id>.person` changed, the former person's affirmations and marks still counted; and the decision was joined on its sequence number alone, so D160 was held at each write and not at each read | Affirmed is read as attested is (section 6): the decision the row names must be an affirmation, of the wording hash the row holds, by one of the principals the space's person decides as. `StandingView` gains `person`, which the host fills with the configured `person` and the principal `[principal.equivalents]` maps it to: the same list section 6.1's check 3 holds the caller to, so what a decision is recorded under is what a read counts. A mark is held to it too. A space with no person reads nothing affirmed and no mark. So that the new person can decide: `Affirm` writes whenever the record does not read affirmed, `Withdraw` whenever the row names a decision, and a mark by another person on the same content is a new mark. Held by the suite's case, by `tests/records_standing.rs`, and by `store-embedded/tests/lane_standing_rows.rs` on rows written by hand: another wording, another record's decision, a withdrawal, a decision that is not stored, another person |
+| A39 | **The label named the person to every reader** (the review's fourth finding, and this step's own follow-up): `affirmed.by`, and for a decision on the person page the namespace, the login's time and its `acr`, while section 12.4 has `workspace-show` say only whether a space has a person | `Affirmation` is `at`, `level` and an optional `seen` with `by` and the whole assurance (11.1). The store answers it whole. The host's `record_read` and `record_find` take `seen` away unless the reader is the operator or the space's person; a read as another principal is that principal's (6.5). `record_decide` answers its caller. Tested for both readers at a terminal and on the person page |
+| A40 | **The host read a file before the document's size was checked** (the review's fifth finding, on A28): rule 2 ran on the plugin's `doc.size` before `DocumentWrite::check` | `svc_doc_put` refuses a document of an own collection whose `size` is not the length of its bytes, or whose bytes pass `MAX_DOCUMENT_BYTES`, before any file is read, and the file reader refuses a size past the largest document. A mark's fourth check reads the size of a stored document, which the store already checked |
+
+**An independent security review of step B3** (2026-11-12) confirmed the finding this step had put to the owner,
+that at a terminal an agent variable did not withhold the proof, and found one more blocker; it reproduced both
+by probe. What else it attacked held: a nested call, another command and another input, a step of a batch and of
+a pipeline, MCP with no decision, a forged mark and the CLI with no terminal; attested never stored, and lapsing
+on every change; the evidence's refusals alike; no tier name in a label; `verified_only` never wider than
+`verified_admits`; and the reader clause in every new statement. It put eight faults of its own into the code,
+and each was caught. Two blockers and six improvements, all taken:
+
+| # | Finding | Change made |
+| --- | --- | --- |
+| R17 | Blocker, ruled. A process at a terminal with an agent variable set affirmed and marked: section 6.1's terminal proof was the plugin gate's check alone. Standing is to be at least as strict as memory's person-gated commands | The terminal row of `gate_proof` also asks for the CLI's human-present mark (A37). The test that pinned the old behaviour pins the refusal; sections 6.1, 14 and 18 (row 24) say what holds and what remains |
+| R18 | Blocker (A35). A document stored before `own = true` attested an agent's records: a call stored one document with no file and one differing from its file, cited both while the collection was not own, and after the configuration change alone both read attested and passed `verifiedOnly` | A host-only fact that a document was held to its file, on a row of its own beside `documents`, required by the collection arm and by `document_own`, set at a put that passed rule 2 and by a mark's fourth check; schema version 3 with its migration test; `store-documents-hold` and the doctor's `records.own` for adoption (A36). The probe is pinned as refused |
+| R19 | A former person's decisions kept counting after `spaces.<id>.person` changed | The view carries the person's identities, and a decision and a mark count only when made by one of them (A38); sections 6 and 18 (row 25) say that changing a space's person sets the former person's decisions aside |
+| R20 | `affirmed.by`, and a verified decision's namespace, `authTime` and `acr`, were shown to every reader of the record | `at` and the assurance's level for every reader; the rest for the operator and the person only (A39) |
+| R21 | The host read the file before the document's size was checked, on the plugin's `doc.size` (A28) | The size is held to the bytes sent and to the largest document first (A40) |
+| R22 | The affirmation was not bound to the wording at read: the decision was joined on its sequence number alone | `decision = 'affirm'` and the lane row's wording hash are conditions of the read (A38), with a test on hand-written rows |
+| R23 | Two tests were missing: the real `sources-sync` against an own collection, and the pin for the second blocker | `plugins/sources-filesystem/tests/own_collection.rs` (add, unchanged, update, delete, with a byte order mark and CRLF) and `tests/records_standing.rs`' pin (A36) |
+| R24 | A25 is sound and reverses section 2 | Put to the owner in section 18, row 26, with the cost of the other way |
+
 ## What this specification serves
 
 The goal, from the plan: a thought captured through any agent lands at once, lasts, can be found by field and by
@@ -417,7 +577,7 @@ endpoints/umbel/
 | Manifest | 5 (`src/plugins/mod.rs:70`) | 6 | Section [2](#2-declaration-d159) |
 | Workspace configuration | 5 (`src/workspace/config.rs:33`) | 6 | Section [3](#3-configuration) |
 | Store traits | 2 (`store/src/lib.rs:52`) | 3 | Section [11](#11-traits-and-the-sdk) |
-| Embedded store schema | 1 (`store-embedded/src/schema.rs:4`) | 2 | Section [5](#5-the-lane-d163) |
+| Embedded store schema | 1 (`store-embedded/src/schema.rs:4`) | 2, and 3 after step B3's review (`doc_held`) | Section [5](#5-the-lane-d163) |
 | Plugin protocol, WIT world, envelope, event, document record | unchanged | unchanged | |
 
 **Phase 6 names two of the same numbers** (D170). Its specification proposes store traits version 3 (D133) and
@@ -502,13 +662,21 @@ standing from every record whose wording changed (12.1). Every lane service on a
 `RECORD_LANE_STALE` until `store-records-reindex` rebuilds it. A put on a stale kind is refused too, so a lane is
 never half one declaration and half another.
 
-**Changing `text` or `standing` costs every standing the kind holds.** The wording hash is taken over the values at
+**Changing `text` costs every standing the kind holds.** The wording hash is taken over the values at
 the text pointers in declaration order (4.3), so adding, removing, reordering or renaming a text pointer changes
 the wording hash of every record, and the rebuild then removes every affirmation and every evidence row of the
-kind. That is right, since what the person affirmed was the old wording, and it is not recoverable. So before a
-deployer runs the rebuild, the doctor's `records.declared` says, for a stale standing kind whose stored `text` or
-`standing` differs from the manifest's: how many affirmations and how many evidence rows the rebuild will remove (12.3).
-Changing `keys` or `match` costs none.
+kind, whatever the kind is declared as when it runs. That is right, since what the person affirmed was the old
+wording, and it is not recoverable. So before a deployer runs the rebuild, the doctor's `records.declared` says,
+for a stale kind whose stored `text` differs from the manifest's and that holds an affirmation or an evidence
+row: how many affirmations and how many evidence rows the rebuild will remove (12.3). Changing `keys` or `match`
+costs none.
+
+**Changing `standing` alone costs none** (amended in step B3, [A25](#amendments-from-step-b3); this paragraph
+had it cost every standing the kind holds, which the rebuild never did). A kind declared with standing, then
+without, then with it again over the same text pointers keeps the affirmation and the evidence of every record
+whose wording did not move in between, and such a record reads affirmed again. While the kind has no standing
+its records carry no label, nothing can be affirmed or cited, and a put that changes a wording clears what stood
+on the old one (4.3). So what survives is an affirmation of the wording the person decided on.
 
 ## 3. Configuration
 
@@ -592,11 +760,23 @@ not exist yet to where it would be created (rule 1 below). The check runs across
    whose collection is `own`, reads `<root>/<path>` through the confined reader `svc_content_read` uses
    (`src/plugins/content.rs:134`) and refuses the put unless the SHA-256 of those bytes is the document's
    `contentHash`: `HostError::Invalid`, code `STORE_OWN_SOURCE_MISMATCH`. A file that changed between a sync's read
-   and its put is refused once and stored by the next sync.
+   and its put is refused once and stored by the next sync. **The document's `size` is held to the bytes sent and
+   to the largest document before any file is read** (after step B3's review): the size is the plugin's word
+   until the store checks it, and the host reads a file of that length.
+
+   **A put that passes is stored with the fact that the host held it to its file** (after step B3's review,
+   [A36](#amendments-from-step-b3)): one row of `doc_held` (5.1), written in the put's own transaction through
+   `DocumentStore::put_document_held`, naming the content hash. Any other put of the document clears it, and a
+   deleted document loses it. **A document of an own collection is the person's own by collection only while
+   that fact holds for its current content** (6.2). So a document that was stored before its collection was named
+   `own`, or by a `doc_put` with no file while it was not, attests nothing when the deployer sets `own = true`:
+   nothing held it to a file. `umbel store-documents-hold` (12.5) is how an operator has the host compare the
+   documents a collection already holds with their files; a sync does not, since it skips a file that did not
+   change.
 
 A person's mark (6.2) is held to the same two things, for the same reason.
 
-What these do not establish, in two parts, both the deployer's:
+What these do not establish, each the deployer's:
 
 - **Who typed the file.** A shell on the machine can put any file in the collection's root (D157 says so, as D74
   does of memory's files).
@@ -604,6 +784,11 @@ What these do not establish, in two parts, both the deployer's:
   history of it. A file written through `content_write` while a collection was covered stays on disk after the
   allow is removed, and then `own`, or a mark, passes both rules. A deployer who names a collection `own`, or takes
   a `content_write` allow away, is saying the files there now are the person's.
+- **What `store-documents-hold` finds equal** (after step B3's review, [A36](#amendments-from-step-b3), which
+  replaces the gap A35 stated). A stored document that equals its file is held to it, whoever put it and whenever.
+  A file a command wrote while the collection was covered, left there and synced, is such a file: this is the
+  bullet above, seen from the document. A stored document with no file, or one that differs from its file, is
+  never held.
 - **What changes under a running host** (stated in step B1, [A2](#amendments-from-step-b1)). A host judges which collections are
   command-writable once, when it reads the configuration at its start, with the symbolic links as they are then,
   and keeps that answer for its life (`Config::command_writable`). A link made, moved or removed while it runs
@@ -873,6 +1058,21 @@ CREATE TABLE doc_own (
 ) STRICT, WITHOUT ROWID;
 ```
 
+**Schema version 3** (after step B3's review, [A36](#amendments-from-step-b3)) adds one table, and a store at
+version 1 or 2 gains it, empty, in its opening transaction, under the rules above: one-way, on any open. It is a
+table and not a column of `documents`, so that a migrated store has a new store's schema statement for statement.
+`SCHEMA_VERSION` is 3. No document of a migrated store is held to its file: an own collection's documents attest
+nothing until `umbel store-documents-hold` has run for it (12.5), and the doctor's `records.own` counts them.
+`store-embedded/tests/fixtures/store-v2.sql` is the dump of a version 2 store, and `lane_schema.rs` holds the
+migration to it.
+
+```sql
+CREATE TABLE doc_held (
+    doc      TEXT PRIMARY KEY REFERENCES documents (doc) ON DELETE CASCADE,
+    doc_hash TEXT NOT NULL                -- the content the host held to its file on disk (section 3, rule 2)
+) STRICT, WITHOUT ROWID;
+```
+
 `changes.kind` gains the value `standing`, `ChangeKind::Standing`: one row for each affirmation, withdrawal, mark
 and unmark, with the record's target (`record_target`, `store/src/document.rs:465`) or the document's id, a `NULL`
 content hash, and the access set the record or document had then in `change_access`. Every reader of changes outside
@@ -919,9 +1119,23 @@ now. Nothing a plugin stores in a body, and nothing a call passes, is read as st
 
 | Standing | Holds when |
 | --- | --- |
-| `affirmed` | `record_lane.affirmed_seq` is not `NULL` |
+| `affirmed` | The decision `record_lane.affirmed_seq` names is an affirmation, of the wording the lane row holds now, made by the space's person |
 | `attested` | Not affirmed, and 6.3's condition holds |
 | `unverified` | Otherwise |
+
+**Affirmed is read, as attested is** (after step B3's review, [A38](#amendments-from-step-b3)). The lane row's
+pointer alone is not standing. A read asks three things of the decision it names: `decision = 'affirm'`,
+`wording_hash` equal to the lane row's, and `by` among the principals the space's person decides as. The first
+two make D160 hold at each read as well as at each write, whatever left the row behind. The third is the next
+paragraph.
+
+**Changing a space's person sets the former person's decisions aside.** The `StandingView` of a read carries
+the principals the configured `person` decides as (the `person` string, and the principal `[principal.equivalents]`
+maps it to), and a decision affirms, and a mark counts, only when its `by` is one of them. So after
+`spaces.<id>.person` changes, or is removed, what the former person affirmed reads `unverified` and what they
+marked is nobody's own, with nothing written and nothing deleted. The new person affirms and marks again, in
+their own name: `Affirm` writes whenever the record does not read affirmed, and a mark by another person on the
+same content is a new mark. Naming the former person again restores what they decided.
 
 ### 6.1 Affirmed: `record_decide`
 
@@ -941,20 +1155,28 @@ Grant `records_write`, allowed for the space. The checks, in order:
    | `context.interface` | The command's `person` | Proof | Recorded as |
    | --- | --- | --- | --- |
    | `Cli` | `cli = "verified"` | `crate::person::attested(config, command, input, context)` is `Some` (`src/person/mod.rs:254`) | `Assurance::verified(namespace, auth_time, acr)` |
-   | `Cli` | `cli = "terminal"` | `context.extra["dev.umbel/human-confirmed"]` equals the command (`confirmed_by_a_person`, `middleware.rs:481`) | `Assurance::terminal()` |
+   | `Cli` | `cli = "terminal"` | `context.extra["dev.umbel/human-confirmed"]` equals the command (`confirmed_by_a_person`, `middleware.rs:481`), **and the CLI's human-present mark names it** (`authority::cli_mark`) | `Assurance::terminal()` |
    | `Mcp` | `mcp = "verified"` | `attested(...)` is `Some` | `Assurance::verified(...)` |
    | anything else | | none | `None` |
 
-   This is a new function, `crate::person::gate_proof(config, command, person, input, context)`, with exactly
+   This is a new function, `crate::person::gate_proof(config, command, person, input, context)`, with
    `person_gate`'s arms and `attested` in place of `admit`: the same checks without spending the decision again,
-   which the gate did before the handler ran. `attested` binds the proof to this command, this surface and the
+   which the gate did before the handler ran, **and at a terminal one check more than the gate makes** (after
+   step B3's review, [A37](#amendments-from-step-b3)). The CLI sets its human-present mark only for a human at a
+   terminal with no agent variable set (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, `AI_AGENT`, the workspace's
+   `principal.agent_env`). The plugin gate does not ask for it, so a process at a terminal that carries an agent
+   variable answers the prompt and passes the gate. It gets no proof: standing is at least as strict as memory's
+   `person` (D86), which asks for the same mark, and such a call's `record_decide` and marks are
+   `RECORD_DECISION_NOT_GATED`. `attested` binds the proof to this command, this surface and the
    digest of this input. What it does not repeat is the ledger's part of `admit`
    (`src/person/service.rs:920`): reading the decision back as approved, live and for this caller, and spending
    `person-run:<id>` once. The gate did both for this call before the handler ran, and only the host writes the
    mark `attested` reads (`service.rs:639`). `CommandPolicy` (`grants.rs:59`) gains `require_human: bool` and
    `person: PersonDecl`, filled where it is built (`src/plugins/loader.rs:913`). `Services::call`, which names no
    command, and `read_only_view` (`grants.rs:285`) have `None`. A step of a pipeline has `None` under its own name,
-   so a review is one command. `None` is `RECORD_DECISION_NOT_GATED`.
+   so a review is one command. `None` is `RECORD_DECISION_NOT_GATED`. A gated step of a pipeline or of a batch
+   is refused by the plugin gate before its handler runs, so its caller sees `CONFIRMATION_REQUIRED`
+   ([A29](#amendments-from-step-b3)).
 3. **The caller is the space's person.** The space has a `person`, and `identities(config, effective principal)`
    (`src/access.rs:73`) holds it, else `RECORD_DECISION_NOT_THE_PERSON`.
 4. The record is readable by the caller, else `NotFound`. Readable is all: **no standing filter applies to a
@@ -965,7 +1187,9 @@ Then, in one transaction: `Affirm` on a record not affirmed takes the next revis
 row with the record's wording hash, the person's principal, the clock's time and the assurance, sets
 `affirmed_seq`, and writes a `standing` change. `Withdraw` on an affirmed record does the same with `withdraw` and
 sets `affirmed_seq` to `NULL`. `Affirm` on an affirmed record, and `Withdraw` on one that is not, write nothing and
-return the label as it is.
+return the label as it is. "Affirmed" here is as a read has it (section 6): a record whose lane row names a
+former person's decision does not read affirmed, so the space's person affirms it again, and a withdrawal clears
+such a row too.
 
 A decision that took a revision is noted for the call as every store write is (`note_write`,
 `store_services.rs:111`), so the command's result carries it in `dev.umbel/changes` and the command's event covers
@@ -981,9 +1205,12 @@ naming the record is naming the wording.
 
 A document is **the person's own now** when one of these holds for the document as stored now:
 
-- **By collection.** Its collection is configured `own = true` in the space. Section 3's two rules are what that
-  rests on.
-- **By mark.** A `doc_own` row names it with `doc_hash` equal to its current content hash, and its collection is
+- **By collection.** Its collection is configured `own = true` in the space, **and the host held its current
+  content to its file on disk** (`doc_held`, section 3's rule 2; after step B3's review,
+  [A36](#amendments-from-step-b3)). Section 3's two rules are what that rests on, and the second is now a fact
+  about each document, not only a check at each put.
+- **By mark.** A `doc_own` row, **made by the space's person** ([A38](#amendments-from-step-b3)), names it with
+  `doc_hash` equal to its current content hash, and its collection is
   not command-writable now (section 3), which is to say as this host judged it at its start ([A2](#amendments-from-step-b1)).
 
 When both hold, the basis is `collection`: the deployer's configuration is read first.
@@ -1005,10 +1232,11 @@ caller reads. A mark is refused unless all of these hold:
    when it read the configuration at its start (section 3, [A2](#amendments-from-step-b1)): a symbolic link changed since then is
    not seen until the next start, and hosts that started at different times can disagree until they have.
 4. **It equals its file on disk**: the SHA-256 of `<root>/<path>`, read as section 3's rule 2 reads it, is its
-   content hash, else `STORE_OWN_MARK_REFUSED`.
+   content hash, else `STORE_OWN_MARK_REFUSED`. A mark that passes records the same fact a put into an own
+   collection records: the host held this content to its file (`DocumentStore::hold_document`).
 
-A mark takes a revision and writes a `standing` change on the document's id. A mark that changes nothing returns
-the stored `rev`. Unmarking deletes the row and writes a `standing` change; with no row it is `NotFound`.
+A mark takes a revision and writes a `standing` change on the document's id. A mark that changes nothing (the
+same content hash, speaker and person) returns the stored `rev`. Unmarking deletes the row and writes a `standing` change; with no row it is `NotFound`.
 
 **This refines D157**, which lets a person say an uploaded source is theirs and is silent on any other. Here the
 person's say-so covers any source that did not reach the host as a command's input. Today that is a synced document
@@ -1038,23 +1266,27 @@ document it stored itself.
 ### 6.3 Attested
 
 A record is attested when it is not affirmed and this holds, as one clause of the reading statement. `?c` and `?s`
-repeat for each own collection of the space, with its speaker or `NULL`, and `?w` lists the space's
-command-writable collections:
+repeat for each own collection of the space, with its speaker or `NULL`, `?w` lists the space's
+command-writable collections, and `?p` the principals the space's person decides as (amended after step B3's
+review, [A36 and A38](#amendments-from-step-b3): the `doc_held` condition and the mark's `by`):
 
 ```sql
 EXISTS (SELECT 1 FROM record_evidence e
         JOIN documents d ON d.doc = e.doc AND d.content_hash = e.doc_hash
         WHERE e.lane = l.lane AND e.verbatim = 1
-          AND ((d.collection = ?c AND e.speaker IS ?s)
+          AND ((EXISTS (SELECT 1 FROM doc_held h WHERE h.doc = d.doc AND h.doc_hash = d.content_hash)
+                AND d.collection = ?c AND e.speaker IS ?s)
                OR (d.collection NOT IN (?w, ...)
                    AND EXISTS (SELECT 1 FROM doc_own o
                                WHERE o.doc = d.doc AND o.doc_hash = d.content_hash
+                                 AND o.by IN (?p, ...)
                                  AND o.speaker IS e.speaker))))
 ```
 
 In words: the record's evidence says the plugin found its wording to be exactly the cited units; the cited document
-is stored now with the cited content hash; that document is the person's own now; and the speaker the plugin's
-check used is the speaker the collection or the mark names.
+is stored now with the cited content hash; that document is the person's own now, which for an own collection
+means the host held that content to its file, and for a mark that the space's person made it; and the speaker the
+plugin's check used is the speaker the collection or the mark names.
 
 The clause does not ask whether the reader may read the cited document. Standing is a fact about the record, and
 the same for every reader of it. What a reader who cannot read the document is shown of it is in 6.5, and what that
@@ -1067,8 +1299,10 @@ Attested is never stored. Consequences, each intended:
 - **A document that changes lapses the attestation of the records that cite it**, because their evidence names the
   old hash. The plugin cites again, with `record_put_cited`, when the units still stand in the new content. Evidence
   is not wording, so it may change.
-- A deployer who removes `own` from a collection, changes its `speaker`, or makes a marked document's collection
-  command-writable lapses what rested on it.
+- A deployer who removes `own` from a collection, changes its `speaker`, makes a marked document's collection
+  command-writable, or changes the space's `person`, lapses what rested on it.
+- A deployer who names a collection `own` attests nothing by that alone: only documents the host has held to
+  their files count (section 3).
 
 ### 6.4 The split between the host core and the plugin (D162)
 
@@ -1117,14 +1351,18 @@ first put, the scan's findings, and the label:
 | Member | Holds |
 | --- | --- |
 | `standing` | `unverified`, `attested` or `affirmed`. Never `machine`, `human` or `owner`, the tiers of verified knowledge (D63), so no label reads as verified knowledge |
-| `affirmed` | For an affirmed record: `{ "by", "at", "assurance" }` from its decision row. Else `null` |
+| `affirmed` | For an affirmed record: `{ "by", "at", "assurance" }` from its decision row. Else `null`. **Who affirmed it is shown to the operator and to the space's person only** (after step B3's review, [A39](#amendments-from-step-b3)): every other reader of the record gets `by` as `null` and `assurance` as `{ "level" }` alone, so it learns that the record is affirmed, when, and whether at a terminal or on the person page, and not who the space's person is, nor the namespace, the login's time or its `acr` of a verified decision. This is section 12.4's rule for who a space's person is |
 | `source` | When 6.3's condition holds, affirmed or not. Else `null`. **When the reader may not read the cited document, it holds `basis` and nothing else**: every other member is `null`, the units, rule, speaker and dates included |
 | `source.basis` | `collection` or `marked`; `collection` when both hold |
 | `source.storedAt` | The document version's envelope `observedAt`: when the host stored that content |
 | `source.generatedAt` | The document's own `generated.at`, when its frontmatter states one (OKF's key, D56). Else `null` |
 
 `LabelSource` in Rust holds `basis` and an optional `seen` with the rest (11.1); the SDK writes them as the one
-flat object above, with `null` for each member of an absent `seen`.
+flat object above, with `null` for each member of an absent `seen`. `Affirmation` has the same shape for the same
+reason: `at`, `level`, and an optional `seen` with `by` and the whole assurance. A store answers it whole, and the
+host's `record_read` and `record_find` take `seen` away for a reader who is neither the operator
+(`access::is_operator`) nor the space's person; a read made as another principal (`as_reader`) is that
+principal's. `record_decide` answers its caller, who is the person.
 
 **Which date.** D157 has an attested label carry the source's date, "the person wrote it then". The host holds no
 such date. A document record carries the envelope's `observedAt`, which the host fills with its clock at the put
@@ -1179,9 +1417,12 @@ its commands pass a caller's request for verified content through, and which alw
 The filter is a clause of the statement, so totals, statistics and candidates count only admitted records:
 
 ```sql
--- admitted = {affirmed}:              AND l.affirmed_seq IS NOT NULL
--- admitted = {attested, affirmed}:    AND (l.affirmed_seq IS NOT NULL OR <6.3>)
--- admitted = {unverified}:            AND l.affirmed_seq IS NULL AND NOT <6.3>
+-- admitted = {affirmed}:              AND <affirmed>
+-- admitted = {attested, affirmed}:    AND (<affirmed> OR <6.3>)
+-- admitted = {unverified}:            AND NOT <affirmed> AND NOT <6.3>
+-- <affirmed> (section 6's three conditions, after step B3's review):
+--   EXISTS (SELECT 1 FROM record_decisions c WHERE c.seq = l.affirmed_seq AND c.decision = 'affirm'
+--           AND c.wording_hash = l.wording_hash AND c.by IN (?p, ...))
 ```
 
 ## 7. Finding (D164)
@@ -1697,11 +1938,17 @@ pub struct OwnCollection { pub id: String, pub speaker: Option<String> }
 pub struct StandingView {
     pub own: Vec<OwnCollection>,
     pub command_writable: Vec<String>,            // the space's collections a command can write files into
+    pub person: Vec<String>,                      // the principals the space's person decides as (section 6)
     pub admit: Vec<Standing>,                     // 6.6's `admitted`
 }
 
 pub enum OwnBasis { Collection, Marked }
-pub struct Affirmation { pub by: String, pub at: String, pub assurance: Assurance }
+pub struct Affirmation {
+    pub at: String,
+    pub level: String,                            // terminal or verified
+    pub seen: Option<AffirmationSeen>,            // None for a reader who is not the operator or the person
+}
+pub struct AffirmationSeen { pub by: String, pub assurance: Assurance }
 pub struct LabelSource {
     pub basis: OwnBasis,
     pub seen: Option<SourceSeen>,                 // None when the reader may not read the document
@@ -1780,6 +2027,9 @@ pub struct MatchPage {
 }
 
 pub enum Decision { Affirm, Withdraw }
+/// What a decision and a mark did (step B3, A24): the host notes for its call only a revision that was taken.
+pub struct Decided { pub label: StandingLabel, pub rev: Option<Rev> }
+pub struct Marked { pub rev: Rev, pub wrote: bool }
 pub struct RecordDecision {
     pub decision: Decision,
     pub by: String,
@@ -1843,8 +2093,8 @@ fn find_records(&self, ns: &str, decl: &RecordDecl, query: &RecordFind, view: &S
 fn match_records(&self, ns: &str, decl: &RecordDecl, query: &RecordMatch, vectors: Option<&MatchVectors>,
     view: &StandingView, reader: &ReaderFilter) -> Result<MatchPage>;
 fn decide_record(&self, ns: &str, decl: &RecordDecl, id: &str, decision: RecordDecision,
-    view: &StandingView, reader: &ReaderFilter) -> Result<StandingLabel>;
-fn mark_document_own(&self, mark: OwnMark, reader: &ReaderFilter) -> Result<Rev>;
+    view: &StandingView, reader: &ReaderFilter) -> Result<Decided>;
+fn mark_document_own(&self, mark: OwnMark, reader: &ReaderFilter) -> Result<Marked>;
 fn unmark_document_own(&self, doc: &str, at: &str, trace_id: Option<&str>,
     reader: &ReaderFilter) -> Result<Rev>;
 fn document_own(&self, doc: &str, view: &StandingView, reader: &ReaderFilter) -> Result<Option<OwnInfo>>;
@@ -1852,6 +2102,18 @@ fn document_own(&self, doc: &str, view: &StandingView, reader: &ReaderFilter) ->
 fn reindex_records(&self, ns: &str, decl: &RecordDecl, scan: &dyn Fn(&str) -> Vec<MemoryFlag>,
     embedder: Option<&dyn Embedder>, vectors_only: bool) -> Result<ReindexReport>;
 fn lane_status(&self, ns: &str, decl: &RecordDecl) -> Result<LaneStatus>;
+```
+
+After step B3's review the trait gains three more, for the fact that the host held a document to its file
+(section 3, rule 2; [A36](#amendments-from-step-b3)), under the same traits version:
+
+```rust
+/// `put_document`, and in the same transaction the fact that the host held this content to its file.
+fn put_document_held(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta>;
+/// Record the fact for a stored document at `hash`; false when it is absent or has another content hash.
+fn hold_document(&self, doc: &str, hash: &ContentHash) -> Result<bool>;
+/// How many stored documents of `collection` are not held to their file at their current content.
+fn unheld_documents(&self, collection: &str) -> Result<u64>;
 ```
 
 `StoreError` (`store/src/error.rs:8`) gains `LaneStale`, `WordingFixed`, `EvidenceInvalid(String)` and
@@ -1972,9 +2234,10 @@ since there is nothing to score), `RECORD_LANE_STALE`.
 
 | Check | Passes when | Otherwise |
 | --- | --- | --- |
-| `records.declared` | Every declared kind of every loaded instance is `Ready` in each of its spaces, with no unindexed record | `fail` for a stale kind, naming it and `umbel store-records-reindex`. **For a standing kind whose stored `text` or `standing` differs from the manifest's, it adds that the rebuild will remove its affirmations and evidence rows, with both counts** (section 2); `warn` for unindexed records, with the count |
-| `records.standing` | Every space where a standing kind is enabled has a `person` | `warn`: no record there can be affirmed or attested. It also lists each space's own collections, its command-writable ones and `verified_admits` |
+| `records.declared` | Every declared kind of every loaded instance is `Ready` in each of its spaces, with no unindexed record | `fail` for a stale kind, naming it and `umbel store-records-reindex`. **For a kind whose stored `text` differs from the manifest's and that holds an affirmation or an evidence row, whatever the manifest declares it as, it adds that the rebuild will remove its affirmations and evidence rows, with both counts** (section 2; amended in step B3, [A25 and A26](#amendments-from-step-b3)); `warn` for unindexed records, with the count |
+| `records.standing` | Every space where a standing kind is enabled has a `person` | `warn`: no record there can be affirmed or attested. It also lists each space's own collections, its command-writable ones and `verified_admits`, and says whether a person is set, never who ([A33](#amendments-from-step-b3)) |
 | `records.meaning` | No space configures a model; or each configured model loaded, has no missing vector, and has a passing report for each kind with a match field | `fail` for a file whose digest differs, a missing file, or a provider not compiled in; `warn` for a missing report, one that does not pass or is bound to another declaration, normalisation, model, weight or `k`, saying which; for a kind that holds more than four times the records its report names; and for missing vectors, with the count. **Always `warn` for an `http` model, naming the host record text is sent to** |
+| `records.own` | Every stored document of every own collection is held to its file on disk (section 3, rule 2), in each space that has a store | `warn`, naming each `<space>/<collection>` with its count of documents not held, which attest nothing, and `umbel store-documents-hold`; `fail` when a store cannot be read. After step B3's review ([A36](#amendments-from-step-b3)) |
 | `records.size` | No kind holds more than 100 000 records in a space | `warn`, naming the kind and the count |
 
 ### 12.4 `workspace-show` and `plugin-show`
@@ -1984,6 +2247,23 @@ since there is nothing to score), `RECORD_LANE_STALE`.
 who is not the operator), `verifiedAdmits`, the ids of its own collections, and `meaning`: the
 model id and, per
 `<plugin>.<kind>`, whether it is served. `plugin-show` lists an instance's declared kinds with their pointers.
+
+### 12.5 `store-documents-hold`
+
+Added after step B3's review ([A36](#amendments-from-step-b3)). A host built-in in the `store` domain, as the two
+above are: exposed to the CLI only, for the operator only, journaled as a digest that keeps its inputs, and in
+`UNPROJECTED_MUTATIONS`. It changes no document and makes no event.
+
+Input `{ space, collection }`. The collection must be one of the space configured `own = true`, else
+`STORE_COLLECTION_NOT_OWN`. For each stored document of the collection it reads `<root>/<path>` as section 3's
+rule 2 does and, where the file's hash is the document's content hash, records that the host held the document to
+its file (`hold_document`). Output: `space`, `collection` and three counts: `documents`, `held` (equal to their
+file, and held now) and `differing` (not equal, or with no file). **Counts, and never a document's id or text.**
+With `differing` above zero the result carries the warning `STORE_OWN_SOURCE_MISMATCH`: the collection's sync
+stores a changed file again and removes a document whose file is gone. Running it again changes nothing.
+
+It is how a collection that already holds documents becomes the person's own: after `own = true` is set, and after
+a store migrates to schema version 3 (5.1). A sync does not do it, since it skips a file that did not change.
 
 ## 13. Failures
 
@@ -2021,7 +2301,7 @@ rebuild that is running from one that stopped: the stale mark is all either leav
 callers to wait for a rebuild that had died. So the one code says both, and the suggestion is to retry once and
 then ask.
 
-The two built-ins answer `CommandError`s, with a suggestion as AFD requires:
+The built-ins answer `CommandError`s, with a suggestion as AFD requires:
 
 | Code | When | Retryable | Suggestion |
 | --- | --- | --- | --- |
@@ -2029,16 +2309,22 @@ The two built-ins answer `CommandError`s, with a suggestion as AFD requires:
 | `RECORD_PROBES_INVALID` | The probes file is missing, too large, not valid against `record-probes.v1.json`, or names another space, plugin or kind | No | Fix the file at the place the message names and run the command again |
 | `RECORD_MODEL_UNAVAILABLE` | `store-records-eval`, and `store-records-reindex` with `vectorsOnly`: no model is configured for the space, or it did not load. On a full `store-records-reindex` the same code is a warning on a successful result | No | Run `umbel workspace-doctor` and fix what `records.meaning` reports |
 | `RECORD_LANE_STALE` | The kind is stale | No | Run `umbel store-records-reindex` first |
+| `STORE_COLLECTION_NOT_OWN` | `store-documents-hold` on a collection that is not one of the space configured `own = true` | No | Name a collection whose table sets `own = true`; `umbel workspace-doctor` lists them under `records.standing` |
 
 ## 14. Security
 
 | Threat | Handling |
 | --- | --- |
 | An agent claims standing for its own write | No input of any service is read as standing. A decision row needs the person gate's proof for this call and this input (6.1); attested needs a document the host stores, at the cited hash, that is the person's own now (6.3). A body's fields are the plugin's |
+| A process at a terminal that is an agent affirms | At a terminal the proof asks for the CLI's human-present mark as well as the answered prompt, and the CLI withholds that mark when an agent variable is set, so such a call passes the plugin gate and still affirms and marks nothing (6.1, after step B3's review). **What remains is D74's limit, and D86's**: a process that unsets the agent variables and holds a pseudo-terminal is, to the CLI, a person at a terminal. The assurance `terminal` is "not an attestation" (`src/authority.rs`). Where that matters, the plugin declares its review command `person = { cli = "verified" }`, and an affirmation then rests on a login on the person page |
+| A former person's decisions keep counting | A decision affirms, and a mark counts, only when it was made by one of the principals the space's person decides as now (section 6). Changing `spaces.<id>.person` sets the former person's decisions aside, with nothing deleted |
+| A lane row that names a decision it should not | An affirmation is read as one only when the decision is an affirmation of the wording the lane row holds now (section 6), so D160 holds at each read as well as at each write |
+| A reader learns who a space's person is, through a label | `affirmed.by`, and all of a decision's assurance but its level, are shown to the operator and to the space's person only (6.5), as `workspace-show` says only whether a space has a person (12.4) |
 | An agent rewrites words a person affirmed | The wording of a standing record never changes (D160). A plugin version that drops the declaration to edit a wording leaves the kind stale, and the rebuild takes the standing from every record whose wording changed (section 2, 12.1) |
 | A compiled plugin sets `verbatim` wrongly | Possible: it is trusted code (D42, D162). The evidence records what it compared, so a replay finds it. Components cannot declare a kind |
 | A command's input becomes "the person's own" file | A collection cannot be `own` while it is command-writable, **in any space that shares its directory**, and a document put there must equal its file (section 3). A root that does not exist yet counts where it would be created, since a content write makes missing directories. **Judged once, when a host reads the configuration at its start** ([A2](#amendments-from-step-b1)): a symbolic link changed under a running host is not seen until its next start, and two hosts started at different times can disagree until then. Outside this, and stated: a shell on the machine, links changed under a running host, and files written there before the collection stopped being command-writable |
 | A command's input becomes the person's own by a mark | A mark is refused on a document whose collection is command-writable, and on one that is not its file on disk; a mark stops counting when its collection becomes command-writable (6.2). So an applied proposal cannot be marked while its collection is one. **Judged on the configuration now, as each host read it at its start** ([A2](#amendments-from-step-b1)): a file written while a collection was command-writable, and left after the allow was removed, passes; and a link changed under a running host changes nothing for that host until it restarts, so hosts started at different times can disagree about one mark. Both are the deployer's (section 3) |
+| A document a command stored becomes the person's own when its collection is later named `own` | Prevented (after step B3's review, [A36](#amendments-from-step-b3), which replaces the gap A35 stated): a document of an own collection is the person's only while the host has held its current content to its file, a fact written only when section 3's rule 2 passed at its put, when a mark's fourth check passed, or when `store-documents-hold` found it equal to its file. A document stored with no file, or one that differs from its file, is never held, whatever the configuration becomes. What remains is section 3's: a file a command wrote while the collection was covered, left on disk, is a file |
 | A person's mark is replayed onto other content | A mark names the content hash the person was shown and stops matching when the document changes (6.2) |
 | A reader learns of records it may not read | The reader clause is in every statement; statistics, totals, candidates and the missing-vector check count only the reader's records (5.3, 8.2, 9.4). The suite's differential cases hold it (15.1) |
 | A reader learns of a document it may not read, through a label | When the reader may not read the cited document, the label's source is `basis` alone: no id, hash, date, speaker, unit or rule (6.5). **One bit remains, and is accepted**: whether a record the reader can read is attested by a document it cannot. That bit moves when the unseen document is changed, deleted, marked or unmarked, and moves the record in and out of 6.6's filter and its totals. It says that some own document backs this wording now, and nothing of which. The alternative, reading such a record as unverified for that reader, would make standing differ by reader |
@@ -2067,7 +2353,7 @@ memory's nine that is 21. Phase 6's specification plans sixteen more; the two se
 | Group | File | Cases |
 | --- | --- | --- |
 | `lane` | `conformance/lane.rs` | A declared put writes its lane rows and an undeclared put writes none; `extract`'s refusals, each naming the pointer; a put is found by the next read on another handle; key filters, any-of within a key and all-of across keys; the three orders and their cursors, page by page to the end; totals under each order; ids ordered by bytes, with non-ASCII and case-differing ids; a text query's order against the fixture; `cut` only when the rarest term's postings pass the bound after every clause, and not when a key filter brings them under it; a kind with a changed declaration refuses every service and `reindex_records` clears it; **an undeclared `put_record` on a kind that has a declaration row makes it stale**; a rebuild stopped after a chunk leaves the kind stale and a second run finishes it; `put_record_vector` stores for the digest embedded and not for another; **differential**: every read repeated after records the reader cannot read are written, changed and reindexed is byte-identical |
-| `standing` | `conformance/standing.rs` | A standing record reads `unverified`; wording is fixed and keys are not; affirm, withdraw, and both repeated; a decision's change row; attested by an own collection, by a mark, by both (`collection`), and by neither; the speaker must agree; a changed document lapses attestation and a second `put_declared_record` with evidence restores it; unmark lapses it; a mark on a document whose collection the view names command-writable does not count; a rebuild after a wording was changed while undeclared clears the affirmation and the evidence; `admit` narrows `read_record`, `find_records` and `match_records`, totals and statistics included; evidence naming an absent or unreadable document, or another hash, is refused; **for a reader who cannot read the cited document, the label's source is `basis` and nothing else**; **differential**: every read repeated after documents the reader cannot read, and that no record it reads cites, are written, changed, marked and deleted is byte-identical; and after the same is done to an unreadable document that a readable record cites, the only difference is that record's standing and `basis`, and its place in a filter or total |
+| `standing` | `conformance/standing.rs` | A standing record reads `unverified`; wording is fixed and keys are not; affirm, withdraw, and both repeated; a decision's change row; attested by an own collection, by a mark, by both (`collection`), and by neither; the speaker must agree; a changed document lapses attestation and a second `put_declared_record` with evidence restores it; unmark lapses it; a mark on a document whose collection the view names command-writable does not count; a rebuild after a wording was changed while undeclared clears the affirmation and the evidence; **a document of an own collection attests only once the host held it to its file, and a former person's decisions and marks are set aside** (after step B3's review); `admit` narrows `read_record`, `find_records` and `match_records`, totals and statistics included; evidence naming an absent or unreadable document, or another hash, is refused; **for a reader who cannot read the cited document, the label's source is `basis` and nothing else**; **differential**: every read repeated after documents the reader cannot read, and that no record it reads cites, are written, changed, marked and deleted is byte-identical; and after the same is done to an unreadable document that a readable record cites, the only difference is that record's standing and `basis`, and its place in a filter or total |
 | `matching` | `conformance/matching.rs` | The digest of each fixture text; `identical` under whitespace, case and width changes; the `words` score of every fixture pair to four places, in both orders of put; an empty lane; a text with no token; `exclude` leaves a record out of both lists and out of the statistics, so a stored text matched with itself excluded scores as if it were not stored; counts are the same whether one text or 64 are matched in a call; `LaneTooBroad` past `STAT_POSTINGS`, with the constant lowered for the case, reached by postings the reader cannot read as well as by ones it can, and at the same point however the counts are fetched; the pool and `k`; ties by id; with `MatchVectors`, `meaning` and `fused` to four places and the order by `fused` then id; `Incomplete` when one readable record lacks a vector, and `Served` when only an unreadable one does; **differential**, as for `lane`, on scores |
 
 Fixtures are `store/fixtures/lane/records.json` (the records, each with its access set, the texts to match, and the
@@ -2087,7 +2373,7 @@ not edited here, was written before them.
 | --- | --- |
 | `store/tests/lane_normalise.rs` | The five steps of 8.1, each alone and together; the pinned Unicode versions |
 | `store/tests/lane_score.rs` | 8.2's formulas against hand-computed cases; that a text scores 1 against itself; rounding |
-| `store-embedded/tests/lane_schema.rs` | A version 1 store opens as version 2 with its records intact; every table and index of 5.1; a build constant for the schema version |
+| `store-embedded/tests/lane_schema.rs` | A version 1 store, and a version 2 store with a declared kind's lane, each open as version 3 with their rows intact and no document held; every table and index of 5.1; a build constant for the schema version |
 | `store-embedded/tests/lane_delete_bytes.rs` | After a `records` row is deleted and the log checkpointed, neither file holds the record's text, a term of it, a key value or its vector (the seam for erasure, 5.2) |
 | `store-embedded/tests/conformance.rs` | The whole suite, the three groups included |
 | `tests/manifest_v6.rs` | Section 2: every rule and its message; versions 1 to 5 refuse `records`; the schema file accepts and refuses the same manifests |
@@ -2095,7 +2381,9 @@ not edited here, was written before them.
 | `tests/records_put.rs` | 4.2, step by step: the access set and authority the host fills whatever the plugin sends; the scan's flags; the event of a writing command holds no text, and the journal entry of one declared `digest` holds none; a stub provider is called for a put that committed and has a match value, and is not called for a put refused for its wording, its evidence or its `expect`, nor for one that changed only keys |
 | `tests/records_standing.rs` | 6.1's four checks: at a terminal with and without the confirmed mark, as `tests/require_human.rs` does it; another command's mark; a `Services::call` with no command; a caller who is not the space's person. 6.2's marks, each of its four checks: a document of a command-writable collection, and one written by `doc_put` with no file, are refused. A decision and a mark appear in `dev.umbel/changes`; a repeated one does not. A call's `verified_only` with each `verified_admits`, and a call that asks for a standing outside it gets less; a decision reaches an unverified record whatever a read would admit; no space key asks for every read. `record_get` on a standing kind is refused |
 | `tests/records_person_page.rs` | With `umbel-testkit-idp`: a decision on the person page for a `mcp = "verified"` command affirms; the same mark with another input does not |
-| `tests/records_own_source.rs` | Section 3, rule 2: a put that equals the file is stored; one that differs is refused; a collection that is not own is unchanged |
+| `tests/records_own_source.rs` | Section 3, rule 2: a put that equals the file is stored, and held to it; one that differs is refused; a size that is not the length of the bytes is refused before a file is read; a collection that is not own is unchanged |
+| `plugins/sources-filesystem/tests/own_collection.rs` | The real `sources-sync` against an own collection: add, unchanged, update and delete, with a byte order mark and CRLF line endings, each put as the file is on disk and each held to it |
+| `store-embedded/tests/lane_standing_rows.rs` | On rows written by hand: a lane row's pointer is not standing unless the decision is an affirmation, of the row's wording, by the space's person |
 | `tests/records_find.rs`, `tests/records_match.rs` | Sections 7 and 8 through the SDK, on a fixture plugin |
 | `embed/tests/providers.rs` | Each provider behind its feature: the static provider on a small model built in the test; the HTTP provider against a local server, with its refusals; the ONNX provider only where a model file is given by an environment variable, skipped otherwise |
 | `tests/records_meaning.rs` | 9.2's digest check and model id; an `http` URL to a name is refused and to `127.0.0.1` is not; a put writes a vector; a failed embed does not fail the put; a match with a bad query calls no provider; `store-records-reindex`, its chunks and its warning and failure for an unloaded model; 10's serving rule in each state, with a stub `Embedder`: a report bound to another declaration hash, normalisation, model, weight or `k`, and one whose `passed` is true and whose counts do not pass |
@@ -2170,6 +2458,17 @@ plan's outline for step A2, because of what the code holds.
 | 22 | **A plugin's host specifications sit beside its own** (D158) | Under `phases/`. These changes belong to no phase |
 | 23 | **Two version numbers are shared with phase 6's proposal**, and the second to land renumbers (D170). The plan named only the traits version | Take 4 and 7 now. Phase 6 is approved and not started, so either order is possible |
 
+Rows 24 to 28 were added after step B3 and its independent review (2026-11-12). Like every row here they are
+decided under the owner's direction and are open to him.
+
+| # | Chosen here | The alternative, and its cost |
+| --- | --- | --- |
+| 24 | **At a terminal, an agent variable withholds the proof a standing decision is written under**: the proof asks for the CLI's human-present mark as well as the answered `require-human` prompt, so standing is as strict as memory's `person` (6.1, section 14) | The plugin gate's check alone, as this document first had it: a process with a terminal and an agent variable would affirm. What remains either way is a process that unsets the variable and holds a pseudo-terminal (D74, D86). The answer where that matters is `person = { cli = "verified" }` on the plugin's review command, at the cost of a login for each decision |
+| 25 | **Changing a space's person sets the former person's decisions and marks aside** (section 6): they stay stored and are not read, and the new person decides again | Keep them counting: a deployer who changes `person` because the former one should no longer decide would keep everything they affirmed. Or delete them at the change: the host does not know when the configuration changed, and naming the former person again could not restore them. Cost of the choice made: a person who is renamed (another principal string, with no `[principal.equivalents]` entry mapping the old to the new) must affirm again |
+| 26 | **A kind's `standing` setting alone costs no standing** ([A25](#amendments-from-step-b3)): declared with standing, then without, then with it again over the same text pointers, a record whose wording never moved reads affirmed again. **This reverses what section 2 first said**, on the ground that it is D160's own wording and that every way a wording can move clears what stood on it | The rebuild clears every affirmation and evidence row of a kind whose stored `standing` differs from the declaration's, as section 2 first said. A deployer who turns standing off is then read as taking back what was affirmed, which is simpler to state. Its cost: a plugin version that drops `standing` by mistake, or for one release, destroys every affirmation of the kind, which a person must then make again one by one, and which the doctor could only warn of before the rebuild |
+| 27 | **A document of an own collection is the person's only once the host has held it to its file**, and an operator runs `store-documents-hold` for a collection that already holds documents ([A36](#amendments-from-step-b3)) | Trust the configuration: every stored document of an own collection is the person's. Then a document a command stored with no file, before the collection was named own, would attest an agent's records by the configuration change alone, which the review of step B3 reproduced. Cost of the choice made: one command to run after naming a collection own, and after upgrading a store, which the doctor names |
+| 28 | **Who affirmed a record is shown to the operator and to the space's person only** (6.5) | Show `by` and the whole assurance to every reader of the record, as this document first had it: a reader of one affirmed record would learn who the space's person is, and for a verified decision their identity namespace and when they logged in. Cost of the choice made: a second reader of a shared space cannot tell from a label whose affirmation it is; there is one person a space, so there is one answer |
+
 **What this refines in D157.** D157's rules stand, and three of them are made narrower or more exact here, each
 recorded in D161 or D162:
 
@@ -2201,8 +2500,16 @@ and a date of writing for a source (row 17).
 | 2026-11-11 | This specification | This document has had no independent review | Done 2026-11-11: one reviewer, verdict "approve after the blockers", four blockers and nine improvements, all taken; then a focused pass on that revision, one blocker and six improvements, all taken ([Review response](#review-response)) |
 | 2026-11-11 | Independent review | The costs it measured on section 5.1's tables at 100 000 records (about 1.0 s for the counts of 64 pooled records, about 8 s for a rebuild in one transaction) are estimates on another machine and another build | Step B6 records the real times of each part (8.2, 12.1) |
 | 2026-11-11 | Independent review | One bit about a document a reader cannot read remains in a record's standing (section 14). It is accepted here | The owner, section 18, row 8 |
-| 2026-11-12 | Step B2, narrowed after its review | Section [2](#2-declaration-d159) says that changing a declared kind's `standing` costs every standing the kind holds, and section [12.3](#123-doctor-checks) has the doctor say the rebuild will remove it. Section [12.1](#121-store-records-reindex)'s rebuild clears a record only when its wording hash is not the one its lane row held. **Closed by the review of step B2 (R10)**: a wording that changed, by a put or by an edit while the kind was undeclared, loses its standing whatever the kind is declared as when the rebuild runs. **Still open**: a kind whose `standing` changes and whose wording does not. Declared with standing, then without, then with it again over the same text pointers, a record keeps its affirmation and its evidence through both rebuilds, and reads as affirmed again; section 2 and the doctor's message say it would not. Either the rebuild also clears every standing of a kind whose stored `standing` differs from the declaration's, or section 2 and 12.3 say that only a changed wording costs standing | Step B3, which writes the first standing fact: decide between the two by amendment, before `decide_record` lands. Until then no record holds standing |
+| 2026-11-12 | Step B2, narrowed after its review | Section [2](#2-declaration-d159) says that changing a declared kind's `standing` costs every standing the kind holds, and section [12.3](#123-doctor-checks) has the doctor say the rebuild will remove it. Section [12.1](#121-store-records-reindex)'s rebuild clears a record only when its wording hash is not the one its lane row held. **Closed by the review of step B2 (R10)**: a wording that changed, by a put or by an edit while the kind was undeclared, loses its standing whatever the kind is declared as when the rebuild runs. **Still open**: a kind whose `standing` changes and whose wording does not. Declared with standing, then without, then with it again over the same text pointers, a record keeps its affirmation and its evidence through both rebuilds, and reads as affirmed again; section 2 and the doctor's message say it would not. Either the rebuild also clears every standing of a kind whose stored `standing` differs from the declaration's, or section 2 and 12.3 say that only a changed wording costs standing | **Closed in step B3** ([A25](#amendments-from-step-b3)): only a changed wording costs standing, and sections 2 and 12.3 say so |
 | 2026-11-12 | Step B2 | The suite lowers the lane's bounds through a function the backend supplies (`Stores.lane`, [A14](#amendments-from-step-b2)), and skips the `lane` group for a backend that supplies none. The store's in-memory fake supplies none, so the suite's lane cases are held to one implementation | The phase 6 owning agent, with the follow-up above on the eleven methods: the PostgreSQL backend supplies one. Whether the fake should gain a lane, as a second implementation the cases are checked against, is open |
-| 2026-11-12 | Step B2's focused review | The doctor warns that a rebuild will remove affirmations only for a manifest that declares standing (`src/commands/store_records.rs`, section [12.3](#123-doctor-checks)). Since the review's third finding the rebuild also removes them under a declaration without standing whose `text` changed, and says nothing first | Step B3, which writes the first affirmation: warn whatever the declaration |
+| 2026-11-12 | Step B2's focused review | The doctor warns that a rebuild will remove affirmations only for a manifest that declares standing (`src/commands/store_records.rs`, section [12.3](#123-doctor-checks)). Since the review's third finding the rebuild also removes them under a declaration without standing whose `text` changed, and says nothing first | **Done in step B3** ([A26](#amendments-from-step-b3)): the doctor says it whatever the declaration |
 | 2026-11-12 | Step B2's focused review | The rebuild deletes a record's vectors on any change of wording, even when the value at `match` did not move, so adding a `text` pointer to a kind would drop and re-embed every vector | Step B5: delete on a moved match digest only |
 | 2026-11-12 | Step B2's focused review | The pause between chunks adds 120 ms for each 1 000 records, about 12 s offline for a kind of 100 000 | Step B6 records it with the other timings |
+| 2026-11-12 | Step B3 | Step B3 has had no independent review. It is the step whose purpose is that nothing an agent's call claims or passes gives a record standing | **Done 2026-11-12**: an independent security review, two blockers and six improvements, all taken (the table after the step B3 amendments, R17 to R24) |
+| 2026-11-12 | Step B3 | A document stored before its collection was named `own` was never held to its file, and reads as the person's own by collection ([A35](#amendments-from-step-b3)). A doctor check that compares the stored documents of each own collection with their files would turn the deployer's statement into a check | **Closed after the step's review** ([A36](#amendments-from-step-b3)): the review reproduced it as an attack. A document of an own collection now counts only once the host held it to its file; `store-documents-hold` is the comparison this row asked for, and `records.own` counts what it has not reached |
+| 2026-11-12 | Step B3 | Section [6.5](#65-the-label)'s label names the person who affirmed a record (`affirmed.by`) to every reader of that record, while section [12.4](#124-workspace-show-and-plugin-show) has `workspace-show` say only whether a space has a person, not who, to a caller who is not the operator. Step B3 implements 6.5 as written | **Closed after the step's review** ([A39](#amendments-from-step-b3)): `by` and the assurance beyond its level are shown to the operator and the person only. Section 18, row 28 |
+| 2026-11-12 | Step B3 | The `standing` group holds `admit` on `read_record` and `find_records`, statistics included. Section [15.1](#151-the-suite-d170) also asks it of `match_records` | Step B4, with the method: the same clause (`and_admitted`) and the same labels, and the host withholds who affirmed a hit from its label as it does from a read's ([A39](#amendments-from-step-b3)) |
+| 2026-11-12 | Step B3 | **At a terminal, an agent variable does not withhold the proof.** Section 6.1 makes the terminal's proof the plugin gate's own check: the mark the CLI sets once a `require-human` prompt is answered. Memory asks more for its `person` (D86): the CLI's human-present mark as well, which it withholds when an agent variable is set (`CLAUDECODE`, `AI_AGENT`, the workspace's `principal.agent_env`), so `memory-confirm` is refused there (`tests/cli_authority_prompt.rs`). `record_decide` and `doc_own_mark` are not: a process that has a terminal, answers the prompt and carries an agent variable affirms, with the assurance `terminal`. Step B3 implements section 6.1 as written and pins it in `tests/records_standing.rs`. An agent's ordinary call has no terminal and is refused. The assurance `terminal` also names a command and not an input, and is "not an attestation" (`src/authority.rs`) | **Ruled after the step's review** ([A37](#amendments-from-step-b3)): `gate_proof`'s terminal row asks for the human-present mark, and the test pins the refusal. What remains, an agent that unsets the variable and holds a pseudo-terminal, is in section 14; the plugin's specification (step A3) still chooses whether its review command is `person = { cli = "verified" }`. Section 18, row 24 |
+| 2026-11-12 | Step B3's focused review | No test pins that a person's identities are the configured `person` and the principal `[principal.equivalents]` maps it to, and no other. It was checked by reading: the write check, the read clause and the decider check share one list | Step B4 or B6: add the test |
+| 2026-11-12 | Step B3's focused review | A decision recorded under a legacy principal lapses if `person` is later changed to its namespaced target. It fails closed. Section [3](#3-configuration) should tell a deployer to keep `person` as the legacy string once decisions exist under it | The next change to this document |
+| 2026-11-12 | Step B3's focused review | In mode `none`, `store-documents-hold` runs with `--yes`, with no terminal and with an agent variable set. It holds only documents equal to their files, so it grants nothing a re-sync would not. Requiring a present human there is optional hardening | The owner |

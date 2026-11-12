@@ -57,8 +57,9 @@ pub(crate) use store_doctor::{
 };
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_records::{
+    HOLD as STORE_DOCUMENTS_HOLD, HOLD_KEPT as STORE_DOCUMENTS_HOLD_KEPT,
     REINDEX as STORE_RECORDS_REINDEX, REINDEX_KEPT as STORE_RECORDS_REINDEX_KEPT,
-    checks as store_record_checks, store_records_reindex,
+    checks as store_record_checks, store_documents_hold, store_records_reindex,
 };
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_show::store_show;

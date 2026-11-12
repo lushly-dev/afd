@@ -9,6 +9,7 @@ use umbel_store::{
     check_record, record_target,
 };
 
+use super::standing::{check_evidence, write_evidence};
 use super::{any_record, flags_text, kind_row, position, refuse_derivation};
 use crate::SqliteStore;
 use crate::documents::{check_expect, insert_change, next_rev, parse_json};
@@ -218,7 +219,8 @@ pub(super) fn update_lane(
 }
 
 /// Take from a lane what stood on a wording that is no longer the record's: its affirmation and
-/// its evidence. Neither exists before the specification's step B3 writes one.
+/// its evidence. The decision rows stay, as the history of what the person decided on the
+/// wording they name.
 pub(super) fn clear_standing(tx: &Transaction<'_>, lane: i64) -> Result<(), Fail> {
     tx.execute(
         "UPDATE record_lane SET affirmed_seq = NULL WHERE lane = ?1",
@@ -242,10 +244,15 @@ impl SqliteStore {
         writer: &ReaderFilter,
     ) -> Result<DeclaredPut, StoreError> {
         refuse_derivation(writer)?;
-        if lane.evidence.is_some() {
-            return Err(StoreError::invalid(
-                "this store does not write a declared put's evidence yet",
-            ));
+        if let Some(evidence) = &lane.evidence {
+            // Step 6: evidence is for a standing kind, and its shape is checked before anything
+            // is read.
+            if !decl.standing {
+                return Err(StoreError::invalid(
+                    "evidence is for a record of a standing kind",
+                ));
+            }
+            evidence.check()?;
         }
         let kind = decl.kind.as_str();
         let (hash, access) = check_record(ns, kind, id, &body, &envelope, self.space())?;
@@ -270,6 +277,10 @@ impl SqliteStore {
                 .is_some_and(|row| row.wording_hash.as_deref() != values.wording);
             if decl.standing && wording_changed {
                 return Err(StoreError::WordingFixed.into());
+            }
+            // Step 7.5: the cited document, as the writer may read it, in this transaction.
+            if let Some(evidence) = &lane.evidence {
+                check_evidence(&tx, evidence, writer)?;
             }
             // The match value is one of the text values, so it moved only if the wording did.
             let match_changed = match (&row, decl.match_pointer()) {
@@ -346,6 +357,9 @@ impl SqliteStore {
                     lane_id
                 }
             };
+            if let Some(evidence) = &lane.evidence {
+                write_evidence(&tx, lane_id, evidence)?;
+            }
             insert_change(&tx, rev, "record", &target, hash.as_str(), &envelope, &tokens)?;
             let embed = match (&lane.model, found.match_digest) {
                 (Some(model), Some(digest)) => {

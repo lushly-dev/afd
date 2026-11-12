@@ -131,6 +131,21 @@ pub(crate) mod records {
     pub(crate) const RECORD_QUERY_INVALID: &str = "RECORD_QUERY_INVALID";
     /// A ranked find whose counts pass the most postings one call counts.
     pub(crate) const RECORD_QUERY_TOO_BROAD: &str = "RECORD_QUERY_TOO_BROAD";
+    /// `record_get` or `record_list` on a standing kind: neither returns a label.
+    pub(crate) const RECORD_KIND_STANDING: &str = "RECORD_KIND_STANDING";
+    /// `record_put_cited` or `record_decide` on a kind without standing.
+    pub(crate) const RECORD_KIND_NOT_STANDING: &str = "RECORD_KIND_NOT_STANDING";
+    /// A put's evidence breaks a rule of its shape, or cites a document that is absent, not
+    /// readable by the writer or stored with another content hash.
+    pub(crate) const RECORD_EVIDENCE_INVALID: &str = "RECORD_EVIDENCE_INVALID";
+    /// A decision on standing, or a mark, outside a call a person decided.
+    pub(crate) const RECORD_DECISION_NOT_GATED: &str = "RECORD_DECISION_NOT_GATED";
+    /// A decision on standing, or a mark, by a caller who is not the space's person.
+    pub(crate) const RECORD_DECISION_NOT_THE_PERSON: &str = "RECORD_DECISION_NOT_THE_PERSON";
+    /// A document put into a collection named as the person's own is not its file on disk.
+    pub(crate) const STORE_OWN_SOURCE_MISMATCH: &str = "STORE_OWN_SOURCE_MISMATCH";
+    /// A mark on a document that lies where commands write files, or is not its file on disk.
+    pub(crate) const STORE_OWN_MARK_REFUSED: &str = "STORE_OWN_MARK_REFUSED";
 
     /// `RECORD_LANE_STALE`'s message for `kind`.
     #[must_use]
@@ -178,6 +193,9 @@ pub(crate) fn host_error(error: StoreError) -> umbel_sdk::HostError {
         }
         other @ StoreError::LaneTooBroad { .. } => {
             HostError::Invalid(format!("{}: {other}", records::RECORD_QUERY_TOO_BROAD))
+        }
+        other @ StoreError::EvidenceInvalid(_) => {
+            HostError::Invalid(format!("{}: {other}", records::RECORD_EVIDENCE_INVALID))
         }
         other => HostError::Io(other.to_string()),
     }
@@ -278,6 +296,12 @@ mod tests {
         assert_eq!(
             invalid(StoreError::LaneTooBroad { limit: 4_000_000 }),
             "RECORD_QUERY_TOO_BROAD: the call counts more than 4000000 postings"
+        );
+        assert_eq!(
+            invalid(StoreError::EvidenceInvalid(
+                "units must hold 1 to 256 unit numbers".to_owned()
+            )),
+            "RECORD_EVIDENCE_INVALID: the evidence is not acceptable: units must hold 1 to 256 unit numbers"
         );
         assert_eq!(
             records::stale_message("note"),

@@ -94,12 +94,12 @@ pub(super) const CASES: &[(&str, super::CaseFn)] = &[
     ),
 ];
 
-const NO_LANE: &str = "this backend has no record lane";
-const NS: &str = "notes";
-const AT: &str = "2026-11-02T10:00:00.000Z";
+pub(super) const NO_LANE: &str = "this backend has no record lane";
+pub(super) const NS: &str = "notes";
+pub(super) const AT: &str = "2026-11-02T10:00:00.000Z";
 const FIXTURE: &str = include_str!("../../fixtures/lane/records.json");
 
-fn pointer(text: &str) -> Result<Pointer, String> {
+pub(super) fn pointer(text: &str) -> Result<Pointer, String> {
     Pointer::parse(text).ctx("a pointer")
 }
 
@@ -119,12 +119,13 @@ fn view() -> StandingView {
     StandingView {
         own: Vec::new(),
         command_writable: Vec::new(),
+        person: Vec::new(),
         admit: vec![Standing::Unverified, Standing::Attested, Standing::Affirmed],
     }
 }
 
 /// A writer that may read every record the suite writes.
-fn writer() -> ReaderFilter {
+pub(super) fn writer() -> ReaderFilter {
     reader(&[
         "space",
         "group:growers",
@@ -133,12 +134,12 @@ fn writer() -> ReaderFilter {
     ])
 }
 
-fn no_scan(_text: &str) -> Vec<MemoryFlag> {
+pub(super) fn no_scan(_text: &str) -> Vec<MemoryFlag> {
     Vec::new()
 }
 
 /// Fresh stores, or `None` for a backend without a record lane.
-fn lane(env: &Env<'_>) -> Result<Option<(Fresh, LaneOpen)>, String> {
+pub(super) fn lane(env: &Env<'_>) -> Result<Option<(Fresh, LaneOpen)>, String> {
     let fresh = env.fresh()?;
     Ok(fresh.stores.lane.map(|open| (fresh, open)))
 }
@@ -190,7 +191,7 @@ fn all(decl: &RecordDecl) -> RecordFind {
     }
 }
 
-fn text(query: &str) -> Option<TextQuery> {
+pub(super) fn text(query: &str) -> Option<TextQuery> {
     Some(TextQuery {
         query: query.to_owned(),
         fields: Vec::new(),
@@ -204,7 +205,7 @@ fn key(pointer_text: &str, any: &[&str]) -> Result<KeyFilter, String> {
     })
 }
 
-fn ids(page: &FindPage) -> Vec<&str> {
+pub(super) fn ids(page: &FindPage) -> Vec<&str> {
     page.items
         .iter()
         .map(|item| item.record.id.as_str())
@@ -929,7 +930,7 @@ fn fixture() -> Result<(RecordDecl, Value), String> {
 /// the first revision descending, then the id, over the records that share a term with it. The
 /// statistics (`N`, `L` and each term's count) are taken over `corpus`, which for a store that
 /// counts only what its reader may read is `records` itself.
-fn ranked_by_the_formulas(
+pub(super) fn ranked_by_the_formulas(
     query: &str,
     records: &[(String, u64, String)],
     corpus: &[(String, u64, String)],
