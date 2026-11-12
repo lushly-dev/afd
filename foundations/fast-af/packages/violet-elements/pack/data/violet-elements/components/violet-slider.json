@@ -270,7 +270,7 @@
 			"html": "<form style=\"display: contents;\"><violet-slider error-text label=\"Moisture threshold\" max=\"100\" min=\"0\" name=\"moisture-threshold\" orientation=\"horizontal\" step=\"1\" supporting-text=\"Adjust the irrigation trigger point for this bed block.\" value=\"43\" value-text></violet-slider></form>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

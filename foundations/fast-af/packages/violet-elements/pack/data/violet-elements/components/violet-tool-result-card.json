@@ -105,7 +105,7 @@
 			"html": "<violet-tool-result-card expanded state=\"output-available\"><span slot=\"summary\">Weather data retrieved successfully</span><div>Temperature: 72°F\nConditions: Partly cloudy\nHumidity: 45%\nWind: 8 mph NW</div></violet-tool-result-card>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

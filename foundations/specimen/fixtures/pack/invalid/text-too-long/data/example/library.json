@@ -1,37 +1,37 @@
 {
 	"components": [
 		{
-			"digest": "sha256:21b7369c578ccb9aa5c49baa2d8fe597640a9a6310867ef3b9d0c99b29ed44a5",
+			"digest": "sha256:1696d3d9df5200596ce28cde28434c8c0ce02471def7993c21e5a1aa8c60508f",
 			"status": "deprecated",
 			"tag": "example-dropdown"
 		},
 		{
-			"digest": "sha256:5536686e671c70788ead75c854c267cbc5eee1e36d98c26adc606566017180ca",
+			"digest": "sha256:2cbc3079187a9b6603cb998df6c6d3b6c19e9d65e528a46860e2fb6373c6b2d7",
 			"status": "stable",
 			"summary": "One line of text that takes part in a form, with a visible label and optional hint.",
 			"tag": "example-field"
 		},
 		{
-			"digest": "sha256:c7c04eede6f4bfb17cf79045fe5c87d70bed1cbeb56d56d45b80e43546a2b878",
+			"digest": "sha256:f8feb6870449cd843d457902567e532090e2b96f8f9d3547742a02177bc4adbf",
 			"status": "stable",
 			"summary": "One choice in an example-select list.",
 			"tag": "example-option"
 		},
 		{
-			"digest": "sha256:1aa761682cbb7348026b9f908a2f68ad0b788ba0cb3aa6b86d21a2dfba7f3d18",
+			"digest": "sha256:07102b86d4d4cbab55ecd0938c86ae679f954928cbb56c52bf234fc91c2014cd",
 			"status": "preview",
 			"summary": "Pick one value from a short, fixed list that opens as a popup.",
 			"tag": "example-select"
 		}
 	],
-	"digest": "sha256:e18fe93c808b314f192ff8f5045d81b2be0b06de4911df1a24f3ec0974d3e815",
-	"format": 0,
+	"digest": "sha256:a8993b6f179d265ba664f26be2b34b34dd339134be809fcdd0586bfad93550ce",
+	"format": 1,
 	"library": "example",
 	"package": {
 		"name": "example-components",
 		"version": "1.0.0"
 	},
 	"prefix": "example-",
-	"rules": "sha256:9e7dd987fbb3308456450f859bd970af8654647188b061a16ea37a888d654b43",
+	"rules": "sha256:4d08605523d4f013042af4f2a01dee4826c54b46101d29d4ada75e7243463d13",
 	"title": "Example components"
 }

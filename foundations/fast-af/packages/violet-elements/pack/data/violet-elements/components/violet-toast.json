@@ -217,7 +217,7 @@
 			"html": "<violet-toast announcement=\"polite\" dismissible open timeout=\"5000\" tone=\"success\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

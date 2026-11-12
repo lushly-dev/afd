@@ -90,7 +90,7 @@
 			"html": "<violet-divider appearance=\"strong\" orientation=\"horizontal\"></violet-divider>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

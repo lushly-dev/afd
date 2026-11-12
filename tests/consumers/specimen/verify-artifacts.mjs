@@ -296,7 +296,7 @@ assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_V
 assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'packCheckRunSchema', 'packExportRequestSchema', 'packExportRunSchema', 'packRequestSchema', 'packRunSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema', 'themeSupportSchema', 'themesRequestSchema', 'themesRunSchema']);
 assert.deepEqual(Object.keys(evidence), ['claim']);
 const pack = await import('@lushly-dev/specimen/pack');
-assert.equal(pack.PACK_FORMAT_VERSION, 0);
+assert.equal(pack.PACK_FORMAT_VERSION, 1);
 const packRoot = new URL('./fixtures/pack/', import.meta.url).pathname;
 for (const form of ['committed', 'exported'])
 	assert.deepEqual(pack.checkPack(await pack.readPackFiles(packRoot + form), { form }).problems, []);

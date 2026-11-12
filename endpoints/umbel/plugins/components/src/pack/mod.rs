@@ -31,6 +31,8 @@ use schema::{Catalog, Record, Rules, Shape};
 
 /// The plugin's one pack.
 const PACK: &str = "library";
+/// The one format version the plugin reads, Specimen's `PACK_FORMAT_VERSION` (section 3.5).
+pub(crate) const FORMAT_VERSION: f64 = 1.0;
 /// The host's file, skipped as a check skips it.
 const PACK_TOML: &str = "pack.toml";
 /// At most this many libraries in one pack (section 3.4).
@@ -252,7 +254,7 @@ impl Checker {
             return None;
         };
         let version = raw.get("format").and_then(Value::as_f64);
-        if version != Some(0.0) {
+        if version != Some(FORMAT_VERSION) {
             self.add(FORMAT_UNSUPPORTED, path, Some("/format".to_owned()));
             return None;
         }

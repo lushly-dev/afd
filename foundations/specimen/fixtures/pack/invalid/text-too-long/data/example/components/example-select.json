@@ -102,7 +102,7 @@
 			"html": "<example-select label=\"Size\" value=\"m\">\n\t<example-option value=\"s\">Small</example-option>\n\t<example-option selected value=\"m\">Medium</example-option>\n</example-select>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "unobserved",

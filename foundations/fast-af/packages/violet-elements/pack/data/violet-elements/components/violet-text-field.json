@@ -253,7 +253,7 @@
 			"html": "<violet-text-field label=\"Plant name\" name=\"plantName\" placeholder=\"Search cultivated rows\" required supporting-text=\"Use this for quick filtering or manual entry.\" type=\"search\"><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon></violet-text-field>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

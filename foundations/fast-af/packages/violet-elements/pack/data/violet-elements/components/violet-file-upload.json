@@ -306,7 +306,7 @@
 			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"button\" error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "unobserved",

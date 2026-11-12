@@ -1,4 +1,4 @@
-# Component pack format, version 0
+# Component pack format, version 1
 
 A component pack tells an agent what it needs to use a library's components:
 each component's attributes, slots, events and accessibility facts, the
@@ -9,9 +9,13 @@ what it observes when it runs a library's stories (`bench.pack()`; see
 serves them in batches. The plan is the
 [Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/active/component-briefs/component-briefs.proposal.md).
 
-**Version 0 can change in any release.** It becomes version 1 once Specimen
-builds packs and the plugin has served them (the proposal's step C4). Until
-then, write packs only to try the format.
+**Version 1 is fixed.** A reader refuses a key it does not know, so any
+change to what a file may hold, an added key included, is a new version
+with its own number, and a reader reads only the versions it names
+(`FORMAT_UNSUPPORTED` otherwise). Version 0 was the trial form through the
+proposal's phases B and C; version 1 is the same shape, fixed once Specimen
+built a real library's pack and the Umbel plugin served it (the proposal's
+step C4). Nothing deployed version 0, so no reader keeps it.
 
 The package exports it in two ways:
 
@@ -140,7 +144,7 @@ other (`SCHEMA_INVALID`).
 
 | Key | Holds |
 | --- | --- |
-| `format` | `0` |
+| `format` | `1` |
 | `tag` | The custom-element name; equal to the file's name (`TAG_MISMATCH`) |
 | `summary` | Optional: one line on what it is for |
 | `status` | `stable`, `preview` or `deprecated` |
@@ -171,7 +175,8 @@ comparing the frames (`specimen themes`).
 
 `themes` was added within version 0, so a reader built before it, such as
 Specimen `2.2.0-preview.3`, refuses a record that carries it as
-`SCHEMA_INVALID`.
+`SCHEMA_INVALID`; such a reader also refuses every version 1 file, as
+`FORMAT_UNSUPPORTED`.
 
 Values and defaults are strings, integers between −(2⁵³ − 1) and 2⁵³ − 1,
 booleans or `null`. No other number is allowed, so every reader writes
@@ -205,7 +210,7 @@ pattern contains `/`.
 
 | Key | Holds |
 | --- | --- |
-| `format` | `0` |
+| `format` | `1` |
 | `library` | The library id, equal to its directory's name |
 | `title` | The library's name, as text |
 | `package` | `name` and `version` of the package that ships the components |
@@ -269,7 +274,7 @@ place in it.
 | --- | --- |
 | `LAYOUT_INVALID` | A file the format does not define, a library with no rules file, a catalog in the committed form or none in the exported form |
 | `JSON_INVALID` | Not UTF-8 JSON |
-| `FORMAT_UNSUPPORTED` | Not a JSON object, or a `format` missing or other than 0; nothing else in the file is checked |
+| `FORMAT_UNSUPPORTED` | Not a JSON object, or a `format` missing or other than 1; nothing else in the file is checked |
 | `SCHEMA_INVALID` | A missing or unknown key, a wrong type, a basis the fact does not allow, a replacement for a component that is not deprecated, a gap with the wrong keys |
 | `IDENTIFIER_INVALID` | An identifier that fails its pattern or is too long |
 | `TEXT_TOO_LONG`, `TEXT_INVALID` | See [Text](#text) |

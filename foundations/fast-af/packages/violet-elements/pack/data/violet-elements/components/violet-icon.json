@@ -67,7 +67,7 @@
 			"html": "<violet-icon icon=\"system/search\" label=\"Search icon\" style=\"--violet-icon-size: 20px;\"></violet-icon>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

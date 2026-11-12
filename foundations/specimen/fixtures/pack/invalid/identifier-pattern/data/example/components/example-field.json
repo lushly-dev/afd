@@ -127,7 +127,7 @@
 			"html": "<example-field invalid label=\"Email\">\n\t<span slot=\"hint\">Enter an address with an @.</span>\n</example-field>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [],
 	"import": "example-components/field.js",
 	"rules": [

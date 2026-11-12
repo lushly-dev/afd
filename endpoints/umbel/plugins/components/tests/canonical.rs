@@ -194,7 +194,7 @@ async fn a_repeated_key_keeps_the_last_value_and_is_not_canonical() {
     let raw = String::from_utf8(pack.files[&path].clone()).unwrap();
     pack.set_raw(
         &path,
-        &raw.replacen("\"format\": 0,", "\"format\": 1,\n\t\"format\": 0,", 1),
+        &raw.replacen("\"format\": 1,", "\"format\": 0,\n\t\"format\": 1,", 1),
     );
     pack.regenerate("example");
     assert_eq!(

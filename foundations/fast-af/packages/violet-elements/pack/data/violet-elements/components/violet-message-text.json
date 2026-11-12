@@ -65,7 +65,7 @@
 			"html": "<violet-message-text state=\"done\">Got it!</violet-message-text>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

@@ -131,7 +131,7 @@
 			"html": "<violet-menu label=\"Table actions\"><violet-button appearance=\"secondary\" aria-controls=\"violet-menu-panel-0\" aria-expanded=\"false\" aria-haspopup=\"menu\" slot=\"trigger\" type=\"button\">Actions</violet-button><violet-menu-item><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon>Search records</violet-menu-item><violet-menu-item><violet-icon decorative icon=\"system/sort-ascending\" label slot=\"before\"></violet-icon>Sort ascending</violet-menu-item><violet-menu-item disabled><violet-icon decorative icon=\"system/sort-descending\" label slot=\"before\"></violet-icon>Sort descending</violet-menu-item><hr><violet-menu-item><violet-icon decorative icon=\"system/close\" label slot=\"before\"></violet-icon>Remove column</violet-menu-item></violet-menu>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

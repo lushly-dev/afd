@@ -155,7 +155,7 @@
 			"html": "<violet-chat-composer label=\"Message\" placeholder=\"Send a message…\" status=\"streaming\" style=\"max-inline-size: 600px;\" value=\"Summarize the latest irrigation recommendations.\"></violet-chat-composer>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

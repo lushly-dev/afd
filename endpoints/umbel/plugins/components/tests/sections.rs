@@ -80,7 +80,7 @@ async fn a_brief_states_each_section_s_basis_once_and_each_shared_rule_once() {
         data(&result)["libraries"],
         json!([{
             "library": "example", "package": "example-components", "version": "1.0.0",
-            "digest": "sha256:8c24b7cc7456209022698e7520ea20ab25ce58fe4e11b5e9774c00a38ea65a9d",
+            "digest": "sha256:65fdd7e827e0515e631af3a0c2bdd5f8b867b12afd093102177a6da3d9cc61b2",
             "prefix": "example-",
         }])
     );

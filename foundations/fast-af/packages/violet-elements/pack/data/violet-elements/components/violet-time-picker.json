@@ -200,7 +200,7 @@
 			"html": "<form style=\"max-inline-size: 20rem;\">\n                <violet-time-picker error-text label=\"Start time\" max=\"21:00\" min=\"06:00\" name=\"start-time\" size=\"natural\" step=\"60\" supporting-text=\"Choose when this automation should begin each day.\" value=\"09:30\"></violet-time-picker>\n            </form>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

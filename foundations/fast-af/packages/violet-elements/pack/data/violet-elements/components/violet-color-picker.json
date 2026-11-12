@@ -178,7 +178,7 @@
 			"html": "<div style=\"max-inline-size: 22rem; padding-block-end: 16rem;\"><form><violet-color-picker disabled error-text=\"Select a color before continuing.\" label=\"Accent color\" name=\"accent-color\" size=\"natural\" supporting-text=\"Choose a color for farm map highlights.\" value=\"#c84f3b\"></violet-color-picker></form></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "unobserved",

@@ -107,7 +107,7 @@
 			"html": "<div style=\"max-inline-size: 12rem;\"><violet-segment checked value=\"overview\">Overview</violet-segment></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

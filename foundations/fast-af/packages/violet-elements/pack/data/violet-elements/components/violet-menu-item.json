@@ -91,7 +91,7 @@
 			"html": "<div role=\"menu\"><violet-menu-item>Simple action</violet-menu-item></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

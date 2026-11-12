@@ -139,7 +139,7 @@
 			"html": "<div aria-label=\"Sowing methods\" role=\"listbox\"><violet-option aria-disabled=\"true\" aria-selected=\"false\" disabled id=\"violet-option-1\" label=\"Hydroponic setup\" role=\"option\" value=\"hydroponic-setup\">Hydroponic setup<span slot=\"description\">Temporarily unavailable for this season.</span></violet-option></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

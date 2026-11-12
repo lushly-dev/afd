@@ -285,7 +285,7 @@
 			"html": "<form style=\"display: contents;\"><violet-range-slider error-text label=\"Temperature range\" label-end=\"Maximum\" label-start=\"Minimum\" max=\"100\" min=\"0\" name=\"temperature\" orientation=\"horizontal\" step=\"1\" supporting-text=\"Set the minimum and maximum temperature thresholds for this zone.\" value-end=\"70\" value-start=\"31\"></violet-range-slider></form>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

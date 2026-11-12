@@ -214,7 +214,7 @@
 			"html": "<violet-checkbox aria-label=\"Select all plants\" indeterminate inline name=\"selectAllPlants\" value=\"yes\"></violet-checkbox>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

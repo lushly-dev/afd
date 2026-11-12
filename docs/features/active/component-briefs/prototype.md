@@ -27,9 +27,14 @@ and without a brief, scored by the rules fixed in
   sessions and pages are kept by the author outside the repository. Step
   0.3's first three answers came from running the library's stories in the
   built checkout the runs were scored in, and need one to print again.
-- **Printed by other scripts here:** the pack's counts and bytes by
-  `prototype/build-pack.mjs`; a brief's bytes by the `brief.mjs` it writes,
-  called with a task's components; step 0.3's fourth answer by
+- **Printed by scripts step C4 deleted:** the pack's counts and bytes by
+  `prototype/build-pack.mjs`, and a brief's bytes by the `brief.mjs` it
+  wrote, called with a task's components. Step C4 deleted the hand-built
+  pack's sources (`build-pack.mjs` and `guides/`) and the two stand-in
+  scripts (`brief.template.mjs`, `check.template.mjs`) on 2026-11-11, once
+  Specimen built the real pack and Umbel served it; they are in the history
+  at `fdfd4874`. The tasks, their acceptance checks and the harness stay
+  for step C5. Still printed here: step 0.3's fourth answer by
   `prototype/unknowns.mjs forms`. The 475 bytes a component and the
   percentages of the declarations are arithmetic on those and on
   `baseline.mjs`.
@@ -189,7 +194,8 @@ Seen while running, and worth their own issues; none is filed.
   repository. `sessions.json` shows the weaker thing: by file name, no
   session read the pack, called the brief or ran the check unless its arm
   was given it.
-- **The pack.** `prototype/build-pack.mjs`: the API of all 77 components
+- **The pack.** `prototype/build-pack.mjs` (deleted at step C4; see the
+  status above): the API of all 77 components
   from the manifest, and guidance for 38 from `prototype/guides/`, written
   by an agent that read only the library and was shown neither the tasks
   nor the checks. 80 654 bytes. The brief and check scripts carry it

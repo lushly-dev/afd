@@ -190,7 +190,7 @@
 			"html": "<violet-data-grid-reference-picker aria-label=\"Linked records\" multiple placeholder=\"Link records\"></violet-data-grid-reference-picker>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

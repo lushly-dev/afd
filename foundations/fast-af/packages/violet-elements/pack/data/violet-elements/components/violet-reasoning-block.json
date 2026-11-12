@@ -100,7 +100,7 @@
 			"html": "<violet-reasoning-block label=\"Thinking\" state=\"done\">The user is asking about shade-tolerant plants. I should consider their USDA hardiness zone and soil type. Let me think about which perennials would work best for partial shade conditions with well-drained soil...</violet-reasoning-block>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

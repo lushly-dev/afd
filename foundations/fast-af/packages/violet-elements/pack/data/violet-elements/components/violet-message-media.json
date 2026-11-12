@@ -105,7 +105,7 @@
 			"html": "<violet-message-media allowed-origins=\"https://cdn.example.com\" alt filename=\"tracker.png\" media-type=\"image/png\" src=\"https://tracker.example.invalid/pixel.png\"></violet-message-media>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "summary"

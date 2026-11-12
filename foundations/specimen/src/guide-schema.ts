@@ -53,6 +53,10 @@ export const guideComponentSchema = z
 		(value) => value.replacedBy === undefined || value.status === 'deprecated',
 		'Only a deprecated component names its replacement'
 	)
+	.refine(
+		(value) => new Set(value.roles?.map((item) => item.state)).size === (value.roles?.length ?? 0),
+		{ message: 'Give one role per state; a record keeps one', path: ['roles'] }
+	)
 	.meta({
 		anyOf: [
 			{ not: { required: ['replacedBy'] } },

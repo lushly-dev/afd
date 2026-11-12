@@ -130,7 +130,7 @@
 			"html": "<violet-popover anchor open positioning=\"below\">\n            <violet-button appearance=\"secondary\" slot=\"trigger\" type=\"button\">Open details</violet-button>\n            <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                <strong style=\"margin:0;\">Propagation details</strong>\n                <p style=\"margin:0;\">Seeded trays are staged for transplanting next week.</p>\n            </div>\n        </violet-popover>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "role"

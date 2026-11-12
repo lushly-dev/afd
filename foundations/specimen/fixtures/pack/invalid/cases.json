@@ -108,7 +108,7 @@
 			"regenerated": true
 		},
 		{
-			"description": "A record says it is format 1.",
+			"description": "A record says it is format 0, the version before this one, which no reader keeps.",
 			"name": "format-version",
 			"problems": [
 				{
@@ -353,7 +353,7 @@
 			"regenerated": true
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"stamp": {
 		"package": {
 			"name": "example-components",

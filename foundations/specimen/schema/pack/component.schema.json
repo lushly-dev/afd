@@ -5,7 +5,7 @@
 	"properties": {
 		"format": {
 			"type": "number",
-			"const": 0
+			"const": 1
 		},
 		"tag": {
 			"type": "string",

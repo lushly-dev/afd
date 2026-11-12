@@ -157,7 +157,7 @@
 			"html": "<div style=\"display: flex; justify-content: center; align-items: center; min-block-size: 120px;\"><violet-tooltip content=\"Tooltip to the left.\" delay=\"250\" positioning=\"before\"><button aria-describedby=\"violet-tooltip-0\" style=\"padding: 8px 16px; cursor: pointer;\">Hover me</button></violet-tooltip></div>"
 		}
 	],
-	"format": 0,
+	"format": 1,
 	"gaps": [
 		{
 			"kind": "unobserved",
