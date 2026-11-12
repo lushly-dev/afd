@@ -263,6 +263,11 @@ export interface BenchConfig {
 	 * states one component's guidance or a set of shared rules. Needs `manifest`.
 	 */
 	guides?: string[];
+	/**
+	 * Guide source modules, relative to the configuration and inside the root: each default-exports
+	 * a guide source or an array of them, which Node runs to add shared rules. Needs `manifest`.
+	 */
+	guideSources?: string[];
 	/** What `specimen pack` builds: one library's component pack. Needs `manifest`. */
 	pack?: PackConfig;
 }

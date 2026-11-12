@@ -211,7 +211,7 @@ function staleness(
 			const strip = (rules: PackRules['rules']) =>
 				rules.map(({ id, text, appliesTo }) => ({ id, text, appliesTo }));
 			if (!same(strip((JSON.parse(text) as PackRules).rules), strip(want.rules)))
-				why('Its rules differ from the guide files.');
+				why('Its rules differ from the guide files and guide sources.');
 			continue;
 		}
 		const record = JSON.parse(text) as PackComponent;

@@ -324,7 +324,9 @@ writer of the format may choose its own.
 - **The accessibility check** counts for the component a case is about, the
   one the entry names: `violations` is how many axe rules failed across those
   cases, and `exceptions` the rules a native specimen's policy excused.
-- **Statements and rules** come from the guide files, `verified` when a claim
+- **Statements and rules** come from the guide files, and rules also from the
+  guide sources (modules the `guideSources` key names, which run in Node),
+  `verified` when a claim
   with its check held in `guides@1`, `authored` otherwise. A record's `rules`
   are those that name its tag or one of its attributes.
 - **Examples** come from the cases that name the component: the light DOM the
@@ -341,7 +343,8 @@ writer of the format may choose its own.
   reported, and so is an identifier the format does not allow.
 
 `bench.packCheck()` builds the same way and compares; `bench.packExport()`
-rechecks, without a browser, what the manifest and the guide files alone say.
+rechecks, without a browser, what the manifest, the guide files and the guide
+sources alone say.
 `fixtures/pack-library/` is the example library: built, it gives
 `fixtures/pack/committed/` byte for byte, and exported, `fixtures/pack/exported/`.
 

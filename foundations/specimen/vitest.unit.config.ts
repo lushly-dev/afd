@@ -37,6 +37,7 @@ export default defineConfig({
 				'src/diff.ts',
 				'src/evidence.ts',
 				'src/guide-coverage.ts',
+				'src/guide-source.ts',
 				'src/normalize.ts',
 				'src/normalize-ids.ts',
 				'src/pack.ts',
