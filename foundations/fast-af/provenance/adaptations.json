@@ -5566,12 +5566,12 @@
       "upstream_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
       "staged_path": "packages/violet-elements/package.json",
       "staged_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
-      "current_import_sha256": "6c23973bfcdca5136958f33e5258e5e515c04824408c0df49f0ba2c7814fe3b6",
-      "manifest_shape_sha256": "d9f52e0311beae4d5e8cdcb69daae04af9d22af20ba8e1f9f26dc0945362fa4a",
+      "current_import_sha256": "16ec09350c75a66f3ba3f86ec4490339ac67abd9f45af25f2ff443bd1a8714b1",
+      "manifest_shape_sha256": "044988ec73b8d249f628086eb910a1fcbb64258e846e8af6d2e98d766c380323",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #600: engines.node raised from the upstream >=20.0.0 (Node 20 is end-of-life) to AFD's >=22.12.0 floor; devDependency @biomejs/biome moves from upstream ^2.4.7 to the workspace's ^2.5.14; #806: typescript moves from upstream ^5.9.3 to the workspace's ^7.0.2; devDependency @typescript/typescript6 (the workspace's ^6.0.2) supplies the compiler API that scripts/verify-package-exports.mjs uses; Versioned for release by pnpm version-packages (fast-element, specimen); Dependabot moved @tanstack/virtual-core to 3.19.11 (#983), a change to a dependency range alone, recorded with the next change to the family"
+      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #600: engines.node raised from the upstream >=20.0.0 (Node 20 is end-of-life) to AFD's >=22.12.0 floor; devDependency @biomejs/biome moves from upstream ^2.4.7 to the workspace's ^2.5.14; #806: typescript moves from upstream ^5.9.3 to the workspace's ^7.0.2; devDependency @typescript/typescript6 (the workspace's ^6.0.2) supplies the compiler API that scripts/verify-package-exports.mjs uses; Versioned for release by pnpm version-packages (fast-element, specimen); Dependabot moved @tanstack/virtual-core to 3.19.11 (#983), a change to a dependency range alone, recorded with the next change to the family; Component Briefs B4: wire the FAST-AF Specimen plugin into the stories' configuration (specimen/plugins.ts and a development dependency on @lushly-dev/specimen-fast-af), before any component pack is built"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/scripts/build-icons.mjs",
@@ -5651,11 +5651,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "e26026dc30e9a595c8a39de259f8eb1ae18d49d4a89957deeedc69baf572a4b5",
+      "current_import_sha256": "4a0a6d818583f780b6532af3b75347332d6a6ee57b4a468255e6e64b63333114",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Component Briefs B4: wire the FAST-AF Specimen plugin into the stories' configuration (specimen/plugins.ts and a development dependency on @lushly-dev/specimen-fast-af), before any component pack is built"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/specimen/preview.ts",
@@ -9676,6 +9676,18 @@
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",
       "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/specimen/plugins.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "8128079740e6a3201d5ee9820ec670044c8e2a120cc8ede8f20770653008f5d4",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Component Briefs B4: wire the FAST-AF Specimen plugin into the stories' configuration (specimen/plugins.ts and a development dependency on @lushly-dev/specimen-fast-af), before any component pack is built"
     }
   ]
 }

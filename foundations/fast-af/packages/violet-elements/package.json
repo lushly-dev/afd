@@ -54,6 +54,7 @@
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@lushly-dev/fast-element": "workspace:*",
     "@lushly-dev/specimen": "workspace:*",
+    "@lushly-dev/specimen-fast-af": "workspace:*",
     "@typescript/typescript6": "^6.0.2",
     "@vitest/browser-playwright": "^5.1.0",
     "@vitest/coverage-v8": "^5.1.0",
