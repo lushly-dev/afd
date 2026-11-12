@@ -7,7 +7,7 @@ belongs to, under [`../docs/phases/`](../docs/phases/).
 
 | Directory | Package | Responsibility |
 | --- | --- | --- |
-| `manifest/` | `@lushly-dev/loam-manifest` | The app manifest profile, the deployment file and its browser projection: schemas, generated types, standalone validators, the readers and refusals at `/validate`, and the catalogs at the root; no DOM and no Node.js builtin. `schema:build` regenerates `src/_generated/` and `dist/*.generated.js`; its test fails when the committed files are stale |
+| `manifest/` | `@lushly-dev/loam-manifest` | The app manifest profile, the deployment file and its browser projection: schemas, generated types, standalone validators, the readers and refusals at `/validate`, the hosted server's configuration (`readServerConfig`) at `/server`, and the catalogs at the root; no DOM and no Node.js builtin. `schema:build` regenerates `src/_generated/` and `dist/*.generated.js`; its test fails when the committed files are stale |
 | `sdk/` | `@lushly-dev/loam-sdk` | The whole contract an app codes against: `defineApp`, the contexts, the client, the kit, the overlays and the surface element; `/view` for code in a sandbox (`connectView`, `serveHandlers`), over `postMessage` alone |
 | `cli/` | `@lushly-dev/loam-cli` | The `loam` bin: `app new`, `app check`, `app pack`, `deployment check`, `deployment write`. `/check` is the pure `checkApp`, `/deployment` is `writeDeployment`, `/vite` is `singleFileHtml`. The only unit that reads TOML |
 | `theme/` | `@lushly-dev/loam-theme` | Loam's Violet tree (light, dark, high contrast, each with compact density), its exports, the token contract and the token-only lint; see [its README](theme/README.md) |
