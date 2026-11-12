@@ -706,7 +706,9 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		const { page } = opened;
 		const workspace = 'Northern Region Operations and Planning Workspace for Partners';
 		const account = 'quarterly.planning.coordinator@northern-region.example.org';
-		// Set on the shell directly: what is measured is the bar's layout, not how the names arrive.
+		// Set on the shell directly, once boot's session read is done so none resets them: what is
+		// measured is the bar's layout, not how the names arrive.
+		await settle(page);
 		await page.locator('loam-shell').evaluate((shell, names) => Object.assign(shell, names), {
 			workspaceName: workspace,
 			account,
@@ -714,6 +716,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		const bar = page.locator('loam-statusbar');
 		await expect.poll(() => bar.locator('.actor-status').textContent()).toContain(account);
 		const shown = await bar.evaluate((element) => {
+			// overflow: hidden, nowrap and a block box are what make Chromium paint the ellipsis.
 			const box = (selector: string) => element.querySelector(selector)?.getBoundingClientRect();
 			const item = (selector: string) => {
 				const host = element.querySelector(selector) as Element;
@@ -747,6 +750,7 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		expect(shown.journalEnd).toBeLessThanOrEqual(shown.barEnd + 0.5);
 		// The whole text stays in the item, for assistive technology.
 		expect(await bar.locator('.workspace-status').textContent()).toContain(workspace);
+		expect(await bar.locator('.actor-status').textContent()).toContain(account);
 		await opened.context.close();
 	});
 
