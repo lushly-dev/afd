@@ -154,7 +154,6 @@ const template = html<VioletTextField>`
                 autocomplete="${x => x.autocomplete}"
                 inputmode="${x => x.inputMode || null}"
                 placeholder="${x => x.placeholder}"
-                :value="${x => x.value}"
                 ?disabled="${x => x.effectiveDisabled}"
                 ?readonly="${x => x.readonly}"
                 ?required="${x => x.required}"
@@ -327,6 +326,7 @@ export class VioletTextField extends FASTElement {
 
     public connectedCallback(): void {
         super.connectedCallback();
+        this.#writeControl();
         this.#defaultValue = this.getAttribute("value") ?? this.value;
         this.#syncFormState();
         this.#syncDescribedBy();
@@ -388,8 +388,20 @@ export class VioletTextField extends FASTElement {
     }
 
     public valueChanged(): void {
+        this.#writeControl();
         this.#syncFormState();
         this.#scheduleSync();
+    }
+
+    /**
+     * Writes `value` to the native input only when it differs. A number input reads `""` while it holds a
+     * partial entry such as `-`, so writing that `""` back, as a binding would, erased the `-` (#712).
+     */
+    #writeControl(): void {
+        const control = this.shadowRoot?.querySelector<HTMLInputElement>("input.control");
+        if (control && control.value !== this.value) {
+            control.value = this.value;
+        }
     }
 
     public typeChanged(): void {
