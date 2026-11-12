@@ -217,6 +217,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * closed (822), the outer actor copied onto port, nested and refusal calls (88), the version 3 deployment
  * rows (53) and `member` (9), less what `apps` had left. After its review's fixes, under the same ceilings:
  * first paint 288,566 and 89,207 gzip (+1,680, +710), the kernel alone 114,351, `apps` 394,885, `late` 70,924.
+ * #872's refinement of the input-schema rule, a closed tagged union (a `oneOf` of two or more branches
+ * beside only `type: 'object'`) read branch by branch, cost `apps` 88 and raised `appsMinified` by that less
+ * what `apps` had left, 79, to 394,973, approved by the owner on 2026-11-12 (`apps` 394,973).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
@@ -227,7 +230,7 @@ export const CEILINGS = Object.freeze({
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	urlMinified: 5_247,
-	appsMinified: 394_894,
+	appsMinified: 394_973,
 	surfacesMinified: 85_000,
 	viewMinified: 25_105,
 	consoleMinified: 91_222,
