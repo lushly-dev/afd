@@ -366,6 +366,9 @@ fn run(cx: &CallServices, space: &str, op: &str, args: &Value) -> Result<Value, 
                 },
             )
             .map(|found| page(&found)),
+        "match" => cx
+            .record_match(space, &super::records::match_of(args)?)
+            .map(|found| super::records::match_page(&found)),
         "get" => cx
             .record_get(space, kind(args), id)
             .map(|found| json!(found)),

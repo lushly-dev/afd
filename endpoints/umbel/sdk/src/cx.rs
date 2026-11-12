@@ -576,7 +576,9 @@ pub trait HostServices: Send + Sync {
     ///
     /// # Errors
     /// As [`HostServices::record_read`], and [`HostError::Invalid`] with a message starting
-    /// `RECORD_QUERY_TOO_BROAD`.
+    /// `RECORD_QUERY_TOO_BROAD` for a find under order `rank` when the kind as a whole holds more
+    /// postings than a ranked read reads: the same for every call and every reader of the kind
+    /// (section 8.2). A find by id or by recency is never refused for its kind's size.
     fn record_find(&self, _space: &str, _query: &RecordFind) -> Result<FindPage, HostError> {
         not_granted("records")
     }
@@ -585,7 +587,9 @@ pub trait HostServices: Send + Sync {
     /// plugin's.
     ///
     /// # Errors
-    /// As [`HostServices::record_find`].
+    /// As [`HostServices::record_find`] under order `rank`: `RECORD_QUERY_TOO_BROAD` when the
+    /// kind as a whole holds more postings than a match reads, the same for every call and every
+    /// reader of the kind (section 8.2).
     fn record_match(&self, _space: &str, _query: &RecordMatch) -> Result<MatchPage, HostError> {
         not_granted("records")
     }

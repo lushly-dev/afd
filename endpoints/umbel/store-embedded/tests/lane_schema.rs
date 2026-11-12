@@ -1,11 +1,13 @@
-//! The embedded schema's versions 2 and 3 (records host specification, sections 5.1 and 15.2):
-//! a version 1 store, with records in it, and a version 2 store, with a declared kind's lane in
-//! it, each open as version 3 with their rows intact; every table and index of section 5.1 is
-//! there; the schema version is a build constant; a kind declared after records of it exist is
-//! stale until a rebuild; and no document of a migrated store is held to its file.
+//! The embedded schema's versions 2 to 4 (records host specification, sections 5.1 and 15.2):
+//! a version 1 store, with records in it, a version 2 store, with a declared kind's lane in it,
+//! and a version 3 store, with a document held too, each open as version 4 with their rows
+//! intact; every table and index of section 5.1 is there; the schema version is a build
+//! constant; a kind declared after records of it exist is stale until a rebuild; no document of
+//! a version 2 store is held to its file; a migrated kind's count of postings is its lane's; and
+//! the put and the rebuild keep that count, which a match's bound reads (section 8.2).
 //!
-//! `fixtures/store-v1.sql` and `store-v2.sql` are dumps of stores the code before each schema
-//! wrote.
+//! `fixtures/store-v1.sql`, `store-v2.sql` and `store-v3.sql` are dumps of stores at those
+//! versions, each header saying how it was written.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -29,6 +31,7 @@ use umbel_store_embedded::{SCHEMA_VERSION, SqliteStore, StoreOptions};
 
 const V1: &str = include_str!("fixtures/store-v1.sql");
 const V2: &str = include_str!("fixtures/store-v2.sql");
+const V3: &str = include_str!("fixtures/store-v3.sql");
 
 fn database(dir: &Path) -> PathBuf {
     dir.join("store").join("store.sqlite3")
@@ -124,7 +127,7 @@ fn find_all(order: FindOrder) -> RecordFind {
 
 #[test]
 fn the_schema_version_is_a_build_constant() {
-    assert_eq!(SCHEMA_VERSION, 3);
+    assert_eq!(SCHEMA_VERSION, 4);
     let dir = tempfile::tempdir().expect("a temporary directory");
     let store = open_with(dir.path(), "main", StoreOptions::default()).expect("opening");
     assert_eq!(store.info().expect("info").schema_version, SCHEMA_VERSION);
@@ -157,6 +160,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
         "record_decisions",
         "doc_own",
         "doc_held",
+        "record_postings",
     ] {
         assert!(tables.contains(table), "{table} is missing: {tables:?}");
     }
@@ -189,6 +193,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
         ("record_evidence", "record_lane"),
         ("doc_own", "documents"),
         ("doc_held", "documents"),
+        ("record_postings", "record_kinds"),
     ] {
         let found: Vec<(String, String)> = raw
             .prepare(&format!("PRAGMA foreign_key_list({table})"))
@@ -336,7 +341,7 @@ fn version_2(dir: &Path) -> Connection {
 }
 
 #[test]
-fn a_version_2_store_opens_as_version_3_with_its_lane_intact_and_no_document_held() {
+fn a_version_2_store_opens_as_the_current_version_with_its_lane_intact_and_no_document_held() {
     let dir = tempfile::tempdir().expect("a temporary directory");
     let raw = version_2(dir.path());
     let before = objects(&raw);
@@ -363,9 +368,9 @@ fn a_version_2_store_opens_as_version_3_with_its_lane_intact_and_no_document_hel
     drop(raw);
 
     let store = open_with(dir.path(), "main", StoreOptions::default()).expect("migrating");
-    assert_eq!(store.info().expect("info").schema_version, 3);
+    assert_eq!(store.info().expect("info").schema_version, SCHEMA_VERSION);
     let raw = Connection::open(database(dir.path())).expect("a raw connection");
-    assert_eq!(user_version(&raw), 3);
+    assert_eq!(user_version(&raw), SCHEMA_VERSION);
     // Version 2's tables and indexes are as they were, statement for statement, and their rows.
     let after = objects(&raw);
     for object in &before {
@@ -423,8 +428,193 @@ fn a_version_2_store_opens_as_version_3_with_its_lane_intact_and_no_document_hel
     );
     // Two handles opening it again migrate nothing more.
     let again = open_with(dir.path(), "main", StoreOptions::default()).expect("opening again");
-    assert_eq!(again.info().expect("info").schema_version, 3);
+    assert_eq!(again.info().expect("info").schema_version, SCHEMA_VERSION);
     assert_eq!(objects(&raw), after);
+    // The kind's count of postings is its lane's, counted as the store migrated.
+    assert_eq!(postings(&raw, "note"), Some(9));
+}
+
+/// A kind's count of postings, if it has a row.
+fn postings(raw: &Connection, kind: &str) -> Option<i64> {
+    use rusqlite::OptionalExtension;
+    raw.query_row(
+        "SELECT postings FROM record_postings WHERE ns = 'notes' AND kind = ?1",
+        [kind],
+        |r| r.get(0),
+    )
+    .optional()
+    .expect("postings")
+}
+
+/// A kind's rows of `record_terms`, counted by a scan.
+fn terms(raw: &Connection, kind: &str) -> i64 {
+    raw.query_row(
+        "SELECT COUNT(*) FROM record_terms WHERE ns = 'notes' AND kind = ?1",
+        [kind],
+        |r| r.get(0),
+    )
+    .expect("terms")
+}
+
+#[test]
+fn a_version_3_store_opens_as_the_current_version_with_its_postings_counted() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::create_dir_all(dir.path().join("store")).expect("the store directory");
+    let raw = Connection::open(database(dir.path())).expect("a raw connection");
+    raw.query_row("PRAGMA journal_mode=WAL", [], |r| r.get::<_, String>(0))
+        .expect("WAL");
+    raw.execute_batch(V3).expect("the version 3 dump");
+    assert_eq!(user_version(&raw), 3, "the fixture is a version 3 store");
+    let before = objects(&raw);
+    let rows = |raw: &Connection, sql: &str| -> Vec<String> {
+        raw.prepare(sql)
+            .expect("prepare")
+            .query_map([], |r| r.get(0))
+            .expect("query")
+            .collect::<Result<_, _>>()
+            .expect("rows")
+    };
+    let tables = [
+        "SELECT doc || content_hash || quote(rev) FROM documents ORDER BY 1",
+        "SELECT doc || doc_hash FROM doc_held ORDER BY 1",
+        "SELECT id || content_hash || quote(rev) FROM records ORDER BY 1",
+        "SELECT id || wording_hash || quote(lane) || quote(created_rev) FROM record_lane ORDER BY 1",
+        "SELECT term || quote(lane) || quote(tf) FROM record_terms ORDER BY 1",
+        "SELECT kind || decl_hash || quote(stale) || quote(generation) FROM record_kinds ORDER BY 1",
+    ];
+    let rows_before: Vec<Vec<String>> = tables.iter().map(|sql| rows(&raw, sql)).collect();
+    assert_eq!(rows_before[1].len(), 1, "one document held");
+    drop(raw);
+
+    let store = open_with(dir.path(), "main", StoreOptions::default()).expect("migrating");
+    assert_eq!(store.info().expect("info").schema_version, SCHEMA_VERSION);
+    let raw = Connection::open(database(dir.path())).expect("a raw connection");
+    assert_eq!(user_version(&raw), SCHEMA_VERSION);
+    // Version 3's objects and rows are as they were; the one new table is a new store's.
+    let after = objects(&raw);
+    for object in &before {
+        assert!(after.contains(object), "{} changed", object.1);
+    }
+    let rows_after: Vec<Vec<String>> = tables.iter().map(|sql| rows(&raw, sql)).collect();
+    assert_eq!(rows_after, rows_before);
+    let fresh_dir = tempfile::tempdir().expect("a temporary directory");
+    drop(open_with(fresh_dir.path(), "main", StoreOptions::default()).expect("a new store"));
+    let fresh = Connection::open(database(fresh_dir.path())).expect("a raw connection");
+    assert_eq!(
+        after,
+        objects(&fresh),
+        "a migrated store has a new store's schema"
+    );
+    // One row a declared kind, with every posting its lane holds; the undeclared kind has none.
+    assert_eq!(postings(&raw, "note"), Some(terms(&raw, "note")));
+    assert_eq!(postings(&raw, "note"), Some(9));
+    assert_eq!(postings(&raw, "sync"), None);
+    let count: i64 = raw
+        .query_row("SELECT COUNT(*) FROM record_postings", [], |r| r.get(0))
+        .expect("count");
+    assert_eq!(count, 1);
+    // Opening again counts nothing twice.
+    drop(store);
+    let again = open_with(dir.path(), "main", StoreOptions::default()).expect("opening again");
+    assert_eq!(again.info().expect("info").schema_version, SCHEMA_VERSION);
+    assert_eq!(postings(&raw, "note"), Some(9));
+}
+
+/// The count a match's bound reads is the kind's rows of `record_terms` after every write that
+/// moves them: a first put, a rewrite with other words, one with the same, a rebuild under the
+/// same declaration, a rebuild that refuses a body, and one under a declaration with another
+/// text field. It is kept in the writes' own transactions, so it is never a scan at a match, and a
+/// rebuild sets it from the kind's rows, which repairs a count that drifted.
+#[test]
+fn the_put_and_the_rebuild_keep_each_kinds_count_of_postings() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let store = open_with(dir.path(), "main", StoreOptions::default()).expect("creating");
+    let raw = Connection::open(database(dir.path())).expect("a raw connection");
+    let decl = note();
+    let put = |decl: &RecordDecl, id: &str, body: serde_json::Value| {
+        store
+            .put_declared_record(
+                "notes",
+                decl,
+                id,
+                body,
+                samples::envelope(&["space"], "t", "2026-11-12T09:00:00.000Z"),
+                Expect::Any,
+                LaneWrite {
+                    evidence: None,
+                    flags: Vec::new(),
+                    model: None,
+                },
+                &all_seeing(),
+            )
+            .expect("a put");
+    };
+    let holds = |what: &str| {
+        let counted = postings(&raw, "note").unwrap_or(0);
+        assert_eq!(counted, terms(&raw, "note"), "{what}");
+        counted
+    };
+    put(
+        &decl,
+        "n1",
+        json!({ "statement": "Prune roses in late winter.", "why": 5 }),
+    );
+    put(&decl, "n2", json!({ "statement": "Mulch the roses." }));
+    assert_eq!(holds("after two first puts"), 8);
+    put(
+        &decl,
+        "n2",
+        json!({ "statement": "Mulch the roses in autumn, mulch." }),
+    );
+    assert_eq!(holds("after a rewrite with more words"), 10);
+    put(
+        &decl,
+        "n2",
+        json!({ "statement": "Mulch the roses in autumn, mulch." }),
+    );
+    assert_eq!(holds("after a rewrite with the same words"), 10);
+    put(&decl, "n2", json!({ "statement": "Mulch." }));
+    assert_eq!(holds("after a rewrite with fewer"), 6);
+    let rebuild = |decl: &RecordDecl| {
+        store
+            .reindex_records("notes", decl, &|_| Vec::new(), None, false)
+            .expect("the rebuild")
+    };
+    rebuild(&decl);
+    assert_eq!(holds("after a rebuild under the same declaration"), 6);
+    // `why` is a number, which a declaration with `/why` as a text field refuses: n1 is left
+    // without lane rows, and its postings leave the count.
+    let wider = RecordDecl {
+        text: vec![
+            Pointer::parse("/statement").expect("a pointer"),
+            Pointer::parse("/why").expect("a pointer"),
+        ],
+        ..note()
+    };
+    assert_eq!(rebuild(&wider).unindexed, 1);
+    assert_eq!(holds("after a rebuild that refuses a body"), 1);
+    put(
+        &wider,
+        "n1",
+        json!({ "statement": "Prune roses.", "why": "Before the buds swell." }),
+    );
+    assert_eq!(holds("after the refused body is written again"), 1 + 2 + 4);
+    rebuild(&decl);
+    assert_eq!(holds("after a rebuild that drops a text field"), 1 + 2);
+    // A `records` row deleted by a statement that does not keep the count, as an erasure's
+    // would, cascades through `record_terms` and leaves the count behind it. A rebuild repairs
+    // it from the kind's rows.
+    raw.execute_batch("PRAGMA foreign_keys = ON")
+        .expect("foreign keys");
+    raw.execute(
+        "DELETE FROM records WHERE ns = 'notes' AND kind = 'note' AND id = 'n1'",
+        [],
+    )
+    .expect("an erasure");
+    assert_eq!(terms(&raw, "note"), 1, "the cascade took n1's postings");
+    assert_eq!(postings(&raw, "note"), Some(3), "and the count drifted");
+    rebuild(&decl);
+    assert_eq!(holds("after a rebuild following the drift"), 1);
 }
 
 #[test]

@@ -1,7 +1,7 @@
-//! The suite's `lane` and `standing` groups fail on a broken backend (records host
+//! The suite's `lane`, `standing` and `matching` groups fail on a broken backend (records host
 //! specification, section 15.1): the embedded store behind a wrapper that breaks one rule of
-//! the lane, or of standing, at a time, as `index_suite_detects.rs` does for the index.
-//! Unbroken, the wrapper passes both groups.
+//! the lane, of standing or of matching at a time, as `index_suite_detects.rs` does for the
+//! index. Unbroken, the wrapper passes all three groups.
 
 // Integration-test helpers fail by panicking; clippy exempts only `#[test]` bodies themselves.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
@@ -14,8 +14,8 @@ use serde_json::Value;
 use umbel_store::conformance::{Outcome, Stores, run_groups};
 use umbel_store::lane::{
     Decided, Decision, DeclaredPut, FindOrder, FindPage, LaneLimits, LaneRecord, LaneStatus,
-    LaneWrite, Marked, OwnInfo, OwnMark, RecordDecision, RecordDecl, RecordFind, ReindexReport,
-    Standing, StandingView,
+    LaneWrite, MAX_MATCH_K, Marked, MatchPage, MatchResult, MatchVectors, OwnInfo, OwnMark,
+    RecordDecision, RecordDecl, RecordFind, RecordMatch, ReindexReport, Standing, StandingView,
 };
 use umbel_store::{
     AccessSet, Change, ContentHash, DocMeta, Document, DocumentStore, DocumentWrite, Embedder,
@@ -61,6 +61,33 @@ enum Fault {
     EveryDocumentHeld,
     /// A read counts the decisions and marks of a person the space no longer has.
     FormerPersonCounts,
+    /// `match_records` answers as a reader of every record, whoever asks.
+    MatchIgnoresReader,
+    /// A match's lists hold the reader's records, scored with statistics over everyone's.
+    MatchCountsUnreadable,
+    /// A match's identical records are everyone's.
+    IdenticalIgnoresReader,
+    /// An excluded record is left out of both lists and is still counted.
+    ExcludedStillCounted,
+    /// The bound is the reader's share: a reader of less than every record is not refused.
+    BoundIsTheReaders,
+    /// A match is never refused for its kind's size.
+    MatchNeverRefused,
+    /// A match is refused when a text names a word that a record its reader may not read
+    /// holds: the oracle step B4's review found in the work cap.
+    RefusedForAHiddenWord,
+    /// Every find is refused when a match of its kind would be, not only a ranked one.
+    FindRefusedPastTheBound,
+    /// A ranked find is never refused for its kind's size.
+    RankedFindNeverRefused,
+    /// A match's nearest are in id order.
+    MatchUnordered,
+    /// A match answers its 20 nearest, whatever `k` asks.
+    KIgnored,
+    /// A match admits every standing, whatever its view admits; reads and finds are honest.
+    MatchAdmitsEverything,
+    /// A hit's label shows its source to a reader who may not read the cited document.
+    MatchShowsSource,
 }
 
 thread_local! {
@@ -70,6 +97,8 @@ thread_local! {
 
 struct Faulty {
     inner: SqliteStore,
+    /// The same store under the specification's own bounds.
+    unbounded: SqliteStore,
     fault: Fault,
 }
 
@@ -245,6 +274,29 @@ impl DocumentStore for Faulty {
         view: &StandingView,
         reader: &ReaderFilter,
     ) -> Result<FindPage, StoreError> {
+        if self.fault == Fault::RankedFindNeverRefused
+            && let Err(StoreError::LaneTooBroad { .. }) =
+                self.inner.find_records(ns, decl, query, view, reader)
+        {
+            return self.unbounded.find_records(ns, decl, query, view, reader);
+        }
+        if self.fault == Fault::FindRefusedPastTheBound && decl.matched.is_some() {
+            let probe = RecordMatch {
+                kind: decl.kind.clone(),
+                texts: vec!["mulch".to_owned()],
+                k: 1,
+                keys: Vec::new(),
+                standings: Vec::new(),
+                verified_only: false,
+                exclude: Vec::new(),
+            };
+            if let Err(error @ StoreError::LaneTooBroad { .. }) = self
+                .inner
+                .match_records(ns, decl, &probe, None, view, reader)
+            {
+                return Err(error);
+            }
+        }
         let asked = view.admit.clone();
         let view = &faulty_view(self.fault, view);
         let honest = self
@@ -293,6 +345,141 @@ impl DocumentStore for Faulty {
             }
             Fault::CursorLost => honest.map(|page| FindPage { next: None, ..page }),
             Fault::CutNeverSet => honest.map(|page| FindPage { cut: false, ..page }),
+            _ => honest,
+        }
+    }
+    fn match_records(
+        &self,
+        ns: &str,
+        decl: &RecordDecl,
+        query: &RecordMatch,
+        vectors: Option<&MatchVectors>,
+        view: &StandingView,
+        reader: &ReaderFilter,
+    ) -> Result<MatchPage, StoreError> {
+        let asked = view.admit.clone();
+        let mut view = faulty_view(self.fault, view);
+        if self.fault == Fault::MatchAdmitsEverything {
+            view.admit = vec![Standing::Unverified, Standing::Attested, Standing::Affirmed];
+        }
+        let view = &view;
+        let as_asked = |page: MatchPage| MatchPage {
+            admitted: asked.clone(),
+            ..page
+        };
+        let honest = self
+            .inner
+            .match_records(ns, decl, query, vectors, view, reader)
+            .map(as_asked);
+        if reader.is_derivation() {
+            return honest;
+        }
+        let reads = |id: &str| {
+            self.inner
+                .read_record(ns, decl, id, view, reader)
+                .is_ok_and(|found| found.is_some())
+        };
+        let everyones = || {
+            self.inner
+                .match_records(ns, decl, query, vectors, view, &everything())
+        };
+        match self.fault {
+            Fault::MatchIgnoresReader => everyones(),
+            Fault::MatchCountsUnreadable => {
+                honest?;
+                let mut page = everyones()?;
+                for result in &mut page.results {
+                    result.identical.retain(|hit| reads(&hit.id));
+                    result.nearest.retain(|hit| reads(&hit.id));
+                }
+                Ok(page)
+            }
+            Fault::IdenticalIgnoresReader => {
+                let mut page = honest?;
+                for (result, whole) in page.results.iter_mut().zip(everyones()?.results) {
+                    result.identical = whole.identical;
+                }
+                Ok(page)
+            }
+            Fault::ExcludedStillCounted => {
+                honest?;
+                let counted = RecordMatch {
+                    exclude: Vec::new(),
+                    ..query.clone()
+                };
+                let mut page = self
+                    .inner
+                    .match_records(ns, decl, &counted, vectors, view, reader)?;
+                for result in &mut page.results {
+                    result
+                        .identical
+                        .retain(|hit| !query.exclude.contains(&hit.id));
+                    result
+                        .nearest
+                        .retain(|hit| !query.exclude.contains(&hit.id));
+                }
+                Ok(page)
+            }
+            Fault::RefusedForAHiddenWord => {
+                let page = honest?;
+                let whole =
+                    self.unbounded
+                        .match_records(ns, decl, query, vectors, view, &everything())?;
+                let seen = |result: &MatchResult| result.identical.len() + result.nearest.len();
+                let hidden = page
+                    .results
+                    .iter()
+                    .zip(&whole.results)
+                    .any(|(own, all)| seen(all) > seen(own));
+                if hidden {
+                    return Err(StoreError::LaneTooBroad { limit: 0 });
+                }
+                Ok(page)
+            }
+            Fault::BoundIsTheReaders | Fault::MatchNeverRefused => match honest {
+                Err(StoreError::LaneTooBroad { .. })
+                    if self.fault == Fault::MatchNeverRefused
+                        || reader.token_list() != everything().token_list() =>
+                {
+                    self.unbounded
+                        .match_records(ns, decl, query, vectors, view, reader)
+                }
+                other => other,
+            },
+            Fault::CutNeverSet => honest.map(|mut page| {
+                for result in &mut page.results {
+                    result.cut = false;
+                }
+                page
+            }),
+            Fault::MatchUnordered => honest.map(|mut page| {
+                for result in &mut page.results {
+                    result.nearest.sort_by(|a, b| a.id.cmp(&b.id));
+                }
+                page
+            }),
+            Fault::KIgnored => {
+                honest?;
+                let all = RecordMatch {
+                    k: MAX_MATCH_K,
+                    ..query.clone()
+                };
+                self.inner
+                    .match_records(ns, decl, &all, vectors, view, reader)
+            }
+            Fault::MatchShowsSource => {
+                let mut page = honest?;
+                for result in &mut page.results {
+                    for hit in result.identical.iter_mut().chain(&mut result.nearest) {
+                        // The label a reader of every document would be given.
+                        hit.label = self
+                            .inner
+                            .read_record(ns, decl, &hit.id, view, &everything())?
+                            .and_then(|seen| seen.label);
+                    }
+                }
+                Ok(page)
+            }
             _ => honest,
         }
     }
@@ -431,6 +618,7 @@ fn open_lane(
     let inner = SqliteStore::open(dir, space, StoreOptions::default())?.with_lane_limits(limits);
     Ok(Arc::new(Faulty {
         inner,
+        unbounded: SqliteStore::open(dir, space, StoreOptions::default())?,
         fault: FAULT.get(),
     }))
 }
@@ -538,7 +726,15 @@ fn each_standing_fault_fails_where_it_should() {
         ),
         (
             Fault::AdmitIgnored,
-            "admit_narrows_reads_finds_totals_and_statistics",
+            "admit_narrows_reads_finds_matches_totals_and_statistics",
+        ),
+        (
+            Fault::MatchAdmitsEverything,
+            "admit_narrows_reads_finds_matches_totals_and_statistics",
+        ),
+        (
+            Fault::MatchShowsSource,
+            "a_reader_who_cannot_read_the_cited_document_sees_the_basis_alone",
         ),
         (
             Fault::DecideIgnoresReader,
@@ -579,4 +775,73 @@ fn each_standing_fault_fails_where_it_should() {
             "{fault:?} is not caught by {case}: {failed:?}"
         );
     }
+}
+
+#[test]
+fn an_unfaulted_wrapper_passes_the_matching_group() {
+    assert_eq!(failures_of("matching", Fault::None), Vec::<&str>::new());
+}
+
+const UNREADABLE: &str = "a_reader_never_sees_a_record_it_may_not_read_in_a_match";
+const STATISTICS: &str = "a_matchs_statistics_count_only_what_its_reader_may_read";
+const DIFFERENTIAL: &str = "records_a_reader_cannot_read_change_no_match_of_its_own";
+const EXCLUDE: &str = "exclude_leaves_a_record_out_of_both_lists_and_out_of_the_statistics";
+const FIXTURE: &str =
+    "the_words_score_of_every_fixture_pair_holds_to_four_places_in_both_orders_of_put";
+const BOUND: &str = "past_its_bound_every_match_and_ranked_find_of_a_kind_is_refused_alike";
+const PROBE: &str = "a_refusal_says_nothing_of_which_records_hold_a_word";
+
+/// Each fault fails every one of its cases of the `matching` group.
+fn matching_faults_fail(faults: &[(Fault, &[&str])]) {
+    for (fault, cases) in faults {
+        let failed = failures_of("matching", *fault);
+        for case in *cases {
+            assert!(
+                failed.contains(case),
+                "{fault:?} is not caught by {case}: {failed:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn each_matching_fault_of_access_fails_where_it_should() {
+    matching_faults_fail(&[
+        (
+            Fault::MatchIgnoresReader,
+            &[UNREADABLE, STATISTICS, DIFFERENTIAL],
+        ),
+        (
+            Fault::MatchCountsUnreadable,
+            &[UNREADABLE, STATISTICS, DIFFERENTIAL],
+        ),
+        (
+            Fault::IdenticalIgnoresReader,
+            &[UNREADABLE, STATISTICS, DIFFERENTIAL],
+        ),
+        (Fault::BoundIsTheReaders, &[BOUND, PROBE]),
+        (Fault::MatchNeverRefused, &[BOUND, PROBE]),
+        (Fault::RefusedForAHiddenWord, &[PROBE]),
+        (Fault::FindRefusedPastTheBound, &[BOUND]),
+        (Fault::RankedFindNeverRefused, &[BOUND]),
+    ]);
+}
+
+#[test]
+fn each_matching_fault_of_scoring_fails_where_it_should() {
+    matching_faults_fail(&[
+        (Fault::ExcludedStillCounted, &[EXCLUDE, FIXTURE]),
+        (
+            Fault::CutNeverSet,
+            &["cut_only_when_the_rarest_terms_postings_pass_the_bound_after_every_clause"],
+        ),
+        (
+            Fault::MatchUnordered,
+            &["ties_are_broken_by_id_in_byte_order", FIXTURE],
+        ),
+        (
+            Fault::KIgnored,
+            &["the_pool_keeps_sixty_four_and_k_cuts_the_nearest"],
+        ),
+    ]);
 }

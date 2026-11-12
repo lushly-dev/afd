@@ -1999,3 +1999,138 @@ async fn a_former_persons_decisions_and_marks_are_set_aside() {
         assert_eq!(standing(dir.path(), id).await, "unverified", "{id}");
     }
 }
+
+// ── Who a space's person is ─────────────────────────────────────────────────────────────────────
+
+/// The standing configuration with `person` as the garden's person, `local` as the CLI's
+/// caller, and two legacy principals mapped to one namespaced principal.
+fn mapped(person: &str, local: &str) -> String {
+    config(
+        &format!("person = \"{person}\""),
+        "",
+        &format!(
+            "\n[principal]\nlocal_id = \"{local}\"\n\n[principal.equivalents]\n\"human:ada\" = \"human:corp/ada\"\n\"human:ada-old\" = \"human:corp/ada\"\n\n[auth]\nmode = \"none\"\n\n[auth.namespaces.corp]\n"
+        ),
+    )
+}
+
+#[tokio::test]
+async fn a_persons_identities_are_the_configured_person_and_its_equivalent_and_no_other() {
+    // The garden's person is the legacy principal `human:ada`, which the equivalents map to
+    // `human:corp/ada`. `human:ada-old` maps to the same principal and is not the person.
+    let dir = workspace(&mapped("human:ada", "corp/ada"));
+    for (id, statement) in [("n1", ROSES), ("n2", SUN), ("n3", MULCH)] {
+        put(dir.path(), id, statement).await;
+    }
+    let configure = |person: &str, local: &str| {
+        std::fs::write(dir.path().join("umbel.toml"), mapped(person, local)).unwrap();
+    };
+    // The write check. The principal the equivalents map the person to decides, in its own
+    // name; so does the configured person; the other legacy principal does not.
+    let by_target = done(&review(dir.path(), "affirm", json!({ "id": "n1" })).await);
+    assert_eq!(by_target["affirmed"]["by"], "human:corp/ada");
+    configure("human:ada", "ada");
+    let by_person = done(&review(dir.path(), "affirm", json!({ "id": "n2" })).await);
+    assert_eq!(by_person["affirmed"]["by"], "human:ada");
+    configure("human:ada", "ada-old");
+    let other = refused(&review(dir.path(), "affirm", json!({ "id": "n3" })).await);
+    assert!(
+        other.contains("RECORD_DECISION_NOT_THE_PERSON"),
+        "a principal that maps to the same target is not the person: {other}"
+    );
+    assert_eq!(
+        count(dir.path(), "SELECT COUNT(*) FROM record_decisions"),
+        2
+    );
+    // The read clause. Both decisions count, under either identity, whoever the CLI's
+    // caller is now.
+    for (id, read) in [("n1", "affirmed"), ("n2", "affirmed"), ("n3", "unverified")] {
+        assert_eq!(standing(dir.path(), id).await, read, "{id}");
+    }
+    // The decider check. Who affirmed a record is shown to those two principals and to no
+    // other: not the principal that maps to the same target, and not an agent.
+    let reading = host(dir.path());
+    for (reader, sees) in [
+        (human("corp/ada"), true),
+        (human("ada"), true),
+        (human("ada-old"), false),
+        (human("bo"), false),
+        (agent("ada"), false),
+    ] {
+        for (id, by) in [("n1", "human:corp/ada"), ("n2", "human:ada")] {
+            let read = result(
+                &run(
+                    &reading,
+                    reader.clone(),
+                    "notes-read",
+                    "read",
+                    json!({ "id": id }),
+                )
+                .await,
+            );
+            let label = &read["dev.umbel/standing"];
+            assert_eq!(label["standing"], "affirmed", "{reader:?} {id}");
+            assert_eq!(
+                label["affirmed"]["by"],
+                if sees { json!(by) } else { Value::Null },
+                "{reader:?} {id}"
+            );
+        }
+    }
+    drop(reading);
+    // Named by the namespaced principal, the person is that principal alone: the legacy
+    // principals that map to it are not the person. A decision recorded under one lapses, and
+    // a caller who is one decides nothing and is not shown who decided.
+    configure("human:corp/ada", "ada");
+    for (id, read) in [
+        ("n1", "affirmed"),
+        ("n2", "unverified"),
+        ("n3", "unverified"),
+    ] {
+        assert_eq!(standing(dir.path(), id).await, read, "{id}");
+    }
+    let legacy = refused(&review(dir.path(), "affirm", json!({ "id": "n3" })).await);
+    assert!(
+        legacy.contains("RECORD_DECISION_NOT_THE_PERSON"),
+        "{legacy}"
+    );
+    let reading = host(dir.path());
+    for (reader, sees) in [(human("corp/ada"), true), (human("ada"), false)] {
+        let read = result(
+            &run(
+                &reading,
+                reader.clone(),
+                "notes-read",
+                "read",
+                json!({ "id": "n1" }),
+            )
+            .await,
+        );
+        assert_eq!(
+            read["dev.umbel/standing"]["affirmed"]["by"],
+            if sees {
+                json!("human:corp/ada")
+            } else {
+                Value::Null
+            },
+            "{reader:?}"
+        );
+    }
+    let verified = result(
+        &run(
+            &reading,
+            agent("ada"),
+            "notes-read",
+            "find",
+            json!({ "verifiedOnly": true }),
+        )
+        .await,
+    );
+    assert_eq!(verified["ids"], json!(["n1"]));
+    drop(reading);
+    // The namespaced principal itself decides there.
+    configure("human:corp/ada", "corp/ada");
+    let own = done(&review(dir.path(), "affirm", json!({ "id": "n3" })).await);
+    assert_eq!(own["affirmed"]["by"], "human:corp/ada");
+    assert_eq!(standing(dir.path(), "n3").await, "affirmed");
+}

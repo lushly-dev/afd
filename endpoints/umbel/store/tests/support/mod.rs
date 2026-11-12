@@ -9,8 +9,9 @@ use std::sync::{Arc, Mutex};
 use serde_json::Value;
 use umbel_store::conformance::Stores;
 use umbel_store::lane::{
-    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, OwnInfo, OwnMark,
-    RecordDecision, RecordDecl, RecordFind, ReindexReport, StandingView,
+    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, MatchPage,
+    MatchVectors, OwnInfo, OwnMark, RecordDecision, RecordDecl, RecordFind, RecordMatch,
+    ReindexReport, StandingView,
 };
 use umbel_store::{
     AccessSet, Change, ChangeKind, ContentHash, Direction, DocGraph, DocMeta, Document,
@@ -343,6 +344,18 @@ impl DocumentStore for Fake {
         _view: &StandingView,
         _reader: &ReaderFilter,
     ) -> Result<FindPage, StoreError> {
+        Err(no_lane())
+    }
+
+    fn match_records(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _query: &RecordMatch,
+        _vectors: Option<&MatchVectors>,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<MatchPage, StoreError> {
         Err(no_lane())
     }
 

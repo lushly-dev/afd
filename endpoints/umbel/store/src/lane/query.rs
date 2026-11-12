@@ -1,16 +1,20 @@
-//! A find's rules and its cursors (records host specification, section 7; D164), as pure
-//! functions: every backend refuses the same queries and writes the same cursors.
+//! A find's rules and its cursors (records host specification, section 7; D164) and a match's
+//! rules (section 8; D165), as pure functions: every backend refuses the same queries, writes the
+//! same cursors and reads a match's texts into the same terms.
 //!
 //! A refusal names the rule and never a value of the query.
 
 use serde_json::{Value, json};
 
+use std::collections::BTreeMap;
+
 use super::{
-    FindOrder, MAX_FIND_LIMIT, MAX_FIND_QUERY_CHARS, MAX_KEY_FILTERS, MAX_KEY_VALUES, RecordDecl,
-    RecordFind,
+    FindOrder, KeyFilter, MAX_FIND_LIMIT, MAX_FIND_QUERY_CHARS, MAX_KEY_FILTERS, MAX_KEY_VALUES,
+    MAX_LANE_TEXT_BYTES, MAX_MATCH_EXCLUDE, MAX_MATCH_K, MAX_MATCH_TEXTS, RecordDecl, RecordFind,
+    RecordMatch, Standing, match_digest,
 };
 use crate::canonical::{base64_decode, base64_encode, canonical_json};
-use crate::document::Rev;
+use crate::document::{Rev, check_identifier};
 use crate::error::{Result, StoreError};
 use crate::memory::tokenizer::tokens;
 
@@ -119,32 +123,8 @@ impl RecordFind {
                 "kind is not the kind of the declaration the find runs under",
             ));
         }
-        if self.keys.len() > MAX_KEY_FILTERS {
-            return Err(StoreError::invalid(format!(
-                "keys holds at most {MAX_KEY_FILTERS} filters"
-            )));
-        }
-        let mut keys = Vec::with_capacity(self.keys.len());
-        for filter in &self.keys {
-            let Some(position) = decl.keys.iter().position(|key| *key == filter.key) else {
-                return Err(StoreError::invalid(format!(
-                    "the pointer {} of a key filter is not a key pointer of the declaration",
-                    filter.key
-                )));
-            };
-            if !(1..=MAX_KEY_VALUES).contains(&filter.any.len()) {
-                return Err(StoreError::invalid(format!(
-                    "the key filter on {} holds 1 to {MAX_KEY_VALUES} values in any",
-                    filter.key
-                )));
-            }
-            keys.push((position_of(position), filter.any.clone()));
-        }
-        if !decl.standing && (!self.standings.is_empty() || self.verified_only) {
-            return Err(StoreError::invalid(
-                "standings must be empty and verified_only false for a kind without standing",
-            ));
-        }
+        let keys = key_filters(decl, &self.keys)?;
+        standing_filter(decl, &self.standings, self.verified_only)?;
         let text = match &self.text {
             None => None,
             Some(text) => {
@@ -199,6 +179,155 @@ impl RecordFind {
     }
 }
 
+/// The key filters of a find or a match under `decl`: at most [`MAX_KEY_FILTERS`], each over a
+/// key pointer of the declaration with 1 to [`MAX_KEY_VALUES`] values, as each key pointer's
+/// position in the declaration and its values.
+fn key_filters(decl: &RecordDecl, filters: &[KeyFilter]) -> Result<Vec<(u8, Vec<String>)>> {
+    if filters.len() > MAX_KEY_FILTERS {
+        return Err(StoreError::invalid(format!(
+            "keys holds at most {MAX_KEY_FILTERS} filters"
+        )));
+    }
+    let mut keys = Vec::with_capacity(filters.len());
+    for filter in filters {
+        let Some(position) = decl.keys.iter().position(|key| *key == filter.key) else {
+            return Err(StoreError::invalid(format!(
+                "the pointer {} of a key filter is not a key pointer of the declaration",
+                filter.key
+            )));
+        };
+        if !(1..=MAX_KEY_VALUES).contains(&filter.any.len()) {
+            return Err(StoreError::invalid(format!(
+                "the key filter on {} holds 1 to {MAX_KEY_VALUES} values in any",
+                filter.key
+            )));
+        }
+        keys.push((position_of(position), filter.any.clone()));
+    }
+    Ok(keys)
+}
+
+/// A kind without standing has no standing to ask for.
+fn standing_filter(decl: &RecordDecl, standings: &[Standing], verified_only: bool) -> Result<()> {
+    if !decl.standing && (!standings.is_empty() || verified_only) {
+        return Err(StoreError::invalid(
+            "standings must be empty and verified_only false for a kind without standing",
+        ));
+    }
+    Ok(())
+}
+
+/// One text of a match as the lane reads it (sections 8.1 and 8.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchText {
+    /// The digest of the text's normalised form; `None` when that form is empty, and the text is
+    /// then identical to nothing.
+    pub digest: Option<[u8; 32]>,
+    /// The text's distinct terms with their frequencies, in the terms' byte order. Empty for a
+    /// text with no token, which is near nothing.
+    pub terms: Vec<(String, u32)>,
+    /// The text's tokens, in all.
+    pub length: u32,
+}
+
+impl MatchText {
+    /// Read `text` with the lane's normalisation and its tokenizer.
+    #[must_use]
+    pub fn of(text: &str) -> Self {
+        let mut counts: BTreeMap<String, u32> = BTreeMap::new();
+        let mut length = 0u32;
+        for token in tokens(text) {
+            *counts.entry(token).or_default() += 1;
+            length += 1;
+        }
+        Self {
+            digest: match_digest(text),
+            terms: counts.into_iter().collect(),
+            length,
+        }
+    }
+}
+
+/// A match that passed section 8's rules, in the form a backend runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchPlan {
+    /// The match field's position among the declaration's text pointers.
+    pub field: u8,
+    /// Each key filter as its key pointer's position in the declaration and its values.
+    pub keys: Vec<(u8, Vec<String>)>,
+    /// Each text, in the query's order.
+    pub texts: Vec<MatchText>,
+    /// The excluded ids, each once, in byte order.
+    pub exclude: Vec<String>,
+}
+
+impl RecordMatch {
+    /// Section 8's rules for this match under `decl`: the kind is the declaration's and has a
+    /// match field; 1 to [`MAX_MATCH_TEXTS`] texts, each of 1 byte to [`MAX_LANE_TEXT_BYTES`];
+    /// `k` of 1 to [`MAX_MATCH_K`]; key filters as a find's; no standing filter on a kind without
+    /// standing; and at most [`MAX_MATCH_EXCLUDE`] excluded ids, each a record id's shape.
+    ///
+    /// A text with no token, and one whose normalised form is empty, break no rule: the first is
+    /// near nothing and the second also identical to nothing.
+    ///
+    /// # Errors
+    /// [`StoreError::Invalid`] naming the rule broken, never a value.
+    pub fn plan(&self, decl: &RecordDecl) -> Result<MatchPlan> {
+        if self.kind != decl.kind {
+            return Err(StoreError::invalid(
+                "kind is not the kind of the declaration the match runs under",
+            ));
+        }
+        let Some(field) = decl.matched.filter(|index| *index < decl.text.len()) else {
+            return Err(StoreError::invalid(
+                "a match needs a kind that declares a match field",
+            ));
+        };
+        if !(1..=MAX_MATCH_TEXTS).contains(&self.texts.len()) {
+            return Err(StoreError::invalid(format!(
+                "texts holds 1 to {MAX_MATCH_TEXTS} texts"
+            )));
+        }
+        if self
+            .texts
+            .iter()
+            .any(|text| !(1..=MAX_LANE_TEXT_BYTES).contains(&text.len()))
+        {
+            return Err(StoreError::invalid(format!(
+                "each text is 1 to {MAX_LANE_TEXT_BYTES} bytes"
+            )));
+        }
+        if !(1..=MAX_MATCH_K).contains(&self.k) {
+            return Err(StoreError::invalid(format!("k must be 1 to {MAX_MATCH_K}")));
+        }
+        let keys = key_filters(decl, &self.keys)?;
+        standing_filter(decl, &self.standings, self.verified_only)?;
+        if self.exclude.len() > MAX_MATCH_EXCLUDE {
+            return Err(StoreError::invalid(format!(
+                "exclude holds at most {MAX_MATCH_EXCLUDE} ids"
+            )));
+        }
+        if self
+            .exclude
+            .iter()
+            .any(|id| check_identifier("a record id", id).is_err())
+        {
+            return Err(StoreError::invalid(
+                "each excluded id is a record id of 1 to 512 bytes without a control character",
+            ));
+        }
+        let mut exclude = self.exclude.clone();
+        exclude.sort_unstable();
+        exclude.dedup();
+        Ok(MatchPlan {
+            field: position_of(field),
+            keys,
+            texts: self.texts.iter().map(|text| MatchText::of(text)).collect(),
+            exclude,
+        })
+    }
+}
+
 /// A pointer's position in its list, which [`RecordDecl::check`] holds under 256 entries.
 fn position_of(index: usize) -> u8 {
     u8::try_from(index).unwrap_or(u8::MAX)
@@ -207,7 +336,7 @@ fn position_of(index: usize) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lane::{KeyFilter, Pointer, Standing, TextQuery};
+    use crate::lane::{Pointer, TextQuery};
 
     fn pointer(text: &str) -> Pointer {
         Pointer::parse(text).unwrap()
@@ -393,6 +522,204 @@ mod tests {
             &keys_only,
             "declares a text pointer",
         );
+    }
+
+    fn matching() -> RecordMatch {
+        RecordMatch {
+            kind: "note".to_owned(),
+            texts: vec!["Mulch the roses; mulch holds water.".to_owned()],
+            k: 5,
+            keys: Vec::new(),
+            standings: Vec::new(),
+            verified_only: false,
+            exclude: Vec::new(),
+        }
+    }
+
+    fn match_refused(query: &RecordMatch, declared: &RecordDecl, rule: &str) {
+        match query.plan(declared) {
+            Err(StoreError::Invalid(why)) => assert!(why.contains(rule), "{why}"),
+            other => panic!("{rule}: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_match_plan_reads_each_text_into_its_digest_and_its_terms() {
+        let query = RecordMatch {
+            texts: vec![
+                "Mulch the roses; mulch holds water.".to_owned(),
+                "  MULCH the roses;\tmulch holds water. ".to_owned(),
+                "...".to_owned(),
+                " \u{a0} ".to_owned(),
+            ],
+            keys: vec![KeyFilter {
+                key: pointer("/tags"),
+                any: vec!["soil".to_owned()],
+            }],
+            exclude: vec!["n2".to_owned(), "n1".to_owned(), "n2".to_owned()],
+            ..matching()
+        };
+        // The match field is the declaration's second text pointer here.
+        let declared = RecordDecl {
+            matched: Some(1),
+            ..decl(true)
+        };
+        let plan = query.plan(&declared).unwrap();
+        assert_eq!(plan.field, 1);
+        assert_eq!(plan.keys, [(1, vec!["soil".to_owned()])]);
+        assert_eq!(plan.exclude, ["n1", "n2"], "each id once, in byte order");
+        let first = &plan.texts[0];
+        let terms: Vec<(&str, u32)> = first
+            .terms
+            .iter()
+            .map(|(term, tf)| (term.as_str(), *tf))
+            .collect();
+        assert_eq!(
+            terms,
+            [
+                ("hold", 1),
+                ("mulch", 2),
+                ("rose", 1),
+                ("the", 1),
+                ("water", 1)
+            ],
+            "distinct terms in byte order, each with its frequency"
+        );
+        assert_eq!(first.length, 6);
+        assert_eq!(first.digest, crate::lane::match_digest(&query.texts[0]));
+        assert_eq!(
+            plan.texts[1], *first,
+            "case and whitespace change neither the digest nor the terms"
+        );
+        // A text with no token keeps its digest, and one that is blank has neither.
+        assert!(plan.texts[2].digest.is_some());
+        assert!(plan.texts[2].terms.is_empty() && plan.texts[2].length == 0);
+        assert_eq!(
+            plan.texts[3],
+            MatchText {
+                digest: None,
+                terms: Vec::new(),
+                length: 0
+            }
+        );
+    }
+
+    #[test]
+    fn each_rule_of_section_8_refuses_naming_itself() {
+        let standing = decl(true);
+        match_refused(
+            &RecordMatch {
+                kind: "other".to_owned(),
+                ..matching()
+            },
+            &standing,
+            "kind is not",
+        );
+        match_refused(
+            &matching(),
+            &RecordDecl {
+                matched: None,
+                ..decl(true)
+            },
+            "declares a match field",
+        );
+        for count in [0, MAX_MATCH_TEXTS + 1] {
+            match_refused(
+                &RecordMatch {
+                    texts: (0..count).map(|n| format!("Mulch {n}.")).collect(),
+                    ..matching()
+                },
+                &standing,
+                "texts holds 1 to 64 texts",
+            );
+        }
+        for text in [String::new(), "é".repeat(MAX_LANE_TEXT_BYTES / 2 + 1)] {
+            match_refused(
+                &RecordMatch {
+                    texts: vec!["Mulch.".to_owned(), text],
+                    ..matching()
+                },
+                &standing,
+                "each text is 1 to 16384 bytes",
+            );
+        }
+        for k in [0, MAX_MATCH_K + 1] {
+            match_refused(
+                &RecordMatch { k, ..matching() },
+                &standing,
+                "k must be 1 to 20",
+            );
+        }
+        let key = |any: usize| KeyFilter {
+            key: pointer("/bed"),
+            any: (0..any).map(|n| format!("v{n}")).collect(),
+        };
+        match_refused(
+            &RecordMatch {
+                keys: (0..9).map(|_| key(1)).collect(),
+                ..matching()
+            },
+            &standing,
+            "at most 8 filters",
+        );
+        match_refused(
+            &RecordMatch {
+                keys: vec![key(0)],
+                ..matching()
+            },
+            &standing,
+            "1 to 64 values",
+        );
+        match_refused(
+            &RecordMatch {
+                exclude: (0..=MAX_MATCH_EXCLUDE).map(|n| format!("n{n}")).collect(),
+                ..matching()
+            },
+            &standing,
+            "exclude holds at most 64 ids",
+        );
+        for id in [String::new(), "n\u{7}1".to_owned(), "n".repeat(513)] {
+            match_refused(
+                &RecordMatch {
+                    exclude: vec![id],
+                    ..matching()
+                },
+                &standing,
+                "each excluded id is a record id",
+            );
+        }
+        for query in [
+            RecordMatch {
+                standings: vec![Standing::Affirmed],
+                ..matching()
+            },
+            RecordMatch {
+                verified_only: true,
+                ..matching()
+            },
+        ] {
+            match_refused(&query, &decl(false), "a kind without standing");
+            assert!(query.plan(&standing).is_ok());
+        }
+        // The limits themselves pass: 64 texts of 16 KiB, k of 20, 64 excluded ids, 8 filters.
+        let widest = RecordMatch {
+            texts: vec!["x".repeat(MAX_LANE_TEXT_BYTES); MAX_MATCH_TEXTS],
+            k: MAX_MATCH_K,
+            keys: (0..8).map(|_| key(64)).collect(),
+            exclude: (0..MAX_MATCH_EXCLUDE).map(|n| format!("n{n}")).collect(),
+            ..matching()
+        };
+        assert_eq!(widest.plan(&standing).unwrap().texts.len(), 64);
+        // A refusal never holds a text or an id.
+        let long = RecordMatch {
+            texts: vec!["canary".repeat(4000)],
+            exclude: vec!["canary\u{7}".to_owned()],
+            ..matching()
+        };
+        let Err(StoreError::Invalid(why)) = long.plan(&standing) else {
+            panic!("a text past 16 KiB passed");
+        };
+        assert!(!why.contains("canary"), "{why}");
     }
 
     #[test]

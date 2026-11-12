@@ -1,10 +1,35 @@
-//! The SQLite schema, version 2: version 1's tables (specification section 3.2) and the record
+//! The SQLite schema, version 4: version 1's tables (specification section 3.2) and the record
 //! lane's (records host specification, section 5.1).
 
 /// `PRAGMA user_version` of the schema this build writes and serves. Version 2 adds the record
-/// lane's tables ([`LANE_SCHEMA`]) and version 3 the table of documents held to their files
-/// ([`HELD_SCHEMA`]); a store at an earlier version gains them when it is opened.
-pub const SCHEMA_VERSION: u32 = 3;
+/// lane's tables ([`LANE_SCHEMA`]), version 3 the table of documents held to their files
+/// ([`HELD_SCHEMA`]) and version 4 each declared kind's count of postings
+/// ([`POSTINGS_SCHEMA`]); a store at an earlier version gains them when it is opened.
+pub const SCHEMA_VERSION: u32 = 4;
+
+/// Schema version 4 (records host specification, section 5.1, after step B4's review): how many
+/// postings, rows of `record_terms`, each declared kind holds over all its text fields. A match
+/// compares it with its bound before it reads anything else (section 8.2), so the count is kept
+/// by the put and by the rebuild in their own transactions, never found by a scan at a match. A
+/// table and not a column of `record_kinds`, as version 3's is: a store that migrates then has
+/// the schema of a new one, statement for statement. A kind with no row holds none.
+pub(crate) const POSTINGS_SCHEMA: &str = "
+CREATE TABLE record_postings (
+    ns       TEXT NOT NULL,
+    kind     TEXT NOT NULL,
+    postings INTEGER NOT NULL CHECK (postings >= 0), -- rows of record_terms of the kind
+    PRIMARY KEY (ns, kind),
+    FOREIGN KEY (ns, kind) REFERENCES record_kinds (ns, kind) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+";
+
+/// What a store at version 2 or 3 holds, counted once as it migrates to version 4: one row a
+/// declared kind, with every posting its lane has.
+pub(crate) const POSTINGS_BACKFILL: &str = "
+INSERT INTO record_postings (ns, kind, postings)
+SELECT k.ns, k.kind, (SELECT COUNT(*) FROM record_terms t WHERE t.ns = k.ns AND t.kind = k.kind)
+FROM record_kinds k;
+";
 
 /// Schema version 3 (records host specification, section 5.1): which documents the host held to
 /// their file on disk, and at which content. A row is written only by the host, when it read

@@ -23,6 +23,7 @@ mod fixture;
 mod graph;
 mod index;
 mod lane;
+mod matching;
 mod memory;
 mod records;
 pub mod samples;
@@ -306,6 +307,7 @@ const GROUPS: &[Group] = &[
     ("records", records::CASES),
     ("lane", lane::CASES),
     ("standing", standing::CASES),
+    ("matching", matching::CASES),
     ("changes", changes::CASES),
     ("envelope", envelope::CASES),
     ("access", access::CASES),

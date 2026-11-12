@@ -8,11 +8,15 @@
 //! read. A derivation reader is refused: the lane is never read without a reader, except by the
 //! rebuild and the status, which return counts and no record.
 //!
+//! A match ([`matching`], section 8) answers, for each text, the records whose match field is
+//! identical and the nearest ones by words, under the same clauses and with the same labels.
+//!
 //! A standing kind's records are labelled at each read ([`standing`], section 6): affirmed by a
 //! decision row, attested by evidence that cites a document that is the person's own now, or
 //! unverified. Nothing of that is read from a body or from a call.
 
 mod find;
+mod matching;
 mod rank;
 mod reindex;
 mod standing;
