@@ -486,6 +486,8 @@ Three kinds of thing, and only the middle one is curated:
 
 ### 4.3 Ideas, versions and standing
 
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 4 and 4.6: records, roles and the label; no attested standing (D174). The rest stands as the plan for the slice.
+
 An idea has an id, a type, tags and one or more versions. A version has the statement, a number,
 the operation that created it, and its standing. The type and the tags are labels on the idea:
 changing one creates no version and changes no standing.
@@ -534,6 +536,8 @@ agent could not answer is captured as a question, so gaps in the store are ideas
 stays open until an idea is linked to it as its answer.
 
 ### 4.4 Matching
+
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 6 and 7.1: nothing is refused; candidates are offered with bands (D175). The rest stands as the plan for the slice.
 
 Matching does three jobs with one mechanism: refusing duplicates, offering link candidates, and
 finding ideas for a question. It has two lanes, fused as Umbel's retrieval design fuses them:
@@ -804,6 +808,8 @@ paged inside a budget and returns a total, so none grows with the store.
 
 ### 4.11 The plugin and an instance
 
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 2, 3 and 11.4: the crate, the manifest and an instance's settings. The rest stands as the plan for the slice.
+
 | The plugin ships | An instance supplies |
 | --- | --- |
 | The record shapes, the engine, the commands | Its sources and ideas |
@@ -836,6 +842,8 @@ ideas. What that takes:
   instance and found whole (measure 12).
 
 ### 4.12 Trust
+
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 13: security. The rest stands as the plan for the slice.
 
 - Stored text is untrusted input. A statement mined from a source can carry instructions. It is
   labelled content, scanned and flagged, and never placed in a message, warning or log.
@@ -884,6 +892,8 @@ Where they meet:
 - With P9 a context bundle can carry ideas beside knowledge and memory.
 
 ### 4.14 Review: in conversation, confirmed once
+
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 8 and 9: review in bulk, confirmed by exception on the person page (D176, D180). The rest stands as the plan for the slice.
 
 A person-only call over hosted MCP takes the person out of the conversation: a fresh login with
 user verification, for one call, at a page that shows 6,000 characters
@@ -952,6 +962,8 @@ staged review can be confirmed.
 
 ### 4.15 Taking back, and erasing
 
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 8.7: undo by decision and by review (D177); erasure is out. The rest stands as the plan for the slice.
+
 **Taking back.** There is no general undo. These reversals cover the mistakes the walks found:
 
 - **A run.** `ideas-run-revert` withdraws what a run did that no person has decided on and no
@@ -995,6 +1007,8 @@ has to offer what is missing (P16).
 
 ### 4.16 How an agent finds its way
 
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 11: first-class commands and the instructions paragraph (D178). The rest stands as the plan for the slice.
+
 A person asks an agent to save an idea, or asks it a question, in a harness where no skill was
 installed. What the agent has is Umbel's tool list: five meta-tools and up to eight first-class
 commands ([section 2](#2-what-exists-today)). With the first-party plugins seven of the eight
@@ -1028,6 +1042,8 @@ of which can only fail over stateless HTTP. The plugin still ships a skill, for 
 can load one. Nothing depends on it.
 
 ## 5. Commands (draft)
+
+> **Superseded for version 1** by the [Ideas plugin specification](../../../../endpoints/umbel/docs/plugins/ideas/spec.md), section 7: the fourteen commands of version 1. The rest stands as the plan for the slice.
 
 All in the `ideas` domain. Names and inputs are settled by the plugin's specification. The third
 column says when a command arrives: with the loop, with the rest of the slice, or with the whole

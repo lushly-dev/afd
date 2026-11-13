@@ -1,0 +1,284 @@
+# Ideas plugin, version 1 (specification section 8). The statements are invented fixtures about
+# gardening and assert nothing about the world.
+#
+# Five ideas stand in for hundreds. The agent triages: it stages a proposal for each, with a
+# reason, a group and its confidence. The person confirms a group whole. On the page the person
+# would pull out the proposals they disagree with; a scenario cannot click, so that is shown in
+# tests/review_page.rs, and here the person's "not now" is an unstage. Every step runs as one
+# test actor; the apply steps run as the space's person (specification 14.3).
+
+name: Review a batch by exception
+description: >-
+  When many ideas wait for me, I want an agent to propose what to do with each and group them,
+  and to confirm a group whole in my browser, pulling out only what I disagree with, so that
+  hundreds of decisions take minutes, what I confirm is exactly what I was shown, and a yes
+  given too fast can be taken back.
+job: review-a-batch
+tags: [change, loop, v1]
+
+steps:
+  - description: Five seeds, captured over a week
+    command: ideas-capture
+    input:
+      ideas:
+        - type: principle
+          statement: Pinch out the tips of broad beans when the first pods set.
+          said: person
+        - type: principle
+          statement: Harvest courgettes at finger length.
+          said: agent
+        - type: position
+          statement: Gardens reward the effort put into them.
+          said: agent
+        - type: principle
+          statement: Beans fix nitrogen, so never feed them.
+          said: person
+        - type: principle
+          statement: Pinch broad bean tips once the lowest pods have set.
+          said: person
+    expect:
+      success: true
+      data:
+        captured: 5
+
+  - description: Five wait for me, and every read says so
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 5
+        pending:
+          unreviewed: 5
+
+  - description: The agent finds the likely duplicate among them
+    command: ideas-match
+    input:
+      ids: ["${{ steps[0].data.ideas[4].id }}"]
+    expect:
+      success: true
+      data:
+        results: { length: 1 }
+
+  - description: The agent stages its proposals in two groups; nothing changes yet
+    command: ideas-review-stage
+    input:
+      idempotencyKey: triage-1
+      proposals:
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          reason: Said by the person in these words.
+          group: beans
+          confidence: high
+        - decide: duplicate
+          idea: "${{ steps[0].data.ideas[4].id }}"
+          keep: "${{ steps[0].data.ideas[0].id }}"
+          reason: Same practice as the one kept.
+          group: beans
+          confidence: high
+        - decide: reword
+          idea: "${{ steps[0].data.ideas[3].id }}"
+          version: 1
+          statement: Beans need little nitrogen feed once they are established.
+          reason: Overstated; the person qualified it later in the chat.
+          group: beans
+          confidence: medium
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[1].id }}"
+          version: 1
+          reason: Common advice; the person agreed in passing.
+          group: other
+          confidence: low
+        - decide: decline
+          idea: "${{ steps[0].data.ideas[2].id }}"
+          version: 1
+          reason: Says nothing a reader could act on.
+          group: other
+          confidence: high
+    expect:
+      success: true
+      data:
+        added: 5
+        staged: 5
+        parts: { length: 2 }
+
+  - description: The same staging sent again changes nothing
+    command: ideas-review-stage
+    input:
+      idempotencyKey: triage-1
+      proposals:
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          reason: Said by the person in these words.
+          group: beans
+          confidence: high
+    expect:
+      success: true
+      data:
+        replayed: true
+        staged: 5
+
+  - description: The beans group, as the agent tells me about it
+    command: ideas-review-show
+    input:
+      part: beans
+    expect:
+      success: true
+      data:
+        total: 5
+        proposals: { length: 3 }
+        counts:
+          affirm: 2
+          decline: 1
+          reword: 1
+          duplicate: 1
+
+  - description: Not now for the courgettes
+    command: ideas-review-unstage
+    input:
+      proposals: ["${{ steps[3].data.proposals[3] }}"]
+    expect:
+      success: true
+      data:
+        staged: 4
+
+  - description: The preview the page shows for the beans group, the duplicate beside the one kept
+    command: ideas-review-preview
+    input:
+      review: "${{ steps[3].data.review }}"
+      part: beans
+      digest: "${{ steps[5].data.parts[0].digest }}"
+    expect:
+      success: true
+      data:
+        preview: { contains: Pinch out the tips of broad beans }
+
+  - description: I confirm the beans group whole
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[3].data.review }}"
+      part: beans
+      digest: "${{ steps[5].data.parts[0].digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          affirm: 1
+          duplicate: 1
+          reword: 1
+        pulled: { length: 0 }
+        skipped: { length: 0 }
+
+  - description: A digest taken before a change is refused
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[3].data.review }}"
+      part: other
+      digest: "${{ steps[5].data.parts[1].digest }}"
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: ideas-review-show }
+
+  - description: The other group as it stands now
+    command: ideas-review-show
+    input:
+      part: other
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: I confirm it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[3].data.review }}"
+      part: other
+      digest: "${{ steps[10].data.parts[0].digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          decline: 1
+
+  - description: The reworded idea is held in the new words, affirmed
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[3].id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        version: 2
+        statement: { contains: little nitrogen feed }
+        history: { length: 2 }
+
+  - description: The duplicate is folded into the one kept
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[4].id }}"
+    expect:
+      success: true
+      data:
+        state: folded
+
+  - description: One seed is left, the one I put off, and the declined one is not returned
+    command: ideas-find
+    expect:
+      success: true
+      data:
+        total: 3
+        pending:
+          staged: 0
+          unreviewed: 1
+
+  - description: What I said no to comes back as a candidate labelled declined, and is not a new idea
+    command: ideas-capture
+    input:
+      ideas:
+        - type: position
+          statement: Gardens reward the effort put into them.
+    expect:
+      success: true
+      data:
+        captured: 0
+        sightings: 1
+
+  - description: I said yes to the broad beans too fast; the agent proposes undoing that one decision
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: undo
+          target: "${{ steps[3].data.proposals[0] }}"
+          reason: The person asked to take it back.
+          group: undo
+    expect:
+      success: true
+      data:
+        counts:
+          undo: 1
+
+  - description: I confirm the undo
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[16].data.review }}"
+      part: "*"
+      digest: "${{ steps[16].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: It is what it was before I answered
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[0].id }}"
+    expect:
+      success: true
+      data:
+        standing: seed

@@ -1,0 +1,103 @@
+# Ideas plugin, version 1 (specification sections 1 and 7.1). The statements are invented
+# fixtures about gardening and assert nothing about the world.
+#
+# Version 1 keeps no sources, so the raw session is not stored: a brainstorm is many captures in
+# one call, each marked with who said it. "said" is the caller's claim and decides no standing.
+
+name: Keep a brainstorm's ideas
+description: >-
+  When I finish a brainstorm or a voice memo, I want its ideas pulled out in one step, with my
+  words told apart from the agent's, so that my thinking is kept and usable and only I decide
+  what I hold.
+job: keep-a-brainstorm
+tags: [collect, loop, v1]
+
+steps:
+  - description: The agent sends the session's ideas in one call, marking who said each
+    command: ideas-capture
+    input:
+      idempotencyKey: memo-2026-10-02
+      ideas:
+        - type: position
+          statement: Mulch is the cheapest irrigation I have.
+          said: person
+        - type: position
+          statement: Drip lines would save more water than mulch.
+          said: agent
+        - type: principle
+          statement: Water when the soil asks for it, not when the calendar says so.
+          said: person
+        - type: principle
+          statement: Water when the soil asks for it, not when the calendar says so.
+          said: person
+    expect:
+      success: true
+      data:
+        captured: 3
+        sightings: 1
+        ideas: { length: 4 }
+
+  - description: All three are seeds, and usable at once
+    command: ideas-find
+    input:
+      text: mulch water calendar soil
+    expect:
+      success: true
+      data:
+        total: 3
+
+  - description: The agent proposes to affirm the person's own sentence
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          reason: The person said it in these words.
+          group: brainstorm
+          confidence: high
+    expect:
+      success: true
+      data:
+        staged: 1
+
+  - description: The group's digest, for the person to confirm
+    command: ideas-review-show
+    input:
+      part: brainstorm
+    expect:
+      success: true
+      data:
+        total: 1
+        digest: { matches: '^sha256:' }
+
+  - description: The person confirms the group
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[3].data.review }}"
+      part: brainstorm
+      digest: "${{ steps[3].data.parts[0].digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          affirm: 1
+
+  - description: My sentence is what I hold
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[0].id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+
+  - description: The agent's sentence is still only a seed
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[1].id }}"
+    expect:
+      success: true
+      data:
+        standing: seed
+        said: agent

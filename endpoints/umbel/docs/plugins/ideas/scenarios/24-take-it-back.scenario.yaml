@@ -1,0 +1,160 @@
+# Ideas plugin, version 1 (specification section 8.7). The statements are invented fixtures about
+# gardening and assert nothing about the world.
+#
+# Version 1 has no runs, so a run's revert is the slice's. What can be taken back here is any
+# decision the person confirmed: one decision, a whole review, and an undo itself.
+
+name: Take back a mistake
+description: >-
+  When I, or an agent I trusted too quickly, gets a decision wrong, I want to take it back, one
+  decision or a whole review at once, so that a mistake costs minutes and leaves nothing behind
+  that gets in the way.
+job: take-it-back
+tags: [change, loop, v1]
+
+steps:
+  - description: Three ideas
+    command: ideas-capture
+    input:
+      ideas:
+        - type: principle
+          statement: Take off the lowest tomato leaves once fruit sets.
+        - type: principle
+          statement: Water tomatoes at the soil, never on the leaves.
+        - type: position
+          statement: Tomatoes are plants that many gardeners grow.
+    expect:
+      success: true
+      data:
+        captured: 3
+
+  - description: The agent proposes yes, yes and no
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          reason: Stated by the person.
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[1].id }}"
+          version: 1
+          reason: Stated by the person.
+        - decide: decline
+          idea: "${{ steps[0].data.ideas[2].id }}"
+          version: 1
+          reason: A truism.
+    expect:
+      success: true
+      data:
+        staged: 3
+
+  - description: I confirm them without reading closely
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[1].data.review }}"
+      part: "*"
+      digest: "${{ steps[1].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          affirm: 2
+          decline: 1
+
+  - description: The whole review is proposed for undoing
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: undo
+          target: "${{ steps[1].data.review }}"
+          reason: The person confirmed too fast.
+    expect:
+      success: true
+
+  - description: I confirm the undo
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[3].data.review }}"
+      part: "*"
+      digest: "${{ steps[3].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: All three are seeds again, the declined one back among them
+    command: ideas-find
+    input:
+      standing: [seed]
+    expect:
+      success: true
+      data:
+        total: 3
+
+  - description: On reflection the first review was right after all; undo the undo
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: undo
+          target: "${{ steps[3].data.proposals[0] }}"
+          reason: The person changed their mind back.
+    expect:
+      success: true
+
+  - description: I confirm it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[6].data.review }}"
+      part: "*"
+      digest: "${{ steps[6].data.digest }}"
+    expect:
+      success: true
+
+  - description: The first idea is affirmed again
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[0].id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+
+  - description: Now only one decision is wrong; undo just that one
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: undo
+          target: "${{ steps[1].data.proposals[1] }}"
+          reason: The person does not hold this one.
+    expect:
+      success: true
+
+  - description: I confirm it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[9].data.review }}"
+      part: "*"
+      digest: "${{ steps[9].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          undo: 1
+
+  - description: That idea is a seed again, and the others stand
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[1].id }}"
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: The truism is declined again, so not returned by default
+    command: ideas-find
+    expect:
+      success: true
+      data:
+        total: 2

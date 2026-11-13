@@ -1,0 +1,103 @@
+# Ideas plugin, version 1 (specification section 7.1). The statements are invented fixtures about
+# gardening and assert nothing about the world.
+#
+# Nothing is refused for a match: a capture lands and offers the nearest held ideas with their
+# bands, and the agent judges. Links are out of version 1, so the related idea is not linked.
+
+name: Capture an idea in the flow of a conversation
+description: >-
+  When an idea surfaces in the middle of a conversation with an agent, I want it saved in one
+  step and checked against what I already have, so that nothing is lost and nothing is duplicated.
+job: capture-in-flow
+tags: [collect, loop, v1]
+
+steps:
+  - description: Capture the idea as the person said it
+    command: ideas-capture
+    input:
+      ideas:
+        - type: position
+          statement: Raised beds warm earlier in spring, so they lengthen the season in cool climates.
+          tags: [beds]
+          said: person
+      idempotencyKey: chat-41/1
+    expect:
+      success: true
+      data:
+        captured: 1
+        replayed: false
+        ideas: { length: 1 }
+
+  - description: The same call sent again after a dropped connection returns the same idea and writes nothing
+    command: ideas-capture
+    input:
+      ideas:
+        - type: position
+          statement: Raised beds warm earlier in spring, so they lengthen the season in cool climates.
+          tags: [beds]
+          said: person
+      idempotencyKey: chat-41/1
+    expect:
+      success: true
+      data:
+        replayed: true
+        captured: 1
+
+  - description: The same words again in another call are a sighting of the idea, not a new one
+    command: ideas-capture
+    input:
+      ideas:
+        - type: position
+          statement: "  raised beds warm earlier in spring, so they lengthen the season in cool climates. "
+    expect:
+      success: true
+      data:
+        captured: 0
+        sightings: 1
+
+  - description: The same idea in other words lands, and the first comes back as a candidate with its score
+    command: ideas-capture
+    input:
+      ideas:
+        - type: position
+          statement: In cold regions a bed lifted off the ground heats up sooner after winter, which gives more growing weeks.
+    expect:
+      success: true
+      data:
+        captured: 1
+
+  - description: The agent judges it the same idea and proposes to fold it into the first; nothing changes yet
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: duplicate
+          idea: "${{ steps[3].data.ideas[0].id }}"
+          keep: "${{ steps[0].data.ideas[0].id }}"
+          reason: Same claim as the held idea, in other words.
+          group: duplicates
+          confidence: high
+    expect:
+      success: true
+      data:
+        added: 1
+
+  - description: Meanwhile both are usable, and the first has been seen twice
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[0].id }}"
+    expect:
+      success: true
+      data:
+        sightings: 2
+        standing: seed
+
+  - description: An idea that is only related is admitted
+    command: ideas-capture
+    input:
+      ideas:
+        - type: evidence
+          statement: In the fixture trial, soil in a raised bed was three degrees warmer than open ground in April.
+    expect:
+      success: true
+      data:
+        captured: 1
