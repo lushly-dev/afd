@@ -80,6 +80,10 @@ naming the PR, who validates it and what they check.
   decline; "not worth tracking" is a recorded verdict, not a skipped step. File
   parity gaps against the Language Parity Closure plan
   (`docs/features/active/parity-closure/`).
+- **Open items go to issues, not prose.** A dated document (an audit, an evidence
+  record, a review) keeps no "still open" list: file each item and link the issue
+  there, since nobody rereads a dated document. A living document (a `STATUS.md`, a
+  specification's status block, a feature plan) keeps its follow-ups table.
 - **Durable knowledge** goes to its owner: repository conventions to the owning
   skill under `.claude/skills/` (`.codex/skills` mirrors it; a Botcore projection is
   edited at its canonical source, per `manage-skills`), cross-session facts to memory.
@@ -113,12 +117,13 @@ End every mode with this layout; the status is the literal last line:
 - Task/plan: <issue closed, plan moved> | n/a
 - Remote branches: deleted | auto-deleted | retained (<why>)
 - Left behind: <known items needing nothing from the reader> | none
+- Owner steps waiting: <tag to push, or the release a merged change needs, with its tracking PR or issue> | none
 
 **Follow-ups:** <numbered items needing the user> | none
 
 **Ready to archive** | **Not ready to archive: <reason>** | **Not ready to archive: parked, resume at <next action>**
 ```
 
-Keep every row (`none` or `n/a`; a missing row reads as unchecked). PR state is
+Keep every row (`none` or `n/a`; a missing row reads as unchecked). An owner step goes in its own row, not again under Follow-ups. PR state is
 volatile: take the final read after the last piece of work, just before writing.
 When you cannot re-read, claim the act ("pushed at 14:02Z"), not the state.

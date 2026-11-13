@@ -242,7 +242,7 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 
 Batches 3–4 and 5–7 are independent of each other once Batches 0–2 land.
 
-Still to confirm: whether Codex discovers these skills through `.codex/skills`. Its current docs name only `.agents/skills`.
+Still to confirm: whether Codex discovers these skills through `.codex/skills`. Its current docs name only `.agents/skills`. Tracked in [#1093](https://github.com/lushly-dev/afd/issues/1093).
 
 ## Outcome in AFD (2026-11-04)
 
@@ -265,11 +265,11 @@ Still to confirm: whether Codex discovers these skills through `.codex/skills`. 
   - #794 changed `skill-manager` without bumping its version, so seeding never delivered it. #799 bumped it and fixed three other seeded skills that contradicted a consuming repository.
   - The flaky Storybook check that blocked several Lushly finals was a real axe exemption gap, fixed in lushly-dev/lushly#2132; a latent copy is lushly-dev/lushly#2131.
 
-Still open:
-- **`lushly-botcore` 0.6.1.** Lushly receives #794 and #799 only after this release. Then `skill-seed --update` refreshes its six seeded skills, and the hash-pinned `skill-manager` exemption in Lushly's agent-docs baseline expires.
-- **Lushly label descriptions (owner).** Five live label descriptions contradict current policy: `needs:ux`, `execution:frontier`, `execution:deep`, `execution:expert-escalation` and `risk:high`. `.github/labels.yml` mirrors them, so both must change together.
-- **FAST-AF docs.** Lushly dropped fork material that `foundations/fast-af` doesn't document: FAST authoring gotchas, data-grid lessons, token decision rules, the story-performance baselines, and a stale Storybook note in the violet-elements README.
-- **loam-design (owner).** Whether it should become a router to `endpoints/loam/docs/design.md`. That would reverse Loam's D26 (see Batch 3).
+Open items, each now tracked where it can be closed (2026-11-12):
+- **`lushly-botcore` 0.6.1.** Lushly receives #794 and #799 only after this release. Re-prepared with the docs-check fix (#1023) and merged in [#1089](https://github.com/lushly-dev/afd/pull/1089); the owner's tag push, which publishes it, is [#1092](https://github.com/lushly-dev/afd/issues/1092). Then `skill-seed --update` refreshes Lushly's six seeded skills, and the hash-pinned `skill-manager` exemption in Lushly's agent-docs baseline expires.
+- **Lushly label descriptions (owner).** [lushly-dev/lushly#2326](https://github.com/lushly-dev/lushly/issues/2326).
+- **FAST-AF docs.** [#1085](https://github.com/lushly-dev/afd/issues/1085).
+- **loam-design (owner).** Whether it becomes a router to `endpoints/loam/docs/design.md`, reversing Loam's D26: [#1086](https://github.com/lushly-dev/afd/issues/1086).
 
 ## Owner decisions (2026-11-03)
 
