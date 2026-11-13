@@ -1,5 +1,10 @@
-# Draft JTBD scenario for Loam's phase 4 specification. Hello declares `inspector-v2`,
-# stage `visible`, gating its inspector.
+# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
+# specification's drafts; the data is invented. A step's description may open with
+# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
+# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
+# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
+# palette, a human gesture (R7).
+# Hello declares hello.inspector-v2, stage visible, gating its inspector surface.
 name: Try an experiment
 description: >-
   When an app offers something new, I want to turn it on for myself and see what may change and
@@ -14,28 +19,29 @@ steps:
       success: true
       data:
         experiments:
-          - { fullId: hello.inspector-v2, on: false, ends: '2027-03-01' }
+          - fullId: hello.inspector-v2
+            changes: { contains: inspector }
+            ends: '2027-03-01'
+            on: false
+  - description: The inspector is held back
+    command: app-get
+    input: { instance: hello }
+    expect:
+      success: true
+      data:
+        gates:
+          inspector: { experiment: hello.inspector-v2, open: false }
   - description: Turned on for me
     command: experiment-enable
     input: { experiment: hello.inspector-v2, audience: person }
     expect:
       success: true
       data: { on: true, by: person }
-  - description: Hello's code sees it on
-    command: experiment-check
-    input: { experiment: hello.inspector-v2 }
+  - description: The inspector appears
+    command: app-get
+    input: { instance: hello }
     expect:
       success: true
-      data: { on: true }
-  - description: An unknown experiment answers as off, the same as a hidden one
-    command: experiment-check
-    input: { experiment: hello.not-a-thing }
-    expect:
-      success: true
-      data: { on: false, by: null }
-  - description: Turned off again
-    command: experiment-disable
-    input: { experiment: hello.inspector-v2, audience: person }
-    expect:
-      success: true
-      data: { on: false }
+      data:
+        gates:
+          inspector: { open: true }

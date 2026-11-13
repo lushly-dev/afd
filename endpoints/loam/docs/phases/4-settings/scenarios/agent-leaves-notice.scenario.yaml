@@ -1,0 +1,40 @@
+# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
+# specification's drafts; the data is invented. A step's description may open with
+# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
+# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
+# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
+# palette, a human gesture (R7).
+name: Leave my person a notice
+description: >-
+  When I am an agent and finish something my person should look at, I want to leave them a
+  notice that says it came from me and links to the thing, so that they find it when they're
+  back.
+job: agent-leaves-notice
+steps:
+  - description: "[agent] A notice may not carry an action from an agent"
+    command: notification-push
+    input:
+      title: Reset the tally?
+      action: { command: tally-reset, label: Reset }
+    expect:
+      success: false
+      error:
+        code: NOTIFICATION_ACTION_UNAVAILABLE
+        suggestion: { contains: link }
+  - description: "[agent] A notice with a link"
+    command: notification-push
+    input:
+      title: I filed the guest book summary
+      link: { uri: 'loam://app/hello/guests' }
+    expect:
+      success: true
+      data:
+        notification: { source: 'agent:shell-agent' }
+  - description: My person sees who left it
+    command: notification-list
+    input: { unread: true }
+    expect:
+      success: true
+      data:
+        notifications:
+          - { source: 'agent:shell-agent', title: I filed the guest book summary }

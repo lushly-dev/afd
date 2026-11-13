@@ -1,22 +1,40 @@
-# Draft JTBD scenario for Loam's phase 4 specification. Opening the section at the field is
-# the chrome's, so the job ends at the command the palette runs.
+# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
+# specification's drafts; the data is invented. A step's description may open with
+# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
+# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
+# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
+# palette, a human gesture (R7).
+# hello.general.greeting may be set at workspace and project level; hello.project.board is a
+# project-only key.
 name: Find a setting from the palette
 description: >-
-  When I know what I want to change but not where it lives, I want to find it from the
-  palette, so that I never browse the settings tree.
+  When I know what I want to change but not where it lives, I want to find it from the palette
+  and change it there, so that I never browse the settings tree.
 job: setting-from-palette
 tags: [slice]
 steps:
-  - description: "Searching finds the key, named for its section and app (scope: atlas)"
+  - description: "[scope: atlas] Searching finds the key, with its section and key apart"
     command: palette-search
     input: { query: greeting }
     expect:
       success: true
       data:
         items:
-          - { kind: setting, name: hello.general.greeting }
-  - description: Choosing it opens the settings section at the key
+          - { kind: setting, section: hello.general, key: greeting }
+  - description: "With no project active, a project-only key is not listed"
+    command: palette-search
+    input: { query: board }
+    expect:
+      success: true
+      data: { items: [] }
+  - description: "[scope: atlas] Choosing the row opens the section at the key"
     command: section-open
     input: { section: settings, target: hello.general.greeting }
     expect:
       success: true
+  - description: "[scope: atlas] I change it there"
+    command: setting-set
+    input: { section: hello.general, key: greeting, value: Hi Atlas, level: project }
+    expect:
+      success: true
+      data: { value: Hi Atlas, from: project }

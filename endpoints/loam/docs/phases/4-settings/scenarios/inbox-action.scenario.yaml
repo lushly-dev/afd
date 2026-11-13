@@ -1,30 +1,19 @@
-# Draft JTBD scenario for Loam's phase 4 specification. Hello pushes a notification whose
-# action is its own palette command `hello-greet`.
+# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
+# specification's drafts; the data is invented. A step's description may open with
+# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
+# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
+# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
+# palette, a human gesture (R7).
+# A notification's source is the instance whose port pushed it, 'agent:<id>' for the agent
+# interface, and 'shell' for the shell's own code (10.1). Hello's hello-greet adds a name to its
+# guest book.
 name: Act from the inbox
 description: >-
   When an app tells me something I need to act on, I want the notice to wait in my inbox with
   the action, so that I act when I'm ready.
 job: inbox-action
 steps:
-  - description: Hello leaves a notice with an action
-    command: notification-push
-    input:
-      title: A new visitor signed the guest book
-      action: { command: hello-greet, label: Greet them, input: { name: Ada } }
-    expect:
-      success: true
-  - description: It waits, unread
-    command: notification-list
-    input: { unread: true }
-    expect:
-      success: true
-      data: { unread: 1 }
-  - description: I run the action, as myself
-    command: notification-act
-    input: { notification: "${{ steps[0].data.notification.id }}" }
-    expect:
-      success: true
-  - description: An action that is a person's own command is refused at push
+  - description: "[caller: hello] An action that is a person's own command is refused at push"
     command: notification-push
     input:
       title: Change your persona
@@ -34,3 +23,38 @@ steps:
       error:
         code: OVERLAY_ITEM_RESERVED
         suggestion: { contains: palette }
+  - description: "[caller: hello] Hello leaves a notice with its own action"
+    command: notification-push
+    input:
+      title: A new visitor signed the guest book
+      action: { command: hello-greet, label: Greet them, input: { name: Ada } }
+    expect:
+      success: true
+      data:
+        notification: { source: hello }
+  - description: It waits, unread
+    command: notification-list
+    input: { unread: true }
+    expect:
+      success: true
+      data: { unread: 1 }
+  - description: I run the action, as myself
+    command: notification-act
+    input: { notification: "${{ steps[1].data.notification.id }}" }
+    expect:
+      success: true
+      data: { state: done }
+  - description: The greeting ran
+    command: hello-guests
+    input: {}
+    expect:
+      success: true
+      data:
+        guests:
+          - { name: Ada, greeted: true }
+  - description: The notice is done and read
+    command: notification-list
+    input: { unread: true }
+    expect:
+      success: true
+      data: { unread: 0 }

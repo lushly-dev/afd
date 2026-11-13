@@ -1,8 +1,11 @@
 # Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. Projects Atlas and Beacon exist, and hello
-# declares a project-level setting `greeting` (default "Hello"). The scope of each step is
-# carried in `_meta`'s `dev.loam/scope`, which the step runner sets; it is written here as a
-# comment on each step.
+# specification's drafts; the data is invented. A step's description may open with
+# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
+# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
+# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
+# palette, a human gesture (R7).
+# Projects Atlas and Beacon exist; hello declares hello.general.greeting at workspace and
+# project level, default "Hello".
 name: Scope a setting per project
 description: >-
   When a project needs an app to behave differently, I want to set that app's setting for the
@@ -10,37 +13,41 @@ description: >-
 job: setting-per-project
 tags: [slice]
 steps:
-  - description: "In Atlas (scope: atlas), the setting reads its default"
-    command: setting-get
-    input: { section: hello.general, key: greeting }
+  - description: An owner sets the workspace's value, which every project inherits
+    command: setting-set
+    input: { section: hello.general, key: greeting, value: Hello team, level: workspace }
     expect:
       success: true
-      data: { value: Hello, from: default }
-  - description: A write with no level is refused, with the way forward
-    command: setting-set
-    input: { section: hello.general, key: greeting, value: Hi Atlas }
-    expect:
-      success: false
-      error:
-        code: VALIDATION_ERROR
-        suggestion: { contains: level }
-  - description: "Set it for Atlas alone (scope: atlas)"
+      data: { value: Hello team, from: workspace }
+  - description: "[scope: atlas] Atlas sets its own"
     command: setting-set
     input: { section: hello.general, key: greeting, value: Hi Atlas, level: project }
     expect:
       success: true
       data: { value: Hi Atlas, from: project }
-  - description: "Beacon keeps the default (scope: beacon)"
+  - description: "[scope: beacon] Beacon keeps the workspace's"
     command: setting-get
     input: { section: hello.general, key: greeting }
     expect:
       success: true
-      data: { value: Hello, from: default }
-  - description: "With no project in scope, a project-level write names the way forward (scope: workspace)"
+      data: { value: Hello team, from: workspace }
+  - description: "[scope: atlas] A write that names no level is refused, with the way forward"
     command: setting-set
-    input: { section: hello.general, key: greeting, value: Hi, level: project }
+    input: { section: hello.general, key: greeting, value: Hey }
     expect:
       success: false
       error:
-        code: SETTING_PROJECT_REQUIRED
-        suggestion: { contains: scope-set }
+        code: VALIDATION_ERROR
+        suggestion: { contains: level }
+  - description: "[scope: atlas] Atlas clears its value"
+    command: setting-reset
+    input: { section: hello.general, key: greeting, level: project }
+    expect:
+      success: true
+      data: { value: Hello team, from: workspace }
+  - description: "[scope: atlas] Atlas reads the workspace's again"
+    command: setting-get
+    input: { section: hello.general, key: greeting }
+    expect:
+      success: true
+      data: { value: Hello team, from: workspace }

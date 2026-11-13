@@ -1,0 +1,41 @@
+# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
+# specification's drafts; the data is invented. A step's description may open with
+# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
+# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
+# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
+# palette, a human gesture (R7).
+# The person here is an owner, as every actor is in a local deployment. P4-E5 shows the same
+# with two people, Bea an owner and Olu a member.
+name: Turn an experiment on for everyone, and let a person step out
+description: >-
+  When an experiment is ready for the whole team, I want an owner to turn it on for everyone and
+  each person to be able to turn it off for themselves, so that nobody is held in it.
+job: workspace-experiment-opt-out
+tags: [slice]
+steps:
+  - description: An owner turns it on for the workspace
+    command: experiment-enable
+    input: { experiment: hello.inspector-v2, audience: workspace }
+    expect:
+      success: true
+      data: { on: true, by: workspace }
+  - description: The person turns it off for themselves
+    command: experiment-disable
+    input: { experiment: hello.inspector-v2, audience: person }
+    expect:
+      success: true
+      data: { on: false }
+  - description: Hello's code sees it off for this person
+    command: experiment-check
+    input: { experiment: hello.inspector-v2 }
+    expect:
+      success: true
+      data: { on: false }
+  - description: It is still on for the workspace
+    command: experiment-list
+    input: {}
+    expect:
+      success: true
+      data:
+        experiments:
+          - { fullId: hello.inspector-v2, workspace: true, on: false }

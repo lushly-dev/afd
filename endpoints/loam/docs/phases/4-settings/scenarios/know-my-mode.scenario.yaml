@@ -1,0 +1,49 @@
+# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
+# specification's drafts; the data is invented. A step's description may open with
+# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
+# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
+# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
+# palette, a human gesture (R7).
+# Phase 4 serves this to the in-process agent interface only; connected agents read it over
+# MCP from phase 5 (section 13).
+name: Know my mode before I act
+description: >-
+  When I am an agent about to act for my person, I want to know whether to act, ask or only
+  suggest, and why, so that I don't surprise them.
+job: know-my-mode
+tags: [slice]
+steps:
+  - description: An owner's workspace mode
+    command: autonomy-set
+    input: { level: workspace, mode: ask, ceiling: act }
+    expect:
+      success: true
+  - description: "[agent] [scope: atlas] I read the mode for two commands at once, each with where it came from"
+    command: autonomy-get
+    input: { commands: [{ command: tally-add, instance: tally }, { command: tally-get, instance: tally }] }
+    expect:
+      success: true
+      data:
+        results:
+          - { mode: ask, chain: [{ as: mode }] }
+          - { mode: ask }
+  - description: "[agent] I cannot raise it myself; the refusal hands the person the way"
+    command: autonomy-set
+    input: { level: workspace, mode: act }
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
+        suggestion: { contains: settings }
+  - description: "[agent] [scope: atlas] A project my person cannot enter reads as missing"
+    command: autonomy-get
+    input: { command: tally-add, instance: tally, project: prj_unknown00000000 }
+    expect:
+      success: false
+      error: { code: PROJECT_NOT_FOUND }
+  - description: "[agent] [scope: atlas] My mode is unchanged"
+    command: autonomy-get
+    input: { command: tally-add, instance: tally }
+    expect:
+      success: true
+      data: { mode: ask }
