@@ -31,7 +31,7 @@ fn a_correct_in_memory_backend_passes_every_case() {
         .into_iter()
         .partition(|s| s.starts_with("matching::") && s.contains("no record lane"));
     assert_eq!(lane.len(), 16, "every lane case: {skipped:?}");
-    assert_eq!(standing.len(), 16, "every standing case: {skipped:?}");
+    assert_eq!(standing.len(), 17, "every standing case: {skipped:?}");
     assert_eq!(matching.len(), 15, "every matching case: {skipped:?}");
     assert!(
         other

@@ -410,6 +410,13 @@ pub struct StandingView {
     pub person: Vec<String>,
     /// The standings the call admits (section 6.6's `admitted`).
     pub admit: Vec<Standing>,
+    /// The assurance levels an admitted affirmation may have been made at: the space's
+    /// `verified_levels` for a call that asks for verified content only (the Ideas host-review
+    /// specification, section 6.5), so a decision on the local page is left out unless the
+    /// deployer lists `local`. Empty admits an affirmation at any level, as every other read
+    /// does. A record affirmed at a level not listed is admitted at no standing: it is neither
+    /// affirmed for the call nor read as attested or unverified in its place.
+    pub levels: Vec<String>,
 }
 
 /// How a document is the person's own.
@@ -437,7 +444,7 @@ impl OwnBasis {
 pub struct Affirmation {
     /// When, ISO 8601 UTC.
     pub at: String,
-    /// The level the person was proven at: `terminal` or `verified`.
+    /// The level the person was proven at: `terminal`, `verified` or `local`.
     pub level: String,
     /// Who decided and how they were proven; `None` for a reader who is neither the operator
     /// nor the space's person. A store answers it whole; the host withholds it.
@@ -790,10 +797,10 @@ impl RecordDecision {
     }
 }
 
-/// The envelope version whose assurances a decision or a mark may record: version 3's two,
-/// `terminal` and `verified`. A decision on the local page (`local`, version 4) is admitted here
-/// by step H3 of the Ideas host-review specification, not before.
-const DECISION_ASSURANCE_VERSION: u32 = 3;
+/// The envelope version whose assurances a decision or a mark may record: version 4's three,
+/// `terminal`, `verified` and `local` (the Ideas host-review specification, step H3). A decision
+/// is a row of the record lane, never an envelope, so recording `local` changes no envelope.
+const DECISION_ASSURANCE_VERSION: u32 = crate::envelope::LOCAL_ASSURANCE_ENVELOPE_VERSION;
 
 /// Who decided, when and how: the three members a decision and a mark share.
 fn check_decider(by: &str, at: &str, assurance: &Assurance) -> Result<()> {
@@ -807,7 +814,7 @@ fn check_decider(by: &str, at: &str, assurance: &Assurance) -> Result<()> {
     }
     if !assurance.is_valid(DECISION_ASSURANCE_VERSION) {
         return Err(StoreError::invalid(
-            "a decision's assurance must be the terminal's or the person page's",
+            "a decision's assurance must be the terminal's, the person page's or the local page's",
         ));
     }
     Ok(())

@@ -44,6 +44,7 @@ fn view(admit: &[Standing]) -> StandingView {
         command_writable: Vec::new(),
         person: vec![PERSON.to_owned()],
         admit: admit.to_vec(),
+        levels: Vec::new(),
     }
 }
 

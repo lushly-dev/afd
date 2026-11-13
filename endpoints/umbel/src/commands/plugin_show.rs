@@ -321,7 +321,7 @@ impl CommandHandler for Handler {
             Some(instance) => success(show(
                 instance,
                 listed.as_deref(),
-                crate::plugins::loader::person_page_served(self.workspace.config()),
+                crate::plugins::loader::person_mcp_served(self.workspace.config()),
             )),
             None => failure(
                 afd::CommandError::new(

@@ -171,6 +171,7 @@ impl CallServices {
                 .collect(),
             person: person_identities(config, declared.person.as_deref()),
             admit,
+            levels: Vec::new(),
         })
     }
 
@@ -196,8 +197,8 @@ impl CallServices {
 
     /// The view of one read of `decl`'s kind in `space` (sections 6.6 and 11.2): the space's
     /// own and command-writable collections, and the standings the call admits. The call's
-    /// `verified_only` asks for what the space's `verified_admits` names, and its `standings`
-    /// narrow further; neither can widen it. A kind without standing has no standing to ask
+    /// `verified_only` asks for what the space's `verified_admits` names, at the levels its
+    /// `verified_levels` names, and its `standings` narrow further; neither can widen it. A kind without standing has no standing to ask
     /// for: section 7's rule refuses a call that does.
     fn standing_view(
         &self,
@@ -215,8 +216,22 @@ impl CallServices {
             }
             return self.space_view(space, STANDINGS.to_vec());
         }
-        let verified = self.space_config(space)?.verified_admits;
-        self.space_view(space, admitted(verified, standings, verified_only))
+        let declared = self.space_config(space)?;
+        let mut view = self.space_view(
+            space,
+            admitted(declared.verified_admits, standings, verified_only),
+        )?;
+        // A call for verified content admits an affirmation only at the levels the space lists
+        // (the Ideas host-review specification, section 6.5): by default not one made on the
+        // local page, which has no login.
+        if verified_only {
+            view.levels = declared
+                .verified_levels
+                .iter()
+                .map(|level| level.as_str().to_owned())
+                .collect();
+        }
+        Ok(view)
     }
 
     /// Section 6.1's checks 2 and 3, which a decision and a mark both make, in that order: the

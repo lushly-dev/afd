@@ -935,6 +935,14 @@ fn namespaces(auth: &Table) -> Result<Vec<NamespaceConfig>, WorkspaceError> {
                 "must have an id matching ^[a-z][a-z0-9-]{0,31}$",
             ));
         }
+        // `local` is the local person page's namespace (the Ideas host-review specification,
+        // section 6.2): a decision for it is decided only there, with no login.
+        if id == crate::person::LOCAL_NAMESPACE {
+            return Err(WorkspaceError::config_invalid(
+                &key,
+                "is reserved: `local` is the namespace of decisions made on the local person page; give the namespace another id",
+            ));
+        }
         let Value::Table(table) = value else {
             return Err(WorkspaceError::config_invalid(&key, "must be a table"));
         };

@@ -69,13 +69,14 @@ pub enum Authentication {
 }
 
 /// `humanPresent`: a person proven for this call. Only the host sets it (the CLI's terminal
-/// check, a completed person decision); no token claim and no gateway does.
+/// check, a completed person decision, a decision on the local page); no token claim and no
+/// gateway does.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HumanPresent {
-    /// `terminal` or `verified`.
+    /// `terminal`, `verified` or `local`.
     pub level: String,
-    /// `cli-terminal` or `person-page`.
+    /// `cli-terminal`, `person-page` or `local-page`.
     pub method: String,
     /// When, ISO 8601 UTC with milliseconds.
     pub at: String,

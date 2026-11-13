@@ -445,6 +445,8 @@ impl Plugin for MemoryProbe {
             "mem-confirm" => confirm(cx, &space, &args),
             "mem-read" => read(cx, &space, &args),
             "mem-plain" => success(json!({ "echo": input })),
+            // The preview a manifest that has a person decide `mem-confirm` names.
+            "mem-preview" => success(json!({ "preview": format!("Confirm a record in {space}") })),
             other => failure("NOT_FOUND", other, "Call a probe command."),
         }
     }

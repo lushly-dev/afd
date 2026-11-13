@@ -3,8 +3,9 @@
 //! space's `verified_levels`.
 //!
 //! This module parses, validates and stores them, each refusal a `WORKSPACE_CONFIG_INVALID`
-//! naming the key. Nothing acts on them yet: the decision lifetime arrives with that
-//! specification's step H2, and the local page and `verified_levels` with its step H3.
+//! naming the key. The person page reads the decision lifetime (that specification's step H2);
+//! the local page and the plugin gate's local arm read `[person.local]`, and a call for verified
+//! content reads `verified_levels` (its step H3).
 
 use std::net::SocketAddr;
 
@@ -98,7 +99,7 @@ impl Default for PersonConfig {
 }
 
 /// `[person.local]`, version 7: the person page served on a loopback address by
-/// `umbel person-page-serve`, for a workspace in mode `none`, with no login.
+/// `umbel person page-serve`, for a workspace in mode `none`, with no login.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct LocalPageConfig {
