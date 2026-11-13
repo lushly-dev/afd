@@ -92,12 +92,12 @@ async fn every_fact_is_in_the_brief_or_the_open_call_it_names() {
         .as_array()
         .unwrap()
         .iter()
-        .filter(|entry| entry["reason"] == "budget")
-        .flat_map(|entry| entry["open"]["sections"].as_array().unwrap())
+        .filter_map(|entry| entry["open"]["sections"].as_array())
+        .flatten()
         .map(|section| section.as_str().unwrap())
         .collect();
     for entry in answer["omitted"].as_array().unwrap() {
-        if entry["reason"] == "budget" {
+        if entry.get("open").is_some() {
             assert_eq!(entry["open"]["command"], "components-open");
         }
     }

@@ -202,7 +202,13 @@ async fn it_sheds_last_with_gaps_and_rules() {
                 kept_alone |= !others;
             } else {
                 assert!(!others, "themes went before another section: {result}");
-                let sections = data(&result)["omitted"][0]["sections"].as_array().unwrap();
+                let budget = data(&result)["omitted"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|o| o["reason"] == "budget")
+                    .unwrap();
+                let sections = budget["sections"].as_array().unwrap();
                 assert!(sections.contains(&json!("themes")), "{result}");
                 shed = true;
             }

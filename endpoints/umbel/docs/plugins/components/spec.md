@@ -147,6 +147,15 @@ The owner decided on 2026-11-11 to close the gap A16 recorded (D172):
 | --- | --- | --- |
 | A23 | An override this plugin refuses passes the doctor (A16) | The host gains a generic hook, not code for this plugin: a compiled plugin may answer `umbel_sdk::Plugin::check_pack`, and on a sealed host the doctor's new `plugins.pack_checks` runs it on every space override of the plugin's packs, through the instance's own grants with the override's space as the call's (D172). This plugin answers for `library` with its reader over every library in the pack (`pack::read` with no `library`, as `components-list` reads it), so a refused override fails the check with the call's code (`PACK_INVALID`, `PACK_INCONSISTENT` as a warning since it is retryable, `PACK_EMPTY`, `PACK_TOO_LARGE`), its message, its first three problems as `CODE path#pointer`, the count of the rest, and its suggestion. `plugin-show` still shows the override, `plugins.packs` still checks its layout only, and the call is still refused (9.1). The default pack is not checked: `tests/default_pack.rs` holds it equal to Specimen's valid fixture. `tests/surfaces.rs` proves both a passing and a refused override; the host's `tests/doctor_pack_checks.rs` proves the hook with a test plugin |
 
+### Amendments after step C5
+
+The owner decided on 2026-11-13 to make the default brief smaller before judging the proposal's criteria 2 and 10
+(the Component Briefs status, "What step C5 found"):
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A24 | What a default brief leaves out | Step C5's real briefs were 2.6 times the phase 0 stand-in's for the same seven tags, and the growth was mostly what no page was seen to use. `detail: "brief"` now leaves out `cssProperties` (0 of 336 named on step C5's pages; `violet-elements`' are mostly private `--_` properties) and the rules the attributes name: their ids on the attributes and in the `rules` section, and their text (`violet-elements`' 29 `taxonomy.*` rules on that page, about 7.4 KB). A rule only the record names stays; one an attribute names goes, even when the record lists it too, as Specimen lists every rule an attribute names. `detail: "api"` leaves the attributes' rules out too; `full`, `sections` and `components-open` serve everything. A brief writes an attribute's `property` only when it differs from its `name` (321 of `violet-elements`' 405). The answer says what it left out: an `omitted` entry with reason `detail`, `sections` and `pieces` (`attributeRules`), and the `components-open` call that returns them (`cssProperties`, `rules`), so criterion 3's fact test still finds every fact (`facts.rs` reads any entry's `open`). The shedding order is unchanged; a brief that names `sections` tests it (`budget.rs`). A guide author who wants a rule in every brief scopes it to the component, not to an attribute. On the form page of step 0.1 the default brief went from 35 504 to 30 286 bytes: the attributes' rules and properties came out (about 10 KB), and the examples the old brief had shed to fit came back (5 372 bytes) |
+
 ## What this plugin serves
 
 The goal, from the proposal: an agent names the components on a page, or hands over the markup, and gets back in one
@@ -563,7 +572,7 @@ A component's entry has these sections, in this order. `sections` inputs name th
 
 | Section | From the record | Notes |
 | --- | --- | --- |
-| `attributes` | `api.attributes` | Each: `name`, `property`, `type`, `description`, `values`, `default`, `rules` |
+| `attributes` | `api.attributes` | Each: `name`, `property`, `type`, `description`, `values`, `default`, `rules`. A brief writes `property` only when it differs from `name`, and `rules` only with `detail: "full"` or `sections` (A24) |
 | `slots` | `api.slots` | Each: `name` (`""` is the default slot), `description`, `accepts` |
 | `events` | `api.events` | Each: `name`, `description`, `detail` |
 | `commands` | `api.commands` | Each: `name`, `description` |
@@ -574,7 +583,7 @@ A component's entry has these sections, in this order. `sections` inputs name th
 | `axe` | `a11y.axe` | `violations`, `exceptions`, as one item |
 | `a11y` | `a11y.statements` | Each: `id`, `text` |
 | `usage` | `usage` | Each: `id`, `text` |
-| `rules` | `rules` and every attribute's `rules` | The ids, sorted; the text is in `content.rules` |
+| `rules` | `rules` and every attribute's `rules` | The ids, sorted; the text is in `content.rules`. A brief with `detail` `brief` or `api` leaves out every id an attribute names (A24) |
 | `examples` | `examples` | Each: `from`, `html` |
 | `gaps` | `gaps` | As the record has them; no basis |
 | `detail` | `detail` | The long form; served by `components-open`, and by a brief with `detail: "full"` or `sections` naming it |
@@ -623,7 +632,7 @@ hidden-text check finds what the format allows: zero-width characters, U+2060, U
 | `tags` | array of 1 to 64 unique tags (the format's tag pattern, at most 100 characters) | Components to brief on |
 | `source` | string, at most 262 144 UTF-8 bytes | A page's markup or code; tags are found in it (section 7) |
 | `library` | library id | Look only in this library |
-| `detail` | `brief` (default), `api` or `full` | `api`: the floor and `attributes`, `slots`, `events`, `commands`, `cssProperties`, `form` and `rules` (ids only, no rule text). `brief`: every section but `detail`. `full`: every section |
+| `detail` | `brief` (default), `api` or `full` | `api`: the floor and `attributes`, `slots`, `events`, `commands`, `cssProperties`, `form` and `rules` (ids only, no rule text). `brief`: every section but `detail` and `cssProperties`. `full`: every section. `brief` and `api` leave out the rules the attributes name, ids and text (A24) |
 | `sections` | array of unique section names (5.3) | Exactly these sections, in place of `detail`'s choice |
 | `known` | array of at most 256 unique rule ids, each bare or `<library>/<id>` | Rules the caller already holds: their ids stay in entries, their text is not sent, and they are not counted as omitted |
 | `versions` | object of at most 32 entries, npm package name to version (the format's patterns) | The versions the caller has installed, for `LIBRARY_VERSION_MISMATCH` |
@@ -661,8 +670,8 @@ Every requested tag is in `content.components` or `unknown`; none is dropped sil
         "summary": "Pick one value from a short, fixed list that opens as a popup.",
         "status": "preview", "import": "example-components/select.js",
         "attributes": { "basis": "observed", "items": [
-          { "name": "open", "property": "open", "type": "boolean", "default": false, "basis": "verified" },
-          { "name": "required", "property": "required", "type": "boolean", "default": false, "basis": "declared" }
+          { "name": "open", "type": "boolean", "default": false, "basis": "verified" },
+          { "name": "required", "type": "boolean", "default": false, "basis": "declared" }
           // …
         ] },
         "a11y": { "basis": "authored", "items": [
@@ -684,7 +693,10 @@ Every requested tag is in `content.components` or `unknown`; none is dropped sil
 ```
 
 Entries are in the order of the requested tags. `omitted`'s `open` is the call that returns what was left out of any
-entry: `components-open` with that entry's `tag` and these `sections`.
+entry: `components-open` with that entry's `tag` and these `sections`. With `detail: "brief"`, the default, `omitted`
+has an entry `{ "reason": "detail", "sections": ["cssProperties"], "pieces": ["attributeRules"], "open": … }` after
+any `minimum-basis` entry and before the budget's, naming only what the answered entries have (A24); the long form,
+left out of every brief, is not named.
 
 ### 6.4 Fitting the budget (D154)
 
