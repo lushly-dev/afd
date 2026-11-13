@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State: not approved, re-check pending.** The history so far:
+- **State: Approved** 2026-11-13 by the coordinator under the owner's standing grant, after three review rounds (two reviews, a re-check with three job walks, and a second re-check). The questions for the owner stay open. The text follows each recommendation, and an answer that differs amends the named section before its step starts. The history:
   - Written 2026-11-13 by the design sub-agent against `main` at `f7ecbd43`.
   - Revised the same day after two independent reviews of `445b2bd7` and the coordinator's rulings R1 to R6 ([Review 2026-11-13](#review-2026-11-13)).
   - That revision merged to `main` in [#1119](https://github.com/lushly-dev/afd/pull/1119) (`e7c813e1`) before its re-check ran.
@@ -21,7 +21,7 @@
     Every finding and its answer is in [Review 2026-11-13, second round](#review-2026-11-13-second-round).
   - **Revised a third time** after a re-check of `faa0c1d9` ("approvable once fixed", F1 to F11 and four nits) and the coordinator's rulings on F2 to F11 ([Re-check 2026-11-13, third round](#re-check-2026-11-13-third-round)).
 
-  The coordinator approves it under the owner's standing grant after a fresh re-check. The [questions for the owner](#questions-for-the-owner) are the owner's to answer, and the text is written to each recommendation. D116 to D127 are proposed here and in the [decision log](../../decisions.md), marked proposed.
+  - **Approved** 2026-11-13 by the coordinator at `203cb3a0`, under the owner's standing grant. D116 to D127 are decided with that approval, in the [decision log](../../decisions.md). The [questions for the owner](#questions-for-the-owner) stay open: Q1 and Q3 may amend D118, Q2 D119, and Q4 D116; Q5 orders the work and amends no decision.
 - **Last verified:** 2026-11-13, against `main` at `92980528`. Evidence read in the repository:
   - **Kernel:** `endpoints/loam/packages/kernel/src`:
     - `overlays.ts:20` (`TOAST_CAP = 5`), `:28-49` (`OverlayStore`: `toast` and `modal` only), `:44` (`whenClosed`, internal);
@@ -42,7 +42,7 @@
   - **Issues read:** #857, #869, #877, #881, #710, #708.
   - **External:** the [trajectory refresh](#trajectory-refresh).
 - **Done:** this specification, its fourteen jobs as scenarios (all valid under `afd scenario validate`), and two revisions.
-- **Not done:** its approval; the owner's answers to Q1 to Q5; every step of the [plan](#20-implementation-plan).
+- **Not done:** the owner's answers to Q1 to Q5; every step of the [plan](#20-implementation-plan), of which step 1 comes first, once phase 3's `HUMAN_REQUIRED` and its step 4 land ([1.2](#12-dependencies-on-phase-3s-steps)).
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
 ## What this phase serves
@@ -1179,7 +1179,7 @@ The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) are a draft, revi
   - the `menus` surface is deferred.
 - **Section 9:** phase 4's exit is local (D126).
 - **Glossary:** the terms above.
-- **Decision log:** D116 to D127, marked proposed.
+- **Decision log:** D116 to D127, decided with this specification's approval on 2026-11-13.
 
 | ID | Proposed decision |
 | --- | --- |
@@ -1378,4 +1378,4 @@ A re-check of `faa0c1d9` found the second revision "approvable once fixed". It f
 | 2026-11-13 | Second round (job list) | The limit field for D41's "approval within limits", and the untrusted labels | Open; phase 5 |
 | 2026-11-13 | Second round | Menus: a specification of their own, with a job | Open |
 | 2026-11-13 | Third round (F1, F10) | AFD: partial list matching in the scenario evaluator, and a step-level actor and scope. Work across all four languages | Open; AFD |
-| 2026-11-13 | Third round | A fresh re-check of this revision | Open |
+| 2026-11-13 | Third round | A fresh re-check of this revision | Done 2026-11-13: the coordinator checked `203cb3a0` and approved |
