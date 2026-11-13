@@ -11,6 +11,7 @@ import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core'
 import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
+import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppsRuntime } from '../apps-runtime.js';
 import type { OverlayStore } from '../overlays.js';
 import type { AccessActorV1, MemberRoleV1 } from '../scope/access.js';
@@ -22,6 +23,14 @@ import type { ShellState } from '../shell-state.js';
 import type { KernelPortsV1 } from '../types.js';
 import type { DocumentKit } from './document-kit.js';
 import type { EditorDraftsV1, EditorStateV1 } from './editor-state.js';
+import type { IdentityCommands } from './identity-commands.js';
+
+export {
+	createIdentityCommands,
+	HUMAN_COMMANDS,
+	type IdentityCommands,
+	PROVIDER_COMMANDS,
+} from './identity-commands.js';
 
 /** Why the kernel settles (4.4): stage B's first act, an expiry, another tab or the adapter, a membership read. */
 export type SessionSettleReasonV1 = 'provider' | 'expiry' | 'tab' | 'membership';
@@ -145,7 +154,13 @@ export interface SessionSettleDeps {
 	personal?: PersonalStore | undefined;
 	quiet?(fn: () => void): void;
 	clock?: { now(): number };
-	ports?: Pick<KernelPortsV1, 'schedule' | 'readMembership'> | undefined;
+	ports?: Pick<KernelPortsV1, 'schedule' | 'readMembership' | 'watchMembership'> | undefined;
+	/** The workspace store, whose `~signed-out` records each sign-out clears (4.5). */
+	store?: DataAdapter | undefined;
+	/** Step 3's commands, whose `HUMAN_REQUIRED` this part's line −1 answers (3.4). */
+	identityCommands?: Pick<IdentityCommands, 'humanRequired'> | undefined;
+	/** The page's `beforeunload`, when a held draft makes it ask (4.5); `globalThis` by default. */
+	page?: Pick<EventTarget, 'addEventListener' | 'removeEventListener'> | undefined;
 	/** Boot's own: never queued, top-level, journaled (phase 2 specification, 2.2). */
 	runBoot(name: string, input: unknown): Promise<{ success: boolean }>;
 	kit: SessionSettleKit;
@@ -269,6 +284,12 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	 */
 	let changes = 0;
 	let lastHeard: string | null | undefined;
+	/** The session the adapter reported last: a new id under the same person is a change too (step 2's follow-up). */
+	let lastSession: string | undefined;
+	const sessionId = (): string | undefined => {
+		const state = deps.auth.getSession();
+		return state.status === 'authenticated' ? state.session.id : undefined;
+	};
 	let authRunning = 0;
 	let firing = false;
 	let stopped = false;
@@ -283,6 +304,22 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	 * sign in again in the same page (4.5). No one's key is the empty string.
 	 */
 	const held = new Map<string, EditorDraftsV1>();
+	/** A held draft makes the page's `beforeunload` ask, as an unsaved change would be lost (4.5). */
+	const page: Partial<Pick<EventTarget, 'addEventListener' | 'removeEventListener'>> =
+		deps.page ?? (globalThis as Partial<EventTarget>);
+	let asking = false;
+	const ask = (event: Event): void => {
+		event.preventDefault();
+		// The legacy way some browsers still read.
+		(event as unknown as { returnValue: string }).returnValue = '';
+	};
+	const askIfHeld = (): void => {
+		const holding = [...held.values()].some((drafts) => drafts.dirty.size > 0);
+		if (holding === asking || typeof page.addEventListener !== 'function') return;
+		asking = holding;
+		if (holding) page.addEventListener('beforeunload', ask);
+		else page.removeEventListener?.('beforeunload', ask);
+	};
 	const switchDrafts = (left: string | null, next: string | null): void => {
 		if (left === next) return;
 		const { dirty, selections } = deps.drafts;
@@ -293,7 +330,81 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		selections.clear();
 		for (const [tab, document] of back?.dirty ?? []) dirty.set(tab, document);
 		for (const [tab, selection] of back?.selections ?? []) selections.set(tab, selection);
+		askIfHeld();
 	};
+
+	/**
+	 * `~signed-out`'s records, cleared at each sign-out (4.5): what was written while no one was signed in holds
+	 * defaults only, and nothing of it is left for the next person who signs out on this profile.
+	 */
+	async function clearSignedOut(): Promise<void> {
+		const store = deps.store;
+		if (!store) return;
+		try {
+			const { data } = await store.list<{ id: string }>('settings');
+			await Promise.all(
+				data
+					.filter((row) => row.id.endsWith('~signed-out'))
+					.map((row) => store.remove('settings', row.id))
+			);
+		} catch (cause) {
+			report(cause);
+		}
+	}
+
+	/**
+	 * A membership read again later, on the refresh's backoff, after one failed or timed out (step 2's follow-up):
+	 * a change it finds is settled as `reason: 'membership'`. While the person stays the one the shell is for.
+	 */
+	let recheck: (() => void) | undefined;
+	let recheckTries = 0;
+	function recheckLater(person: string): void {
+		if (stopped || replaying()) return;
+		recheck?.();
+		const delay = Math.min(REFRESH_RETRY_FIRST_MS * 2 ** recheckTries, REFRESH_RETRY_MAX_MS);
+		recheckTries++;
+		recheck = schedule(now() + delay, () => {
+			recheck = undefined;
+			if (stopped || decided !== person || current() !== person) return;
+			background(() => checkMembership(person));
+		});
+	}
+
+	/**
+	 * The membership of the person the shell is for, read again with no command waiting on it (4.3's refresh, a
+	 * host's notice, a failed read's retry): a change is a top-level `session-settle` with `reason: 'membership'`.
+	 */
+	function checkMembership(person?: string): Promise<void> {
+		return serial(async () => {
+			const read = deps.ports?.readMembership;
+			const signedIn = current();
+			if (!provider || !read || stopped || replaying() || signedIn === null) return;
+			if (signedIn !== decidedNow() || (person !== undefined && person !== signedIn)) return;
+			const seen = changes;
+			let found: Awaited<ReturnType<typeof read>>;
+			try {
+				found = await readMembership(read);
+			} catch (cause) {
+				report(cause);
+				recheckLater(signedIn);
+				return;
+			}
+			recheckTries = 0;
+			if (stopped || changes !== seen || current() !== signedIn) return;
+			const membership = { role: found?.role ?? null, membershipDigest: found?.digest ?? null };
+			const holding = heldFor(signedIn);
+			if (
+				membership.role === holding.role &&
+				membership.membershipDigest === holding.membershipDigest
+			)
+				return;
+			await deps.runBoot('session-settle', {
+				person: signedIn,
+				...membership,
+				reason: 'membership',
+			});
+		});
+	}
 
 	function report(cause: unknown): void {
 		(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
@@ -320,12 +431,21 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		read: NonNullable<KernelPortsV1['readMembership']>
 	): ReturnType<typeof read> =>
 		new Promise((resolve, reject) => {
-			const clear = schedule(now() + MEMBERSHIP_READ_TIMEOUT_MS, () => {
+			const deadline = now() + MEMBERSHIP_READ_TIMEOUT_MS;
+			let clear: () => void = () => {};
+			// A host's timer can run ahead of the kernel's clock: woken early, it waits again (step 2's follow-up).
+			const expire = (): void => {
 				timeouts.delete(clear);
+				if (now() < deadline) {
+					clear = schedule(deadline, expire);
+					timeouts.add(clear);
+					return;
+				}
 				reject(
 					new Error(`The membership read did not answer within ${MEMBERSHIP_READ_TIMEOUT_MS} ms`)
 				);
-			});
+			};
+			clear = schedule(deadline, expire);
 			timeouts.add(clear);
 			read()
 				.then(resolve, reject)
@@ -353,21 +473,30 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		if (stopped) return;
 		if (reason !== 'provider' && person === decidedNow()) return;
 		let membership = heldFor(person);
+		let failed = false;
 		if (provider && person !== null && reason !== 'provider' && person === current()) {
 			const read = deps.ports?.readMembership;
-			if (read) {
+			// Read again while only the session changed under the same person, as an A→B→A an adapter merged into one
+			// poll: its answer may be B's, and no notice settles A again (step 2's follow-up). A bounded few times.
+			for (let attempt = 0; read && attempt < 3; attempt++) {
 				const seen = changes;
+				failed = false;
 				try {
 					const found = await readMembership(read);
 					membership = { role: found?.role ?? null, membershipDigest: found?.digest ?? null };
 				} catch (cause) {
 					// A read that fails decides with what the kernel holds: line 0 refuses a person it does not list.
 					report(cause);
+					failed = true;
 				}
-				if (stopped || changes !== seen || current() !== person) return;
+				if (stopped || current() !== person) return;
+				if (changes === seen) break;
+				if (attempt === 2) return;
 			}
 		}
 		await deps.runBoot('session-settle', { person, ...membership, reason });
+		// Read later, on the refresh's backoff, so a person a timed-out read left out is let in once it answers.
+		if (failed && person !== null) recheckLater(person);
 	}
 
 	/** A change no `auth-*` command made: settled, on the chain, when the person really changed. */
@@ -453,8 +582,11 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	/** Every change the adapter reports: the timer re-arms, and a change no command made is settled. */
 	function heard(): void {
 		const person = current();
-		if (person !== lastHeard) changes++;
+		const session = sessionId();
+		// An expiry slid on a refetch keeps the session's id; another session, even the same person's, does not.
+		if (person !== lastHeard || (person !== null && session !== lastSession)) changes++;
 		lastHeard = person;
+		lastSession = session;
 		if (stopped || replaying()) return;
 		arm();
 		if (authRunning === 0 && !firing) background(() => notice('tab'));
@@ -517,6 +649,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		else leave();
 		switchDrafts(left, to);
 		if (deps.personal) await hydrate(deps.personal, to);
+		if (deps.personal && to === null) await clearSignedOut();
 		const recorded = deps.personal ? state.scopeProject() : before.project;
 		const at: ScopeV1 =
 			recorded && scope.allows(actorOf(to), { workspace: before.workspace, project: recorded })
@@ -572,12 +705,21 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		},
 	}) as unknown as ZodCommandDefinition;
 
+	let watching: (() => void) | undefined;
+	/** The person an `auth-sign-in` brought, until `afterAuth` reads their membership. */
+	let signedIn: string | undefined;
+	/** That read, while it runs: `settleFirst` waits on it. */
+	let reading: Promise<void> | undefined;
 	return {
 		command,
 		copied,
 		async begin() {
 			lastHeard ??= current();
+			lastSession ??= sessionId();
 			subscription ??= deps.auth.onAuthStateChange(heard);
+			// The host's word that membership may have changed, as 4.3's refresh reads it (7.6).
+			if (!replaying() && provider)
+				watching ??= deps.ports?.watchMembership?.(() => background(() => checkMembership()));
 			if (replaying()) return;
 			// Stage A's person, whose records stage A read: the first settle names them, a change from null in the
 			// original and the replay alike, and the notice after it hears a change since stage A (B1).
@@ -587,6 +729,9 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			await notice('tab');
 		},
 		refuse(call, name) {
+			// A human command through the agent interface (3.4): the same refusal in a replay, which re-runs it.
+			const human = deps.identityCommands?.humanRequired(call, name);
+			if (human) return human;
 			if (replaying() || kit.internal.includes(name)) return undefined;
 			const ticket = kit.ticket(call);
 			const signedIn = current() ?? undefined;
@@ -624,6 +769,8 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				!kit.marked(call)
 			)
 				return undefined;
+			// The membership a sign-in brought, still being read: the call waits for it (afterAuth).
+			if (reading) return reading;
 			// Settled already, or only expired, which the timer settles; a change on its way is awaited with its notice.
 			if (target === undefined && (current() === decided || expiredOnly())) return undefined;
 			// A change whose settle failed or was dropped: settled again as another tab's.
@@ -648,6 +795,10 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				if (succeeded && (name === 'auth-sign-in' || name === 'auth-sign-out')) {
 					settled = person;
 					const from = decidedNow();
+					// The person a sign-in brought is read for their membership once its entry is journaled (afterAuth):
+					// the probe read only the person stage A painted for (4.4, 7.6).
+					if (provider && name === 'auth-sign-in' && person !== null && !replaying())
+						signedIn = person;
 					if (person !== from) {
 						if (deps.personal) {
 							await change(person, call);
@@ -663,7 +814,19 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			});
 		},
 		afterAuth() {
-			if (authRunning === 0) background(() => notice('tab'));
+			if (authRunning !== 0) return;
+			background(() => notice('tab'));
+			const person = signedIn;
+			signedIn = undefined;
+			if (person === undefined) return;
+			// A top-level `session-settle` with `reason: 'membership'` when the read differs from what the kernel holds,
+			// after the sign-in's entry; the calls made meanwhile wait for it in `settleFirst`, so none is decided on
+			// a membership this person never had.
+			const check = checkMembership(person);
+			reading = check;
+			void check.finally(() => {
+				if (reading === check) reading = undefined;
+			});
 		},
 		rereadsBefore: (name) =>
 			provider &&
@@ -714,6 +877,12 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			stopped = true;
 			cancel?.();
 			cancel = undefined;
+			recheck?.();
+			recheck = undefined;
+			watching?.();
+			watching = undefined;
+			if (asking) page.removeEventListener?.('beforeunload', ask);
+			asking = false;
 			// A read still waiting: its timeout goes with the kernel, which no longer settles.
 			for (const clear of timeouts) clear();
 			timeouts.clear();

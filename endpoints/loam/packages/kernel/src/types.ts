@@ -208,6 +208,11 @@ export interface KernelPortsV1 {
 	 * 7.6); the web host from `whoami` (step 3). Absent, the kernel decides with the membership it holds.
 	 */
 	readMembership?(): Promise<{ role: 'owner' | 'admin' | 'member'; digest: string } | null>;
+	/**
+	 * Interface 3's: the host tells the kernel its membership may have changed, as its periodic read of the session
+	 * finds (phase 3 specification, 4.3 and 7.6), and the kernel reads it again. Returns an unsubscribe.
+	 */
+	watchMembership?(listener: () => void): () => void;
 }
 
 export interface HandlerFrameV1 {
@@ -584,6 +589,11 @@ export interface KernelOptionsV3 extends KernelOptionsV2 {
 	 * kernel given none decides with no members, so line 0 refuses every gated call until it has one.
 	 */
 	membership?: MembershipV1;
+	/**
+	 * The identity ports of a host whose apps' ports come from stage B's loader, as the web host's do: the expiry
+	 * timer's `schedule`, the membership read and its watch (4.3, 4.4). `ports` serves when this is absent.
+	 */
+	identityPorts?: Pick<KernelPortsV1, 'schedule' | 'readMembership' | 'watchMembership'>;
 }
 
 /** What `shell-info-get` returns from version 3. */
