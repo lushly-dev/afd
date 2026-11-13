@@ -659,6 +659,9 @@ impl PersonService {
             auth_time: auth_time.clone(),
             acr: acr.clone(),
             at: at.clone(),
+            // Items pulled out on the page arrive with step H2 of the Ideas host-review
+            // specification.
+            excluded: Vec::new(),
         };
         let mut principal = principal?;
         principal.human_present = Some(HumanPresent {
@@ -1024,6 +1027,7 @@ mod tests {
             auth_time: String::new(),
             acr: String::new(),
             at: String::new(),
+            excluded: Vec::new(),
         };
         // Pending: not admitted.
         assert!(

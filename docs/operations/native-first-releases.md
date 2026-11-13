@@ -102,7 +102,7 @@ no-RTTI builds, the workflow compiler/sanitizer matrix and fresh installed
 
 First refresh main and select the reviewed merge commit explicitly. Recheck
 registry/tag state so a successful publication is never repeated because of stale
-metadata. The [release skill](../../.claude/skills/do-release/SKILL.md) describes
+metadata. The [release skill](../../.claude/skills/cut-release/SKILL.md) describes
 the maintainer steps and tag validation.
 
 Rust's first manual upload, public tag, downloaded consumers and publisher

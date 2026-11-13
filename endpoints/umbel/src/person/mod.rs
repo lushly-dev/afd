@@ -133,6 +133,10 @@ pub(crate) struct PersonMark {
     pub(crate) acr: String,
     /// When the person decided, ISO 8601 UTC.
     pub(crate) at: String,
+    /// The ids of the preview's items the person pulled out (the Ideas host-review
+    /// specification, section 3); empty, and then absent, when there were none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) excluded: Vec<String>,
 }
 
 impl PersonMark {
@@ -291,6 +295,8 @@ pub(crate) fn attested(
         namespace: mark.namespace,
         auth_time: mark.auth_time,
         acr: mark.acr,
+        level: mark.level,
+        excluded: mark.excluded,
     })
 }
 
@@ -525,6 +531,7 @@ mod tests {
             auth_time: "2026-11-08T00:00:00.000Z".into(),
             acr: "phr".into(),
             at: "2026-11-08T00:00:00.000Z".into(),
+            excluded: Vec::new(),
         };
         context.extra.insert(
             PERSON_DECISION_KEY.to_owned(),
@@ -659,7 +666,7 @@ mod tests {
             assurance,
             umbel_store::Assurance::verified("corp", "2026-11-08T00:00:00.000Z", "phr")
         );
-        assert!(assurance.is_valid());
+        assert!(assurance.is_valid(3));
         // A decision for another command: one the handler runs in process, or a pipeline's
         // step, under the decided call's context.
         assert!(proof("notes-capture", over_mcp, &input(), &good).is_none());

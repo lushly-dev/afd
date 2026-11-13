@@ -1,0 +1,75 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Take back merges that broke something, and free abandoned work
+description: >-
+  When a run's merges broke something or a cell will not come back, I want to find the PRs, revert
+  them together, record a decision and free the abandoned issue, so that main is fixed quickly and no
+  issue stays blocked by a cell that is gone.
+job: take-back-and-free-work
+tags: [slice]
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+steps:
+  - description: The run lists the PRs it merged
+    command: lane-report
+    input: { run: run-2 }
+    expect:
+      success: true
+      data:
+        prs:
+          - { number: 512 }
+          - { number: 515 }
+  - description: Intake pauses while the operator looks
+    command: lane-pause
+    input: { reason: Table sorting broke on empty rows }
+    expect:
+      success: true
+      data: { paused: true }
+  - description: Both merges are reverted together, each through its own PR
+    command: lane-revert
+    input: { prs: [512, 515], reason: Table sorting broke on empty rows }
+    expect:
+      success: true
+      data:
+        revertPrs: { length: 2 }
+  - description: A PR the factory never merged is refused
+    command: lane-revert
+    input: { prs: [999], reason: Mistyped number }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: lane-report }
+  - description: A merge without its check, found green on inspection, is recorded as resolved
+    command: event-resolve
+    input: { id: ev-12, note: ci-ok passed on the merged head }
+    expect:
+      success: true
+      data: { resolved: true }
+  - description: Intake resumes
+    command: lane-resume
+    expect:
+      success: true
+      data: { paused: false }
+  - description: A cell that will not come back is dropped, which releases its issue
+    command: lane-drop
+    input: { branch: fix/parser-empty-input, reason: The cell's plan reached its limit }
+    expect:
+      success: true
+      data:
+        dropped: true
+        released: [101]
+  - description: The released issue can be dispatched again
+    command: issue-check
+    expect:
+      success: true
+      data:
+        dispatchable: { includes: 101 }
+  - description: Dropping a cell the lane does not know is refused
+    command: lane-drop
+    input: { branch: no-such-branch, reason: Typo }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: lane-status }

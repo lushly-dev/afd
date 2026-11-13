@@ -1,0 +1,42 @@
+{
+	"version": 2,
+	"id": "mzxw6ytboi2dqnrrgq3dmnzyhe",
+	"for": {
+		"actor": {
+			"kind": "agent",
+			"id": "agent:garden-helper",
+			"onBehalfOf": "human:local"
+		},
+		"clientId": null,
+		"issuer": null,
+		"namespace": "local",
+		"subject": "human:local"
+	},
+	"command": "ideas-review-apply",
+	"inputDigest": "n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg",
+	"properties": {
+		"space": "garden",
+		"review": "rev-0c1d2e3f"
+	},
+	"createdAt": "2026-11-12T09:00:00.000Z",
+	"expires": "2026-11-12T10:04:00.000Z",
+	"status": "approved",
+	"decidedAt": "2026-11-12T09:04:00.000Z",
+	"level": "local",
+	"authTime": null,
+	"acr": null,
+	"previewHash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+	"pages": [
+		{
+			"page": 1,
+			"hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+			"items": ["prp-mulch", "prp-frost"]
+		},
+		{
+			"page": 2,
+			"hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+			"items": ["prp-compost"]
+		}
+	],
+	"excluded": ["prp-frost"]
+}

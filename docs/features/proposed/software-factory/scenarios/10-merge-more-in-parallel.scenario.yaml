@@ -1,0 +1,55 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Merge more per hour on a larger host
+description: >-
+  When the lane host has room for more than one validation, I want to raise the slot count within
+  what the host can carry and new cells refused when it is loaded, so that a powerful machine merges
+  more per hour without running out of memory.
+job: merge-more-in-parallel
+tags: [concurrency]
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+  overrides:
+    host: { freeMemoryGb: 4 }
+steps:
+  - description: The host's measured slot suggestion is visible
+    command: lane-host-list
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: workstation, measured: true, suggestedSlots: 4 }
+  - description: More slots than the host can carry are refused, naming the limit
+    command: dial-set
+    input: { key: lane.slots, value: 8 }
+    expect:
+      success: false
+      error:
+        code: DIAL_OUT_OF_RANGE
+        message: '4'
+  - description: A count within range is set, and the previous value is returned
+    command: dial-set
+    input: { key: lane.slots, value: 3 }
+    expect:
+      success: true
+      data: { key: lane.slots, value: 3, previous: 1, default: 1 }
+  - description: The dial reads back
+    command: dial-get
+    input: { key: lane.slots }
+    expect:
+      success: true
+      data: { value: 3 }
+  - description: Status shows three slots
+    command: lane-status
+    expect:
+      success: true
+      data:
+        slots: { total: 3 }
+  - description: With little free memory left, a new cell is refused
+    command: cell-register
+    input: { branch: fix/new-work, issues: [106], route: sol/high }
+    expect:
+      success: false
+      error:
+        code: HOST_LOADED
+        suggestion: { contains: host.minFreeGb }

@@ -563,7 +563,7 @@ fn is_confirmation(value: &Value, version: u32) -> bool {
             .and_then(|assurance| {
                 serde_json::from_value::<umbel_store::Assurance>(assurance.clone()).ok()
             })
-            .is_some_and(|assurance| assurance.is_valid())
+            .is_some_and(|assurance| assurance.is_valid(version))
     };
     value.as_object().is_some_and(|map| {
         let fields = if version >= 3 { 4 } else { 3 };

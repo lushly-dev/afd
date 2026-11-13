@@ -1,0 +1,68 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Start a cell on the plan and host with room
+description: >-
+  When the queue is short, I want to know whether to start another cell and on which plan, and the
+  limits enforced when I register it, so that allowance about to reset is spent first, no plan is
+  drained early and the host never takes more cells than it can carry.
+job: start-a-cell-where-there-is-room
+tags: [slice]
+fixture:
+  file: fixtures/fresh.json
+  overrides:
+    laneHost: workstation
+    dials: { cells.max: 1 }
+steps:
+  - description: Each plan shows its room (window elapsed minus share used)
+    command: plan-list
+    expect:
+      success: true
+      data:
+        plans:
+          - { id: plan-a, room: 70, aboveCeiling: false }
+          - { id: plan-b, room: 20, aboveCeiling: false }
+  - description: Status says a cell may start, on which plan, and with which issue
+    command: lane-status
+    expect:
+      success: true
+      data:
+        canStartCell: true
+        plan: { id: plan-a }
+        nextIssue: 101
+  - description: A cell with two issues is refused while one issue per cell is the rule
+    command: cell-register
+    input: { branch: fix/core-pair, issues: [101, 102], route: sol/high }
+    expect:
+      success: false
+      error:
+        code: TOO_MANY_ISSUES
+        suggestion: { contains: cells.issuesMax }
+  - description: Registering before the cell starts claims its issue and assigns the plan
+    command: cell-register
+    input: { branch: fix/parser-empty-input, issues: [101], route: sol/high }
+    expect:
+      success: true
+      data:
+        cell: { branch: fix/parser-empty-input, plan: plan-a, issues: [101] }
+  - description: Once delegate_task returns, its thread is attached to the cell
+    command: cell-attach
+    input: { branch: fix/parser-empty-input, thread: thread-1 }
+    expect:
+      success: true
+      data:
+        cell: { thread: thread-1 }
+  - description: The same branch cannot be registered twice
+    command: cell-register
+    input: { branch: fix/parser-empty-input, issues: [102], route: opus/medium }
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+        suggestion: { contains: lane-drop }
+  - description: Another cell beyond cells.max is refused before anything is spent on it
+    command: cell-register
+    input: { branch: fix/client-retry, issues: [103], route: sol/high }
+    expect:
+      success: false
+      error:
+        code: CELLS_FULL
+        suggestion: { contains: lane-wait }

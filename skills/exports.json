@@ -5,6 +5,7 @@
 		"root": "endpoints/botcore/src/botcore/skills",
 		"skills": [
 			"agent-config",
+			"bloat-sweeper",
 			"botcore-config",
 			"browser-automation",
 			"code-reviewer",
@@ -21,7 +22,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".codex/skills",
-			"listingBudget": 6000,
+			"listingBudget": 6300,
 			"projections": [
 				{
 					"name": "audit-security",
@@ -54,6 +55,10 @@
 				{
 					"name": "review-code",
 					"canonical": "code-reviewer"
+				},
+				{
+					"name": "sweep-bloat",
+					"canonical": "bloat-sweeper"
 				}
 			],
 			"overrides": [],
@@ -67,11 +72,12 @@
 				"afd-site-design",
 				"afd-typescript",
 				"brief-status",
-				"do-end-session",
-				"do-init-afd",
-				"do-prepare-pr",
-				"do-release",
-				"loam-design"
+				"cut-release",
+				"end-session",
+				"loam-design",
+				"prepare-pr",
+				"start-session",
+				"triage-issues"
 			]
 		}
 	}

@@ -4,7 +4,7 @@ description: >
   Writes a short, visual status brief for the owner on one area of work: decisions
   needed, where it stands, what's next, risks and how the work is going. Use when
   asked for a status brief, a readout or "where are we on X?"; to close a session, use
-  do-end-session.
+  end-session.
 argument-hint: "[area]"
 metadata:
   source: afd

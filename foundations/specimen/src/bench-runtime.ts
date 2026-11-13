@@ -1,4 +1,3 @@
-// afd-override: max-lines=1100
 // One closure over the host process and its bundle: coverage, contracts and packs share its capture.
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';

@@ -1,0 +1,27 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"review": {
+			"type": "string",
+			"maxLength": 28
+		},
+		"part": {
+			"type": "string",
+			"maxLength": 64
+		},
+		"after": {
+			"type": "string",
+			"maxLength": 2048
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 200
+		}
+	}
+}

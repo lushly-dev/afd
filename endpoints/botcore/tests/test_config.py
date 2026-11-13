@@ -13,6 +13,7 @@ from botcore.config import (
     LanguageConfig,
     PackageOverrideConfig,
     SkillsConfig,
+    SweepConfig,
     get_config_for_path,
     load_config,
 )
@@ -293,3 +294,24 @@ def test_legacy_version_stamp_does_not_relax_unknown_fields(tmp_path):
     config_file.write_text('botcore_version = "0.3.5"\nunknown_option = true\n')
     with pytest.raises(ValidationError, match="unknown_option"):
         load_config(workspace=tmp_path)
+
+
+def test_sweep_config_defaults_and_overrides() -> None:
+    assert BotCoreConfig().sweep == SweepConfig()
+    assert SweepConfig().trend_issue is None
+    assert SweepConfig().cohesive == "sweep-cohesive.json"
+    config = BotCoreConfig(
+        sweep=SweepConfig(trend_issue=12, exclude=["vendor/"], churn_days=30, measures="node m.mjs")
+    )
+    assert config.sweep.trend_issue == 12
+    assert config.sweep.exclude == ["vendor/"]
+    assert config.sweep.churn_days == 30
+
+
+def test_sweep_config_refuses_unknown_keys_and_bad_values() -> None:
+    with pytest.raises(ValidationError):
+        SweepConfig(trend=1)  # type: ignore[call-arg]
+    with pytest.raises(ValidationError):
+        SweepConfig(trend_issue=0)
+    with pytest.raises(ValidationError):
+        SweepConfig(churn_days="90")  # type: ignore[arg-type]

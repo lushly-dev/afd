@@ -11,7 +11,7 @@ The next execution is planned in [the hosted verification round](hosted-verifica
 including proposed services, local preparation, cost controls and closure gates.
 The repeatable package and dependency update process is
 [below](#updating-sdks-and-dependencies); releases follow
-[the release skill](../../.claude/skills/do-release/SKILL.md).
+[the release skill](../../.claude/skills/cut-release/SKILL.md).
 
 ## Updating SDKs and dependencies
 

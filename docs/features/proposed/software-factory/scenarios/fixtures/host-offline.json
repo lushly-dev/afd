@@ -1,0 +1,54 @@
+{
+	"thisMachine": "mini",
+	"laneHost": "workstation",
+	"claims": [
+		{
+			"number": 104,
+			"branch": "feat/export-csv",
+			"machine": "workstation",
+			"leaseUntil": "2030-01-02T09:00:00Z"
+		},
+		{
+			"number": 105,
+			"branch": "fix/retry-backoff",
+			"machine": "workstation",
+			"leaseUntil": "2030-01-02T09:00:00Z"
+		}
+	],
+	"machines": [
+		{
+			"id": "workstation",
+			"name": "Workstation",
+			"reachable": false,
+			"cores": 16,
+			"memoryGb": 64,
+			"freeDiskGb": 2800,
+			"missing": [],
+			"measured": true,
+			"suggestedSlots": 4,
+			"probedAt": "2030-01-01T09:00:00Z"
+		},
+		{
+			"id": "mini",
+			"name": "Mac mini",
+			"reachable": true,
+			"cores": 10,
+			"memoryGb": 24,
+			"freeDiskGb": 900,
+			"missing": [],
+			"measured": true,
+			"suggestedSlots": 1,
+			"probedAt": "2030-01-02T09:00:00Z"
+		}
+	],
+	"originQueueRefs": [
+		{
+			"branch": "feat/export-csv",
+			"head": "b2c3d4e"
+		},
+		{
+			"branch": "fix/retry-backoff",
+			"head": "c3d4e5f"
+		}
+	]
+}

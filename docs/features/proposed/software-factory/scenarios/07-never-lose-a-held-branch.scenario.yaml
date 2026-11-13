@@ -1,0 +1,28 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The lane queuing a held branch when room appears happens between commands, so it is not shown.
+name: Never lose a finished branch while the queue is full
+description: >-
+  When the queue is at its limit, I want my finished branch held by the lane rather than refused, so
+  that I can end my turn and the lane queues it itself when there is room.
+job: never-lose-a-held-branch
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+  overrides:
+    dials: { lane.queueMax: 2 }
+steps:
+  - description: The branch is accepted and held, not refused
+    command: lane-enqueue
+    input: { worktree: wt/parser, title: Accept empty parser input, body_file: pr-body.md }
+    expect:
+      success: true
+      data:
+        state: held
+  - description: Status lists it as held, so a fresh foreman can see it
+    command: lane-status
+    expect:
+      success: true
+      data:
+        held:
+          - { branch: fix/parser-empty-input }
+        queue: { length: 2 }

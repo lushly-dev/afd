@@ -412,7 +412,7 @@ fn config_keys(scan: Option<&crate::workspace::KeyScan>) -> Check {
         return Check::fail(
             "config.keys",
             format!("Unknown keys: {}", scan.unknown.join(", ")),
-            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 to 6.",
+            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 to 7.",
         );
     }
     if !scan.reserved.is_empty() {

@@ -132,7 +132,7 @@ Measured 2026-11-12 on the shared Mac; the whole record is in [`first-consumer.m
   it bears on the owner's second question (briefs only through Umbel). Options, none taken: load the
   server's tools eagerly in the repository's settings (a Claude Code setting that changes every
   session here, so the owner's); a hook that names the tool when a session edits a file with `violet-*`
-  markup; or keep the one sentence in task briefs, as the do-* skills could.
+  markup; or keep the one sentence in task briefs, as the session skills could.
 - **Criterion 10, two readings.** Against what the prototype did, the real plugin is as good (65
   against 66) and not costlier (16.6 % fewer tokens). Against today's route on the same base it is as
   good and 12.1 % cheaper, under the threshold's 20 %, where the prototype was 22.5 % cheaper. Today's

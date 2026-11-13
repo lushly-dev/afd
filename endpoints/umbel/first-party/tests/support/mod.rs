@@ -112,8 +112,8 @@ source = "compiled:context"
     )
 }
 
-/// The six first-party plugins, as the binary compiles them in (the curator from phase 4, and
-/// `components` from Component Briefs step C1).
+/// The seven first-party plugins, as the binary compiles them in (the curator from phase 4,
+/// `components` from Component Briefs step C1, and `ideas` from the Ideas plugin's step C1).
 pub fn with_plugins(builder: HostBuilder) -> HostBuilder {
     builder
         .with_compiled(sdk(umbel_plugin_sources_filesystem::plugin()))
@@ -122,6 +122,7 @@ pub fn with_plugins(builder: HostBuilder) -> HostBuilder {
         .with_compiled(sdk(umbel_plugin_context::plugin()))
         .with_compiled(sdk(umbel_plugin_components::plugin()))
         .with_compiled(sdk(umbel_plugin_curator::plugin()))
+        .with_compiled(sdk(umbel_plugin_ideas::plugin()))
 }
 
 /// A workspace directory and its host, on a fixed clock.

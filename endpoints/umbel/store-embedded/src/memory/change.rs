@@ -132,11 +132,10 @@ impl SqliteMemoryStore {
                     )
                     .into());
                 }
-                let Some(assurance) = req
-                    .assurance
-                    .clone()
-                    .filter(umbel_store::Assurance::is_valid)
-                else {
+                let Some(assurance) = req.assurance.clone().filter(|assurance| {
+                    // A memory write's envelope is version 3: no `local` assurance.
+                    assurance.is_valid(umbel_store::MEMORY_ENVELOPE_VERSION)
+                }) else {
                     return Err(StoreError::invalid(
                         "memory-confirm: the host records how the person was proven (assurance)",
                     )

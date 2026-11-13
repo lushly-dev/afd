@@ -7,7 +7,7 @@ description: >
   seems to be ignored.
 metadata:
   source: botcore
-  version: 2.2.0
+  version: 2.3.0
   portable: true
 ---
 
@@ -89,3 +89,18 @@ Defined but not used, so setting them changes nothing:
 | `listing_budget` | `8000` | Positive integer. skill-lint warns (SK019) when the skills' descriptions plus `when_to_use` exceed it; skills with `disable-model-invocation: true` don't count |
 
 Retired skills: on every run, not only with `--update`, skill-seed removes a retired skill's botcore-managed copy (frontmatter `metadata.source: botcore`, or a top-level `source: botcore` in older copies). It does so only when no `include` list is set and `skip` doesn't name the skill (`seed_manages_retired` in `botcore/commands/skill/renames.py`). Otherwise it leaves the copy and reports it under `retired_locally_owned`.
+
+## `[sweep]`
+
+Read by the sweep-bloat skill's `scripts/sweep.mjs`, not by any command; validated like every section, so an unknown key fails loading.
+
+| Key | Default | Effect |
+|---|---|---|
+| `trend_issue` | unset | Positive integer: the open issue each pass records its measurement on. `bloat --record` and `trend` need it |
+| `cohesive` | `"sweep-cohesive.json"` | Files a pass judged cohesive, by path, with their size then and the reason |
+| `exclude` | `[]` | Tracked path prefixes never measured |
+| `churn_days` | `90` | Positive integer: commits touching a file in this many days are its churn |
+| `extensions` | unset (TypeScript, JavaScript, Python, Rust) | Source extensions measured |
+| `measures` | unset | A command printing the repository's own measures as JSON, which join the report and the trend |
+
+The threshold is the top-level `file_size_warn`; `file_size_error` stays the commit's runaway guard.

@@ -1,0 +1,11 @@
+# Every number is provisional: labels from use replace them (specification, sections 5 and 8.8).
+
+candidates = 5          # k for capture; ideas-match may ask up to max_candidates
+max_candidates = 10
+provisional = true
+
+[bands.words]           # phase 0, words lane, results/matching.counts.json
+likely_same = 0.8857    # the lowest words score that refused no probe wrongly in phase 0
+related = 0.0869        # the related band's best F1 in phase 0
+
+# [bands.fused.<model id>] likely_same, related: one table per model, written once a meaning lane is served (6.4)

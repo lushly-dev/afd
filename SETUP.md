@@ -83,7 +83,7 @@ cd alfred && uv run alfred --workspace .. lint
 | Botcore | `endpoints/botcore/` | Its own [SETUP.md](endpoints/botcore/SETUP.md) |
 | Health | `endpoints/health/`, `endpoints/health-dashboard/` | `cd endpoints/health && uv sync --frozen --extra dev && uv run --frozen pytest -q`; `pnpm -F @lushly-dev/health-dashboard test:browser` (Chromium) |
 
-`pnpm verify --list` prints the full commands your change would run. The workflows in `.github/workflows/` are the definition of what CI runs, and [gates.md](.claude/skills/do-prepare-pr/references/gates.md) explains what each gate covers.
+`pnpm verify --list` prints the full commands your change would run. The workflows in `.github/workflows/` are the definition of what CI runs, and [gates.md](.claude/skills/prepare-pr/references/gates.md) explains what each gate covers.
 
 Rust builds across this repository's worktrees share one target directory, which grows quickly; `pnpm rust:sweep` evicts builds nothing has read for three days.
 
@@ -141,7 +141,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 
 | Script | What it checks |
 |--------|---------------|
-| `check-file-size.mjs` | `.ts` under `packages/` and `.js`/`.mjs` under `scripts/`: warn >500 lines, error >1000 (the same pair as `botcore.toml`). Escape: `// afd-override: max-lines=N` (cap 1500; leave headroom). Markdown is not size-checked |
+| `check-file-size.mjs` | `.ts` under `packages/` and `.js`/`.mjs` under `scripts/`: warn >500 lines, error >1500 (the same pair as `botcore.toml`). A runaway guard with no override: the 500-line review belongs to the `sweep-bloat` skill's periodic pass, not to the commit. Generated files and Markdown are not size-checked |
 | `check-portability.mjs` | Machine-specific paths (drive letters, user homes). Escape: `// portability-ok: reason` |
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
 | `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |

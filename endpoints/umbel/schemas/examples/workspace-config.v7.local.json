@@ -1,0 +1,19 @@
+{
+	"config_version": 7,
+	"principal": {
+		"on_behalf_of": "local"
+	},
+	"spaces": {
+		"garden": {
+			"person": "human:local",
+			"verified_levels": ["terminal", "verified", "local"]
+		}
+	},
+	"person": {
+		"decision_ttl_s": 3600,
+		"local": {
+			"enabled": true,
+			"bind": "127.0.0.1:7421"
+		}
+	}
+}
