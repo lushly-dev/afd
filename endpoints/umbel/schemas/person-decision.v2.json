@@ -1,0 +1,380 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/person-decision.v2.json",
+	"title": "Umbel person decision, version 2",
+	"description": "Version 1 (phase 5 section 7.2, D115) with what the Ideas host-review specification adds (sections 3, 4 and 6, D180): pages, each page of a paged preview the page rendered, with the SHA-256 of what it showed and the ids of its items; excluded, the item ids the person unchecked before confirming, final on Approve and told to the run, never part of the input or its digest; and the level local, a decision on the local person page served on a loopback address with no login, which records no authTime or acr and is for the local person (namespace local, no issuer, no client). A decision's expiry moves to each render's time plus person.decision_ttl_s, at most 24 hours after createdAt. A version 1 row reads as version 2 with no pages and nothing excluded. One decision a person makes on the person page, in state/shared/person.sqlite3 (phase 5 section 7.2, D115). HumanRelay::begin over MCP, or the CLI, writes it pending; the page records the decision after a fresh login with user verification whose subject is for.subject in for.namespace; the retry spends it once and runs the call with humanPresent set when every field of for equals the retrying caller's and the input digest matches. It holds no text: only the preview's declared properties, which manifest version 5 requires to be in the gated command's journal.keep (ids), and the SHA-256 of the preview the page rendered from the live store. An expired decision keeps status pending past expires and is refused (PERSON_DECISION_EXPIRED at the CLI; over MCP the relay asks again); rows are purged an hour after expiry, with secure_delete. The URL https://<public host><path>/d/<id> holds no identity.",
+	"type": "object",
+	"required": [
+		"version",
+		"id",
+		"for",
+		"command",
+		"inputDigest",
+		"properties",
+		"createdAt",
+		"expires",
+		"status",
+		"decidedAt",
+		"level",
+		"authTime",
+		"acr",
+		"previewHash",
+		"pages",
+		"excluded"
+	],
+	"additionalProperties": false,
+	"properties": {
+		"version": {
+			"const": 2
+		},
+		"id": {
+			"description": "128 random bits, unpadded lowercase base32: 26 characters.",
+			"type": "string",
+			"pattern": "^[a-z2-7]{26}$"
+		},
+		"for": {
+			"description": "Who the decision is for: from credentials over MCP (the issuer alias and the client id), or from the namespaced principal.local_id at the CLI (issuer and clientId null).",
+			"type": "object",
+			"required": ["actor", "clientId", "issuer", "namespace", "subject"],
+			"additionalProperties": false,
+			"properties": {
+				"actor": {
+					"$ref": "#/$defs/actor"
+				},
+				"clientId": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+						}
+					]
+				},
+				"issuer": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "string",
+							"pattern": "^[a-z][a-z0-9-]{0,62}$"
+						}
+					]
+				},
+				"namespace": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$"
+				},
+				"subject": {
+					"description": "The namespaced id's subject part, literal or hashed (4.1).",
+					"type": "string",
+					"pattern": "^([^~\\u0000-\\u001f\\u007f-\\u009f][^\\u0000-\\u001f\\u007f-\\u009f]{0,119}|~[a-z2-7]{52})$"
+				}
+			},
+			"oneOf": [
+				{
+					"properties": {
+						"issuer": {
+							"type": "null"
+						},
+						"clientId": {
+							"type": "null"
+						}
+					}
+				},
+				{
+					"properties": {
+						"issuer": {
+							"type": "string"
+						},
+						"clientId": {
+							"type": "string"
+						}
+					}
+				}
+			]
+		},
+		"command": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+		},
+		"inputDigest": {
+			"description": "Unpadded base64url SHA-256 of the canonical JSON of the validated input (step 0a's amendment).",
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{43}$"
+		},
+		"properties": {
+			"description": "Only the preview's declared properties, at most 16: each it reads as an id (in journal.keep) a string of at most 512 characters with no control character, a number, a boolean or a list of at most 100 such strings, as journal.keep keeps them; each it shows as text (in journal.show, phase 5 step 6: a rejection's reason) a string of at most 2000 characters with no control character but line ends and tabs, held for the decision's life and never journaled.",
+			"type": "object",
+			"maxProperties": 16,
+			"propertyNames": {
+				"pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$"
+			},
+			"additionalProperties": {
+				"anyOf": [
+					{
+						"type": "string",
+						"maxLength": 512,
+						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+					},
+					{
+						"type": "string",
+						"maxLength": 2000,
+						"pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f]*$"
+					},
+					{
+						"type": "number"
+					},
+					{
+						"type": "boolean"
+					},
+					{
+						"type": "array",
+						"maxItems": 100,
+						"items": {
+							"type": "string",
+							"maxLength": 512,
+							"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
+						}
+					}
+				]
+			}
+		},
+		"createdAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+		},
+		"expires": {
+			"description": "createdAt plus person.decision_ttl_s (600 seconds by default), moved to each render's time plus it, never more than 24 hours after createdAt.",
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+		},
+		"status": {
+			"enum": ["pending", "approved", "declined"]
+		},
+		"decidedAt": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+				}
+			]
+		},
+		"level": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"enum": ["verified", "local"]
+				}
+			]
+		},
+		"authTime": {
+			"description": "The login's auth_time, ISO 8601 UTC.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+				}
+			]
+		},
+		"acr": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^[^\\s\\u0000-\\u001f\\u007f-\\u009f]{1,255}$"
+				}
+			]
+		},
+		"previewHash": {
+			"description": "sha256 of the preview the page rendered; the preview itself is never stored.",
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$"
+				}
+			]
+		},
+		"pages": {
+			"description": "Each page of the preview the page rendered for this decision, at most 200 (MAX_PREVIEW_PAGES): its number, the SHA-256 of what it showed, and the ids of its items in the order shown. An unpaged preview is one page with no items.",
+			"type": "array",
+			"maxItems": 200,
+			"items": {
+				"type": "object",
+				"required": ["page", "hash", "items"],
+				"additionalProperties": false,
+				"properties": {
+					"page": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 200
+					},
+					"hash": {
+						"type": "string",
+						"pattern": "^sha256:[0-9a-f]{64}$"
+					},
+					"items": {
+						"type": "array",
+						"maxItems": 100,
+						"uniqueItems": true,
+						"items": {
+							"$ref": "#/$defs/itemId"
+						}
+					}
+				}
+			}
+		},
+		"excluded": {
+			"description": "The item ids the person unchecked, at most 2000 (MAX_EXCLUDED), each an id a rendered page listed. Final on Approve.",
+			"type": "array",
+			"maxItems": 2000,
+			"uniqueItems": true,
+			"items": {
+				"$ref": "#/$defs/itemId"
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"status": {
+						"const": "pending"
+					}
+				},
+				"required": ["status"]
+			},
+			"then": {
+				"properties": {
+					"decidedAt": {
+						"type": "null"
+					},
+					"level": {
+						"type": "null"
+					},
+					"authTime": {
+						"type": "null"
+					},
+					"acr": {
+						"type": "null"
+					},
+					"previewHash": {
+						"type": "null"
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"decidedAt": {
+						"type": "string"
+					},
+					"level": {
+						"enum": ["verified", "local"]
+					},
+					"previewHash": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		{
+			"description": "A decision on the person page records the login: its authTime and acr.",
+			"if": {
+				"properties": {
+					"level": {
+						"const": "verified"
+					}
+				},
+				"required": ["level"]
+			},
+			"then": {
+				"properties": {
+					"authTime": {
+						"type": "string"
+					},
+					"acr": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		{
+			"description": "A decision on the local page has no login, and is for the local person: namespace local, no issuer and no client.",
+			"if": {
+				"properties": {
+					"level": {
+						"const": "local"
+					}
+				},
+				"required": ["level"]
+			},
+			"then": {
+				"properties": {
+					"authTime": {
+						"type": "null"
+					},
+					"acr": {
+						"type": "null"
+					},
+					"for": {
+						"properties": {
+							"namespace": {
+								"const": "local"
+							},
+							"issuer": {
+								"type": "null"
+							},
+							"clientId": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"actor": {
+			"description": "AFD's Actor; it follows AFD's contract version.",
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": ["human", "agent", "service", "script", "test"]
+				},
+				"id": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"onBehalfOf": {
+					"type": "string"
+				}
+			}
+		},
+		"itemId": {
+			"description": "An item's id: 1 to 64 letters, digits, '.', '_' and '-', unique across the decision's pages.",
+			"type": "string",
+			"pattern": "^[A-Za-z0-9._-]{1,64}$"
+		}
+	}
+}

@@ -235,8 +235,9 @@ fn every_key_has_a_default_and_earlier_versions_read_with_them() {
         v5.config().plugins.instances[0].records_default_access,
         DefaultAccess::Private
     );
-    assert_eq!(umbel::CONFIG_VERSION, 6);
-    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6]);
+    // Version 7 (the Ideas host-review specification) is read beside it, in `config_v7.rs`.
+    assert_eq!(umbel::CONFIG_VERSION, 7);
+    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6, 7]);
 }
 
 #[test]
@@ -285,14 +286,14 @@ fn versions_1_to_5_refuse_the_keys() {
             "plugins.notes.grants.records_write.default_access",
         );
     }
-    for version in [0, 7] {
+    for version in [0, 8] {
         let error = open(&format!("config_version = {version}\n")).unwrap_err();
         assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
-        assert!(error.message().contains("1 to 6"), "{error}");
+        assert!(error.message().contains("1 to 7"), "{error}");
     }
     let error = invalid("name = \"garden\"\n", "config_version");
     assert!(
-        error.message().contains("set config_version = 6"),
+        error.message().contains("set config_version = 7"),
         "{error}"
     );
 }
@@ -1178,7 +1179,7 @@ fn the_doctor_reads_version_6_and_names_an_unknown_key() {
         keys.suggestion
             .as_deref()
             .unwrap()
-            .contains("versions 1 to 6")
+            .contains("versions 1 to 7")
     );
     // A space's own rules are the spaces check's.
     let (_dir, root) = workspace_with(&garden("").replace("person = \"human:local\"\n", ""));
@@ -1368,7 +1369,7 @@ fn the_schema_refuses_what_the_host_refuses() {
     let refused = [
         // Versions.
         with(&|c| c["config_version"] = json!(5)),
-        json!({ "config_version": 7 }),
+        json!({ "config_version": 8 }),
         // person, verified_admits, meaning.
         garden(&|s| s["person"] = json!("agent:helper")),
         garden(&|s| s["person"] = json!("local")),
@@ -1514,18 +1515,11 @@ fn the_version_6_examples_validate_and_open() {
         }
         opens(&instance).unwrap_or_else(|error| panic!("{name}: {error}"));
     }
-    // What `umbel init` writes is the bare example.
-    let dir = tempfile::tempdir().unwrap();
-    let target = dir.path().join("fresh");
-    Workspace::init(&target, None).unwrap();
-    let written: toml::Table = fs::read_to_string(target.join("umbel.toml"))
-        .unwrap()
-        .parse()
-        .unwrap();
-    assert_eq!(
-        serde_json::to_value(written).unwrap(),
-        example("workspace-config.v6.json")
-    );
+    // What `umbel init` writes is version 7's bare example (`config_v7.rs`), which is this one
+    // lifted to version 7.
+    let mut bare = example("workspace-config.v6.json");
+    bare["config_version"] = json!(7);
+    assert_eq!(bare, example("workspace-config.v7.json"));
 
     let records = example("workspace-config.v6.records.json");
     let config = ConfigFile::parse(&as_toml(&records))

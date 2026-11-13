@@ -35,7 +35,12 @@ Code paths are relative to `endpoints/umbel/`.
   `:702`, `src/cli/preview.rs:14` to `:20` and `:85` to `:98`, `store/src/envelope.rs:183` to `:196`,
   `packages/rust/src/server/human_relay.rs:10` to `:22`, `confirmations.rs:66` to `:74`, and
   `.github/workflows/umbel.yml:378` to `:395`. **No Rust was built or run.**
-- **Not done:** everything. **Follow-ups:** the [table at the end](#follow-ups).
+- **Step H0 is merged** (#1081). **Step H1, the shapes, is implemented** (2026-11-12) on the branch
+  `lush/ideas-h1-shapes`, amended below ([H1](#amendments-from-step-h1), A1 to A8): configuration version 7 with
+  `[person]`, `[person.local]` and a space's `verified_levels`, parsed and validated, and its schema; the person
+  decision version 2; `Assurance::local()`, a version-aware `is_valid` and envelope version 4; `CallContext.preview_page`;
+  `PersonDecision.excluded` and `level`. Nothing acts on them yet.
+- **Not done:** steps H2 and H3. **Follow-ups:** the [table at the end](#follow-ups).
 
 ## What this specification serves
 
@@ -347,6 +352,24 @@ H1 needs H0; H2 needs H1; H3 needs H2. The plugin's step C4 needs H3.
 | 8 | **Envelope version 4, only for `local`** (6.4) | Amend version 3: one schema, but a reader of version 3 would accept a level it does not know |
 | 9 | **`verified_only` leaves `local` out by default** | Admit it: a request for verified content would return what an agent may have confirmed on the local page |
 
+## Amendments
+
+### Amendments from step H1
+
+Step H1 (shapes) found these points this document had wrong against the code, or had not settled, and took the
+narrowest reading of each. None changes a decision row.
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A1 | Section 3 says the decision row gains "`level`, `method`: as today, plus `local` and `local-page`". Version 1 of the row has a `level` and no `method` (`schemas/person-decision.v1.json`) | Version 2 adds only `pages` and `excluded`. `level` becomes `verified` or `local`, and the method follows from it, as the mark's does. A `local` decision records no `authTime` or `acr`, and its `for` is the local person: namespace `local`, no issuer, no client (`schemas/person-decision.v2.json`'s `allOf`). A page's `hash` is `sha256:` and 64 hex digits, as `previewHash` is |
+| A2 | `PERSON_VERSION` becomes 2 in H1, but no row holds a page or an item until H2 | The row's test view (`Decision::to_v2`, `src/shared/person.rs:127`) writes `pages` and `excluded` as empty lists until H2 stores them. No column is added in H1 |
+| A3 | Section 6.4 says version 4 is "written only for an envelope that carries a `local` assurance" and leaves open whether a reader accepts a version 4 envelope without one | The store refuses it: version 4 holds a confirmation with a `local` assurance and nothing else (`check_version_3_fields`, `store/src/envelope.rs:529`), and the schema says the same. So no envelope has two spellings. `LOCAL_ASSURANCE_ENVELOPE_VERSION` names the 4 |
+| A4 | Section 6.4 makes `is_valid` version-aware and names no signature; three callers hold an assurance outside an envelope | `Assurance::is_valid(&self, version: u32)` (`store/src/envelope.rs:204`). A lane decision (`store/src/lane.rs:805`) and `memory-confirm` (`store-embedded/src/memory/change.rs:137`) pass version 3, so neither takes `local` before H3 decides where a `local` decision is stored. `src/provenance.rs` passes the event's own envelope version |
+| A5 | Section 4 places `PERSON_DECISION_TTL_MAX_S` beside `PERSON_DECISION_TTL_S` in `src/auth/mod.rs` | The configuration reads it, so it lives with the configuration's other limits: `PERSON_DECISION_TTL_MIN_S` (60), `PERSON_DECISION_TTL_MAX_S` (86 400) and `DEFAULT_DECISION_TTL_S`, which is `crate::auth::PERSON_DECISION_TTL_S`, in `src/workspace/person.rs:35`. `src/auth/` is unchanged |
+| A6 | Section 7 refuses "a `verified_levels` entry that is not a level", and leaves an empty list and a repeated level open | Each entry is `terminal`, `verified` or `local`, at most once, and the list names at least one (`verified_levels`, `src/workspace/person.rs:208`). An empty list would make `verified_only` admit no affirmation at all, which no deployer needs a setting for. The levels are `AssuranceLevel` |
+| A7 | Section 6.1 leaves open which key a refusal names, and whether a disabled page's `bind` is checked | `bind` is checked whether or not the page is enabled. `enabled = true` outside mode `none`, or without the `auth` feature, is refused at `person.local.enabled` (`local_page`, `src/workspace/person.rs:165`); `enabled = false` is accepted in any mode. The schema states the mode rule; the feature is not a schema's to state |
+| A8 | Section 3 gives `PersonMark.excluded` to section 3's step, and section 2 gives H1 `CallContext.preview_page` with nothing to set it | `PersonMark` gains `excluded` in H1 (absent from the mark when empty, so a mark written before reads), and `attested` fills `PersonDecision.excluded` and `level` from the mark. The host sets `preview_page` to `None` everywhere until H2 (`src/plugins/compiled.rs:241`). Configuration version 7's tests are in `tests/config_v7.rs`, which section 9 does not name, beside `tests/person_ttl.rs`'s parsing half; the version 2 decision's and version 4 envelope's schema tests are in `tests/schemas/review.rs` |
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Where it goes |
@@ -354,3 +377,4 @@ H1 needs H0; H2 needs H1; H3 needs H2. The plugin's step C4 needs H3.
 | 2026-11-12 | This specification | Revised after an independent review the same day (three blockers, nine improvements, all taken: the registration path, the unpaged preview, the stored assurance, the page's fields, the local page's rules, H0, the lifetime) | A focused pass on the revision, before H0 |
 | 2026-11-12 | This specification | Whether the scope resolver, which lists a person-gated command only to callers whose namespace serves verified commands (`loader.rs:1353` to `:1357`), filters anything in mode `none`, where `filter_tools_by_scope` gates `person_page_served` (`loader.rs:1348`) | H3, read and pinned in `person_local.rs` |
 | 2026-11-12 | The plugin's step C1 | A `confirm_preview` target must declare `returns = { preview: string }` with `additionalProperties = false` (`src/plugins/manifest/v4.rs:197`), which refuses section 2's paged answer with `items`. The plugin declares that `returns` today (its amendment C1-3) | Step H2: admit the paged shape in the rule |
+| 2026-11-12 | Step H1's review | An event's envelope is capped at `PROVENANCE_VERSION`, 3 (`src/provenance.rs:432`), so `is_confirmation(.., 3)` would silently drop a journaled confirmation whose assurance is `local` from the event, where the store keeps it in version 4 | H3: give the event its own version 4 for a `local` confirmation, or refuse to journal one, and pin it in `person_local.rs` |

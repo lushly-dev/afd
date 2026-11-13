@@ -111,6 +111,15 @@ pub struct CallContext {
     /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
     /// a mounted server always see none.
     pub person_check: Option<PersonCheck>,
+    /// The page of its preview the person page asks a `confirm_preview` command for (the Ideas
+    /// host-review specification, section 2): `Some(n)`, from 1, on every render of a decision's
+    /// page; `None` everywhere else, the CLI and the host's own check included, where the preview
+    /// answers exactly `{ preview }`. The page number is never part of the command's input, so it
+    /// is never part of the digest the decision binds. Host-owned, as [`Self::person_check`] is.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see none.
+    pub preview_page: Option<u32>,
 }
 
 /// The call the host is about to ask a person to decide (phase 5 step 6), as
@@ -143,6 +152,16 @@ pub struct PersonDecision {
     pub auth_time: String,
     /// The login's `acr`.
     pub acr: String,
+    /// How the person was proven: `verified` (the person page, after a login with user
+    /// verification) or `local` (the local person page, with no login; the Ideas host-review
+    /// specification, section 6.5). A `local` decision has an empty `namespace`, `auth_time` and
+    /// `acr`.
+    pub level: String,
+    /// The ids of the preview's items the person pulled out on the page before confirming (the
+    /// Ideas host-review specification, section 3); empty when the preview had none. The command's
+    /// input and its digest are unchanged: this is how the run learns what was pulled out, and a
+    /// plugin whose preview answers items must leave those out of what it applies.
+    pub excluded: Vec<String>,
 }
 
 /// Who ran a pipeline step, as the host attests it (phase 4 specification, section 10.1): the

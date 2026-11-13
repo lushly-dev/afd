@@ -310,6 +310,7 @@ impl<P: Plugin> CommandHandler for Handler<P> {
             delegation_chain: Vec::new(),
             person_decision: None,
             person_check: None,
+            preview_page: None,
         };
         let services = Services {
             shared: Arc::clone(&self.shared),

@@ -54,6 +54,7 @@ pub fn run(plugin: &impl Plugin, name: &str, input: &str, context: types::CallCo
         delegation_chain: Vec::new(),
         person_decision: None,
         person_check: None,
+        preview_page: None,
     };
     let outcome = match serde_json::from_str::<Value>(input) {
         Ok(input) => {

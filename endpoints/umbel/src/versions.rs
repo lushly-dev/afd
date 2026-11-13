@@ -45,8 +45,10 @@ pub const CURATOR_VERSION: u32 = 1;
 
 /// Every principal projection version (`schemas/principal.v0.json`, `principal.v1.json`).
 pub const PRINCIPAL_VERSIONS: &[u32] = &[0, 1];
-/// Every provenance envelope version (`schemas/provenance-envelope.v0.json` to `.v3.json`).
-pub const ENVELOPE_VERSIONS: &[u32] = &[0, 1, 2, 3];
+/// Every provenance envelope version (`schemas/provenance-envelope.v0.json` to `.v4.json`). Version
+/// 4 is version 3 with the `local` assurance, written only for an envelope that carries one (the
+/// Ideas host-review specification, section 6.4).
+pub const ENVELOPE_VERSIONS: &[u32] = &[0, 1, 2, 3, 4];
 /// Every event version (`schemas/event.v0.json` to `event.v3.json`).
 pub const EVENT_VERSIONS: &[u32] = &[0, 1, 2, 3];
 /// Every memory record version (`schemas/memory-record.v1.json`, `memory-record.v2.json`).
@@ -59,5 +61,7 @@ pub const LOCATOR_VERSIONS: &[u32] = &[1, 2];
 pub const TASK_VERSION: u32 = 1;
 /// The usage event, version 1 (`schemas/usage-event.v1.json`, phase 5 section 12.1).
 pub const USAGE_VERSION: u32 = 1;
-/// The person decision, version 1 (`schemas/person-decision.v1.json`, phase 5 section 7.2).
-pub const PERSON_VERSION: u32 = 1;
+/// The person decision, version 2 (`schemas/person-decision.v2.json`, the Ideas host-review
+/// specification, section 3): version 1 (phase 5 section 7.2) with the pages the person was shown
+/// and the items they pulled out, and the level `local`.
+pub const PERSON_VERSION: u32 = 2;
