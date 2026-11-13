@@ -4,7 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { checkHost, HOST_ROUTE_SEGMENTS, hostKindOf, hostRouteSegments } from './check.js';
 import { loadServerConfig } from './config.js';
 import { resolveSecrets } from './secrets.js';
-import { deploymentFile, fixtureDist, serverConfig, temporaryDirectory } from './test-support.js';
+import {
+	deploymentFile,
+	expectLooseSuggestion,
+	fixtureDist,
+	loosen,
+	serverConfig,
+	temporaryDirectory,
+} from './test-support.js';
 
 const SECRET = 'a'.repeat(32);
 
@@ -29,6 +36,8 @@ async function secretFile(
 	const path = join(root, name);
 	await writeFile(path, value, { mode });
 	await chmod(path, mode);
+	// Windows keeps no mode bits: a group or other bit becomes a grant to BUILTIN\Users.
+	if (process.platform === 'win32' && (mode & 0o077) !== 0) loosen(path);
 	return path;
 }
 
@@ -385,15 +394,16 @@ describe('P6-E1: secrets and modes (3.2, section 13)', () => {
 		});
 		const { refusals } = resolveSecrets(server);
 		expect(codes(refusals)).toEqual([`HOST_SECRET_PERMISSIONS ${key}`]);
-		expect(refusals[0]?.suggestion).toBe(`Run \`chmod 600 ${loose}\`.`);
+		expectLooseSuggestion(refusals[0]?.suggestion, loose, 'file');
 	});
 
 	it('P6-E1: refuses a data directory readable by its group or others, naming chmod 700', async () => {
 		const { data } = await setup();
 		await chmod(data, 0o750);
+		if (process.platform === 'win32') loosen(data);
 		const { refusals } = resolveSecrets(serverConfig(data));
 		expect(codes(refusals)).toEqual(['HOST_SECRET_PERMISSIONS data']);
-		expect(refusals[0]?.suggestion).toBe(`Run \`chmod 700 ${data}\`.`);
+		expectLooseSuggestion(refusals[0]?.suggestion, data, 'directory');
 	});
 
 	it('P6-E1: refuses an unreadable TLS certificate', async () => {

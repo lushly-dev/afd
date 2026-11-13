@@ -29,12 +29,19 @@ name = "loam-mail"
 path = "src/main.rs"
 
 [dependencies]
-# Step B5 adds `server` when it serves MCP; until then the lock stays without the MCP SDK.
-afd = { path = "../../../../../packages/rust", default-features = false, features = ["native", "approval", "journal-file"] }
+# `server` serves MCP over HTTP and stdio (the specification's 3.2 to 3.4).
+afd = { path = "../../../../../packages/rust", default-features = false, features = ["native", "approval", "journal-file", "server"] }
 # IMAP (the specification's section 5.2): its framing and its parser. The engine sends its own
 # commands and reads every response itself.
 async-imap = { version = "0.12", default-features = false, features = ["runtime-tokio"] }
 async-trait = "0.1"
+# `serve`'s HTTP surface: the layer in front of every route, `/mcp` and the command line's route
+# (the specification's 3.4). HTTP/1.1 on loopback only.
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+# The command line's call to a running server, over hyper's client connection.
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 # The approval middleware's signing key, made afresh for each process.
 getrandom = "0.3"
 # Reading a message's HTML for the evidence of the specification's section 6: the text a person
@@ -50,11 +57,14 @@ mail-parser = "1.0.1"
 # The store (the specification's section 4). SQLite is bundled, at the version Umbel pins, so the
 # repository carries one.
 rusqlite = { version = "0.41", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The log's file names, and a message's identity.
 sha2 = "0.11"
 tantivy = { version = "0.27", default-features = false, features = ["mmap", "stopwords", "stemmer", "lz4-compression"] }
-tokio = { version = "1", default-features = false, features = ["rt", "time", "net", "io-util", "signal", "macros"] }
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "time", "net", "io-util", "io-std", "signal", "macros", "sync"] }
+# The MCP service mounted at `/mcp`, and driving the router in tests.
+tower = { version = "0.5", features = ["util"] }
 # TLS to the provider, with the operating system's certificates. `ring` rather than the default
 # `aws-lc-rs`, which needs CMake to build.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }

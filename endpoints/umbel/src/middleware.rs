@@ -336,9 +336,19 @@ pub(crate) struct GateContext {
     /// Where a sealed result's host metadata waits for the journal.
     pub(crate) stash: Arc<crate::positions::Stash>,
     /// The shared stores a person-decided call is checked and spent against (phase 5 section
-    /// 7.2, step 5); `None` in mode `none` and without the `auth` feature, where nothing is
-    /// decided on the person page.
+    /// 7.2, step 5); `None` in mode `none` without the local page, and without the `auth`
+    /// feature, where nothing is decided on the person page.
     pub(crate) decisions: Option<Arc<dyn crate::person::DecisionLedger>>,
+    /// The local arm (the Ideas host-review specification, section 6.2), where the local page is
+    /// served; `None` elsewhere.
+    pub(crate) local: Option<LocalArm>,
+}
+
+/// What the plugin gate's local arm needs: the gate, set once the person service is built, and
+/// the marks it hands to the handler of a call it admitted.
+pub(crate) struct LocalArm {
+    pub(crate) gate: crate::person::LocalGateSlot,
+    pub(crate) marks: Arc<crate::person::LocalMarks>,
 }
 
 /// The plugin gate (specification section 8.1), between the space check and approvals. For a
@@ -408,20 +418,28 @@ pub(crate) fn plugin_gate(
                         return failure(error);
                     }
                 }
-                if entry.require_human
-                    && let Err(error) = person_gate(
+                let trace = context.trace_id.clone().unwrap_or_default();
+                // The mark of a call the local arm admitted, held for its handler while it runs.
+                let mut held_mark = None;
+                if entry.require_human {
+                    match person_gate(
                         &entry,
                         &name,
                         &input,
                         &context,
                         config,
                         gate.decisions.as_deref(),
+                        gate.local.as_ref(),
                     )
-                {
-                    return failure(error);
+                    .await
+                    {
+                        Err(error) => return failure(error),
+                        Ok(held) => held_mark = held,
+                    }
                 }
-                let trace = context.trace_id.clone().unwrap_or_default();
                 let mut result = next().await;
+                // Whatever the handler did not take goes with the call.
+                drop(held_mark);
                 let record = gate.ledger.take(&trace);
                 sanitize(&mut result, &entry, &spaces, record);
                 if caller.seals_positions() {
@@ -438,16 +456,42 @@ pub(crate) fn plugin_gate(
 /// CLI's mark after its prompt, and `verified` a decision on the person page for this call; over
 /// MCP only `verified`, and only a decision for this call; anywhere else (a batch, an in-process
 /// agent, the library) nothing. The terminal mark never stands in for `verified`.
-fn person_gate(
+///
+/// Where the local page is served (`local`, the Ideas host-review specification, section 6.2),
+/// a `verified` MCP call goes to its local arm instead: a decision on the local page for this
+/// call, spent once, whose mark (level `local`) the gate holds for the handler to carry, in a
+/// slot reserved before anything is spent. Every other arm answers none: the relay or the CLI
+/// set theirs before the call.
+async fn person_gate(
     entry: &GateEntry,
     name: &str,
     input: &Value,
     context: &CommandContext,
     config: &crate::workspace::Config,
     ledger: Option<&dyn crate::person::DecisionLedger>,
-) -> Result<(), CommandError> {
+    local: Option<&LocalArm>,
+) -> Result<Option<crate::person::HeldMark>, CommandError> {
     use crate::plugins::Assurance;
     let person = entry.person.unwrap_or_default();
+    if context.interface == Some(CommandInterface::Mcp)
+        && person.mcp == Some(Assurance::Verified)
+        && let Some(local) = local
+    {
+        let Some(gate) = local.gate.get() else {
+            return Err(crate::person::not_decided(name));
+        };
+        // The call's slot first: a call that cannot be handed its mark (no trace, or one another
+        // call in flight holds) is refused before a decision is spent for it.
+        let Some(held) = local
+            .marks
+            .reserve(context.trace_id.as_deref().unwrap_or_default())
+        else {
+            return Err(crate::person::not_decided(name));
+        };
+        let mark = gate.decide(name, input, context).await?;
+        held.fill(mark);
+        return Ok(Some(held));
+    }
     match context.interface {
         Some(CommandInterface::Cli) if person.cli == Assurance::Verified => crate::person::admit(
             config,
@@ -477,6 +521,7 @@ fn person_gate(
         _ if person.needs_preview() => Err(crate::person::not_decided(name)),
         _ => Err(require_human_refusal(name)),
     }
+    .map(|()| None)
 }
 
 /// Whether a person at a terminal confirmed `command`: the call came through the CLI and the CLI

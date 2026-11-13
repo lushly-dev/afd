@@ -1,0 +1,40 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is the lane's state as the review opens; loading it runs the lane's review-open step, which
+# computes the review, judges the experiments that are due and restores the dials it reverts.
+# Nothing needed an answer, so no event woke anyone.
+name: Stay quiet when there is too little to judge
+description: >-
+  When few merges landed since the last review, I want the per-merge numbers left unjudged and no experiment
+  decided, while time-based numbers are still checked, so that a quiet afternoon never starts or ends a
+  change, but a lane that merged little while work waited is still noticed.
+job: stay-quiet-on-too-little
+tags: [improvement]
+fixture:
+  file: fixtures/thin.json
+  base: fresh.json
+steps:
+  - description: >-
+      Three merges leave per-merge numbers unjudged; idle seats, per lane-hour, are judged and normal;
+      the review closes by itself
+    command: factory-health
+    expect:
+      success: true
+      data:
+        window: { merges: 3, laneHours: 5 }
+        metrics:
+          queueWaitMinutes: { value: 31, state: insufficient }
+          idleSeatHours: { state: normal }
+        anomalies: { length: 0 }
+        verdicts:
+          exp-7: { verdict: inconclusive }
+          exp-8: { verdict: inconclusive }
+        review: { state: closed, note: { contains: merges } }
+  - description: The running experiment carries over, its count of reviews advanced
+    command: improvement-list
+    input: { state: running }
+    expect:
+      success: true
+      data:
+        experiments:
+          - { id: exp-7, checks: 2 }
+          - { id: exp-8, checks: 2 }

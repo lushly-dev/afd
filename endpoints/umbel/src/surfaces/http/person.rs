@@ -111,6 +111,53 @@ pub(crate) fn server(
     }))
 }
 
+/// The local person page (the Ideas host-review specification, section 6.3): the page's routes
+/// at the root, `/d/<id>`, `/d/` and `/d/style.css`, over plain HTTP on the loopback bind of
+/// `[person.local]`, which configuration refuses to be anything else. Its layers: the body cap of
+/// the page's largest form, then the page's own limit and checks (its `Host` exactly the bind,
+/// against DNS rebinding; a post's `Origin` exactly `http://<bind>`; the CSRF token bound to the
+/// decision and the page shown). No TLS, no `/health`, and nothing else is served.
+///
+/// # Errors
+/// The errors of opening `state/shared/limits.sqlite3`.
+pub(crate) fn local_server(
+    workspace: &Workspace,
+    service: &Arc<PersonService>,
+) -> Result<HttpServer, HostError> {
+    let config = workspace.config();
+    let lock_timeout = std::time::Duration::from_millis(config.store.lock_timeout_ms);
+    let limits: Arc<dyn crate::shared::limits::LimitStore> =
+        Arc::new(crate::shared::limits::SqliteLimits::open(
+            &workspace.layout().limits_store(),
+            config.store.lock_timeout_ms,
+        )?);
+    let page = super::person_page(Some(service), "", &limits, lock_timeout).ok_or_else(|| {
+        HostError::from(crate::workspace::WorkspaceError::config_invalid(
+            "person.local.bind",
+            "the local person page cannot be served at this address",
+        ))
+    })?;
+    let pages = tower::service_fn(move |request: Request| {
+        let page = page.clone();
+        async move {
+            if page.serves(request.uri().path()) {
+                Ok::<Response, Infallible>(page.handle(request).await)
+            } else {
+                Ok(plain(StatusCode::NOT_FOUND))
+            }
+        }
+    });
+    let router = Router::new()
+        .fallback_service(pages)
+        .layer(from_fn_with_state(MAX_BODY_BYTES, layers::cap_body));
+    Ok(HttpServer {
+        router,
+        tls: None,
+        person: None,
+        proxies: Arc::from(Vec::new()),
+    })
+}
+
 /// Every answer, refusals included, carries [`HSTS`].
 async fn strict_transport(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;

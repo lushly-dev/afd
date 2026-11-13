@@ -1,0 +1,159 @@
+{
+	"laneHost": "workstation",
+	"now": "2030-01-10T12:00:00Z",
+	"lane": {
+		"running": true,
+		"paused": false,
+		"runId": "run-10"
+	},
+	"baseline": {
+		"days": 7,
+		"reviews": 12,
+		"merges": 96,
+		"metrics": {
+			"queueWaitMinutes": {
+				"median": 9,
+				"spread": 3
+			},
+			"validationMinutesPerMerge": {
+				"median": 18,
+				"spread": 3
+			},
+			"validationsPerMerge": {
+				"median": 1.2,
+				"spread": 0.2
+			},
+			"flakyRerunsPerMerge": {
+				"median": 0.1,
+				"spread": 0.1
+			},
+			"mainMovedRerunsPerMerge": {
+				"median": 0.2,
+				"spread": 0.1
+			},
+			"toolingEjectionsPerMerge": {
+				"median": 0.04,
+				"spread": 0.1
+			},
+			"idleSeatHours": {
+				"median": 0.1,
+				"spread": 0.1
+			},
+			"idleWakesPerMerge": {
+				"median": 0.3,
+				"spread": 0.15
+			},
+			"revertsPerMerge": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"experiencesRejected": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"mainBroken": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"checksRun": {
+				"median": 412,
+				"spread": 21
+			},
+			"adjustedThroughput": {
+				"median": 1,
+				"spread": 0.15
+			},
+			"planSharePerMerge": {
+				"median": 0.9,
+				"spread": 0.2
+			},
+			"mergedPerLaneHour": {
+				"median": 0.86
+			}
+		},
+		"mix": {
+			"bounded": 0.62,
+			"integrative": 0.31,
+			"deep": 0.07
+		},
+		"cycleMinutes": {
+			"bounded": 95,
+			"integrative": 210,
+			"deep": 480
+		},
+		"weightedMinutesPerLaneHour": 200
+	},
+	"dials": {
+		"lane.slots": 2,
+		"cells.max": 3,
+		"cells.issuesMax": 1,
+		"host.minFreeGb": 8,
+		"lane.queueTarget": 2,
+		"lane.queueMax": 10,
+		"plans.ceiling": 85,
+		"fable.ceiling": 50,
+		"lane.coverageEvery": 5,
+		"review.enabled": true,
+		"review.minHours": 12,
+		"review.baselineDays": 7,
+		"review.minMerges": 10,
+		"review.minLaneHours": 4,
+		"review.maxChecks": 4,
+		"review.memoryDays": 30,
+		"review.maxBadVerdicts": 3,
+		"review.cellsMax": 1,
+		"review.issuesMax": 3,
+		"review.dials": ["lane.slots", "lane.queueTarget", "cells.max:up", "lane.queueMax:up"]
+	},
+	"review": {
+		"id": "review-15",
+		"lastAt": "2030-01-09T20:00:00Z",
+		"trendIssue": 140
+	},
+	"window": {
+		"from": "2030-01-09T20:00:00Z",
+		"to": "2030-01-10T12:00:00Z",
+		"merges": 10,
+		"laneHours": 16,
+		"byProfile": {
+			"bounded": 2,
+			"integrative": 3,
+			"deep": 5
+		},
+		"metrics": {
+			"queueWaitMinutes": 8,
+			"validationMinutesPerMerge": 21,
+			"validationsPerMerge": 1.2,
+			"flakyRerunsPerMerge": 0.1,
+			"mainMovedRerunsPerMerge": 0.2,
+			"toolingEjectionsPerMerge": 0.05,
+			"idleSeatHours": 0.1,
+			"idleWakesPerMerge": 0.3,
+			"revertsPerMerge": 0,
+			"experiencesRejected": 0,
+			"mainBroken": 0,
+			"checksRun": 410,
+			"planSharePerMerge": 0.9,
+			"ownerWaitHours": 2,
+			"adjustedThroughput": 1.01,
+			"mergedPerLaneHour": 0.63
+		}
+	},
+	"experiments": [
+		{
+			"id": "exp-1",
+			"metric": "queueWaitMinutes",
+			"change": {
+				"kind": "dial",
+				"key": "lane.slots",
+				"from": 1,
+				"to": 2
+			},
+			"state": "running",
+			"before": 22,
+			"sinceMerges": 4,
+			"checks": 0
+		}
+	],
+	"events": []
+}

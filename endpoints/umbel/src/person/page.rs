@@ -41,6 +41,19 @@
 //! positions left checked, which the store maps to the ids of the page it rendered. Only each
 //! page's SHA-256 and its items' ids are kept, in the decision's row; a page that cannot be shown
 //! uncut leaves only Decline, and Approve is offered once every page was shown.
+//!
+//! **The local page** (the Ideas host-review specification, section 6.3) serves the same routes
+//! at the root of `http://<person.local.bind>`, for the local person's decisions only, with no
+//! login and so no cookie (`__Host-` needs `Secure`, which plain HTTP cannot set) and no
+//! `/d/return`. Its CSRF token is the HMAC of the decision id and the string `local` (where the
+//! hosted page has the login id), with the page shown and its hash, as A21 binds the hosted
+//! page's. A request's `Host` must be the bind's address and port exactly, against DNS rebinding:
+//! another site that rebinds its name to `127.0.0.1` sends its own name. A post's `Origin` must be
+//! exactly `http://<bind>`, or `null` with `Sec-Fetch-Site: same-origin`; a page renders only for
+//! a request whose `Sec-Fetch-Site`, when sent, is `same-origin` or `none`, as A25 has the hosted
+//! page do. The headers, the escaping and the request limit are the hosted page's. These checks
+//! stop another web site, not a process on this machine: the page proves that something here
+//! posted its form, and records `local` (6.5).
 
 use std::sync::Arc;
 
@@ -73,6 +86,11 @@ const MAX_FORM_BYTES: usize = 4096;
 pub(crate) const PAGE_REQUESTS_PER_MINUTE: u64 = 30;
 /// The cookie name's prefix; the login id follows.
 const COOKIE_PREFIX: &str = "__Host-umbel-person-";
+/// What the local page's CSRF token binds where the hosted page's binds the login id: no login
+/// id is ever this string, since every one is 26 characters of base32.
+const LOCAL_LOGIN: &str = "local";
+/// What the local page says of itself on every page (section 6.5).
+const NO_SIGN_IN: &str = "This page has no sign-in. Anything on this machine can open it, every other account on this machine included: what it shows can be read, and a request approved, by any of them.";
 
 const STYLE: &str = "body{font-family:system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#1b1b1f;background:#fbfbfd}\
 h1{font-size:1.4rem}dl{display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1rem}dt{font-weight:600}\
@@ -91,10 +109,13 @@ pub(crate) struct PersonPage {
     host: String,
     /// The public URL's port, when it names one.
     port: Option<u16>,
-    /// `https://<host>[:<port>]`.
+    /// `https://<host>[:<port>]`, or `http://<bind>` on the local page.
     origin: String,
     /// [`PAGE_REQUESTS_PER_MINUTE`] per peer.
     limit: Arc<crate::surfaces::http::layers::SlidingLimit>,
+    /// On the local page, its bind as a `Host` header must name it (section 6.3); `None` on the
+    /// hosted page.
+    local: Option<String>,
 }
 
 impl std::fmt::Debug for PersonPage {
@@ -151,9 +172,24 @@ impl PersonPage {
         let url = reqwest::Url::parse(service.page_url()).ok()?;
         let host = url.host_str()?.to_ascii_lowercase();
         let port = url.port();
-        let origin = match port {
-            Some(port) => format!("https://{host}:{port}"),
-            None => format!("https://{host}"),
+        // The local page: the bind, exactly as configuration writes it (one spelling for each
+        // address, `[::1]` bracketed), over plain HTTP.
+        let local = service
+            .is_local()
+            .then(|| {
+                service
+                    .page_url()
+                    .strip_prefix("http://")
+                    .map(str::to_owned)
+            })
+            .flatten();
+        if service.is_local() && local.is_none() {
+            return None;
+        }
+        let origin = match (&local, port) {
+            (Some(bind), _) => format!("http://{bind}"),
+            (None, Some(port)) => format!("https://{host}:{port}"),
+            (None, None) => format!("https://{host}"),
         };
         Some(Self {
             service,
@@ -162,6 +198,7 @@ impl PersonPage {
             port,
             origin,
             limit,
+            local,
         })
     }
 
@@ -198,7 +235,7 @@ impl PersonPage {
     }
 
     /// Whether the request names the public URL's host: its host, and its port when the public
-    /// URL names one.
+    /// URL names one. On the local page, exactly its bind's address and port (section 6.3).
     fn host_ok(&self, headers: &HeaderMap) -> bool {
         let mut values = headers.get_all(header::HOST).iter();
         let (Some(value), None) = (values.next(), values.next()) else {
@@ -207,6 +244,9 @@ impl PersonPage {
         let Ok(value) = value.to_str() else {
             return false;
         };
+        if let Some(bind) = &self.local {
+            return value == bind;
+        }
         let (host, port) = if let Some(rest) = value.strip_prefix('[') {
             let Some((inner, after)) = rest.split_once(']') else {
                 return false;
@@ -278,6 +318,9 @@ impl PersonPage {
         };
         let rest = rest.to_owned();
         let method = request.method().clone();
+        if self.local.is_some() {
+            return self.local_route(&rest, &method, request).await;
+        }
         match (rest.as_str(), &method) {
             ("style.css", &Method::GET) => {
                 let mut response = Response::new(Body::from(STYLE));
@@ -298,6 +341,94 @@ impl PersonPage {
             (id, _) if is_id(id) => self.method_not_allowed("GET, POST"),
             _ => self.not_found(),
         }
+    }
+
+    /// The style sheet.
+    fn style() -> Response {
+        let mut response = Response::new(Body::from(STYLE));
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/css; charset=utf-8"),
+        );
+        with_headers(response)
+    }
+
+    /// The local page's routes (section 6.3): the style sheet, the list of the local person's
+    /// pending decisions, a decision's pages and its form; no `/d/return`, since nothing logs in.
+    async fn local_route(&self, rest: &str, method: &Method, request: Request) -> Response {
+        match (rest, method) {
+            ("style.css", &Method::GET) => Self::style(),
+            ("", &Method::GET) => {
+                if !Self::own_request(request.headers()) {
+                    return self.foreign();
+                }
+                if Self::query(request.uri().query(), &[]).is_none() {
+                    return self.not_found();
+                }
+                let config = self.service.workspace_config();
+                let Some(subject) = super::local_subject(config) else {
+                    return self.unavailable_now();
+                };
+                self.list_page(super::LOCAL_NAMESPACE, &subject, self.service.now())
+                    .await
+            }
+            (id, &Method::GET) if is_id(id) => {
+                self.open_local(id, request.uri().query(), request.headers())
+                    .await
+            }
+            (id, &Method::POST) if is_id(id) => self.decide(id, request).await,
+            ("" | "style.css", _) => self.method_not_allowed("GET"),
+            (id, _) if is_id(id) => self.method_not_allowed("GET, POST"),
+            _ => self.not_found(),
+        }
+    }
+
+    /// Whether a request is the page's own or typed, by its fetch metadata, which no page can
+    /// set: `Sec-Fetch-Site` `same-origin` or `none`, or not sent at all (a client that is not a
+    /// browser, which another site cannot drive).
+    fn own_request(headers: &HeaderMap) -> bool {
+        match headers.get("sec-fetch-site") {
+            None => true,
+            Some(value) => matches!(value.to_str(), Ok("same-origin" | "none")),
+        }
+    }
+
+    /// The local page's answer to a request another site made.
+    fn foreign(&self) -> Response {
+        self.message(
+            StatusCode::FORBIDDEN,
+            "Open it directly",
+            "Open the request's link in this machine's browser, as it was given. Nothing was recorded.",
+        )
+    }
+
+    /// `GET /d/<id>[?page=<n>]` on the local page: page `n` (1 when not named) of a pending,
+    /// live decision of the local person, with no login.
+    async fn open_local(&self, id: &str, query: Option<&str>, headers: &HeaderMap) -> Response {
+        let Some(params) = Self::query(query, &["page"]) else {
+            return self.not_found();
+        };
+        let page = match params.get("page") {
+            None => 1,
+            Some(text) => match Self::page_number(text) {
+                Some(page) => page,
+                None => return self.not_found(),
+            },
+        };
+        if !Self::own_request(headers) {
+            return self.foreign();
+        }
+        let decision = match self.service.decision(id).await {
+            Ok(Some(decision)) => decision,
+            Ok(None) => return self.not_found(),
+            Err(_) => return self.unavailable_now(),
+        };
+        let now = self.service.now();
+        if decision.status != Status::Pending || !decision.live(now) || !decision.is_local() {
+            return self.not_found();
+        }
+        let shown = self.service.preview_page(&decision, page).await;
+        self.respond(&decision, LOCAL_LOGIN, shown).await
     }
 
     /// The limit's bucket of a request: the decision its path names, or the login its `state`
@@ -877,14 +1008,22 @@ impl PersonPage {
                 "<table><thead><tr><th>Command</th><th>Spaces</th><th>Asked at</th><th>Expires</th></tr></thead><tbody>{rows}</tbody></table>"
             )
         };
+        let intro = if self.local.is_some() {
+            format!(
+                "<p>Requests waiting for <b>{subject}</b> on this machine. {NO_SIGN_IN} Open a request to review it.</p>",
+                subject = escape(subject),
+            )
+        } else {
+            format!(
+                "<p>Signed in as <b>{namespace}/{subject}</b>. Open a request to review it; each asks you to sign in for it.</p>",
+                namespace = escape(namespace),
+                subject = escape(subject),
+            )
+        };
         self.page(
             StatusCode::OK,
             "Pending requests",
-            &format!(
-                "<p>Signed in as <b>{namespace}/{subject}</b>. Open a request to review it; each asks you to sign in for it.</p>{body}",
-                namespace = escape(namespace),
-                subject = escape(subject),
-            ),
+            &format!("{intro}{body}"),
         )
     }
 
@@ -984,7 +1123,11 @@ impl PersonPage {
             .for_
             .client_id
             .as_deref()
-            .unwrap_or("the umbel command at a terminal");
+            .unwrap_or(if decision.is_local() {
+                "an agent over stdio on this machine"
+            } else {
+                "the umbel command at a terminal"
+            });
         let chain: Vec<&str> = decision
             .chain
             .iter()
@@ -1044,15 +1187,35 @@ impl PersonPage {
         let notice = notice
             .map(|notice| format!("<p class=\"notice\"><b>{}</b></p>", escape(notice)))
             .unwrap_or_default();
+        // The local page has no login: its form names none, and it says what it proves.
+        let (who, login_field) = if self.local.is_some() {
+            (
+                format!(
+                    "<p>For <b>{person}</b> on this machine. {NO_SIGN_IN} Decide this request yourself and approve it only if you asked for it.</p>",
+                    person = escape(&decision.for_.subject),
+                ),
+                String::new(),
+            )
+        } else {
+            (
+                format!(
+                    "<p>Signed in as <b>{namespace}/{person}</b>. Decide this request yourself: approve it only if you asked for it.</p>",
+                    namespace = escape(&decision.for_.namespace),
+                    person = escape(&decision.for_.subject),
+                ),
+                format!(
+                    "<input type=\"hidden\" name=\"login\" value=\"{}\">",
+                    escape(login)
+                ),
+            )
+        };
         let body = format!(
-            "{notice}<p>Signed in as <b>{namespace}/{person}</b>. Decide this request yourself: approve it only if you asked for it.</p>\
+            "{notice}{who}\
              <dl><dt>Command</dt><dd><code>{command}</code></dd><dt>Spaces</dt><dd>{space}</dd>\
              <dt>Asked by</dt><dd><code>{actor}</code></dd><dt>Client</dt><dd><code>{client}</code></dd>\
              <dt>Through</dt><dd><code>{chain}</code></dd><dt>Asked at</dt><dd>{asked}</dd><dt>Expires</dt><dd>{expires}</dd></dl>\
              <h2>What it will do</h2>{paging}\
-             <form method=\"post\" action=\"{action}\"><pre>{preview}</pre>{items}<input type=\"hidden\" name=\"login\" value=\"{login}\"><input type=\"hidden\" name=\"csrf\" value=\"{csrf}\"><input type=\"hidden\" name=\"page\" value=\"{page}\">{buttons}</form>",
-            namespace = escape(&decision.for_.namespace),
-            person = escape(&decision.for_.subject),
+             <form method=\"post\" action=\"{action}\"><pre>{preview}</pre>{items}{login_field}<input type=\"hidden\" name=\"csrf\" value=\"{csrf}\"><input type=\"hidden\" name=\"page\" value=\"{page}\">{buttons}</form>",
             command = escape(&decision.command),
             space = escape(&decision.spaces.join(", ")),
             actor = escape(actor),
@@ -1062,7 +1225,6 @@ impl PersonPage {
             expires = escape(&super::iso(decision.expires_ms)),
             preview = escape(&shown.heading),
             action = escape(&format!("{}{}", self.prefix, decision.id)),
-            login = escape(login),
             csrf = escape(&csrf),
             page = shown.page,
         );
@@ -1134,8 +1296,14 @@ impl PersonPage {
             None => Some(1),
             Some(page) => Self::page_number(page),
         };
+        // The local page's form names no login; the hosted page's always does.
+        let login = match (&self.local, fields.get("login")) {
+            (Some(_), None) => Some(LOCAL_LOGIN.to_owned()),
+            (Some(_), Some(_)) => None,
+            (None, login) => login.filter(|login| is_id(login)).cloned(),
+        };
         let (Some(login), Some(csrf), Some(page), Some(action)) = (
-            fields.get("login"),
+            login,
             fields.get("csrf"),
             page,
             fields
@@ -1144,9 +1312,6 @@ impl PersonPage {
         ) else {
             return refused(self);
         };
-        if !is_id(login) {
-            return refused(self);
-        }
         // The token names the page shown: the page recorded under that number, or, for a
         // Decline, the page that could not be shown.
         let recorded = match self.service.decision(id).await {
@@ -1156,19 +1321,25 @@ impl PersonPage {
         };
         let unshown = PreviewPage::unavailable(page).hash;
         let Some(shown_hash) = recorded.into_iter().chain([unshown]).find(|hash| {
-            crate::shared::person::same_digest(csrf, &self.csrf(id, login, page, hash))
+            crate::shared::person::same_digest(csrf, &self.csrf(id, &login, page, hash))
         }) else {
             log_refusal("csrf");
             return refused(self);
         };
-        let Some(cookie) = Self::cookie(&headers, &format!("{COOKIE_PREFIX}{login}")) else {
-            log_refusal("cookie");
-            return refused(self);
+        // The hosted page's login cookie; the local page has none.
+        let cookie = if self.local.is_some() {
+            None
+        } else {
+            let Some(cookie) = Self::cookie(&headers, &format!("{COOKIE_PREFIX}{login}")) else {
+                log_refusal("cookie");
+                return refused(self);
+            };
+            Some(cookie)
         };
         let now = self.service.now();
         let decided = {
             let store = Arc::clone(&self.service.store);
-            let (id, login, hash) = (id.to_owned(), login.clone(), sha256_hex(&cookie));
+            let (id, login) = (id.to_owned(), login.clone());
             let choice = Choice {
                 page,
                 action,
@@ -1176,8 +1347,11 @@ impl PersonPage {
                 hash: shown_hash,
                 max_age_ms: self.service.ttl_ms(),
             };
-            tokio::task::spawn_blocking(move || store.decide(&id, &login, &hash, &choice, now))
-                .await
+            tokio::task::spawn_blocking(move || match cookie {
+                Some(cookie) => store.decide(&id, &login, &sha256_hex(&cookie), &choice, now),
+                None => store.decide_local(&id, &choice, now),
+            })
+            .await
         };
         let decision = match decided {
             Ok(Ok(Decided::Recorded(decision))) => decision,
@@ -1227,6 +1401,9 @@ impl PersonPage {
             )
         };
         let mut response = self.message(StatusCode::OK, title, text);
+        if self.local.is_some() {
+            return response;
+        }
         if let Ok(cleared) = HeaderValue::from_str(&format!(
             "{COOKIE_PREFIX}{login}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0"
         )) {

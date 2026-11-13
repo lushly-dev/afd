@@ -3,6 +3,7 @@
 
 pub mod gateway;
 pub mod hosted;
+pub mod local;
 pub mod mcp;
 pub mod memory;
 pub mod oauth;

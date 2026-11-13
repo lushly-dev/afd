@@ -24,6 +24,16 @@
 //! `for` it can build, and then asks the ledger, which reads the decision back (approved, for
 //! this `for`, this command and digest) and spends `person-run:<id>` once, so one decision runs
 //! one call even if a handler runs the command again in process with the same context.
+//!
+//! **The local page** (the Ideas host-review specification, section 6). In mode `none` with
+//! `[person.local]` enabled ([`crate::plugins::loader::local_page_served`]), a command whose
+//! `person.mcp` is `verified` is registered for MCP without `HostVerified`, and the plugin gate's
+//! local arm ([`LocalGate`]) decides it for a stdio caller ([`for_of_local`]): it begins a
+//! decision and refuses the call with the page's address, and once the person decided on the
+//! loopback page served by `umbel person page-serve`, spends it for the same call sent again and
+//! hands the handler a mark of level `local` ([`LocalMarks`]). A `local` decision proves that
+//! something on this machine posted the page's form, not that a person clicked (6.5): it is
+//! recorded as `local`, never `verified`.
 
 #[cfg(feature = "auth")]
 pub(crate) mod oidc;
@@ -59,8 +69,16 @@ pub(crate) const PERSON_CHECK_KEY: &str = "dev.umbel/person-check";
 /// call).
 pub(crate) const PREVIEW_PAGE_KEY: &str = "dev.umbel/preview-page";
 
+/// The namespace of every decision made on the local page: the local person has no identity
+/// namespace, and no issuer or client binds it (the Ideas host-review specification, section 6.2;
+/// A1).
+pub(crate) const LOCAL_NAMESPACE: &str = "local";
+/// The level and method of a decision made on the local page (section 6.4).
+pub(crate) const LOCAL_LEVEL: &str = "local";
+pub(crate) const LOCAL_METHOD: &str = "local-page";
+
 /// The CLI's decision expired before it was decided (section 10.5): retryable.
-#[cfg_attr(not(all(feature = "auth", feature = "cli")), allow(dead_code))]
+#[cfg_attr(not(feature = "auth"), allow(dead_code))]
 pub(crate) const PERSON_DECISION_EXPIRED: &str = "PERSON_DECISION_EXPIRED";
 /// The login's ID token lacks a configured `acr` or a user-verification `amr` (section 10.5):
 /// retryable, by logging in again with user verification.
@@ -130,13 +148,15 @@ pub(crate) struct PersonMark {
     pub(crate) command: String,
     pub(crate) input_digest: String,
     pub(crate) surface: Surface,
-    /// Always `verified`.
+    /// `verified`, or `local` for a decision on the local page.
     pub(crate) level: String,
-    /// Always `person-page`.
+    /// `person-page`, or `local-page`.
     pub(crate) method: String,
+    /// The login's namespace; [`LOCAL_NAMESPACE`] on the local page.
     pub(crate) namespace: String,
-    /// The login's `auth_time`, ISO 8601 UTC.
+    /// The login's `auth_time`, ISO 8601 UTC; empty on the local page, which has no login.
     pub(crate) auth_time: String,
+    /// The login's `acr`; empty on the local page.
     pub(crate) acr: String,
     /// When the person decided, ISO 8601 UTC.
     pub(crate) at: String,
@@ -255,6 +275,58 @@ pub(crate) fn for_of_cli(
     })
 }
 
+/// The local person's subject: the effective principal of the workspace's stdio caller, the
+/// agent `principal.local_id` acting for `principal.on_behalf_of` when set (phase 5 section 4.2).
+#[cfg_attr(not(feature = "auth"), allow(dead_code))]
+pub(crate) fn local_subject(config: &Config) -> Option<String> {
+    let mut actor = afd::Actor::new(ActorKind::Agent).with_id(&config.principal.local_id);
+    if let Some(person) = &config.principal.on_behalf_of {
+        actor = actor.with_on_behalf_of(person);
+    }
+    crate::provenance::effective_principal(&actor)
+}
+
+/// `for` of a caller the local page decides for (the Ideas host-review specification, section
+/// 6.2): only a caller over stdio, as the context hook sets it (`Transport::Stdio`,
+/// `Authentication::Process`), in a workspace whose local page is served. `{ actor, clientId:
+/// null, issuer: null, namespace: "local", subject: <effective principal> }`. Anything else (the
+/// loopback HTTP agent of mode `none`, the CLI, the library, a hosted caller) is refused.
+pub(crate) fn for_of_local(
+    config: &Config,
+    context: &CommandContext,
+) -> Result<DecisionFor, &'static str> {
+    if !crate::plugins::loader::local_page_served(config) {
+        return Err("the local person page is not served");
+    }
+    if context.interface != Some(CommandInterface::Mcp) {
+        return Err("the caller is not an MCP caller");
+    }
+    let principal = Principal::from_context(context).ok_or("no principal")?;
+    if principal.transport != Transport::Stdio
+        || principal.authentication != Authentication::Process
+        || principal.namespace.is_some()
+        || principal.issuer.is_some()
+    {
+        return Err("the caller is not the workspace's stdio caller");
+    }
+    let subject = crate::provenance::effective_principal(&principal.actor)
+        .ok_or("the caller has no effective principal")?;
+    Ok(DecisionFor {
+        actor: ActorRef::of(&principal.actor),
+        client_id: None,
+        issuer: None,
+        namespace: LOCAL_NAMESPACE.to_owned(),
+        subject,
+    })
+}
+
+/// Whether `context` carries `humanPresent` of `level` and `method`.
+fn present_as(context: &CommandContext, level: &str, method: &str) -> bool {
+    Principal::from_context(context)
+        .and_then(|principal| principal.human_present)
+        .is_some_and(|present| present.level == level && present.method == method)
+}
+
 /// The person decision `context` carries for a run of `command` with the validated `input`, as
 /// the host attests it to the plugin (`CallContext::person_decision`, step 6): the mark the relay
 /// (or the CLI) set names this command, the surface the call came on and the digest of this
@@ -269,6 +341,9 @@ pub(crate) fn attested(
     context: &CommandContext,
 ) -> Option<umbel_sdk::PersonDecision> {
     let mark = PersonMark::of(context)?;
+    if mark.level == LOCAL_LEVEL {
+        return attested_local(config, command, input, context, mark);
+    }
     let (surface, interface) = match mark.surface {
         Surface::Mcp => ("mcp", CommandInterface::Mcp),
         Surface::Cli => ("cli", CommandInterface::Cli),
@@ -307,6 +382,41 @@ pub(crate) fn attested(
     })
 }
 
+/// [`attested`] for a mark of level `local` (the Ideas host-review specification, section 6.2):
+/// only over MCP, only where the local page is served, for this command and the digest of this
+/// input, with `humanPresent` saying the same, on a caller whose `for` is the local person's
+/// ([`for_of_local`]). The decision is told with an empty namespace, `auth_time` and `acr`, and
+/// the local person's subject as its person.
+fn attested_local(
+    config: &Config,
+    command: &str,
+    input: &Value,
+    context: &CommandContext,
+    mark: PersonMark,
+) -> Option<umbel_sdk::PersonDecision> {
+    let digest = afd::input_digest(input).ok()?;
+    if mark.command != command
+        || mark.surface != Surface::Mcp
+        || context.interface != Some(CommandInterface::Mcp)
+        || mark.input_digest != digest
+        || mark.method != LOCAL_METHOD
+        || mark.namespace != LOCAL_NAMESPACE
+        || !present_as(context, LOCAL_LEVEL, LOCAL_METHOD)
+    {
+        return None;
+    }
+    let who = for_of_local(config, context).ok()?;
+    Some(umbel_sdk::PersonDecision {
+        surface: "mcp".to_owned(),
+        person: who.subject,
+        namespace: String::new(),
+        auth_time: String::new(),
+        acr: String::new(),
+        level: LOCAL_LEVEL.to_owned(),
+        excluded: mark.excluded,
+    })
+}
+
 /// The proof the plugin gate's person gate accepted for this run of `command` with the validated
 /// `input`, as the assurance a standing fact records (the records host specification, section
 /// 6.1, check 2; D115, D161): `None` when the call carries none. `person` is the least assurance
@@ -325,7 +435,8 @@ pub(crate) fn attested(
 ///   memory's `person` (D86): a process at a terminal that carries an agent variable passes
 ///   the plugin gate and still has no proof;
 /// - over MCP, for a command whose `person.mcp` is `verified`: a decision on the person page, as
-///   at the CLI;
+///   at the CLI; or, where the local page is served, a decision on it for a stdio caller, which
+///   gives `Assurance::local()` (the Ideas host-review specification, section 6.2);
 /// - anywhere else (a batch, an in-process agent, the library, a surface the command names no
 ///   assurance for): nothing. The terminal mark never stands in for `verified`.
 ///
@@ -350,11 +461,16 @@ pub(crate) fn gate_proof(
         attested(config, command, input, context)
             .filter(|decision| decision.surface == surface)
             .map(|decision| {
-                umbel_store::Assurance::verified(
-                    &decision.namespace,
-                    &decision.auth_time,
-                    &decision.acr,
-                )
+                // A decision on the local page is `local`, never `verified` (section 6.5).
+                if decision.level == LOCAL_LEVEL {
+                    umbel_store::Assurance::local()
+                } else {
+                    umbel_store::Assurance::verified(
+                        &decision.namespace,
+                        &decision.auth_time,
+                        &decision.acr,
+                    )
+                }
             })
     };
     match context.interface {
@@ -460,6 +576,169 @@ pub(crate) fn admit(
         Some(ledger) => ledger.admit(&mark, &who, command, &digest),
         None => Err(refuse()),
     }
+}
+
+/// The plugin gate's local arm (the Ideas host-review specification, section 6.2): for a call
+/// of a command whose `person.mcp` is `verified`, over MCP, where the local page is served. The
+/// person service implements it; it is set once the service is built.
+pub(crate) trait LocalGate: Send + Sync {
+    /// Look in the decisions for one decided, unexpired and unspent for this command, this input
+    /// digest and this caller's `for` ([`for_of_local`]). Approved: spend it once
+    /// (`person:<id>`, then `person-run:<id>`) and answer the mark the handler is to carry.
+    /// Pending and live: refuse again with it. None: run the preview as the caller, begin one,
+    /// and refuse with the page's address.
+    fn decide<'a>(
+        &'a self,
+        command: &'a str,
+        input: &'a Value,
+        context: &'a CommandContext,
+    ) -> afd::BoxFuture<'a, Result<PersonMark, CommandError>>;
+}
+
+/// Where the plugin gate finds its local arm, set once the person service is built.
+pub(crate) type LocalGateSlot = std::sync::Arc<std::sync::OnceLock<std::sync::Arc<dyn LocalGate>>>;
+
+/// The marks the plugin gate's local arm hands to the handler of the call it admitted, by the
+/// call's trace id and command (the Ideas host-review specification, section 6.2). AFD's
+/// middleware cannot change the context the handler sees, so the gate leaves the mark here while
+/// the call runs, and the host's wrapper around each plugin handler takes it, once, and puts it
+/// and `humanPresent` into the context it hands the plugin. A command the handler runs in process
+/// under the same trace finds it taken; the gate removes what is left when the call returns.
+#[derive(Debug, Default)]
+pub(crate) struct LocalMarks {
+    held: std::sync::Mutex<std::collections::HashMap<String, Option<PersonMark>>>,
+}
+
+impl LocalMarks {
+    fn lock(
+        &self,
+    ) -> std::sync::MutexGuard<'_, std::collections::HashMap<String, Option<PersonMark>>> {
+        self.held
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Reserve the slot of the call under `trace` until the guard is dropped, before anything
+    /// is spent, so a decision is spent only for a call that can be handed its mark. `None` when
+    /// the call has no trace or a slot is already held under it: two calls never share one.
+    pub(crate) fn reserve(self: &std::sync::Arc<Self>, trace: &str) -> Option<HeldMark> {
+        let mut held = self.lock();
+        if trace.is_empty() || held.contains_key(trace) {
+            return None;
+        }
+        held.insert(trace.to_owned(), None);
+        Some(HeldMark {
+            marks: std::sync::Arc::clone(self),
+            trace: trace.to_owned(),
+        })
+    }
+
+    /// Hold `mark` for the call under `trace`: [`Self::reserve`], then [`HeldMark::fill`].
+    #[cfg(all(test, feature = "auth"))]
+    fn hold(self: &std::sync::Arc<Self>, trace: &str, mark: PersonMark) -> Option<HeldMark> {
+        let held = self.reserve(trace)?;
+        held.fill(mark);
+        Some(held)
+    }
+
+    /// The mark held for `command` under `context`'s trace, taken once, with the context the
+    /// handler is to run with: `context` with the mark under [`PERSON_DECISION_KEY`] and
+    /// `humanPresent` `{ level: "local", method: "local-page" }`. `None` when none is held for
+    /// that command.
+    pub(crate) fn take(&self, command: &str, context: &CommandContext) -> Option<CommandContext> {
+        let trace = context.trace_id.as_deref()?;
+        let mark = {
+            let mut held = self.lock();
+            if held.get(trace)?.as_ref()?.command != command {
+                return None;
+            }
+            held.remove(trace)??
+        };
+        let mut principal = Principal::from_context(context)?;
+        principal.human_present = Some(crate::principal::HumanPresent {
+            level: LOCAL_LEVEL.to_owned(),
+            method: LOCAL_METHOD.to_owned(),
+            at: mark.at.clone(),
+            auth_time: None,
+            acr: None,
+        });
+        let mut context = context.clone();
+        principal.apply(&mut context);
+        context.extra.insert(
+            PERSON_DECISION_KEY.to_owned(),
+            serde_json::to_value(&mark).ok()?,
+        );
+        Some(context)
+    }
+
+    /// How many marks are held.
+    #[cfg(all(test, feature = "auth"))]
+    fn len(&self) -> usize {
+        self.lock().len()
+    }
+}
+
+/// A mark held for one call; dropping it removes whatever the handler did not take.
+pub(crate) struct HeldMark {
+    marks: std::sync::Arc<LocalMarks>,
+    trace: String,
+}
+
+impl HeldMark {
+    /// Put the admitted call's mark in the slot reserved for it.
+    pub(crate) fn fill(&self, mark: PersonMark) {
+        self.marks.lock().insert(self.trace.clone(), Some(mark));
+    }
+}
+
+impl Drop for HeldMark {
+    fn drop(&mut self) {
+        self.marks.lock().remove(&self.trace);
+    }
+}
+
+/// `CONFIRMATION_REQUIRED` for a call the local page has not decided (the Ideas host-review
+/// specification, section 7): retryable, with the decision, its page and the list.
+#[cfg_attr(not(feature = "auth"), allow(dead_code))]
+pub(crate) fn local_required(command: &str, decision: &str, base: &str) -> CommandError {
+    let mut details = std::collections::HashMap::new();
+    details.insert("decision".to_owned(), Value::from(decision));
+    details.insert(
+        "url".to_owned(),
+        Value::from(format!("{base}/d/{decision}")),
+    );
+    details.insert("list".to_owned(), Value::from(format!("{base}/d/")));
+    CommandError::new(
+        error_codes::CONFIRMATION_REQUIRED,
+        format!("'{command}' must be confirmed by a person on the local person page: {base}/d/{decision}"),
+    )
+    .with_suggestion(
+        "Ask the person to open the url (or the list) in a browser on this machine and confirm; then send the same call again. If nothing answers there, the person runs umbel person page-serve",
+    )
+    .with_retryable(true)
+    .with_details(details)
+}
+
+/// `CONFIRMATION_DECLINED`: the person declined the call on the local page.
+#[cfg_attr(not(feature = "auth"), allow(dead_code))]
+pub(crate) fn local_declined(command: &str) -> CommandError {
+    CommandError::new(
+        error_codes::CONFIRMATION_DECLINED,
+        format!("The person declined '{command}' on the local person page"),
+    )
+    .with_suggestion("Ask the person what to change, and stage it again")
+    .with_retryable(false)
+}
+
+/// `PERSON_DECISION_EXPIRED`: the local decision expired before it was decided.
+#[cfg_attr(not(feature = "auth"), allow(dead_code))]
+pub(crate) fn local_expired(command: &str) -> CommandError {
+    CommandError::new(
+        PERSON_DECISION_EXPIRED,
+        format!("The person decision for '{command}' expired before it was decided"),
+    )
+    .with_suggestion("Send the call again: a new decision is begun")
+    .with_retryable(true)
 }
 
 #[cfg(test)]
@@ -861,6 +1140,174 @@ mod tests {
             .extra
             .insert(PERSON_CHECK_KEY.to_owned(), Value::Null);
         assert!(check_of("gate-preview", &context).is_none());
+    }
+
+    /// A workspace in mode `none` whose local page is served, the stdio caller acting for `ada`.
+    #[cfg(feature = "auth")]
+    fn local_config() -> Config {
+        crate::workspace::ConfigFile::parse(
+            "config_version = 7\n[principal]\nlocal_id = \"local\"\non_behalf_of = \"ada\"\n[person.local]\nenabled = true\n",
+        )
+        .and_then(|file| file.into_config(std::path::Path::new("/w")))
+        .expect("a valid configuration")
+    }
+
+    /// An MCP context of the stdio caller, marked `local` for `command` with `input`'s digest
+    /// when `marked`, as the plugin gate's wrapper hands it to the handler.
+    #[cfg(feature = "auth")]
+    fn stdio(command: &str, input: &Value, marked: bool) -> CommandContext {
+        let mut context = CommandContext::new().with_trace_id("trace-1");
+        context.interface = Some(CommandInterface::Mcp);
+        Principal::new(
+            Actor::new(ActorKind::Agent)
+                .with_id("local")
+                .with_on_behalf_of("ada"),
+            Transport::Stdio,
+            Authentication::Process,
+        )
+        .apply(&mut context);
+        if !marked {
+            return context;
+        }
+        let marks = std::sync::Arc::new(LocalMarks::default());
+        let _held = marks.hold("trace-1", local_mark(command, input)).unwrap();
+        marks.take(command, &context).unwrap()
+    }
+
+    #[cfg(feature = "auth")]
+    fn local_mark(command: &str, input: &Value) -> PersonMark {
+        PersonMark {
+            id: "b".repeat(26),
+            command: command.into(),
+            input_digest: afd::input_digest(input).unwrap(),
+            surface: Surface::Mcp,
+            level: LOCAL_LEVEL.into(),
+            method: LOCAL_METHOD.into(),
+            namespace: LOCAL_NAMESPACE.into(),
+            auth_time: String::new(),
+            acr: String::new(),
+            at: "2026-11-13T00:00:00.000Z".into(),
+            excluded: vec!["bed-1-a".into()],
+        }
+    }
+
+    /// The Ideas host-review specification, section 6.2: the local page decides only for the
+    /// workspace's stdio caller, and its mark is told as `local` to that call alone.
+    #[cfg(feature = "auth")]
+    #[test]
+    fn a_local_mark_is_local_for_the_stdio_callers_own_call_only() {
+        use crate::plugins::{Assurance as Level, PersonDecl};
+        let config = local_config();
+        let over_mcp = PersonDecl {
+            mcp: Some(Level::Verified),
+            ..PersonDecl::default()
+        };
+        let marked = stdio("notes-verify", &input(), true);
+        let who = for_of_local(&config, &marked).unwrap();
+        assert_eq!(who.namespace, LOCAL_NAMESPACE);
+        assert_eq!(who.subject, "human:ada");
+        assert!(who.issuer.is_none() && who.client_id.is_none());
+        let decided = attested(&config, "notes-verify", &input(), &marked).unwrap();
+        assert_eq!(decided.level, "local");
+        assert_eq!(decided.person, "human:ada");
+        assert!(decided.namespace.is_empty() && decided.auth_time.is_empty());
+        assert_eq!(decided.excluded, vec!["bed-1-a".to_owned()]);
+        // Recorded as `local`, never `verified`.
+        let proof = gate_proof(&config, "notes-verify", over_mcp, &input(), &marked).unwrap();
+        assert_eq!(proof, umbel_store::Assurance::local());
+        assert!(!proof.is_valid(3) && proof.is_valid(4));
+        // Another command, another input, the CLI, or no `humanPresent`: nothing.
+        assert!(attested(&config, "notes-other", &input(), &marked).is_none());
+        let other = serde_json::json!({ "proposal": "p-2" });
+        assert!(attested(&config, "notes-verify", &other, &marked).is_none());
+        let mut cli = marked.clone();
+        cli.interface = Some(CommandInterface::Cli);
+        assert!(attested(&config, "notes-verify", &input(), &cli).is_none());
+        let mut absent = marked.clone();
+        let mut principal = Principal::from_context(&absent).unwrap();
+        principal.human_present = None;
+        principal.apply(&mut absent);
+        assert!(attested(&config, "notes-verify", &input(), &absent).is_none());
+        // A mark claiming `verified` on the local page's decision is no verified decision.
+        let mut claimed = marked.clone();
+        let mut mark = PersonMark::of(&marked).unwrap();
+        mark.level = "verified".into();
+        mark.method = "person-page".into();
+        claimed.extra.insert(
+            PERSON_DECISION_KEY.to_owned(),
+            serde_json::to_value(mark).unwrap(),
+        );
+        assert!(attested(&config, "notes-verify", &input(), &claimed).is_none());
+        // The loopback HTTP agent, a hosted caller and the library are no stdio caller.
+        let mut loopback = marked.clone();
+        Principal::new(
+            Actor::new(ActorKind::Agent).with_id("loopback"),
+            Transport::Http,
+            Authentication::None,
+        )
+        .apply(&mut loopback);
+        assert!(for_of_local(&config, &loopback).is_err());
+        assert!(attested(&config, "notes-verify", &input(), &loopback).is_none());
+        let library = {
+            let mut context = marked.clone();
+            Principal::new(
+                Actor::new(ActorKind::Human).with_id("ada"),
+                Transport::Library,
+                Authentication::Embedder,
+            )
+            .apply(&mut context);
+            context
+        };
+        assert!(for_of_local(&config, &library).is_err());
+        assert!(for_of_local(&config, &context("notes-verify", &input(), true)).is_err());
+        // Where the local page is not served, no mark of it counts.
+        let hosted = super::tests::config();
+        assert!(for_of_local(&hosted, &marked).is_err());
+        assert!(attested(&hosted, "notes-verify", &input(), &marked).is_none());
+        assert!(gate_proof(&hosted, "notes-verify", over_mcp, &input(), &marked).is_none());
+    }
+
+    #[cfg(feature = "auth")]
+    #[test]
+    fn a_held_mark_is_taken_once_for_its_command_and_dropped_with_its_call() {
+        let marks = std::sync::Arc::new(LocalMarks::default());
+        let context = stdio("notes-verify", &input(), false);
+        let held = marks
+            .hold("trace-1", local_mark("notes-verify", &input()))
+            .unwrap();
+        // One mark a trace, and none for a call with no trace.
+        assert!(
+            marks
+                .hold("trace-1", local_mark("notes-verify", &input()))
+                .is_none()
+        );
+        assert!(
+            marks
+                .hold("", local_mark("notes-verify", &input()))
+                .is_none()
+        );
+        // Another command under the same trace (one the handler runs in process) gets nothing.
+        assert!(marks.take("notes-other", &context).is_none());
+        let taken = marks.take("notes-verify", &context).unwrap();
+        assert!(PersonMark::of(&taken).is_some());
+        let present = Principal::from_context(&taken)
+            .unwrap()
+            .human_present
+            .unwrap();
+        assert_eq!(
+            (present.level.as_str(), present.method.as_str()),
+            ("local", "local-page")
+        );
+        // Taken once.
+        assert!(marks.take("notes-verify", &context).is_none());
+        drop(held);
+        // A mark the handler never took goes with its call.
+        let held = marks
+            .hold("trace-1", local_mark("notes-verify", &input()))
+            .unwrap();
+        assert_eq!(marks.len(), 1);
+        drop(held);
+        assert_eq!(marks.len(), 0);
     }
 
     #[test]

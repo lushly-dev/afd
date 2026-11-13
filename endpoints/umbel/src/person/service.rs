@@ -13,6 +13,14 @@
 //!   plugin gate checks against the decision read back and spends again, as `person-run:<id>`.
 //! - **Journal**: each decision, when the person makes it, as a host `person-decide` entry under
 //!   the trace of the call that began it, keeping `id`, `level` and `decision` alone.
+//!
+//! **The local page** (the Ideas host-review specification, section 6). In mode `none` with
+//! `[person.local]` enabled, the service is built with no identity provider and no login: its
+//! decisions are the local person's ([`super::for_of_local`]), begun by the plugin gate's local
+//! arm ([`super::LocalGate`], implemented here) for a stdio caller, decided on the loopback page
+//! that `umbel person page-serve` serves, and spent by the same call sent again. They share
+//! `state/shared/person.sqlite3` with every process of the workspace, so the stdio server that
+//! began a decision and the process serving the page need not be one.
 
 use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -211,8 +219,11 @@ pub(crate) struct PersonService {
     pub(crate) person_key: Vec<u8>,
     relay_key: Vec<u8>,
     /// The base of the page's URLs: `http.public_url` in mode `oauth`, `http.person.public_url`
-    /// (an origin) in mode `gateway`.
+    /// (an origin) in mode `gateway`, `http://<person.local.bind>` on the local page.
     page_url: String,
+    /// Whether this is the local page's service: no provider, no login, decisions for the local
+    /// person only.
+    local: bool,
 }
 
 impl std::fmt::Debug for PersonService {
@@ -308,13 +319,15 @@ impl PersonService {
         environment: &AuthEnvironment,
     ) -> Result<Option<Arc<Self>>, crate::host::HostError> {
         let config = workspace.config();
-        if !crate::plugins::loader::person_page_served(config) {
+        let local = crate::plugins::loader::local_page_served(config);
+        if !crate::plugins::loader::person_page_served(config) && !local {
             return Ok(None);
         }
         // Where the page is served: beside the MCP path in mode `oauth`; on its own origin in mode
         // `gateway` (step 5b), so every link and the redirect URI name a host the gateway never
-        // serves.
+        // serves; on the loopback bind of `[person.local]`, over plain HTTP.
         let page_url = match (config.auth.mode, &config.http.person) {
+            _ if local => format!("http://{}", config.person.local.bind),
             (crate::workspace::AuthMode::Gateway, Some(person)) => person.public_url.clone(),
             (crate::workspace::AuthMode::Oauth, _) => match config.http.public_url.clone() {
                 Some(url) => url,
@@ -324,7 +337,8 @@ impl PersonService {
         };
         let platform = Fetcher::new(environment);
         let mut providers = BTreeMap::new();
-        for namespace in &config.auth.namespaces {
+        // The local page has no login, so no provider.
+        for namespace in config.auth.namespaces.iter().filter(|_| !local) {
             let Some(login) = &namespace.person else {
                 continue;
             };
@@ -401,7 +415,18 @@ impl PersonService {
             person_key: workspace.person_key()?,
             relay_key: workspace.relay_key()?,
             page_url,
+            local,
         })))
+    }
+
+    /// Whether this is the local page's service (the Ideas host-review specification, section 6).
+    pub(crate) fn is_local(&self) -> bool {
+        self.local
+    }
+
+    /// The workspace's configuration.
+    pub(crate) fn workspace_config(&self) -> &crate::workspace::Config {
+        self.workspace.config()
     }
 
     pub(crate) fn now(&self) -> i64 {
@@ -477,17 +502,31 @@ impl PersonService {
         else {
             return Err(unavailable(command, "this command is not decided there"));
         };
-        let Some(provider) = self.providers.get(&request.who.namespace) else {
-            return Err(unavailable(
-                command,
-                "the caller's namespace has no usable person login",
-            ));
-        };
-        if provider.ensure().await.is_err() {
-            return Err(unavailable(
-                command,
-                "the caller's namespace's person login cannot be used now",
-            ));
+        if self.local {
+            // The local page decides for the local person over MCP alone, with no login.
+            if request.surface != Surface::Mcp
+                || request.who.namespace != super::LOCAL_NAMESPACE
+                || request.who.issuer.is_some()
+                || request.who.client_id.is_some()
+            {
+                return Err(unavailable(
+                    command,
+                    "the local person page decides only for the workspace's stdio caller",
+                ));
+            }
+        } else {
+            let Some(provider) = self.providers.get(&request.who.namespace) else {
+                return Err(unavailable(
+                    command,
+                    "the caller's namespace has no usable person login",
+                ));
+            };
+            if provider.ensure().await.is_err() {
+                return Err(unavailable(
+                    command,
+                    "the caller's namespace's person login cannot be used now",
+                ));
+            }
         }
         // Readability before anyone is asked (5.4): a call the registry would refuse is never
         // put to a person, and the refusal is the one answer.
@@ -820,7 +859,7 @@ impl PersonService {
             crate::shared::person::Status::Declined => "declined",
             crate::shared::person::Status::Pending => return,
         };
-        let input = json!({ "id": decision.id, "level": "verified", "decision": verdict });
+        let input = json!({ "id": decision.id, "level": decision.level(), "decision": verdict });
         let record = afd::JournalRecord {
             timestamp: super::iso(decision.decided_ms.unwrap_or_else(|| self.clock.now())),
             trace_id: decision.trace_id.clone(),
@@ -851,12 +890,25 @@ impl PersonService {
         let Some(spec) = self.commands.get(&decision.command) else {
             return PreviewPage::unavailable(page);
         };
-        let person = format!("{}/{}", decision.for_.namespace, decision.for_.subject);
         let mut context = CommandContext::new();
         // The person alone, as the host vouches for them after the login: no token narrows them,
-        // so they read what their own `readers` (and equivalents) admit.
+        // so they read what their own `readers` (and equivalents) admit. On the local page, which
+        // has no login, the stdio caller the decision is for, as it would read.
+        let actor = if decision.is_local() {
+            let mut actor = afd::Actor::new(decision.for_.actor.kind);
+            if let Some(id) = &decision.for_.actor.id {
+                actor = actor.with_id(id);
+            }
+            if let Some(person) = &decision.for_.actor.on_behalf_of {
+                actor = actor.with_on_behalf_of(person);
+            }
+            actor
+        } else {
+            let person = format!("{}/{}", decision.for_.namespace, decision.for_.subject);
+            afd::Actor::new(afd::ActorKind::Human).with_id(&person)
+        };
         Principal::new(
-            afd::Actor::new(afd::ActorKind::Human).with_id(&person),
+            actor,
             crate::principal::Transport::Library,
             crate::principal::Authentication::Embedder,
         )
@@ -963,6 +1015,121 @@ impl PersonService {
     }
 }
 
+impl PersonService {
+    /// The plugin gate's local arm (the Ideas host-review specification, section 6.2); see
+    /// [`super::LocalGate::decide`]. A declined decision is answered once, and an expired one
+    /// once, each spent as it is answered, so the call sent again begins a new decision.
+    async fn decide_local(
+        &self,
+        command: &str,
+        input: &Value,
+        context: &CommandContext,
+    ) -> Result<PersonMark, CommandError> {
+        if !self.local {
+            return Err(super::not_decided(command));
+        }
+        let who = super::for_of_local(self.workspace.config(), context)
+            .map_err(|why| unavailable(command, why))?;
+        let digest = afd::input_digest(input).map_err(|_| super::not_decided(command))?;
+        let found = {
+            let store = Arc::clone(&self.store);
+            let (command, digest) = (command.to_owned(), digest.clone());
+            tokio::task::spawn_blocking(move || store.for_call(&command, &digest))
+                .await
+                .map_err(|_| crate::shared::read_limit::store_failed())?
+                .map_err(|error| store_failure(&error))?
+        };
+        let now = self.clock.now();
+        use crate::shared::person::Status;
+        for decision in found
+            .into_iter()
+            .filter(|decision| decision.is_local() && decision.for_ == who)
+        {
+            let live = decision.live(now);
+            match decision.status {
+                Status::Pending if live => {
+                    return Err(super::local_required(command, &decision.id, &self.page_url));
+                }
+                Status::Approved if live => {
+                    if !self
+                        .spend(&decision.id)
+                        .await
+                        .map_err(|error| store_failure(&error))?
+                    {
+                        continue;
+                    }
+                    let run = self
+                        .consume(format!("person-run:{}", decision.id))
+                        .await
+                        .map_err(|error| store_failure(&error))?;
+                    if !run {
+                        return Err(super::not_decided(command));
+                    }
+                    let at = super::iso(
+                        decision
+                            .decided_ms
+                            .ok_or_else(|| super::not_decided(command))?,
+                    );
+                    return Ok(PersonMark {
+                        id: decision.id,
+                        command: command.to_owned(),
+                        input_digest: digest,
+                        surface: Surface::Mcp,
+                        level: super::LOCAL_LEVEL.to_owned(),
+                        method: super::LOCAL_METHOD.to_owned(),
+                        namespace: super::LOCAL_NAMESPACE.to_owned(),
+                        auth_time: String::new(),
+                        acr: String::new(),
+                        at,
+                        excluded: decision.excluded,
+                    });
+                }
+                Status::Declined => {
+                    if self
+                        .spend(&decision.id)
+                        .await
+                        .map_err(|error| store_failure(&error))?
+                    {
+                        return Err(super::local_declined(command));
+                    }
+                }
+                Status::Pending => {
+                    if self
+                        .spend(&decision.id)
+                        .await
+                        .map_err(|error| store_failure(&error))?
+                    {
+                        return Err(super::local_expired(command));
+                    }
+                }
+                Status::Approved => {}
+            }
+        }
+        let begun = self
+            .begin(BeginRequest {
+                who,
+                command,
+                input,
+                input_digest: &digest,
+                context,
+                surface: Surface::Mcp,
+            })
+            .await?;
+        Err(super::local_required(command, &begun.id, &self.page_url))
+    }
+}
+
+impl super::LocalGate for PersonService {
+    fn decide<'a>(
+        &'a self,
+        command: &'a str,
+        input: &'a Value,
+        context: &'a CommandContext,
+    ) -> afd::BoxFuture<'a, Result<PersonMark, CommandError>> {
+        Box::pin(self.decide_local(command, input, context))
+    }
+}
+
 /// The relay state's associated data: a version label, the command, the input digest and the
 /// principal binding, each length-prefixed.
 fn relay_aad(command: &str, digest: &str, binding: &str) -> Vec<u8> {
@@ -1033,7 +1200,10 @@ impl super::DecisionLedger for Ledger {
             .decision(&mark.id)
             .map_err(|error| store_failure(&error))?
             .ok_or_else(refuse)?;
+        // A decision of the local page is never admitted as `verified` (the Ideas host-review
+        // specification, section 6.5): only the local arm spends it, as `local`.
         let covers = decision.status == crate::shared::person::Status::Approved
+            && !decision.is_local()
             && decision.live(self.clock.now())
             && decision.preview_hash.is_some()
             && decision.for_ == *who

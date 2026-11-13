@@ -23,7 +23,7 @@ fn the_standing_group_passes() {
     report.assert_passed();
     let skipped = report.skipped();
     assert!(skipped.is_empty(), "skipped: {skipped:?}");
-    assert_eq!(report.passed(), 16, "{report}");
+    assert_eq!(report.passed(), 17, "{report}");
 }
 
 #[test]

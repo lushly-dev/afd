@@ -86,6 +86,10 @@ pub(super) const CASES: &[(&str, super::CaseFn)] = &[
         former_person,
     ),
     (
+        "levels_admit_an_affirmation_only_at_a_level_they_list",
+        levels_admit,
+    ),
+    (
         "documents_a_reader_cannot_read_change_none_of_its_reads",
         differential_uncited,
     ),
@@ -129,6 +133,7 @@ fn view(
         command_writable: command_writable.iter().map(|id| (*id).to_owned()).collect(),
         person: vec![PERSON.to_owned()],
         admit: admit.to_vec(),
+        levels: Vec::new(),
     }
 }
 
@@ -2263,6 +2268,151 @@ fn held_to_file(env: &Env<'_>) -> CaseResult {
             .map(|own| own.basis),
         Some(OwnBasis::Marked),
         "for the document too",
+    )?;
+    pass()
+}
+
+/// The view's `levels` (the Ideas host-review specification, section 6.5): a call for verified
+/// content admits an affirmation, and an attestation through a person's mark, only at a level
+/// the space lists; a record affirmed or attested only through a mark at another level is
+/// admitted at no standing, not read as attested in its place. A decision on the
+/// local page (`local`) is stored as any other.
+fn levels_admit(env: &Env<'_>) -> CaseResult {
+    let Some((s, _)) = lane(env)? else {
+        return skip(NO_LANE);
+    };
+    let d = &*s.stores.documents;
+    let decl = decl()?;
+    let hash = document(
+        d,
+        "talks/pruning",
+        &["space"],
+        "Prune roses in late winter.\n",
+    )?;
+    d.mark_document_own(mark("talks/pruning", &hash, None), &everyone())
+        .ctx("mark")?;
+    let cited = || Some(cites("talks/pruning", &hash, None));
+    // A document the person marked on the local page, and a record attested only through it.
+    let sun = document(d, "talks/sun", &["space"], "Roses want morning sun.\n")?;
+    d.mark_document_own(
+        OwnMark {
+            assurance: Assurance::local(),
+            ..mark("talks/sun", &sun, None)
+        },
+        &everyone(),
+    )
+    .ctx("mark on the local page")?;
+    put(
+        d,
+        &decl,
+        "k",
+        body(ROSES, "south"),
+        &["space"],
+        Some(cites("talks/sun", &sun, None)),
+    )
+    .ctx("put k")?;
+    put(d, &decl, "t", body(ROSES, "north"), &["space"], None).ctx("put t")?;
+    put(d, &decl, "l", body(ROSES, "east"), &["space"], cited()).ctx("put l")?;
+    put(d, &decl, "m", body(ROSES, "west"), &["space"], cited()).ctx("put m")?;
+    d.decide_record(
+        NS,
+        &decl,
+        "t",
+        decision(Decision::Affirm),
+        &plain(),
+        &everyone(),
+    )
+    .ctx("affirm at a terminal")?;
+    d.decide_record(
+        NS,
+        &decl,
+        "l",
+        RecordDecision {
+            assurance: Assurance::local(),
+            ..decision(Decision::Affirm)
+        },
+        &plain(),
+        &everyone(),
+    )
+    .ctx("affirm on the local page")?;
+    let ids = |page: FindPage| -> Vec<String> {
+        page.items
+            .iter()
+            .map(|item| item.record.id.clone())
+            .collect()
+    };
+    let of = |admit: &[Standing], levels: &[&str]| StandingView {
+        admit: admit.to_vec(),
+        levels: levels.iter().map(|level| (*level).to_owned()).collect(),
+        ..plain()
+    };
+    let verified = &[Standing::Attested, Standing::Affirmed][..];
+    let affirmed = &[Standing::Affirmed][..];
+    for (admit, levels, want, why) in [
+        (
+            verified,
+            &[][..],
+            vec!["k", "l", "m", "t"],
+            "no levels: every affirmation and mark",
+        ),
+        (
+            verified,
+            &["terminal", "verified"][..],
+            vec!["m", "t"],
+            "the default levels leave the local affirmation and the local mark out, and read neither as attested",
+        ),
+        (
+            verified,
+            &["terminal", "verified", "local"][..],
+            vec!["k", "l", "m", "t"],
+            "listed, both are admitted",
+        ),
+        (
+            affirmed,
+            &["terminal", "verified"][..],
+            vec!["t"],
+            "affirmed alone",
+        ),
+        (affirmed, &["local"][..], vec!["l"], "local alone"),
+        (
+            &[Standing::Attested][..],
+            &["local"][..],
+            vec!["k"],
+            "attested only through the local mark",
+        ),
+        (
+            &[Standing::Attested][..],
+            &["terminal", "verified"][..],
+            vec!["m"],
+            "an affirmed record is never attested, nor one attested by a local mark",
+        ),
+    ] {
+        let page = find(d, &decl, &find_all(&decl), &of(admit, levels), &everyone())?;
+        ensure_eq(page.total, Some(want.len() as u64), why)?;
+        ensure_eq(
+            ids(page),
+            want.iter().map(|id| (*id).to_owned()).collect::<Vec<_>>(),
+            why,
+        )?;
+    }
+    // A read by id under the default levels finds nothing of the local affirmation.
+    ensure(
+        read(
+            d,
+            &decl,
+            "l",
+            &of(verified, &["terminal", "verified"]),
+            &everyone(),
+        )?
+        .is_none(),
+        "a read by id leaves it out too",
+    )?;
+    ensure_eq(
+        label(d, &decl, "l", &plain(), &everyone())?
+            .affirmed
+            .map(|affirmed| affirmed.level),
+        Some("local".to_owned()),
+        "its label says local",
     )?;
     pass()
 }

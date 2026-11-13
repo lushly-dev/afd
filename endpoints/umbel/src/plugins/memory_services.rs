@@ -481,6 +481,18 @@ impl CallServices {
         mut request: Confirm,
     ) -> Result<MemoryVersionMeta> {
         let (store, filter, principal) = self.memory_writing(space)?;
+        // A decision on the local person page is `local`, which a memory envelope (version 3)
+        // cannot hold: said by name, before anything else (the Ideas host-review specification,
+        // step H3).
+        if crate::person::PersonMark::of(&self.context).is_some_and(|mark| {
+            mark.level == crate::person::LOCAL_LEVEL
+                && Some(mark.command.as_str()) == self.command.as_deref()
+        }) {
+            return Err(refused(
+                "MEMORY_CONFIRM_NOT_ALLOWED",
+                "a decision on the local person page (level local) cannot confirm a record: a memory envelope records terminal or verified only",
+            ));
+        }
         if !self.person() {
             return Err(refused(
                 "MEMORY_CONFIRM_NOT_ALLOWED",
@@ -492,12 +504,23 @@ impl CallServices {
         request.trace_id = self.trace();
         // How the person was proven (envelope version 3, phase 5 sections 2.4 and 7.1): a decision
         // on the person page for this very command, else the terminal check that `person` passed
-        // (the library's embedder person, phase 3's D86, is recorded at the same level).
+        // (the library's embedder person, phase 3's D86, is recorded at the same level). A mark
+        // of the local page is `local`, which a memory envelope (version 3) cannot hold, so the
+        // store refuses the confirmation and no journaled confirmation ever carries `local` (the
+        // Ideas host-review specification, step H3).
         request.assurance = Some(
             crate::person::PersonMark::of(&self.context)
                 .filter(|mark| Some(mark.command.as_str()) == self.command.as_deref())
                 .map_or_else(umbel_store::Assurance::terminal, |mark| {
-                    umbel_store::Assurance::verified(&mark.namespace, &mark.auth_time, &mark.acr)
+                    if mark.level == crate::person::LOCAL_LEVEL {
+                        umbel_store::Assurance::local()
+                    } else {
+                        umbel_store::Assurance::verified(
+                            &mark.namespace,
+                            &mark.auth_time,
+                            &mark.acr,
+                        )
+                    }
                 }),
         );
         let meta = store.confirm(request, &filter).map_err(host_error)?;

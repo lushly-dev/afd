@@ -2,12 +2,13 @@
 //! a command needs it.
 
 use std::fmt;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use crate::home::{Home, HomeError};
 use crate::provider::Connector;
 use crate::secrets::{InMemory, Secrets};
-use crate::store::{Store, StoreError};
+use crate::store::{Store, StoreError, TokenRow};
 use crate::sync::Options;
 
 /// Where a command that runs for a while says how far it has come.
@@ -21,6 +22,10 @@ pub struct Engine {
     /// Opened by the first command that needs it, so that `help` takes no
     /// lock and makes no directory.
     store: Mutex<Option<Store>>,
+    /// Whether this process has opened the store, and so holds its lock:
+    /// once set it stays set, since the store is never closed. Read without
+    /// waiting for a command that is using the store.
+    owns_store: AtomicBool,
     progress: Option<Progress>,
     /// How sync reaches accounts' providers; `None` in a build that syncs
     /// nothing.
@@ -28,6 +33,11 @@ pub struct Engine {
     sync: Options,
     /// Where accounts' sign-ins are kept.
     secrets: Arc<dyn Secrets>,
+    /// The tokens a running server accepts from agents, as the store keeps
+    /// them: read when the server starts and again whenever a token command
+    /// changes them, so that the layer in front of every route never waits
+    /// for the store.
+    agent_tokens: RwLock<Vec<TokenRow>>,
 }
 
 impl fmt::Debug for Engine {
@@ -45,6 +55,7 @@ impl Engine {
         Self {
             home,
             store: Mutex::new(None),
+            owns_store: AtomicBool::new(false),
             progress: None,
             connector: None,
             sync: Options::default(),
@@ -52,6 +63,7 @@ impl Engine {
             // keeps nothing beyond the process, so a test never reaches the
             // person's keychain by accident.
             secrets: Arc::new(InMemory::default()),
+            agent_tokens: RwLock::new(Vec::new()),
         }
     }
 
@@ -117,12 +129,40 @@ impl Engine {
         }
     }
 
+    /// Opens the store now, taking the data directory's lock, when it is not
+    /// open yet: the command line does this before it runs a command, to
+    /// learn whether a server owns the store.
+    ///
+    /// # Errors
+    /// [`StoreError::InUse`] when another process owns the store.
+    pub fn open_store(&self) -> Result<(), StoreError> {
+        self.with_store(|_| Ok(()))
+    }
+
     /// Runs `work` on the store, opening it first if this is its first use.
+    ///
+    /// Inside a server's runtime the work leaves the async thread it was
+    /// called on, so that a command waiting for the store, or writing to it,
+    /// never holds up the requests the runtime is serving.
     ///
     /// # Errors
     /// [`StoreError::InUse`] when another process owns the store, and
     /// whatever `work` returns.
     pub fn with_store<T>(
+        &self,
+        work: impl FnOnce(&mut Store) -> Result<T, StoreError>,
+    ) -> Result<T, StoreError> {
+        let on_server = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
+            handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
+        });
+        if on_server {
+            tokio::task::block_in_place(|| self.with_store_here(work))
+        } else {
+            self.with_store_here(work)
+        }
+    }
+
+    fn with_store_here<T>(
         &self,
         work: impl FnOnce(&mut Store) -> Result<T, StoreError>,
     ) -> Result<T, StoreError> {
@@ -136,9 +176,53 @@ impl Engine {
                     .home
                     .as_ref()
                     .ok_or(StoreError::Home(HomeError::Unknown))?;
-                held.insert(Store::open(home)?)
+                let store = held.insert(Store::open(home)?);
+                self.owns_store.store(true, Ordering::Release);
+                store
             }
         };
         work(store)
+    }
+
+    /// Whether this process owns the store: it has opened it and holds the
+    /// data directory's lock. Only the owner writes the journal.
+    #[must_use]
+    pub fn owns_store(&self) -> bool {
+        self.owns_store.load(Ordering::Acquire)
+    }
+
+    /// Reads the agents' tokens from the store into what the server checks.
+    ///
+    /// # Errors
+    /// When the store cannot be opened or read.
+    pub fn load_agent_tokens(&self) -> Result<(), StoreError> {
+        let tokens = self.with_store(|store| store.tokens())?;
+        self.set_agent_tokens(tokens);
+        Ok(())
+    }
+
+    /// Replaces what the server checks with `tokens`.
+    pub fn set_agent_tokens(&self, tokens: Vec<TokenRow>) {
+        *self
+            .agent_tokens
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = tokens;
+    }
+
+    /// The id of the agent whose token hashes to `hash`, compared with every
+    /// token kept in constant time.
+    #[must_use]
+    pub fn agent_for(&self, hash: &[u8; 32]) -> Option<String> {
+        let tokens = self
+            .agent_tokens
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut found = None;
+        for token in tokens.iter() {
+            if crate::tokens::same(&token.hash, hash) {
+                found = Some(token.id.clone());
+            }
+        }
+        found
     }
 }

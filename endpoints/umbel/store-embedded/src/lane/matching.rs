@@ -435,6 +435,7 @@ mod tests {
             command_writable: Vec::new(),
             person: vec!["human:local".to_owned()],
             admit: vec![Standing::Affirmed],
+            levels: Vec::new(),
         }
     }
 

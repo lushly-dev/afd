@@ -1,0 +1,40 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# The hand-off's details ({ route, section, key, level }) are P4-E1's to assert; a scenario
+# reaches only the suggestion.
+name: Change my person's setting, and hand off what I may not
+description: >-
+  When my person asks me to change a setting, I want to change their own and hand them the
+  exact place for one every member reads, so that nothing everyone sees changes without a
+  person.
+job: agent-changes-setting
+tags: [loam-runner]
+steps:
+  - description: "[agent] I find the key and its levels"
+    command: setting-schema-get
+    input: { section: hello.general, key: greeting }
+    expect:
+      success: true
+  - description: "[agent] [scope: prj_atlas] A project-level write is refused, with where the person can do it"
+    command: setting-set
+    input: { section: hello.general, key: greeting, value: Hi Atlas, level: project }
+    expect:
+      success: false
+      error:
+        code: HUMAN_REQUIRED
+        suggestion: { contains: settings }
+  - description: "[agent] My person's own value is mine to change"
+    command: setting-set
+    input: { section: loam.appearance, key: theme, value: dark, level: person }
+    expect:
+      success: true
+      data: { value: dark, from: person }
+  - description: "[agent] It is recorded as mine"
+    command: setting-get
+    input: { section: loam.appearance, key: theme }
+    expect:
+      success: true
+      data: { value: dark, updatedBy: 'agent:shell-agent' }

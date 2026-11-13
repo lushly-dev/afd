@@ -5,26 +5,31 @@
 //! command in it must keep, the command line's entry point, the data
 //! directory, the log, the store's tables, what is derived from the log
 //! (fields, threads, the search index), the provider interface and its IMAP
-//! implementation, sync, the keychain, and the commands `mail-account-add`,
-//! `mail-account-list`, `mail-sync`, `mail-status` and `mail-rebuild`. The
-//! other commands arrive with the steps that follow.
+//! implementation, sync, the keychain, the read commands, the tokens and the
+//! journal, and the server: `serve` over HTTP, `mcp` over stdio, and the
+//! command line's forwarding to a running server. The other commands arrive
+//! with the steps that follow.
 
 pub mod cli;
 pub mod commands;
 pub mod derive;
 pub mod engine;
 pub mod fetch;
+pub mod forward;
 pub mod home;
 pub mod html;
 pub mod index;
+pub mod journal;
 pub mod log;
 pub mod parts;
 pub mod provider;
 pub mod read;
 pub mod rules;
 pub mod secrets;
+pub mod serve;
 pub mod store;
 pub mod sync;
+pub mod tokens;
 
 use std::sync::Arc;
 
@@ -63,6 +68,9 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(read::message_open(Arc::clone(engine)))?;
     registry.register(read::attachment_open(Arc::clone(engine)))?;
     registry.register(read::search(Arc::clone(engine)))?;
+    registry.register(tokens::create(Arc::clone(engine)))?;
+    registry.register(tokens::list(Arc::clone(engine)))?;
+    registry.register(tokens::revoke(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
         return Err(broken.join("\n"));
@@ -82,5 +90,8 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
             .with_summarize(|command, input, _context| commands::approval_summary(command, input)),
     )?;
     registry.add_middleware(gate);
+    if let Some(home) = engine.home() {
+        registry.set_journal(journal::recorder(home, &registry, Arc::clone(engine)));
+    }
     Ok(registry)
 }

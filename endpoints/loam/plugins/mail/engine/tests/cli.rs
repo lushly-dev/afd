@@ -71,17 +71,110 @@ fn an_unknown_argument_is_echoed_without_control_characters() {
 
 #[test]
 fn the_built_program_answers_help() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let data = directory.path().join("data");
     let output = Command::new(env!("CARGO_BIN_EXE_loam-mail"))
         .arg("help")
+        .env("LOAM_MAIL_HOME", &data)
         .output()
         .expect("the program runs");
     assert!(output.status.success());
     assert!(String::from_utf8_lossy(&output.stdout).starts_with("loam-mail: "));
-    let refused = Command::new(env!("CARGO_BIN_EXE_loam-mail"))
-        .arg("serve")
+    // Arguments `serve` does not take are refused before anything is opened.
+    for args in [
+        &["serve", "--port"][..],
+        &["serve", "--port", "x"],
+        &["serve", "now"],
+    ] {
+        let refused = Command::new(env!("CARGO_BIN_EXE_loam-mail"))
+            .args(args)
+            .env("LOAM_MAIL_HOME", &data)
+            .output()
+            .expect("the program runs");
+        assert_eq!(refused.status.code(), Some(2), "{args:?}");
+    }
+    assert!(!data.exists(), "nothing was made");
+}
+
+/// Stops a child process when the test ends, however it ends.
+struct Child(std::process::Child);
+
+impl Drop for Child {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn the_built_program_serves_forwards_and_cleans_up_when_asked_to_stop() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let data = directory.path().join("data");
+    let program = env!("CARGO_BIN_EXE_loam-mail");
+    let mut server = Child(
+        Command::new(program)
+            .arg("serve")
+            .env("LOAM_MAIL_HOME", &data)
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("the server starts"),
+    );
+    let entry = data.join("server.json");
+    let started = std::time::Instant::now();
+    while !entry.exists() {
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(30),
+            "the server never wrote server.json"
+        );
+        if let Some(status) = server.0.try_wait().expect("the server's status") {
+            panic!("the server stopped: {status}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    // The store is the server's: the command goes to it, and runs.
+    let output = Command::new(program)
+        .arg("mail-token-list")
+        .env("LOAM_MAIL_HOME", &data)
+        .stdin(std::process::Stdio::null())
         .output()
         .expect("the program runs");
-    assert_eq!(refused.status.code(), Some(2));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("\"tokens\""));
+    // A person's command with no terminal still needs a person.
+    let output = Command::new(program)
+        .args(["mail-token-create", r#"{"name":"x"}"#])
+        .env("LOAM_MAIL_HOME", &data)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the program runs");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("PERSON_REQUIRED"));
+    // `mcp` on the same store names the server instead.
+    let output = Command::new(program)
+        .arg("mcp")
+        .env("LOAM_MAIL_HOME", &data)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the program runs");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("STORE_IN_USE"));
+
+    // A request to end stops it, and it removes its files.
+    let pid = server.0.id().to_string();
+    let killed = Command::new("kill")
+        .args(["-TERM", &pid])
+        .status()
+        .expect("kill runs");
+    assert!(killed.success());
+    let status = server.0.wait().expect("the server ends");
+    assert!(status.success(), "{status}");
+    assert!(!entry.exists());
+    assert!(!data.join("cli.token").exists());
 }
 
 #[test]

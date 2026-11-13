@@ -241,6 +241,19 @@ pub(crate) fn person_server(
     person::server(workspace, person)
 }
 
+/// The local person page (`[person.local]`, mode `none`; the Ideas host-review specification,
+/// section 6.3) of `service`; see [`person::local_server`].
+///
+/// # Errors
+/// As [`person::local_server`]'s.
+#[cfg(feature = "auth")]
+pub(crate) fn local_person_server(
+    workspace: &Workspace,
+    service: &Arc<crate::person::service::PersonService>,
+) -> Result<HttpServer, HostError> {
+    person::local_server(workspace, service)
+}
+
 /// A `WORKSPACE_CONFIG_INVALID` naming `key`, with `details.key`.
 fn not_served(key: &str, problem: &str) -> HostError {
     WorkspaceError::config_invalid(key, problem).into()

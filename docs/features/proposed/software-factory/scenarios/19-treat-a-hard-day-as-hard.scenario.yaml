@@ -1,0 +1,37 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is the lane's state as the review opens; loading it runs the lane's review-open step, which
+# computes the review, judges the experiments that are due and restores the dials it reverts.
+# Nothing needed an answer, so no event woke anyone.
+name: Treat a hard day as a hard day
+description: >-
+  When fewer merges landed because the issues were harder, I want the review to account for the work mix
+  itself and change nothing, so that a day of deep issues is never treated as the factory slowing down and
+  nobody is woken for it.
+job: treat-a-hard-day-as-hard
+tags: [improvement]
+fixture:
+  file: fixtures/hard-day.json
+  base: fresh.json
+steps:
+  - description: >-
+      Raw merges per lane-hour fell, but five deep issues account for it: nothing is flagged and the
+      review closed by itself
+    command: factory-health
+    expect:
+      success: true
+      data:
+        window:
+          byProfile: { deep: 5 }
+        metrics:
+          adjustedThroughput: { value: { between: [0.95, 1.05] }, state: normal }
+          mergedPerLaneHour: { value: { lte: 0.7 } }
+          validationMinutesPerMerge: { state: normal }
+        anomalies: { length: 0 }
+        review: { state: closed, note: { contains: work-mix } }
+  - description: No review is waiting and no dial moved
+    command: lane-status
+    expect:
+      success: true
+      data:
+        openEvents: { length: 0 }
+        dials: { lane.slots: 2, lane.queueTarget: 2 }

@@ -355,6 +355,7 @@ pub(crate) fn inspect_with(
         &located.root,
         auth,
     ));
+    checks.push(person_local(config.as_ref()));
     checks.push(Check::skip_sealed("mcp.surface"));
     checks.push(Check::skip_sealed("cli.verbs"));
     checks.extend(crate::plugins::doctor_checks(
@@ -878,6 +879,49 @@ fn auth_checks(
             Vec::new()
         }
     }
+}
+
+/// `person.local` (the Ideas host-review specification, section 6.5): passes when the local
+/// person page is not enabled; warns when it is, naming what it does not prove. It has no
+/// sign-in: an agent with a shell can start `umbel person page-serve` itself and post the form,
+/// so turning it on relaxes what an agent variable withholds at a terminal.
+fn person_local(config: Option<&crate::workspace::Config>) -> Check {
+    const ID: &str = "person.local";
+    let Some(config) = config else {
+        return Check::skip(ID, NEEDS_CONFIG);
+    };
+    let local = &config.person.local;
+    // A space whose `verified_levels` lists `local` gives a call for verified content what
+    // anything on this machine confirmed on the local page.
+    let mut parts: Vec<String> = config
+        .spaces
+        .iter()
+        .filter(|space| {
+            space
+                .verified_levels
+                .contains(&crate::workspace::AssuranceLevel::Local)
+        })
+        .map(|space| {
+            format!(
+                "spaces.{}.verified_levels lists local, so a call for verified content there is given what anything on this machine confirmed on the local person page",
+                space.id
+            )
+        })
+        .collect();
+    if local.enabled {
+        parts.insert(0, format!(
+            "The local person page is enabled at http://{}/d/. It has no sign-in, so a decision made there shows only that something on this machine posted its form, not that a person clicked: an agent can start umbel person page-serve itself and post the form. Loopback is shared by every account on this machine, so another user can read the list and the previews and approve, and any process here can read what they show. Its decisions are recorded as local, never verified, and a call for verified content leaves them out unless a space's verified_levels lists local",
+            local.bind
+        ));
+    }
+    if parts.is_empty() {
+        return Check::pass(ID, "The local person page is not enabled");
+    }
+    Check::warn(
+        ID,
+        parts.join("; "),
+        "Enable [person.local] only where no agent and no other account on this machine should be kept from confirming its requests, and list local in a space's verified_levels only where that is acceptable; for a proof that a person decided, use a hosted workspace with a person login.",
+    )
 }
 
 fn http_config(file: Option<&ConfigFile>) -> Check {
