@@ -37,6 +37,10 @@ jsonschema = { version = "0.60", default-features = false }
 rusqlite = { version = "0.41", features = ["bundled"] }
 serde_json = "1"
 tempfile = "3"
+# `ideas_first_use.rs` speaks HTTP to the local person page over a socket, and reads the Ideas
+# README's instance as TOML.
+tokio = { version = "1", features = ["io-util", "net"] }
+toml = "1"
 # `cargo test` builds the binary with `testkit`, so the exit test has the frozen clock
 # (`UMBEL_TEST_CLOCK`) and the person at a terminal (`UMBEL_TEST_HUMAN_PRESENT`) of section 12;
 # a normal build has neither.
