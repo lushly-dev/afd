@@ -30,8 +30,8 @@
 	},
 	"sideEffects": false,
 	"peerDependencies": {
-		"@lushly-dev/fast-element": "^3.0.1-preview",
-		"@lushly-dev/specimen": "^2.2.0-preview"
+		"@lushly-dev/fast-element": "workspace:^",
+		"@lushly-dev/specimen": "workspace:^"
 	},
 	"devDependencies": {
 		"@lushly-dev/fast-element": "workspace:^",
