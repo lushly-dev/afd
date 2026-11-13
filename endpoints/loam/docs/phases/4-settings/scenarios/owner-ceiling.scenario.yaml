@@ -1,0 +1,47 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+name: Set a rule no project can loosen
+description: >-
+  When one command is risky everywhere, I want to set a rule for it that no project can
+  loosen, so that the workspace's limits hold whoever runs a project.
+job: owner-ceiling
+tags: [loam-runner]
+steps:
+  - description: An owner lets projects go as far as act
+    command: autonomy-set
+    input: { level: workspace, mode: ask, ceiling: act }
+    expect:
+      success: true
+  - description: But tally-reset only suggests, in every project
+    command: autonomy-set
+    input: { level: workspace, instance: tally, command: tally-reset, mode: suggest }
+    expect:
+      success: true
+  - description: A project row past the owner's rule is refused, naming who sets it
+    command: autonomy-set
+    input: { level: project, project: prj_atlas, instance: tally, command: tally-reset, mode: act }
+    expect:
+      success: false
+      error:
+        code: AUTONOMY_ABOVE_CEILING
+        suggestion: { contains: owner }
+  - description: A row for a command the app does not have is refused, so no rule is orphaned
+    command: autonomy-set
+    input: { level: workspace, instance: tally, command: tally-erase, mode: suggest }
+    expect:
+      success: false
+      error: { code: AUTONOMY_COMMAND_UNKNOWN }
+  - description: The project acts on everything else, and still only suggests tally-reset
+    command: autonomy-set
+    input: { level: project, project: prj_atlas, mode: act }
+    expect:
+      success: true
+  - description: "[scope: prj_atlas] The owner's rule holds in the project"
+    command: autonomy-get
+    input: { command: tally-reset, instance: tally }
+    expect:
+      success: true
+      data: { mode: suggest }
