@@ -214,8 +214,9 @@ export function sessionEndpoints(context: () => AuthContext | undefined) {
 					}
 					revoked = [named];
 				}
-				// One handle at a time must not do what `others` may not (B1): only the caller's own needs nothing.
-				if (revoked.some((row) => row.token !== own)) {
+				// `others` and `all` always need it, and one handle at a time must not do what `others` may not (B1): only
+				// the caller's own session, by its handle, needs nothing.
+				if (target === 'others' || target === 'all' || revoked.some((row) => row.token !== own)) {
 					await requireFreshPasskeySession(context() ?? ctx.context, found);
 				}
 				for (const row of revoked) await ctx.context.internalAdapter.deleteSession(row.token);

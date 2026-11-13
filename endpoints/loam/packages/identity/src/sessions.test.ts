@@ -29,6 +29,7 @@ beforeAll(async () => {
 			{ email: 'dee@example.com', role: 'member', password: PASSWORD },
 			{ email: 'eli@example.com', role: 'member', password: PASSWORD },
 			{ email: 'fay@example.com', role: 'member', password: PASSWORD },
+			{ email: 'gus@example.com', role: 'member', password: PASSWORD },
 		],
 		methods: ['passkey', 'password'],
 		send: async () => {},
@@ -221,6 +222,13 @@ describe('P3-E1: 5.8 at the provider, by direct requests (D99)', () => {
 			expect(codeOf(answer), `${path} ${JSON.stringify(body)}`).toBe('REAUTH_REQUIRED');
 		}
 		expect((await call('/loam/whoami', { cookie: other })).body).not.toBeNull();
+		// `others` and `all` need it even with no other session to revoke (4.6).
+		const alone = await signIn('gus@example.com');
+		age(alone);
+		for (const target of ['others', 'all']) {
+			const answer = await call('/loam/revoke-person', { cookie: alone, body: { target } });
+			expect(codeOf(answer), `alone ${target}`).toBe('REAUTH_REQUIRED');
+		}
 		// Its own session, by its own handle, is a sign-out, which needs nothing.
 		const own = await call('/loam/revoke-person', {
 			cookie: stale,
