@@ -253,6 +253,25 @@ jobs:
           node scripts/release-control.mjs select --output "$RUNNER_TEMP/npm-selection.json"
           node --input-type=module -e 'import fs from "node:fs"; const selection = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-selection.json`)); fs.appendFileSync(process.env.GITHUB_OUTPUT, `selectable=${selection.selectable}\n`);'
 
+      # A pull request opened or updated with GITHUB_TOKEN starts no workflows, so the release pull
+      # request would never get `ci-ok`, the check main requires. The release App's token starts them.
+      # Without the App, or if the token cannot be created, GITHUB_TOKEN opens it as before and the
+      # pull request needs its checks started by hand (close and reopen it).
+      - name: Create release pull request token
+        id: pr-token
+        if: steps.selection.outputs.selectable == 'true' && vars.RELEASE_TAG_APP_CLIENT_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_TAG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_TAG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Warn when the release pull request will start no checks
+        if: steps.selection.outputs.selectable == 'true' && steps.pr-token.outputs.token == ''
+        run: echo "::warning::No release App token; the release pull request is opened with GITHUB_TOKEN and starts no workflows. Close and reopen it to run its checks, or give the App Pull requests write access."
+
       # Publication is independent of pending fragments held in other families.
       - name: Create selected release PR
         if: steps.selection.outputs.selectable == 'true'
@@ -267,7 +286,7 @@ jobs:
           push-with-git-cli: true
           pr-title: 'chore: release packages'
           commit-message: 'chore: release packages'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.pr-token.outputs.token || secrets.GITHUB_TOKEN }}
 
   recover:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
