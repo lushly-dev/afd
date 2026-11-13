@@ -21,7 +21,7 @@ check_agents = true
 # Must equal listingBudget in skills/exports.json; pnpm check:skills compares them.
 # Standing rule (owner, 2026-11-12): a PR that still needs more raises both to the
 # listing total rounded up to the next 100, up to 8,000; above that, ask the owner.
-listing_budget = 6000
+listing_budget = 6200
 # Skip every bundled canonical ID: seed must not rename or replace this profile.
 skip = [
     "agent-config",
@@ -61,3 +61,9 @@ coverage_paths = ["src/"]
 
 [packages.rust]
 coverage_paths = ["src/"]
+
+# The bloat sweep (the sweep-bloat skill): it ranks files over file_size_warn by size and
+# churn and records each pass on the trend issue; file_size_error is only the commit's
+# runaway guard.
+[sweep]
+trend_issue = 1098

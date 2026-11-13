@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "5bcf3060dfee2acc4c5fb32ddc4aeb13af61e7e34cf55eefe4b464c1b38656d6",
+      "current_import_sha256": "1454ef315de5fbd070f21f665b899f5f2e82ae6603cae74428f3b25f4209dca8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; the bloat-sweeper skill and its [sweep] section (SweepConfig)"
     },
     {
       "path": "LICENSE",
@@ -1467,21 +1467,21 @@
       "path": "pyproject.toml",
       "upstream_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
       "staged_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
-      "current_import_sha256": "e1d1ecf3844d84d3dac940b52320e19ceeb7c62f1ae0657f7e6773479d34e1ab",
+      "current_import_sha256": "8978715d707377f10f7ed18b80b649ffd061796071fb7e5394071d34f69d9db2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set root version 0.6.1, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset"
+      "import_reason": "Set root version 0.6.1, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; the bloat-sweeper skill and its [sweep] section (SweepConfig)"
     },
     {
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "6bcc6f5d2c51b35ebc5678f9e8e0bf4e6ee91a36c80b00a246808701bccddfd2",
+      "current_import_sha256": "88d9b9728a9d2ff7217c58454b8513d0bc61fce7ce2ba7ca544d5b6831b9e742",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app"
+      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; the bloat-sweeper skill and its [sweep] section (SweepConfig)"
     },
     {
       "path": "scripts/record_provenance.py",
@@ -1867,11 +1867,11 @@
       "path": "src/botcore/config.py",
       "upstream_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
       "staged_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
-      "current_import_sha256": "f41d87baf293d42bb6159d4762a852a2f02c2c3962fa828d4d59829b2f6e0604",
+      "current_import_sha256": "93063bb1eae2a52271fb2477f5e0168899c2840b558976c280cd783a9eb71a29",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget"
+      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; the bloat-sweeper skill and its [sweep] section (SweepConfig)"
     },
     {
       "path": "src/botcore/context.py",
@@ -2497,11 +2497,11 @@
       "path": "src/botcore/skills/botcore-config/SKILL.md",
       "upstream_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
       "staged_sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
-      "current_import_sha256": "6358c3a841a30a724830e201ec1f7f0cf4b50b92ddc855016acfb6387caba5d3",
+      "current_import_sha256": "7a29bc65f91a4f657d384e15568177cfb14ef599b757a384ec48c8487f3ab163",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "State only wired settings; add the [skills] section and retired skills"
+      "import_reason": "State only wired settings; add the [skills] section and retired skills; the bloat-sweeper skill and its [sweep] section (SweepConfig)"
     },
     {
       "path": "src/botcore/skills/botcore-config/references/config-reference.md",
@@ -5137,11 +5137,11 @@
       "path": "tests/test_config.py",
       "upstream_sha256": "742313b112d4f8a8716ad119822f9fa5401b1b382b104fd215082db7f2de7f8e",
       "staged_sha256": "742313b112d4f8a8716ad119822f9fa5401b1b382b104fd215082db7f2de7f8e",
-      "current_import_sha256": "653de22bf375f71c19402b2d82d198dad6defba31c1032cc5d5bc7a00650cdfa",
+      "current_import_sha256": "47c4d49b469eff5048451ffb0c444bbf557f63a649a130ee541ffb84588a911e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Test the legacy stamp, unknown-field rejection and listing_budget"
+      "import_reason": "Test the legacy stamp, unknown-field rejection and listing_budget; the bloat-sweeper skill and its [sweep] section (SweepConfig)"
     },
     {
       "path": "tests/test_coverage_gaps.py",

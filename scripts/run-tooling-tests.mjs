@@ -14,6 +14,7 @@ import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const testFiles = [
+	'scripts/bloat-sweeper.test.mjs',
 	'scripts/check-file-size.test.mjs',
 	'scripts/check-versions.test.mjs',
 	'scripts/repository-contract.test.mjs',

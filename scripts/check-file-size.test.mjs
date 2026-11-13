@@ -33,7 +33,7 @@ test('a file up to 1,500 lines only warns: the bloat sweep, not the commit, spli
 	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stderr, /busy\.ts/);
-	assert.match(result.stderr, /the bloat sweep ranks it/);
+	assert.match(result.stderr, /the sweep-bloat skill ranks it/);
 });
 
 test('discovery skips tests and generated output, and an override comment changes nothing', () => {
