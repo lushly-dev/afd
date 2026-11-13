@@ -27,7 +27,7 @@ At proposal acceptance on 2026-09-27, the four implementations were TypeScript 2
 | Status | Active: accepted 2026-09-27, with every recommendation (V1–V6); first releases are published and the independent version policy remains ongoing |
 | Author | jasfalk |
 | Updated | 2026-10-13 |
-| Related | [Language parity](../../../language-parity.md), [Parity closure plan](../parity-closure/parity-closure.plan.md), the `do-release` skill, `.github/workflows/release.yml`, `.github/workflows/publish-python.yml` |
+| Related | [Language parity](../../../language-parity.md), [Parity closure plan](../parity-closure/parity-closure.plan.md), the `cut-release` skill, `.github/workflows/release.yml`, `.github/workflows/publish-python.yml` |
 
 ## Accepted plan snapshot (verified 2026-09-26)
 
@@ -39,7 +39,7 @@ All of the following was verified on 2026-09-26.
 | Latest published | **npm 1.0.0** (2026-03-16) | PyPI 0.8.0 | Never published. The name `afd` is free on crates.io. | None; consumed through CMake |
 | Last tag | `@lushly-dev/*@1.0.0` | `python-v0.8.0` (2026-09-05) | None | None. `cpp-v0.1.0` is planned. |
 | Unreleased on `main` | **2.0.0** (breaking; release PR #252 merged 2026-09-24), plus one pending changeset (2.0.1) | 8 commits, including 3 breaking ones (#225, #232, #250). The wire format moved to camelCase, so 0.8.0 on PyPI does not match the current contract. | Everything | Everything |
-| Release path | `changesets/action` in `release.yml` | A `python-v*` tag or a GitHub Release triggers `publish-python.yml` | None defined | Tag plus GitHub Release (`do-release` skill) |
+| Release path | `changesets/action` in `release.yml` | A `python-v*` tag or a GitHub Release triggers `publish-python.yml` | None defined | Tag plus GitHub Release (`do-release` skill, now `cut-release`) |
 | Changelog | Per package (changesets) | None; entries go to the root `CHANGELOG.md` | None | `packages/cpp/CHANGELOG.md` |
 | Blocked by | **(1)** The 2.0.0 publish failed with `E404 Not Found - PUT …/@lushly-dev%2fafd-adapters`, next to npm's notice that 2FA-bypass tokens are being restricted, so the npm credential is not accepted. **(2)** Since then, every Release run fails to open the version PR: "GitHub Actions is not permitted to create or approve pull requests." | — | Nothing: V4 is decided (publish) | Nothing: the stale-docs fixes merged in #301 |
 
@@ -128,7 +128,7 @@ This records the original September sequence; the first release outcomes are now
 complete. npm and Python outcomes are recorded in
 [release readiness](../../../operations/stabilization-release.md); Rust and C++
 receipts are in the [native handoff](../../../operations/native-first-releases.md).
-Future versions follow the `do-release` skill.
+Future versions follow the `cut-release` skill.
 
 Steps marked **(admin)** need a repository or npm owner. They change security settings, so an agent should not do them.
 
@@ -147,7 +147,7 @@ Steps marked **(admin)** need a repository or npm owner. They change security se
    4. Fix `publish-python.yml` so the version check also runs for GitHub Release events.
 5. **C++ 0.1.0 — complete 2026-10-12.** Published `cpp-v0.1.0` from `a311562` (#377). Post-merge CI, fresh tagged consumers, the tag badge and pinned installation snippets are verified; the feature record is in `complete/cpp-support/`.
 6. **Rust 0.1.0 — complete 2026-10-12.** The crate is published on crates.io; `rust-v0.1.0` passed its tag checks, the trusted publisher is configured, and future versions use the OIDC workflow. A new version still needs an actual OIDC upload receipt.
-7. **`do-release` skill — complete.** The skill covers all four implementations, their tag schemes and the contract version.
+7. **`do-release` skill (now `cut-release`) — complete.** The skill covers all four implementations, their tag schemes and the contract version.
 
 ## Decisions
 
@@ -168,4 +168,4 @@ All six were accepted as recommended on 2026-09-27.
 - The README and site show every implementation's version from a live source. There is no blanket version.
 - `spec/VERSION` exists. All four implementations export a matching constant, and `alfred parity` checks it.
 - `scripts/check-versions.mjs` runs in `pnpm check`.
-- The `do-release` skill documents all four release paths.
+- The `cut-release` skill documents all four release paths.

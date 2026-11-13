@@ -54,7 +54,7 @@ Specimen's four prebuilt host packages keep changelogs beside them, in `foundati
 - **Python, Rust, C++, Botcore or Alfred:** add an entry to that changelog, in its unreleased section.
 - **Anything else** (CI, docs, examples, unreleased projects) ships in no package, so its pull request is the record.
 
-The [`do-release` skill](.claude/skills/do-release/SKILL.md) describes how each one is released.
+The [`cut-release` skill](.claude/skills/cut-release/SKILL.md) describes how each one is released.
 
 ## Earlier history
 

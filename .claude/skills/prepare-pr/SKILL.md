@@ -1,5 +1,5 @@
 ---
-name: do-prepare-pr
+name: prepare-pr
 description: >
   Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
   PR and readiness, merging only when separately authorized. `inspect` changes
@@ -8,7 +8,7 @@ description: >
 argument-hint: inspect | quick
 ---
 
-# Do Prepare PR
+# Prepare PR
 
 Keep the order where it protects correctness: base sync before review, so the review sees the integrated tree; fixes before the commit; gates on the final tree; the PR after the gates.
 
@@ -29,7 +29,7 @@ pnpm verify --list                          # suites this diff triggers; runs no
 pnpm changeset status --since origin/main   # read it, don't gate on it
 ```
 
-Stop on unknown dirty files, an in-progress merge or rebase, or work that already landed. After a squash merge "0 ahead" is ambiguous; use `do-init-afd`'s content-based landing check, and never open a duplicate PR.
+Stop on unknown dirty files, an in-progress merge or rebase, or work that already landed. After a squash merge "0 ahead" is ambiguous; use `start-session`'s content-based landing check, and never open a duplicate PR.
 
 ## Full mode
 
@@ -52,10 +52,10 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
 
 4. **Commit** with a message that says why: type and scope from `commitlint.config.js` (no scope for cross-cutting work), subject at most 72 characters. Stage only intended files.
 
-5. **Gates on the final tree.** Run `pnpm verify` on the `.nvmrc` Node (see `do-init-afd`'s Runtime; for example `fnm exec --using "$(cat .nvmrc)" -- pnpm verify`). It runs `pnpm check`, then each triggered workflow's local suite, and prints what only CI covers. It stops at the first failure; `--keep-going` runs the rest so one pass shows every failure. When a gate fails for a reason its output does not explain, or the change touches CI or `scripts/affected`, read [gates.md](references/gates.md): what each gate covers, the per-unit notes (provenance, regenerated fixtures) and the rules for changing CI.
+5. **Gates on the final tree.** Run `pnpm verify` on the `.nvmrc` Node (see `start-session`'s Runtime; for example `fnm exec --using "$(cat .nvmrc)" -- pnpm verify`). It runs `pnpm check`, then each triggered workflow's local suite, and prints what only CI covers. It stops at the first failure; `--keep-going` runs the rest so one pass shows every failure. When a gate fails for a reason its output does not explain, or the change touches CI or `scripts/affected`, read [gates.md](references/gates.md): what each gate covers, the per-unit notes (provenance, regenerated fixtures) and the rules for changing CI.
    - **Missing tool.** It preflights `uv`, `cargo`, `cmake` and `openssl` and aborts before running anything if a step it planned needs a missing one. Then run `pnpm check` and each `--list` step yourself, in its directory, one command per step: brace-expanding `test:conformance:{ts,py}` runs only the first script and passes the rest as ignored arguments. Chromium isn't preflighted; a missing browser fails mid-run. Report what could not run as not run, never as passed.
    - **Wide plans.** A docs-only edit can trigger heavy suites: a `packages/rust` README change runs Loam and Umbel (Chromium, a Rust build, about 14 GB of Umbel target directory). Read `--list` before choosing what to touch, and check `df -h` before an Umbel run.
-   - **Fresh worktree.** Install first (`do-init-afd` explains the `npx` trap), and run tools by hand as `pnpm exec <tool>`.
+   - **Fresh worktree.** Install first (`start-session` explains the `npx` trap), and run tools by hand as `pnpm exec <tool>`.
 
 6. **Push.** `git push -u origin <branch>`; on a hook failure, fix and push again. Never `--no-verify` without the user's explicit approval and separate gate evidence for that exact commit.
 
@@ -76,10 +76,10 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
    gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8>
    ```
 
-   A pull request that changes `pnpm-lock.yaml` merges one at a time, rebased onto the new `main` first ([gates.md](references/gates.md)). A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `do-init-afd`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+   A pull request that changes `pnpm-lock.yaml` merges one at a time, rebased onto the new `main` first ([gates.md](references/gates.md)). A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
 
 ## Report
 
 A few lines: base (`origin/main` SHA, merged or current); review (passes, findings fixed, dispositions, or why it did not run); docs (changeset and changelog, or why none); gates run and their results, and gates not run with the reason; PR number, head SHA, mergeability and checks; merged or the next action.
 
-End with the owner steps the change now waits on, because nothing else reminds anyone. A merged release PR names the owner's next step from `do-release`'s Tracks table: the tag to push (`botcore-vX.Y.Z`, `python-vX.Y.Z`, ...), or for npm, merging the version PR. A change a consumer is waiting on that arrives only through a release, such as a bumped canonical Botcore skill that seeded repositories pick up from PyPI, says "needs a release" and names the track. A step that will outlive the session gets a tracker: the open release PR, or an issue.
+End with the owner steps the change now waits on, because nothing else reminds anyone. A merged release PR names the owner's next step from `cut-release`'s Tracks table: the tag to push (`botcore-vX.Y.Z`, `python-vX.Y.Z`, ...), or for npm, merging the version PR. A change a consumer is waiting on that arrives only through a release, such as a bumped canonical Botcore skill that seeded repositories pick up from PyPI, says "needs a release" and names the track. A step that will outlive the session gets a tracker: the open release PR, or an issue.
