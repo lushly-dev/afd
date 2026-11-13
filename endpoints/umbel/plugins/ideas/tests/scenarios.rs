@@ -5,8 +5,9 @@
 //! person, `ideas-export` as the operator, and every other command as the agent acting for her.
 //!
 //! A scenario runs up to its first step whose command a later step of the specification serves
-//! (`ideas-ask` is step C2's, the review commands C3's and C4's); the table below holds how far
-//! each file runs now, so a step that starts serving one is seen to.
+//! (the review commands are C3's and C4's); the table below holds how far each file runs now, so
+//! a step that starts serving one is seen to. Scenario 21's three `ideas-ask` steps follow its
+//! review, so `tests/read.rs` runs them on a store affirmed by a restore until step C3 (C2-1).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -30,8 +31,7 @@ const SCENARIOS: [(&str, usize); 8] = [
 ];
 
 /// Commands a later step serves.
-const NOT_YET: [&str; 7] = [
-    "ideas-ask",
+const NOT_YET: [&str; 6] = [
     "ideas-review-stage",
     "ideas-review-show",
     "ideas-review-unstage",

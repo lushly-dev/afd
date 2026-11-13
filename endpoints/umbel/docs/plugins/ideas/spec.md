@@ -32,7 +32,9 @@ Code paths are relative to `endpoints/umbel/`.
   `verified_levels` rows. A focused pass on the revision is open.
 - **Step C1** (crate, records, capture and reads) implemented 2026-11-12 on `lush/ideas-c1-capture`, in its pull
   request, not merged; the amendments it needed are below.
-- **Not done:** everything in section [15](#15-implementation-plan) after step C1.
+- **Step C2** (`ideas-ask`) implemented 2026-11-12 on `lush/ideas-c2-ask`, in its pull request, not merged; the
+  amendments it needed are below.
+- **Not done:** everything in section [15](#15-implementation-plan) after step C2.
 - **Follow-ups:** the [table at the end](#follow-ups). The answers to the follow-ups addressed to step A3 are in the
   [Ideas status](../../../../../docs/features/active/ideas/STATUS.md).
 
@@ -64,6 +66,17 @@ of each. None changes a decision row.
 | C1-19 | 4.5 has a key sent again treated as a replay, whatever it carries | A key sent again whose item at an index has another match digest than the wording the first call wrote is refused, `CONFLICT` on `idempotencyKey`, before anything is written |
 | C1-20 | The output budgets of section 7 | `ideas-find`, `ideas-match` and `ideas-export` fit their answer to the call's budget as the memory plugin does (`plugins/memory/src/budget.rs`): fewer ideas, fewer candidates each, fewer items, with `RESULTS_LIMITED`. A shortened find or export page is read again at the limit that fits, so its `next` is the cursor after its last item |
 | C1-21 | The fields a journal keeps are ids and enums, but the host checks no pattern | Each kept string has a `maxLength`: 29 for an idea id, 28 for a review, 64 for a part, 71 for a digest, 40 for a tag, 2048 for a cursor; `ids` at most 64 |
+
+### Amendments from step C2
+
+| # | Point | Decision |
+| --- | --- | --- |
+| C2-1 | Section 15 gives C2's exit as scenario 21 passing, but its three `ideas-ask` steps follow an `ideas-review-stage` and an `ideas-review-apply`, which are C3's | `tests/scenarios.rs` still stops scenario 21 at its third step (C1-4), and `tests/read.rs` runs its ask steps on a store whose view is affirmed by a restore (`tests/support/mod.rs`, `affirmed_store`): two found, one seed, `pending` of 0 and 1, one found under `verifiedOnly`, none on a question nothing bears on. Scenario 21 passes in full from step C3 |
+| C2-2 | 7.3 names `found` as "the page's length" and leaves the output budget to C1-20's pattern | Fitted as find is: fewer ideas, with `RESULTS_LIMITED`, and `found` is the number shown (`src/ask.rs`, `run`). Ask has no cursor, so nothing is read again |
+| C2-3 | 7.3 answers a question with no token the store indexes as `found = 0`, and asks for the host's `admitted` | The host refuses such a find (`store/src/lane/query.rs:160`); ask answers `found = 0`, `total = 0`, and takes `admitted` from the same find without its text, at limit 1, whose records it does not show (`src/ask.rs`, `run`) |
+| C2-4 | 7.3's `reasoning` when `found = 0` | Set by `Outcome::with_reasoning` only when the host found nothing: "Nothing the person holds bears on this question; do not answer it in their voice. If they want the question kept, capture it with ideas-capture, type question." A page cut to nothing by the budget has no such reasoning, since something bears on the question; its `RESULTS_LIMITED` says to ask for fewer |
+| C2-5 | Phase 0.3 found a third of a 25-idea bundle off the question (the Ideas status' follow-ups addressed to A3) | Nothing beyond what 7.3 and 11.2 decided: the default is the pack's `ask_default` (25), within `ask_max`, and the instructions paragraph and `ideas-guide`'s `start` tell the caller to use only the ideas that bear on the question. The rerank stays carried in the Ideas status |
+| C2-6 | "`pending` on every read" | Every read served so far returns it: `ideas-ask` now, and `ideas-find`, `-open`, `-match`, `-guide`, `-capture`, `-export` (its last page) and `-import` from C1. `tests/read.rs`' `every_read_returns_pending` holds ask beside them. The review commands gain it in C3 and C4 |
 
 ## What this plugin serves
 

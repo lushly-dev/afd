@@ -1,7 +1,7 @@
 //! The host's label passed through (specification, section 4.6): every read command returns a
 //! wording's `dev.umbel/standing` object unchanged, as `label`, and its standing as `standing`,
-//! `unverified` spelled `seed`. The same wording read through capture's candidates, match, find
-//! and open carries one label, byte for byte, for a seed and for an affirmed wording; and a
+//! `unverified` spelled `seed`. The same wording read through capture's candidates, match, ask,
+//! find and open carries one label, byte for byte, for a seed and for an affirmed wording; and a
 //! reader who is not the space's person sees when and at what level, and not who.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -43,6 +43,19 @@ async fn labels(fx: &Fx, id: &str, statement: &str, stranger: bool) -> Vec<(Stri
         "find".to_owned(),
         item["standing"].clone(),
         item["label"].clone(),
+    ));
+    let asked = call("ideas-ask", json!({ "question": statement })).await;
+    let held = data(&asked)["ideas"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["id"] == id)
+        .unwrap()
+        .clone();
+    out.push((
+        "ask".to_owned(),
+        held["standing"].clone(),
+        held["label"].clone(),
     ));
     let matched = call("ideas-match", json!({ "statements": [statement] })).await;
     let hit = data(&matched)["results"][0]["candidates"][0].clone();
