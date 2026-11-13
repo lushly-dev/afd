@@ -1,0 +1,20 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["review", "part", "digest"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"review": {
+			"type": "string"
+		},
+		"part": {
+			"type": "string"
+		},
+		"digest": {
+			"type": "string"
+		}
+	}
+}

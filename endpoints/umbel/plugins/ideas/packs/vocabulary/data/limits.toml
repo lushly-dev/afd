@@ -1,0 +1,12 @@
+# The limits of each call (specification, section 5). Each has a hard ceiling in the plugin's code.
+
+statement_chars = 600
+capture_max = 64
+stage_max = 500
+review_max = 2000
+part_max = 500
+ask_default = 25
+ask_max = 50
+page_items = 20
+page_chars = 5800
+report_min = 50

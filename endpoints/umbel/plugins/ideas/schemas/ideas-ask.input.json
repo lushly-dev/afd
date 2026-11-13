@@ -1,0 +1,30 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["question"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"question": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"description": "The question, in plain words"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"description": "How many ideas; default: the pack's ask_default"
+		},
+		"verifiedOnly": {
+			"type": "boolean",
+			"description": "Only what the person affirmed at a verified level"
+		},
+		"type": {
+			"type": "string",
+			"description": "One of the pack's types; ideas-guide lists them"
+		}
+	}
+}

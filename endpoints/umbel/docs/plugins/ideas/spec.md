@@ -30,9 +30,35 @@ Code paths are relative to `endpoints/umbel/`.
 - **Revised 2026-11-12 after an independent review** of this document and its companion: three blockers, all in the
   companion or in the preview (8.4), and nine improvements here, all taken; section 17 gains the local login and
   `verified_levels` rows. A focused pass on the revision is open.
-- **Not done:** everything in section [15](#15-implementation-plan).
+- **Step C1** (crate, records, capture and reads) implemented 2026-11-12 on `lush/ideas-c1-capture`, in its pull
+  request, not merged; the amendments it needed are below.
+- **Not done:** everything in section [15](#15-implementation-plan) after step C1.
 - **Follow-ups:** the [table at the end](#follow-ups). The answers to the follow-ups addressed to step A3 are in the
   [Ideas status](../../../../../docs/features/active/ideas/STATUS.md).
+
+### Amendments from step C1
+
+Step C1 found these points this document had wrong against the code, or had left open, and took the smallest reading
+of each. None changes a decision row.
+
+| # | Point | Decision |
+| --- | --- | --- |
+| C1-1 | 7.1's `ideas-capture` description is 587 characters; the host refuses a command description past 500 (`src/plugins/manifest.rs:1530`) | Shortened to 483: "Use it whenever the person shares one, or says 'remember this idea'" becomes "Use it whenever the person shares one", and the `memory-remember` sentence becomes "Facts about the person go to memory-remember." The rest is as written |
+| C1-2 | 7.7's `ideas-review-apply` has `confirm = "require-human"` and no `expose`; the host refuses a confirmed command without `agent = false, cli = true` (`src/plugins/manifest.rs:1711`) | `expose = { mcp = true, agent = false, cli = true }`, as `person`'s `mcp = "verified"` needs MCP |
+| C1-3 | 7.7's `ideas-review-preview` declares no `returns`; the host refuses a `confirm_preview` target without `returns = { preview: string }` (`src/plugins/manifest/v4.rs:197`) | Declared with that `returns`. 8.4's paged shape (`preview` and `items`) does not fit it: step H2 or C4 changes the rule or the line |
+| C1-4 | Section 15 gives C1's exit as scenarios 01, 02, 25 and 28 passing, but 01, 02 and 28 call `ideas-review-stage` and `-apply`, which are C3's | `tests/scenarios.rs` runs every one of the eight files up to its first command a later step serves, and holds how far each runs: 01 four of its seven steps, 02 two, 15 one, 21 two, 22 three, 24 one, 25 all four, 28 one. Each file passes in full from the step that serves its last command |
+| C1-5 | The YAML reader of 14.3 (a follow-up addressed to C1) | `yaml-rust2` 0.13, pure Rust, a dev-dependency only, with its default `encoding` feature off: `Cargo.lock` gains it alone, its two dependencies being there already. The files are read as written, with no JSON copies |
+| C1-6 | Section 2 lists `schemas/config.schema.json`; section 3 says the plugin declares no `[config]` | No configuration schema: the manifest names none |
+| C1-7 | The commands of later steps | All fourteen are declared now, with their schemas, as section 3 says; `ideas-ask` and the review commands answer `NOT_IMPLEMENTED` until steps C2 to C4, as the components plugin's step C1 did. `ideas-open`, `ideas-export` and `ideas-import` had no manifest lines: their descriptions are written here, `ideas-open` keeps `space` and `id` |
+| C1-8 | `umbel-scan` in section 2's dependencies | Not yet: nothing in C1 scans. Step C3 adds it for reasons and reworded statements |
+| C1-9 | 4.5 derives ids from the effective principal, which `CallContext` does not carry | Derived as the curator derives it (`plugins/curator/src/settings.rs:26`): the person acted for, else `<kind>:<id>`. An idea's `seen` keeps the SHA-256 of the principal, the command and the key, so another caller's same key is another key |
+| C1-10 | 6.1 and 7.2 ask for `k` candidates without a text's own idea | The match asks the host for `k + 1` (at most 20) and drops the call's own ideas, so `k` candidates remain |
+| C1-11 | A candidate's members | Beside 7.1's: `declined` (its wording's role is `declined`), `identical`, `meaning` and `flags` (the host's scan). Every result gains `bandsOn` (6.4). A captured item carries its own `label` and `flags`, read back after the put; a wording a read returns carries `flags` |
+| C1-12 | 4.1's tags rule, "sorted, unique" | Given unsorted or repeated, tags are sorted and made unique, not refused. A statement must also have a match digest: one of whitespace only is refused, being identical to nothing |
+| C1-13 | Section 10 leaves `verify` and the shape of `added` open, and computes `matches` "over the archive's ids" when one import call holds one page | `added` and `same` are counts by kind (scenario 28 reads `added.idea`). `matches` compares the manifest's digest with the store's own over every record of the four kinds, as the export computes it, so the last page of a restore into an empty store matches. `verify` (default `true`) set `false` skips the comparison |
+| C1-14 | 14.1 runs the surfaces on `TestHost` | `TestHost` writes configuration version 2 (`src/plugins/check.rs:77`), which cannot allow a write grant the plugin requires, so every test uses its own workspace, as the memory plugin's do. Over MCP a command not exposed there answers `COMMAND_NOT_FOUND`, which `tests/surfaces.rs` holds |
+| C1-15 | `tests/capture.rs`' "a failed match still captures" and "a stage that failed part way finished by the same key" | A host cannot be made to refuse a match and accept the puts after it, nor to stop between two puts, so both call the handler on a stub of the host's services (`tests/support/stub.rs`): records in memory, a match that fails as the host's does. Every other test runs against the real host |
+| C1-16 | The scenario files sit under `docs/`, which `umbel.yml`'s path filters and its `Affected units` gate (`--except endpoints/umbel/docs/`) leave out | A change to the scenarios alone does not run their test. The gate's `--except` overrides any `--path` (`scripts/affected.mjs:102`), and `scripts/` is not a plugin step's to change: a follow-up below |
 
 ## What this plugin serves
 
@@ -1065,9 +1091,11 @@ records host specification run beside these; B6's figures replace the pack's ban
 | Date | Raised by | Follow-up | Where it goes |
 | --- | --- | --- | --- |
 | 2026-11-12 | This specification | This document and its companion had one independent review the same day (three blockers, nine improvements, all taken). A focused pass on the revision | Before step C1 |
-| 2026-11-12 | This specification | Which YAML reader `tests/scenarios.rs` uses, or JSON copies (14.3) | Step C1 |
-| 2026-11-12 | This specification | The principals of an instance: that the stdio agent acting for `on_behalf_of`, the CLI operator and the page's preview reader read the same records under `default_access = "space"` is read from the code (`src/principal.rs:430`, `src/person/service.rs:716`), not run | Step C1's `archive.rs` and C4's `review_page.rs` |
+| 2026-11-12 | This specification | Which YAML reader `tests/scenarios.rs` uses, or JSON copies (14.3) | Done in step C1: `yaml-rust2` (C1-5) |
+| 2026-11-12 | This specification | The principals of an instance: that the stdio agent acting for `on_behalf_of`, the CLI operator and the page's preview reader read the same records under `default_access = "space"` is read from the code (`src/principal.rs:430`, `src/person/service.rs:716`), not run | In part in step C1: `tests/archive.rs` and `tests/label.rs` run it for the agent, the operator and the person at a terminal. The page's preview reader is C4's `review_page.rs` |
 | 2026-11-12 | This specification | A meaning lane for ranked find, so `ideas-ask` gains from B5 | A host change, after B6 |
 | 2026-11-12 | This specification | The pack's bands are on phase 0's tokenizer | Step B6's rerun replaces them |
 | 2026-11-12 | This specification | A host write quota on declared puts | The records host specification's follow-up, B4's review |
 | 2026-11-12 | This specification | Better Auth cannot report user verification before its 1.8; the hosted page refuses a login without it (`src/auth/mod.rs:56`) | The hosted exit (the plan's Q1) |
+| 2026-11-12 | Step C1 | A change to the scenario files alone runs no test: `umbel.yml`'s path filters and its gate leave `docs/` out (C1-16) | A CI change: a `--path` the gate's `--except` does not override |
+| 2026-11-12 | Step C1 | 8.4's paged preview answers `items` beside `preview`, which the `returns` the host requires of a preview refuses (C1-3) | Step H2 or C4 |
