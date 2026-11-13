@@ -1,0 +1,103 @@
+# Ideas plugin, version 1 (specification section 7.3). The statements are invented fixtures about
+# gardening and assert nothing about the world.
+#
+# Links are out of version 1, so a question captured as an idea stays a question; closing it by
+# an answering link is the slice's. Whether the answer a model writes is good is phase 0.3's.
+
+name: Ask a question and get an answer from what I hold
+description: >-
+  When I have a question, I want to ask it from wherever I am working and get back my current
+  ideas that bear on it, each marked with how far I stand behind it, and to keep a question the
+  store cannot answer, so that I never dig through documents and gaps become visible.
+job: ask-a-question
+tags: [use, loop, v1]
+
+steps:
+  - description: A view
+    command: ideas-capture
+    input:
+      ideas:
+        - type: position
+          statement: Water deeply once a week rather than a little every day.
+    expect:
+      success: true
+
+  - description: Evidence for it, which I have not looked at
+    command: ideas-capture
+    input:
+      ideas:
+        - type: evidence
+          statement: In the fixture beds, weekly deep watering sent roots twice as deep as daily sprinkling.
+    expect:
+      success: true
+
+  - description: The view is proposed for affirmation
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          reason: The person's stated view.
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      part: "*"
+      digest: "${{ steps[2].data.digest }}"
+    expect:
+      success: true
+
+  - description: Ask in my own words; both come back in one call, the unreviewed one marked
+    command: ideas-ask
+    input:
+      question: How often should I water, and how deeply?
+    expect:
+      success: true
+      data:
+        found: 2
+        attention:
+          seeds: { length: 1 }
+        pending:
+          staged: 0
+          unreviewed: 1
+
+  - description: Asked for only what I affirmed, only the view comes back
+    command: ideas-ask
+    input:
+      question: How often should I water, and how deeply?
+      verifiedOnly: true
+    expect:
+      success: true
+      data:
+        found: 1
+
+  - description: Ask something the store holds nothing on; it says so and does not guess
+    command: ideas-ask
+    input:
+      question: Which frogs visit ponds?
+    expect:
+      success: true
+      data:
+        found: 0
+
+  - description: The question is kept as an idea of its own
+    command: ideas-capture
+    input:
+      ideas:
+        - type: question
+          statement: Which frogs visit ponds?
+    expect:
+      success: true
+
+  - description: It is listed among the questions
+    command: ideas-find
+    input:
+      type: question
+    expect:
+      success: true
+      data:
+        total: 1

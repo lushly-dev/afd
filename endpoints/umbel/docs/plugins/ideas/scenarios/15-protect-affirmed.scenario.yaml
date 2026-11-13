@@ -1,0 +1,127 @@
+# Ideas plugin, version 1 (specification sections 4.1, 7.1 and 8). The statements are invented
+# fixtures about gardening and assert nothing about the world.
+#
+# A wording never changes once written (the host's D160). An agent's other wording waits as a
+# reword proposal; what the person holds is untouched until they confirm. Pulling a proposal out
+# on the page cannot be scripted; the agent unstages it here instead.
+
+name: Never change what I affirmed
+description: >-
+  When an agent touches an idea I have affirmed, I want my wording to stand until I say
+  otherwise, so that I can trust what the store says I hold.
+job: protect-affirmed
+tags: [anti, trust, loop, v1]
+
+steps:
+  - description: An idea
+    command: ideas-capture
+    input:
+      ideas:
+        - type: principle
+          statement: Water in the morning, never at dusk.
+    expect:
+      success: true
+
+  - description: Proposed for affirmation
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          reason: The person stated it.
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[1].data.review }}"
+      part: "*"
+      digest: "${{ steps[1].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          affirm: 1
+
+  - description: An agent proposes another wording; it is staged, and changes nothing
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: reword
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          statement: Water at dawn or dusk, whichever is cooler.
+          reason: Proposed by an agent.
+          confidence: low
+    expect:
+      success: true
+      data:
+        added: 1
+
+  - description: What I hold is still my wording, affirmed, with the proposal waiting
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[0].id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        version: 1
+        statement: { contains: never at dusk }
+        staged: { exists: true }
+
+  - description: An affirmation that names no wording is refused
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: affirm
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          reason: No version given.
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+
+  - description: A search for what I affirmed finds my wording
+    command: ideas-find
+    input:
+      verifiedOnly: true
+      text: watering in the morning
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: A later capture of the idea in other words lands beside it and is offered it as a candidate; it is not refused
+    command: ideas-capture
+    input:
+      ideas:
+        - type: principle
+          statement: Morning is the time to water; evening watering should be avoided.
+    expect:
+      success: true
+      data:
+        captured: 1
+
+  - description: I do not want the agent's wording; the proposal is taken out
+    command: ideas-review-unstage
+    input:
+      all: true
+    expect:
+      success: true
+      data:
+        staged: 0
+
+  - description: My wording stands, nothing waits, and there is one wording in the history
+    command: ideas-open
+    input:
+      id: "${{ steps[0].data.ideas[0].id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        statement: { contains: never at dusk }
+        staged: { notExists: true }
+        history: { length: 1 }

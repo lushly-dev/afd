@@ -1,9 +1,9 @@
-# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
-# the statements are invented fixtures about gardening and assert nothing about the world.
+# Ideas plugin, version 1 (specification sections 7.6 and 11). The statements are invented
+# fixtures about gardening and assert nothing about the world.
 #
-# This job is the calling agent's. Whether a model with no skill installed picks ideas-capture
-# and ideas-ask out of a tool list is a measure (section 7), run against real harnesses. A
-# refusal lists the valid values in its details, which the runner cannot assert.
+# This job is the calling agent's. Whether a model with no skill picks ideas-capture and
+# ideas-ask out of a tool list is measured by hand (specification 14.2). A refusal lists the
+# valid values in its details, which the runner cannot assert.
 
 name: Find your way with no skill installed
 description: >-
@@ -11,31 +11,31 @@ description: >-
   want one call to tell me its vocabulary and how to work with it, and every refusal to say
   what is valid, so that I do the right thing without guessing.
 job: find-your-way
-tags: [trust, loop]
+tags: [trust, loop, v1]
 
 steps:
-  - description: One call says what the store holds, how to work with it, and what needs the person
+  - description: One call says what the store holds, how to work with it, and what waits for the person
     command: ideas-guide
     expect:
       success: true
       data:
         start: { exists: true }
-        types: { includes: position }
-        linkKinds: { includes: supports }
         standings: { includes: affirmed }
-        formats: { exists: true }
+        bands:
+          provisional: true
         confirmAt: { exists: true }
         totals:
           ideas: 0
-        waiting:
+        pending:
           staged: 0
-          seedsInUse: 0
+          unreviewed: 0
 
   - description: A capture with a type the store does not have is refused, and the refusal names the guide
     command: ideas-capture
     input:
-      type: note
-      statement: Stake dahlias before they need it.
+      ideas:
+        - type: note
+          statement: Stake dahlias before they need it.
     expect:
       success: false
       error:
@@ -45,17 +45,19 @@ steps:
   - description: With a valid type it goes in
     command: ideas-capture
     input:
-      type: principle
-      statement: Stake dahlias before they need it.
+      ideas:
+        - type: principle
+          statement: Stake dahlias before they need it.
     expect:
       success: true
 
-  - description: The guide counts it, and does not call an idea nobody has used "waiting"
+  - description: The guide counts it as a seed waiting for the person
     command: ideas-guide
     expect:
       success: true
       data:
         totals:
           ideas: 1
-        waiting:
-          seedsInUse: 0
+          seeds: 1
+        pending:
+          unreviewed: 1
