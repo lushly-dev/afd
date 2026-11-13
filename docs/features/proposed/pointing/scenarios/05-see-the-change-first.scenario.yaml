@@ -1,0 +1,68 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented, as in scenario 01. The Violet node `example-dark` defines
+# `color.accent.primary`, which Violet's `specimen.get` maps to the `example-button` role
+# `background`, and which the page reads as `--color-accent-primary`. A scenario cannot assert
+# on pixels, so the screenshots and the preview link are asserted by shape only. The preview
+# covers token changes only: a layout, copy or markup fix gets none.
+
+name: See a correction on the rendered screen before it is written
+description: >-
+  When I ask for a token correction to what I pointed at, I want it rendered before it is
+  written and shown to me, so that I judge the result on the screen and not a token value.
+job: see-the-change-first
+tags: [preview]
+
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: The point, made against a Violet node, names the candidate tokens that draw it
+    command: specimen-point
+    input:
+      id: example-toolbar
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: button, name: Share }
+      nodeId: example-dark
+    expect:
+      success: true
+      data:
+        point:
+          tokens.0.tokenId: color.accent.primary
+          tokens.0.role: background
+          tokens.0.candidate: true
+
+  - description: The change is rendered, shown before and after, and the commands to apply it returned
+    command: specimen-impact
+    input:
+      point: "${{ steps[0].data.point.id }}"
+      nodeId: example-dark
+      changes:
+        - { type: override, tokenId: color.accent.primary, value: "#1F6FEB" }
+    expect:
+      success: true
+      data:
+        status: changed
+        tokens.0.tokenId: color.accent.primary
+        tokens.0.property: --color-accent-primary
+        tokens.0.applied: true
+        element:
+          changed:
+            includes: background-color
+        screenshots:
+          before: { matches: '\.png$' }
+          after: { matches: '\.png$' }
+        preview: { contains: "overrides=" }
+        apply: { length: 1 }
+
+  - description: A change Violet refuses is refused here with Violet's reason
+    command: specimen-impact
+    input:
+      point: "${{ steps[0].data.point.id }}"
+      nodeId: example-dark
+      changes:
+        - { type: override, tokenId: color.accent.nonexistent, value: "#1F6FEB" }
+    expect:
+      success: false
+      error:
+        code: CHANGE_INVALID
+        suggestion: { contains: changes.impact }

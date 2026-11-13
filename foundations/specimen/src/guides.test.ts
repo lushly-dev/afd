@@ -280,26 +280,30 @@ describe('guide files', () => {
 		expect(guides?.problems.map((problem) => problem.code)).toEqual(['GUIDE_PATTERN_INVALID']);
 	});
 
-	it('reports a file or directory it cannot read, and still opens', async () => {
-		const root = await project();
-		await writeGuide(root, 'locked.guide.json', { tag: 'example-link' });
-		await mkdir(join(root, 'src', 'locked'));
-		await chmod(join(root, 'src', 'locked.guide.json'), 0o000);
-		await chmod(join(root, 'src', 'locked'), 0o000);
-		try {
-			const report = await validate(root);
-			expect(report.valid).toBe(false);
-			expect(
-				report.issues.map((issue) => [issue.code, issue.importPath, issue.message.split(':')[0]])
-			).toEqual([
-				['GUIDE_UNREADABLE', undefined, './src/locked'],
-				['GUIDE_UNREADABLE', './src/locked.guide.json', './src/locked.guide.json'],
-			]);
-		} finally {
-			await chmod(join(root, 'src', 'locked'), 0o755);
-			await chmod(join(root, 'src', 'locked.guide.json'), 0o644);
+	// Windows has no POSIX mode bits: chmod 0o000 leaves the file and directory readable.
+	it.skipIf(process.platform === 'win32')(
+		'reports a file or directory it cannot read, and still opens',
+		async () => {
+			const root = await project();
+			await writeGuide(root, 'locked.guide.json', { tag: 'example-link' });
+			await mkdir(join(root, 'src', 'locked'));
+			await chmod(join(root, 'src', 'locked.guide.json'), 0o000);
+			await chmod(join(root, 'src', 'locked'), 0o000);
+			try {
+				const report = await validate(root);
+				expect(report.valid).toBe(false);
+				expect(
+					report.issues.map((issue) => [issue.code, issue.importPath, issue.message.split(':')[0]])
+				).toEqual([
+					['GUIDE_UNREADABLE', undefined, './src/locked'],
+					['GUIDE_UNREADABLE', './src/locked.guide.json', './src/locked.guide.json'],
+				]);
+			} finally {
+				await chmod(join(root, 'src', 'locked'), 0o755);
+				await chmod(join(root, 'src', 'locked.guide.json'), 0o644);
+			}
 		}
-	});
+	);
 
 	it('reports a file used as a directory, and still opens', async () => {
 		const root = await project();

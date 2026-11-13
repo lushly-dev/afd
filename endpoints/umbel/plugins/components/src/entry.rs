@@ -1,7 +1,7 @@
 //! A record to an entry: its floor and its sections (specification, sections 5.3 and 5.5), each
 //! item with its own basis written out and its flags (5.6).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value, json};
 
@@ -114,6 +114,9 @@ pub(crate) struct Entry {
     rules: BTreeMap<String, Value>,
     /// The long form's flags, which flag the entry when it is served.
     detail_flags: Vec<&'static str>,
+    /// The ids of the rules the record's attributes name: a brief leaves them out unless asked
+    /// for every section (section 5.4).
+    pub(crate) attribute_rules: BTreeSet<String>,
 }
 
 /// One item of a list section.
@@ -390,12 +393,20 @@ pub(crate) fn build(library: &Library, record: &Record, settings: &Settings) -> 
     put(&mut floor, "summary", record.summary.as_ref());
     put(&mut floor, "replacedBy", record.replaced_by.as_ref());
     put(&mut floor, "import", record.import.as_ref());
+    let attribute_rules = record
+        .api
+        .attributes
+        .iter()
+        .flat_map(|attribute| attribute.rules.iter().flatten())
+        .cloned()
+        .collect();
     Entry {
         floor,
         sections,
         left_out: build.left_out,
         rules,
         detail_flags,
+        attribute_rules,
     }
 }
 

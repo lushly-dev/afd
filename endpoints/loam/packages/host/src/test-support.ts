@@ -1,5 +1,6 @@
 /** Fixtures for the suites: temporary directories, a built shell, configurations and raw requests. */
 
+import { statSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -8,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
-import { afterEach } from 'vitest';
+import { afterEach, expect } from 'vitest';
 
 const made: string[] = [];
 
@@ -16,6 +17,15 @@ export async function temporaryDirectory(): Promise<string> {
 	const directory = await realpath(await mkdtemp(join(tmpdir(), 'loam-host-')));
 	made.push(directory);
 	return directory;
+}
+
+/**
+ * Asserts a file's POSIX permission bits. Windows keeps none (`stat` reports 0666 whatever `chmod` set),
+ * so there it asserts nothing; the secrets check covers who can read a file on Windows.
+ */
+export function expectMode(path: string, mode: number, label?: string): void {
+	if (process.platform === 'win32') return;
+	expect(statSync(path).mode & 0o777, label).toBe(mode);
 }
 
 afterEach(async () => {

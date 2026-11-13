@@ -1,0 +1,22 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Opening the section at the field is
+# the chrome's, so the job ends at the command the palette runs.
+name: Find a setting from the palette
+description: >-
+  When I know what I want to change but not where it lives, I want to find it from the
+  palette, so that I never browse the settings tree.
+job: setting-from-palette
+tags: [slice]
+steps:
+  - description: "Searching finds the key, named for its section and app (scope: atlas)"
+    command: palette-search
+    input: { query: greeting }
+    expect:
+      success: true
+      data:
+        items:
+          - { kind: setting, name: hello.general.greeting }
+  - description: Choosing it opens the settings section at the key
+    command: section-open
+    input: { section: settings, target: hello.general.greeting }
+    expect:
+      success: true

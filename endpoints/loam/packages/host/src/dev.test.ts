@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, join, relative } from 'node:path';
@@ -8,7 +8,13 @@ import { runHostCli } from './cli.js';
 import { type DevProfile, runDev } from './dev.js';
 import { spkiOf } from './dev-files.js';
 import type { HostError } from './errors.js';
-import { deploymentFile, fixtureDist, raw, temporaryDirectory } from './test-support.js';
+import {
+	deploymentFile,
+	expectMode,
+	fixtureDist,
+	raw,
+	temporaryDirectory,
+} from './test-support.js';
 import { SERVE_STATIC_DEPLOYMENT } from './testing-only.js';
 
 const HTML = 'text/html';
@@ -54,11 +60,11 @@ describe('the development profile, in 5.1 order', () => {
 		expect(profile.data).toBe(join(root, '.loam-dev'));
 		expect(readFileSync(join(profile.data, '.gitignore'), 'utf8')).toBe('*\n');
 		const walk = (directory: string): void => {
-			expect(statSync(directory).mode & 0o777, directory).toBe(0o700);
+			expectMode(directory, 0o700, directory);
 			for (const entry of readdirSync(directory, { withFileTypes: true })) {
 				const path = join(directory, entry.name);
 				if (entry.isDirectory()) walk(path);
-				else expect(statSync(path).mode & 0o777, relative(root, path)).toBe(0o600);
+				else expectMode(path, 0o600, relative(root, path));
 			}
 		};
 		walk(profile.data);

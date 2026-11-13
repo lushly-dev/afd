@@ -1,0 +1,113 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "a1b2c3d", "dirty": false },
+	"files": [
+		"src/toolbar/toolbar.ts",
+		"src/toolbar/toolbar.css",
+		"src/toolbar/toolbar.specimens.ts",
+		"src/list/list.ts",
+		"src/list/list.css",
+		"src/list/list.specimens.ts",
+		"src/button/button.ts",
+		"src/editor/editor.specimens.ts"
+	],
+	"specimens": [
+		{
+			"id": "toolbar--dense",
+			"module": "src/toolbar/toolbar.specimens.ts",
+			"exportName": "Dense",
+			"renders": { "axe": "passed" }
+		},
+		{
+			"id": "toolbar--airy",
+			"module": "src/toolbar/toolbar.specimens.ts",
+			"exportName": "Airy",
+			"themes": {
+				"supported": ["light"],
+				"basis": "declared",
+				"reason": "Dark styles not written yet"
+			},
+			"renders": { "axe": "passed" }
+		},
+		{
+			"id": "toolbar--grouped",
+			"module": "src/toolbar/toolbar.specimens.ts",
+			"exportName": "Grouped",
+			"renders": {
+				"axe": "failed",
+				"violations": [{ "id": "color-contrast", "targets": ["span.group-label"] }]
+			}
+		},
+		{
+			"id": "list--empty",
+			"module": "src/list/list.specimens.ts",
+			"exportName": "Empty",
+			"renders": {
+				"axe": "passed",
+				"incompleteChecks": [
+					{
+						"id": "color-contrast",
+						"help": "Text over a background image could not be measured",
+						"targets": ["p.empty-hint"]
+					}
+				]
+			}
+		},
+		{
+			"id": "list--empty-plain",
+			"module": "src/list/list.specimens.ts",
+			"exportName": "EmptyPlain",
+			"renders": { "axe": "passed" }
+		},
+		{
+			"id": "button--primary",
+			"module": "src/button/button.specimens.ts",
+			"exportName": "Primary",
+			"renders": { "axe": "passed" }
+		},
+		{
+			"id": "editor--shell",
+			"module": "src/editor/editor.specimens.ts",
+			"exportName": "Shell",
+			"renders": { "axe": "passed" }
+		}
+	],
+	"captureSets": {
+		"set-4f1c0a9e2b7d": {
+			"kind": "capture",
+			"label": "main",
+			"revision": "a1b2c3d",
+			"dirty": false,
+			"context": {
+				"theme": "light",
+				"viewport": { "width": 1280, "height": 800 },
+				"locale": "en-US"
+			},
+			"checkpoint": "mount",
+			"axe": true,
+			"captures": {
+				"toolbar--dense": { "hash": "c01", "axe": { "status": "passed", "incompleteChecks": [] } },
+				"toolbar--airy": { "hash": "c02", "axe": { "status": "passed", "incompleteChecks": [] } },
+				"toolbar--grouped": {
+					"hash": "c03",
+					"axe": { "status": "failed", "incompleteChecks": [] }
+				},
+				"list--empty": {
+					"hash": "c04",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": [{ "id": "color-contrast", "targets": ["p.empty-hint"] }]
+					}
+				},
+				"list--empty-plain": {
+					"hash": "c05",
+					"axe": { "status": "passed", "incompleteChecks": [] }
+				},
+				"button--primary": { "hash": "c06", "axe": { "status": "passed", "incompleteChecks": [] } },
+				"editor--shell": { "hash": "c07", "axe": { "status": "passed", "incompleteChecks": [] } }
+			}
+		}
+	},
+	"labels": { "main": "set-4f1c0a9e2b7d" },
+	"decisions": []
+}

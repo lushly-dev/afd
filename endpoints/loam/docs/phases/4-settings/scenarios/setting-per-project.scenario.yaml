@@ -1,0 +1,46 @@
+# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
+# specification's drafts; the data is invented. Projects Atlas and Beacon exist, and hello
+# declares a project-level setting `greeting` (default "Hello"). The scope of each step is
+# carried in `_meta`'s `dev.loam/scope`, which the step runner sets; it is written here as a
+# comment on each step.
+name: Scope a setting per project
+description: >-
+  When a project needs an app to behave differently, I want to set that app's setting for the
+  project alone, so that the other projects keep theirs.
+job: setting-per-project
+tags: [slice]
+steps:
+  - description: "In Atlas (scope: atlas), the setting reads its default"
+    command: setting-get
+    input: { section: hello.general, key: greeting }
+    expect:
+      success: true
+      data: { value: Hello, from: default }
+  - description: A write with no level is refused, with the way forward
+    command: setting-set
+    input: { section: hello.general, key: greeting, value: Hi Atlas }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: level }
+  - description: "Set it for Atlas alone (scope: atlas)"
+    command: setting-set
+    input: { section: hello.general, key: greeting, value: Hi Atlas, level: project }
+    expect:
+      success: true
+      data: { value: Hi Atlas, from: project }
+  - description: "Beacon keeps the default (scope: beacon)"
+    command: setting-get
+    input: { section: hello.general, key: greeting }
+    expect:
+      success: true
+      data: { value: Hello, from: default }
+  - description: "With no project in scope, a project-level write names the way forward (scope: workspace)"
+    command: setting-set
+    input: { section: hello.general, key: greeting, value: Hi, level: project }
+    expect:
+      success: false
+      error:
+        code: SETTING_PROJECT_REQUIRED
+        suggestion: { contains: scope-set }

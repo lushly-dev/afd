@@ -1,0 +1,15 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "a1b2c3d", "dirty": false },
+	"specimens": {
+		"example-inbox": {
+			"module": "src/inbox/inbox.specimens.ts",
+			"exportName": "Inbox",
+			"renders": [
+				"example-inbox > shadow > ul[role=list] with 40 li[role=listitem], the twelfth 'Invoice 1042 is overdue'"
+			]
+		}
+	},
+	"points": {},
+	"notes": {}
+}

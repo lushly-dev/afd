@@ -575,8 +575,9 @@ describe('P3-E9: M6, hidden commands answer as names that do not exist', () => {
 					body: sent.text
 						.replace(/(executionTimeMs|durationMs|totalMs|averageMs)\\?":[0-9.]+/g, '$1":0')
 						.replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, 'T')
-						.replace(/(batch|pipeline|afd-call|trace)-\d+-[a-z0-9]+/g, '$1-id')
-						.replace(/(batch|rpc|stream)-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/g, '$1-id'),
+						// UUIDs first: one whose first group is all digits also matches the rule below.
+						.replace(/(batch|rpc|stream)-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/g, '$1-id')
+						.replace(/(batch|pipeline|afd-call|trace)-\d+-[a-z0-9]+/g, '$1-id'),
 				};
 			};
 			const [hidden, missing] = [await normalize(hiding), await normalize(twin)];

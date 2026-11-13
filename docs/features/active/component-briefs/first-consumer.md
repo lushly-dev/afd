@@ -8,7 +8,8 @@ tasks run again against it. Section 10's criteria 9 and 10 are judged from it in
 ## Status
 
 - **State:** run and recorded 2026-11-12, on branch `lush/components-first-consumer` from `main` at
-  `047268ab`.
+  `047268ab`. Phase 0's tasks run again on 2026-11-13 with a smaller default brief, on branch
+  `lush/components-slim-brief` ([below](#after-c5-a-smaller-default-brief-rerun)).
 - **Verified:** every number below is printed by a script committed here, from data committed here,
   or is a command's output quoted with its date. `node first-consumer/measure.mjs` prints the setup's
   cost; `node prototype/summarize.mjs first-consumer/results.json` the rerun's table;
@@ -187,6 +188,57 @@ The owner's decision ([What step C4 found](./STATUS.md#what-step-c4-found)); the
   and in this data took nothing a page was seen to use.
 - **Option 1 (reset the criterion)** is what the rerun's other number argues: briefs this size still
   cost 16.6 % fewer tokens than the prototype's and 12.1 % fewer than today's route.
+
+## After C5: a smaller default brief, rerun
+
+Run 2026-11-13, after the owner chose to make the default brief smaller before judging criteria 2
+and 10 ([status](./STATUS.md#after-the-owners-decisions)). Its data is in
+[`first-consumer/slim/`](./first-consumer/slim/): `node prototype/summarize.mjs
+first-consumer/slim/results.json` prints the table, `node first-consumer/sessions.mjs report
+first-consumer/slim/sessions.json` what the sessions did, and `node prototype/sessions.mjs report
+first-consumer/slim/results.json prototype/sessions.json` the p value (its other rows are phase 0's
+arms, absent here).
+
+**Why.** Rebuilt from the history at `fdfd4874`, phase 0's stand-in answered the seven tags the
+form page's sessions asked for in 14 279 bytes. The real plugin answered the same seven in 36 619:
+2.6 times as much. The growth was mostly what no page was seen to use: 29 `taxonomy.*` rules
+(7 431 bytes), each attribute's `property` and rule ids (3 370), slot and event descriptions, and the
+`axe`, `form`, `gaps` and `status` sections. That also reread C5's "16.6 % fewer tokens than the
+prototype": today's route fell 26 % between the two runs, so against each run's own arm a the
+prototype saved 22.5 % and the real plugin 12.1 %. The hypothesis was that the larger brief cost
+the difference.
+
+**The change** (plugin specification A24): a default brief leaves out `cssProperties` and the rules
+the attributes name, writes `property` only when it differs from `name`, and names what it left
+out in an `omitted` entry with the `components-open` call that returns it. On the form page's seven
+tags the brief went from 35 504 to 30 286 bytes: about 10 KB came out, and the examples the old
+brief had shed to fit came back (5 372 bytes).
+
+**The rerun.** The same harness, tasks, preamble, arms and scoring as C5, both arms again (the base
+moved), five runs a task and arm, Sonnet 5.5 at medium effort, in a one-commit snapshot of
+`9b7743ea` without this folder, with the release build of that commit. All 30 sessions wrote their
+page and changed no other file. Calibration found the same four undeclared attribute uses.
+
+| Arm | Score of 75 | Complete | Mounts | Accessible | In manifest | Taxonomy | Median tokens (range) | Median tool calls (range) | Cost of 15 runs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| a. Today, at `9b7743ea` | 64 | 13 | 9 | 12 | 15 | 15 | 305 087 (179 988 to 497 273) | 10 (6 to 14) | $2.80 |
+| c. The smaller brief | 63 | 12 | 11 | 11 | 15 | 14 | 256 884 (171 029 to 516 797) | 9 (6 to 15) | $2.88 |
+
+- **Against today's route:** as good (63 against 64) and 15.8 % fewer tokens (p = 0.19), still under
+  the 20 % "cheaper" needs. By task: the form 201 428 against 288 148 (30 % fewer), the dialog page
+  389 979 against 377 461 (3 % more), the browser page 256 884 against 263 360.
+- **Against C5's arm c:** the same (256 884 against 257 810, 0.4 % fewer). Arm a moved 4 % (305 087
+  against 293 340). The difference from C5's 12.1 % is today's route's variance, not the brief.
+- **So the brief's size does not explain the gap from the prototype.** A brief is read once and
+  then carried in the session's cached context; 6 KB less is about 1 500 tokens on each of a
+  session's nine or so turns, some 14 000 of its 250 000 (cache reads counted), about 5 %, inside
+  the runs' spread. What a session costs is set by what else it reads and how many turns it
+  takes; arm c read component source once and stories 30 times, arm a source 19 times and stories 45.
+- **The briefs:** 15 calls in 15 runs, a median 30 613 bytes (26 206 to 39 426), against 36 926 in
+  C5; a median 96 % of the same components' declarations (59 % to 141 %), against 113 %; at most half
+  in none. Where their bytes went: examples 27 %, attributes 17 %, usage 16 %, rule text 12 %,
+  accessibility 8 %. No page named a CSS property, as before. 3 sessions called `components-list`,
+  none `components-open`; none was refused.
 
 ## How it was run
 

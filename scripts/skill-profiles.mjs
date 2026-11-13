@@ -414,7 +414,7 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 			await mkdir(path.dirname(change.path), { recursive: true });
 			await writeFile(change.path, change.content);
 		}
-	return changes.map((change) => path.relative(root, change.path));
+	return changes.map((change) => path.relative(root, change.path).split(path.sep).join('/'));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -57,14 +57,35 @@ async fn a_brief_states_each_section_s_basis_once_and_each_shared_rule_once() {
         select.get("detail").is_none(),
         "detail is served only when asked"
     );
-    // field.labelling is named by both entries and stated once.
-    assert_eq!(
-        rule_ids(&result),
-        [
-            "field.invalid-message",
-            "field.labelling",
-            "popup.focus-return"
-        ]
+    // field.labelling is named by both entries and stated once. field.invalid-message is named
+    // by the field's `invalid` attribute, so only a full brief or components-open serves it.
+    assert_eq!(rule_ids(&result), ["field.labelling", "popup.focus-return"]);
+    let field = entry(&result, "example-field");
+    assert_eq!(field["rules"], json!(["field.labelling"]));
+    assert!(field.get("cssProperties").is_none());
+    let invalid = field["attributes"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["name"] == "invalid")
+        .unwrap();
+    assert!(invalid.get("rules").is_none(), "{invalid}");
+    // A property named as its attribute is not written again.
+    assert!(
+        field["attributes"]["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item.get("property").is_none())
+    );
+    let text = fx
+        .brief(json!({ "tags": ["example-field"], "render": "text" }))
+        .await;
+    assert!(
+        data(&text)["text"].as_str().unwrap().ends_with(
+            "[left out of a brief: cssProperties attributeRules; components-open returns them]\n"
+        ),
+        "{text}"
     );
     assert!(
         data(&result)["content"]["rules"]
@@ -74,7 +95,15 @@ async fn a_brief_states_each_section_s_basis_once_and_each_shared_rule_once() {
             .all(|rule| rule["text"].is_string() && rule["basis"].is_string())
     );
     assert_eq!(data(&result)["unknown"], json!([]));
-    assert_eq!(data(&result)["omitted"], json!([]));
+    assert_eq!(
+        data(&result)["omitted"],
+        json!([{
+            "reason": "detail",
+            "sections": ["cssProperties"],
+            "pieces": ["attributeRules"],
+            "open": { "command": "components-open", "sections": ["cssProperties", "rules"] },
+        }])
+    );
     assert_eq!(data(&result)["content"]["trust"], "content");
     assert_eq!(
         data(&result)["libraries"],
@@ -253,6 +282,7 @@ async fn known_rules_keep_their_ids_and_lose_their_text() {
     let result = fx
         .brief(json!({
             "tags": ["example-select", "example-field"],
+            "detail": "full",
             "known": ["field.labelling", "example/popup.focus-return"],
         }))
         .await;

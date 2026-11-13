@@ -1,0 +1,88 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# The toolbar density was decided on 2026-11-12; two variants were kept.
+
+name: Keep the variants that were not chosen
+description: >-
+  When I have chosen one variant, I want the others kept and retrievable until I discard them,
+  so that I can go back to one without rebuilding it.
+job: keep-what-was-not-chosen
+fixture:
+  file: fixtures/decided.json
+  base: toolbar.json
+
+steps:
+  - description: Current decisions and comparisons nobody has decided are listed, with stale subjects
+    command: decision-list
+    expect:
+      success: true
+      data:
+        decisions: { length: 2 }
+        decisions.0.decision: dec-h3np6wz5c2rf
+        decisions.0.stale: ['src/empty/**']
+        decisions.1.decision: dec-q7k2m4xab3na
+        decisions.1.stale: { length: 0 }
+        undecided: { length: 1 }
+        undecided.0.set: set-2d8b6f0e9a14
+        undecided.0.ids: [list--empty, list--empty-plain]
+
+  - description: The decision returns the kept variants and the written screenshots of its evidence
+    command: decision-get
+    input:
+      decision: dec-q7k2m4xab3na
+    expect:
+      success: true
+      data:
+        chosen: toolbar--dense
+        kept: [toolbar--airy, toolbar--grouped]
+        evidence.set: set-9c03e1d27a55
+        evidence.captures: { length: 3 }
+        evidence.captures.1.id: toolbar--airy
+        evidence.captures.1.screenshot: specimens/evidence/set-9c03e1d27a55/toolbar--airy.png
+
+  - description: A kept variant still renders, so going back to it is a comparison, not a rebuild
+    command: specimen-compare
+    input:
+      ids: [toolbar--dense, toolbar--airy]
+    expect:
+      success: true
+      data:
+        captures: { length: 2 }
+        captures.1.id: toolbar--airy
+        captures.1.status: captured
+
+  - description: One kept variant is discarded, and the export that can now be deleted is named
+    command: decision-discard
+    input:
+      decision: dec-q7k2m4xab3na
+      variants: [toolbar--grouped]
+    expect:
+      success: true
+      data:
+        discarded: [toolbar--grouped]
+        kept: [toolbar--airy]
+        exports.0.module: src/toolbar/toolbar.specimens.ts
+        exports.0.exportName: Grouped
+        revision: a1b2c3d
+
+  - description: The chosen variant cannot be discarded; the way to change the choice is named
+    command: decision-discard
+    input:
+      decision: dec-q7k2m4xab3na
+      variants: [toolbar--dense]
+    expect:
+      success: false
+      error:
+        code: CHOSEN_VARIANT
+        suggestion: { contains: supersedes }
+
+  - description: A decision id that does not exist is refused, pointing to the list
+    command: decision-get
+    input:
+      decision: dec-q7k2m4xab3nb
+    expect:
+      success: false
+      error:
+        code: DECISION_NOT_FOUND
+        suggestion: { contains: decision-list }

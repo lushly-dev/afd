@@ -1308,11 +1308,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "b677859a5220897e28c997d5df740b1095f2185103911afb3c9952f6425b4551",
+      "current_import_sha256": "ac612834b92c0041d5654986988dbc7a4e5c2d33182b5205ddd023df5dbe6289",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; Windows: tests use the path delimiter and platform paths, skip the POSIX-permission case, and check the unsupported-system message where no native host is built"
     },
     {
       "path": "foundations/specimen/experiments/resources/speed-probe.mjs",
@@ -1620,11 +1620,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "0ae5b3c5c0cfb4abb4b5595fb72dc8eb118aaf44467aba382b9c75ce46cd5f45",
+      "current_import_sha256": "7bacb62521b1d16c729095e6e1591fb283bf65c23d742504f412b7ec4cfd437b",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged"
+      "import_reason": "T04 incumbent and candidate pairs: incumbent Storybook Vitest sampler, recorded-font server, fresh-process cold samples, pair driver, comparison rules and budget accounting; publication authority unchanged; Windows: tests use the path delimiter and platform paths, skip the POSIX-permission case, and check the unsupported-system message where no native host is built"
     },
     {
       "path": "foundations/specimen/experiments/run-budgets.mjs",
@@ -3760,11 +3760,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "8b9caa2e679a10e6ceaca1775fc3da23c3772fb585f73487847188eb1ecc44b3",
+      "current_import_sha256": "ccadb23b2e7fced8f32c06137f2ffa4616f3b079a714f567e01167d3e2032fbb",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Install sections, the host's missing-browser message, and the .1 preview's record"
+      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Install sections, the host's missing-browser message, and the .1 preview's record; Windows: tests use the path delimiter and platform paths, skip the POSIX-permission case, and check the unsupported-system message where no native host is built"
     },
     {
       "path": "foundations/specimen/src/browser/assets.d.ts",
@@ -5104,11 +5104,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "27064db9c78c00fcbbe4a612700c3754b0f40645cd177e4994ac9a4687ec642b",
+      "current_import_sha256": "715bee3b311b1c7ef2cf9d809c029f091a1d96daff3efa3d5069bfab8adf9765",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs B4: guide sources, Specimen's fifth plugin point, run in Node from the guideSources key; their rules join the guide files' for validation, guides@1, the pack's rules and export's recheck; Component Briefs C4: the pack format is version 1 and fixed (fixtures, JSON Schema files, description); a catalog lists its components by tag; a guide gives one role per state; the FAST-AF plugin takes what the manifest says of a linked attribute over its property; pack tests for a failed claim, a component change and a story edit"
+      "import_reason": "Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Component Briefs B4: guide sources, Specimen's fifth plugin point, run in Node from the guideSources key; their rules join the guide files' for validation, guides@1, the pack's rules and export's recheck; Component Briefs C4: the pack format is version 1 and fixed (fixtures, JSON Schema files, description); a catalog lists its components by tag; a guide gives one role per state; the FAST-AF plugin takes what the manifest says of a linked attribute over its property; pack tests for a failed claim, a component change and a story edit; Windows: tests use the path delimiter and platform paths, skip the POSIX-permission case, and check the unsupported-system message where no native host is built"
     },
     {
       "path": "foundations/specimen/src/guides.ts",

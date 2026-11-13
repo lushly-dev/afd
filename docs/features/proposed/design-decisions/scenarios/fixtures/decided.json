@@ -1,0 +1,339 @@
+{
+	"captureSets": {
+		"set-9c03e1d27a55": {
+			"kind": "compare",
+			"revision": "9f8e7d6",
+			"dirty": true,
+			"context": {
+				"theme": "light",
+				"viewport": {
+					"width": 1280,
+					"height": 800
+				},
+				"locale": "en-US"
+			},
+			"checkpoint": "mount",
+			"axe": true,
+			"captures": {
+				"toolbar--dense": {
+					"hash": "c01",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"toolbar--airy": {
+					"hash": "c02",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"toolbar--grouped": {
+					"hash": "c03",
+					"axe": {
+						"status": "failed",
+						"incompleteChecks": []
+					}
+				}
+			}
+		},
+		"set-2d8b6f0e9a14": {
+			"kind": "compare",
+			"revision": "9f8e7d6",
+			"dirty": true,
+			"context": {
+				"theme": "light",
+				"viewport": {
+					"width": 1280,
+					"height": 800
+				},
+				"locale": "en-US"
+			},
+			"checkpoint": "mount",
+			"axe": true,
+			"captures": {
+				"list--empty": {
+					"hash": "c04",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": [
+							{
+								"id": "color-contrast",
+								"targets": ["p.empty-hint"]
+							}
+						]
+					}
+				},
+				"list--empty-plain": {
+					"hash": "c05",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				}
+			}
+		},
+		"set-7e2a90c4d311": {
+			"kind": "capture",
+			"label": "branch",
+			"revision": "e4f5a6b",
+			"dirty": false,
+			"context": {
+				"theme": "light",
+				"viewport": {
+					"width": 1280,
+					"height": 800
+				},
+				"locale": "en-US"
+			},
+			"checkpoint": "mount",
+			"axe": true,
+			"captures": {
+				"toolbar--dense": {
+					"hash": "c11",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"toolbar--airy": {
+					"hash": "c12",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"toolbar--grouped": {
+					"hash": "c13",
+					"axe": {
+						"status": "failed",
+						"incompleteChecks": []
+					}
+				},
+				"list--empty": {
+					"hash": "c04",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": [
+							{
+								"id": "color-contrast",
+								"targets": ["p.empty-hint"]
+							}
+						]
+					}
+				},
+				"list--empty-plain": {
+					"hash": "c05",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"button--primary": {
+					"hash": "c06",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"editor--shell": {
+					"hash": "c17",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				}
+			},
+			"changes": {
+				"toolbar--dense": [
+					{
+						"channel": "layout",
+						"target": "violet-toolbar",
+						"property": "gap",
+						"left": "4px",
+						"right": "8px"
+					}
+				],
+				"toolbar--airy": [
+					{
+						"channel": "layout",
+						"target": "violet-toolbar",
+						"property": "gap",
+						"left": "12px",
+						"right": "16px"
+					}
+				],
+				"toolbar--grouped": [
+					{
+						"channel": "layout",
+						"target": "violet-toolbar",
+						"property": "gap",
+						"left": "4px",
+						"right": "8px"
+					}
+				],
+				"editor--shell": [
+					{
+						"channel": "layout",
+						"target": "violet-toolbar",
+						"property": "gap",
+						"left": "4px",
+						"right": "8px"
+					}
+				]
+			}
+		},
+		"set-1b5d3c7f8e20": {
+			"kind": "capture",
+			"label": "branch-quiet",
+			"revision": "b7c8d9e",
+			"dirty": false,
+			"context": {
+				"theme": "light",
+				"viewport": {
+					"width": 1280,
+					"height": 800
+				},
+				"locale": "en-US"
+			},
+			"checkpoint": "mount",
+			"axe": true,
+			"captures": {
+				"toolbar--dense": {
+					"hash": "c01",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"toolbar--airy": {
+					"hash": "c02",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"toolbar--grouped": {
+					"hash": "c03",
+					"axe": {
+						"status": "failed",
+						"incompleteChecks": []
+					}
+				},
+				"list--empty": {
+					"hash": "c04",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": [
+							{
+								"id": "color-contrast",
+								"targets": ["p.empty-hint"]
+							}
+						]
+					}
+				},
+				"list--empty-plain": {
+					"hash": "c05",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"button--primary": {
+					"hash": "c06",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				},
+				"editor--shell": {
+					"hash": "c07",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				}
+			}
+		},
+		"set-5a6e8d2c1f09": {
+			"kind": "capture",
+			"label": "dark",
+			"revision": "e4f5a6b",
+			"dirty": false,
+			"context": {
+				"theme": "dark",
+				"viewport": {
+					"width": 1280,
+					"height": 800
+				},
+				"locale": "en-US"
+			},
+			"checkpoint": "mount",
+			"axe": true,
+			"captures": {
+				"toolbar--dense": {
+					"hash": "c21",
+					"axe": {
+						"status": "passed",
+						"incompleteChecks": []
+					}
+				}
+			}
+		}
+	},
+	"labels": {
+		"main": "set-4f1c0a9e2b7d",
+		"branch": "set-7e2a90c4d311",
+		"branch-quiet": "set-1b5d3c7f8e20",
+		"dark": "set-5a6e8d2c1f09"
+	},
+	"decisions": [
+		{
+			"id": "dec-q7k2m4xab3na",
+			"kind": "choice",
+			"slug": "toolbar-density",
+			"status": "current",
+			"question": "How dense should the toolbar be?",
+			"variants": ["toolbar--dense", "toolbar--airy", "toolbar--grouped"],
+			"chosen": "toolbar--dense",
+			"kept": ["toolbar--airy", "toolbar--grouped"],
+			"discarded": [],
+			"reason": "The editor shows twelve commands; at the airy gap the last three wrap at 1280 px.",
+			"evidence": {
+				"set": "set-9c03e1d27a55",
+				"dir": "specimens/evidence/set-9c03e1d27a55/"
+			},
+			"subjects": {
+				"specimens": ["toolbar--dense", "editor--shell"],
+				"files": ["src/toolbar/**"],
+				"tokens": ["space.toolbar.gap"]
+			},
+			"decidedBy": {
+				"kind": "person"
+			},
+			"decidedAt": "2026-11-12T15:20:00Z"
+		},
+		{
+			"id": "dec-h3np6wz5c2rf",
+			"kind": "choice",
+			"slug": "empty-state-copy",
+			"status": "current",
+			"question": "Should the empty list explain how to add an item?",
+			"options": ["hint", "no-hint"],
+			"chosen": "hint",
+			"reason": "First-run sessions stalled on the empty list without it.",
+			"evidence": {
+				"set": "set-4f1c0a9e2b7d",
+				"dir": "specimens/evidence/set-4f1c0a9e2b7d/"
+			},
+			"subjects": {
+				"files": ["src/empty/**"]
+			},
+			"decidedBy": {
+				"kind": "person"
+			},
+			"decidedAt": "2026-11-10T10:05:00Z"
+		}
+	]
+}

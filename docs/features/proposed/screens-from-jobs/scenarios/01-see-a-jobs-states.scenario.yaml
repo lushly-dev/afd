@@ -1,0 +1,91 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. `example-keep-a-draft` is a job specimen in an example
+# notes app. Its scenario, `example/scenarios/keep-a-draft.scenario.yaml` (job `keep-a-draft`),
+# has four steps, numbered from 1 as the scenario runner numbers them:
+#   1 "A note is created"               document-create
+#   2 "The note opens"                  document-open
+#   3 "The note opens beside itself"    document-open, group beside   -> capture two-editors
+#   4 "Another writer saves the note"   notes-content-set             -> capture conflict-notice
+# Before step 4, the entry declares one person action: typing a draft into the second editor.
+# A run saves its captures as a Design Decisions capture set, each keyed `<job>/<step>`.
+# `example-export-a-note` marks a capture after an export, which changes nothing on the screen.
+# Lists are asserted by dotted index paths, because a list under `data` must match exactly.
+
+name: See a job's states
+description: >-
+  When a job's scenario runs, I want the screen captured once at each step I mark, kept, and
+  listed in step order, with steps I did not mark left alone and a marked step that changed
+  nothing said, so that the job's states can be seen and checked without building them by hand.
+job: see-a-jobs-states
+tags: [slice]
+
+steps:
+  - description: The job runs once, and each marked step is captured into a set
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft
+    expect:
+      success: true
+      data:
+        set: { matches: '^set-[0-9a-f]{12}$' }
+        job: keep-a-draft
+        status: passed
+        steps: { length: 4 }
+        steps.0.step: 1
+        steps.0.capture: { notExists: true }
+        steps.1.capture: { notExists: true }
+        steps.2.capture.key: keep-a-draft/3
+        steps.2.capture.status: captured
+        steps.3.capture.key: keep-a-draft/4
+        steps.3.capture.name: conflict-notice
+        steps.3.capture.actions: 1
+        captures: { length: 2 }
+        captures.0.key: keep-a-draft/3
+        captures.0.screenshot: { matches: '\.png$' }
+        captures.1.key: keep-a-draft/4
+
+  - description: A kept capture opens without replaying the job, and says which step it is
+    command: specimen-render
+    input:
+      id: example-keep-a-draft
+      set: ${{ steps[0].data.set }}
+      checkpoint: conflict-notice
+    expect:
+      success: true
+      data:
+        manifest.checkpoint.name: conflict-notice
+        manifest.job.name: keep-a-draft
+        manifest.job.step: 4
+        manifest.job.description: Another writer saves the note
+
+  - description: Rendering a job specimen with no set is refused, with the way to get one
+    command: specimen-render
+    input:
+      id: example-keep-a-draft
+    expect:
+      success: false
+      error:
+        code: JOB_NEEDS_RUN
+        suggestion: { contains: specimen-job-run }
+
+  - description: A marked step that changed nothing on the screen is said, not hidden
+    command: specimen-job-run
+    input:
+      id: example-export-a-note
+    expect:
+      success: true
+      data:
+        status: passed
+        steps.2.capture.key: export-a-note/3
+        steps.2.capture.status: unchanged
+        steps.2.capture.reason: { contains: did not change }
+
+  - description: A component specimen is not a job, and the way to find job specimens is named
+    command: specimen-job-run
+    input:
+      id: example-notice
+    expect:
+      success: false
+      error:
+        code: NOT_A_JOB
+        suggestion: { contains: specimen-list }

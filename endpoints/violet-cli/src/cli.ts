@@ -80,6 +80,12 @@ export function createCLI(skipInit = false): Command {
 		.option('--json', 'Output as JSON')
 		.option('--agent', 'Agent-optimized output (JSON, no colors)');
 
+	// Release the SQLite file once a command finishes, so its -wal/-shm files are checkpointed
+	// and the file can be moved or deleted (Windows refuses to delete a file a process holds open).
+	program.hook('postAction', () => {
+		closeDatabases();
+	});
+
 	// Add node commands
 	addNodeCommands(program);
 
@@ -2736,7 +2742,24 @@ async function getDatabase(options: { db?: string; memory?: boolean; from?: stri
 		fs.mkdirSync(dir, { recursive: true });
 	}
 
-	return createSQLiteDatabase(dbPath);
+	const db = createSQLiteDatabase(dbPath);
+	openDatabases.add(db);
+	return db;
+}
+
+/** SQLite databases opened by commands and not yet closed */
+const openDatabases = new Set<ReturnType<typeof createSQLiteDatabase>>();
+
+/**
+ * Close every SQLite database a command opened. Runs after each action; a command that
+ * exits through `process.exit` skips it, which an embedding host (or a test that stubs
+ * `process.exit`) can make up for by calling this itself.
+ */
+export function closeDatabases(): void {
+	for (const db of openDatabases) {
+		db.close();
+	}
+	openDatabases.clear();
 }
 
 /**

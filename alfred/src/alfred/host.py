@@ -42,7 +42,7 @@ def _packages(root: Path) -> dict[str, Path]:
     result = {}
     inventory = root / 'scripts/release/inventory.json'
     if inventory.is_file():
-        for unit in json.loads(inventory.read_text())['units']:
+        for unit in json.loads(inventory.read_text(encoding='utf-8'))['units']:
             for dist in unit.get('distributions', []):
                 candidate = (root / dist['manifest']).resolve()
                 if not candidate.is_relative_to(root):
@@ -178,31 +178,35 @@ async def _dev_build(language: str | None = None, path: str | None = None):
     target = context.target
     if language == 'python' or (language is None and (target / 'pyproject.toml').is_file()):
         from botcore.utils.runner import run_command
-        if not shutil.which('uv'):
+        uv = shutil.which('uv')
+        if not uv:
             return error('TOOL_NOT_FOUND', 'uv is required for a selected Python package build',
                          suggestion='Install the repository-pinned uv toolchain')
-        result = await run_command(['uv', 'build', '--out-dir', str(target / 'dist')], cwd=target)
+        result = await run_command([uv, 'build', '--out-dir', str(target / 'dist')], cwd=target)
         if result.get('success'):
             return success(result)
         return _build_failure(result)
     if language in ('typescript', 'javascript', 'node') or (language is None and (target / 'package.json').is_file()):
         from botcore.utils.runner import run_command
-        manifest = json.loads((target / 'package.json').read_text())
+        manifest = json.loads((target / 'package.json').read_text(encoding='utf-8'))
         script = manifest.get('scripts', {}).get('build')
         if not isinstance(script, str) or not script.strip():
             return error('UNAVAILABLE', 'Selected Node project has no build script',
                          suggestion='Declare a build script in the selected package manifest')
         manager = manifest.get('packageManager')
         if manager is None and (context.workspace / 'package.json').is_file():
-            manager = json.loads((context.workspace / 'package.json').read_text()).get('packageManager')
+            manager = json.loads((context.workspace / 'package.json').read_text(encoding='utf-8')).get('packageManager')
         manager = manager.split('@', 1)[0] if isinstance(manager, str) else 'npm'
         if manager not in ('npm', 'pnpm', 'yarn'):
             return error('UNAVAILABLE', 'Unsupported declared package manager',
                          suggestion='Use an admitted npm, pnpm or yarn build route')
-        if not shutil.which(manager):
+        # The resolved path: Windows installs npm, pnpm and yarn as .cmd files, which a
+        # process started by bare name cannot find. The arguments are fixed literals.
+        executable = shutil.which(manager)
+        if not executable:
             return error('TOOL_NOT_FOUND', f'{manager} is unavailable',
                          suggestion='Activate the declared package manager toolchain')
-        result = await run_command([manager, 'run', 'build'], cwd=target)
+        result = await run_command([executable, 'run', 'build'], cwd=target)
         if result.get('success'):
             return success(result)
         return _build_failure(result)
@@ -335,7 +339,7 @@ def build_alfred_host(workspace: str | Path, target: str | Path | None = None, *
 
     async def info_targets():
         inventory = root / 'scripts/release/inventory.json'
-        units = json.loads(inventory.read_text())['units'] if inventory.is_file() else []
+        units = json.loads(inventory.read_text(encoding='utf-8'))['units'] if inventory.is_file() else []
         return success({'workspace': str(root), 'selected_target': str(current_context().target),
                         'packages': {name: str(path.relative_to(root)) for name, path in _packages(root).items()},
                         'units': [{'id': unit['id'], 'family': unit.get('family'),
@@ -364,7 +368,7 @@ def build_alfred_host(workspace: str | Path, target: str | Path | None = None, *
             return error('RELEASE_CONTROLLER_UNAVAILABLE', 'This worktree has no approved AFD npm controller',
                          suggestion='Use the project release protocol, or bind a verified AFD root controller')
         inventory = root / 'scripts/release/inventory.json'
-        units = json.loads(inventory.read_text())['units'] if inventory.is_file() else []
+        units = json.loads(inventory.read_text(encoding='utf-8'))['units'] if inventory.is_file() else []
         selected = next((item for item in units if item['id'] == unit), None)
         if not selected or selected.get('protocol') != 'npm-changesets' or selected.get('state') != 'admitted':
             return error('RELEASE_UNIT_NOT_ADMITTED', unit, suggestion='Select an admitted npm unit from root release inventory')

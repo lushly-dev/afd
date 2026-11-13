@@ -19,7 +19,7 @@ import { generateTools } from '@lushly-dev/violet-server';
 import type { Command } from 'commander';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { createCLI, parseSpecimenAssignment } from './cli.js';
+import { closeDatabases, createCLI, parseSpecimenAssignment } from './cli.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLI STRUCTURE TESTS
@@ -601,6 +601,8 @@ describe('CLI behaviour', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		process.exitCode = undefined;
+		// A command that failed through the stubbed process.exit never reached the postAction hook
+		closeDatabases();
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 

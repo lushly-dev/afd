@@ -1,0 +1,70 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# axe could not decide the contrast of the empty list's hint over its background image.
+
+name: Turn an undecided check into a question
+description: >-
+  When a check cannot decide, I want it put to me as a question I can answer once with a reason,
+  so that it is neither buried in a report nor asked again while nothing changes.
+job: turn-a-check-into-a-question
+fixture:
+  file: fixtures/decided.json
+  base: toolbar.json
+
+steps:
+  - description: The undecided contrast check is a question about the empty list
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+      ids: [list--empty]
+    expect:
+      success: true
+      data:
+        open: { length: 1 }
+        open.0.kind: incomplete-check
+        open.0.item: { matches: '^check:list--empty:color-contrast:' }
+        open.0.question: { contains: p.empty-hint }
+        open.0.options: [accept, reject]
+
+  - description: The person answers it with a reason; the answer covers this check on this content only
+    command: decision-record
+    input:
+      items: ['${{ steps[0].data.open[0].item }}']
+      chosen: accept
+      reason: The hint sits on the solid band of the image; measured 7.1 to 1 by hand.
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-[a-z2-7]{12}$' }
+        kind: answer
+        chosen: accept
+        answers.0.id: list--empty
+        answers.0.check: color-contrast
+        answers.0.fingerprint: c04
+        subjects: { notExists: true }
+
+  - description: Reviewed again with nothing changed, the question is not asked again
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+      ids: [list--empty]
+    expect:
+      success: true
+      data:
+        open: { length: 0 }
+        settled.answered: 1
+
+  - description: An item that the named sets do not raise is refused
+    command: decision-record
+    input:
+      items: ['check:button--primary:color-contrast:set-4f1c0a9e2b7d..set-7e2a90c4d311']
+      chosen: accept
+      reason: Looks fine.
+    expect:
+      success: false
+      error:
+        code: REVIEW_ITEM_NOT_FOUND
+        suggestion: { contains: specimen-review }

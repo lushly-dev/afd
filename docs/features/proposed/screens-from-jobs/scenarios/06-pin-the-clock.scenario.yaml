@@ -1,0 +1,43 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. `example-due-dates` is a job specimen whose screen shows
+# "Due in 3 days" beside each task. Its entry pins the clock to 2026-03-02T09:00:00Z. Specimen
+# already seeds Math.random; the clock is real today. Sets are content-addressed, so two runs of
+# the same checkout that render the same screens give the same set.
+
+name: Pin the clock and random values
+description: >-
+  When a job's screens show times or generated values, I want the clock and random values fixed
+  for every run, so that a difference between two runs is the app's and not the clock's.
+job: pin-the-clock
+tags: [slice]
+
+steps:
+  - description: A first run states what it pinned
+    command: specimen-job-run
+    input:
+      id: example-due-dates
+    expect:
+      success: true
+      data:
+        pinned.clock: '2026-03-02T09:00:00Z'
+        pinned.random: seeded
+
+  - description: A second run
+    command: specimen-job-run
+    input:
+      id: example-due-dates
+    expect:
+      success: true
+      data:
+        status: passed
+
+  - description: The two runs show the same screens
+    command: specimen-review
+    input:
+      before: ${{ steps[0].data.set }}
+      after: ${{ steps[1].data.set }}
+    expect:
+      success: true
+      data:
+        open: { length: 0 }
+        settled.unchanged: 2

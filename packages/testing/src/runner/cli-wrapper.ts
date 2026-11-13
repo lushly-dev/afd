@@ -11,6 +11,8 @@ import { prepareSpawn } from '@lushly-dev/afd-core/platform';
 import type { StepError } from '../types/report.js';
 import { createStepError } from '../types/report.js';
 
+/** JavaScript entry points that Node can run directly. */
+const NODE_SCRIPT_EXT = /\.[cm]?js$/i;
 // ============================================================================
 // Configuration Types
 // ============================================================================
@@ -213,8 +215,17 @@ export class CliWrapper {
 				...extraEnv,
 			};
 			// Never shell: true. On Windows a .cmd CLI shim runs through cmd.exe with every
-			// argument (including JSON input from scenario files) escaped.
-			const invocation = prepareSpawn(this.config.cliPath, args, { cwd: this.config.cwd, env });
+			// argument (including JSON input from scenario files) escaped. A .js/.mjs/.cjs CLI
+			// runs with this Node binary instead: Windows ignores shebangs, and cmd.exe would
+			// hand the script to its file association rather than to Node.
+			const invocation =
+				process.platform === 'win32' && NODE_SCRIPT_EXT.test(this.config.cliPath)
+					? {
+							command: process.execPath,
+							args: [this.config.cliPath, ...args],
+							windowsVerbatimArguments: false,
+						}
+					: prepareSpawn(this.config.cliPath, args, { cwd: this.config.cwd, env });
 			const proc = spawn(invocation.command, invocation.args, {
 				cwd: this.config.cwd,
 				env,

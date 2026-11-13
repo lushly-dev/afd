@@ -28,7 +28,7 @@
 			"type": "string",
 			"enum": ["brief", "api", "full"],
 			"default": "brief",
-			"description": "api: the floor and the API sections with rule ids only. brief: every section but detail. full: every section"
+			"description": "api: the floor and the API sections with rule ids only. brief: every section but detail and cssProperties, without the rules the attributes name. full: every section"
 		},
 		"sections": {
 			"type": "array",

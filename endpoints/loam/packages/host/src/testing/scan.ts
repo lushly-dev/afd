@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SECRETS_DIRECTORY, TLS_DIRECTORY } from '../dev-files.js';
 
@@ -104,16 +104,18 @@ export async function scanSecrets(
 ): Promise<{ found: string[] }> {
 	const places: Array<[string, string]> = [];
 	const relative = (file: string) => file.slice(host.data.length + 1);
+	// Named with `/` on every platform, so a report reads the same on Windows.
+	const named = (file: string) => relative(file).split(sep).join('/');
 	for (const file of filesBelow(host.data)) {
 		if (SECRET_FILES.includes(relative(file))) continue;
-		places.push([`file ${relative(file)}`, readFileSync(file).toString('latin1')]);
+		places.push([`file ${named(file)}`, readFileSync(file).toString('latin1')]);
 	}
 	// A store's rows too, since a value long enough spans its pages. Not `lock.sqlite`, which the server
 	// holds exclusively: its bytes are read above, and it holds nothing but the time it was taken.
 	for (const file of filesBelow(host.data).filter(
 		(path) => path.endsWith('.sqlite') && !path.endsWith('lock.sqlite')
 	))
-		if (statSync(file).size > 0) places.push([`store ${relative(file)}`, storeRows(file)]);
+		if (statSync(file).size > 0) places.push([`store ${named(file)}`, storeRows(file)]);
 	places.push(['the server log', host.logs().join('\n')]);
 	for (const [index, page] of pages.entries())
 		places.push([`page ${index}'s storage`, String(await page.evaluate(PAGE_STORAGE))]);
