@@ -88,7 +88,7 @@ async fn a_person_confirms_their_agents_note_at_a_terminal() {
 }
 
 #[tokio::test]
-async fn only_a_person_at_a_terminal_may_confirm() {
+async fn terminal_confirmation_refuses_agents_and_automatic_answers() {
     let fx = Fx::new();
     let (id, hash) = agents_note(&fx, "A note.").await;
     let body = input(&id, &hash);
@@ -102,9 +102,11 @@ async fn only_a_person_at_a_terminal_may_confirm() {
     }
     let definition = fx.host.registry().get("memory-confirm").unwrap();
     assert!(!definition.expose.mcp && !definition.expose.agent && definition.expose.cli);
+    // Setting the CLI interface on a library agent supplies no terminal proof. The operator's
+    // human library confirmation is covered separately in confirm_preview.rs.
     let library = fx
         .call(
-            human("ada"),
+            agent_for("bot", "ada"),
             CommandInterface::Cli,
             "memory-confirm",
             body.clone(),
@@ -152,8 +154,8 @@ async fn only_a_person_at_a_terminal_may_confirm() {
 
 #[tokio::test]
 async fn another_principals_record_is_refused_even_for_a_sharing_writer() {
-    let fx = Fx::new();
-    // Bo, a person, shares his own fact with the space.
+    let fx = Fx::with(&config("writers = [\"principal:human:bo\"]"));
+    // Bo, an explicitly listed sharing writer, shares his own fact with the space.
     let bos = fx
         .as_actor(
             human("bo"),
