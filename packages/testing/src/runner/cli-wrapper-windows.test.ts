@@ -70,6 +70,38 @@ describe('CliWrapper spawn arguments', () => {
 		);
 	});
 
+	it('spawns a JavaScript CLI directly (shebang) on non-Windows platforms', async () => {
+		setPlatform('linux');
+		const wrapper = new CliWrapper({
+			cliPath: '/tools/afd.mjs',
+			serverUrl: 'http://test.example/mcp',
+		});
+
+		await wrapper.execute('todo-create', input);
+
+		expect(mockSpawn).toHaveBeenCalledWith(
+			'/tools/afd.mjs',
+			args,
+			expect.objectContaining({ shell: false, windowsVerbatimArguments: false })
+		);
+	});
+
+	it('runs a JavaScript CLI with the Node binary, without cmd.exe, on Windows', async () => {
+		setPlatform('win32');
+		// portability-ok: Windows path fixture for spawn-escaping tests
+		const cliPath = 'C:\\tools\\afd.mjs';
+		const wrapper = new CliWrapper({ cliPath, serverUrl: 'http://test.example/mcp' });
+
+		const result = await wrapper.execute('todo-create', input);
+
+		expect(result.success).toBe(true);
+		expect(mockSpawn).toHaveBeenCalledWith(
+			process.execPath,
+			[cliPath, ...args],
+			expect.objectContaining({ shell: false, windowsVerbatimArguments: false })
+		);
+	});
+
 	it('escapes every argument for cmd.exe on Windows', async () => {
 		setPlatform('win32');
 		const wrapper = new CliWrapper({

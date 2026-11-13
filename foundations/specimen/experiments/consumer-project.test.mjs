@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { gitEnvironment, readGitState } from './consumer-project.mjs';
 import { contentDigest } from './inputs/freeze.mjs';
@@ -46,7 +46,7 @@ describe('readGitState for frozen snapshots', () => {
 	it('uses a matching manifest and ignores manifests for other roots', async () => {
 		const other = await manifest('other.json', { snapshot: directory, source: await source() });
 		const own = await manifest('own.json', { snapshot, source: await source() });
-		process.env.SPECIMEN_FROZEN_MANIFESTS = [other, own].join(':');
+		process.env.SPECIMEN_FROZEN_MANIFESTS = [other, own].join(delimiter);
 		const state = await readGitState(snapshot);
 		expect(state).toMatchObject({ root: snapshot, revision: 'a'.repeat(40), status: '' });
 		expect(state.frozen.tree).toBe('b'.repeat(40));

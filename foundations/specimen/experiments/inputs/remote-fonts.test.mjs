@@ -82,7 +82,9 @@ describe('recorded fonts', () => {
 				directory,
 			});
 			const source = await readFile(file, 'utf8');
-			expect(source).toContain(`import base from "/snapshot/${incumbents.lushly.config}"`);
+			expect(source).toContain(
+				`import base from ${JSON.stringify(join('/snapshot', incumbents.lushly.config))}`
+			);
 			expect(source).toContain('transformIndexHtml');
 			expect(source).toContain('SPECIMEN_FONT_BASE');
 		} finally {

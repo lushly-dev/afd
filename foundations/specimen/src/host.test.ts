@@ -114,19 +114,32 @@ describe('the Chromium headless shell', () => {
 		else process.env.PLAYWRIGHT_BROWSERS_PATH = configured;
 	});
 
-	it('names the Playwright version it needs and a command any project can run', () => {
-		const empty = mkdtempSync(join(tmpdir(), 'specimen-no-browsers-'));
-		process.env.PLAYWRIGHT_BROWSERS_PATH = empty;
-		const { version } = read(join(specimen, 'node_modules/playwright/package.json'));
-		try {
+	// Where no native host is built (Windows among them), the lookup stops before the shell's path.
+	it.runIf(hostPackageName() === undefined)(
+		'names a system the native host does not support',
+		() => {
 			expect(() => chromiumExecutable()).toThrow(
-				`for Playwright ${version}, is missing at ${empty}/`
+				`Specimen's native host does not support ${process.platform}-${process.arch}`
 			);
-			expect(() => chromiumExecutable()).toThrow(
-				`install it with \`npx playwright@${version} install --only-shell chromium\``
-			);
-		} finally {
-			rmSync(empty, { recursive: true, force: true });
 		}
-	});
+	);
+
+	it.runIf(hostPackageName() !== undefined)(
+		'names the Playwright version it needs and a command any project can run',
+		() => {
+			const empty = mkdtempSync(join(tmpdir(), 'specimen-no-browsers-'));
+			process.env.PLAYWRIGHT_BROWSERS_PATH = empty;
+			const { version } = read(join(specimen, 'node_modules/playwright/package.json'));
+			try {
+				expect(() => chromiumExecutable()).toThrow(
+					`for Playwright ${version}, is missing at ${empty}/`
+				);
+				expect(() => chromiumExecutable()).toThrow(
+					`install it with \`npx playwright@${version} install --only-shell chromium\``
+				);
+			} finally {
+				rmSync(empty, { recursive: true, force: true });
+			}
+		}
+	);
 });

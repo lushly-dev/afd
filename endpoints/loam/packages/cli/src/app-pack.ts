@@ -4,7 +4,7 @@
  */
 
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join, posix, resolve } from 'node:path';
+import { join, posix, resolve, sep } from 'node:path';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import { type AppCheckOptions, appCheck } from './app-check.js';
 import type { AppCheckReport, Finding } from './check.js';
@@ -110,7 +110,10 @@ export async function appPack(options: AppPackOptions): Promise<AppPackResult> {
 			onEscape(link) {
 				escapes.push({
 					code: 'MANIFEST_PATH_ESCAPE',
-					key: link.slice(root.length + 1),
+					key: link
+						.slice(root.length + 1)
+						.split(sep)
+						.join('/'),
 					message:
 						'A symbolic link in the package leaves the plugin root, leads to nothing or loops.',
 					suggestion: 'Keep the path inside the plugin root, or remove the link.',

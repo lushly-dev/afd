@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { chmod, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -12,6 +12,7 @@ import { bindServer, createHostServer, HOST_INTERNALS } from './internal.js';
 import { acquireDataLock } from './lock.js';
 import {
 	deploymentFile,
+	expectMode,
 	fixtureDist,
 	raw,
 	rawRequest,
@@ -375,14 +376,14 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 
 	it('P6-E1: creates the data directory 0700, writes the site 0600 and 0700, and never a mounts file', async () => {
 		const { data } = await start();
-		expect(statSync(data).mode & 0o777).toBe(0o700);
+		expectMode(data, 0o700);
 		expect(readdirSync(join(data, 'public'))).toEqual(['site']);
 		const walk = (directory: string): void => {
-			expect(statSync(directory).mode & 0o777, directory).toBe(0o700);
+			expectMode(directory, 0o700, directory);
 			for (const entry of readdirSync(directory, { withFileTypes: true })) {
 				const path = join(directory, entry.name);
 				if (entry.isDirectory()) walk(path);
-				else expect(statSync(path).mode & 0o777, path).toBe(0o600);
+				else expectMode(path, 0o600, path);
 			}
 		};
 		walk(join(data, 'public'));

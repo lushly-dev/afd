@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 import { createInProcessExecutor, parseScenarioFile } from '@lushly-dev/afd-testing';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -38,7 +39,7 @@ function createDispatcher(registry: ViewStateRegistry) {
 	};
 }
 
-const SCENARIO_DIR = new URL('../scenarios/', import.meta.url).pathname;
+const SCENARIO_DIR = fileURLToPath(new URL('../scenarios/', import.meta.url));
 
 describe('JTBD Scenarios', () => {
 	let registry: ViewStateRegistry;
