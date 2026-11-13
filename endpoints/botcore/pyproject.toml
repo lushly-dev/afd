@@ -69,7 +69,7 @@ build-backend = "hatchling.build"
 packages = ["src/botcore"]
 
 [tool.hatch.build]
-include = ["src/botcore/**/*.py", "src/botcore/skills/**/*.md", "src/botcore/provenance/*"]
+include = ["src/botcore/**/*.py", "src/botcore/skills/**/*.md", "src/botcore/skills/**/scripts/*.mjs", "src/botcore/provenance/*"]
 
 [tool.ruff]
 line-length = 100

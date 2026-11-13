@@ -36,6 +36,25 @@ class SkillsConfig(BaseModel):
     listing_budget: int = Field(default=8000, gt=0, strict=True)
 
 
+class SweepConfig(BaseModel):
+    """The bloat sweep's settings, read by the bloat-sweeper skill's scripts/sweep.mjs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # The open issue each pass records its measurement on; None until a repository makes one
+    trend_issue: int | None = Field(default=None, gt=0, strict=True)
+    # Files a pass judged cohesive (one job, many lines), with their size then and the reason
+    cohesive: str = "sweep-cohesive.json"
+    # Tracked path prefixes never measured, such as imported upstream source
+    exclude: list[str] = []
+    # Commits touching a file in this many days are its churn
+    churn_days: int = Field(default=90, gt=0, strict=True)
+    # Source extensions measured; None = the script's default (TypeScript, JavaScript, Python, Rust)
+    extensions: list[str] | None = None
+    # A command printing repository-specific measures as JSON, such as bundle sizes
+    measures: str | None = None
+
+
 class LanguageConfig(BaseModel):
     """Per-language tooling configuration."""
 
@@ -97,6 +116,7 @@ class BotCoreConfig(BaseModel):
 
     # Nested sections
     skills: SkillsConfig = SkillsConfig()
+    sweep: SweepConfig = SweepConfig()
     language_config: dict[str, LanguageConfig] = {}
     packages: dict[str, PackageOverrideConfig] = {}
     plugins: dict[str, dict[str, Any]] = {}
