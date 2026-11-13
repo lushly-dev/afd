@@ -312,6 +312,9 @@ pub(crate) struct Inputs<'a> {
     /// Extra trusted root certificates (PEM) for HTTPS mounts.
     #[cfg_attr(not(feature = "mounted"), allow(dead_code))]
     pub mount_roots: &'a [Vec<u8>],
+    /// The marks the plugin gate's local arm hands to a handler (the Ideas host-review
+    /// specification, section 6.2), which each plugin handler's wrapper takes.
+    pub local_marks: &'a Arc<crate::person::LocalMarks>,
 }
 
 /// An instance past steps 1 and 2.
@@ -783,6 +786,9 @@ fn prepare(
     let workspace = inputs.workspace;
     let files = resolved.files.as_ref() as &dyn PluginFiles;
     let hosted = person_page_served(workspace.config());
+    // Where a person-decided command is registered for MCP: the hosted page's workspaces, and a
+    // workspace whose local page is served (the Ideas host-review specification, section 6.2).
+    let served = hosted || local_page_served(workspace.config());
 
     // 3. The instance configuration.
     let configuration = config::resolve(&instance.id, manifest, files, &instance.config)?;
@@ -965,7 +971,7 @@ fn prepare(
                     CommandPolicy {
                         store_write: command.effects.contains(&Effect::StoreWrite),
                         cli_only: command.expose.cli
-                            && !mcp_registered(command, hosted)
+                            && !mcp_registered(command, served)
                             && !command.expose.agent,
                         require_human: command.require_human,
                         person: command.person.unwrap_or_default(),
@@ -1037,7 +1043,12 @@ fn prepare(
         &schemas,
         returns,
         implementations,
-        hosted,
+        Registration {
+            served,
+            hosted,
+            local_marks: local_page_served(workspace.config())
+                .then(|| Arc::clone(inputs.local_marks)),
+        },
     )?;
     let space_names: Vec<String> = spaces
         .iter()
@@ -1080,7 +1091,7 @@ fn prepare(
     let suggestions = manifest
         .commands
         .iter()
-        .filter(|command| command.first_class && mcp_registered(command, hosted))
+        .filter(|command| command.first_class && mcp_registered(command, served))
         .map(|command| command.name.clone())
         .collect();
     Ok(Prepared {
@@ -1309,14 +1320,33 @@ pub(super) fn check_name(
     }
 }
 
-/// A shared handler, so a definition can wrap a plugin's `Arc`.
-struct Shared2(Arc<dyn CommandHandler>);
+/// A shared handler, so a definition can wrap a plugin's `Arc`. Where the local page is served,
+/// it also takes the mark the plugin gate's local arm holds for this command's call, and runs the
+/// handler with it (the Ideas host-review specification, section 6.2).
+struct Shared2 {
+    handler: Arc<dyn CommandHandler>,
+    name: String,
+    local_marks: Option<Arc<crate::person::LocalMarks>>,
+}
 
 #[async_trait]
 impl CommandHandler for Shared2 {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
-        self.0.execute(input, context).await
+        let marked = self
+            .local_marks
+            .as_ref()
+            .and_then(|marks| marks.take(&self.name, &context));
+        self.handler.execute(input, marked.unwrap_or(context)).await
     }
+}
+
+/// How the definitions of one instance are registered: where a person-decided command is
+/// registered for MCP (`served`), where it is host-verified (`hosted`, the hosted page's
+/// workspaces), and the local arm's marks where the local page is served.
+struct Registration {
+    served: bool,
+    hosted: bool,
+    local_marks: Option<Arc<crate::person::LocalMarks>>,
 }
 
 /// The key of a plugin tool's origin in the tool's `_meta` (section 8.1).
@@ -1351,11 +1381,26 @@ pub(crate) fn person_page_served(config: &crate::workspace::Config) -> bool {
         }
 }
 
+/// Whether a workspace serves the local person page (the Ideas host-review specification,
+/// section 6.2): mode `none` with `person.local.enabled`, which configuration admits only in a
+/// build with the `auth` feature. Its page is `umbel person page-serve`'s, on a loopback address.
+pub(crate) fn local_page_served(config: &crate::workspace::Config) -> bool {
+    config.auth.mode == crate::workspace::AuthMode::None && config.person.local.enabled
+}
+
+/// Whether a person-decided command is registered for MCP in the workspace: where the hosted
+/// page is served ([`person_page_served`]) or the local page is ([`local_page_served`]).
+pub(crate) fn person_mcp_served(config: &crate::workspace::Config) -> bool {
+    person_page_served(config) || local_page_served(config)
+}
+
 /// Whether the command is registered for MCP: as [`CommandDecl::mcp_exposed`] says, and, where
-/// the person page is served ([`person_page_served`], `served`), a `require-human` command whose
-/// `person` names `mcp` and which declares `expose.mcp` (phase 5 section 7.1). Such a command is
-/// host-verified ([`definitions`]), and the scope resolver lists and serves it only to callers
-/// whose namespace serves verified commands; elsewhere it stays off MCP, as in phases 2 to 4.
+/// a person page is served ([`person_mcp_served`], `served`), a `require-human` command whose
+/// `person` names `mcp` and which declares `expose.mcp` (phase 5 section 7.1). On the hosted page
+/// such a command is host-verified ([`definitions`]), and the scope resolver lists and serves it
+/// only to callers whose namespace serves verified commands; on the local page it is not, and the
+/// plugin gate's local arm decides it (the Ideas host-review specification, section 6.2);
+/// elsewhere it stays off MCP, as in phases 2 to 4.
 pub(crate) fn mcp_registered(command: &CommandDecl, served: bool) -> bool {
     command.mcp_exposed() || (served && person_mcp(command) && command.expose.mcp)
 }
@@ -1389,8 +1434,13 @@ fn definitions(
     schemas: &[Value],
     returns: Vec<Option<Value>>,
     implementations: Vec<PluginCommand>,
-    hosted: bool,
+    registration: Registration,
 ) -> Result<Vec<(CommandDefinition, Value)>, PluginError> {
+    let Registration {
+        served,
+        hosted,
+        local_marks,
+    } = registration;
     let bad =
         |key: String, problem: String| PluginError::manifest_invalid(&manifest.file, &key, problem);
     let mut remaining: Vec<Option<PluginCommand>> = implementations.into_iter().map(Some).collect();
@@ -1434,7 +1484,11 @@ fn definitions(
                     &command.name,
                     &command.description,
                     vec![],
-                    Shared2(handler),
+                    Shared2 {
+                        handler,
+                        name: command.name.clone(),
+                        local_marks: local_marks.clone().filter(|_| person_mcp(command)),
+                    },
                 );
                 if let Some(category) = &command.category {
                     definition = definition.with_category(category);
@@ -1491,12 +1545,14 @@ fn definitions(
             }
         };
         let mut definition = definition
-            .with_expose(expose(command, hosted))
+            .with_expose(expose(command, served))
             .with_tool_meta(ORIGIN_KEY, origin(instance, manifest, command));
         // A command a person decides over MCP is confirmed by the host alone (step 1's
         // amendment): AFD never sends it a form nor takes an acknowledgement, whatever
-        // `mcp.confirmations` says, and only Umbel's relay can confirm it.
-        if person_mcp(command) {
+        // `mcp.confirmations` says, and only Umbel's relay can confirm it. On the local page it
+        // has no confirmation mode: AFD's own confirmation is all AFD adds, and the plugin gate's
+        // local arm decides it (the Ideas host-review specification, section 6.2).
+        if person_mcp(command) && (hosted || !served) {
             definition =
                 definition.with_confirmation_mode(afd::CommandConfirmationMode::HostVerified);
         }

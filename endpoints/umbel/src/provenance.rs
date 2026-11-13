@@ -556,7 +556,11 @@ impl Envelope {
 }
 
 /// `{ by, at, priorAuthority }`, each a string, the prior authority of the closed set; in
-/// version 3 also a valid `assurance` (phase 5 sections 2.4 and 7.1).
+/// version 3 also a valid `assurance` (phase 5 sections 2.4 and 7.1). An event is written in at
+/// most [`PROVENANCE_VERSION`], 3, so a confirmation whose assurance is `local` (valid only from
+/// version 4) is left out of it. None reaches the journal: the memory store, the only writer of a
+/// confirmation, refuses a `local` one (`MEMORY_ENVELOPE_VERSION`, the Ideas host-review
+/// specification, step H3), and `tests/person_local.rs` pins that.
 fn is_confirmation(value: &Value, version: u32) -> bool {
     let assured = |map: &serde_json::Map<String, Value>| {
         map.get("assurance")

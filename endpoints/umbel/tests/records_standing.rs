@@ -2134,3 +2134,149 @@ async fn a_persons_identities_are_the_configured_person_and_its_equivalent_and_n
     assert_eq!(own["affirmed"]["by"], "human:corp/ada");
     assert_eq!(standing(dir.path(), "n3").await, "affirmed");
 }
+
+/// The local person page (the Ideas host-review specification, sections 6.5 and 9): a decision
+/// there affirms, recorded at level `local`; a call for verified content leaves it out under the
+/// default `verified_levels` and admits it when the space lists `local`; and an affirmation at a
+/// terminal is still `terminal`.
+#[tokio::test]
+async fn a_decision_on_the_local_page_affirms_as_local_and_verified_content_lists_it_only_when_asked()
+ {
+    use support::hosted::Client;
+    use umbel::testkit::mcp::{Stdio, command_result};
+    for (levels, verified) in [
+        ("", json!(["a"])),
+        (
+            "verified_levels = [\"terminal\", \"verified\", \"local\"]",
+            json!(["a", "l"]),
+        ),
+    ] {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let bind = listener.local_addr().unwrap();
+        listener.set_nonblocking(true).unwrap();
+        // Version 7, the page enabled, the stdio caller acting for the garden's person.
+        let text = config(
+            &format!("{PERSON}\n{levels}"),
+            "",
+            &format!(
+                "\n[principal]\non_behalf_of = \"local\"\n\n[person.local]\nenabled = true\nbind = \"{bind}\"\n"
+            ),
+        )
+        .replacen("config_version = 6", "config_version = 7", 1);
+        let dir = workspace(&text);
+        put(dir.path(), "a", MULCH).await;
+        put(dir.path(), "l", ROSES).await;
+        // At a terminal: `terminal`, as before.
+        done(&review(dir.path(), "affirm", json!({ "id": "a" })).await);
+        assert_eq!(
+            label(dir.path(), "a").await["affirmed"]["assurance"]["level"],
+            "terminal"
+        );
+        let host = host(dir.path());
+        let server = host.local_person_server().unwrap().unwrap();
+        tokio::spawn(server.serve(
+            tokio::net::TcpListener::from_std(listener).unwrap(),
+            std::future::pending(),
+        ));
+        let page = Client::plain(bind).with_host(&bind.to_string());
+        let verify = || async {
+            let mut stdio = Stdio::connect(&host).await;
+            let response = stdio
+                .request(
+                    "tools/call",
+                    json!({
+                        "name": "notes-verify",
+                        "arguments": { "space": "garden", "op": "affirm", "id": "l", "confirm": true },
+                    }),
+                )
+                .await;
+            command_result(&response)
+        };
+        // Refused with the page's address; nothing is affirmed yet.
+        let asked = verify().await;
+        assert_eq!(asked["error"]["code"], "CONFIRMATION_REQUIRED", "{asked}");
+        let id = asked["error"]["details"]["decision"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(standing(dir.path(), "l").await, "unverified");
+        // Decided on the page.
+        let shown = page
+            .get(&format!("/d/{id}"), &[("sec-fetch-site", "none")])
+            .await;
+        assert_eq!(shown.status, 200, "{}", shown.text);
+        let marker = "name=\"csrf\" value=\"";
+        let start = shown.text.find(marker).unwrap() + marker.len();
+        let csrf = &shown.text[start..start + shown.text[start..].find('"').unwrap()];
+        let posted = page
+            .send(page.request(
+                "POST",
+                &format!("/d/{id}"),
+                &[
+                    ("content-type", "application/x-www-form-urlencoded"),
+                    ("origin", &format!("http://{bind}")),
+                ],
+                format!("csrf={csrf}&page=1&decision=approve"),
+            ))
+            .await;
+        assert_eq!(posted.status, 200, "{}", posted.text);
+        // The same call again affirms, at level `local`.
+        let ran = verify().await;
+        assert_eq!(ran["success"], true, "{ran}");
+        assert_eq!(ran["data"]["result"]["standing"], "affirmed", "{ran}");
+        let read = label(dir.path(), "l").await;
+        assert_eq!(read["standing"], "affirmed");
+        assert_eq!(read["affirmed"]["assurance"]["level"], "local", "{read}");
+        // The decision row's assurance is the local page's, with no namespace, time or class.
+        let assurance: Value = serde_json::from_str(
+            &sqlite(dir.path())
+                .query_row(
+                    "SELECT c.assurance FROM record_decisions c JOIN record_lane l ON c.seq = l.affirmed_seq WHERE l.id = 'l'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            assurance,
+            json!({ "level": "local", "method": "local-page" })
+        );
+        // An ordinary read admits it; a call for verified content only where `local` is listed.
+        let find = |args: Value| {
+            let host = &host;
+            async move { result(&run(host, agent("ada"), "notes-read", "find", args).await) }
+        };
+        assert_eq!(find(json!({})).await["ids"], json!(["a", "l"]));
+        let asked = find(json!({ "verifiedOnly": true })).await;
+        assert_eq!(asked["ids"], verified, "{levels}");
+        assert_eq!(
+            asked["total"],
+            verified.as_array().unwrap().len(),
+            "{levels}"
+        );
+        // Left out, it is no attested or unverified record in its place.
+        let widened =
+            find(json!({ "verifiedOnly": true, "standings": ["attested", "affirmed"] })).await;
+        assert_eq!(widened["ids"], verified, "{levels}");
+        let read = |args: Value| {
+            let host = &host;
+            async move { result(&run(host, agent("ada"), "notes-read", "read", args).await) }
+        };
+        let by_id = read(json!({ "id": "l", "verifiedOnly": true })).await;
+        assert_eq!(
+            by_id.is_null(),
+            !verified.as_array().unwrap().contains(&json!("l")),
+            "{levels}: {by_id}"
+        );
+        // Without the flag, `standings` still finds it affirmed.
+        assert_eq!(
+            find(json!({ "standings": ["affirmed"] })).await["ids"],
+            json!(["a", "l"])
+        );
+        assert_eq!(
+            find(json!({ "standings": ["unverified"] })).await["ids"],
+            json!([])
+        );
+    }
+}

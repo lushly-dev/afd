@@ -169,6 +169,26 @@ impl Decision {
         self.pages.iter().find(|seen| seen.page == number)
     }
 
+    /// Whether it is a decision of the local page (the Ideas host-review specification, section
+    /// 6; A1): for the local person, whom no issuer or client binds, and decided, if at all, with
+    /// no login's `auth_time`.
+    pub(crate) fn is_local(&self) -> bool {
+        self.for_.namespace == crate::person::LOCAL_NAMESPACE
+            && self.for_.issuer.is_none()
+            && self.for_.client_id.is_none()
+            && self.auth_time_ms.is_none()
+            && self.acr.is_none()
+    }
+
+    /// The level a decided decision records: `local` on the local page, else `verified`.
+    pub(crate) fn level(&self) -> &'static str {
+        if self.is_local() {
+            crate::person::LOCAL_LEVEL
+        } else {
+            "verified"
+        }
+    }
+
     /// The decision as `person-decision.v2.json` gives it: the fields of section 7.2, and the
     /// pages rendered and the items pulled out (the Ideas host-review specification, section
     /// 3), never the page's own columns.
@@ -187,7 +207,7 @@ impl Decision {
             "expires": iso(self.expires_ms),
             "status": self.status.as_str(),
             "decidedAt": self.decided_ms.filter(|_| decided).map(iso),
-            "level": decided.then_some("verified"),
+            "level": decided.then(|| self.level()),
             "authTime": self.auth_time_ms.filter(|_| decided).map(iso),
             "acr": self.acr.as_ref().filter(|_| decided),
             "previewHash": self.preview_hash.as_ref().filter(|_| decided),
@@ -482,6 +502,27 @@ pub(crate) trait PersonStore: Send + Sync {
         choice: &Choice,
         now_ms: i64,
     ) -> Result<Decided, SharedError>;
+
+    /// What the person posted from a page of the local page (the Ideas host-review
+    /// specification, section 6.3), which has no login: as [`Self::decide`], for a decision that
+    /// [`Decision::is_local`] only, recording no `auth_time` or `acr`. A decision of the hosted
+    /// page is refused here, whatever is posted, and a local decision through [`Self::decide`].
+    ///
+    /// # Errors
+    /// A [`SharedError`].
+    fn decide_local(
+        &self,
+        decision: &str,
+        choice: &Choice,
+        now_ms: i64,
+    ) -> Result<Decided, SharedError>;
+
+    /// Every stored decision for `command` with `input_digest`, newest first: what the plugin
+    /// gate's local arm looks through for the call it is asked about (section 6.2).
+    ///
+    /// # Errors
+    /// A [`SharedError`].
+    fn for_call(&self, command: &str, input_digest: &str) -> Result<Vec<Decision>, SharedError>;
 
     /// The pending, live decisions for the person `subject` of `namespace`, oldest first.
     ///
@@ -1209,19 +1250,107 @@ impl PersonStore for SqlitePerson {
         choice: &Choice,
         now_ms: i64,
     ) -> Result<Decided, SharedError> {
+        self.decide_as(decision, Some((login, browser_hash)), choice, now_ms)
+    }
+
+    fn decide_local(
+        &self,
+        decision: &str,
+        choice: &Choice,
+        now_ms: i64,
+    ) -> Result<Decided, SharedError> {
+        self.decide_as(decision, None, choice, now_ms)
+    }
+
+    fn for_call(&self, command: &str, input_digest: &str) -> Result<Vec<Decision>, SharedError> {
+        self.with(|connection| {
+            let mut statement = connection
+                .prepare(&format!(
+                    "SELECT {DECISION_COLUMNS} FROM decisions
+                     WHERE command = ?1 AND input_digest = ?2 ORDER BY created_ms DESC, id"
+                ))
+                .map_err(|error| shared_error(&error))?;
+            let rows = statement
+                .query_map(params![command, input_digest], decision_row)
+                .map_err(|error| shared_error(&error))?;
+            let mut found = Vec::new();
+            for row in rows {
+                // A row this host cannot read covers no call.
+                if let Ok(Some(decision)) =
+                    checked(Some(row.map_err(|error| shared_error(&error))?))
+                {
+                    found.push(decision);
+                }
+            }
+            Ok(found)
+        })
+    }
+
+    fn pending_for(
+        &self,
+        namespace: &str,
+        subject: &str,
+        now_ms: i64,
+    ) -> Result<Vec<Decision>, SharedError> {
+        self.with(|connection| {
+            let mut statement = connection
+                .prepare(&format!(
+                    "SELECT {DECISION_COLUMNS} FROM decisions
+                     WHERE status = 'pending' AND expires_ms > ?1 ORDER BY created_ms, id"
+                ))
+                .map_err(|error| shared_error(&error))?;
+            let rows = statement
+                .query_map(params![now_ms], decision_row)
+                .map_err(|error| shared_error(&error))?;
+            let mut found = Vec::new();
+            for row in rows {
+                // A row this host cannot read is no one's to list.
+                let Ok(Some(decision)) = checked(Some(row.map_err(|error| shared_error(&error))?))
+                else {
+                    continue;
+                };
+                if decision.for_.namespace == namespace && decision.for_.subject == subject {
+                    found.push(decision);
+                }
+            }
+            Ok(found)
+        })
+    }
+}
+
+impl SqlitePerson {
+    /// [`PersonStore::decide`] through the verified login `login` in the browser whose cookie
+    /// hashes to its hash, or, with `None`, [`PersonStore::decide_local`]: a local decision, with
+    /// no login to spend and no `auth_time` to hold fresh.
+    fn decide_as(
+        &self,
+        decision: &str,
+        login: Option<(&str, &str)>,
+        choice: &Choice,
+        now_ms: i64,
+    ) -> Result<Decided, SharedError> {
         self.with(|connection| {
             let transaction = connection
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|error| shared_error(&error))?;
-            let Some((auth_time_ms, acr, first_hash)) =
-                usable_login(&transaction, decision, login, browser_hash, now_ms)?
-            else {
-                return Ok(Decided::Refused);
+            let proof = match login {
+                Some((login, browser_hash)) => {
+                    match usable_login(&transaction, decision, login, browser_hash, now_ms)? {
+                        Some(proof) => Some(proof),
+                        None => return Ok(Decided::Refused),
+                    }
+                }
+                None => None,
             };
             let Some(row) = read_decision(&transaction, decision)? else {
                 return Ok(Decided::Refused);
             };
             if row.status != Status::Pending || !row.live(now_ms) {
+                return Ok(Decided::Refused);
+            }
+            // A decision of the local page is decided without a login, and only so; one of the
+            // hosted page only through its login.
+            if row.is_local() != proof.is_none() {
                 return Ok(Decided::Refused);
             }
             let total = row.pages_total.unwrap_or(0);
@@ -1256,8 +1385,11 @@ impl PersonStore for SqlitePerson {
                     return Ok(Decided::Moved(target));
                 }
                 Action::Approve => {
-                    // The login is as fresh as the deployer's lifetime for a decision allows.
-                    if now_ms.saturating_sub(auth_time_ms) > choice.max_age_ms {
+                    // The login is as fresh as the deployer's lifetime for a decision allows. The
+                    // local page has no login to hold fresh.
+                    if let Some((auth_time_ms, _, _)) = &proof
+                        && now_ms.saturating_sub(*auth_time_ms) > choice.max_age_ms
+                    {
                         return Ok(Decided::Stale);
                     }
                     // Every page shown before Approve (section 2), and the choices of the page
@@ -1275,18 +1407,30 @@ impl PersonStore for SqlitePerson {
                 }
                 Action::Decline => {
                     // Decline is always offered: no page need have been shown, and nothing runs.
+                    // From a page never recorded: the first page the login rendered, or on the
+                    // local page the page the form's token names.
+                    let first = proof
+                        .as_ref()
+                        .map_or_else(|| choice.hash.clone(), |(_, _, first)| first.clone());
                     let hash = row
                         .seen(choice.page)
-                        .map_or(first_hash, |seen| seen.hash.clone());
+                        .map_or(first, |seen| seen.hash.clone());
                     (Status::Declined, row.excluded.clone(), hash)
                 }
             };
-            let spent = transaction
-                .execute(
-                    "UPDATE logins SET status = ?2 WHERE id = ?1 AND status = 'verified'",
-                    params![login, LoginStatus::Used.as_str()],
-                )
-                .map_err(|error| shared_error(&error))?;
+            let spent = match login {
+                Some((login, _)) => transaction
+                    .execute(
+                        "UPDATE logins SET status = ?2 WHERE id = ?1 AND status = 'verified'",
+                        params![login, LoginStatus::Used.as_str()],
+                    )
+                    .map_err(|error| shared_error(&error))?,
+                None => 1,
+            };
+            let (auth_time_ms, acr) = match &proof {
+                Some((auth_time_ms, acr, _)) => (Some(*auth_time_ms), Some(acr.clone())),
+                None => (None, None),
+            };
             let recorded = transaction
                 .execute(
                     "UPDATE decisions SET status = ?2, decided_ms = ?3, auth_time_ms = ?4, acr = ?5,
@@ -1312,37 +1456,6 @@ impl PersonStore for SqlitePerson {
             Ok(decided.map_or(Decided::Refused, |decided| {
                 Decided::Recorded(Box::new(decided))
             }))
-        })
-    }
-
-    fn pending_for(
-        &self,
-        namespace: &str,
-        subject: &str,
-        now_ms: i64,
-    ) -> Result<Vec<Decision>, SharedError> {
-        self.with(|connection| {
-            let mut statement = connection
-                .prepare(&format!(
-                    "SELECT {DECISION_COLUMNS} FROM decisions
-                     WHERE status = 'pending' AND expires_ms > ?1 ORDER BY created_ms, id"
-                ))
-                .map_err(|error| shared_error(&error))?;
-            let rows = statement
-                .query_map(params![now_ms], decision_row)
-                .map_err(|error| shared_error(&error))?;
-            let mut found = Vec::new();
-            for row in rows {
-                // A row this host cannot read is no one's to list.
-                let Ok(Some(decision)) = checked(Some(row.map_err(|error| shared_error(&error))?))
-                else {
-                    continue;
-                };
-                if decision.for_.namespace == namespace && decision.for_.subject == subject {
-                    found.push(decision);
-                }
-            }
-            Ok(found)
         })
     }
 }

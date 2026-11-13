@@ -141,12 +141,66 @@ pub(super) fn push_attested(sql: &mut Sql, view: &StandingView) {
     sql.push(")");
 }
 
+/// [`push_affirmed`] with the view's `levels` (the Ideas host-review specification, section
+/// 6.5): the affirming decision's assurance was made at one of them.
+fn push_affirmed_at(sql: &mut Sql, view: &StandingView) {
+    sql.push(
+        "EXISTS (SELECT 1 FROM record_decisions c WHERE c.seq = l.affirmed_seq \
+         AND c.decision = 'affirm' AND c.wording_hash = l.wording_hash AND ",
+    );
+    push_by_person(sql, "c.by", view);
+    sql.push(" AND json_extract(c.assurance, '$.level') IN ")
+        .bind_list(view.levels.iter());
+    sql.push(")");
+}
+
 /// ` AND <the view admits the record's standing>` over `record_lane l` (section 6.6): a clause
 /// of the statement, so a total, a statistic and a candidate count only admitted records. A
 /// record is affirmed when [`push_affirmed`]'s condition holds, else attested when section
 /// 6.3's does, else unverified. A kind without standing has no standing to filter on.
+///
+/// A view that names `levels` admits an affirmed record only when its decision was made at one
+/// of them, and a record affirmed at another level at no standing (the Ideas host-review
+/// specification, section 6.5): it is still affirmed, so it is neither attested nor unverified.
 pub(super) fn and_admitted(sql: &mut Sql, decl: &RecordDecl, view: &StandingView) {
     if !decl.standing {
+        return;
+    }
+    if !view.levels.is_empty() {
+        let mut arms: Vec<fn(&mut Sql, &StandingView)> = Vec::new();
+        if view.admits(Standing::Affirmed) {
+            arms.push(push_affirmed_at);
+        }
+        if view.admits(Standing::Attested) {
+            arms.push(|sql, view| {
+                sql.push("(NOT ");
+                push_affirmed(sql, view);
+                sql.push(" AND ");
+                push_attested(sql, view);
+                sql.push(")");
+            });
+        }
+        if view.admits(Standing::Unverified) {
+            arms.push(|sql, view| {
+                sql.push("(NOT ");
+                push_affirmed(sql, view);
+                sql.push(" AND NOT ");
+                push_attested(sql, view);
+                sql.push(")");
+            });
+        }
+        if arms.is_empty() {
+            sql.push(" AND 0");
+            return;
+        }
+        sql.push(" AND (");
+        for (index, arm) in arms.iter().enumerate() {
+            if index > 0 {
+                sql.push(" OR ");
+            }
+            arm(sql, view);
+        }
+        sql.push(")");
         return;
     }
     let admits = (

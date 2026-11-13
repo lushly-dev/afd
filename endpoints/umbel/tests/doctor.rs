@@ -112,6 +112,7 @@ fn a_fresh_workspace_is_healthy_with_seventeen_skipped_checks() {
             "journal.readable",
             "events.consistent",
             "http.config",
+            "person.local",
             "mcp.surface",
             "cli.verbs",
             "plugins.config",

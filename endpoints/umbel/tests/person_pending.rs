@@ -123,3 +123,67 @@ async fn the_list_names_a_namespace_the_page_serves() {
         list.text
     );
 }
+
+/// The list on the local page, which has no login (section 5, "on the local page for the local
+/// person"; the follow-up of step H2): `GET /d/` lists the local person's pending, unexpired
+/// decisions, each linking to its page, with no sign-in and no preview run.
+#[tokio::test]
+async fn the_local_page_lists_the_local_persons_pending_decisions_without_a_login() {
+    use support::local::{Local, decide, decision_of};
+    let local = Local::start().await;
+    let old = decision_of(
+        &local
+            .call("gate-approve", json!({ "proposal": "p-old" }))
+            .await,
+    );
+    local.clock.advance(300_000);
+    let live = decision_of(
+        &local
+            .call("gate-approve", json!({ "proposal": "p-live" }))
+            .await,
+    );
+    let declined = decision_of(
+        &local
+            .call("gate-reject", json!({ "proposal": "p-declined" }))
+            .await,
+    );
+    assert_eq!(decide(&local, &declined, "decline").await.status, 200);
+    // `old` expires; `live` does not.
+    local.clock.advance(301_000);
+    let previews = local.seen.runs("gate-preview");
+    let list = local.open("/d/").await;
+    assert_eq!(list.status, 200, "{}", list.text);
+    assert!(list.headers.get("set-cookie").is_none());
+    assert!(list.headers.get("location").is_none());
+    assert!(
+        list.text
+            .contains("Requests waiting for <b>human:ada</b> on this machine"),
+        "{}",
+        list.text
+    );
+    assert!(
+        list.text.contains(&format!("href=\"/d/{live}\"")),
+        "{}",
+        list.text
+    );
+    assert!(list.text.contains("<code>gate-approve</code>"));
+    for gone in [&old, &declined] {
+        assert!(!list.text.contains(gone.as_str()), "{}", list.text);
+    }
+    assert_eq!(local.seen.runs("gate-preview"), previews);
+    // Its link opens the decision's page directly.
+    let opened = local.open(&format!("/d/{live}")).await;
+    assert_eq!(opened.status, 200, "{}", opened.text);
+    // Only `GET`, with no query, and not for another site's request.
+    assert_eq!(local.open("/d/?namespace=corp").await.status, 404);
+    let foreign = local
+        .page
+        .get("/d/", &[("sec-fetch-site", "cross-site")])
+        .await;
+    assert_eq!(foreign.status, 403);
+    let posted = local
+        .page
+        .send(local.page.request("POST", "/d/", &[], String::new()))
+        .await;
+    assert_eq!(posted.status, 405);
+}

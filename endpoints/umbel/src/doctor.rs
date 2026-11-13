@@ -355,6 +355,7 @@ pub(crate) fn inspect_with(
         &located.root,
         auth,
     ));
+    checks.push(person_local(config.as_ref()));
     checks.push(Check::skip_sealed("mcp.surface"));
     checks.push(Check::skip_sealed("cli.verbs"));
     checks.extend(crate::plugins::doctor_checks(
@@ -878,6 +879,29 @@ fn auth_checks(
             Vec::new()
         }
     }
+}
+
+/// `person.local` (the Ideas host-review specification, section 6.5): passes when the local
+/// person page is not enabled; warns when it is, naming what it does not prove. It has no
+/// sign-in: an agent with a shell can start `umbel person page-serve` itself and post the form,
+/// so turning it on relaxes what an agent variable withholds at a terminal.
+fn person_local(config: Option<&crate::workspace::Config>) -> Check {
+    const ID: &str = "person.local";
+    let Some(config) = config else {
+        return Check::skip(ID, NEEDS_CONFIG);
+    };
+    let local = &config.person.local;
+    if !local.enabled {
+        return Check::pass(ID, "The local person page is not enabled");
+    }
+    Check::warn(
+        ID,
+        format!(
+            "The local person page is enabled at http://{}/d/. It has no sign-in, so a decision made there shows only that something on this machine posted its form, not that a person clicked: an agent can start umbel person page-serve itself and post the form. Its decisions are recorded as local, never verified, and a call for verified content leaves them out unless a space's verified_levels lists local",
+            local.bind
+        ),
+        "Enable [person.local] only where no agent on this machine should be kept from confirming its own requests; for a proof that a person decided, use a hosted workspace with a person login.",
+    )
 }
 
 fn http_config(file: Option<&ConfigFile>) -> Check {
