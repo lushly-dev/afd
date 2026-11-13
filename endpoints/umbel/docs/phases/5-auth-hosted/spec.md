@@ -103,7 +103,7 @@
     exactly the answer it would get if no one else had called: no total, no trace id, sealed cursors
     ([Amendments from step 9](#amendments-from-step-9)). Requests refused before their body is read are not metered.
     No OpenTelemetry export (owner decision 15).
-  - Step 10, memory, completed by this change (implemented 2026-11-10, final review fixes 2026-11-13): `memory-confirm` over MCP at `verified` with `memory-preview` (8.1);
+  - Step 10, memory, merged in [#1180](https://github.com/lushly-dev/afd/pull/1180) (implemented 2026-11-10, final review fixes 2026-11-13): `memory-confirm` over MCP at `verified` with `memory-preview` (8.1);
     another principal's record changed only by its owner (with equivalents) or a person holding an `editors` token,
     never a sharing writer as such and over MCP never anyone but the owner (8.3); `memory-erase` for a verified
     eraser, blind, after a dry run whose plan it presents, with the two-person rule's erase requests, counts only and
@@ -296,7 +296,7 @@
   `middleware.rs`, `provenance.rs`), `stores.memory_erase` (`src/commands/store_doctor.rs`); envelope version 3's
   `embedder` assurance and `erasure`; `plugins/memory/tests/erase.rs`, `editors.rs`, `confirm_preview.rs` (with
   `tests/hosted_kit/`), `store-embedded/tests/memory_erase.rs`.
-- **Not done:** steps 11 and 12 of section [16](#16-implementation-plan); this change completes step 10 (the [2026-11-13 shipping entry](../../STATUS.md#phase-5-auth-and-hosted)).
+- **Not done:** steps 11 and 12 of section [16](#16-implementation-plan); step 10 merged in [#1180](https://github.com/lushly-dev/afd/pull/1180) (the [2026-11-13 shipping entry](../../STATUS.md#phase-5-auth-and-hosted)).
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -1727,7 +1727,7 @@ A step that finds a design decision stops and amends this document. Steps changi
 | 7 | Stores: exact filtering | 9.1 to 9.3; the memory tokenizer; cursor version 1, locator version 2; eval re-run. **Done 2026-11-08**, with the follow-ups of steps 1, 2b, 2c and 3 it owned and mode `oauth` served by a shipped build; the choices it made are in [Amendments from step 7](#amendments-from-step-7) | `partitioned_stats.rs`, `memory_tokenizer.rs`, `cursor_v1.rs`, `eval_gate.rs` (and the unit tests of `store-embedded/src/index/stats.rs`, `memory/rank.rs`, `store/src/memory/tokenizer.rs` and `src/positions.rs`, the conformance `access` and `memory_recall` groups, `auth_show.rs`, `auth_layers.rs`, `first-party/tests/exact_filtering.rs`) | L |
 | 8 | Tasks | 12.2. **Done 2026-11-09**, with the follow-ups on the token's grace and on gateway tasks; the choices it made are in [Amendments from step 8](#amendments-from-step-8) | `tasks.rs` (and the unit tests of `src/shared/tasks.rs`, AFD's `server_tasks.rs` for `create_for`) | M |
 | 9 | Usage | 12.1. **Done 2026-11-10**; the choices it made are in [Amendments from step 9](#amendments-from-step-9) | `usage.rs` (and the unit tests of `src/shared/usage.rs`, `src/usage/parse.rs`, `src/usage/recorder.rs` and `src/usage/mod.rs`) | M |
-| 10 | Memory | 8.1, 8.3, 8.4, and the library's assurance (the owner's settlement of 2026-11-09). **Done 2026-11-10**; the choices it made are in [Amendments from step 10](#amendments-from-step-10) | `erase.rs`, `editors.rs`, `confirm_preview.rs` (with `tests/hosted_kit/`; and `store-embedded/tests/memory_erase.rs`, `memory_grants.rs`, the schema cases of `phase5_records.rs`, the unit tests of `erase_step`, the plan and `stores.memory_erase`) | M |
+| 10 | Memory | 8.1, 8.3, 8.4, and the library's assurance (the owner's settlement of 2026-11-09). **Merged 2026-11-13 in [#1180](https://github.com/lushly-dev/afd/pull/1180)** (implemented 2026-11-10); the choices it made are in [Amendments from step 10](#amendments-from-step-10) | `erase.rs`, `editors.rs`, `confirm_preview.rs` (with `tests/hosted_kit/`; and `store-embedded/tests/memory_erase.rs`, `memory_grants.rs`, the schema cases of `phase5_records.rs`, the unit tests of `erase_step`, the plan and `stores.memory_erase`) | M |
 | 11 | Erasure sweep | 8.5 | `host_redaction.rs` | M |
 | 12 | Exit | The balancer, `hosted_leaks.rs`, `hosted_not_request_path.rs`, `exit_hosted.rs`; the `hosted` job and its `suites.mjs` entry; STATUS.md marks phase 5 done | The three | L |
 
