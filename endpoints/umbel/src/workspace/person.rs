@@ -174,6 +174,16 @@ fn local_page(table: &Table, mode: AuthMode) -> Result<LocalPageConfig, Workspac
                     format!("must be an address and a port such as {DEFAULT_LOCAL_PAGE_BIND}, not `{text}`"),
                 )
             })?;
+            // One spelling for each address, which the schema's pattern states: no leading zero,
+            // `::1` written short, and a port of 1 to 65535.
+            if bind.to_string() != text || bind.port() == 0 {
+                return Err(WorkspaceError::config_invalid(
+                    "person.local.bind",
+                    format!(
+                        "must be written as {DEFAULT_LOCAL_PAGE_BIND} or [::1]:7421 are, with a port of 1 to 65535, not `{text}`"
+                    ),
+                ));
+            }
             if !bind.ip().is_loopback() {
                 return Err(WorkspaceError::config_invalid(
                     "person.local.bind",

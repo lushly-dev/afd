@@ -790,6 +790,11 @@ impl RecordDecision {
     }
 }
 
+/// The envelope version whose assurances a decision or a mark may record: version 3's two,
+/// `terminal` and `verified`. A decision on the local page (`local`, version 4) is admitted here
+/// by step H3 of the Ideas host-review specification, not before.
+const DECISION_ASSURANCE_VERSION: u32 = 3;
+
 /// Who decided, when and how: the three members a decision and a mark share.
 fn check_decider(by: &str, at: &str, assurance: &Assurance) -> Result<()> {
     if by.is_empty() || by.chars().any(char::is_control) {
@@ -800,9 +805,7 @@ fn check_decider(by: &str, at: &str, assurance: &Assurance) -> Result<()> {
     if at.is_empty() || at.chars().any(char::is_control) {
         return Err(StoreError::invalid("a decision names when it was made"));
     }
-    // The two assurances of envelope version 3: a decision on the local page (`local`) is
-    // admitted here by step H3 of the Ideas host-review specification, not before.
-    if !assurance.is_valid(3) {
+    if !assurance.is_valid(DECISION_ASSURANCE_VERSION) {
         return Err(StoreError::invalid(
             "a decision's assurance must be the terminal's or the person page's",
         ));

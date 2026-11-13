@@ -80,9 +80,18 @@ fn oauth(rest: &str) -> String {
     )
 }
 
+/// A `gateway` workspace on a loopback bind, as `config_v5.rs` opens one, with `rest` appended.
+#[cfg(feature = "auth")]
+fn gateway(rest: &str) -> String {
+    format!(
+        "config_version = 7\n\n[principal]\nlocal_id = \"corp/U019488227\"\n\n[http]\nbind = \"127.0.0.1:8443\"\npublic_url = \"https://umbel.example.com/mcp\"\nallowed_hosts = [\"umbel.example.com\"]\n\n[auth]\nmode = \"gateway\"\n\n[auth.namespaces.corp]\n\n[auth.gateway]\nalias = \"edge\"\nnamespace = \"corp\"\nissuer = \"https://gateway.example.com\"\nkeys = \"secrets/gateway/jwks.json\"\nmax_scopes = [\"umbel:read\", \"umbel:write:main\"]\n{rest}"
+    )
+}
+
 // ── Every key, and its default ─────────────────────────────────────────────────────────────────
 
 #[test]
+#[cfg(feature = "auth")]
 fn the_specifications_example_opens_with_every_key() {
     let workspace = open(&garden("")).unwrap();
     let config = workspace.config();
@@ -175,8 +184,13 @@ fn unknown_keys_of_the_person_tables_are_refused() {
 
 #[test]
 fn the_local_page_binds_a_loopback_address() {
-    for bind in ["127.0.0.1:7421", "127.0.0.2:9000", "[::1]:7421"] {
-        let workspace = open(&local(&format!("enabled = true\nbind = \"{bind}\""), "")).unwrap();
+    for bind in [
+        "127.0.0.1:7421",
+        "127.0.0.2:9000",
+        "[::1]:7421",
+        "127.255.0.1:65535",
+    ] {
+        let workspace = open(&local(&format!("enabled = false\nbind = \"{bind}\""), "")).unwrap();
         assert_eq!(workspace.config().person.local.bind.to_string(), bind);
     }
     // A disabled page keeps its bind: it is still checked.
@@ -187,9 +201,21 @@ fn the_local_page_binds_a_loopback_address() {
         );
         assert!(error.message().contains("loopback"), "{error}");
     }
-    for bind in ["localhost:7421", "127.0.0.1", "garden", ""] {
+    // One spelling for each address, and a port of 1 to 65535, as the schema's pattern has it.
+    for bind in [
+        "localhost:7421",
+        "127.0.0.1",
+        "garden",
+        "",
+        "127.0.0.1:0",
+        "127.0.0.1:99999",
+        "127.0.0.1:07421",
+        "127.0.0.300:1",
+        "127.0.0.01:7421",
+        "[0:0:0:0:0:0:0:1]:7421",
+    ] {
         invalid(
-            &local(&format!("enabled = true\nbind = \"{bind}\""), ""),
+            &local(&format!("enabled = false\nbind = \"{bind}\""), ""),
             "person.local.bind",
         );
     }
@@ -198,6 +224,7 @@ fn the_local_page_binds_a_loopback_address() {
 }
 
 #[test]
+#[cfg(feature = "auth")]
 fn the_local_page_serves_only_mode_none() {
     // Mode `none` written out, as by default.
     let workspace = open(&local("enabled = true", "[auth]\nmode = \"none\"\n")).unwrap();
@@ -208,8 +235,25 @@ fn the_local_page_serves_only_mode_none() {
         "person.local.enabled",
     );
     assert!(error.message().contains("auth.mode = \"none\""), "{error}");
+    let error = invalid(
+        &gateway("\n[person.local]\nenabled = true\n"),
+        "person.local.enabled",
+    );
+    assert!(error.message().contains("not \"gateway\""), "{error}");
     // Disabled, the table is harmless in a hosted mode.
     let workspace = open(&oauth("\n[person.local]\nenabled = false\n")).unwrap();
+    assert!(!workspace.config().person.local.enabled);
+    let workspace = open(&gateway("\n[person.local]\nenabled = false\n")).unwrap();
+    assert!(!workspace.config().person.local.enabled);
+}
+
+#[test]
+#[cfg(not(feature = "auth"))]
+fn the_local_page_needs_the_auth_feature() {
+    let error = invalid(&local("enabled = true", ""), "person.local.enabled");
+    assert!(error.message().contains("auth feature"), "{error}");
+    // Disabled, the table is read in any build.
+    let workspace = open(&local("enabled = false", "")).unwrap();
     assert!(!workspace.config().person.local.enabled);
 }
 
@@ -246,6 +290,7 @@ fn verified_levels_names_each_level_once() {
 // ── The doctor ─────────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[cfg(feature = "auth")]
 fn the_doctor_reads_version_7_and_names_an_unknown_key() {
     let (_dir, root) = workspace_with(&garden(""));
     let report = doctor::run(&root);
@@ -318,6 +363,7 @@ fn local_json() -> Value {
 }
 
 #[test]
+#[cfg(feature = "auth")]
 fn the_schema_accepts_what_the_host_accepts() {
     let validator = validator(7);
     let ok = [
@@ -351,6 +397,21 @@ fn the_schema_refuses_what_the_host_refuses() {
         }),
         edited(&base, |c| {
             c["person"]["local"]["bind"] = json!("localhost:7421")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["bind"] = json!("127.0.0.1:0")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["bind"] = json!("127.0.0.1:99999")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["bind"] = json!("127.0.0.300:1")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["bind"] = json!("127.0.0.01:7421")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["bind"] = json!("[0:0:0:0:0:0:0:1]:7421")
         }),
         edited(&base, |c| c["person"]["local"]["enabled"] = json!("yes")),
         edited(&base, |c| c["person"]["local"]["port"] = json!(7421)),
@@ -387,6 +448,7 @@ fn the_local_page_in_a_hosted_mode_is_refused_by_both() {
 }
 
 #[test]
+#[cfg(feature = "auth")]
 fn the_version_7_examples_validate_and_open() {
     let validator = validator(7);
     for name in ["workspace-config.v7.json", "workspace-config.v7.local.json"] {

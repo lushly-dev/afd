@@ -1095,7 +1095,8 @@ sharing `state/`. Several machines are phase 6, and the shared-state traits (10.
   phishing-resistant multi-factor login counts as user verification: a phishing-resistant `acr` with `amr` `mfa`,
   which is how a passkey login is reported, since WebAuthn tells a provider only that the authenticator verified the
   person, not how. Password plus a security key touched without its PIN also passes; that consequence was put to the
-  owner on 2026-11-12, who accepted it.
+  owner on 2026-11-12, who accepted it: asked whether the rule should also accept a password plus a security key
+  touched without its PIN, he answered "I think that's fine".
 - A `person.cli = "verified"` command at the CLI needs a namespaced `local_id` and that namespace's login, else
   `PERSON_VERIFICATION_UNAVAILABLE`.
 - No other path gives a person:
