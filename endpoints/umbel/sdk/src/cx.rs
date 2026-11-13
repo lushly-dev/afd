@@ -126,7 +126,11 @@ pub struct PersonCheck {
 
 /// A person's decision on the person page that a call carries, as the host attests it (phase 5
 /// sections 7.2 and 7.3): who decided and how they were proven, never the decision's content.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Default` lets a test build one with `..PersonDecision::default()`, so a field the host adds
+/// later does not break every plugin's tests (the Ideas host-review specification, step H0). Only
+/// the host attests a decision; a plugin that builds one gains nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PersonDecision {
     /// Where the call came from: `mcp` (through the approval relay) or `cli` (the command line's
     /// URL flow).

@@ -1063,6 +1063,8 @@ mod person_tests {
     use crate::proposal::model::{ActorRef, Proposal};
     use umbel_sdk::{CallContext, Cx, PersonCheck, PersonDecision};
 
+    // Every field is named today; `..default()` keeps this test building when the host adds one.
+    #[allow(clippy::needless_update)]
     fn decided(person: &str, surface: &str) -> PersonDecision {
         PersonDecision {
             surface: surface.into(),
@@ -1070,6 +1072,7 @@ mod person_tests {
             namespace: "corp".into(),
             auth_time: "2026-11-09T00:00:00.000Z".into(),
             acr: "phr".into(),
+            ..PersonDecision::default()
         }
     }
 
