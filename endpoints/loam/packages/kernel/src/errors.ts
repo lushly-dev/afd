@@ -119,7 +119,10 @@ export type LoamKernelErrorCode =
 	| 'PASSKEY_UNSUPPORTED'
 	| 'PASSKEY_NOT_FOUND'
 	| 'PASSKEY_LAST'
-	| 'IDENTITY_PROVIDER_UNAVAILABLE';
+	| 'IDENTITY_PROVIDER_UNAVAILABLE'
+	| 'PERSONA_NOT_FOUND'
+	| 'PERSONA_LIMIT'
+	| 'PERSONA_INVALID';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

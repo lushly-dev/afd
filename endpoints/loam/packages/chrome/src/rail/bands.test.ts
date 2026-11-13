@@ -61,4 +61,19 @@ describe('P2-E3: bandFor (7.1)', () => {
 		expect(dimmedTip('Tracker', undefined)).toBe('Choose a project to open Tracker');
 		expect(dimmedTip('Tracker', 'Beacon')).toBe('Tracker is not available in Beacon');
 	});
+
+	it("P3-E2: puts the persona's emphasized apps first, in the order it names them, hiding none (6.2)", () => {
+		const rows = [
+			{ order: 10, instance: 'a' },
+			{ order: 20, instance: 'b' },
+			{ order: 30, instance: 'c' },
+			{ order: 40, instance: 'd' },
+		];
+		const sorted = (emphasis: string[]) =>
+			[...rows].sort((x, y) => railOrder(x, y, emphasis)).map((entry) => entry.instance);
+		expect(sorted([])).toEqual(['a', 'b', 'c', 'd']);
+		expect(sorted(['d', 'b'])).toEqual(['d', 'b', 'a', 'c']);
+		// An emphasized instance the band does not hold changes nothing of the rest.
+		expect(sorted(['gone', 'c'])).toEqual(['c', 'a', 'b', 'd']);
+	});
 });

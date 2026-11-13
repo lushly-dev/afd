@@ -52,6 +52,8 @@ export class RailBands {
 	#icons = false;
 	/** A change of scope not yet announced: a later read that renders over this one announces it. */
 	#change: ScopeChangeV2 | undefined;
+	/** The active persona's emphasized apps, first in their band and marked (phase 3 specification, 6.2). */
+	emphasis: readonly string[] = [];
 
 	constructor(shell: LoamShell) {
 		this.#shell = shell;
@@ -150,7 +152,7 @@ export class RailBands {
 		}
 		const kept = new Set<string>();
 		const bands = { top: [[], []], bottom: [[], []] } as Record<'top' | 'bottom', LoamAppEntry[][]>;
-		for (const app of [...(list?.apps ?? [])].sort(railOrder)) {
+		for (const app of [...(list?.apps ?? [])].sort((a, b) => railOrder(a, b, this.emphasis))) {
 			const placement = bandFor(app, state.scope.project);
 			if (!placement) continue;
 			kept.add(app.instance);
@@ -171,6 +173,7 @@ export class RailBands {
 				entry.state = app.state;
 				entry.current = app.instance === active;
 				entry.dimmed = placement.dimmed;
+				entry.emphasized = this.emphasis.includes(app.instance);
 				entry.tip = placement.dimmed
 					? dimmedTip(app.title, project?.name)
 					: entry.variant === 'rail'

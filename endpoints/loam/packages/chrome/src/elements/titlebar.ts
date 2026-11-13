@@ -23,6 +23,9 @@ const toggle = (part: 'sidebar' | 'inspector' | 'panel', label: string) => html<
 
 // The search button's label carries the shortcut it shows, so its name contains its visible text
 // (WCAG 2.5.3). It needs the label: at compact width only the icon shows.
+/** The name, with a non-default persona's title beside it (phase 3 specification, 6.3). */
+const named = (x: LoamTitlebar): string => (x.persona ? `${x.account} · ${x.persona}` : x.account);
+
 const template = html<LoamTitlebar>`
 	<span class="name">Loam</span>
 	<span class="new"
@@ -71,12 +74,12 @@ const template = html<LoamTitlebar>`
 		(x) => x.account !== '' && x.provider,
 		html<LoamTitlebar>`<button class="quiet account" type="button" aria-haspopup="menu" aria-expanded="false" @click="${(
 			x
-		) => dispatchAction(x, { action: 'account-menu' })}">${(x) => x.account}</button>`
+		) => dispatchAction(x, { action: 'account-menu' })}">${named}</button>`
 	)}
 	${when(
 		(x) => x.account !== '' && !x.provider,
 		html<LoamTitlebar>`
-			<span class="actor">${(x) => x.account}</span>
+			<span class="actor">${named}</span>
 			<button
 				class="quiet account"
 				type="button"
@@ -160,6 +163,8 @@ const styles = [
 export class LoamTitlebar extends FASTElement {
 	/** The signed-in name, or empty when signed out. */
 	declare account: string;
+	/** The active persona's title, shown beside the name; empty for `default` (phase 3 specification, 6.3). */
+	declare persona: string;
 	/** The palette chord as the platform writes it, for example `⌘K` or `Ctrl+K`. */
 	declare shortcut: string;
 	/** The palette chord for `aria-keyshortcuts`, for example `Meta+K`. */
@@ -173,6 +178,7 @@ export class LoamTitlebar extends FASTElement {
 		super();
 		registerChromeIcons();
 		this.account = '';
+		this.persona = '';
 		this.shortcut = 'Ctrl+K';
 		this.ariaShortcut = 'Control+K';
 		this.shownParts = '';
@@ -194,6 +200,7 @@ export class LoamTitlebar extends FASTElement {
 	}
 }
 attr(LoamTitlebar.prototype, 'account');
+attr(LoamTitlebar.prototype, 'persona');
 attr(LoamTitlebar.prototype, 'shortcut');
 attr({ attribute: 'key-shortcut' })(LoamTitlebar.prototype, 'ariaShortcut');
 attr({ attribute: 'shown-parts' })(LoamTitlebar.prototype, 'shownParts');
