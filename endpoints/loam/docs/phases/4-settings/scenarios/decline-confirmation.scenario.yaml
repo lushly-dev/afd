@@ -1,0 +1,37 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Tally's `tally-reset` declares a
+# `confirm_prompt`. Not expressible here, and shown by P4-E8 instead: the call coming from an
+# agent (steps run as `kind: 'test'`), the wait in the inbox, the 10-minute timeout (the clock
+# cannot move), and the person's own repeat still prompting.
+name: Decline a confirmation
+description: >-
+  When an agent or an app asks to run something I didn't intend, I want to decline it and have
+  nothing run, and not be asked again at once, so that I can't be worn down into agreeing.
+job: decline-confirmation
+tags: [slice]
+steps:
+  - description: The count before
+    command: tally-get
+    input: {}
+    expect:
+      success: true
+      data: { count: 3 }
+  - description: The pending confirmation is in my inbox, with the shell's header
+    command: notification-list
+    input: { kind: confirmation }
+    expect:
+      success: true
+      data:
+        notifications:
+          - { kind: confirmation, confirmation: { command: tally-reset, state: pending } }
+  - description: I decline it
+    command: notification-act
+    input: { notification: "${{ steps[1].data.notifications[0].id }}", answer: decline }
+    expect:
+      success: true
+      data: { state: declined }
+  - description: Nothing ran
+    command: tally-get
+    input: {}
+    expect:
+      success: true
+      data: { count: 3 }

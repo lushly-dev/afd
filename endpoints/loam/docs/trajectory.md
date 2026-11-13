@@ -131,7 +131,7 @@ R10 and R14 re-checked, W31 to W33 added (S80 to S87). **Refreshed 2026-11-09** 
 | W36 | MCP Server Cards | Added 2026-11-09: SEP-2127 is Final; a card at `<streamable-http-url>/server-card`, `application/mcp-server-card+json`, open CORS and `ETag`; an AI Catalog at `/.well-known/ai-catalog.json`; no tools in a card (S95). Umbel's R11 plans its own | The extension's next version | The hosted server serves a card; the catalog is off by default (proposed D107) |
 | W37 | Node 26 | Added 2026-11-09: LTS ("Lithium"), 26.13.0 on 2026-10-28; `node:26-trixie-slim` updated 2026-11-05 (S96) | Node 28 | The hosted server and its image run Node 26, the base pinned by digest |
 | W38 | `<dialog closedby>` | Added 2026-11-13: in Chrome and Edge 134 and Firefox 141; not in Safari, tracked as WebKit bug 284592; in Interop 2026 (S98) | Safari's release | Phase 4 does not use it: a modal closes by Escape or its buttons, a non-modal dialog never light-dismisses (proposed D121) |
-| W39 | `popover="hint"` and interest invokers | Added 2026-11-13: `hint` in Chrome 133, Firefox's intent to ship posted February 2026 with partial support reported; `interestfor` shipping in Chromium; Safari not found (S99) | Safari's and Firefox's releases | Not used: the rail's shared tooltip stays; menus and info popovers are `popover="auto"` |
+| W39 | `popover="hint"` and interest invokers | Added 2026-11-13: a first version in Chrome 133; caniuse's data lists a corrected version in Firefox 153 and Chrome 151; Safari not shipped, in Interop 2026; `interestfor` shipping in Chromium (S99) | Safari's release | Not used: the rail's shared tooltip stays; menus and info popovers are `popover="auto"` |
 
 ## Deliberately not chased
 
