@@ -7,16 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [0.6.1] - 2026-11-12
 
-- **Docs checks cover the whole repository** ([#779](https://github.com/lushly-dev/afd/issues/779)). `docs_check_changelog` reads staged code under any `src/` directory, in any of the common languages, against the CHANGELOG.md nearest it, so each package of a monorepo answers to its own; before, only `.py` under a top-level `src/` counted. `docs_check_agents` also sees new packages (`package.json`, `pyproject.toml`, `Cargo.toml`), skills and workflows, and command modules in any language. `docs_lint` lints a single file it is given, where it checked nothing, and skips `node_modules`, virtual environments and build output. In an npm repository the checks suggest its Changesets command rather than `changeset_create`, which refuses one. `docs-manager` 2.1.1 describes the checks as they now are.
-
-## [0.6.1] - 2026-11-07
-
-Skill fixes for repositories that seed Botcore's skills. No code change.
+Fixes for repositories that seed Botcore's skills, and docs checks that cover a whole
+monorepo. Prepared on 2026-11-07 and released with the docs-check fix that landed since.
 
 ### Fixed
 
+- **Docs checks cover the whole repository**
+  ([#779](https://github.com/lushly-dev/afd/issues/779)). `docs_check_changelog` reads staged
+  code under any `src/` directory, in any of the common languages, against the CHANGELOG.md
+  nearest it, so each package of a monorepo answers to its own; before, only `.py` under a
+  top-level `src/` counted. `docs_check_agents` also sees new packages (`package.json`,
+  `pyproject.toml`, `Cargo.toml`), skills and workflows, and command modules in any language.
+  `docs_lint` lints a single file it is given, where it checked nothing, and skips
+  `node_modules`, virtual environments and build output. In an npm repository the checks
+  suggest its Changesets command rather than `changeset_create`, which refuses one.
+  `docs_check_agents` now reports packages, skills and workflows only when they are added, and
+  labels an edited command module "Changed command"; in a monorepo these advisory checks can
+  flag more than before. `docs-manager` 2.1.1 describes the checks as they now are.
 - **Seeded skills** read correctly outside AFD. `security-auditor` defers to a repository lane
   that defines blockers by impact; `docs-manager` allows a root `CLAUDE.md` whose only line is
   `@AGENTS.md`; `plugin-builder`, `mcp-builder`, `security-auditor` and `botcore-config` link
