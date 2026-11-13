@@ -21,7 +21,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".codex/skills",
-			"listingBudget": 5700,
+			"listingBudget": 6000,
 			"projections": [
 				{
 					"name": "audit-security",
@@ -66,6 +66,7 @@
 				"afd-rust",
 				"afd-site-design",
 				"afd-typescript",
+				"brief-status",
 				"do-end-session",
 				"do-init-afd",
 				"do-prepare-pr",
