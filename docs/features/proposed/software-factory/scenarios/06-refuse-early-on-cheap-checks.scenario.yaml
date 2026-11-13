@@ -1,0 +1,26 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Be refused early when the cheap checks fail
+description: >-
+  When my branch has a type error or lint failure, I want enqueue to refuse it with the failing stage
+  and line, so that I fix it in minutes instead of costing the lane a full validation.
+job: refuse-early-on-cheap-checks
+tags: [slice]
+fixture:
+  file: fixtures/ejected.json
+  base: fresh.json
+steps:
+  - description: The refusal names the stage and the failing line, and how to retry
+    command: lane-enqueue
+    input: { worktree: wt/type-slip }
+    expect:
+      success: false
+      error:
+        code: PREQUEUE_FAILED
+        message: typecheck
+        suggestion: { contains: lane-enqueue }
+  - description: Nothing joined the queue
+    command: lane-status
+    expect:
+      success: true
+      data:
+        queue: { length: 1 }

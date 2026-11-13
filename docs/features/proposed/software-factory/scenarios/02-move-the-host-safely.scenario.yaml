@@ -1,0 +1,40 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Move the lane without stranding a branch
+description: >-
+  When I want the lane on a different machine, I want the move refused while branches are queued,
+  cells are active or the lane runs, so that no branch is left behind on the old host.
+job: move-the-host-safely
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+steps:
+  - description: Moving a busy lane at once is refused, with the way to drain it first
+    command: lane-host-set
+    input: { id: mini }
+    expect:
+      success: false
+      error:
+        code: LANE_BUSY
+        suggestion: { contains: drain }
+  - description: A planned move drains the lane and moves at queue-empty
+    command: lane-host-set
+    input: { id: mini, drain: true }
+    expect:
+      success: true
+      data: { draining: true }
+  - description: An unknown machine is refused
+    command: lane-host-set
+    input: { id: no-such-machine }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: lane-host-list }
+  - description: Until then the host is unchanged and no new cell may start
+    command: lane-status
+    expect:
+      success: true
+      data:
+        host: { id: workstation }
+        draining: true
+        canStartCell: false

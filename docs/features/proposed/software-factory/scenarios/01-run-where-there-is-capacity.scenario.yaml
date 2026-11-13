@@ -1,0 +1,64 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Run the lane where there is capacity
+description: >-
+  When I set up a factory for a repository, I want to see which connected machines can host its
+  lane, with their capacity and what each lacks, and pick one, so that validation runs where there
+  is room and is never tied to a machine named in code.
+job: run-where-there-is-capacity
+tags: [slice]
+fixture:
+  file: fixtures/fresh.json
+  overrides:
+    requiredCheckOnMain: false
+steps:
+  - description: This machine publishes its own readiness record
+    command: lane-host-probe
+    expect:
+      success: true
+      data:
+        record: { id: workstation, cores: 16 }
+  - description: The lane will not start before a host is chosen, and says how to choose one
+    command: lane-start
+    expect:
+      success: false
+      error:
+        code: HOST_NOT_SET
+        suggestion: { contains: lane-host-list }
+  - description: The connected machines are listed with capacity, readiness and a slot suggestion
+    command: lane-host-list
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: workstation, cores: 16, memoryGb: 64, ready: true, measured: true, suggestedSlots: 4 }
+          - { id: mini, ready: true, suggestedSlots: 1 }
+          - { id: laptop, ready: false, missing: [gh sign-in] }
+  - description: A machine that is not ready is refused, naming what it lacks
+    command: lane-host-set
+    input: { id: laptop }
+    expect:
+      success: false
+      error:
+        code: HOST_NOT_READY
+        message: gh sign-in
+  - description: A ready machine becomes the lane host for every machine
+    command: lane-host-set
+    input: { id: workstation }
+    expect:
+      success: true
+      data:
+        host: { id: workstation }
+  - description: Status confirms this machine is the lane host
+    command: lane-status
+    expect:
+      success: true
+      data:
+        host: { id: workstation, isLaneHost: true }
+        running: false
+  - description: The lane still refuses to start until auto-merge is safe
+    command: lane-start
+    expect:
+      success: false
+      error:
+        code: REQUIRED_CHECK_MISSING
+        suggestion: { contains: required }

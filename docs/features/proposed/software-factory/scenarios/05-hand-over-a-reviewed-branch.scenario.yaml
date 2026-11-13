@@ -1,0 +1,53 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Hand over a reviewed branch and end the turn
+description: >-
+  When my branch is implemented, reviewed and committed, I want to hand it to the lane in one call
+  naming only my worktree, so that I can end my turn and never wait on validation, the push or the merge.
+job: hand-over-a-reviewed-branch
+tags: [slice]
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+steps:
+  - description: A worktree with uncommitted changes is refused, naming the files
+    command: lane-enqueue
+    input: { worktree: wt/half-done, title: Half done, body_file: pr-body.md }
+    expect:
+      success: false
+      error:
+        code: DIRTY_WORKTREE
+        message: src/parse.ts
+        suggestion: { contains: commit }
+  - description: A head with no recorded review is refused, whatever the caller says
+    command: lane-enqueue
+    input: { worktree: wt/unreviewed, title: Fix unreviewed, body_file: pr-body.md }
+    expect:
+      success: false
+      error:
+        code: REVIEW_MISSING
+        suggestion: { contains: do-prepare-pr }
+  - description: A branch with no registered cell is refused
+    command: lane-enqueue
+    input: { worktree: wt/stray, title: Stray, body_file: pr-body.md }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: cell-register }
+  - description: A reviewed, committed branch passes the cheap checks and joins the queue
+    command: lane-enqueue
+    input: { worktree: wt/parser, title: Accept empty parser input, body_file: pr-body.md }
+    expect:
+      success: true
+      data:
+        state: queued
+        position: 3
+        head: a1b2c3d
+        prequeue:
+          stages: { length: 2 }
+  - description: Status shows it queued behind the two already waiting
+    command: lane-status
+    expect:
+      success: true
+      data:
+        queue: { length: 3 }
