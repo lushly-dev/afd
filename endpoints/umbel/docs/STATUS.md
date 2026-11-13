@@ -2734,16 +2734,19 @@ on another local branch and push to that remote name.
     request and the plan. `stores.memory_erase` warns where one eraser could erase alone.
   - **The library's assurance (the owner's settlement of 2026-11-09):** `{ embedder, library }`, recorded as the
     embedding application's own word, and admitted only for the operator's person; a mark the plugin gate did not
-    check against the shared ledger never counts as `verified`.
+    check against the shared ledger never counts as `verified`. Extended on 2026-11-10 (D86 amended): only the
+    operator's person through the library remembers as `person` or is a person at all.
+  - **The CLI's seal (2026-11-10):** every check that trusts the CLI (the operator, the terminal marks, the
+    `require-human` gate, the person page's CLI surface, `store-show`'s totals, what plugins are told) needs the seal
+    the host's own command line puts on its contexts, so an embedder posing as the CLI is the library.
   - **Independent security review:** one blocker (an embedding application writing the CLI's principal and marks
     into a library context was recorded `terminal`, for any person: the CLI's own contexts are now sealed with a
     key that never leaves the process, and the memory services require the seal) and five improvements (a wrong
     plan voided another eraser's request; the check before begin told an eraser's agent whether a principal had
     records; the second eraser's own dry run was not enforced, now recorded and used up; expired requests were
-    purged only lazily, now also by every write and sweep; a library person's remember still gets `person`, left to
-    the owner), and five nits (the first eraser's role re-checked at approval, exact codes in tests, the host's
-    editors rule tested with no plugin in front, a notice kind only the host's erase can emit). All but the
-    owner's are fixed, each with a regression test.
+    purged only lazily, now also by every write and sweep; a library person's remember still got `person`: settled by the
+    coordinator on 2026-11-10, D86 amended, the operator's person alone), and five nits (the first eraser's role re-checked at approval, exact codes in tests, the host's
+    editors rule tested with no plugin in front, a notice kind only the host's erase can emit). All are fixed, each with a regression test.
   - Tests: `plugins/memory/tests/erase.rs`, `editors.rs` and `confirm_preview.rs` (end to end with the kit over real
     sockets, through `tests/hosted_kit/`), `store-embedded/tests/memory_erase.rs`, `tests/memory_grants.rs`, the
     schema cases, and unit tests of `erase_step`, the plan and the doctor check. Plugin crates changed: `memory`
@@ -2762,10 +2765,7 @@ on another local branch and push to that remote name.
 - **Next:** 11 needs 3 (and builds its outbox row into the erasure steps step 10 shares between forget and erase);
   12 needs all. Heavy steps follow the plan's build note. Steps 5 to 12 take `umbel-testkit-idp` from
   `[dev-dependencies]`.
-- **Waiting on the owner:** one question from step 10's review, which nothing waits on: whether the 2026-11-09
-  settlement (the library's word recorded as `embedder`, for the operator's person only) also governs a library
-  person's `memory-remember`, which still gets authority `person` for any person under D86. The gateway question was
-  decided 2026-11-09 (a separate direct address), and
+- **Waiting on the owner:** nothing. The gateway question was decided 2026-11-09 (a separate direct address), and
   step 5b built it; step 6's rejection reason was settled by the coordinator (the person reads and confirms it).
   A library (embedder) person's `memory-confirm` was settled 2026-11-09 as a technical choice (an assurance method of
   its own, allowed only for the operator), and step 10 built it.

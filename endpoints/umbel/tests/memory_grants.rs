@@ -194,6 +194,11 @@ async fn the_authority_table_for_library_callers() {
         ("mem-capture", ada.clone(), "transcript", 3),
         ("mem-capture", agent_for("a1", "ada"), "agent", 4),
         ("mem-import", agent_for("a1", "ada"), "import", 5),
+        // Phase 5 step 10 (the 2026-11-09 settlement extended to D86): the library's word makes a
+        // person only of the operator's person, `local_id` `ada`; bo through the library writes
+        // as an agent does.
+        ("mem-remember", human("bo"), "agent", 6),
+        ("mem-capture", human("bo"), "agent", 7),
     ];
     for (command, actor, authority, n) in cases {
         let outcome = run(
@@ -204,7 +209,9 @@ async fn the_authority_table_for_library_callers() {
         )
         .await;
         let id = data(&outcome)["ids"][0].as_str().unwrap().to_owned();
-        let shown = show(&host, ada.clone(), &id).await;
+        // Each record is its own writer's (bo's are private to bo).
+        let reader = if n >= 6 { human("bo") } else { ada.clone() };
+        let shown = show(&host, reader, &id).await;
         assert_eq!(shown["authority"], authority, "{command} {n}: {shown}");
     }
 }
@@ -875,4 +882,85 @@ async fn editors_are_persons_and_the_library_only_for_the_operator() {
     // Ada is the operator's person and an editor.
     let outcome = run(&host, human("ada"), "mem-change", change(&cys)).await;
     assert_eq!(data(&outcome)["result"], 2, "{outcome:?}");
+}
+
+/// A library context of `id` that writes everything the CLI's own context holds but the host's
+/// seal: the CLI interface, a CLI principal and the terminal's marks for `command`.
+fn posing_as_the_cli(host: &Host, id: &str, command: &str) -> afd::CommandContext {
+    let mut context = host
+        .context(human(id))
+        .with_interface(afd::CommandInterface::Cli);
+    let mut principal = context.extra["dev.umbel/principal"].clone();
+    principal["transport"] = json!("cli");
+    principal["authentication"] = json!("process");
+    context
+        .extra
+        .insert("dev.umbel/principal".to_owned(), principal);
+    for mark in ["dev.umbel/human-present", "dev.umbel/human-confirmed"] {
+        context.extra.insert(mark.to_owned(), json!(command));
+    }
+    context
+}
+
+#[tokio::test]
+async fn an_embedder_posing_as_the_cli_is_the_library_to_every_plugin() {
+    // Phase 5 step 10: the terminal marks count only on the host's own command line, which seals
+    // its contexts; a library context that writes the CLI's interface, principal and marks is the
+    // library's. A plugin sees no CLI interface and no person; the authority prompt's `person` is
+    // not given; a `require-human` command at the terminal is refused.
+    let (dir, host) = make(&config("", ""));
+    let posing = |command: &str| posing_as_the_cli(&host, "ada", command);
+    let whoami = host
+        .registry()
+        .execute(
+            "mem-whoami",
+            json!({ "space": "main", "args": {} }),
+            Some(posing("mem-whoami")),
+        )
+        .await;
+    assert_eq!(
+        data(&whoami)["result"],
+        json!({ "interface": "", "person": false })
+    );
+    let remembered = host
+        .registry()
+        .execute(
+            "mem-remember",
+            json!({ "space": "main", "args": { "n": 1, "text": "posing" } }),
+            Some(posing("mem-remember")),
+        )
+        .await;
+    let id = data(&remembered)["ids"][0].as_str().unwrap().to_owned();
+    assert_eq!(show(&host, human("ada"), &id).await["authority"], "agent");
+    let confirmed = host
+        .registry()
+        .execute(
+            "mem-confirm",
+            json!({ "space": "main", "args": { "id": id } }),
+            Some(posing("mem-confirm")),
+        )
+        .await;
+    assert_eq!(
+        refusal(&confirmed).0,
+        "CONFIRMATION_REQUIRED",
+        "{confirmed:?}"
+    );
+    // The host's own command line is the CLI: a plugin sees it.
+    drop(host);
+    let run = support::cli_with(
+        dir.path(),
+        &["call", "mem-whoami", "{\"space\":\"main\",\"args\":{}}"],
+        support::Scripted::no_terminal(),
+        |b| {
+            b.with_compiled(sdk(MemoryProbe::new()))
+                .with_clock(afd::fixed_clock(NOW))
+        },
+    )
+    .await;
+    assert_eq!(
+        run.json()["data"]["result"]["interface"],
+        "cli",
+        "{}",
+        run.stdout
+    );
 }

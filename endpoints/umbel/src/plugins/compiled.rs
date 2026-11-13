@@ -196,8 +196,13 @@ pub(super) fn call_context(
             .unwrap_or_default(),
         actor_id: actor.as_ref().and_then(|actor| actor.id.clone()),
         on_behalf_of: actor.and_then(|actor| actor.on_behalf_of),
+        // The CLI interface only for the host's own command line (phase 5 step 10): a library
+        // context that sets it without the seal is the library's, as a plugin sees it too.
         interface: context
             .interface
+            .filter(|interface| {
+                *interface != afd::CommandInterface::Cli || crate::authority::is_cli(context)
+            })
             .map(|interface| interface.as_str().to_owned())
             .unwrap_or_default(),
         pipeline: services.pipeline(),

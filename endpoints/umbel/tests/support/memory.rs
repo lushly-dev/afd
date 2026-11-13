@@ -91,6 +91,13 @@ confirm = "require-human"
 expose = {{ mcp = false, agent = false, cli = true }}
 
 [[commands]]
+name = "mem-whoami"
+description = "Answer the interface and the person the plugin is told of."
+effects = ["inspect"]
+input_schema = {INPUT}
+journal = {{ mode = "digest", keep = ["space"] }}
+
+[[commands]]
 name = "mem-erase"
 description = "Ask the host to erase another principal's records, with no person gate."
 effects = ["store-write"]
@@ -468,6 +475,10 @@ impl Plugin for MemoryProbe {
             "mem-change" => change(cx, &space, &args),
             "mem-confirm" => confirm(cx, &space, &args),
             "mem-erase" => erase(cx, &space, &args),
+            "mem-whoami" => success(json!({ "result": {
+                "interface": cx.call().interface,
+                "person": cx.call().person,
+            } })),
             "mem-read" => read(cx, &space, &args),
             "mem-plain" => success(json!({ "echo": input })),
             other => failure("NOT_FOUND", other, "Call a probe command."),

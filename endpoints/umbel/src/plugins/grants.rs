@@ -344,7 +344,12 @@ impl CallServices {
     pub fn person(&self) -> bool {
         let empty = crate::authority::Prompts::default();
         let prompts = self.shared.prompts.get().unwrap_or(&empty);
-        crate::authority::caller_is_person(&self.context, self.command.as_deref(), prompts)
+        crate::authority::caller_is_person(
+            &self.context,
+            self.shared.workspace.config(),
+            self.command.as_deref(),
+            prompts,
+        )
     }
 
     /// The person decision this call carries for its own command and validated `input`, which

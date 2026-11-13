@@ -725,6 +725,27 @@ async fn the_library_and_a_terminal_never_erase() {
         "dev.umbel/human-confirmed".to_owned(),
         json!("memory-erase"),
     );
+    // Posing as the CLI's person-page flow too (phase 5 step 10): the CLI's principal and a
+    // person-page mark for this call, without the host's seal, are the library's.
+    let mut principal = marked.extra["dev.umbel/principal"].clone();
+    principal["transport"] = json!("cli");
+    principal["authentication"] = json!("process");
+    principal["humanPresent"] = json!({
+        "level": "verified", "method": "person-page", "at": "2026-11-10T00:00:00.000Z",
+        "authTime": "2026-11-10T00:00:00.000Z", "acr": "phr"
+    });
+    marked
+        .extra
+        .insert("dev.umbel/principal".to_owned(), principal);
+    marked.extra.insert(
+        "dev.umbel/person-decision".to_owned(),
+        json!({
+            "id": "a".repeat(26), "command": "memory-erase",
+            "inputDigest": afd::input_digest(&dry_run()).unwrap(), "surface": "cli",
+            "level": "verified", "method": "person-page", "namespace": "corp",
+            "authTime": "2026-11-10T00:00:00.000Z", "acr": "phr", "at": "2026-11-10T00:00:00.000Z"
+        }),
+    );
     let marked = hosted_kit::run(&fx.host, marked, "memory-erase", dry_run()).await;
     assert_eq!(marked["error"]["code"], "CONFIRMATION_REQUIRED", "{marked}");
     assert_eq!(store(&fx).erase_targets(&owners(), None).unwrap().len(), 3);

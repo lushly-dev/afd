@@ -263,6 +263,10 @@ pub(crate) fn attested(
         Surface::Cli => ("cli", CommandInterface::Cli),
     };
     let digest = afd::input_digest(input).ok()?;
+    // At the CLI, only the host's own command line (sealed, step 10).
+    if mark.surface == Surface::Cli && !crate::authority::is_cli(context) {
+        return None;
+    }
     if mark.command != command
         || context.interface != Some(interface)
         || mark.input_digest != digest
@@ -343,7 +347,9 @@ pub(crate) fn admit(
         Surface::Mcp => CommandInterface::Mcp,
         Surface::Cli => CommandInterface::Cli,
     };
-    if context.interface != Some(interface) {
+    if context.interface != Some(interface)
+        || (surface == Surface::Cli && !crate::authority::is_cli(context))
+    {
         return Err(refuse());
     }
     let Some(mark) = PersonMark::of(context) else {

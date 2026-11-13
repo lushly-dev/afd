@@ -186,11 +186,7 @@ impl CallServices {
     /// Whether `principal` is the operator's person (`human:<principal.local_id>`, or a legacy
     /// principal that maps to it).
     fn is_operators_person(&self, principal: &str) -> bool {
-        let config = self.shared.workspace.config();
-        let operator = format!("human:{}", config.principal.local_id);
-        crate::access::identities(config, Some(&operator))
-            .iter()
-            .any(|identity| identity == principal)
+        crate::authority::is_operators_person(self.shared.workspace.config(), principal)
     }
 
     /// The person `principal` is proven to be for a confirmation or a change of another's record
@@ -484,6 +480,7 @@ impl CallServices {
         let authority = write_authority(
             request.path,
             &self.context,
+            self.shared.workspace.config(),
             self.command.as_deref(),
             &self.prompts(),
         );

@@ -444,7 +444,12 @@ fn person_gate(
 ) -> Result<(), CommandError> {
     use crate::plugins::Assurance;
     let person = entry.person.unwrap_or_default();
-    match context.interface {
+    // The CLI interface counts only on the host's own command line (sealed, phase 5 step 10); a
+    // library context that sets it without the seal is the library's, which no gate admits.
+    let interface = context.interface.filter(|interface| {
+        *interface != CommandInterface::Cli || crate::authority::is_cli(context)
+    });
+    match interface {
         Some(CommandInterface::Cli) if person.cli == Assurance::Verified => crate::person::admit(
             config,
             name,
@@ -479,7 +484,7 @@ fn person_gate(
 /// marked it after the prompt was answered. A batch, MCP, an in-process agent and the library
 /// never carry the mark.
 fn confirmed_by_a_person(command: &str, context: &CommandContext) -> bool {
-    context.interface == Some(CommandInterface::Cli)
+    crate::authority::is_cli(context)
         && context
             .extra
             .get(HUMAN_CONFIRMED_KEY)
