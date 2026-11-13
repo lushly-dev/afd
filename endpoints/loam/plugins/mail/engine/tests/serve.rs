@@ -227,6 +227,7 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
     let listed = listed.to_string();
     for person in [
         "mail-account-add",
+        "mail-account-remove",
         "mail-token-create",
         "mail-token-list",
         "mail-token-revoke",
@@ -235,10 +236,15 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         assert!(!listed.contains(person), "{person} is listed: {listed}");
     }
     assert!(listed.contains("afd-call"), "{listed}");
-    for person in ["mail-token-create", "mail-account-add", "mail-token-revoke"] {
+    for person in [
+        "mail-token-create",
+        "mail-account-add",
+        "mail-account-remove",
+        "mail-token-revoke",
+    ] {
         let call = mcp_body(
             "tools/call",
-            json!({ "name": "afd-call", "arguments": { "command": person, "input": { "name": "x", "token": id } } }),
+            json!({ "name": "afd-call", "arguments": { "command": person, "input": { "name": "x", "token": id, "account": 1 } } }),
         );
         let (status, body) = request(&app, "/mcp", sent(Some(&agent)), call).await;
         assert_eq!(status, 200, "{body}");

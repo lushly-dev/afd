@@ -10,12 +10,14 @@
 mod derived;
 mod parts;
 mod read;
+mod remove;
 mod schema;
 mod sync;
 mod tokens;
 
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
+pub use remove::{RemovalPreview, Removed};
 pub use sync::{
     AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
 };

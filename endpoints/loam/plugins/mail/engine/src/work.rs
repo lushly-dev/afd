@@ -77,6 +77,9 @@ struct Ended {
 #[derive(Debug)]
 struct State {
     serving: bool,
+    /// Nothing new starts: a command that must not run beside the work,
+    /// such as removing an account, holds it back.
+    paused: bool,
     sync_asked: Option<Accounts>,
     /// A rebuild waits; `true` when it carries on one begun before.
     rebuild_asked: Option<bool>,
@@ -97,6 +100,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             serving: false,
+            paused: false,
             sync_asked: None,
             rebuild_asked: None,
             running: None,
@@ -131,6 +135,19 @@ impl Asked {
     #[must_use]
     pub fn json(self, work: &str) -> Value {
         json!({ "work": work, "queued": self.queued, "running": self.running })
+    }
+}
+
+/// The server's work held back: nothing new starts until it is dropped.
+#[derive(Debug)]
+pub struct Paused<'a> {
+    work: &'a Work,
+}
+
+impl Drop for Paused<'_> {
+    fn drop(&mut self) {
+        self.work.state().paused = false;
+        self.work.wake.notify_one();
     }
 }
 
@@ -192,6 +209,27 @@ impl Work {
         asked
     }
 
+    /// Drops a pass asked for `account` alone, once the account is gone.
+    pub fn forget_account(&self, account: i64) {
+        let mut state = self.state();
+        if state.sync_asked == Some(Accounts::One(account)) {
+            state.sync_asked = None;
+        }
+    }
+
+    /// Holds the server's work back until what this returns is dropped, so
+    /// that a command can change what the work reads. `None` while work
+    /// runs, or another holds it back.
+    #[must_use]
+    pub fn pause(&self) -> Option<Paused<'_>> {
+        let mut state = self.state();
+        if state.running.is_some() || state.paused {
+            return None;
+        }
+        state.paused = true;
+        Some(Paused { work: self })
+    }
+
     /// The work as `mail-status` reports it; `null` when no server runs it.
     #[must_use]
     pub fn status(&self) -> Value {
@@ -227,6 +265,7 @@ impl Work {
             None => (Value::Null, Value::Null),
         };
         json!({
+            "paused": state.paused,
             "sync": {
                 "running": sync_running,
                 "queued": state.sync_asked.map(|accounts| json!({ "account": accounts.id() })),
@@ -247,6 +286,9 @@ impl Work {
     /// due.
     fn take(&self, now: i64, at: Instant) -> Option<Job> {
         let mut state = self.state();
+        if state.paused {
+            return None;
+        }
         let retry = state.rebuild_retry.is_some_and(|retry| at >= retry);
         let rebuild = match state.rebuild_asked.take() {
             Some(resumed) => Some(resumed),
@@ -277,6 +319,10 @@ impl Work {
     /// being asked for.
     fn until_due(&self, at: Instant) -> Duration {
         let state = self.state();
+        if state.paused {
+            // Woken when the work is let go.
+            return Duration::from_secs(3600);
+        }
         let due = match state.rebuild_retry {
             Some(retry) => retry.min(state.next_due),
             None => state.next_due,
@@ -585,5 +631,37 @@ mod tests {
         assert_eq!(work.until_due(start), EVERY);
         assert_eq!(work.take(5, start + EVERY), Some(Job::Rebuild(true)));
         assert_eq!(work.status()["rebuild"]["retryQueued"], json!(false));
+    }
+
+    #[test]
+    fn work_held_back_starts_nothing_until_let_go() {
+        let work = Work::default();
+        let start = Instant::now();
+        work.begin(0, start, false);
+        let paused = work.pause().unwrap();
+        assert!(work.pause().is_none(), "one hold at a time");
+        work.ask_rebuild(false);
+        assert!(work.take(0, start).is_none());
+        assert_eq!(work.until_due(start), Duration::from_secs(3600));
+        drop(paused);
+        assert_eq!(work.take(1, start), Some(Job::Rebuild(false)));
+        assert!(work.pause().is_none(), "work runs");
+    }
+
+    #[test]
+    fn a_pass_asked_for_a_removed_account_alone_is_dropped() {
+        let work = Work::default();
+        let start = Instant::now();
+        work.begin(0, start, false);
+        assert_eq!(work.take(0, start), Some(Job::Sync(Accounts::All)));
+        work.ended(1, start, json!({}), EVERY);
+        work.ask_sync(Accounts::One(3));
+        work.forget_account(4);
+        work.forget_account(3);
+        assert!(work.take(2, start).is_none());
+        // A pass of every account stays.
+        work.ask_sync(Accounts::All);
+        work.forget_account(3);
+        assert_eq!(work.take(3, start), Some(Job::Sync(Accounts::All)));
     }
 }

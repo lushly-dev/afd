@@ -529,16 +529,35 @@ async fn step(
             _ => break,
         }
     }
-    // Any request needs the mailbox open, in the generation the plan began in.
-    if connection.open != Some(plan.row.id) || matches!(plan.stage, Stage::Start) {
+    // A pass begins by opening the mailbox and asking what changed since
+    // its cursor, in one request where the provider can.
+    if matches!(plan.stage, Stage::Start) {
+        let (validity, cursor) = engine.with_store(|store| store.mailbox_position(plan.row.id))?;
+        // Whatever was open is not once this is asked, even if what follows
+        // the opening is refused.
+        connection.open = None;
+        let provider = connection.provider().await?;
+        let (opened, since) = match cursor {
+            Some(cursor) if !validity.is_empty() => {
+                provider
+                    .open_since(&plan.row.provider_key, &validity, &cursor)
+                    .await?
+            }
+            _ => (provider.open(&plan.row.provider_key).await?, None),
+        };
+        connection.open = Some(plan.row.id);
+        return start(engine, connection, plan, &opened.validity, since, clock).await;
+    }
+    // Any other request needs the mailbox open, in the generation the plan
+    // began in.
+    if connection.open != Some(plan.row.id) {
+        connection.open = None;
         let provider = connection.provider().await?;
         let opened = provider.open(&plan.row.provider_key).await?;
         connection.open = Some(plan.row.id);
-        if !matches!(plan.stage, Stage::Start) && opened.validity != plan.validity {
+        if opened.validity != plan.validity {
             restart(plan)?;
-        }
-        if matches!(plan.stage, Stage::Start) {
-            return start(engine, connection, plan, &opened.validity, clock).await;
+            return Ok(());
         }
     }
     match &mut plan.stage {
@@ -562,13 +581,16 @@ fn restart(plan: &mut Plan) -> Result<(), Failure> {
 }
 
 /// Opens a mailbox's pass: records its generation, then lists it in full or
-/// asks what changed since its cursor, and records what left it and the
-/// flags that changed.
+/// takes what changed since its cursor, and records what left it and the
+/// flags that changed. `asked` is what changed as the provider said when it
+/// opened the mailbox; `None` when it has not said, or when the mailbox's
+/// generation changed, which the cursor no longer covers.
 async fn start(
     engine: &Engine,
     connection: &mut Connection<'_>,
     plan: &mut Plan,
     validity: &str,
+    asked: Option<Since>,
     clock: &dyn Clock,
 ) -> Result<(), Failure> {
     let mailbox = plan.row.id;
@@ -585,9 +607,12 @@ async fn start(
         ))
     })?;
     let provider = connection.provider().await?;
-    let since = match &cursor {
-        Some(cursor) => provider.changes(cursor).await?,
-        None => Since::TooOld,
+    let since = match (&cursor, asked) {
+        // A cursor stored now belongs to the generation just recorded, which
+        // is the one the provider answered for.
+        (Some(_), Some(asked)) => asked,
+        (Some(cursor), None) => provider.changes(cursor).await?,
+        (None, _) => Since::TooOld,
     };
     let (queue, cursor, remaining, gone_named, flags) = match since {
         Since::NewGeneration => {
