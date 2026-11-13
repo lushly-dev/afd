@@ -311,7 +311,8 @@ test('a plan refuses a package npm does not have, so the run stops before it cla
 	assert.equal(JSON.parse(readFileSync(plan, 'utf8')).distTag, 'preview');
 });
 
-// A published package's peer on a workspace package still in preview takes `workspace:^`, so its
+// A published package's peer on a workspace package still in preview takes `workspace:^` (or `~`; never
+// `*`, which packs an exact pin), so its
 // floor is the version it was built against when it packs: a bare `^x.y.z-preview` admits earlier
 // previews whose API its new code calls (#1066). A preview line may raise a floor without a major.
 test("an admitted package's peer on a workspace package in preview is a workspace range", () => {
@@ -329,7 +330,7 @@ test("an admitted package's peer on a workspace package in preview is a workspac
 		.flatMap((entry) =>
 			Object.entries(read(repository, entry.manifest).peerDependencies ?? {})
 				.filter(([name]) => versions.get(name)?.includes('-'))
-				.filter(([, range]) => !range.startsWith('workspace:'))
+				.filter(([, range]) => !/^workspace:[~^]$/.test(range))
 				.map(([name, range]) => `${entry.name} -> ${name}@${range}`)
 		);
 	assert.deepEqual(loose, []);

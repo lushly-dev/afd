@@ -216,7 +216,12 @@ assert.deepEqual(Object.keys(integrationPeers), [
 	'@lushly-dev/afd-core',
 	'@lushly-dev/afd-server',
 ]);
-assert.deepEqual(integration.peerDependencies, integrationPeers);
+// Its Specimen peer is `workspace:^`, which pack writes as the version it was built against (#1066).
+assert.equal(integrationPeers['@lushly-dev/specimen'], 'workspace:^');
+assert.deepEqual(integration.peerDependencies, {
+	...integrationPeers,
+	'@lushly-dev/specimen': `^${specimenVersion}`,
+});
 const cli = packedManifest('@lushly-dev/specimen-cli');
 assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
 const host = packedManifest(hostPackage);
