@@ -17,6 +17,12 @@ import { organization } from 'better-auth/plugins/organization';
 import { createOrganizationHooks } from './hooks.js';
 import { type LoamProviderState, loamServerPlugin } from './plugin.js';
 import { loamAccessControl, loamRoles } from './roles.js';
+import {
+	FRESH_AGE_SECONDS,
+	methodOfPath,
+	requireFreshPasskeySession,
+	SESSION_METHOD_FIELD,
+} from './sessions.js';
 
 /** A message the provider sends: invitations and recovery, from step 4 (5.6, 5.7). */
 export interface LoamMailV1 {
@@ -67,8 +73,7 @@ export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
 	'/organization/set-active',
 ]);
 
-/** `session.freshAge`: a session made within it may add or remove a passkey or revoke others (5.2). */
-export const FRESH_AGE_SECONDS = 300;
+export { FRESH_AGE_SECONDS };
 
 /** The genericOAuth callback, the one path on which a user may be created in step 1 (5.6). */
 const OIDC_CALLBACK = '/oauth2/callback/';
@@ -133,6 +138,18 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 			},
 		},
 		databaseHooks: {
+			session: {
+				create: {
+					/**
+					 * How the session was made (2.6, D99): by a passkey, a password or single sign-on, which 5.2's
+					 * freshness rule reads. A session made any other way is marked by none, so it is never a passkey's.
+					 */
+					async before(session, context) {
+						const method = methodOfPath(context?.path);
+						return { data: { ...session, [SESSION_METHOD_FIELD]: method ?? null } };
+					},
+				},
+			},
 			user: {
 				create: {
 					/**
@@ -167,6 +184,18 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 				rpName: config.organization,
 				origin: url.origin,
 				authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+				// The plugin's own session and freshness checks stay until step 4 sets `requireSession: false` for the
+				// join and recovery paths (5.8); D99's passkey rule is added on generation (`loamServerPlugin`'s hook)
+				// and here again, at verification, from the session the plugin read, before the passkey is stored.
+				registration: {
+					async afterVerification({ ctx }) {
+						const found = (
+							ctx.context as { session?: Parameters<typeof requireFreshPasskeySession>[1] }
+						).session;
+						if (found) await requireFreshPasskeySession(ctx.context, found);
+						return {};
+					},
+				},
 			}),
 			...(oidc.length > 0
 				? [

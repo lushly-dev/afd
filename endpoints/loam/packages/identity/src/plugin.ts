@@ -21,6 +21,7 @@ import {
 	statusOf,
 } from './binding.js';
 import { isOwnerRole, rolesOf } from './roles.js';
+import { freshSessionHook, SESSION_METHOD_FIELD, sessionEndpoints } from './sessions.js';
 
 /** What the plugin and `createLoamAuthOptions`' organization hooks share. */
 export interface LoamProviderState {
@@ -92,6 +93,23 @@ export const memberOf = (adapter: BindingAdapter, organizationId: string, userId
 		],
 	});
 
+/**
+ * What main shows of the binding (2.3, 15): to anyone signed in, no organization bound yet
+ * (`IDENTITY_ORGANIZATION_UNKNOWN`); to an owner, a deployment slug that no longer names the bound organization
+ * (`IDENTITY_BINDING_MISMATCH`). Nothing for anyone else, who learns nothing of the binding.
+ */
+async function bindingWarning(
+	adapter: BindingAdapter,
+	state: LoamProviderState,
+	membership: Awaited<ReturnType<typeof membershipOf>>
+): Promise<{ warning?: 'IDENTITY_BINDING_MISMATCH' | 'IDENTITY_ORGANIZATION_UNKNOWN' }> {
+	const binding = await readBinding(adapter, state.workspace);
+	if (!binding) return { warning: 'IDENTITY_ORGANIZATION_UNKNOWN' };
+	if (!membership || !isOwnerRole(membership.role)) return {};
+	const status = await statusOf(adapter, binding, state.organization);
+	return status.warning ? { warning: status.warning } : {};
+}
+
 /** The paths whose caller Loam checks before the organization plugin runs (7.5). */
 const ROLE_PATHS = new Set(['/organization/update-member-role', '/organization/remove-member']);
 
@@ -107,11 +125,23 @@ export function loamServerPlugin(state: LoamProviderState) {
 					boundAt: { type: 'date', required: true },
 				},
 			},
+			// How each session was made (2.6, D99), which the freshness rule of 5.2 and 5.8 reads.
+			session: {
+				fields: {
+					[SESSION_METHOD_FIELD]: {
+						type: 'string',
+						required: false,
+						input: false,
+						returned: false,
+					},
+				},
+			},
 		},
 		init(context: AuthContext) {
 			state.context = context;
 		},
 		endpoints: {
+			...sessionEndpoints(() => state.context),
 			/**
 			 * `GET <path>/loam/whoami` (4.2): the session, read from the database since there is no cookie cache,
 			 * and the person's membership of the bound organization by its id, or `null` signed out. A session
@@ -121,10 +151,13 @@ export function loamServerPlugin(state: LoamProviderState) {
 				const found = await getSessionFromCtx(ctx);
 				if (!found || found.user.id.startsWith(AGENT_PREFIX)) return ctx.json(null);
 				const { session, user } = found;
+				const adapter = adapterOf(state);
+				const membership = await membershipOf(adapter, state.workspace, user.id);
 				return ctx.json({
 					session: { id: session.id, expiresAt: session.expiresAt },
 					user: { id: user.id, email: user.email, name: user.name, image: user.image ?? null },
-					membership: await membershipOf(adapterOf(state), state.workspace, user.id),
+					membership,
+					...(await bindingWarning(adapter, state, membership)),
 				});
 			}),
 			/**
@@ -147,6 +180,7 @@ export function loamServerPlugin(state: LoamProviderState) {
 		},
 		hooks: {
 			before: [
+				freshSessionHook(() => state.context),
 				{
 					/**
 					 * The provider's own role endpoints, called directly around Loam's commands (7.1, 7.5): only an
