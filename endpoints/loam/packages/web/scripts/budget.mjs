@@ -233,8 +233,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * into first paint (the last two not measured apart). `jsGzip` 91,000 to 92,000. `lateIdentityMinified` 16,000 to
  * 24,000: the identity commands, `HUMAN_REQUIRED`, the follow-ups of step 2 and the Mock's session and passkey
  * capabilities (22,629, from 7,304). New rows: `authMinified`, Better Auth's client with its passkey and
- * organization plugins, `BetterAuthAdapter` and `SessionSync`, 68,767, set at 72,000; `signInMinified`, 8,468,
- * set at 9,300; `accountMenuMinified`, 3,519, set at 3,900. `late` 73,968 (+493) and the kernel alone 114,402
+ * organization plugins, `BetterAuthAdapter` and `SessionSync`, 68,767, set at 72,000; `signInMinified`, 8,489,
+ * set at 9,300; `accountMenuMinified`, 3,543, set at 3,900. `late` 73,968 (+493) and the kernel alone 114,402
  * (+153) are within their rows; `switcher` 11,317 is at its ceiling.
  */
 export const CEILINGS = Object.freeze({
