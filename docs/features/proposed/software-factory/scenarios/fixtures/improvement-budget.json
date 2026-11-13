@@ -1,0 +1,288 @@
+{
+	"laneHost": "workstation",
+	"now": "2030-01-20T12:00:00Z",
+	"lane": {
+		"running": true,
+		"paused": false,
+		"runId": "run-20"
+	},
+	"baseline": {
+		"days": 7,
+		"reviews": 12,
+		"merges": 96,
+		"metrics": {
+			"queueWaitMinutes": {
+				"median": 9,
+				"spread": 3
+			},
+			"validationMinutesPerMerge": {
+				"median": 18,
+				"spread": 3
+			},
+			"validationsPerMerge": {
+				"median": 1.2,
+				"spread": 0.2
+			},
+			"flakyRerunsPerMerge": {
+				"median": 0.1,
+				"spread": 0.1
+			},
+			"mainMovedRerunsPerMerge": {
+				"median": 0.2,
+				"spread": 0.1
+			},
+			"toolingEjectionsPerMerge": {
+				"median": 0.04,
+				"spread": 0.1
+			},
+			"idleSeatHours": {
+				"median": 0.1,
+				"spread": 0.1
+			},
+			"idleWakesPerMerge": {
+				"median": 0.3,
+				"spread": 0.15
+			},
+			"revertsPerMerge": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"experiencesRejected": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"mainBroken": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"checksRun": {
+				"median": 412,
+				"spread": 21
+			},
+			"adjustedThroughput": {
+				"median": 1,
+				"spread": 0.15
+			},
+			"planSharePerMerge": {
+				"median": 0.9,
+				"spread": 0.2
+			},
+			"mergedPerLaneHour": {
+				"median": 0.86
+			}
+		},
+		"mix": {
+			"bounded": 0.62,
+			"integrative": 0.31,
+			"deep": 0.07
+		},
+		"cycleMinutes": {
+			"bounded": 95,
+			"integrative": 210,
+			"deep": 480
+		},
+		"weightedMinutesPerLaneHour": 200
+	},
+	"dials": {
+		"lane.slots": 2,
+		"cells.max": 6,
+		"cells.issuesMax": 1,
+		"host.minFreeGb": 8,
+		"lane.queueTarget": 2,
+		"lane.queueMax": 10,
+		"plans.ceiling": 85,
+		"fable.ceiling": 50,
+		"lane.coverageEvery": 5,
+		"review.enabled": true,
+		"review.minHours": 12,
+		"review.baselineDays": 7,
+		"review.minMerges": 10,
+		"review.minLaneHours": 4,
+		"review.maxChecks": 4,
+		"review.memoryDays": 30,
+		"review.maxBadVerdicts": 3,
+		"review.cellsMax": 1,
+		"review.issuesMax": 3,
+		"review.dials": ["lane.slots", "lane.queueTarget", "cells.max:up", "lane.queueMax:up"]
+	},
+	"review": {
+		"id": "review-31",
+		"lastAt": "2030-01-19T22:00:00Z",
+		"trendIssue": 140
+	},
+	"window": {
+		"from": "2030-01-19T22:00:00Z",
+		"to": "2030-01-20T12:00:00Z",
+		"merges": 12,
+		"laneHours": 10,
+		"byProfile": {
+			"bounded": 7,
+			"integrative": 4,
+			"deep": 1
+		},
+		"metrics": {
+			"queueWaitMinutes": 8,
+			"validationMinutesPerMerge": 19,
+			"validationsPerMerge": 1.2,
+			"flakyRerunsPerMerge": 0.1,
+			"mainMovedRerunsPerMerge": 0.2,
+			"toolingEjectionsPerMerge": 0.25,
+			"idleSeatHours": 0.7,
+			"idleWakesPerMerge": 0.3,
+			"revertsPerMerge": 0,
+			"experiencesRejected": 0,
+			"mainBroken": 0,
+			"checksRun": 410,
+			"planSharePerMerge": 0.9,
+			"ownerWaitHours": 2,
+			"adjustedThroughput": 0.99,
+			"mergedPerLaneHour": 1.2
+		}
+	},
+	"watching": [
+		{
+			"metric": "toolingEjectionsPerMerge",
+			"since": "review-30",
+			"value": 0.3
+		},
+		{
+			"metric": "idleSeatHours",
+			"since": "review-30",
+			"value": 0.6
+		}
+	],
+	"experiments": [
+		{
+			"id": "exp-1",
+			"metric": "queueWaitMinutes",
+			"change": {
+				"kind": "dial",
+				"key": "lane.slots",
+				"from": 1,
+				"to": 2
+			},
+			"state": "kept",
+			"judgedAt": "2030-01-14T12:00:00Z"
+		},
+		{
+			"id": "exp-2",
+			"metric": "flakyRerunsPerMerge",
+			"change": {
+				"kind": "issue",
+				"issue": 166
+			},
+			"state": "stopped",
+			"judgedAt": "2030-01-13T12:00:00Z"
+		},
+		{
+			"id": "exp-3",
+			"metric": "toolingEjectionsPerMerge",
+			"change": {
+				"kind": "issue",
+				"issue": 152,
+				"prs": [598]
+			},
+			"state": "kept",
+			"before": 0.4,
+			"after": 0.07,
+			"judgedAt": "2030-01-16T12:00:00Z"
+		},
+		{
+			"id": "exp-4",
+			"metric": "idleSeatHours",
+			"change": {
+				"kind": "dial",
+				"key": "lane.queueTarget",
+				"from": 2,
+				"to": 3
+			},
+			"state": "reverted",
+			"judgedAt": "2030-01-16T12:00:00Z"
+		},
+		{
+			"id": "exp-5",
+			"metric": "flakyRerunsPerMerge",
+			"change": {
+				"kind": "issue",
+				"issue": 160,
+				"prs": [612]
+			},
+			"state": "kept",
+			"judgedAt": "2030-01-18T12:00:00Z"
+		},
+		{
+			"id": "exp-6",
+			"metric": "idleWakesPerMerge",
+			"change": {
+				"kind": "issue",
+				"issue": 162,
+				"prs": [618]
+			},
+			"state": "reverted",
+			"verdict": "revert",
+			"judgedAt": "2030-01-16T12:00:00Z"
+		},
+		{
+			"id": "exp-7",
+			"metric": "idleWakesPerMerge",
+			"change": {
+				"kind": "issue",
+				"issue": 170
+			},
+			"state": "proposed",
+			"checks": 1
+		}
+	],
+	"issues": [
+		{
+			"number": 170,
+			"labels": ["status:in-progress", "execution:bounded", "area:factory"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-19T09:00:00Z"
+		},
+		{
+			"number": 171,
+			"labels": ["status:planned", "execution:bounded", "area:factory"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-19T10:00:00Z"
+		},
+		{
+			"number": 172,
+			"labels": ["status:planned", "execution:bounded", "area:server"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-19T11:00:00Z"
+		}
+	],
+	"claims": [
+		{
+			"number": 170,
+			"branch": "fix/foreman-quiet-wakes",
+			"machine": "workstation",
+			"leaseUntil": "2030-01-21T09:00:00Z"
+		}
+	],
+	"cells": [
+		{
+			"branch": "fix/foreman-quiet-wakes",
+			"issues": [170],
+			"thread": "thread-12",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "working",
+			"ejections": 0,
+			"improvement": "exp-7"
+		}
+	],
+	"events": [
+		{
+			"id": "ev-31",
+			"type": "health-review",
+			"review": "review-31",
+			"deliveredTo": [],
+			"open": true
+		}
+	]
+}

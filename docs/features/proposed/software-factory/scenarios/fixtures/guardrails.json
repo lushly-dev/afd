@@ -1,0 +1,256 @@
+{
+	"laneHost": "workstation",
+	"now": "2030-01-12T12:00:00Z",
+	"lane": {
+		"running": true,
+		"paused": false,
+		"runId": "run-12"
+	},
+	"baseline": {
+		"days": 7,
+		"reviews": 12,
+		"merges": 96,
+		"metrics": {
+			"queueWaitMinutes": {
+				"median": 9,
+				"spread": 3
+			},
+			"validationMinutesPerMerge": {
+				"median": 18,
+				"spread": 3
+			},
+			"validationsPerMerge": {
+				"median": 1.2,
+				"spread": 0.2
+			},
+			"flakyRerunsPerMerge": {
+				"median": 0.1,
+				"spread": 0.1
+			},
+			"mainMovedRerunsPerMerge": {
+				"median": 0.2,
+				"spread": 0.1
+			},
+			"toolingEjectionsPerMerge": {
+				"median": 0.04,
+				"spread": 0.1
+			},
+			"idleSeatHours": {
+				"median": 0.1,
+				"spread": 0.1
+			},
+			"idleWakesPerMerge": {
+				"median": 0.3,
+				"spread": 0.15
+			},
+			"revertsPerMerge": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"experiencesRejected": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"mainBroken": {
+				"median": 0,
+				"spread": 0.1
+			},
+			"checksRun": {
+				"median": 412,
+				"spread": 21
+			},
+			"adjustedThroughput": {
+				"median": 1,
+				"spread": 0.15
+			},
+			"planSharePerMerge": {
+				"median": 0.9,
+				"spread": 0.2
+			},
+			"mergedPerLaneHour": {
+				"median": 0.86
+			}
+		},
+		"mix": {
+			"bounded": 0.62,
+			"integrative": 0.31,
+			"deep": 0.07
+		},
+		"cycleMinutes": {
+			"bounded": 95,
+			"integrative": 210,
+			"deep": 480
+		},
+		"weightedMinutesPerLaneHour": 200
+	},
+	"dials": {
+		"lane.slots": 2,
+		"cells.max": 3,
+		"cells.issuesMax": 1,
+		"host.minFreeGb": 8,
+		"lane.queueTarget": 2,
+		"lane.queueMax": 10,
+		"plans.ceiling": 85,
+		"fable.ceiling": 50,
+		"lane.coverageEvery": 5,
+		"review.enabled": true,
+		"review.minHours": 12,
+		"review.baselineDays": 7,
+		"review.minMerges": 10,
+		"review.minLaneHours": 4,
+		"review.maxChecks": 4,
+		"review.memoryDays": 30,
+		"review.maxBadVerdicts": 3,
+		"review.cellsMax": 1,
+		"review.issuesMax": 3,
+		"review.dials": ["lane.slots", "lane.queueTarget", "cells.max:up", "lane.queueMax:up"]
+	},
+	"review": {
+		"id": "review-19",
+		"lastAt": "2030-01-11T22:00:00Z",
+		"trendIssue": 140
+	},
+	"window": {
+		"from": "2030-01-11T22:00:00Z",
+		"to": "2030-01-12T12:00:00Z",
+		"merges": 12,
+		"laneHours": 12,
+		"byProfile": {
+			"bounded": 7,
+			"integrative": 4,
+			"deep": 1
+		},
+		"metrics": {
+			"queueWaitMinutes": 8,
+			"validationMinutesPerMerge": 19,
+			"validationsPerMerge": 1.2,
+			"flakyRerunsPerMerge": 0.1,
+			"mainMovedRerunsPerMerge": 0.2,
+			"toolingEjectionsPerMerge": 0.05,
+			"idleSeatHours": 0.6,
+			"idleWakesPerMerge": 0.3,
+			"revertsPerMerge": 0,
+			"experiencesRejected": 0,
+			"mainBroken": 0,
+			"checksRun": 410,
+			"planSharePerMerge": 0.9,
+			"ownerWaitHours": 2,
+			"adjustedThroughput": 0.83,
+			"mergedPerLaneHour": 1
+		}
+	},
+	"watching": [
+		{
+			"metric": "idleSeatHours",
+			"since": "review-18",
+			"value": 0.5
+		}
+	],
+	"experiments": [
+		{
+			"id": "exp-1",
+			"metric": "queueWaitMinutes",
+			"change": {
+				"kind": "dial",
+				"key": "lane.slots",
+				"from": 1,
+				"to": 2
+			},
+			"state": "running",
+			"before": 22,
+			"sinceMerges": 9,
+			"checks": 1
+		},
+		{
+			"id": "exp-2",
+			"metric": "flakyRerunsPerMerge",
+			"change": {
+				"kind": "issue",
+				"issue": 166
+			},
+			"state": "proposed",
+			"checks": 0
+		}
+	],
+	"cells": [
+		{
+			"branch": "fix/health-window",
+			"issues": [165],
+			"thread": "thread-9",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "working",
+			"ejections": 0
+		},
+		{
+			"branch": "fix/quarantine-flaky",
+			"issues": [166],
+			"thread": "thread-10",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "working",
+			"ejections": 0,
+			"improvement": "exp-2"
+		}
+	],
+	"worktrees": {
+		"wt/measure": {
+			"branch": "fix/health-window",
+			"clean": true,
+			"head": "c0ffee1",
+			"review": {
+				"head": "c0ffee1"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
+			},
+			"gatePathsChanged": [],
+			"measurePathsChanged": [
+				"endpoints/botcore/plugins/botcore-factory/src/botcore_factory/health.py"
+			]
+		},
+		"wt/loosen": {
+			"branch": "fix/quarantine-flaky",
+			"clean": true,
+			"head": "c0ffee2",
+			"review": {
+				"head": "c0ffee2"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
+			},
+			"gatePathsChanged": [],
+			"testsSkipped": [
+				"packages/server/src/mcp-auth-scopes.test.ts > hidden commands answer as names that do not exist"
+			],
+			"checksRunDelta": -4
+		}
+	},
+	"issues": [
+		{
+			"number": 165,
+			"labels": ["status:in-progress", "execution:bounded", "area:botcore"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-11T09:00:00Z"
+		},
+		{
+			"number": 166,
+			"labels": ["status:in-progress", "execution:bounded", "area:factory"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-11T10:00:00Z"
+		}
+	],
+	"events": [
+		{
+			"id": "ev-19",
+			"type": "health-review",
+			"review": "review-19",
+			"deliveredTo": [],
+			"open": true
+		}
+	]
+}
