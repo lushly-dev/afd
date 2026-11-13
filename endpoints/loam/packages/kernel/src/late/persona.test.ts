@@ -6,6 +6,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
@@ -246,6 +247,24 @@ describe('P3-E2: the persona context field (6.2)', () => {
 		await kernel.call('project-list');
 		const lists = (await journal.read()).filter((entry) => entry.command === 'project-list');
 		expect(lists.map(personaOf)).toEqual([undefined, made.id, made.id, undefined]);
+	});
+
+	it("P3-E2: a local sign-out carries the signed-out person's persona, read then", async () => {
+		const store = new MemoryAdapter();
+		// The signed-out person's persona, set by an earlier page.
+		const before = await workspace({ store });
+		const mine = await create(before.kernel);
+		await before.kernel.call('persona-set', { persona: mine.id });
+		await before.kernel.flush();
+		// This page starts signed in as Bea, so stage A reads hers, not the signed-out person's.
+		const auth = new MockAuthAdapter();
+		await auth.signIn({ email: 'bea@example.com', password: 'x' } as never);
+		const journal = new MemoryJournalSink();
+		const { kernel } = await workspace({ store, auth, journal });
+		await kernel.call('auth-sign-out');
+		await kernel.call('project-list');
+		const entry = (await journal.read()).find((held) => held.command === 'project-list');
+		expect(personaOf(entry)).toBe(mine.id);
 	});
 
 	it("P3-E2: stage A reads the person's active persona, so a reload's first call carries it", async () => {

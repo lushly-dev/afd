@@ -829,10 +829,11 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 							deps.scope.note(call.traceId, { actorChanged: true });
 						} else {
 							// `local` mode's records are everyone's: only the drafts move (4.5), and the persona the
-							// person's calls carry (6.1).
+							// next person's calls carry (6.1), read.
 							decided = person;
 							switchDrafts(from, person);
-							if (person !== null) await personaOf(person);
+							// Signed out, a `local` call's person is `local` (`personOf`).
+							await personaOf(person ?? 'local');
 						}
 					}
 				}

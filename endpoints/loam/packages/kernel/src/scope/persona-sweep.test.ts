@@ -88,7 +88,7 @@ async function twin(active: 0 | 1): Promise<Twin> {
 	expect((await signIn(workspace)).success).toBe(true);
 	const created = await kernel.call<{ id: string }>(
 		'document-create',
-		{ type: 'probe', title: 'Notes' },
+		{ type: 'probe', title: 'Plan' },
 		at
 	);
 	const document = created.data?.id as string;
