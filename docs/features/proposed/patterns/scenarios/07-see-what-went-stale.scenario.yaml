@@ -1,0 +1,35 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented, on the pack format's `example` library. The saved copy
+# `collection-empty` uses `example-field`. The copy `fruit-picker` uses `example-select` and
+# `example-option`. Since the pack was last built, the manifest's declaration of `example-field`
+# has changed: its `label` attribute was renamed.
+
+name: See which saved references a change has made stale
+description: >-
+  When a component's API changes, I want the saved references that depend on it named, so
+  that I re-check those and no others.
+job: see-what-went-stale
+tags: [maintain]
+
+steps:
+  - description: The check names the one copy that depends on the changed component
+    command: specimen-pack-check
+    input: {}
+    expect:
+      success: true
+      data:
+        valid: false
+        stale:
+          - file: data/example/patterns/empty-collection/collection-empty.json
+            reason: fingerprint
+            tags: [example-field]
+        changed:
+          includes: data/example/components/example-field.json
+
+  - description: Only that copy is stale; the one that uses other components is not listed
+    command: specimen-pack-check
+    input: {}
+    expect:
+      success: true
+      data:
+        stale: { length: 1 }

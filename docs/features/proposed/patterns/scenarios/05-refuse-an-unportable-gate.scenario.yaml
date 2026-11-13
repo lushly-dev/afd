@@ -1,0 +1,40 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented. `patterns/select/pattern.json` is sound. `patterns/listbox/pattern.json`
+# has a gate whose target is the selector `example-option[selected]` and whose expectation
+# reads the `selected` attribute.
+
+name: Refuse a gate only one implementation can take
+description: >-
+  When I write a gate that names one implementation's tag, attribute or structure, I want it
+  refused, so that a gate stays a test any implementation can take.
+job: refuse-an-unportable-gate
+tags: [slice, refuse]
+
+steps:
+  - description: A pattern whose gates use roles and names passes, with no browser
+    command: specimen-validate
+    input:
+      file: patterns/select/pattern.json
+    expect:
+      success: true
+      data:
+        valid: true
+        scope: static
+        issues: { length: 0 }
+
+  - description: A gate that names a selector and an attribute is refused, with the way forward
+    command: specimen-validate
+    input:
+      file: patterns/listbox/pattern.json
+    expect:
+      success: true
+      data:
+        valid: false
+        issues:
+          - severity: error
+            code: GATE_NOT_PORTABLE
+            field: gates.shows-choice.scenario.0
+            suggestion: { contains: role }
+          - severity: error
+            code: GATE_NOT_PORTABLE
+            field: gates.shows-choice.scenario.1

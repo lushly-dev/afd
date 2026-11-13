@@ -1,0 +1,58 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented, on the pack format's `example` library: a `select` pattern that
+# `example-select` implements, and an `empty-collection` pattern with one saved copy.
+
+name: Find a pattern by what a region must do
+description: >-
+  When I know what a region must do but not what it is called, I want the patterns that fit
+  and what implements each, so that I reuse what exists and am told plainly when nothing fits.
+job: find-by-need
+tags: [slice, discover]
+
+steps:
+  - description: A need stated as a purpose finds the pattern and the component that implements it
+    command: components-pattern-list
+    input:
+      facets:
+        purpose: [choose-one]
+    expect:
+      success: true
+      data:
+        content:
+          trust: content
+          patterns:
+            - library: example
+              pattern: select
+              scope: control
+              implementations:
+                - kind: component
+                  tag: example-select
+                  linkage: instance
+
+  - description: A need in words finds a composition and the saved copy to start from
+    command: components-pattern-list
+    input:
+      contains: no items
+    expect:
+      success: true
+      data:
+        content:
+          patterns:
+            - library: example
+              pattern: empty-collection
+              scope: composition
+              implementations:
+                - kind: copy
+                  name: collection-empty
+                  linkage: copy
+
+  - description: A need nothing serves is an empty answer, not a failure and not a near miss
+    command: components-pattern-list
+    input:
+      facets:
+        purpose: [show-a-trend]
+    expect:
+      success: true
+      data:
+        content:
+          patterns: { length: 0 }
