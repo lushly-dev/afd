@@ -14,6 +14,7 @@ import {
 	deploymentFile,
 	expectMode,
 	fixtureDist,
+	loosen,
 	raw,
 	rawRequest,
 	SHELL_POLICY,
@@ -417,6 +418,7 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 		const data = join(root, 'data');
 		await mkdir(data, { mode: 0o750 });
 		await chmod(data, 0o750);
+		if (process.platform === 'win32') loosen(data);
 		await expect(
 			createLoamHost({
 				server: serverConfig(data),

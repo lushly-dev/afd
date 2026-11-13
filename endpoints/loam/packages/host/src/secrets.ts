@@ -1,11 +1,13 @@
 /**
  * @fileoverview The server's secrets (phase 6 specification, section 13, and 3.2's two secret rows):
  * resolved at start, held in memory, never written, logged or answered. A secret file, the TLS key and
- * the data directory must be private to their owner.
+ * the data directory must be private to their owner: no group or other mode bit on POSIX, and on Windows
+ * an ACL granting read to no one but the owner, SYSTEM and Administrators (`acl.ts`).
  */
 
 import { readFileSync, statSync } from 'node:fs';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
+import { type AccessRequest, aclFindings } from './acl.js';
 import type { HostFinding } from './errors.js';
 
 /** At least 32 bytes (3.2). */
@@ -32,24 +34,13 @@ function redacted(secrets: Omit<ResolvedSecrets, 'toJSON'>): ResolvedSecrets {
 	);
 }
 
-/**
- * Whether only the owner can reach `path`: no group or other bit on POSIX. Windows needs an ACL read this
- * step does not build, so it fails closed there (a stated deviation, recorded in STATUS.md).
- */
+/** Whether only the owner can reach `path` on POSIX: no group or other mode bit. */
 export function privateModeFinding(
 	path: string,
 	key: string,
 	kind: 'file' | 'directory'
 ): HostFinding | undefined {
 	const fix = kind === 'directory' ? 'chmod 700' : 'chmod 600';
-	if (process.platform === 'win32') {
-		return {
-			code: 'HOST_SECRET_PERMISSIONS',
-			key,
-			message: `\`${key}\`'s access cannot be checked on Windows yet, so it is refused.`,
-			suggestion: 'Run the hosted server on Linux or macOS, or in its container image.',
-		};
-	}
 	let mode: number;
 	try {
 		mode = statSync(path).mode;
@@ -63,6 +54,15 @@ export function privateModeFinding(
 		message: `\`${path}\` can be read by its group or by others.`,
 		suggestion: `Run \`${fix} ${path}\`.`,
 	};
+}
+
+/**
+ * One finding or none per request: the mode bits on POSIX, and on Windows every request's ACL in one
+ * PowerShell call, failing closed when it cannot be read.
+ */
+export function accessFindings(requests: readonly AccessRequest[]): Array<HostFinding | undefined> {
+	if (process.platform === 'win32') return aclFindings(requests);
+	return requests.map(({ path, key, kind }) => privateModeFinding(path, key, kind));
 }
 
 function unavailable(key: string, message: string): HostFinding {
@@ -92,10 +92,11 @@ interface Source {
 function resolveOne(
 	{ key, file, env }: Source,
 	environment: NodeJS.ProcessEnv,
-	refusals: HostFinding[]
+	refusals: HostFinding[],
+	access: ReadonlyMap<string, HostFinding | undefined>
 ): string | undefined {
 	if (file !== undefined) {
-		const permissions = privateModeFinding(file, key, 'file');
+		const permissions = access.get(key);
 		if (permissions) {
 			refusals.push(permissions);
 			return undefined;
@@ -114,7 +115,7 @@ function resolveOne(
 }
 
 /**
- * Resolves every secret 3.2 names, and checks the TLS key's and the data directory's modes. The file's
+ * Resolves every secret 3.2 names, and checks who can reach each secret file, the TLS key and the data directory. The file's
  * own rules (one source each) have passed `readServerConfig`.
  */
 export function resolveSecrets(
@@ -122,11 +123,25 @@ export function resolveSecrets(
 	environment: NodeJS.ProcessEnv = process.env
 ): { secrets?: ResolvedSecrets; refusals: HostFinding[] } {
 	const refusals: HostFinding[] = [];
+	// Every path's access is read first, so Windows reads them all in one call.
+	const requests: AccessRequest[] = [];
+	if (server.auth?.secret_file !== undefined)
+		requests.push({ path: server.auth.secret_file, key: 'auth', kind: 'file' });
+	if (server.mail?.transport === 'smtp' && server.mail.smtp_url_file !== undefined)
+		requests.push({ path: server.mail.smtp_url_file, key: 'mail', kind: 'file' });
+	for (const [id, table] of Object.entries(server.oidc ?? {}))
+		if (table.client_secret_file !== undefined)
+			requests.push({ path: table.client_secret_file, key: `oidc.${id}`, kind: 'file' });
+	if (server.tls) requests.push({ path: server.tls.key_file, key: 'tls.key_file', kind: 'file' });
+	requests.push({ path: server.data, key: 'data', kind: 'directory' });
+	const found = accessFindings(requests);
+	const access = new Map(requests.map(({ key }, index) => [key, found[index]]));
 	const auth = server.auth
 		? resolveOne(
 				{ key: 'auth', file: server.auth.secret_file, env: server.auth.secret_env },
 				environment,
-				refusals
+				refusals,
+				access
 			)
 		: undefined;
 	if (auth !== undefined && Buffer.byteLength(auth, 'utf8') < AUTH_SECRET_MIN_BYTES) {
@@ -137,7 +152,8 @@ export function resolveSecrets(
 			? resolveOne(
 					{ key: 'mail', file: server.mail.smtp_url_file, env: server.mail.smtp_url_env },
 					environment,
-					refusals
+					refusals,
+					access
 				)
 			: undefined;
 	const oidc: Record<string, string> = {};
@@ -145,13 +161,14 @@ export function resolveSecrets(
 		const value = resolveOne(
 			{ key: `oidc.${id}`, file: table.client_secret_file, env: table.client_secret_env },
 			environment,
-			refusals
+			refusals,
+			access
 		);
 		if (value !== undefined) oidc[id] = value;
 	}
 	let tls: ResolvedSecrets['tls'];
 	if (server.tls) {
-		const permissions = privateModeFinding(server.tls.key_file, 'tls.key_file', 'file');
+		const permissions = access.get('tls.key_file');
 		if (permissions) refusals.push(permissions);
 		const read = (key: string, path: string): Buffer | undefined => {
 			try {
@@ -170,7 +187,7 @@ export function resolveSecrets(
 		const key = read('tls.key_file', server.tls.key_file);
 		if (cert && key && !permissions) tls = { cert, key };
 	}
-	const directory = privateModeFinding(server.data, 'data', 'directory');
+	const directory = access.get('data');
 	if (directory) refusals.push(directory);
 	if (refusals.length > 0) return { refusals };
 	return {
