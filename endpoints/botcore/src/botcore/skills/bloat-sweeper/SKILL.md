@@ -45,15 +45,22 @@ copied between files, widest spread first, marks anything an open pull request
 touches, and names an area: the nearest package (a directory with `package.json`,
 `pyproject.toml`, `Cargo.toml` or `go.mod`) holding the top free file. `--record`
 comments the measurement on the trend issue before anything changes, so the log
-shows the main branch as daily work left it.
+shows the main branch as daily work left it. With no area given and none free, a
+scheduled pass can take `sweep.mjs area`, which rotates through the areas by week.
+
+It measures tracked source (TypeScript, JavaScript, Python and Rust by default) and
+never tests, stories, declarations, or anything under a `test`, `tests`, `build`,
+`dist`, `vendor`, `coverage` or `generated` directory, so a hand-written package with
+one of those names is not measured.
 
 Settings are under `[sweep]` in `botcore.toml` (`[tool.botcore.sweep]` in
 `pyproject.toml`): `trend_issue` (an open issue, needed for `--record` and `trend`),
 `cohesive` (default `sweep-cohesive.json`), `exclude` (path prefixes),
 `churn_days` (90), `extensions`, and `measures`: a command printing the
 repository's own measures, such as bundle chunk sizes, as
-`{"measures": [{"key", "label", "value"}], "lines": [...]}`. Those join the report
-and the trend.
+`{"measures": [{"key", "label", "value"}], "lines": [...]}`, with only JSON on
+stdout. Those join the report and the trend, which reads a rise as worse, so report
+measures where bigger is worse.
 
 If `trend` says **NOT KEEPING UP**, a measure has risen three passes running and
 deferral is losing. Still do the pass, then put the decision to the owner with a

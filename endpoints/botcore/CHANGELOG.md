@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`bloat-sweeper` skill.** A periodic pass that ranks files over `file_size_warn` by size and churn, finds code copied between files, judges each candidate's seam, and fixes the worst few in one PR, so a commit gate only needs to guard runaway growth. Its `scripts/sweep.mjs` needs only Node and git (and `gh` for open pull requests and the trend issue), ships in the wheel, and reads a new `[sweep]` section (`SweepConfig`): `trend_issue`, `cohesive`, `exclude`, `churn_days`, `extensions` and `measures`. Adapted from Lushly's `do-sweep` bloat mode, with areas taken from the nearest package manifest.
+- **`bloat-sweeper` skill.** A periodic pass that ranks files over `file_size_warn` by size and churn, finds code copied between files, judges each candidate's seam, and fixes the worst few in one PR, so a commit gate only needs to guard runaway growth. Its `scripts/sweep.mjs` needs only Node and git (and `gh` for open pull requests and the trend issue), ships in the wheel, and reads a new `[sweep]` section (`SweepConfig`): `trend_issue`, `cohesive`, `exclude`, `churn_days`, `extensions` and `measures`. Adapted from Lushly's `do-sweep` bloat mode, with areas taken from the nearest package manifest and stories left out of the ranking. A repository adopting it with its own trend issue and cohesive file sets `trend_issue` and `cohesive`, and carries measures such as bundle sizes or test-only exports through `measures`; a `[sweep]` section needs this release, since older ones refuse unknown keys.
 
 ## [0.6.1] - 2026-11-12
 

@@ -50,6 +50,27 @@ test('settings come from botcore.toml, or from pyproject.toml under tool.botcore
 	assert.equal(readSettings('').threshold, 500);
 });
 
+test('a # or ] inside a quoted value is text, and a comment inside an array is dropped', () => {
+	const settings = readSettings(
+		[
+			'[sweep]',
+			'measures = "node m.mjs --tag #1" # the hook',
+			'trend_issue = 1_098',
+			'exclude = [',
+			'  # imported source, "not measured"',
+			'  "a/b", # trailing',
+			"  'c]d',",
+			'  "e",',
+			']',
+			'churn_days = 30',
+		].join('\n')
+	);
+	assert.equal(settings.measures, 'node m.mjs --tag #1');
+	assert.equal(settings.trendIssue, 1098);
+	assert.deepEqual(settings.exclude, ['a/b', 'c]d', 'e']);
+	assert.equal(settings.churnDays, 30);
+});
+
 test('only source is measured: no tests, output, generated files or excluded prefixes', () => {
 	const settings = readSettings('[sweep]\nexclude = ["foundations/fast-af"]\n');
 	for (const path of [

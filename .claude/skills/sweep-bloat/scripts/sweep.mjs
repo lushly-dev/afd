@@ -64,10 +64,29 @@ const USAGE = 'Usage: sweep.mjs area | bloat [--area <name>] [--top <n>] [--reco
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
+/**
+ * `line` up to its comment, and whether it closes an open array: a `#` or `]` inside a
+ * quoted string is text, not syntax.
+ */
+function scanLine(line) {
+	let quote;
+	let closes = false;
+	for (let index = 0; index < line.length; index++) {
+		const char = line[index];
+		if (quote) {
+			if (char === '\\' && quote === '"') index++;
+			else if (char === quote) quote = undefined;
+		} else if (char === '"' || char === "'") quote = char;
+		else if (char === '#') return { text: line.slice(0, index), closes };
+		else if (char === ']') closes = true;
+	}
+	return { text: line, closes };
+}
+
 /** A TOML value of the kinds these settings use: an integer, a string, or a list of strings. */
 function tomlValue(raw) {
 	const text = raw.trim();
-	if (/^-?\d+$/u.test(text)) return Number(text);
+	if (/^-?\d[\d_]*$/u.test(text)) return Number(text.replaceAll('_', ''));
 	if (text.startsWith('['))
 		return [...text.matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'/gu)].map((m) => m[1] ?? m[2]);
 	const quoted = /^"((?:[^"\\]|\\.)*)"|^'([^']*)'/u.exec(text);
@@ -88,10 +107,10 @@ export function readSettings(text, { pyproject = false } = {}) {
 	let table = '';
 	let pending;
 	for (const raw of text.split(/\r?\n/u)) {
-		const line = raw.replace(/\s+#.*$/u, '');
+		const { text: line, closes } = scanLine(raw);
 		if (pending) {
 			pending.value += ` ${line.trim()}`;
-			if (!line.includes(']')) continue;
+			if (!closes) continue;
 			pending.target[pending.key] = tomlValue(pending.value);
 			pending = undefined;
 			continue;
@@ -106,7 +125,7 @@ export function readSettings(text, { pyproject = false } = {}) {
 		const target = table === top ? flat : table === sweepTable ? sweep : undefined;
 		if (!target) continue;
 		const [, key, value] = pair;
-		if (value.trim().startsWith('[') && !value.includes(']')) pending = { target, key, value };
+		if (value.trim().startsWith('[') && !scanLine(value).closes) pending = { target, key, value };
 		else target[key] = tomlValue(value);
 	}
 	return {
