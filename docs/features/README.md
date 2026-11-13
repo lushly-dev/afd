@@ -71,6 +71,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
+| [Patterns](./proposed/patterns/patterns.proposal.md) | Patterns above components: what a recurring piece of interface is for, what every implementation must keep and what may change, with gates written against roles, names and geometry that Specimen runs on any implementation; a working region saved as a copy with its revision and provenance; the component pack and Umbel's `components` plugin extended to hold and serve them. First draft 2026-11-12 with nine jobs as scenarios; nothing implemented or measured, and phase 0 tests its claims before any format; status in [STATUS.md](./proposed/patterns/STATUS.md) |
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |

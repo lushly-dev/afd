@@ -1,0 +1,86 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented. The case `orders-empty` renders an orders screen with nothing in it:
+# a region named "Orders" holding a heading and a short explanation. The case `orders-list`
+# renders the same screen with rows whose click handlers were bound by the page.
+
+name: Save a working region as a reference
+description: >-
+  When a region of a screen works well, I want to save it as a reference and be told what
+  could not be saved, so that the next screen starts from it and nothing about it is invented.
+job: save-a-working-region
+tags: [capture]
+
+steps:
+  - description: A region with nothing page-bound is saved whole, and its guidance is left for a person
+    command: specimen-pattern-save
+    input:
+      id: orders-empty
+      target: { role: region, name: Orders }
+      pattern: empty-collection
+      name: collection-empty
+    expect:
+      success: true
+      data:
+        pattern: empty-collection
+        implementation: collection-empty
+        status: complete
+        revision: { matches: '^sha256:[0-9a-f]{64}$' }
+        fingerprint: { matches: '^sha256:[0-9a-f]{64}$' }
+        created:
+          pattern: true
+        stripped: { length: 0 }
+        remount:
+          same: true
+        gaps: [summary, use-when, avoid-when, keep, customize]
+
+  - description: Saving it again under the same name is refused, with the way forward
+    command: specimen-pattern-save
+    input:
+      id: orders-empty
+      target: { role: region, name: Orders }
+      pattern: empty-collection
+      name: collection-empty
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+        suggestion: { contains: replace }
+
+  - description: A region that depends on the page is kept as a draft that says what was removed
+    command: specimen-pattern-save
+    input:
+      id: orders-list
+      target: { role: region, name: Orders }
+      pattern: collection-list
+      name: orders-rows
+    expect:
+      success: true
+      data:
+        status: draft
+        stripped:
+          - kind: handler
+        remount:
+          same: false
+
+  - description: A name that matches two regions is refused; nothing is guessed
+    command: specimen-pattern-save
+    input:
+      id: orders-list
+      target: { role: row }
+      pattern: collection-list
+      name: one-row
+    expect:
+      success: false
+      error:
+        code: TARGET_AMBIGUOUS
+        suggestion: { contains: name }
+
+  - description: A draft is not offered to anyone looking for a pattern
+    command: components-pattern-list
+    input:
+      contains: orders
+    expect:
+      success: true
+      data:
+        content:
+          patterns: { length: 0 }

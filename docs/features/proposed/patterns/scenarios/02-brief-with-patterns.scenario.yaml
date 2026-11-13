@@ -1,0 +1,56 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented, on the pack format's `example` library: `example-select` and the
+# deprecated `example-dropdown` both implement `select`, and `example-field` implements `field`.
+
+name: Get what must be kept, once per pattern
+description: >-
+  When I write a page with a library's components, I want what each must keep and what I may
+  change, stated once per pattern, so that I adapt freely without breaking a requirement.
+job: brief-with-patterns
+tags: [slice, use]
+
+steps:
+  - description: Two components of two patterns bring both patterns' statements
+    command: components-brief
+    input:
+      tags: [example-select, example-field]
+    expect:
+      success: true
+      data:
+        content:
+          trust: content
+          components: { length: 2 }
+          patterns: { length: 2 }
+        unknown: { length: 0 }
+
+  - description: Two components of one pattern bring its statements once
+    command: components-brief
+    input:
+      tags: [example-select, example-dropdown]
+    expect:
+      success: true
+      data:
+        content:
+          components: { length: 2 }
+          patterns:
+            - library: example
+              pattern: select
+              keep:
+                - id: select.keep.named
+                  text: The control has an accessible name that is not its value.
+
+  - description: A statement the caller already holds keeps its id and is not sent again
+    command: components-brief
+    input:
+      tags: [example-select]
+      known: [select.keep.named]
+    expect:
+      success: true
+      data:
+        content:
+          patterns:
+            - pattern: select
+              keep:
+                - id: select.keep.named
+                  text: { notExists: true }
+        omitted: { length: 0 }
