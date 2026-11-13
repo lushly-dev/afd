@@ -53,7 +53,7 @@ async def check_profile(root: Path):
                 or process.returncode != (0 if data['success'] else 1)):
             return error('INVALID_SKILL_PROFILE', stderr.decode(errors='replace').strip() or 'Invalid profile checker evidence',
                          suggestion='Repair the declared skill profile using its canonical source and reviewed generator')
-        manifest = json.loads((root / 'skills/exports.json').read_text())
+        manifest = json.loads((root / 'skills/exports.json').read_text(encoding='utf-8'))
         if manifest.get('version') != 1 or manifest.get('canonical', {}).get('owner') != 'botcore':
             raise ValueError('Unsupported skill profile manifest')
         profile = manifest['profiles']['afd']
