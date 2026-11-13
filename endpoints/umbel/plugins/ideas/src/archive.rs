@@ -61,6 +61,23 @@ fn without_restored(body: &Value) -> Value {
     body
 }
 
+/// A body as an import writes it (amendment C3-10): a proposal loses its `effect`, and a staged
+/// one becomes `unstaged`, so nothing an archive says about a past decision can be undone or
+/// applied again, and nothing it stages skips the scan, the caps or another review's claim.
+/// The manifest's digest is taken over the same form, so an archive still restores to its own.
+fn as_imported(kind: &str, body: &Value) -> Value {
+    let mut body = body.clone();
+    if kind == PROPOSAL
+        && let Some(map) = body.as_object_mut()
+    {
+        map.insert("effect".to_owned(), Value::Null);
+        if map.get("state").and_then(Value::as_str) == Some("staged") {
+            map.insert("state".to_owned(), json!("unstaged"));
+        }
+    }
+    body
+}
+
 /// One page of a kind, by id.
 fn page_of(
     cx: &Cx,
@@ -104,7 +121,7 @@ fn manifest(cx: &Cx, call: &Call) -> Result<Value, HostError> {
                 entries.push(json!([
                     kind,
                     record.record.id,
-                    without_restored(&record.record.body),
+                    without_restored(&as_imported(kind, &record.record.body)),
                     is_affirmed
                 ]));
             }
@@ -402,7 +419,8 @@ pub(crate) fn import(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
     let mut unaffirmed: Vec<String> = Vec::new();
     let mut unaffirmed_count = 0u64;
     for item in &items {
-        let mut body = item.body.clone();
+        let mut body = as_imported(item.kind, &item.body);
+        let wanted = without_restored(&body);
         if let (Some((at, level)), Some(map)) = (&item.affirmed, body.as_object_mut())
             && !map.contains_key("restored")
         {
@@ -435,10 +453,10 @@ pub(crate) fn import(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
             ours = item.affirmed.is_some()
                 && existing.as_ref().is_some_and(|existing| {
                     existing.record.body.get("restored").cloned() == restored
-                        && without_restored(&existing.record.body) == without_restored(&item.body)
+                        && without_restored(&existing.record.body) == wanted
                 });
             if existing.is_some_and(|existing| {
-                without_restored(&existing.record.body) == without_restored(&item.body)
+                without_restored(&as_imported(item.kind, &existing.record.body)) == wanted
             }) {
                 bump(&mut same, item.kind);
             } else {

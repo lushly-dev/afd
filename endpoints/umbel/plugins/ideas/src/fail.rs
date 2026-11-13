@@ -281,3 +281,14 @@ pub(crate) fn not_decided_by_person() -> Outcome {
     )
     .with_error_details(json!({ "host": "RECORD_DECISION_NOT_GATED" }))
 }
+
+/// `QUOTA_EXCEEDED`: a part whose preview is longer than a terminal shows, confirmed there
+/// (amendment C3-11).
+pub(crate) fn preview_too_long(chars: usize, max: usize) -> Outcome {
+    failure(
+        "QUOTA_EXCEEDED",
+        &format!("the part's preview is {chars} characters; a terminal shows {max}, so the person did not read it all"),
+        "Confirm a smaller group at a terminal: unstage some of it, or stage it again in smaller groups, and ask the person again; on the review page any size is read in pages.",
+    )
+    .with_error_details(json!({ "chars": chars, "max": max }))
+}

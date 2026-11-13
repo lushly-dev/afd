@@ -59,6 +59,7 @@ pub(super) fn apply(
             let mut proposal = member.proposal.clone();
             proposal.state = "undone".to_owned();
             proposal.decided_at = Some(at.to_owned());
+            proposal.decided = Some(noted(&proposal.decided, "undone", level, call));
             write_proposal(cx, call, member, &proposal, Origin::UserStated, at)?;
             undid.push(proposal.id);
         } else {
@@ -69,6 +70,19 @@ pub(super) fn apply(
         return Ok(Err("target-changed"));
     }
     Ok(Ok(json!({ "undid": undid, "unchanged": unchanged })))
+}
+
+/// `decided` with `{ level, by }` of a later decision under `name`: the first decision's level
+/// is kept beside it.
+fn noted(decided: &Option<Value>, name: &str, level: &str, call: &Call) -> Value {
+    let mut decided = decided.clone().unwrap_or_else(|| json!({}));
+    if let Some(map) = decided.as_object_mut() {
+        map.insert(
+            name.to_owned(),
+            json!({ "level": level, "by": call.principal }),
+        );
+    }
+    decided
 }
 
 fn text<'a>(effect: &'a Value, name: &str) -> Option<&'a str> {
@@ -204,6 +218,7 @@ fn again(cx: &Cx, call: &Call, effect: &Value, level: &str, at: &str) -> Result<
         proposal.state = "applied".to_owned();
         proposal.decided_at = Some(at.to_owned());
         proposal.effect = Some(effect);
+        proposal.decided = Some(noted(&proposal.decided, "again", level, call));
         write_proposal(cx, call, &member, &proposal, Origin::UserStated, at)?;
         any = true;
     }

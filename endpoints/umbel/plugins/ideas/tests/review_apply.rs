@@ -620,7 +620,7 @@ fn what_the_person_pulled_out_on_the_page_is_pulled_not_applied() {
 }
 
 #[tokio::test]
-async fn hundreds_of_proposals_are_staged_in_one_call_and_confirmed_a_group_at_a_time() {
+async fn hundreds_of_proposals_are_staged_in_one_call_and_confirmed_in_groups_at_a_terminal() {
     let fx = Fx::new();
     let mut ids = Vec::new();
     for chunk in 0..8 {
@@ -643,7 +643,7 @@ async fn hundreds_of_proposals_are_staged_in_one_call_and_confirmed_a_group_at_a
         .enumerate()
         .map(|(i, id)| {
             let mut p = affirm(id);
-            p["group"] = json!(if i % 2 == 0 { "even-beds" } else { "odd-beds" });
+            p["group"] = json!(format!("row-{:02}", i / 25));
             p
         })
         .collect();
@@ -659,19 +659,219 @@ async fn hundreds_of_proposals_are_staged_in_one_call_and_confirmed_a_group_at_a
     assert_eq!(staged["added"], 500);
     assert_eq!(staged["staged"], 500);
     assert_eq!(staged["pending"]["unreviewed"], 500);
-    // "*" holds 500, at part_max; each group is confirmed in one decision.
+    // At a terminal a part's preview must fit what the command line shows, so the person
+    // confirms groups of 25, each in one decision; the page reads any size in pages (C4).
+    assert_eq!(staged["parts"].as_array().unwrap().len(), 20);
     for part in staged["parts"].as_array().unwrap() {
-        assert_eq!(part["count"], 250);
+        assert_eq!(part["count"], 25);
         let started = Instant::now();
         let decision =
             json!({ "review": staged["review"], "part": part["part"], "digest": part["digest"] });
         let applied = fx.person("ideas-review-apply", decision).await;
-        eprintln!("applied 250 in {:?}", started.elapsed());
-        assert_eq!(data(&applied)["applied"]["affirm"], 250);
+        eprintln!("applied 25 in {:?}", started.elapsed());
+        assert_eq!(data(&applied)["applied"]["affirm"], 25);
     }
     let guide = fx.agent("ideas-guide", json!({})).await;
     assert_eq!(
         data(&guide)["pending"],
         json!({ "staged": 0, "unreviewed": 0 })
     );
+}
+
+#[test]
+fn the_terminal_cap_is_the_command_lines() {
+    let cli = include_str!("../../../src/cli/preview.rs");
+    assert!(
+        cli.contains("pub(crate) const MAX_PREVIEW_CHARS: usize = 6000;"),
+        "the command line's preview cap moved: change TERMINAL_PREVIEW_CHARS with it"
+    );
+}
+
+#[tokio::test]
+async fn a_part_longer_than_a_terminal_shows_is_refused_there_before_any_write() {
+    let fx = Fx::new();
+    let statements: Vec<String> = (0..40)
+        .map(|i| format!("Bed {i} wants a long autumn mulch of leaf mould and well rotted manure."))
+        .collect();
+    let refs: Vec<&str> = statements.iter().map(String::as_str).collect();
+    let ids = fx.capture(&refs).await;
+    let reason = "The person said these words while walking the plot, and repeated them twice when the beds were mulched in the autumn rain.";
+    let proposals: Vec<Value> = ids
+        .iter()
+        .map(|id| json!({ "decide": "affirm", "idea": id, "version": 1, "reason": reason, "group": "long" }))
+        .collect();
+    let staged = fx
+        .agent("ideas-review-stage", json!({ "proposals": proposals }))
+        .await;
+    let decision = json!({ "review": data(&staged)["review"], "part": "long", "digest": data(&staged)["parts"][0]["digest"] });
+    let refused = fx.person("ideas-review-apply", decision).await;
+    assert_eq!(code(&refused), "QUOTA_EXCEEDED", "{refused}");
+    assert!(refused["error"]["details"]["chars"].as_u64().unwrap() > 6000);
+    assert!(
+        refused["error"]["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("smaller group")
+    );
+    assert_eq!(open(&fx, &ids[0]).await["standing"], "seed");
+    let shown = fx.agent("ideas-review-show", json!({})).await;
+    assert_eq!(data(&shown)["total"], 40);
+    // On the page the same part is applied: the cap is the terminal's only.
+    let stub = Stub::default();
+    let captured = stub.call(
+        "ideas-capture",
+        json!({ "ideas": statements.iter().map(|s| json!({ "statement": s, "type": "principle" })).collect::<Vec<_>>() }),
+    );
+    let proposals: Vec<Value> = data(&captured)["ideas"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| json!({ "decide": "affirm", "idea": i["id"], "version": 1, "reason": reason }))
+        .collect();
+    let staged = stub.call("ideas-review-stage", json!({ "proposals": proposals }));
+    let decision = json!({ "review": data(&staged)["review"], "part": "*", "digest": data(&staged)["digest"] });
+    let refused = stub.person("ideas-review-apply", decision.clone());
+    assert_eq!(code(&refused), "QUOTA_EXCEEDED");
+    let applied = stub.page("ideas-review-apply", decision, "local", &[]);
+    assert_eq!(data(&applied)["applied"]["affirm"], 40);
+}
+
+#[test]
+fn a_proposal_unstaged_while_it_is_applied_is_marked_applied() {
+    fn unstage_all(state: &mut support::stub::State) {
+        for ((kind, _), body) in state.records.iter_mut() {
+            if kind == "proposal" && body["state"] == "staged" {
+                body["state"] = json!("unstaged");
+            }
+        }
+    }
+    let stub = Stub::default();
+    let captured = stub.call(
+        "ideas-capture",
+        json!({ "ideas": [{ "statement": BEDS[0], "type": "principle" }] }),
+    );
+    let id = data(&captured)["ideas"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let staged = stub.call("ideas-review-stage", json!({ "proposals": [affirm(&id)] }));
+    let proposal = data(&staged)["proposals"][0].as_str().unwrap().to_owned();
+    stub.state.lock().unwrap().on_decide = Some(unstage_all);
+    let decision = json!({ "review": data(&staged)["review"], "part": "*", "digest": data(&staged)["digest"] });
+    let applied = stub.person("ideas-review-apply", decision);
+    assert_eq!(data(&applied)["applied"]["affirm"], 1);
+    let body = stub.body("proposal", &proposal).unwrap();
+    assert_eq!(body["state"], "applied");
+    assert_eq!(body["effect"]["wording"], format!("{id}.1"));
+}
+
+#[tokio::test]
+async fn an_undo_whose_target_changed_after_the_preview_is_refused() {
+    let fx = Fx::new();
+    let ids = fx.capture(&BEDS).await;
+    let (affirmed, _) = confirm(&fx, json!([affirm(&ids[0])])).await;
+    let target = data(&affirmed)["proposals"][0].as_str().unwrap().to_owned();
+    let pending = fx
+        .agent(
+            "ideas-review-stage",
+            json!({ "review": "new", "proposals": [undo(&target)] }),
+        )
+        .await;
+    let stale = json!({ "review": data(&pending)["review"], "part": "*", "digest": data(&pending)["digest"] });
+    let preview = fx.operator("ideas-review-preview", stale.clone()).await;
+    assert!(
+        data(&preview)["preview"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("affirm of {}.1", ids[0]))
+    );
+    // The target is undone by another review: the digest the person read no longer holds.
+    confirm(&fx, json!([undo(&target)])).await;
+    let preview = fx.operator("ideas-review-preview", stale).await;
+    assert_eq!(code(&preview), "CONFLICT");
+}
+
+#[tokio::test]
+async fn an_undo_of_an_undo_names_what_it_applies_again() {
+    let fx = Fx::new();
+    let ids = fx.capture(&BEDS).await;
+    let (affirmed, _) = confirm(&fx, json!([affirm(&ids[0]), decline(&ids[1])])).await;
+    let review = data(&affirmed)["review"].as_str().unwrap().to_owned();
+    let (undone, _) = confirm(&fx, json!([undo(&review)])).await;
+    let undo_id = data(&undone)["proposals"][0].as_str().unwrap().to_owned();
+    let staged = fx
+        .agent(
+            "ideas-review-stage",
+            json!({ "review": "new", "proposals": [undo(&undo_id)] }),
+        )
+        .await;
+    let decision = json!({ "review": data(&staged)["review"], "part": "*", "digest": data(&staged)["digest"] });
+    let preview = fx.operator("ideas-review-preview", decision).await;
+    let text = data(&preview)["preview"].as_str().unwrap();
+    assert!(text.contains("applies again:"), "{text}");
+    assert!(text.contains(&format!("affirm of {}.1", ids[0])), "{text}");
+    assert!(text.contains(&format!("decline of {}.1", ids[1])), "{text}");
+    // Each decision undone keeps its first level, with the undo's beside it.
+    let first = open(&fx, &ids[0]).await;
+    let decided = &first["decisions"][0]["decided"];
+    assert_eq!(decided["level"], "terminal");
+    assert_eq!(decided["undone"]["level"], "terminal");
+    assert_eq!(decided["undone"]["by"], "human:ada");
+}
+
+#[tokio::test]
+async fn an_imported_chain_of_decisions_affirms_nothing() {
+    // An archive written by anyone: a closed review holding an affirm marked undone and an undo
+    // of it marked applied, whose effect says it undid the affirm. Undoing that undo would apply
+    // the affirm again, and so affirm an agent's seed, if an import kept effects.
+    let fx = Fx::new();
+    let ids = fx.capture(&BEDS).await;
+    let exported = fx.operator("ideas-export", json!({})).await;
+    let mut items = data(&exported)["items"].as_array().unwrap().clone();
+    let review = "rev-0000000000000000000000aa";
+    let affirm_id = "prp-0000000000000000000000a1";
+    let undo_id = "prp-0000000000000000000000a2";
+    let staged_id = "prp-0000000000000000000000a3";
+    let proposal = |id: &str, extra: Value| {
+        let mut body = json!({ "id": id, "review": review, "idea": null, "decide": "affirm",
+            "version": null, "statement": null, "keep": null, "target": null,
+            "reason": "Imported.", "group": "imported", "confidence": "high", "flags": [],
+            "stagedAt": "2025-12-01T00:00:00.000Z", "decidedAt": null, "state": "staged",
+            "decided": null, "effect": null, "skippedFor": null });
+        for (k, v) in extra.as_object().unwrap() {
+            body[k] = v.clone();
+        }
+        json!({ "kind": "proposal", "id": id, "body": body, "affirmed": null })
+    };
+    items.push(json!({ "kind": "review", "id": review, "affirmed": null,
+        "body": { "id": review, "state": "closed", "by": "human:ada", "openedAt": "2025-12-01T00:00:00.000Z", "name": null } }));
+    items.push(proposal(
+        affirm_id,
+        json!({ "idea": ids[0], "version": 1, "state": "undone",
+        "effect": { "wording": format!("{}.1", ids[0]) } }),
+    ));
+    items.push(proposal(
+        undo_id,
+        json!({ "decide": "undo", "target": affirm_id, "state": "applied",
+        "effect": { "undid": [affirm_id], "unchanged": [] } }),
+    ));
+    items.push(proposal(staged_id, json!({ "idea": ids[1], "version": 1 })));
+    let imported = fx.person("ideas-import", json!({ "items": items })).await;
+    assert_eq!(data(&imported)["added"]["proposal"], 3, "{imported}");
+    // Whatever stood staged in the archive is not staged here.
+    let shown = fx
+        .agent("ideas-review-show", json!({ "review": review }))
+        .await;
+    assert_eq!(data(&shown)["total"], 0);
+    // The person confirms an undo of the imported undo: nothing is applied again.
+    let (_, applied) = confirm(&fx, json!([undo(undo_id)])).await;
+    assert_eq!(
+        data(&applied)["skipped"][0]["reason"],
+        "target-changed",
+        "{applied}"
+    );
+    assert_eq!(open(&fx, &ids[0]).await["standing"], "seed");
+    // Read back, the archive is the same: the comparison is over the bodies as imported.
+    let again = fx.person("ideas-import", json!({ "items": items })).await;
+    assert_eq!(data(&again)["same"]["proposal"], 3, "{again}");
 }

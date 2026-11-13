@@ -31,6 +31,10 @@ use crate::pending::{key, pending};
 use crate::records::{WORDING, Wording, now, put_absent, read, read_idea, wording_id};
 use crate::{Call, fail};
 
+/// The most characters of a preview the command line shows (`src/cli/preview.rs`,
+/// `MAX_PREVIEW_CHARS`), not counting line ends; `tests/review_apply.rs` holds the two equal.
+pub(crate) const TERMINAL_PREVIEW_CHARS: usize = 6000;
+
 /// How applying one proposal ended: its effect, or why it was skipped (8.6).
 pub(super) type Applied = Result<Value, &'static str>;
 
@@ -225,13 +229,30 @@ fn mark(
     effect: Option<Value>,
     skipped_for: Option<&str>,
 ) -> Result<(), HostError> {
-    let mut proposal = stored.proposal.clone();
-    proposal.state = state.to_owned();
-    proposal.decided_at = Some(at.to_owned());
-    proposal.decided = Some(json!({ "level": level }));
-    proposal.effect = effect;
-    proposal.skipped_for = skipped_for.map(str::to_owned);
-    write_proposal(cx, call, stored, &proposal, Origin::UserStated, at).map(drop)
+    let decided = |base: &Stored| {
+        let mut proposal = base.proposal.clone();
+        proposal.state = state.to_owned();
+        proposal.decided_at = Some(at.to_owned());
+        proposal.decided = Some(json!({ "level": level }));
+        proposal.effect = effect.clone();
+        proposal.skipped_for = skipped_for.map(str::to_owned);
+        proposal
+    };
+    match write_proposal(cx, call, stored, &decided(stored), Origin::UserStated, at) {
+        Ok(_) => Ok(()),
+        // Changed while the call applied it: unstaged by an agent meanwhile. What was done is
+        // marked all the same, unless another apply marked it first.
+        Err(HostError::Conflict { .. }) => {
+            match super::read_proposal(cx, call, &stored.proposal.id)? {
+                Some(again) if matches!(again.proposal.state.as_str(), "staged" | "unstaged") => {
+                    write_proposal(cx, call, &again, &decided(&again), Origin::UserStated, at)
+                        .map(drop)
+                }
+                _ => Ok(()),
+            }
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// `ideas-review-apply`.
@@ -265,6 +286,15 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
             "excluded",
             "names a proposal that is not of the part the person confirmed",
         ));
+    }
+    // At a terminal the command line shows at most `TERMINAL_PREVIEW_CHARS` of the preview and
+    // cuts the rest: a part longer than that was not all read, and is refused (C3-11).
+    if context.person_decision.is_none() {
+        let text = super::preview::text(cx, call, &review, &part, &items).map_err(host)?;
+        let shown = text.chars().filter(|c| *c != '\n').count();
+        if shown > TERMINAL_PREVIEW_CHARS {
+            return Err(fail::preview_too_long(shown, TERMINAL_PREVIEW_CHARS));
+        }
     }
     let at = now(cx)?;
     let mut applied = Vec::new();

@@ -30,6 +30,8 @@ pub struct State {
     pub affirmed: BTreeSet<String>,
     /// Every `record_decide` the plugin made, in order: the wording's id and the decision.
     pub decides: Vec<(String, Decision)>,
+    /// Run inside each `record_decide`, to change the store in the middle of a call.
+    pub on_decide: Option<fn(&mut State)>,
 }
 
 #[derive(Clone, Default)]
@@ -122,8 +124,19 @@ impl HostServices for Stub {
     ) -> Result<RecordMeta, HostError> {
         let mut state = self.state.lock().unwrap();
         let key = (kind.to_owned(), id.to_owned());
-        if expect == Expect::Absent && state.records.contains_key(&key) {
-            return Err(HostError::Conflict { current: None });
+        match &expect {
+            Expect::Absent if state.records.contains_key(&key) => {
+                return Err(HostError::Conflict { current: None });
+            }
+            Expect::Hash(hash)
+                if state
+                    .records
+                    .get(&key)
+                    .is_none_or(|body| ContentHash::of(body.to_string().as_bytes()) != *hash) =>
+            {
+                return Err(HostError::Conflict { current: None });
+            }
+            _ => {}
         }
         let hash = ContentHash::of(body.to_string().as_bytes());
         state.records.insert(key, body);
@@ -197,6 +210,9 @@ impl HostServices for Stub {
             return Err(HostError::NotFound(id.to_owned()));
         }
         state.decides.push((id.to_owned(), decision));
+        if let Some(hook) = state.on_decide {
+            hook(&mut state);
+        }
         let standing = match decision {
             Decision::Affirm => {
                 state.affirmed.insert(id.to_owned());

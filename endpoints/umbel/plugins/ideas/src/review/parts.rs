@@ -109,6 +109,25 @@ pub(crate) fn digest(
     for id in named {
         entries.push(ideas.get(cx, call, id)?);
     }
+    // An undo's target as it stands (C3-12): a proposal's content hash, or a review's applied
+    // proposals by id, so a target undone or applied again after the digest changes it.
+    let targets: BTreeSet<&str> = items
+        .iter()
+        .filter_map(|stored| stored.proposal.target.as_deref())
+        .collect();
+    for target in targets {
+        if crate::ids::is_id(target, crate::records::PROPOSAL_PREFIX) {
+            let hash = super::read_proposal(cx, call, target)?.map(|found| found.hash);
+            entries.push(json!([target, hash.as_ref().map(ContentHash::as_str)]));
+        } else {
+            let mut applied: Vec<String> = super::in_review(cx, call, target, &["applied"])?
+                .into_iter()
+                .map(|found| found.proposal.id)
+                .collect();
+            applied.sort();
+            entries.push(json!([target, applied]));
+        }
+    }
     Ok(
         ContentHash::of(canonical_json(&Value::from(entries)).as_bytes())
             .as_str()

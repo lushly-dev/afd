@@ -46,14 +46,63 @@ fn wording(record: &LaneRecord, state: &str) -> Option<Value> {
     }))
 }
 
+/// One decision in a line, naming the wording it is about and nothing of a statement.
+fn decision_line(p: &super::Proposal) -> String {
+    let idea = p.idea.as_deref().unwrap_or_default();
+    let wording = match p.version {
+        Some(n) => format!("{idea}.{n}"),
+        None => idea.to_owned(),
+    };
+    match p.decide.as_str() {
+        "duplicate" => format!(
+            "duplicate: fold {wording} into {}",
+            p.keep.as_deref().unwrap_or_default()
+        ),
+        "undo" => format!("undo of {}", p.target.as_deref().unwrap_or_default()),
+        decide => format!("{decide} of {wording}"),
+    }
+}
+
 /// What an undo's target did, in one line, and nothing of a statement.
 pub(crate) fn target_summary(cx: &Cx, call: &Call, target: &str) -> Result<String, HostError> {
     if ids::is_id(target, PROPOSAL_PREFIX) {
         return Ok(match read_proposal(cx, call, target)? {
+            Some(stored) if stored.proposal.decide == "undo" => {
+                // Undoing an undo applies again what it undid: name each of those (C3-13).
+                let undid: Vec<String> = stored
+                    .proposal
+                    .effect
+                    .as_ref()
+                    .and_then(|effect| effect.get("undid"))
+                    .and_then(Value::as_array)
+                    .map(|ids| {
+                        ids.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut again = Vec::with_capacity(undid.len());
+                for id in undid.iter().rev() {
+                    again.push(match read_proposal(cx, call, id)? {
+                        Some(member) => decision_line(&member.proposal),
+                        None => format!("a decision that cannot be read ({id})"),
+                    });
+                }
+                format!(
+                    "undo of {}, {} ({target}); applies again: {}",
+                    stored.proposal.target.as_deref().unwrap_or_default(),
+                    stored.proposal.state,
+                    if again.is_empty() {
+                        "nothing".to_owned()
+                    } else {
+                        again.join("; ")
+                    }
+                )
+            }
             Some(stored) => {
                 let p = &stored.proposal;
-                let on = p.idea.as_deref().unwrap_or_else(|| p.subject());
-                format!("{} of {on}, {} ({target})", p.decide, p.state)
+                format!("{}, {} ({target})", decision_line(p), p.state)
             }
             None => format!("a decision that cannot be read ({target})"),
         });

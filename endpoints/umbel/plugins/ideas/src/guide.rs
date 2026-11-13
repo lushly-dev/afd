@@ -16,7 +16,7 @@ pub(crate) const START: &str = "This instance keeps the person's ideas. When the
 To review:\n\
 1. Match held seeds against each other with ideas-match and ids, and read the candidates and bands.\n\
 2. Stage proposals with ideas-review-stage, in groups, each with a one-line reason and honest confidence: affirm what the person said, decline what says nothing, reword what is two ideas or unclear, fold a duplicate into the better wording.\n\
-3. Tell the person what waits, and call ideas-review-apply with part \"*\" and the digest ideas-review-show gives.\n\
+3. Tell the person what waits, and call ideas-review-apply with part \"*\" and the digest ideas-review-show gives. At a terminal a part's preview must fit 6000 characters, some 25 decisions: confirm a group of that size there.\n\
 4. Give the person the page address the refusal holds; once they confirm, send the same call again.\n\
 5. When the person says a decision was wrong, stage an undo of it.";
 
