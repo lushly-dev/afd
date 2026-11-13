@@ -45,6 +45,7 @@ export const testFiles = [
 	'scripts/umbel-components.test.mjs',
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
+	'scripts/release/exec-tool.test.mjs',
 ];
 
 /** Suites that test the release tooling with fixture repositories. */

@@ -1,4 +1,13 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import semver from 'semver';
 import {
@@ -9,6 +18,7 @@ import {
 	planRelease,
 	releaseChannel,
 } from '../release/control.mjs';
+import { tarCommand } from '../release/exec-tool.mjs';
 import { intentFile, readIntent } from './intent.mjs';
 import { dependencyOrder, readPublished, verifyPublished } from './prerequisites.mjs';
 import {
@@ -30,10 +40,11 @@ function verifySeal(plan) {
 	if (hash(JSON.stringify(record)) !== binding) throw new Error('Release plan binding changed');
 }
 export function packedManifest(file) {
-	const listing = run('tar', ['-tzf', file], process.cwd()).trim().split('\n');
+	// Windows' bsdtar ends listing lines with CRLF.
+	const listing = run(tarCommand(), ['-tzf', file], process.cwd()).trim().split(/\r?\n/);
 	if (listing.filter((entry) => entry === 'package/package.json').length !== 1)
 		throw new Error('Archive must contain exactly one package manifest');
-	return JSON.parse(run('tar', ['-xOzf', file, 'package/package.json'], process.cwd()));
+	return JSON.parse(run(tarCommand(), ['-xOzf', file, 'package/package.json'], process.cwd()));
 }
 /** The literal paths a manifest promises: its `files` entries and every file it points to. */
 function promisedPaths(metadata) {
@@ -59,9 +70,9 @@ function promisedPaths(metadata) {
  * the plan exists and before the run claims anything.
  */
 export function assertPackedContents(file, metadata) {
-	const listing = run('tar', ['-tzf', file], process.cwd())
+	const listing = run(tarCommand(), ['-tzf', file], process.cwd())
 		.trim()
-		.split('\n')
+		.split(/\r?\n/)
 		.map((entry) => entry.replace(/^package\//, ''));
 	const { files, targets } = promisedPaths(metadata);
 	const missing = [
@@ -165,14 +176,11 @@ export function packSelected({
 			const destination = join(outputDirectory, String(index));
 			mkdirSync(destination, { recursive: true });
 			pack(directory, destination);
-			const tarballs = run(
-				'find',
-				[destination, '-maxdepth', '1', '-name', '*.tgz', '-type', 'f'],
-				root
-			)
-				.trim()
-				.split('\n')
-				.filter(Boolean);
+			// Regular .tgz files directly in the destination; `find` is a text search on Windows.
+			const tarballs = readdirSync(destination)
+				.filter((name) => name.endsWith('.tgz'))
+				.map((name) => join(destination, name))
+				.filter((path) => lstatSync(path).isFile());
 			if (tarballs.length !== 1)
 				throw new Error(`Expected one packed artifact: ${distribution.name}`);
 			const file = resolve(tarballs[0]);
