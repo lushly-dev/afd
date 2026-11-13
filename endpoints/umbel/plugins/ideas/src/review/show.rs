@@ -176,7 +176,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
     let counts = by_decide(staged.iter().map(|s| s.proposal.decide.as_str()));
     let parts = split(staged);
     let (listed_parts, whole) =
-        listed(cx, call, &parts, true, &mut Ideas::default()).map_err(host)?;
+        listed(cx, call, &parts, true, &mut Ideas::read(cx)?).map_err(host)?;
     let chosen = select(&parts, &part);
     let page: Vec<&Stored> = chosen.iter().skip(start).take(limit).copied().collect();
     let next = (start + page.len() < chosen.len()).then(|| format!("o:{}", start + page.len()));

@@ -4,7 +4,8 @@
 //! `duplicate`, `reword`, `affirm`, `decline`, `undo`, then by idea id (or target id). Parts are
 //! ordered by group name; `"*"` is the whole review, its parts in order.
 //!
-//! The digest of a part is `sha256:` of the canonical JSON of `[proposal id, content hash]` for
+//! The digest of a part is `sha256:` of the canonical JSON of the pack's page settings
+//! (`["page", page_items, page_chars]`, amendment C4-14), then `[proposal id, content hash]` for
 //! each proposal in order, then `[idea id, state, held n, standing, flags]` for every idea a
 //! proposal names, by id, the last two its held wording's (amendment C4-10). A proposal staged,
 //! replaced or unstaged, an idea folded, declined or reworded, or a named wording's standing or
@@ -18,6 +19,7 @@ use umbel_sdk::{Cx, HostError, Outcome};
 use umbel_store::{ContentHash, canonical_json};
 
 use super::{Stored, by_decide, rank};
+use crate::pack::{Limits, Pack};
 use crate::records::{WORDING, read, read_idea};
 use crate::{Call, fail};
 
@@ -31,14 +33,31 @@ pub(crate) struct Part {
     pub(crate) items: Vec<Stored>,
 }
 
-/// The ideas a digest reads, each read once a call: its entry, `[id, state, held, standing,
-/// flags]`, with `null`s for what cannot be read.
-#[derive(Debug, Default)]
-pub(crate) struct Ideas(BTreeMap<String, Value>);
+/// What a digest reads beside the proposals: the pack's page settings, `["page", page_items,
+/// page_chars]`, which place the page breaks (amendment C4-14); and the ideas, each read once a
+/// call: its entry, `[id, state, held, standing, flags]`, with `null`s for what cannot be read.
+#[derive(Debug)]
+pub(crate) struct Ideas {
+    page: Value,
+    seen: BTreeMap<String, Value>,
+}
 
 impl Ideas {
+    /// For a call that has read the pack.
+    pub(crate) fn of(limits: &Limits) -> Self {
+        Self {
+            page: json!(["page", limits.page_items, limits.page_chars]),
+            seen: BTreeMap::new(),
+        }
+    }
+
+    /// For a call that has not.
+    pub(crate) fn read(cx: &Cx) -> Result<Self, Outcome> {
+        Ok(Self::of(&Pack::read(cx)?.limits))
+    }
+
     fn get(&mut self, cx: &Cx, call: &Call, id: &str) -> Result<Value, HostError> {
-        if let Some(entry) = self.0.get(id) {
+        if let Some(entry) = self.seen.get(id) {
             return Ok(entry.clone());
         }
         let entry = match read_idea(cx, call, id)? {
@@ -56,7 +75,7 @@ impl Ideas {
             }
             None => json!([id, null, null, null, null]),
         };
-        self.0.insert(id.to_owned(), entry.clone());
+        self.seen.insert(id.to_owned(), entry.clone());
         Ok(entry)
     }
 }
@@ -106,10 +125,12 @@ pub(crate) fn digest(
     items: &[&Stored],
     ideas: &mut Ideas,
 ) -> Result<String, HostError> {
-    let mut entries: Vec<Value> = items
-        .iter()
-        .map(|stored| json!([stored.proposal.id, stored.hash.as_str()]))
-        .collect();
+    let mut entries: Vec<Value> = vec![ideas.page.clone()];
+    entries.extend(
+        items
+            .iter()
+            .map(|stored| json!([stored.proposal.id, stored.hash.as_str()])),
+    );
     let named: BTreeSet<&str> = items
         .iter()
         .flat_map(|stored| {
@@ -204,8 +225,9 @@ pub(crate) fn confirmed(
     review: &str,
     part: &str,
     digest_given: &str,
-    part_max: u64,
+    limits: &Limits,
 ) -> Result<Vec<Stored>, Outcome> {
+    let part_max = limits.part_max;
     let host = |error: HostError| fail::host(&error);
     let readable = crate::ids::is_id(review, crate::records::REVIEW_PREFIX)
         && super::read_review(cx, call, review)
@@ -221,7 +243,7 @@ pub(crate) fn confirmed(
         return Err(fail::whole_too_large(items.len(), part_max));
     }
     let refs: Vec<&Stored> = items.iter().collect();
-    let found = digest(cx, call, &refs, &mut Ideas::default()).map_err(host)?;
+    let found = digest(cx, call, &refs, &mut Ideas::of(limits)).map_err(host)?;
     if found != digest_given {
         return Err(fail::part_changed());
     }

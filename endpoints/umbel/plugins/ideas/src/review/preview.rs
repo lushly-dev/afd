@@ -328,7 +328,7 @@ fn paged(
 pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcome> {
     let pack = Pack::read(cx)?;
     let (review, part, digest) = decision_input(input)?;
-    let items = confirmed(cx, call, &review, &part, &digest, pack.limits.part_max)?;
+    let items = confirmed(cx, call, &review, &part, &digest, &pack.limits)?;
     if let Some(asked) = cx.call().preview_page {
         return paged(cx, call, &review, &part, &items, asked, &pack.limits);
     }
