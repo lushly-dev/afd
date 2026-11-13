@@ -25,6 +25,7 @@ import { createFixedEnvironment } from '../session.js';
 import { documentsDeployment, documentsPorts, replayKernel } from '../testing.js';
 import type { KernelEventV3, KernelPortsV1, LoamKernelV3 } from '../types.js';
 import { emptyEditorState } from './editor-state.js';
+import { HUMAN_COMMANDS, PROVIDER_COMMANDS } from './identity-commands.js';
 import {
 	emptyEditor,
 	MAX_TIMER_DELAY_MS,
@@ -516,8 +517,13 @@ describe('P3-E4: the listener and the settles (4.4)', () => {
 		expect(made.kernel.agent.listCommands().some((row) => row.name === 'session-settle')).toBe(
 			false
 		);
-		const served = made.mcpOptions()?.commands.map((command) => command.name);
+		const served = made.mcpOptions()?.commands.map((command) => command.name) ?? [];
 		expect(served).not.toContain('session-settle');
+		// Nor any human command (3.4, I2), though the kernel registers step 3's.
+		const registered = made.kernel.listCommands().map((row) => row.name);
+		for (const name of PROVIDER_COMMANDS) expect(registered, name).toContain(name);
+		for (const name of HUMAN_COMMANDS) expect(served, name).not.toContain(name);
+		expect(served.length).toBeGreaterThan(0);
 		expect((await made.kernel.appPort('dual').call('session-settle', input)).success).toBe(false);
 	});
 

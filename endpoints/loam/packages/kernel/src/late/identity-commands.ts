@@ -429,11 +429,12 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 			} as ZodCommandDefinition;
 		},
 		/**
-		 * `HUMAN_REQUIRED` (3.4, 15): a human command through the agent interface, journaled. The owner commands join
-		 * the list with step 4, which builds them and `OWNER_COMMANDS`.
+		 * `HUMAN_REQUIRED` (3.4, 15): a human command on any interface but the palette's, which the chrome and the
+		 * person's own calls use, journaled: the agent interface, and an MCP server should one ever serve it. The owner
+		 * commands join the list with step 4, which builds them and `OWNER_COMMANDS`.
 		 */
 		humanRequired(call: CommandContext, name: string): CommandResult<never> | undefined {
-			if (call.interface !== 'agent' || !HUMAN_COMMANDS.includes(name)) return undefined;
+			if (call.interface === 'palette' || !HUMAN_COMMANDS.includes(name)) return undefined;
 			return kit.kernelFailure(
 				'HUMAN_REQUIRED',
 				`'${name}' changes or lists what only the person may, so an agent cannot run it`,

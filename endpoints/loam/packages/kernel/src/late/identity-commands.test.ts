@@ -4,7 +4,7 @@
  * the membership a sign-in brings, and step 2's three follow-ups. E1's, E3's and E4's rows carry their ids.
  */
 
-import type { AuthAdapter, User } from '@lushly-dev/afd-auth';
+import { type AuthAdapter, MockAuthAdapter, type User } from '@lushly-dev/afd-auth';
 import type { JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
@@ -20,7 +20,8 @@ import {
 import { documentsDeployment, documentsPorts, replayKernel } from '../testing.js';
 import type { LoamKernelV3 } from '../types.js';
 import { SIGNED_OUT_COMMANDS } from './auth-gate.js';
-import { PROVIDER_COMMANDS } from './identity-commands.js';
+import { DOCUMENT_KIT } from './document-kit.js';
+import { createIdentityCommands, HUMAN_COMMANDS, PROVIDER_COMMANDS } from './identity-commands.js';
 import { MEMBERSHIP_READ_TIMEOUT_MS, type SessionSettleInputV1 } from './session-settle.js';
 
 const BEA = 'mock-user-bea@example.com';
@@ -217,6 +218,21 @@ describe('P3-E1: HUMAN_REQUIRED (3.4)', () => {
 			}
 		}
 	});
+	it('P3-E1: refuses a human command on every interface but the palette, an MCP server included (I2)', () => {
+		const commands = createIdentityCommands({
+			auth: new MockAuthAdapter(),
+			identity: PROVIDER,
+			kit: DOCUMENT_KIT,
+		});
+		for (const name of HUMAN_COMMANDS) {
+			for (const iface of ['agent', 'mcp', 'cli', undefined]) {
+				const refused = commands.humanRequired({ interface: iface } as never, name);
+				expect(refused?.error?.code, `${name} on ${iface}`).toBe('HUMAN_REQUIRED');
+			}
+			expect(commands.humanRequired({ interface: 'palette' } as never, name)).toBeUndefined();
+		}
+		expect(commands.humanRequired({ interface: 'mcp' } as never, 'layout-get')).toBeUndefined();
+	});
 });
 
 describe('P3-E1: signed out in `provider` mode (2.1, 4.5)', () => {
@@ -283,6 +299,38 @@ describe('P3-E4: the membership a sign-in brings (4.4, 7.6)', () => {
 				reason: 'tab',
 			})
 		);
+		finish({ status: 'unauthenticated' });
+		await waiting;
+	});
+
+	it('P3-E4: only a passkey call is an autofill: another method that says `autoFill` holds the change as its own (N1; the input schema strips `autoFill` there first, and the scope checks the method as well)', async () => {
+		const made = await provider();
+		let started = false;
+		let finish: (value: unknown) => void = () => {};
+		made.auth.signIn = (() => {
+			started = true;
+			return new Promise((resolve) => {
+				finish = resolve as (value: unknown) => void;
+			});
+		}) as typeof made.auth.signIn;
+		const waiting = made.kernel.call('auth-sign-in', {
+			method: 'credentials',
+			email: 'bea@example.com',
+			password: 'x',
+			autoFill: true,
+		});
+		await vi.waitFor(() => expect(started).toBe(true));
+		made.auth._setUser(user(BEA));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		// The sign-in in progress settles the change inside itself (4.4); the listener leaves it.
+		expect(
+			(await journalOf(made)).some(
+				(entry) =>
+					entry.command === 'session-settle' &&
+					(entry.input as { reason?: string }).reason === 'tab' &&
+					(entry.input as { person?: string }).person === BEA
+			)
+		).toBe(false);
 		finish({ status: 'unauthenticated' });
 		await waiting;
 	});
@@ -454,28 +502,32 @@ describe('P3-E4: a held draft makes `beforeunload` ask (4.5)', () => {
 		const page = new EventTarget();
 		vi.stubGlobal('addEventListener', page.addEventListener.bind(page));
 		vi.stubGlobal('removeEventListener', page.removeEventListener.bind(page));
-		const made = await provider({ deployment: documentsDeployment(), ports: documentsPorts() });
-		await signIn(made.kernel, 'bea@example.com');
-		const asks = () => {
-			const event = new Event('beforeunload', { cancelable: true });
-			page.dispatchEvent(event);
-			return event.defaultPrevented;
-		};
-		expect(asks()).toBe(false);
-		const opened = await made.kernel.call<{ tab: string }>('document-create', {
-			type: 'probe',
-			title: 'Draft',
-		});
-		expect(opened.success, JSON.stringify(opened.error)).toBe(true);
-		const document = (opened.data as unknown as { id: string }).id;
-		expect((await made.kernel.call('document-open', { document })).success).toBe(true);
-		const editor = await made.kernel.call<{ groups: { tabs: { id: string }[] }[] }>('editor-get');
-		const tab = editor.data?.groups[0]?.tabs[0]?.id as string;
-		expect((await made.kernel.call('editor-dirty-set', { tab, dirty: true })).success).toBe(true);
-		await made.kernel.call('auth-sign-out');
-		expect(asks()).toBe(true);
-		await signIn(made.kernel, 'bea@example.com');
-		expect(asks()).toBe(false);
-		vi.unstubAllGlobals();
+		try {
+			const made = await provider({ deployment: documentsDeployment(), ports: documentsPorts() });
+			await signIn(made.kernel, 'bea@example.com');
+			const asks = () => {
+				const event = new Event('beforeunload', { cancelable: true });
+				page.dispatchEvent(event);
+				return event.defaultPrevented;
+			};
+			expect(asks()).toBe(false);
+			const opened = await made.kernel.call<{ tab: string }>('document-create', {
+				type: 'probe',
+				title: 'Draft',
+			});
+			expect(opened.success, JSON.stringify(opened.error)).toBe(true);
+			const document = (opened.data as unknown as { id: string }).id;
+			expect((await made.kernel.call('document-open', { document })).success).toBe(true);
+			const editor = await made.kernel.call<{ groups: { tabs: { id: string }[] }[] }>('editor-get');
+			const tab = editor.data?.groups[0]?.tabs[0]?.id as string;
+			expect((await made.kernel.call('editor-dirty-set', { tab, dirty: true })).success).toBe(true);
+			await made.kernel.call('auth-sign-out');
+			expect(asks()).toBe(true);
+			await signIn(made.kernel, 'bea@example.com');
+			expect(asks()).toBe(false);
+		} finally {
+			// Never left stubbed for the next test, whatever this one's assertions did.
+			vi.unstubAllGlobals();
+		}
 	});
 });

@@ -70,12 +70,16 @@ export class DeferredAuthAdapter implements AuthAdapter {
 	readonly sessions: NonNullable<AuthAdapter['sessions']>;
 	readonly passkeys: NonNullable<AuthAdapter['passkeys']>;
 
+	/**
+	 * `load` reads the state through `current` when it builds the real adapter, not when the load starts: a probe that
+	 * answers while the `auth` chunk loads is then where the real adapter starts (the review of step 3's N2).
+	 */
 	constructor(
 		initial: AuthSessionState,
-		load: (initial: AuthSessionState) => Promise<AuthAdapter>
+		load: (current: () => AuthSessionState) => Promise<AuthAdapter>
 	) {
 		this.#state = initial;
-		this.#load = () => load(this.#state);
+		this.#load = () => load(() => this.#state);
 		// Each capability's method awaits the real adapter, then calls its own.
 		const later = <T extends object>(name: 'sessions' | 'passkeys', methods: string[]) =>
 			Object.fromEntries(
@@ -158,7 +162,7 @@ export interface ProviderIdentity {
  */
 export async function probeIdentity(
 	url: string | undefined,
-	load: (initial: AuthSessionState, identity: ProviderIdentity) => Promise<AuthAdapter>
+	load: (current: () => AuthSessionState, identity: ProviderIdentity) => Promise<AuthAdapter>
 ): Promise<ProviderIdentity> {
 	let last = SIGNED_OUT;
 	const watchers = new Set<() => void>();
@@ -175,8 +179,8 @@ export async function probeIdentity(
 		new Promise<undefined>((resolve) => setTimeout(resolve, PROBE_WAIT_MS)),
 	]);
 	const identity: ProviderIdentity = {
-		adapter: new DeferredAuthAdapter((first ?? SIGNED_OUT).state, (initial) =>
-			load(initial, identity)
+		adapter: new DeferredAuthAdapter((first ?? SIGNED_OUT).state, (current) =>
+			load(current, identity)
 		),
 		membership: {
 			mode: 'provider',
@@ -186,9 +190,19 @@ export async function probeIdentity(
 			digest: first?.membership?.digest ?? '',
 		},
 		ports: {
+			/**
+			 * The membership of the person the session holds, or a failure: `whoami` reads the cookie, which another tab's
+			 * sign-in may already have changed while this tab's adapter has not heard (the review of step 3's I1). A
+			 * failed read is the kernel's to retry, and never decides as the wrong person.
+			 */
 			async readMembership() {
 				const read = await whoami();
-				return read.state.user ? read.membership : null;
+				const held = identity.adapter.getSession();
+				const holder = held.status === 'authenticated' ? held.user.id : null;
+				const answered = read.state.status === 'authenticated' ? read.state.user.id : null;
+				if (answered !== holder)
+					throw new Error('whoami answered for another person than the session holds');
+				return answered ? read.membership : null;
 			},
 			watchMembership(listener) {
 				watchers.add(listener);

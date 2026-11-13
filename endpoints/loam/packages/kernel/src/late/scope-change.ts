@@ -364,7 +364,8 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			const chained = documents?.chained(name, input);
 			// An `auth-*` call settles inside itself (phase 3 specification, 4.4). A passkey autofill waits for as long as
 			// the page offers it, with no end the person sees, so the adapter's listener settles what it brings instead.
-			const autofill = (input as { autoFill?: unknown } | null)?.autoFill === true;
+			const asked = input as { method?: unknown; autoFill?: unknown } | null;
+			const autofill = asked?.method === 'passkey' && asked.autoFill === true;
 			const auth = name.startsWith('auth-') && !autofill ? session : undefined;
 			auth?.authStart();
 			let result: CommandResult | undefined;

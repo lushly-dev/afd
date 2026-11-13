@@ -235,7 +235,7 @@ export async function createLateParts(
 	const [
 		{ createDocumentCommands, trashBefore },
 		{ createEditorParts },
-		{ createSessionSettle, createIdentityCommands, PROVIDER_COMMANDS },
+		{ createSessionSettle, createIdentityCommands, HUMAN_COMMANDS, PROVIDER_COMMANDS },
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -459,10 +459,13 @@ export async function createLateParts(
 			}),
 		mcpOptions: ({ commands, middleware }, listeners) => ({
 			// A server holds no active scope and no person's session (3.3), so the commands that move them
-			// are not served: a person's calls make them.
+			// are not served: a person's calls make them. Nor are the human commands, which only a person runs
+			// (3.4: "not served over MCP means left out of `mcpOptions().commands`").
 			commands: commands.filter(
 				(command) =>
-					!INTERNAL_COMMANDS.includes(command.name) && !PERSON_SESSION.includes(command.name)
+					!INTERNAL_COMMANDS.includes(command.name) &&
+					!PERSON_SESSION.includes(command.name) &&
+					!HUMAN_COMMANDS.includes(command.name)
 			),
 			middleware: [
 				async (command, _input, context, next) => {

@@ -74,9 +74,10 @@ async function boot(): Promise<void> {
 			: undefined;
 		const held = await probeIdentity(
 			authBase && `${authBase}/loam/whoami`,
-			async (initial, from) => {
+			async (current, from) => {
 				if (!authBase) throw new Error('This deployment names no provider path Loam can use');
-				return (await import('./auth.js')).createProviderAdapter(authBase, initial, from);
+				const { createProviderAdapter } = await import('./auth.js');
+				return createProviderAdapter(authBase, current(), from);
 			}
 		);
 		provider = held;
