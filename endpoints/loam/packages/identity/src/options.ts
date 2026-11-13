@@ -97,6 +97,10 @@ export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
 	// Account deletion is a follow-up with its retention rule (Follow-ups).
 	'/delete-user',
 	'/delete-user/callback',
+	// Better Auth's leave deletes the member without the organization hooks, so it neither revokes the leaver's
+	// sessions nor runs Loam's last-owner check (7.5). Loam's own leave endpoint, with both, comes with
+	// `member-leave` (phase 6's A4); until then a member leaves by being removed (the re-check of step 3's NEW-5).
+	'/organization/leave',
 ]);
 
 export { FRESH_AGE_SECONDS };

@@ -174,11 +174,12 @@ describe("P3-E6: owners and the provider's own endpoints (step 1)", () => {
 		expect(['MEMBER_LAST_OWNER', 'YOU_CANNOT_LEAVE_THE_ORGANIZATION_WITHOUT_AN_OWNER']).toContain(
 			codeOf(self)
 		);
+		// Better Auth's own leave is not served (5.8): it would skip the last-owner check and the revocation (7.5).
 		const leave = await call('/organization/leave', {
 			cookie: olu,
 			body: { organizationId: host.organizationId },
 		});
-		expect(leave.status).toBe(400);
+		expect(leave.status).toBe(404);
 		const member = await call('/organization/update-member-role', {
 			cookie: await signIn('bea@example.com'),
 			body: {

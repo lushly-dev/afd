@@ -310,6 +310,29 @@ describe('P3-E1: 5.8 at the provider, by direct requests (D99)', () => {
 		expect(JSON.stringify(got.body)).not.toContain(rowOf(cookie).token);
 	});
 
+	it("serves no leave of Better Auth's, which skips the revocation and the last-owner check (NEW-5)", async () => {
+		const leaving = await signIn('dee@example.com');
+		const elsewhere = await signIn('dee@example.com');
+		const before = (await call('/loam/whoami', { cookie: elsewhere })).body as {
+			membership: { role: string } | null;
+		};
+		expect(before.membership?.role).toBe('member');
+		for (const path of ['/organization/leave', '/organization/leave/']) {
+			const answer = await call(path, {
+				cookie: leaving,
+				body: { organizationId: provider.organizationId },
+			});
+			expect(answer.status, path).toBe(404);
+		}
+		// Still a member, and every session as it was.
+		for (const cookie of [leaving, elsewhere]) {
+			const after = (await call('/loam/whoami', { cookie })).body as {
+				membership: { role: string } | null;
+			} | null;
+			expect(after?.membership?.role).toBe('member');
+		}
+	});
+
 	it('serves no value of a disabled path with a parameter, as /reset-password/<token> (NEW-4)', async () => {
 		for (const path of [
 			'/reset-password/abc',
