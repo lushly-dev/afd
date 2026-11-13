@@ -138,16 +138,15 @@ async fn twenty_components_are_briefed_in_one_call_inside_the_default_budget() {
     );
 }
 
-/// Criterion 2, measured. For each page of step 0.1's set: the brief at the default budget, the
-/// whole brief (the largest budget a call can ask for), and `detail: "api"`, against half of the
-/// same components' declarations. The criterion as written does NOT hold on FAST-AF's real pack
-/// (step C4's record in the Component Briefs status; the owner decides how it is reset or met):
-/// a whole brief is 82 % to 110 % of the declarations (three of four still shedding examples at
-/// 96 000 bytes), and `console`'s brief at the default
-/// budget is over half. What does hold, and is held here: the API alone is at most half on every
-/// page, and no brief is larger than the call's budget.
+/// Criterion 2, as the owner reset it on 2026-11-13: for each page of step 0.1's set, a default
+/// brief is smaller than the same components' declarations, and the API alone (`detail: "api"`) is
+/// at most half of them. The default brief is measured whole, at the largest budget a call can ask
+/// for, where nothing is shed to fit (it leaves out only what plugin specification A24 leaves out
+/// of every default brief), and at the default budget, which can only be smaller. The proposal's
+/// first target, a default brief at most half, does not hold on FAST-AF's real pack (step C4's
+/// record in the Component Briefs status) and is printed, not asserted.
 #[tokio::test]
-async fn each_page_s_brief_is_measured_against_half_of_its_declarations() {
+async fn each_page_s_brief_is_smaller_than_its_declarations() {
     let fx = fast_af_host().await;
     for (page, declarations, requested) in pages() {
         let target = declarations / 2;
@@ -173,6 +172,20 @@ async fn each_page_s_brief_is_measured_against_half_of_its_declarations() {
             requested.len(),
             data(&default)["omitted"],
             data(&whole)["omitted"],
+        );
+        assert_eq!(
+            data(&whole)["omitted"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|entry| entry["reason"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["detail"],
+            "{page}: the whole brief shed something to fit"
+        );
+        assert!(
+            whole_used < declarations,
+            "{page}: the whole brief, {whole_used}, is not smaller than {declarations}"
         );
         assert!(
             api_used <= target,

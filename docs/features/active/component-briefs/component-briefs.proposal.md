@@ -6,7 +6,9 @@ Umbel plugin serves it in batches.
 
 ## Status
 
-- **State:** active, with phase 0 and steps A1 and A2 done.
+- **State:** active, with phases 0 to C done and phase D deferred
+  (2026-11-13; [STATUS.md](STATUS.md) has the exact state). The rest of
+  this block is as of step A2.
   Written 2026-11-09 against `main` at `cfb70942`, and revised the same day
   after the author's own review, two independent reviews (each: revise) and a
   focused check of the fixes. Step A1 put the pack format's version 0 in
@@ -601,8 +603,11 @@ test or record:
    since it adds the rules the public API lacks. What it replaces in
    practice is reading source and stories, and criterion 10 measures that.
    (Step C4, 2026-11-11: this does not hold on FAST-AF's real pack; the
-   [status](STATUS.md#what-step-c4-found) has the numbers and the owner's
-   options.)
+   [status](STATUS.md#what-step-c4-found) has the numbers. **Reset by the
+   owner on 2026-11-13:** for each page of the baseline, a default brief is
+   smaller than the same components' declarations, and the API alone is at
+   most half. It holds: 76 % to 93 % and 33 % to 37 %
+   ([status](STATUS.md#phase-cs-exit)).)
 3. **It still answers.** A committed fact fixture, about 40 questions with
    the JSON value that answers each (for example: the allowed values of
    `violet-button`'s `appearance`; the role `violet-combobox` exposes), plus
@@ -631,8 +636,10 @@ test or record:
     (Step C5, 2026-11-12: criterion 9 holds, though agents called the brief
     only when the task named it; criterion 10 holds against the prototype's
     arm c and does not reproduce its margin over today's route. The
-    [status](STATUS.md#what-step-c5-found) has the numbers and what is the
-    owner's.)
+    [status](STATUS.md#what-step-c5-found) has the numbers. **Counted as
+    met by the owner on 2026-11-13,** with a smaller default brief: as good
+    as today's route and 15.8 % cheaper, under step 0.1's 20 %, which the
+    [status](STATUS.md#phase-cs-exit) records as its caveat.)
 
 Criteria 1 to 8 are deterministic tests. Criteria 9 and 10 are records: a
 model's run is not repeatable, so each task runs several times and the
