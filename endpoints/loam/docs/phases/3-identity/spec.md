@@ -908,7 +908,7 @@ The provider is the authorization server: `oauthProvider` with the JWT plugin an
 
 ## 13. Budgets
 
-Against phase 2's [2.4](../2-scope-projects/spec.md#24-the-budget-and-the-rule): first paint is 286,084 bytes and 88,196 gzip of 300,000 and 91,000. **2.4's rule stands: a step that adds first-paint code first moves code out, or takes an allowance the coordinator approved.** The coordinator checked the per-step allowances below and approved them on 2026-11-09, after the re-check of `cfabbb2d`. Account UI, passkey code and the provider's client are lazy.
+Against phase 2's [2.4](../2-scope-projects/spec.md#24-the-budget-and-the-rule): first paint is 286,084 bytes and 88,196 gzip of 300,000 and 91,000. **2.4's rule stands: a step that adds first-paint code first moves code out, or takes an allowance the coordinator approved.** **Amended by D115 (owner, 2026-11-13):** for the rest of the epic, a step that needs more than its allowance below, or more than the ceiling, raises it in its own pull request and records the figures and the reason in Status, with no approval first; the independent review flags growth out of proportion. The coordinator checked the per-step allowances below and approved them on 2026-11-09, after the re-check of `cfabbb2d`. Account UI, passkey code and the provider's client are lazy.
 
 | Step | First-paint parts | Allowance (bytes, gzip) |
 | --- | --- | --- |
