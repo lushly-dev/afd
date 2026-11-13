@@ -8,6 +8,7 @@
 //! is written in the same transaction as the bytes it is read from.
 
 mod derived;
+mod parts;
 mod read;
 mod schema;
 mod sync;
@@ -264,7 +265,7 @@ pub struct BatchOutcome {
 pub struct MailboxCounts {
     /// Messages the mailbox currently shows whose headers are held.
     pub headers_held: u64,
-    /// Of those, the ones held whole.
+    /// Of those, the ones held whole, or in parts (M20).
     pub bodies_held: u64,
     /// Listed messages that have not arrived and are still tried each pass.
     pub awaited: u64,
@@ -280,7 +281,7 @@ pub const UNRETURNED_AFTER_TRIES: u32 = 3;
 
 /// The longest header block or message the store will read back from the log.
 /// A provider's largest message is far below it.
-const READ_LIMIT: u64 = 256 * 1024 * 1024;
+pub const READ_LIMIT: u64 = 256 * 1024 * 1024;
 
 /// The open store. One process at a time holds it.
 #[derive(Debug)]
@@ -556,8 +557,8 @@ impl Store {
     /// Records bytes fetched for messages, all or none: the whole of a
     /// message, a text part, or an attachment someone opened. The files are
     /// on the disk before any row says they are held. A message that arrives
-    /// whole has its snippet, its parts and its text derived in the same
-    /// transaction.
+    /// whole, or a message held in parts that gains one, has its snippet, its
+    /// parts and its text derived in the same transaction.
     ///
     /// A part already held with the same bytes is left as it is. One held
     /// with other bytes is refused: a message's identity fixes its bytes, so
@@ -577,12 +578,16 @@ impl Store {
                 return Err(StoreError::BadPlace);
             }
         }
+        // A message held in parts that gains one is read before the
+        // transaction opens, with the part in its place.
+        let mut gaining = self.bodies_gaining(parts)?;
         let bytes: Vec<&[u8]> = parts.iter().map(|part| part.bytes).collect();
         let blobs = self.log.put_all(&bytes)?;
         self.log.make_durable(&blobs)?;
         self.ensure_index()?;
         let transaction = self.connection.transaction()?;
         let mut touched = derived::Touched::new(derived::rebuild_cursor(&transaction)?);
+        let mut gained = Vec::new();
         for (part, blob) in parts.iter().zip(&blobs) {
             let exists: Option<i64> = transaction
                 .one(
@@ -630,8 +635,17 @@ impl Store {
                             derive::body_fields(part.bytes),
                             &mut touched,
                         )?;
+                    } else if part.place != Place::Whole {
+                        gained.push(part.message.0);
                     }
                 }
+            }
+        }
+        for message in gained {
+            if let Some(body) = gaining.remove(&message)
+                && !touched.awaits_rebuild(message)
+            {
+                derived::derive_body(&transaction, message, body, &mut touched)?;
             }
         }
         derived::settle(&transaction, &touched, now)?;
@@ -771,8 +785,12 @@ impl Store {
     pub fn mailbox_counts(&self, mailbox: MailboxId) -> Result<MailboxCounts, StoreError> {
         let (headers_held, bodies_held) = self.connection.query_row(
             "SELECT count(*),
-                    count((SELECT 1 FROM held
-                           WHERE held.message_id = observation.message_id AND part = 'whole'))
+                    count(*) FILTER (WHERE EXISTS (SELECT 1 FROM held
+                                                   WHERE held.message_id = observation.message_id
+                                                     AND part = 'whole')
+                                        OR EXISTS (SELECT 1 FROM structure
+                                                   WHERE structure.message_id =
+                                                         observation.message_id))
              FROM observation WHERE mailbox_id = ?1 AND ended_at IS NULL",
             [mailbox.0],
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),

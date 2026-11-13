@@ -30,6 +30,9 @@ pub struct MessageListed {
     pub size: u64,
     /// Whether the whole message is held.
     pub held_whole: bool,
+    /// Whether it is held in parts: its structure and its text, with its
+    /// files fetched when someone opens them (M20).
+    pub held_in_parts: bool,
     /// Why it could not be read, in the engine's words.
     pub unparsed: Option<String>,
     /// The evidence the store keeps for it.
@@ -123,6 +126,7 @@ const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
     envelope.attachments, message.reported_size,
     EXISTS (SELECT 1 FROM held WHERE held.message_id = envelope.message_id
             AND held.part = 'whole'),
+    EXISTS (SELECT 1 FROM structure WHERE structure.message_id = envelope.message_id),
     envelope.unparsed, envelope.list_id, envelope.unsubscribe, envelope.precedence,
     envelope.auto_submitted, envelope.reply_to_differs, envelope.auth_server,
     envelope.auth_spf, envelope.auth_dkim, envelope.auth_dmarc, envelope.hidden_chars,
@@ -131,8 +135,8 @@ const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
      AND part.type_differs = 1)";
 
 fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
-    let precedence: String = row.get(13)?;
-    let auto_submitted: String = row.get(14)?;
+    let precedence: String = row.get(14)?;
+    let auto_submitted: String = row.get(15)?;
     Ok(MessageListed {
         message: MessageId(row.get(0)?),
         thread: ThreadId(row.get(1)?),
@@ -144,19 +148,20 @@ fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
         attachments: count(row.get(7)?),
         size: count(row.get(8)?),
         held_whole: row.get(9)?,
-        unparsed: row.get(10)?,
+        held_in_parts: row.get(10)?,
+        unparsed: row.get(11)?,
         evidence: Evidence {
-            list: !row.get::<_, String>(11)?.is_empty(),
-            unsubscribe: row.get(12)?,
+            list: !row.get::<_, String>(12)?.is_empty(),
+            unsubscribe: row.get(13)?,
             bulk: matches!(precedence.as_str(), "bulk" | "list" | "junk")
                 || !auto_submitted.is_empty(),
-            reply_to_differs: row.get(15)?,
-            auth_server: row.get(16)?,
-            auth: [row.get(17)?, row.get(18)?, row.get(19)?],
-            hidden_chars: count(row.get(20)?),
-            links: count(row.get(21)?),
-            mismatched_links: count(row.get(22)?),
-            files_differing: count(row.get(23)?),
+            reply_to_differs: row.get(16)?,
+            auth_server: row.get(17)?,
+            auth: [row.get(18)?, row.get(19)?, row.get(20)?],
+            hidden_chars: count(row.get(21)?),
+            links: count(row.get(22)?),
+            mismatched_links: count(row.get(23)?),
+            files_differing: count(row.get(24)?),
         },
     })
 }

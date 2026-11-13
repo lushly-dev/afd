@@ -18,6 +18,7 @@ pub mod home;
 pub mod html;
 pub mod index;
 pub mod log;
+pub mod parts;
 pub mod provider;
 pub mod read;
 pub mod rules;

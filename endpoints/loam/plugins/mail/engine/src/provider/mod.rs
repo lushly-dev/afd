@@ -11,6 +11,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 
+use crate::parts::Structure;
 use crate::store::{AccountRow, HeaderSeen, Role};
 
 /// Why a provider refused. The words are the engine's own: never text from
@@ -31,6 +32,10 @@ pub enum ProviderError {
     Refused(&'static str),
     /// The provider said something the engine cannot read.
     Protocol(&'static str),
+    /// The provider's reply nests deeper than the engine reads: what a
+    /// message's own structure can make it. The connection is closed; the
+    /// same request would fail the same way.
+    TooDeep,
 }
 
 impl ProviderError {
@@ -50,6 +55,7 @@ impl fmt::Display for ProviderError {
             Self::Unavailable(what) => write!(f, "the provider could not be reached: {what}"),
             Self::Refused(what) => write!(f, "the provider refused: {what}"),
             Self::Protocol(what) => write!(f, "the provider's reply could not be read: {what}"),
+            Self::TooDeep => write!(f, "the provider's reply nests deeper than the engine reads"),
         }
     }
 }
@@ -136,6 +142,16 @@ pub struct Fetched {
     pub bytes: Vec<u8>,
 }
 
+/// The bytes of one part of a message, as the provider returned them: its
+/// body, still in its transfer encoding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartFetched {
+    /// The part's place, such as `1.2`.
+    pub place: String,
+    /// The bytes.
+    pub bytes: Vec<u8>,
+}
+
 /// One connection to an account's provider. A mailbox is opened, and the
 /// operations after it act on that mailbox.
 #[async_trait]
@@ -162,6 +178,19 @@ pub trait Provider: Send {
 
     /// The whole of each message `ids` names, with the same rule.
     async fn messages(&mut self, ids: &[String]) -> Result<Vec<Fetched>, ProviderError>;
+
+    /// The MIME structure of the message `id` names, or `None` when the
+    /// provider does not return it (the specification's M20).
+    /// [`ProviderError::TooDeep`] when it nests deeper than the engine reads.
+    async fn structure(&mut self, id: &str) -> Result<Option<Structure>, ProviderError>;
+
+    /// The parts of one message at `places`. A part the provider does not
+    /// return is left out.
+    async fn parts(
+        &mut self,
+        id: &str,
+        places: &[String],
+    ) -> Result<Vec<PartFetched>, ProviderError>;
 
     /// Ends the connection politely. Failing to is not an error.
     async fn close(&mut self);

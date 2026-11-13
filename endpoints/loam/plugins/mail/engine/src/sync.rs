@@ -13,8 +13,9 @@
 //!   hour; after three it no longer holds the mailbox back (5.4). It is tried
 //!   again each pass until then, weekly after, and whenever the mailbox is
 //!   listed in full.
-//! - **Bodies** of messages of 1 MiB or less are fetched whole, except in the
-//!   junk and trash mailboxes (M20, 5.3).
+//! - **Bodies** of messages of 1 MiB or less are fetched whole; a larger one
+//!   is fetched in parts, as its structure and the parts that hold its text.
+//!   Neither in the junk and trash mailboxes (M20, 5.3).
 //! - **A damaged file** a read reported is fetched again; storing the same
 //!   bytes repairs it (4.1).
 //! - **A dropped connection** is opened again with backoff, and the step
@@ -29,6 +30,7 @@ use std::time::Duration;
 use afd::Clock;
 
 use crate::engine::Engine;
+use crate::parts;
 use crate::provider::{Connector, Gone, Provider, ProviderError, Since};
 use crate::store::{
     AccountRow, MailboxId, MailboxRow, MessageId, PartSeen, Place, Refetch, Refetched, Role,
@@ -164,7 +166,8 @@ enum Stage {
         queue: VecDeque<String>,
         cursor: String,
     },
-    /// Whole messages to fetch, newest first.
+    /// Bodies to fetch, newest first: whole, or in parts for a message over
+    /// [`Options::whole_limit`].
     Bodies {
         queue: VecDeque<(String, MessageId, u64)>,
     },
@@ -356,6 +359,9 @@ impl From<ProviderError> for Failure {
             }
             ProviderError::Refused(_) => Self::Mailbox(error),
             ProviderError::Unavailable(_) | ProviderError::Protocol(_) => Self::Again(error),
+            // Another request would get the same reply: the batch is
+            // narrowed, and a message that keeps failing is passed over.
+            ProviderError::TooDeep => Self::Batch(error),
         }
     }
 }
@@ -507,7 +513,7 @@ async fn step(
     loop {
         match &plan.stage {
             Stage::Headers { queue, .. } if queue.is_empty() => {
-                finish_headers(engine, plan, options, clock)?;
+                finish_headers(engine, plan, clock)?;
             }
             Stage::Bodies { queue } if queue.is_empty() => {
                 let (mailbox, validity) = (plan.row.id, plan.validity.clone());
@@ -678,12 +684,7 @@ fn due(tried: &Tried, now: i64) -> bool {
 
 /// Every listed message has been tried: stores the cursor the next pass
 /// starts from, and moves on to bodies.
-fn finish_headers(
-    engine: &Engine,
-    plan: &mut Plan,
-    options: &Options,
-    clock: &dyn Clock,
-) -> Result<(), Failure> {
+fn finish_headers(engine: &Engine, plan: &mut Plan, clock: &dyn Clock) -> Result<(), Failure> {
     let Stage::Headers { cursor, .. } = &plan.stage else {
         return Ok(());
     };
@@ -702,7 +703,7 @@ fn finish_headers(
         if header_only {
             Ok(Vec::new())
         } else {
-            store.bodies_wanted(mailbox, &validity, options.whole_limit, now)
+            store.bodies_wanted(mailbox, &validity, now)
         }
     })?;
     plan.stage = Stage::Bodies {
@@ -817,7 +818,14 @@ async fn bodies(
     let Stage::Bodies { queue } = &mut plan.stage else {
         return Ok(());
     };
-    // At least one message, then as many as fit the batch's limits.
+    if queue
+        .front()
+        .is_some_and(|(_, _, size)| *size > options.whole_limit)
+    {
+        return in_parts(engine, connection, plan, clock).await;
+    }
+    // At least one message, then as many as fit the batch's limits; a
+    // message fetched in parts is asked for on its own.
     let limit = if plan.single > 0 {
         1
     } else {
@@ -826,7 +834,11 @@ async fn bodies(
     let mut take = 0;
     let mut bytes = 0u64;
     for (_, _, size) in queue.iter() {
-        if take > 0 && (take >= limit || bytes + size > options.body_batch_bytes) {
+        if take > 0
+            && (take >= limit
+                || bytes + size > options.body_batch_bytes
+                || *size > options.whole_limit)
+        {
             break;
         }
         take += 1;
@@ -894,6 +906,85 @@ async fn bodies(
     Ok(())
 }
 
+/// Fetches the message at the head of the queue in parts (M20): its
+/// structure, then the parts that hold its text, recorded together. One that
+/// the provider does not return in full counts a try, as a whole one does.
+async fn in_parts(
+    engine: &Engine,
+    connection: &mut Connection<'_>,
+    plan: &mut Plan,
+    clock: &dyn Clock,
+) -> Result<(), Failure> {
+    let Stage::Bodies { queue } = &plan.stage else {
+        return Ok(());
+    };
+    let Some((id, message, _)) = queue.front().cloned() else {
+        return Ok(());
+    };
+    let provider = connection.provider().await?;
+    let structure = match provider.structure(&id).await {
+        Ok(structure) => structure,
+        // Its structure nests deeper than the engine reads: it is held as
+        // that, marked unparsed with the limit, and never asked for again.
+        // The connection that refused the reply is closed.
+        Err(ProviderError::TooDeep) => {
+            connection.drop_connection();
+            let now = clock.now();
+            engine.with_store(|store| {
+                store.record_in_parts(message, &parts::Structure::too_deep(), &[], now)
+            })?;
+            plan.report.bodies += 1;
+            if let Stage::Bodies { queue } = &mut plan.stage {
+                queue.pop_front();
+            }
+            return Ok(());
+        }
+        Err(error) => return Err(Failure::of_batch(error)),
+    };
+    let fetched = match &structure {
+        Some(structure) => {
+            let places = parts::text_places(structure);
+            let fetched = if places.is_empty() {
+                Vec::new()
+            } else {
+                provider
+                    .parts(&id, &places)
+                    .await
+                    .map_err(Failure::of_batch)?
+            };
+            (fetched.len() == places.len()).then_some(fetched)
+        }
+        None => None,
+    };
+    let now = clock.now();
+    match (structure, fetched) {
+        (Some(structure), Some(fetched)) => {
+            let texts: Vec<(&str, &[u8])> = fetched
+                .iter()
+                .map(|part| (part.place.as_str(), part.bytes.as_slice()))
+                .collect();
+            let recorded = engine.with_store(|store| {
+                match store.record_in_parts(message, &structure, &texts, now) {
+                    Ok(()) => Ok(true),
+                    Err(StoreError::Conflict) => Ok(false),
+                    Err(other) => Err(other),
+                }
+            })?;
+            if recorded {
+                plan.report.bodies += 1;
+            } else {
+                plan.report.set_aside += 1;
+            }
+        }
+        _ => engine.with_store(|store| store.record_bodies_not_returned(&[message], now))?,
+    }
+    if let Stage::Bodies { queue } = &mut plan.stage {
+        queue.pop_front();
+    }
+    plan.single = plan.single.saturating_sub(1);
+    Ok(())
+}
+
 /// Fetches again every damaged file the mailbox can supply, then ends the
 /// mailbox's pass.
 async fn repairs(
@@ -929,6 +1020,28 @@ async fn repairs(
                 fetched.push((message.provider_id, "whole", message.bytes));
             }
         }
+        // A part of a message held in parts, asked for one message at a time.
+        let mut places: Vec<(String, String, Vec<u8>)> = Vec::new();
+        for refetch in wanted
+            .iter()
+            .filter(|refetch| refetch.part != "header" && refetch.part != "whole")
+        {
+            for part in provider
+                .parts(&refetch.provider_id, std::slice::from_ref(&refetch.part))
+                .await?
+            {
+                places.push((refetch.provider_id.clone(), part.place, part.bytes));
+            }
+        }
+        let fetched = fetched
+            .iter()
+            .map(|(id, part, bytes)| (id.as_str(), *part, bytes.as_slice()))
+            .chain(
+                places
+                    .iter()
+                    .map(|(id, place, bytes)| (id.as_str(), place.as_str(), bytes.as_slice())),
+            )
+            .collect::<Vec<_>>();
         let repaired = engine.with_store(|store| {
             let mut repaired = 0;
             for (provider_id, part, bytes) in &fetched {

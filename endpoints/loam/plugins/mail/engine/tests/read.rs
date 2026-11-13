@@ -16,7 +16,7 @@ use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnect
 use loam_mail::store::AccountRow;
 use loam_mail::sync::{Options, sync_account};
 use serde_json::{Value, json};
-use support::imap::{PASSWORD, Server, USER, message};
+use support::imap::{PASSWORD, Server, USER, large_message, message};
 
 /// A message with HTML, hidden text, a disguised link and a file.
 const RICH: &str = "From: Shop <news@shop.example.com>\r\n\
@@ -35,6 +35,9 @@ const RICH: &str = "From: Shop <news@shop.example.com>\r\n\
     Content-Transfer-Encoding: base64\r\n\r\n\
     JVBERi0xLjc=\r\n\
     --b--\r\n";
+
+/// The size of the file of the message over 1 MiB.
+const LARGE_FILE: usize = 1_200_000;
 
 /// A message whose visible text needs many windows: about 80 KB.
 fn long_message() -> Vec<u8> {
@@ -81,6 +84,14 @@ impl Fixture {
             // Junk is header-only: its body waits until it is opened.
             world.add("Junk", message(9, "Win big", None, "spam text"), &[]);
             world.add("Archive", long_message(), &[]);
+            // Trash is header-only too; this message is over 1 MiB, fetched
+            // in parts when it is opened (M20).
+            world.mailbox("Deleted Messages", &["\\Trash"]);
+            world.add(
+                "Deleted Messages",
+                large_message(10, "Seeds", "the seed order, attached", LARGE_FILE),
+                &[],
+            );
         }
         let endpoint = Endpoint {
             host: "127.0.0.1".to_string(),
@@ -675,4 +686,82 @@ fn search_finds_what_a_person_sees_and_labels_it() {
         }
     }
     assert_eq!(seen, all);
+}
+
+#[test]
+fn a_message_over_1_mib_is_fetched_in_parts_when_opened_and_its_file_when_that_is() {
+    let fixture = Fixture::new();
+    let trash = fixture.mailbox("Deleted Messages");
+    let list = fixture.cli("mail-thread-list", json!({ "mailbox": trash }));
+    let thread = list["data"]["threads"][0]["thread"].clone();
+    let opened = fixture.cli("mail-thread-open", json!({ "thread": thread }));
+    let message = opened["data"]["messages"][0]["message"].clone();
+    assert_eq!(opened["data"]["messages"][0]["heldInParts"], false);
+    fixture.server.take_log();
+
+    let read = fixture.cli("mail-message-open", json!({ "message": message }));
+    assert_eq!(read["success"], true, "{read}");
+    assert_eq!(read["data"]["heldWhole"], false);
+    assert_eq!(read["data"]["heldInParts"], true);
+    assert_eq!(read["data"]["content"]["text"], "the seed order, attached");
+    let file = &read["data"]["content"]["files"][0];
+    assert_eq!(file["place"], "2");
+    assert_eq!(file["name"], "plan.pdf");
+    assert_eq!(file["detected"], "");
+    let log = fixture.server.take_log();
+    let fetched: Vec<&String> = log
+        .iter()
+        .filter(|command| command.starts_with("UID FETCH"))
+        .collect();
+    assert_eq!(fetched.len(), 2, "{log:?}");
+    assert!(fetched[0].ends_with("(UID BODYSTRUCTURE)"));
+    assert!(fetched[1].ends_with("(UID BODY.PEEK[1.1] BODY.PEEK[1.2])"));
+
+    // Its file is fetched when it is opened, and only then.
+    let at_cli = fixture.cli(
+        "mail-attachment-open",
+        json!({ "message": message, "place": "2" }),
+    );
+    assert_eq!(at_cli["success"], true, "{at_cli}");
+    let path = std::path::PathBuf::from(at_cli["data"]["path"].as_str().unwrap());
+    let bytes = std::fs::read(&path).unwrap();
+    assert_eq!(bytes.len(), LARGE_FILE);
+    assert!(bytes.starts_with(b"%PDF-1.4"));
+    assert_eq!(path.file_name().unwrap().to_str().unwrap(), "2.pdf");
+    assert_eq!(at_cli["data"]["detected"], "application/pdf");
+    let log = fixture.server.take_log();
+    assert!(
+        log.iter()
+            .any(|command| command.ends_with("(UID BODY.PEEK[2])")),
+        "{log:?}"
+    );
+    assert!(!log.iter().any(|command| command.contains("BODY.PEEK[]")));
+
+    // Held now: opened again, nothing is fetched, and the message's file
+    // shows what its bytes are.
+    let again = fixture.call(
+        "mail-attachment-open",
+        json!({ "message": message, "place": "2", "from": 0 }),
+        CommandInterface::Mcp,
+        Some(4_096),
+    );
+    assert_eq!(again["success"], true, "{again}");
+    assert!(
+        !fixture
+            .server
+            .take_log()
+            .iter()
+            .any(|command| command.starts_with("UID FETCH"))
+    );
+    let reread = fixture.cli("mail-message-open", json!({ "message": message }));
+    assert_eq!(
+        reread["data"]["content"]["files"][0]["detected"],
+        "application/pdf"
+    );
+    assert_eq!(reread["data"]["content"]["files"][0]["size"], LARGE_FILE);
+    let missing = fixture.cli(
+        "mail-attachment-open",
+        json!({ "message": message, "place": "7" }),
+    );
+    assert_eq!(missing["error"]["code"], "PART_NOT_FOUND");
 }

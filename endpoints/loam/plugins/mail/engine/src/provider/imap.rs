@@ -4,7 +4,7 @@
 //! the engine writes its own commands and reads every response itself, so
 //! that nothing the server says is set aside unread. Only these commands are
 //! sent: `CAPABILITY`, `LOGIN`, `ENABLE`, `LIST`, `EXAMINE`, `UID SEARCH`,
-//! `UID FETCH` with `BODY.PEEK`, and `LOGOUT`. None of them can change a
+//! `UID FETCH` with `BODY.PEEK` or `BODYSTRUCTURE`, and `LOGOUT`. None of them can change a
 //! mailbox: a mailbox is opened with `EXAMINE`, never `SELECT`, and a message
 //! is read with `BODY.PEEK`, which leaves `\Seen` as it was.
 
@@ -16,8 +16,9 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use async_imap::imap_proto::{
-    AttributeValue, Capability, MailboxDatum, MessageSection, NameAttribute, Response,
-    ResponseCode, SectionPath, Status,
+    AttributeValue, BodyContentCommon, BodyContentSinglePart, BodyStructure, Capability,
+    ContentEncoding, MailboxDatum, MessageSection, NameAttribute, Response, ResponseCode,
+    SectionPath, Status,
 };
 use async_imap::{Client, Session};
 use async_trait::async_trait;
@@ -25,9 +26,10 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 
 use super::{
-    Changes, Connector, Fetched, FlagsSeen, Gone, Listing, Opened, Provider, ProviderError,
-    RemoteMailbox, Since,
+    Changes, Connector, Fetched, FlagsSeen, Gone, Listing, Opened, PartFetched, Provider,
+    ProviderError, RemoteMailbox, Since,
 };
+use crate::parts::{self, Leaf, Limit, Node, Structure};
 use crate::store::{AccountRow, HeaderSeen, Role};
 
 /// Where a provider's IMAP server listens.
@@ -93,6 +95,8 @@ const MOST_IDS: usize = 5_000_000;
 /// A connection to an IMAP server, signed in.
 pub struct Imap {
     session: Session<Stream>,
+    /// Set when the connection's reader refused a reply nested too deep.
+    too_deep: Arc<std::sync::atomic::AtomicBool>,
     condstore: bool,
     qresync: bool,
     names: &'static [(&'static str, Role)],
@@ -135,10 +139,14 @@ impl Imap {
         )
         .await
         .map_err(|_| ProviderError::Unavailable("the server could not be reached"))?;
+        let too_deep = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let stream = if endpoint.tls {
-            Stream::Tls(Box::new(tls(&endpoint.host, tcp).await?))
+            Stream::new(
+                Inner::Tls(Box::new(tls(&endpoint.host, tcp).await?)),
+                Arc::clone(&too_deep),
+            )
         } else {
-            Stream::Plain(tcp)
+            Stream::new(Inner::Plain(tcp), Arc::clone(&too_deep))
         };
         let mut client = Client::new(stream);
         match within(SILENCE, client.read_response()).await {
@@ -169,6 +177,7 @@ impl Imap {
         };
         let mut imap = Self {
             session,
+            too_deep,
             condstore: false,
             qresync: false,
             names,
@@ -214,7 +223,11 @@ impl Imap {
             .await
             .map_err(|_| ProviderError::Unavailable("the connection failed"))?;
         loop {
-            let response = match within(SILENCE, self.session.read_response()).await {
+            let read = within(SILENCE, self.session.read_response()).await;
+            if read.is_err() && self.too_deep.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(ProviderError::TooDeep);
+            }
+            let response = match read {
                 Ok(Some(response)) => response,
                 Ok(None) => {
                     return Err(ProviderError::Unavailable(
@@ -589,6 +602,94 @@ impl Provider for Imap {
         Ok(messages)
     }
 
+    async fn structure(&mut self, id: &str) -> Result<Option<Structure>, ProviderError> {
+        let mut found = None;
+        self.fetch(
+            &[id.to_string()],
+            "(UID BODYSTRUCTURE)",
+            "reading a message's structure",
+            |wanted, attributes| {
+                let mut uid = None;
+                let mut structure = None;
+                for attribute in attributes {
+                    match attribute {
+                        AttributeValue::Uid(value) => uid = Some(*value),
+                        AttributeValue::BodyStructure(body) => structure = Some(structure_of(body)),
+                        _ => {}
+                    }
+                }
+                if let (Some(uid), Some(structure)) = (uid, structure)
+                    && wanted.contains(&uid)
+                    && found.is_none()
+                {
+                    found = Some(structure);
+                }
+            },
+        )
+        .await?;
+        Ok(found)
+    }
+
+    async fn parts(
+        &mut self,
+        id: &str,
+        places: &[String],
+    ) -> Result<Vec<PartFetched>, ProviderError> {
+        let mut numbers: Vec<Vec<u32>> = Vec::with_capacity(places.len());
+        for place in places {
+            let parsed: Option<Vec<u32>> = place
+                .split('.')
+                .map(|number| number.parse::<u32>().ok().filter(|n| *n > 0))
+                .collect();
+            numbers.push(parsed.ok_or(ProviderError::Protocol("a part's place is not numbers"))?);
+        }
+        if numbers.is_empty() {
+            return Ok(Vec::new());
+        }
+        let items: Vec<String> = places
+            .iter()
+            .map(|place| format!("BODY.PEEK[{place}]"))
+            .collect();
+        let items = format!("(UID {})", items.join(" "));
+        let mut fetched: Vec<PartFetched> = Vec::new();
+        self.fetch(
+            &[id.to_string()],
+            &items,
+            "reading a message's parts",
+            |wanted, attributes| {
+                let mut uid = None;
+                let mut found = Vec::new();
+                for attribute in attributes {
+                    match attribute {
+                        AttributeValue::Uid(value) => uid = Some(*value),
+                        AttributeValue::BodySection {
+                            section: Some(SectionPath::Part(path, None)),
+                            index: None,
+                            data: Some(data),
+                        } => {
+                            if let Some(at) = numbers.iter().position(|wanted| wanted == path) {
+                                found.push(PartFetched {
+                                    place: places[at].clone(),
+                                    bytes: data.to_vec(),
+                                });
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if uid.is_some_and(|uid| wanted.contains(&uid)) {
+                    for part in found {
+                        if !fetched.iter().any(|had| had.place == part.place) {
+                            fetched.push(part);
+                        }
+                    }
+                }
+            },
+        )
+        .await?;
+        Ok(fetched)
+    }
+
     async fn close(&mut self) {
         let _ = within(
             Duration::from_secs(5),
@@ -596,6 +697,116 @@ impl Provider for Imap {
         )
         .await;
     }
+}
+
+/// A message's structure from the server's `BODYSTRUCTURE`, kept up to the
+/// limits of the specification's 6.4.
+fn structure_of(body: &BodyStructure<'_>) -> Structure {
+    let mut walked = Walk {
+        parts: 0,
+        limit: None,
+    };
+    let root = walked.node(body, 0);
+    Structure {
+        root,
+        limit: walked.limit,
+    }
+}
+
+struct Walk {
+    parts: usize,
+    limit: Option<Limit>,
+}
+
+impl Walk {
+    fn node(&mut self, body: &BodyStructure<'_>, depth: usize) -> Node {
+        if depth >= parts::DEEPEST {
+            self.limit.get_or_insert(Limit::Depth);
+            return Node::Leaf(Leaf::default());
+        }
+        match body {
+            BodyStructure::Multipart { common, bodies, .. } => {
+                let mut children = Vec::new();
+                for child in bodies {
+                    if self.parts >= parts::MOST_PARTS {
+                        self.limit.get_or_insert(Limit::Parts);
+                        break;
+                    }
+                    children.push(self.node(child, depth + 1));
+                }
+                Node::Multipart {
+                    subtype: limited(&common.ty.subtype, 60).to_ascii_lowercase(),
+                    children,
+                }
+            }
+            BodyStructure::Message {
+                common,
+                other,
+                body,
+                ..
+            } => {
+                self.parts += 1;
+                Node::Message {
+                    leaf: leaf_of(common, other),
+                    body: Box::new(self.node(body, depth + 1)),
+                }
+            }
+            BodyStructure::Basic { common, other, .. }
+            | BodyStructure::Text { common, other, .. } => {
+                self.parts += 1;
+                Node::Leaf(leaf_of(common, other))
+            }
+        }
+    }
+}
+
+/// One part's description. Its parameters are kept as the server gives
+/// them, names in lower case, so that the message the engine writes from it
+/// reads as the whole message would: an RFC 2047 name, an RFC 2231 `name*`.
+fn leaf_of(common: &BodyContentCommon<'_>, other: &BodyContentSinglePart<'_>) -> Leaf {
+    let params = |params: &Option<Vec<(std::borrow::Cow<'_, str>, std::borrow::Cow<'_, str>)>>| {
+        params
+            .iter()
+            .flatten()
+            .take(parts::MOST_PARAMS)
+            .map(|(name, value)| {
+                (
+                    limited(name, parts::PARAM_NAME_LIMIT).to_ascii_lowercase(),
+                    limited(value, parts::PARAM_VALUE_LIMIT),
+                )
+            })
+            .collect()
+    };
+    let disposition = common.disposition.as_ref();
+    Leaf {
+        content_type: format!(
+            "{}/{}",
+            limited(&common.ty.ty, 60),
+            limited(&common.ty.subtype, 60)
+        )
+        .to_ascii_lowercase(),
+        params: params(&common.ty.params),
+        disposition: disposition
+            .map(|disposition| limited(&disposition.ty, 60).to_ascii_lowercase())
+            .unwrap_or_default(),
+        disposition_params: disposition
+            .map(|disposition| params(&disposition.params))
+            .unwrap_or_default(),
+        encoding: match &other.transfer_encoding {
+            ContentEncoding::SevenBit => "7bit".to_string(),
+            ContentEncoding::EightBit => "8bit".to_string(),
+            ContentEncoding::Binary => "binary".to_string(),
+            ContentEncoding::Base64 => "base64".to_string(),
+            ContentEncoding::QuotedPrintable => "quoted-printable".to_string(),
+            ContentEncoding::Other(other) => limited(other, 60).to_ascii_lowercase(),
+        },
+        size: u64::from(other.octets),
+    }
+}
+
+/// The first `most` characters of `text`.
+fn limited(text: &str, most: usize) -> String {
+    text.chars().take(most).collect()
 }
 
 /// What the server said in reply to `EXAMINE` or a `FETCH` of flags.
@@ -709,11 +920,31 @@ impl Connector for ImapConnector {
     }
 }
 
-/// The connection, with or without TLS.
+/// The connection, with or without TLS, and what it has read checked for
+/// nesting.
 #[derive(Debug)]
-enum Stream {
+struct Stream {
+    inner: Inner,
+    nesting: Nesting,
+    /// Set when a reply is refused for its nesting, so that the request
+    /// fails as one the engine cannot read, not as a dropped connection.
+    too_deep: Arc<std::sync::atomic::AtomicBool>,
+}
+
+#[derive(Debug)]
+enum Inner {
     Plain(TcpStream),
     Tls(Box<tokio_rustls::client::TlsStream<TcpStream>>),
+}
+
+impl Stream {
+    fn new(inner: Inner, too_deep: Arc<std::sync::atomic::AtomicBool>) -> Self {
+        Self {
+            inner,
+            nesting: Nesting::default(),
+            too_deep,
+        }
+    }
 }
 
 impl AsyncRead for Stream {
@@ -722,10 +953,122 @@ impl AsyncRead for Stream {
         context: &mut Context<'_>,
         buffer: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        match self.get_mut() {
-            Self::Plain(stream) => Pin::new(stream).poll_read(context, buffer),
-            Self::Tls(stream) => Pin::new(stream.as_mut()).poll_read(context, buffer),
+        let this = self.get_mut();
+        let before = buffer.filled().len();
+        let read = match &mut this.inner {
+            Inner::Plain(stream) => Pin::new(stream).poll_read(context, buffer),
+            Inner::Tls(stream) => Pin::new(stream.as_mut()).poll_read(context, buffer),
+        };
+        if let Poll::Ready(Ok(())) = read
+            && !this.nesting.read(&buffer.filled()[before..])
+        {
+            this.too_deep
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "the server's reply nests deeper than the engine reads",
+            )));
         }
+        read
+    }
+}
+
+/// The deepest a reply may nest its parentheses. The IMAP parser reads a
+/// nested list by recursion, with no limit of its own, and measured about
+/// 8 KiB of stack a level when optimised and 60 KiB when not: a message
+/// whose MIME parts nest a thousand deep gives a `BODYSTRUCTURE` that
+/// exhausts a 2 MiB thread, and the process aborts. A reply nested deeper
+/// than this fails its request instead, and sync passes over the message as
+/// one it cannot read (the specification's 6.4). A message that keeps to the
+/// 20 levels the engine reads, with the lists around its parts, nests under
+/// 30.
+const MOST_NESTING: u32 = 32;
+
+/// Follows the parentheses of what a server sends, outside its quoted
+/// strings and literals, as the bytes arrive.
+#[derive(Debug, Default)]
+struct Nesting {
+    depth: u32,
+    state: Lexing,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Lexing {
+    #[default]
+    Normal,
+    Quoted,
+    Escaped,
+    /// Inside `{12}`, the length read so far.
+    Length(u64),
+    /// After `{12}`, before its line break.
+    Opened(u64),
+    /// Inside a literal, the bytes left.
+    Literal(u64),
+}
+
+impl Nesting {
+    /// Reads `bytes`; `false` once the reply nests deeper than
+    /// [`MOST_NESTING`].
+    fn read(&mut self, bytes: &[u8]) -> bool {
+        let mut at = 0;
+        while at < bytes.len() {
+            if let Lexing::Literal(left) = self.state {
+                let rest = u64::try_from(bytes.len() - at).unwrap_or(u64::MAX);
+                let take = left.min(rest);
+                at += usize::try_from(take).unwrap_or(usize::MAX);
+                self.state = if take == left {
+                    Lexing::Normal
+                } else {
+                    Lexing::Literal(left - take)
+                };
+                continue;
+            }
+            let byte = bytes[at];
+            at += 1;
+            self.state = match (self.state, byte) {
+                // The line break that opens a literal is inside the reply,
+                // which carries on after the literal at the same depth. Any
+                // other ends the reply.
+                (Lexing::Opened(0), b'\n') => Lexing::Normal,
+                (Lexing::Opened(length), b'\n') => Lexing::Literal(length),
+                (_, b'\n') => {
+                    self.depth = 0;
+                    Lexing::Normal
+                }
+                (Lexing::Normal, b'(') => {
+                    self.depth += 1;
+                    if self.depth > MOST_NESTING {
+                        return false;
+                    }
+                    Lexing::Normal
+                }
+                (Lexing::Normal, b')') => {
+                    self.depth = self.depth.saturating_sub(1);
+                    Lexing::Normal
+                }
+                (Lexing::Normal, b'"') => Lexing::Quoted,
+                (Lexing::Normal, b'{') => Lexing::Length(0),
+                (Lexing::Quoted, b'\\') => Lexing::Escaped,
+                (Lexing::Quoted, b'"') => Lexing::Normal,
+                (Lexing::Escaped, _) => Lexing::Quoted,
+                (Lexing::Length(length), b'0'..=b'9') => Lexing::Length(
+                    length
+                        .saturating_mul(10)
+                        .saturating_add(u64::from(byte - b'0')),
+                ),
+                (Lexing::Length(length), b'+') => Lexing::Length(length),
+                (Lexing::Length(length), b'}') => Lexing::Opened(length),
+                (Lexing::Opened(length), b'\r') => Lexing::Opened(length),
+                // Not a literal after all: read the byte as any other.
+                (Lexing::Length(_) | Lexing::Opened(_), _) => {
+                    self.state = Lexing::Normal;
+                    at -= 1;
+                    continue;
+                }
+                (state, _) => state,
+            };
+        }
+        true
     }
 }
 
@@ -735,23 +1078,23 @@ impl AsyncWrite for Stream {
         context: &mut Context<'_>,
         bytes: &[u8],
     ) -> Poll<std::io::Result<usize>> {
-        match self.get_mut() {
-            Self::Plain(stream) => Pin::new(stream).poll_write(context, bytes),
-            Self::Tls(stream) => Pin::new(stream.as_mut()).poll_write(context, bytes),
+        match &mut self.get_mut().inner {
+            Inner::Plain(stream) => Pin::new(stream).poll_write(context, bytes),
+            Inner::Tls(stream) => Pin::new(stream.as_mut()).poll_write(context, bytes),
         }
     }
 
     fn poll_flush(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        match self.get_mut() {
-            Self::Plain(stream) => Pin::new(stream).poll_flush(context),
-            Self::Tls(stream) => Pin::new(stream.as_mut()).poll_flush(context),
+        match &mut self.get_mut().inner {
+            Inner::Plain(stream) => Pin::new(stream).poll_flush(context),
+            Inner::Tls(stream) => Pin::new(stream.as_mut()).poll_flush(context),
         }
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        match self.get_mut() {
-            Self::Plain(stream) => Pin::new(stream).poll_shutdown(context),
-            Self::Tls(stream) => Pin::new(stream.as_mut()).poll_shutdown(context),
+        match &mut self.get_mut().inner {
+            Inner::Plain(stream) => Pin::new(stream).poll_shutdown(context),
+            Inner::Tls(stream) => Pin::new(stream.as_mut()).poll_shutdown(context),
         }
     }
 }
@@ -1021,6 +1364,154 @@ fn modified_base64(text: &str) -> Option<Vec<u16>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The structure in a `FETCH` response's `BODYSTRUCTURE`.
+    fn structure_in(body: &str) -> Structure {
+        let response = format!("* 1 FETCH (UID 7 BODYSTRUCTURE {body})\r\n");
+        let (_, parsed) = Response::parse(response.as_bytes()).unwrap();
+        let Response::Fetch(_, attributes) = parsed else {
+            panic!("not a FETCH response");
+        };
+        attributes
+            .iter()
+            .find_map(|attribute| match attribute {
+                AttributeValue::BodyStructure(body) => Some(structure_of(body)),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    const PLAIN: &str =
+        "(\"TEXT\" \"PLAIN\" (\"CHARSET\" \"utf-8\") NIL NIL \"7BIT\" 10 1 NIL NIL NIL NIL)";
+
+    #[test]
+    fn a_structure_is_read_from_bodystructure() {
+        let structure = structure_in(&format!(
+            "({PLAIN}(\"APPLICATION\" \"PDF\" (\"NAME\" \"a.pdf\") NIL NIL \"BASE64\" 780 NIL \
+             (\"ATTACHMENT\" (\"FILENAME\" \"plan.pdf\")) NIL NIL) \"MIXED\" (\"BOUNDARY\" \"b\") NIL NIL NIL)"
+        ));
+        assert_eq!(structure.limit, None);
+        let places: Vec<String> = structure.places().into_iter().map(|(at, _)| at).collect();
+        assert_eq!(places, ["1", "2"]);
+        let pair = |name: &str, value: &str| (name.to_string(), value.to_string());
+        assert_eq!(
+            structure.leaf("1"),
+            Some(&Leaf {
+                content_type: "text/plain".to_string(),
+                params: vec![pair("charset", "utf-8")],
+                encoding: "7bit".to_string(),
+                size: 10,
+                ..Leaf::default()
+            })
+        );
+        assert_eq!(
+            structure.leaf("2"),
+            Some(&Leaf {
+                content_type: "application/pdf".to_string(),
+                params: vec![pair("name", "a.pdf")],
+                disposition: "attachment".to_string(),
+                disposition_params: vec![pair("filename", "plan.pdf")],
+                encoding: "base64".to_string(),
+                size: 780,
+            })
+        );
+        assert_eq!(parts::text_places(&structure), ["1"]);
+    }
+
+    #[test]
+    fn a_reply_nested_deeper_than_the_engine_reads_is_refused_as_it_arrives() {
+        // `depth` levels of parentheses in all: the FETCH's own list, then
+        // multiparts down to a part with no parameters.
+        let deep = |depth: usize| {
+            let mut body = "(\"TEXT\" \"PLAIN\" NIL NIL NIL \"7BIT\" 1 1)".to_string();
+            for _ in 2..depth {
+                body = format!("({body} \"MIXED\")");
+            }
+            format!("* 1 FETCH (UID 7 BODYSTRUCTURE {body})\r\n")
+        };
+        let deepest = deep(MOST_NESTING as usize);
+        assert!(Nesting::default().read(deepest.as_bytes()));
+        assert!(!Nesting::default().read(deep(MOST_NESTING as usize + 1).as_bytes()));
+        // A byte at a time, as a slow connection gives it.
+        let mut nesting = Nesting::default();
+        assert!(
+            !deep(MOST_NESTING as usize + 1)
+                .bytes()
+                .all(|byte| nesting.read(&[byte]))
+        );
+        // A reply ends at its line break: the next starts at no depth.
+        let mut nesting = Nesting::default();
+        for _ in 0..3 {
+            assert!(nesting.read(deepest.as_bytes()));
+        }
+        // What the parser reads at the deepest allowed fits a thread's
+        // stack: 4 MiB here, unoptimised as the tests build it; optimised,
+        // it took under 256 KiB.
+        let parsed = std::thread::Builder::new()
+            .stack_size(4 << 20)
+            .spawn(move || Response::parse(deepest.as_bytes()).is_ok())
+            .unwrap()
+            .join()
+            .unwrap();
+        assert!(parsed);
+    }
+
+    #[test]
+    fn a_literal_at_each_level_does_not_reset_the_depth() {
+        // A name sent as a literal, as a server sends one with 8-bit bytes
+        // or a quote: its line break is inside the reply.
+        let leaf = "(\"TEXT\" \"PLAIN\" (\"NAME\" {1}\r\nx) NIL NIL \"7BIT\" 1 1)";
+        let mut body = leaf.to_string();
+        for _ in 0..2_000 {
+            body = format!("({leaf}{body} \"MIXED\")");
+        }
+        let reply = format!("* 1 FETCH (UID 7 BODYSTRUCTURE {body})\r\n");
+        assert!(!Nesting::default().read(reply.as_bytes()));
+        let mut nesting = Nesting::default();
+        assert!(!reply.bytes().all(|byte| nesting.read(&[byte])));
+        // A binary literal, `~{n}`, and a non-synchronising one, `{n+}`, too.
+        for opener in ["~{1}", "{1+}"] {
+            let deep = reply.replace("{1}", opener);
+            assert!(!Nesting::default().read(deep.as_bytes()), "{opener}");
+        }
+        // Shallow, the same reply is read, and imap-proto parses it.
+        let shallow = format!("* 1 FETCH (UID 7 BODYSTRUCTURE ({leaf}{leaf} \"MIXED\"))\r\n");
+        assert!(Nesting::default().read(shallow.as_bytes()));
+        assert!(Response::parse(shallow.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn parentheses_in_quoted_strings_and_literals_do_not_count() {
+        let many = "(".repeat(200);
+        let quoted = format!("* LIST () \"/\" \"{many}\\\"{many}\"\r\n");
+        assert!(Nesting::default().read(quoted.as_bytes()));
+        let literal = format!("* 1 FETCH (UID 1 BODY[] {{{}}}\r\n{many})\r\n", many.len());
+        let mut nesting = Nesting::default();
+        // Split inside the literal's length and inside its bytes.
+        let (first, rest) = literal.split_at(20);
+        let (second, third) = rest.split_at(40);
+        assert!(nesting.read(first.as_bytes()));
+        assert!(nesting.read(second.as_bytes()));
+        assert!(nesting.read(third.as_bytes()));
+        assert_eq!(nesting.state, Lexing::Normal);
+        // A brace that opens no literal is read as any other byte.
+        assert!(!Nesting::default().read(format!("* OK {{x{many}").as_bytes()));
+    }
+
+    #[test]
+    fn a_structure_past_the_limits_is_kept_up_to_them() {
+        let mut deep = PLAIN.to_string();
+        for _ in 0..30 {
+            deep = format!("({deep} \"MIXED\")");
+        }
+        let structure = structure_in(&deep);
+        assert_eq!(structure.limit, Some(Limit::Depth));
+        let wide = structure_in(&format!("({} \"MIXED\")", PLAIN.repeat(1_200)));
+        assert_eq!(wide.limit, Some(Limit::Parts));
+        assert_eq!(wide.places().len(), parts::MOST_PARTS);
+        let fine = structure_in(&format!("({} \"MIXED\")", PLAIN.repeat(1_000)));
+        assert_eq!(fine.limit, None);
+    }
 
     #[test]
     fn an_internal_date_is_read_with_its_zone() {

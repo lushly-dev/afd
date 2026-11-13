@@ -1004,7 +1004,10 @@ fn a_store_from_before_the_evidence_is_derived_again_after_its_migration() {
             .unwrap();
     }
     let mut store = Store::open(&home).unwrap();
-    assert_eq!(store.schema_version().unwrap(), 4);
+    assert_eq!(
+        store.schema_version().unwrap(),
+        u32::try_from(super::schema::MIGRATIONS.len()).unwrap()
+    );
     assert_eq!(store.stale_count().unwrap(), 2);
     while store.rederive_stale(200, NOW).unwrap() > 0 {}
     assert_eq!(store.stale_count().unwrap(), 0);

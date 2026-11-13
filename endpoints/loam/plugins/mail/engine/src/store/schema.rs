@@ -289,6 +289,30 @@ pub(super) const MIGRATIONS: &[&str] = &[
         PRIMARY KEY (message_id, ordinal)
     ) STRICT, WITHOUT ROWID;
     ",
+    // 5: a message held in parts (M20). Its structure is what the provider said, not derived
+    // from the log; its parts are rows of `held`. A damaged file of a part is fetched again
+    // like the others, so `refetch` takes a part's place too.
+    "
+    CREATE TABLE structure (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        -- The structure as the engine reads the provider's description of it, as JSON.
+        body TEXT NOT NULL,
+        fetched_at INTEGER NOT NULL
+    ) STRICT;
+
+    CREATE TABLE refetch_parts (
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        part TEXT NOT NULL CHECK (part IN ('header', 'whole')
+            OR (part GLOB '[0-9]*' AND part NOT GLOB '*[^0-9.]*')),
+        tries INTEGER NOT NULL DEFAULT 0 CHECK (tries >= 0),
+        noted_at INTEGER NOT NULL,
+        PRIMARY KEY (message_id, part)
+    ) STRICT, WITHOUT ROWID;
+    INSERT INTO refetch_parts (message_id, part, tries, noted_at)
+        SELECT message_id, part, tries, noted_at FROM refetch;
+    DROP TABLE refetch;
+    ALTER TABLE refetch_parts RENAME TO refetch;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use crate::commands::{provider_failure, store_failure};
 use crate::derive;
 use crate::engine::Engine;
-use crate::fetch::{FetchError, fetch_whole};
+use crate::fetch::{FetchError, fetch_body, fetch_part};
 use crate::store::{MailboxId, MessageId, MessageListed, StoreError, ThreadId};
 
 /// The room a result's own fields need beside its items, in bytes.
@@ -222,6 +222,7 @@ fn message_item(engine: &Engine, listed: &MessageListed) -> Result<Value, StoreE
         "date": listed.date,
         "size": listed.size,
         "heldWhole": listed.held_whole,
+        "heldInParts": listed.held_in_parts,
         "attachments": listed.attachments,
         "unparsed": listed.unparsed,
         "evidence": evidence(engine, listed)?,
@@ -528,8 +529,8 @@ impl CommandHandler for MessageOpen {
         };
         // A message someone opens is fetched at once (5.3).
         let mut body_note = None;
-        if !listed.held_whole && flag("fetch").unwrap_or(true) {
-            match fetch_whole(engine, message, context.clock().now()).await {
+        if !listed.held_whole && !listed.held_in_parts && flag("fetch").unwrap_or(true) {
+            match fetch_body(engine, message, context.clock().now()).await {
                 Ok(_) => {}
                 Err(FetchError::Store(error)) => return failure(store_failure(&error)),
                 Err(error) => body_note = Some(error.to_string()),
@@ -540,11 +541,8 @@ impl CommandHandler for MessageOpen {
                 .message_listed(message)?
                 .ok_or(StoreError::NotFound("message"))?;
             let header = held_part(store, message, "header")?;
-            let whole = if listed.held_whole {
-                held_part(store, message, "whole")?
-            } else {
-                None
-            };
+            // The whole message, or the one written from its parts held.
+            let whole = store.body_bytes(message)?;
             Ok((
                 listed,
                 header,
@@ -598,6 +596,7 @@ impl CommandHandler for MessageOpen {
                 "date": listed.date,
                 "size": listed.size,
                 "heldWhole": listed.held_whole,
+                "heldInParts": listed.held_in_parts,
                 "bodyNotFetched": body_note,
                 "unparsed": listed.unparsed,
                 "mailboxes": shown.iter().map(|shown| json!({
@@ -736,9 +735,8 @@ fn fetch_failure(error: &FetchError) -> CommandError {
     match error {
         FetchError::Store(error) => store_failure(error),
         FetchError::Provider(error) => provider_failure(error),
-        FetchError::TooLarge => CommandError::new("NOT_HELD", error.to_string()).with_suggestion(
-            "Files of a message over 1 MiB are fetched on their own in a later version; the message's other details are in `mail-message-open`.",
-        ),
+        FetchError::TooLarge => CommandError::new("NOT_HELD", error.to_string())
+            .with_suggestion("Open the message in the provider's own app to save this file."),
         FetchError::NotReturned => CommandError::new("NOT_HELD", error.to_string())
             .with_suggestion("Try again later; the provider may return it then.")
             .with_retryable(true),
@@ -780,33 +778,46 @@ impl CommandHandler for AttachmentOpen {
             Ok(None) => return failure(message_not_found()),
             Err(error) => return failure(store_failure(&error)),
         };
+        let now = context.clock().now();
         if !listed.held_whole
-            && let Err(error) = fetch_whole(engine, message, context.clock().now()).await
+            && !listed.held_in_parts
+            && let Err(error) = fetch_body(engine, message, now).await
         {
             return failure(fetch_failure(&error));
         }
-        let found = engine.with_store(|store| {
-            let part = store
-                .message_parts(message)?
-                .into_iter()
-                .find(|part| part.place == place);
-            let whole = held_part(store, message, "whole")?;
-            Ok((part, whole))
-        });
-        let (part, whole) = match found {
-            Ok(found) => found,
-            Err(error) => return failure(store_failure(&error)),
-        };
         let part_missing = || {
             CommandError::new("PART_NOT_FOUND", "the message has no file at that place")
                 .with_suggestion(
                     "Run `loam-mail mail-message-open` to see its files and their places.",
                 )
         };
+        let part = match engine.with_store(|store| store.message_parts(message)) {
+            Ok(parts) => parts.into_iter().find(|part| part.place == place),
+            Err(error) => return failure(store_failure(&error)),
+        };
         let Some(part) = part else {
             return failure(part_missing());
         };
-        let Some(bytes) = whole.and_then(|whole| derive::part_content(&whole, &place)) else {
+        // A file of a message held in parts is fetched when it is opened
+        // (M20).
+        if let Err(error) = fetch_part(engine, message, &place, now).await {
+            return failure(fetch_failure(&error));
+        }
+        // What is read is as `mail-message-open` lists it, after the fetch:
+        // its type as its bytes show it, once they are held.
+        let found = engine.with_store(|store| {
+            let part = store
+                .message_parts(message)?
+                .into_iter()
+                .find(|part| part.place == place);
+            Ok((part, store.part_content(message, &place)?))
+        });
+        let (part, bytes) = match found {
+            Ok((Some(found), bytes)) => (found, bytes),
+            Ok((None, _)) => (part, None),
+            Err(error) => return failure(store_failure(&error)),
+        };
+        let Some(bytes) = bytes else {
             return failure(part_missing());
         };
         let total = bytes.len();

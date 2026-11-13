@@ -35,9 +35,9 @@ const REFERENCES_LIMIT: usize = 200;
 /// The most text of one message handed to the search index, in bytes.
 const TEXT_LIMIT: usize = 1024 * 1024;
 /// How many parts of one message are read (the specification's 6.4).
-const PARTS_LIMIT: usize = 1000;
+pub(crate) const PARTS_LIMIT: usize = 1000;
 /// How deeply parts may nest (6.4).
-const DEPTH_LIMIT: usize = 20;
+pub(crate) const DEPTH_LIMIT: usize = 20;
 /// The largest header block read (6.4).
 pub const HEADER_LIMIT: usize = 1024 * 1024;
 /// The largest message read (6.4). A message the engine holds whole is at
@@ -112,6 +112,9 @@ pub struct PartFound {
     pub size: u64,
     /// Whether it is offered as an attachment.
     pub attachment: bool,
+    /// Whether its bytes are read for what they are: a binary part, a named
+    /// one, or an attachment, whatever type it says it is.
+    pub is_file: bool,
     /// Its type as its bytes show it, when they show one: `application/pdf`.
     pub detected: String,
     /// Whether its bytes show another kind of file than its name or type
@@ -1100,24 +1103,40 @@ fn found(part: MessagePart<'_>, place: String) -> PartFound {
     let is_file = matches!(part.kind(), PartKind::Binary | PartKind::InlineBinary)
         || !name.is_empty()
         || part.is_attachment();
-    let (detected, hash) = if is_file && size <= SNIFF_LIMIT {
-        let bytes = part.decoded();
-        let hash: [u8; 32] = Sha256::digest(&bytes).into();
-        (sniff(&bytes).unwrap_or_default().to_string(), Some(hash))
+    let (detected, type_differs, hash) = if is_file && size <= SNIFF_LIMIT {
+        file_facts(&part.decoded(), &content_type, &name)
     } else {
-        (String::new(), None)
+        (String::new(), false, None)
     };
-    let type_differs = !detected.is_empty() && differs(&detected, &content_type, &name);
     PartFound {
         place,
         content_type: one_line(&content_type, 120),
         name,
         size: u64::try_from(size).unwrap_or(u64::MAX),
         attachment: part.is_attachment(),
+        is_file,
         detected,
         type_differs,
         hash,
     }
+}
+
+/// What a file's decoded bytes say of it: its type as they show it, whether
+/// that differs from what its part says it is, and their hash. Bytes over
+/// the size read for this say nothing (the specification's 6.4).
+#[must_use]
+pub fn file_facts(
+    bytes: &[u8],
+    content_type: &str,
+    name: &str,
+) -> (String, bool, Option<[u8; 32]>) {
+    if bytes.len() > SNIFF_LIMIT {
+        return (String::new(), false, None);
+    }
+    let hash: [u8; 32] = Sha256::digest(bytes).into();
+    let detected = sniff(bytes).unwrap_or_default().to_string();
+    let type_differs = !detected.is_empty() && differs(&detected, content_type, name);
+    (detected, type_differs, Some(hash))
 }
 
 /// File types told by their first bytes: data, so that a type found in mail

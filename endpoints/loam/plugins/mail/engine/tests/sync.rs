@@ -18,8 +18,8 @@ use loam_mail::log::BlobId;
 use loam_mail::provider::ProviderError;
 use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnector};
 use loam_mail::store::{AccountRow, MailboxRow, Role};
-use loam_mail::sync::{AccountReport, Options, SyncError, WHOLE_LIMIT, sync_account};
-use support::imap::{PASSWORD, Server, USER, message};
+use loam_mail::sync::{AccountReport, Options, SyncError, sync_account};
+use support::imap::{PASSWORD, Server, USER, forwarding_message, large_message, message};
 
 const HOUR: i64 = 60 * 60 * 1000;
 
@@ -116,7 +116,7 @@ impl Fixture {
             .with_store(|store| {
                 let mut lines = Vec::new();
                 for row in store.mailboxes(self.account.id)? {
-                    let status = store.mailbox_status(row.id, WHOLE_LIMIT)?;
+                    let status = store.mailbox_status(row.id)?;
                     let mut shown: Vec<String> = store
                         .shown_ids(row.id, &row.validity)?
                         .into_iter()
@@ -252,7 +252,7 @@ fn a_first_sync_holds_each_mailbox_by_its_role() {
     assert_eq!(inbox.listed, Some(3));
     let status = fixture
         .engine
-        .with_store(|store| store.mailbox_status(inbox.id, WHOLE_LIMIT))
+        .with_store(|store| store.mailbox_status(inbox.id))
         .unwrap();
     assert_eq!(
         (status.counts.headers_held, status.counts.bodies_held),
@@ -266,7 +266,7 @@ fn a_first_sync_holds_each_mailbox_by_its_role() {
         assert!(row.header_only, "{name}");
         let status = fixture
             .engine
-            .with_store(|store| store.mailbox_status(row.id, WHOLE_LIMIT))
+            .with_store(|store| store.mailbox_status(row.id))
             .unwrap();
         assert_eq!(
             (status.counts.headers_held, status.counts.bodies_held),
@@ -869,7 +869,7 @@ fn a_body_never_returned_stops_holding_the_mailbox_after_three_tries() {
         let inbox = fixture.mailbox("INBOX");
         fixture
             .engine
-            .with_store(|store| store.mailbox_status(inbox.id, WHOLE_LIMIT))
+            .with_store(|store| store.mailbox_status(inbox.id))
             .unwrap()
     };
     fixture.pass().unwrap();
@@ -977,4 +977,406 @@ fn a_listing_without_the_inbox_retires_nothing() {
     fixture.pass().unwrap();
     assert!(!fixture.mailbox("Archive").gone);
     assert!(!fixture.mailbox("INBOX").gone);
+}
+
+/// A fixture that fetches whole only messages of 2 000 bytes or less, so
+/// that a message of a few kilobytes is fetched in parts (M20).
+fn small_whole_limit() -> Fixture {
+    Fixture::with(
+        true,
+        true,
+        PASSWORD,
+        Options {
+            whole_limit: 2_000,
+            ..Options::default()
+        },
+    )
+}
+
+#[test]
+fn a_message_over_the_whole_limit_is_held_in_parts_and_its_file_waits() {
+    let fixture = small_whole_limit();
+    let large;
+    {
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        world.add("INBOX", message(1, "Small", None, "a short one"), &[]);
+        large = world.add(
+            "INBOX",
+            large_message(2, "Plans", "the garden plan, enclosed", 6_000),
+            &[],
+        );
+    }
+    let report = fixture.pass().unwrap();
+    let inbox = &report.mailboxes[0];
+    assert_eq!(inbox.bodies, 2, "{inbox:?}");
+    let log = fixture.server.take_log();
+    assert_read_only(&log);
+    // Its structure and its two text parts, and nothing else of it.
+    let asked: Vec<String> = fetches(&log)
+        .into_iter()
+        .filter(|command| command.starts_with(&format!("UID FETCH {large} ")))
+        .collect();
+    assert_eq!(
+        asked,
+        [
+            format!("UID FETCH {large} (UID BODYSTRUCTURE)"),
+            format!("UID FETCH {large} (UID BODY.PEEK[1.1] BODY.PEEK[1.2])"),
+        ]
+    );
+    let row = fixture.mailbox("INBOX");
+    let status = fixture
+        .engine
+        .with_store(|store| store.mailbox_status(row.id))
+        .unwrap();
+    assert_eq!(status.bodies_wanted, 0, "{status:?}");
+    assert_eq!(status.counts.bodies_held, 2);
+    let found = fixture
+        .engine
+        .with_store(|store| store.search("garden", 10))
+        .unwrap();
+    assert_eq!(found.len(), 1);
+    let message = found[0].message;
+    let (listed, parts) = fixture
+        .engine
+        .with_store(|store| {
+            Ok((
+                store.message_listed(message)?.unwrap(),
+                store.message_parts(message)?,
+            ))
+        })
+        .unwrap();
+    assert!(listed.held_in_parts && !listed.held_whole);
+    assert_eq!(listed.attachments, 1);
+    assert_eq!(listed.snippet, "the garden plan, enclosed");
+    assert_eq!(listed.evidence.hidden_chars, "unseen".len() as u64);
+    let file = parts.iter().find(|part| part.place == "2").unwrap();
+    assert_eq!(file.name, "plan.pdf");
+    // Its bytes are not read until someone opens it.
+    assert_eq!(file.detected, "");
+    assert!(file.size.abs_diff(6_000) < 100, "{file:?}");
+
+    // A later pass asks for nothing more of it.
+    fixture.later(HOUR);
+    fixture.pass().unwrap();
+    let log = fixture.server.take_log();
+    assert!(
+        !fetches(&log)
+            .iter()
+            .any(|command| command.contains("BODY.PEEK[1") || command.contains("BODYSTRUCTURE")),
+        "{log:?}"
+    );
+
+    // A rebuild derives the same from the structure and the parts held.
+    let before = fixture.snapshot();
+    fixture
+        .engine
+        .with_store(|store| {
+            store.rebuild(1, |_| {})?;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(fixture.snapshot(), before);
+    let again = fixture
+        .engine
+        .with_store(|store| {
+            Ok((
+                store.message_listed(message)?.unwrap(),
+                store.message_parts(message)?,
+            ))
+        })
+        .unwrap();
+    assert_eq!(again, (listed, parts));
+}
+
+#[test]
+fn a_damaged_text_part_is_fetched_again_and_derived_again() {
+    let fixture = small_whole_limit();
+    let text = b"the garden plan, enclosed".to_vec();
+    {
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        world.add(
+            "INBOX",
+            large_message(2, "Plans", "the garden plan, enclosed", 6_000),
+            &[],
+        );
+    }
+    fixture.pass().unwrap();
+    let expected = fixture.snapshot();
+    // Both text parts' files, as the server returned them, are damaged.
+    for place in ["1.1", "1.2"] {
+        let held = support::imap::part_bytes(
+            &large_message(2, "Plans", "the garden plan, enclosed", 6_000),
+            place,
+        )
+        .unwrap();
+        assert!(held.windows(text.len()).any(|window| window == text));
+        let hex = BlobId::of(&held).to_hex();
+        let file = fixture
+            .directory
+            .path()
+            .join("data")
+            .join("blobs")
+            .join(&hex[..2])
+            .join(&hex);
+        std::fs::write(&file, b"not what was stored").unwrap();
+    }
+    fixture
+        .engine
+        .with_store(|store| {
+            store.rebuild(1, |_| {})?;
+            Ok(())
+        })
+        .unwrap();
+    let found = |fixture: &Fixture| {
+        fixture
+            .engine
+            .with_store(|store| store.search("garden", 10))
+            .unwrap()
+            .len()
+    };
+    // The message is read as though its text were not held: its headers
+    // and its file are still there.
+    assert_eq!(found(&fixture), 0);
+    assert_eq!(
+        fixture
+            .engine
+            .with_store(|store| store.search("plans", 10))
+            .unwrap()
+            .len(),
+        1
+    );
+    fixture.server.take_log();
+
+    fixture.later(1);
+    let report = fixture.pass().unwrap();
+    assert_eq!(report.mailboxes[0].repaired, 2, "{report:?}");
+    let log = fixture.server.take_log();
+    assert_read_only(&log);
+    for place in ["1.1", "1.2"] {
+        assert!(
+            fetches(&log)
+                .iter()
+                .any(|command| command.ends_with(&format!("(UID BODY.PEEK[{place}])")))
+        );
+    }
+    assert_eq!(fixture.snapshot(), expected);
+    assert_eq!(found(&fixture), 1);
+}
+
+#[test]
+fn a_large_message_whose_parts_are_not_returned_counts_a_try() {
+    let fixture = small_whole_limit();
+    {
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        let uid = world.add("INBOX", large_message(2, "Plans", "words", 6_000), &[]);
+        world.find("INBOX").never_return_body.insert(uid);
+    }
+    let report = fixture.pass().unwrap();
+    assert_eq!(report.mailboxes[0].bodies, 0);
+    let row = fixture.mailbox("INBOX");
+    let status = fixture
+        .engine
+        .with_store(|store| store.mailbox_status(row.id))
+        .unwrap();
+    assert_eq!((status.bodies_wanted, status.counts.bodies_held), (1, 0));
+    // Within the hour it is not asked for again.
+    fixture.server.take_log();
+    fixture.later(1);
+    fixture.pass().unwrap();
+    assert!(
+        !fetches(&fixture.server.take_log())
+            .iter()
+            .any(|command| command.contains("BODYSTRUCTURE"))
+    );
+}
+
+#[test]
+fn a_structure_nested_past_what_the_parser_can_read_is_passed_over() {
+    // Read whole, its reply would exhaust the parser's stack and abort the
+    // process: the reader refuses it as it arrives, and the message is held
+    // as one whose parts nest deeper than the engine reads, never asked for
+    // again.
+    let fixture = small_whole_limit();
+    {
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        let uid = world.add("INBOX", large_message(2, "Deep", "words", 6_000), &[]);
+        world.find("INBOX").nested.insert(uid);
+        world.add("INBOX", message(3, "Fine", None, "a fine one"), &[]);
+        world.add("INBOX", large_message(4, "Plans", "the garden", 6_000), &[]);
+    }
+    let report = fixture.pass().unwrap();
+    let inbox = &report.mailboxes[0];
+    assert_eq!(inbox.bodies, 3, "{inbox:?}");
+    let row = fixture.mailbox("INBOX");
+    let status = fixture
+        .engine
+        .with_store(|store| store.mailbox_status(row.id))
+        .unwrap();
+    assert_eq!((status.bodies_wanted, status.counts.bodies_held), (0, 3));
+    let log = fixture.server.take_log();
+    assert_read_only(&log);
+    // Each large message's structure asked for once: the refused one is not
+    // asked again on a new connection.
+    assert_eq!(
+        log.iter()
+            .filter(|command| command.contains("BODYSTRUCTURE"))
+            .count(),
+        2
+    );
+    let found = fixture
+        .engine
+        .with_store(|store| store.search("deep", 10))
+        .unwrap();
+    let listed = fixture
+        .engine
+        .with_store(|store| store.message_listed(found[0].message))
+        .unwrap()
+        .unwrap();
+    assert!(listed.held_in_parts);
+    assert_eq!(
+        listed.unparsed.as_deref(),
+        Some("the message's parts nest deeper than the engine reads")
+    );
+    fixture.later(HOUR);
+    fixture.pass().unwrap();
+    assert!(
+        !fixture
+            .server
+            .take_log()
+            .iter()
+            .any(|command| command.contains("BODYSTRUCTURE"))
+    );
+}
+
+#[test]
+fn a_message_held_in_parts_lists_its_parts_as_a_whole_one_does_and_opens_each_file() {
+    let fixture = small_whole_limit();
+    let bytes = forwarding_message(5, 6_000);
+    {
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        world.add("INBOX", bytes.clone(), &[]);
+    }
+    fixture.pass().unwrap();
+    let message = fixture
+        .engine
+        .with_store(|store| store.search("seed", 10))
+        .unwrap()[0]
+        .message;
+    let whole = loam_mail::derive::body_fields(&bytes);
+    let parts = |fixture: &Fixture| {
+        fixture
+            .engine
+            .with_store(|store| store.message_parts(message))
+            .unwrap()
+    };
+    // Its parts, their places, types and names are a whole message's.
+    let listed = parts(&fixture);
+    let seen: Vec<(String, String, String)> = listed
+        .iter()
+        .map(|part| {
+            (
+                part.place.clone(),
+                part.content_type.clone(),
+                part.name.clone(),
+            )
+        })
+        .collect();
+    let expected: Vec<(String, String, String)> = whole
+        .parts
+        .iter()
+        .map(|part| {
+            (
+                part.place.clone(),
+                part.content_type.clone(),
+                part.name.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(seen, expected);
+    assert_eq!(listed[1].name, "été.pdf");
+    assert_eq!(listed[4].name, "été list.pdf");
+    // The forwarded message's own text is its own, not this message's.
+    assert_eq!(
+        fixture
+            .engine
+            .with_store(|store| store.search("tomatoes", 10))
+            .unwrap()
+            .len(),
+        0
+    );
+
+    // Each file opened is fetched alone, then read as the whole message's.
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    fixture.server.take_log();
+    for place in ["2", "3.2"] {
+        let fetched = runtime
+            .block_on(loam_mail::fetch::fetch_part(
+                &fixture.engine,
+                message,
+                place,
+                7,
+            ))
+            .unwrap();
+        assert!(fetched, "{place}");
+        let content = fixture
+            .engine
+            .with_store(|store| store.part_content(message, place))
+            .unwrap();
+        assert_eq!(
+            content,
+            loam_mail::derive::part_content(&bytes, place),
+            "{place}"
+        );
+    }
+    let log = fixture.server.take_log();
+    assert_read_only(&log);
+    assert!(
+        log.iter()
+            .any(|command| command.ends_with("(UID BODY.PEEK[2])"))
+    );
+    assert!(
+        log.iter()
+            .any(|command| command.ends_with("(UID BODY.PEEK[3.2])"))
+    );
+    let opened = parts(&fixture);
+    for place in ["2", "3.2"] {
+        let row = opened.iter().find(|part| part.place == place).unwrap();
+        let found = whole.parts.iter().find(|part| part.place == place).unwrap();
+        assert_eq!(
+            (&row.detected, row.type_differs, row.size),
+            (&found.detected, found.type_differs, found.size),
+            "{place}"
+        );
+    }
+    // Opened again, nothing is fetched.
+    assert!(
+        !runtime
+            .block_on(loam_mail::fetch::fetch_part(
+                &fixture.engine,
+                message,
+                "2",
+                8
+            ))
+            .unwrap()
+    );
+
+    // A rebuild after files were opened derives the same.
+    let before = fixture.snapshot();
+    fixture
+        .engine
+        .with_store(|store| {
+            store.rebuild(9, |_| {})?;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(fixture.snapshot(), before);
+    assert_eq!(parts(&fixture), opened);
 }

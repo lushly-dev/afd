@@ -14,7 +14,7 @@ use crate::engine::Engine;
 use crate::provider::ProviderError;
 use crate::secrets::account_key;
 use crate::store::{AccountRow, MailboxRow, MailboxStatus, StoreError};
-use crate::sync::{AccountReport, SyncError, WHOLE_LIMIT, sync_account};
+use crate::sync::{AccountReport, SyncError, sync_account};
 
 /// A store's refusal as a command's failure, in the engine's own words.
 #[must_use]
@@ -162,6 +162,10 @@ pub fn provider_failure(error: &ProviderError) -> CommandError {
             .with_suggestion("Unlock the keychain, then try again."),
         ProviderError::NoCredential => CommandError::new("SIGN_IN_REQUIRED", error.to_string())
             .with_suggestion("Store the account's sign-in, then try again."),
+        ProviderError::TooDeep => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
+            .with_suggestion(
+                "The provider's reply cannot be read; trying again gets the same reply.",
+            ),
         _ => CommandError::new("PROVIDER_UNAVAILABLE", error.to_string())
             .with_suggestion(
                 "Check the network, then try again; `loam-mail mail-sync` carries on where it stopped.",
@@ -364,7 +368,7 @@ impl CommandHandler for Status {
                     if row.gone {
                         continue;
                     }
-                    let status = store.mailbox_status(row.id, WHOLE_LIMIT)?;
+                    let status = store.mailbox_status(row.id)?;
                     let state = mailbox_state(&row, &status);
                     synced &= state == "synced";
                     mailboxes.push(json!({
