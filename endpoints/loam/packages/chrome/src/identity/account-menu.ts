@@ -31,7 +31,7 @@ const styles = css`
 	}
 	.menu {
 		display: grid;
-		min-inline-size: 14rem;
+		min-inline-size: var(--shell-size-sidebar-min);
 		padding-block: var(--size-space-sm);
 		border: 1px solid var(--color-border-subtle);
 		border-radius: var(--radius-md);

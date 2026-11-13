@@ -77,7 +77,7 @@ const styles = [
 		}
 		dialog {
 			box-sizing: border-box;
-			inline-size: min(92vw, 28rem);
+			inline-size: min(92vw, var(--shell-size-main-min));
 			max-block-size: 80dvh;
 			padding: var(--space-layout-md);
 			border: 0;
