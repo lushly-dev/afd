@@ -47,6 +47,15 @@ commit-msg:
       run: npx commitlint --edit {1}
 
 pre-push:
+  # A clean checkout that `pnpm verify` passed on, pushing exactly that commit, has already run
+  # every command below: scripts/pre-push.mjs accepts its record (scripts/verify-record.mjs).
+  # Anything else runs `pre-push-checks` in full.
+  commands:
+    verified-or-checks:
+      use_stdin: true
+      run: node scripts/pre-push.mjs
+
+pre-push-checks:
   # Sequential to prevent stdout interleaving deadlock on Windows
   # (Biome diffs + TS errors flood parallel output buffers)
   parallel: false
