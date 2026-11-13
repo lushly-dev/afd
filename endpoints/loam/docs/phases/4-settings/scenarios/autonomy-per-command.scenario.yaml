@@ -1,0 +1,40 @@
+# Draft JTBD scenario for Loam's phase 4 specification.
+name: Narrow autonomy for one command
+description: >-
+  When one command in a project is risky, I want agents to ask before it while the rest of the
+  project acts, so that I'm interrupted only where it matters.
+job: autonomy-per-command
+steps:
+  - description: The project acts
+    command: autonomy-set
+    input: { level: project, project: atlas, mode: act }
+    expect:
+      success: true
+  - description: Except one command
+    command: autonomy-set
+    input: { level: project, project: atlas, instance: tally, command: tally-reset, mode: ask }
+    expect:
+      success: true
+  - description: "Another command inherits the project's mode (scope: atlas)"
+    command: autonomy-get
+    input: { command: tally-add, instance: tally }
+    expect:
+      success: true
+      data: { mode: act }
+  - description: "The narrowed one asks (scope: atlas)"
+    command: autonomy-get
+    input: { command: tally-reset, instance: tally }
+    expect:
+      success: true
+      data: { mode: ask }
+  - description: I lower my own cap, for my agents alone
+    command: autonomy-set
+    input: { level: person, cap: suggest }
+    expect:
+      success: true
+  - description: "My agents now only suggest (scope: atlas)"
+    command: autonomy-get
+    input: { command: tally-add, instance: tally }
+    expect:
+      success: true
+      data: { mode: suggest }

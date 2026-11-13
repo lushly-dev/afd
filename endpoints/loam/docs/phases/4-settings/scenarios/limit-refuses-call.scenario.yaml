@@ -1,0 +1,80 @@
+# Draft JTBD scenario for Loam's phase 4 specification. The limits' figures are in the error's
+# `details`, which a scenario cannot assert; P4-E10 does, with INPUT_TOO_LARGE, the store quota
+# and the per-instance call rate, which need inputs or call counts a scenario cannot carry.
+name: Be stopped by a limit, with the way forward
+description: >-
+  When an app sends more than it should, I want it refused with what the limit is and who can
+  change it, so that one app can't exhaust the shell.
+job: limit-refuses-call
+steps:
+  - description: An owner narrows the input limit, within its bounds
+    command: setting-set
+    input: { section: loam.limits, key: journalEntryBytes, value: 262144, level: workspace }
+    expect:
+      success: true
+  - description: An input limit above a quarter of the entry limit is refused, naming both
+    command: setting-set
+    input: { section: loam.limits, key: inputBytes, value: 131072, level: workspace }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: journalEntryBytes }
+  - description: Push 1 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 1 }
+    expect:
+      success: true
+  - description: Push 2 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 2 }
+    expect:
+      success: true
+  - description: Push 3 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 3 }
+    expect:
+      success: true
+  - description: Push 4 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 4 }
+    expect:
+      success: true
+  - description: Push 5 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 5 }
+    expect:
+      success: true
+  - description: Push 6 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 6 }
+    expect:
+      success: true
+  - description: Push 7 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 7 }
+    expect:
+      success: true
+  - description: Push 8 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 8 }
+    expect:
+      success: true
+  - description: Push 9 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 9 }
+    expect:
+      success: true
+  - description: Push 10 of the ten a minute allows
+    command: notification-push
+    input: { title: Reminder 10 }
+    expect:
+      success: true
+  - description: The eleventh in the minute is refused, with when to retry and who sets it
+    command: notification-push
+    input: { title: Reminder 11 }
+    expect:
+      success: false
+      error:
+        code: RATE_LIMITED
+        suggestion: { contains: retryAfterMs }

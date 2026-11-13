@@ -5,7 +5,7 @@ owning agent refreshes the rows it depends on before writing its
 specification. Dates are the sources' own; "reserved" means Loam keeps a
 seam for it without implementing a draft. Source IDs refer to the
 [ledger](sources.md). **Refreshed 2026-11-09** for the [phase 3 specification](phases/3-identity/spec.md#trajectory-refresh): W12,
-R10 and R14 re-checked, W31 to W33 added (S80 to S87). **Refreshed 2026-11-09** for the [phase 6 specification](phases/6-hosts/spec.md#trajectory-refresh): W7 and W30 re-checked, W34 to W37 added (S88 to S97).
+R10 and R14 re-checked, W31 to W33 added (S80 to S87). **Refreshed 2026-11-09** for the [phase 6 specification](phases/6-hosts/spec.md#trajectory-refresh): W7 and W30 re-checked, W34 to W37 added (S88 to S97). **Refreshed 2026-11-13** for the [phase 4 specification](phases/4-settings/spec.md#trajectory-refresh): R3, W4, R8 and R15 with W26 re-checked, W38 and W39 added (S98 to S100); R10 and W11 not re-checked externally.
 
 ## Eight movements
 
@@ -77,14 +77,14 @@ R10 and R14 re-checked, W31 to W33 added (S80 to S87). **Refreshed 2026-11-09** 
 | R5 | Routing on the Navigation API; view transitions where present. Revised 2026-11-02 by D74: five fixed shapes need no URLPattern | 2 | Libraries table; phases 0 and 2 |
 | R6 | A surface catalog with versioned surface ids and a removal rule for deprecated surfaces | 3 | Architecture section 4; phase 1 |
 | R7 | Native apps as self-contained ES modules; no bundler coupling in the contract. Revised 2026-11-01 by D60: an import map is a seam, not the contract, since an inline one needs a CSP hash | 3 | App manifest; phase 1 |
-| R8 | A personal, reorderable sidebar and rail, persisted as view-state | 4 | Layout engine; phase 4, moved 2026-11-02 by D75, with `bandFor`'s comparator as the seam |
+| R8 | A personal, reorderable sidebar and rail, persisted as view-state | 4 | Layout engine; phase 4, moved 2026-11-02 by D75, with `bandFor`'s comparator as the seam. Refreshed 2026-11-13: a person setting, `loam.rail.order` (proposed D117) |
 | R9 | A kernel behind the SDK interface, so Rust WebAssembly modules, a Rust-rendered chrome or a WebAssembly-component app kind can attach later without a contract change | 5 | Architecture sections 5 and 6; phases 0 and 6 |
 | R10 | Workspaces bound to provider organizations; a reserved tenant field; experiments with audiences | 6 | Data model; D32; phase 3, which binds by the organization's id, pinned on the server (proposed D85, 2026-11-09). Refreshed 2026-11-09: Better Auth's documentation is silent on the last owner, but 1.7 refuses leaving as the only owner (S81, S84) |
 | R11 | A copilot runtime adapter so the SDK can change, with agents, delegations, runs and sessions as Loam's records above it and AG-UI as the stream so another runtime can attach | 1 | Architecture sections 4 and 5; D27; phase 5 |
 | R12 | Document types as contributions with one model and many editors, so a document can later be served as an MCP Apps view or driven by any agent through its instance commands | 1 | Architecture sections 4, 5 and 7; phase 2 |
 | R13 | The registry projected outward: WebMCP tools in the browser, an MCP bundle for platform registries, AppFunctions and App Intents through Tauri mobile, all as projections of `expose` | 7 | D39; phase 5 and later |
 | R14 | Agent members with sponsors, project scope, delegation and guidance, on AFD's actor and `onBehalfOf` | 8 | D40; phases 3 and 5. Refreshed 2026-11-09: no agent-identity standard to adopt; the IETF on-behalf-of draft expired unadopted (S87), so AFD's actor stays the wire form (proposed D90, D91) |
-| R15 | Autonomy policy in settings with approval-health metrics, and untrusted labels on tool results | 8 | D41; phases 4 and 5 |
+| R15 | Autonomy policy in settings with approval-health metrics, and untrusted labels on tool results | 8 | D41; phases 4 and 5. Refreshed 2026-11-13: OWASP's agentic Top 10 published 2025-12-09 (S100); phase 4 stores, resolves and shows the policy, and only a person raises it (proposed D118) |
 | R16 | Runs as shell resources with isolation, artifacts, scheduling and shared visibility | 8 | D42; phase 5 records |
 | R17 | A2UI rendered from the kit as the second agent-UI path, and agent packs in the Agent Skills and plugin-directory shapes | 1, 8 | D43 and D44; phase 5 |
 | R18 | Collaboration as one shell service bound per document type and run, with the journal as record, CRDT updates as commands, link generations and authorization epochs | 8 | D46; its own specification after phases 2 and 6 |
@@ -130,6 +130,8 @@ R10 and R14 re-checked, W31 to W33 added (S80 to S87). **Refreshed 2026-11-09** 
 | W35 | The MCP Registry | Added 2026-11-09: in preview, with resets possible before general availability; `server.json` at schema `2025-12-11`; OCI images verified by the `io.modelcontextprotocol.server.name` annotation; no private servers (S94) | General availability | An entry describes Loam's image, never a deployment; nothing submitted until the owner admits it (proposed D107) |
 | W36 | MCP Server Cards | Added 2026-11-09: SEP-2127 is Final; a card at `<streamable-http-url>/server-card`, `application/mcp-server-card+json`, open CORS and `ETag`; an AI Catalog at `/.well-known/ai-catalog.json`; no tools in a card (S95). Umbel's R11 plans its own | The extension's next version | The hosted server serves a card; the catalog is off by default (proposed D107) |
 | W37 | Node 26 | Added 2026-11-09: LTS ("Lithium"), 26.13.0 on 2026-10-28; `node:26-trixie-slim` updated 2026-11-05 (S96) | Node 28 | The hosted server and its image run Node 26, the base pinned by digest |
+| W38 | `<dialog closedby>` | Added 2026-11-13: in Chrome and Edge 134 and Firefox 141; not in Safari, tracked as WebKit bug 284592; in Interop 2026 (S98) | Safari's release | Phase 4 does not use it: a modal closes by Escape or its buttons, a non-modal dialog never light-dismisses (proposed D121) |
+| W39 | `popover="hint"` and interest invokers | Added 2026-11-13: a first version in Chrome 133; caniuse's data lists a corrected version in Firefox 153 and Chrome 151; Safari not shipped, in Interop 2026; `interestfor` shipping in Chromium (S99) | Safari's release | Not used: the rail's shared tooltip stays; menus and info popovers are `popover="auto"` |
 
 ## Deliberately not chased
 
@@ -146,7 +148,7 @@ model gateway of Loam's own.
 ## Sources
 
 The dated sources for the movements above are rows S01 to S34, S43 to S53
-and S55 to S78 of the [ledger](sources.md), S80 to S87 for the rows refreshed on 2026-11-09 for phase 3, and S88 to S97 for those refreshed the same day for phase 6. Umbel's [trajectory
+and S55 to S78 of the [ledger](sources.md), S80 to S87 for the rows refreshed on 2026-11-09 for phase 3, and S88 to S97 for those refreshed the same day for phase 6, and S98 to S100 for those refreshed on 2026-11-13 for phase 4. Umbel's [trajectory
 watch](../../umbel/docs/trajectory.md) covers the protocol, harness and
 enterprise-context movements Loam depends on through Umbel, in particular
 MCP Events, Tasks, agent identity and Skills over MCP, and is not repeated

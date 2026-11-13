@@ -1,0 +1,34 @@
+# Draft JTBD scenario for Loam's phase 4 specification. The prompt's Run is a person's gesture
+# in the chrome; `palette-run` with `input` is what Run sends, so the job shows both halves.
+name: Run a command that needs input from the palette
+description: >-
+  When a command needs input, I want the palette to ask me for it, so that I can run any command
+  without opening its app.
+job: palette-prompts-for-input
+tags: [slice]
+steps:
+  - description: A command that needs input is listed, with its app's title
+    command: palette-search
+    input: { query: add item }
+    expect:
+      success: true
+      data:
+        items:
+          - { name: checklist-item-add }
+  - description: Choosing it opens a prompt for its input
+    command: palette-run
+    input: { command: checklist-item-add }
+    expect:
+      success: true
+      data: { prompt: { kind: prompt } }
+  - description: Run with the input the prompt collected
+    command: palette-run
+    input: { command: checklist-item-add, input: { document: doc_checklist0000001, text: Water the beds } }
+    expect:
+      success: true
+  - description: Input the schema refuses keeps the prompt open, with the reason
+    command: palette-run
+    input: { command: checklist-item-add, input: { document: doc_checklist0000001 } }
+    expect:
+      success: false
+      error: { code: VALIDATION_ERROR }
