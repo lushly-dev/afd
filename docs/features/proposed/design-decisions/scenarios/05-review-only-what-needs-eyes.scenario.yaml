@@ -1,0 +1,54 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# main and branch were captured with axe. On branch the toolbar gap token changed, which moves
+# every toolbar; axe could not decide the empty list's contrast in either set. toolbar--airy and
+# toolbar--grouped are kept, unchosen variants.
+
+name: Review only what needs eyes
+description: >-
+  When I review a change, I want to see only what no gate settled, grouped by cause, each with
+  its before and after captures, so that my attention goes where a machine cannot decide.
+job: review-only-what-needs-eyes
+tags: [slice]
+fixture:
+  file: fixtures/decided.json
+  base: toolbar.json
+
+steps:
+  - description: Two items are open; the kept variants are left out and the rest is counted
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+    expect:
+      success: true
+      data:
+        before.set: set-4f1c0a9e2b7d
+        before.revision: a1b2c3d
+        after.set: set-7e2a90c4d311
+        open: { length: 2 }
+        open.0.kind: changed
+        open.0.ids: [editor--shell, toolbar--dense]
+        open.0.captures: { length: 2 }
+        open.0.captures.0.before: { exists: true }
+        open.0.captures.0.after: { exists: true }
+        open.1.kind: incomplete-check
+        open.1.ids: [list--empty]
+        open.1.check: color-contrast
+        blocking: { length: 0 }
+        settled.unchanged: 2
+        settled.kept: 2
+        page: { contains: 'review.html?before=set-4f1c0a9e2b7d&after=set-7e2a90c4d311' }
+
+  - description: A label with no set is refused, with how to make one and what a label is
+    command: specimen-review
+    input:
+      before: release-1
+      after: branch
+    expect:
+      success: false
+      error:
+        code: CAPTURE_SET_NOT_FOUND
+        message: release-1
+        suggestion: { contains: specimen-capture }

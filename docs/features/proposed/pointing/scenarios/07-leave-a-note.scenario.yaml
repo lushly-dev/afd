@@ -1,0 +1,61 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented, as in scenario 01. The project has no notes yet. Note ids are random, so
+# notes made on two branches cannot collide.
+
+name: Leave a note on an element for later
+description: >-
+  When I notice something I will not fix now, I want to pin a note to the element for an agent to
+  pick up later, so that the observation is not lost.
+job: leave-a-note
+tags: [notes]
+
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: The note is made straight from the pointer the review page copied, and assigned to an agent
+    command: specimen-note-add
+    input:
+      pointer: "specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:2&text=Export"
+      text: Export should offer CSV and PDF, not only CSV
+      assignee: agent
+    expect:
+      success: true
+      data:
+        note:
+          id: { matches: '^note-[0-9a-z]{12}$' }
+          state: open
+          orphaned: false
+          assignee: agent
+          subject:
+            specimen: example-toolbar
+            accessible:
+              role: button
+              name: Export
+          pin:
+            x: { between: [0, 1] }
+            y: { between: [0, 1] }
+
+  - description: An agent asking for its open notes finds it, one page at a time
+    command: specimen-note-list
+    input:
+      assignee: agent
+      limit: 20
+    expect:
+      success: true
+      data:
+        notes: { length: 1 }
+        notes.0.id: { matches: '^note-[0-9a-z]{12}$' }
+        notes.0.text: { contains: CSV and PDF }
+        next: { notExists: true }
+
+  - description: A note with no text is refused
+    command: specimen-note-add
+    input:
+      pointer: "specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:2&text=Export"
+      text: ""
+    expect:
+      success: false
+      error:
+        code: NOTE_EMPTY
+        suggestion: { contains: what }

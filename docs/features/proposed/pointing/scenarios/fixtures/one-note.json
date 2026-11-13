@@ -1,0 +1,19 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "4f2c9a1", "dirty": false },
+	"points": {},
+	"notes": {
+		"note-9v4b7n2k5m1c": {
+			"state": "open",
+			"assignee": "agent",
+			"text": "Export should offer CSV and PDF, not only CSV",
+			"subject": {
+				"specimen": "example-toolbar",
+				"accessible": { "role": "button", "name": "Export" },
+				"component": "example-button",
+				"position": 2
+			},
+			"history": []
+		}
+	}
+}

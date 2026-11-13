@@ -1,0 +1,102 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# toolbar--grouped fails colour contrast when it renders. Step references are resolved in
+# `input` only, so `expect` uses matchers. No `subjects.specimens` is given in step 4, so it
+# defaults to the chosen variant.
+
+name: Record the choice with its reason and evidence
+description: >-
+  When I choose a variant, I want the choice, the reason and the captures it rested on recorded
+  together and written beside the code, so that a later agent or I can find why it is the way it is.
+job: record-the-choice
+tags: [slice]
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: The variants are compared
+    command: specimen-compare
+    input:
+      ids: [toolbar--dense, toolbar--airy, toolbar--grouped]
+    expect:
+      success: true
+      data:
+        set: { matches: '^set-' }
+
+  - description: A choice without a reason is refused
+    command: decision-record
+    input:
+      slug: toolbar-density
+      question: How dense should the toolbar be?
+      set: ${{ steps[0].data.set }}
+      chosen: toolbar--dense
+      reason: ''
+    expect:
+      success: false
+      error:
+        code: REASON_REQUIRED
+        suggestion: { contains: reason }
+
+  - description: A choice that is not one of the compared variants is refused
+    command: decision-record
+    input:
+      slug: toolbar-density
+      question: How dense should the toolbar be?
+      set: ${{ steps[0].data.set }}
+      chosen: toolbar--compact
+      reason: Fits twelve commands.
+    expect:
+      success: false
+      error:
+        code: VARIANT_NOT_FOUND
+        message: toolbar--compact
+        suggestion: { contains: toolbar--dense }
+
+  - description: A variant that failed a gate in the comparison cannot be chosen
+    command: decision-record
+    input:
+      slug: toolbar-density
+      question: How dense should the toolbar be?
+      set: ${{ steps[0].data.set }}
+      chosen: toolbar--grouped
+      reason: Groups read better.
+    expect:
+      success: false
+      error:
+        code: CHOSEN_FAILS_GATE
+        message: color-contrast
+        suggestion: { contains: specimen-compare }
+
+  - description: The choice is recorded with its reason and subjects, and its evidence is written
+    command: decision-record
+    input:
+      slug: toolbar-density
+      question: How dense should the toolbar be?
+      set: ${{ steps[0].data.set }}
+      chosen: toolbar--dense
+      reason: The editor shows twelve commands; at the airy gap the last three wrap at 1280 px.
+      subjects:
+        files: ['src/toolbar/**']
+        tokens: [space.toolbar.gap]
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-[a-z2-7]{12}$' }
+        kind: choice
+        chosen: toolbar--dense
+        kept: [toolbar--airy, toolbar--grouped]
+        path: { matches: '^specimens/decisions/dec-[a-z2-7]{12}\.json$' }
+        evidenceDir: { matches: '^specimens/evidence/set-[0-9a-f]{12}/$' }
+
+  - description: Reading it back gives the reason and the captures it rested on
+    command: decision-get
+    input:
+      decision: ${{ steps[4].data.decision }}
+    expect:
+      success: true
+      data:
+        reason: { contains: twelve commands }
+        evidence.set: { matches: '^set-[0-9a-f]{12}$' }
+        evidence.captures: { length: 3 }
+        subjects.specimens: [toolbar--dense]

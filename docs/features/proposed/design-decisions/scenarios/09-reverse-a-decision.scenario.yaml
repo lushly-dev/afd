@@ -1,0 +1,83 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# The 2026-11-12 decision chose dense, kept airy and discarded grouped and compact. The Grouped
+# export is still in the code; the Compact export was deleted after the discard. Step references
+# are resolved in `input` only, so `expect` uses matchers.
+
+name: Go back on a decision
+description: >-
+  When I change my mind about a choice or a discard, I want to reverse it with a reason, even when
+  the original comparison is gone, so that a decision is never a one-way door and the reason an
+  agent finds is the current one.
+job: reverse-a-decision
+fixture:
+  file: fixtures/decided.json
+  base: toolbar.json
+  overrides:
+    decisions:
+      - id: dec-q7k2m4xab3na
+        kind: choice
+        slug: toolbar-density
+        status: current
+        question: How dense should the toolbar be?
+        variants: [toolbar--dense, toolbar--airy, toolbar--grouped, toolbar--compact]
+        chosen: toolbar--dense
+        kept: [toolbar--airy]
+        discarded: [toolbar--grouped, toolbar--compact]
+        discardedAt: { toolbar--grouped: 9f8e7d6, toolbar--compact: 9f8e7d6 }
+        reason: The editor shows twelve commands; at the airy gap the last three wrap at 1280 px.
+        evidence: { set: set-9c03e1d27a55, dir: specimens/evidence/set-9c03e1d27a55/ }
+        subjects: { specimens: [toolbar--dense, editor--shell], files: ['src/toolbar/**'], tokens: [space.toolbar.gap] }
+        decidedBy: { kind: person }
+
+steps:
+  - description: The choice moves to the kept variant, with no comparison set; the evidence carries over
+    command: decision-record
+    input:
+      supersedes: dec-q7k2m4xab3na
+      chosen: toolbar--airy
+      reason: Commands fell to eight, so the airy gap no longer wraps and reads calmer.
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-[a-z2-7]{12}$' }
+        supersedes: dec-q7k2m4xab3na
+        chosen: toolbar--airy
+        kept: [toolbar--dense]
+        evidence.set: set-9c03e1d27a55
+
+  - description: The agent finds the new choice and reason
+    command: decision-check
+    input:
+      specimens: [toolbar--dense]
+    expect:
+      success: true
+      data:
+        decisions: { length: 1 }
+        decisions.0.decision: { matches: '^dec-[a-z2-7]{12}$' }
+        decisions.0.supersedes: dec-q7k2m4xab3na
+        decisions.0.chosen: toolbar--airy
+
+  - description: A discarded variant whose export is still in the code is restored to kept
+    command: decision-restore
+    input:
+      decision: ${{ steps[0].data.decision }}
+      variants: [toolbar--grouped]
+    expect:
+      success: true
+      data:
+        kept: [toolbar--dense, toolbar--grouped]
+        discarded: [toolbar--compact]
+
+  - description: A discarded variant whose export was deleted is refused, naming where to recover it
+    command: decision-restore
+    input:
+      decision: ${{ steps[0].data.decision }}
+      variants: [toolbar--compact]
+    expect:
+      success: false
+      error:
+        code: EXPORT_MISSING
+        message: Compact
+        suggestion: { contains: 9f8e7d6 }

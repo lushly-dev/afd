@@ -1,0 +1,33 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "a1b2c3d", "dirty": false },
+	"specimens": {
+		"example-toolbar": {
+			"module": "src/toolbar/toolbar.specimens.ts",
+			"exportName": "Toolbar",
+			"checkpoints": ["mount", "menu-open"],
+			"renders": [
+				"example-toolbar[role=toolbar]",
+				"example-toolbar > shadow > input[role=searchbox]",
+				"example-toolbar > shadow > example-button:1 > shadow > button 'Share'",
+				"example-toolbar > shadow > example-button:2 > shadow > button 'Export'"
+			]
+		}
+	},
+	"components": {
+		"example-button": "src/example-button.ts",
+		"example-toolbar": "src/toolbar/toolbar.ts"
+	},
+	"violet": {
+		"nodes": ["example-dark"],
+		"tokens": {
+			"color.accent.primary": {
+				"property": "--color-accent-primary",
+				"readBy": ["Share", "Export", "searchbox focus ring"]
+			},
+			"button.share.background": { "property": "--button-share-background", "readBy": ["Share"] }
+		}
+	},
+	"points": {},
+	"notes": {}
+}

@@ -1,0 +1,32 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. This runs on a machine with no browser installed.
+# `scenario-evaluate` runs on the example app's own afd-testing server, as in 02. The scenario's
+# format is unchanged by this proposal: captures are declared in Specimen's configuration.
+
+name: Run a job without a browser
+description: >-
+  When no browser is available, I want the job's scenario to run as it does today and only the
+  captures refused, so that capture is something added, never required.
+job: run-without-a-browser
+tags: [refuse]
+
+steps:
+  - description: The scenario runs headless, unchanged
+    command: scenario-evaluate
+    input:
+      scenarios: [example/scenarios/keep-a-draft.scenario.yaml]
+    expect:
+      success: true
+      data:
+        exitCode: 0
+        report.summary.passedScenarios: 1
+
+  - description: Capturing it is refused, and the headless ways are named
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft
+    expect:
+      success: false
+      error:
+        code: BROWSER_UNAVAILABLE
+        suggestion: { contains: afd scenario run }
