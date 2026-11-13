@@ -1,6 +1,6 @@
 [project]
 name = "lushly-botcore"
-version = "0.6.1"
+version = "0.7.0"
 description = "Shared bot infrastructure — config, plugin contract, and extracted commands"
 requires-python = ">=3.11"
 license = { text = "MIT" }
