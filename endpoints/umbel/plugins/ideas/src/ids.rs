@@ -29,6 +29,12 @@ pub(crate) fn drawn(cx: &Cx) -> Result<String, Outcome> {
 
 /// 24 hexadecimal digits derived from the call's idempotency key and an item's index.
 pub(crate) fn derived(call: &Call, key: &str, index: usize) -> String {
+    derived_tag(call, key, &index.to_string())
+}
+
+/// 24 hexadecimal digits derived from the call's idempotency key and a tag in place of an
+/// index: a stage's review is `review`, which no index spells.
+pub(crate) fn derived_tag(call: &Call, key: &str, tag: &str) -> String {
     let mut hash = Sha256::new();
     hash.update(call.principal.as_bytes());
     hash.update([0]);
@@ -36,7 +42,7 @@ pub(crate) fn derived(call: &Call, key: &str, index: usize) -> String {
     hash.update([0]);
     hash.update(key.as_bytes());
     hash.update([0]);
-    hash.update(index.to_string().as_bytes());
+    hash.update(tag.as_bytes());
     hex(&hash.finalize())[..24].to_owned()
 }
 

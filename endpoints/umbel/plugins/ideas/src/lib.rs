@@ -10,7 +10,8 @@
 //!   writes; `ids`: ids drawn or derived from an idempotency key; `label`: the host's standing
 //!   label passed through; `bands`: a score's band.
 //! - `capture`, `match_`, `find`, `open`, `guide` and `archive`: the commands of step C1;
-//!   `ask`, step C2's. The review commands answer `NOT_IMPLEMENTED` until steps C3 and C4.
+//!   `ask`, step C2's; `review`, step C3's: stage, show, unstage, the unpaged preview, apply and
+//!   undo. `ideas-review-report` answers `NOT_IMPLEMENTED` until step C4.
 //!
 //! A statement, a reason or a question is never in a message, a suggestion, a detail or a log
 //! line. No code here uses a filesystem, clock, thread or network: the clock and the random
@@ -32,6 +33,7 @@ mod open;
 mod pack;
 mod pending;
 mod records;
+mod review;
 
 use serde_json::Value;
 use umbel_sdk::{Asset, Cx, Outcome, Plugin, success};
@@ -71,12 +73,12 @@ impl Plugin for Ideas {
             "ideas-export" => archive::export(&input, cx, &call),
             "ideas-import" => archive::import(&input, cx, &call),
             "ideas-ask" => ask::run(&input, cx, &call),
-            "ideas-review-stage"
-            | "ideas-review-show"
-            | "ideas-review-unstage"
-            | "ideas-review-preview"
-            | "ideas-review-apply"
-            | "ideas-review-report" => Err(fail::not_implemented(name)),
+            "ideas-review-stage" => review::stage::run(&input, cx, &call),
+            "ideas-review-show" => review::show::run(&input, cx, &call),
+            "ideas-review-unstage" => review::unstage::run(&input, cx, &call),
+            "ideas-review-preview" => review::preview::run(&input, cx, &call),
+            "ideas-review-apply" => review::apply::run(&input, cx, &call),
+            "ideas-review-report" => Err(fail::not_implemented(name)),
             other => Err(fail::unknown_command(other)),
         };
         result.unwrap_or_else(|refusal| refusal)

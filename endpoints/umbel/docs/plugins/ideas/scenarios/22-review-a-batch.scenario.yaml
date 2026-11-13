@@ -172,7 +172,9 @@ steps:
         pulled: { length: 0 }
         skipped: { length: 0 }
 
-  - description: A digest taken before a change is refused
+  # At a terminal the preview runs first and refuses the changed part, so nothing is asked of
+  # the person; the preview's own answer is CONFLICT, naming ideas-review-show (amendment C3-1).
+  - description: A digest taken before a change is refused before I am asked
     command: ideas-review-apply
     input:
       review: "${{ steps[3].data.review }}"
@@ -181,8 +183,8 @@ steps:
     expect:
       success: false
       error:
-        code: CONFLICT
-        suggestion: { contains: ideas-review-show }
+        code: CONFIRMATION_PREVIEW_FAILED
+        suggestion: { contains: ideas-review-preview }
 
   - description: The other group as it stands now
     command: ideas-review-show
