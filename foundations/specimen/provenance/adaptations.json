@@ -1104,7 +1104,7 @@
       "upstream_sha256": null,
       "staged_path": "verify-artifacts.mjs",
       "staged_sha256": "ad7f35d1389cd0bddd8c128d568f2031dab888df9b12f2077faa1151554270df",
-      "current_import_sha256": "de3e34c478fb490705c2ea57b25f36a4832c382277451ae2454cc73c07ded526",
+      "current_import_sha256": "4f8471168f1f7df8b4f220c398ad0ce4a22f3aa692047fb530eb2eff97a18bcc",
       "stage_classification": "staging-evidence",
       "stage_reason": "Candidate staging tool or record, not upstream source",
       "import_classification": "derived-from-staging",
